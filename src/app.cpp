@@ -10308,6 +10308,7 @@ void App::readlyrics_open() {
     rd_pane_ = 0;
     rd_confirm_del_ = false;
     rd_opts_open_ = false;
+    rd_search_open_ = false;
     rd_opts_warn_.clear();
     rd_status_.clear();
     rd_status_warn_ = false;
@@ -10320,6 +10321,7 @@ void App::readlyrics_open() {
 void App::readlyrics_close() {
     if (rd_opts_dirty_) { save_settings(settings_); rd_opts_dirty_ = false; }
     rd_opts_open_ = false;
+    rd_search_open_ = false;
     rd_confirm_del_ = false;
     // A translation that is still running is NOT stopped: it is saved when done (readlyrics_poll() tells).
     mode_ = Mode::Browse;
@@ -10531,7 +10533,9 @@ void App::readlyrics_options_key(int key) {
 void App::handle_readlyrics_key(int key) {
     if (key == 0) return;
     if (rd_opts_open_) { readlyrics_options_key(key); return; }
+    if (rd_search_open_) { readlyrics_search_key(key); return; }
     const bool arrow = last_key_was_arrow();
+    if (key == kKeyCtrlS && !rd_confirm_del_) { readlyrics_search_open(); return; }
     if (rd_confirm_del_) {   // "delete this translation?" -- only y confirms
         if (!arrow && (key == 'y' || key == 'Y')) readlyrics_delete_translation();
         else { rd_confirm_del_ = false; rd_status_ = "kept"; rd_status_warn_ = false; }
@@ -10566,6 +10570,163 @@ void App::handle_readlyrics_key(int key) {
     if (key == 'b' || key == 'B') { rd_scroll_ = std::max(0, rd_scroll_ - std::max(1, term_rows_ - 14)); return; }
     if (key == kKeyHome) { rd_scroll_ = 0; return; }
     if (key == kKeyEnd) { rd_scroll_ = 1 << 20; return; }       // clamped to the last page while drawing
+}
+
+// --- CTRL+s: search the lyrics files ------------------------------------------------------------------------------
+// Lyrics live in a "lyrics" folder inside the folder of each track (and of the library folders / the download cache),
+// so those are the folders that are searched: one listing per distinct folder, done when the search is opened.
+void App::readlyrics_search_open() {
+    std::set<std::string> dirs;
+    auto add_dir = [&](const fs::path& folder) { if (!folder.empty()) dirs.insert(path_utf8(folder / "lyrics")); };
+    for (const auto& t : all_local_tracks_) add_dir(t.path.parent_path());
+    for (const auto& p : settings_.local_music_paths) add_dir(path_from_utf8(p));
+    add_dir(rd_track_.parent_path());
+    rd_search_all_.clear();
+    rd_search_dirs_ = 0;
+    for (const auto& d : dirs) {
+        std::error_code ec;
+        const fs::path dir = path_from_utf8(d);
+        if (!fs::is_directory(dir, ec)) continue;
+        ++rd_search_dirs_;
+        const std::string folder = path_utf8(dir.parent_path().filename());
+        for (fs::directory_iterator it(dir, fs::directory_options::skip_permission_denied, ec), end; !ec && it != end; it.increment(ec)) {
+            std::error_code e2;
+            if (!it->is_regular_file(e2)) continue;
+            const std::string ext = ascii_lower_str(path_utf8(it->path().extension()));
+            if (ext != ".lrc" && ext != ".txt") continue;
+            LyricsFileHit h;
+            h.path = it->path();
+            h.name = path_utf8(it->path().stem());
+            h.lname = ascii_lower_str(h.name);
+            h.folder = folder;
+            rd_search_all_.push_back(std::move(h));
+            if (rd_search_all_.size() >= 200000) break;
+        }
+    }
+    std::sort(rd_search_all_.begin(), rd_search_all_.end(), [](const LyricsFileHit& a, const LyricsFileHit& b) {
+        return a.lname != b.lname ? a.lname < b.lname : a.folder < b.folder;
+    });
+    rd_search_q_.clear();
+    rd_search_sel_ = rd_search_first_ = 0;
+    readlyrics_search_rebuild();
+    rd_search_open_ = true;
+    rd_status_.clear();
+}
+
+// Every word of the query has to be somewhere in the file name (any order, case-insensitive for ASCII letters).
+void App::readlyrics_search_rebuild() {
+    std::vector<std::string> words;
+    {
+        std::istringstream iss(ascii_lower_str(rd_search_q_));
+        std::string w;
+        while (iss >> w) words.push_back(w);
+    }
+    rd_search_view_.clear();
+    for (size_t i = 0; i < rd_search_all_.size(); ++i) {
+        bool ok = true;
+        for (const auto& w : words) if (rd_search_all_[i].lname.find(w) == std::string::npos) { ok = false; break; }
+        if (ok) rd_search_view_.push_back(static_cast<int>(i));
+    }
+    const int n = static_cast<int>(rd_search_view_.size());
+    rd_search_sel_ = std::clamp(rd_search_sel_, 0, std::max(0, n - 1));
+    rd_search_first_ = std::clamp(rd_search_first_, 0, std::max(0, n - 1));
+}
+
+// Makes the reader show one lyrics file. It is handed over as the only "version" of a track that sits in the folder
+// above the lyrics folder: that is what makes the translations of this file land in (and come from) the folder the file
+// is in, exactly as for a real track (the track file itself is never opened).
+void App::readlyrics_show_file(const LyricsFileHit& hit) {
+    LyricsVersion v;
+    v.kind = LyricsVersion::Kind::Fetched;
+    v.file = hit.path;
+    v.label = path_utf8(hit.path.filename());
+    v.detail = hit.folder;
+    v.active = true;
+    rd_track_ = hit.path.parent_path().parent_path() / path_from_utf8(hit.name + ".audio");
+    rd_title_ = hit.name;
+    rd_versions_.assign(1, v);
+    rd_sel_ = 0;
+    rd_first_ = 0;
+    rd_pane_ = 0;
+    readlyrics_load_version();
+    rd_status_ = "showing a lyrics file from the search -- CTRL+L closes the reader, open it again for the playing track";
+    rd_status_warn_ = false;
+}
+
+void App::readlyrics_search_key(int key) {
+    const bool arrow = last_key_was_arrow();
+    const int n = static_cast<int>(rd_search_view_.size());
+    if (key == 27 || key == kKeyCtrlS) { rd_search_open_ = false; return; }
+    if (key == '\r' || key == '\n') {
+        if (n == 0) return;
+        const LyricsFileHit hit = rd_search_all_[static_cast<size_t>(rd_search_view_[static_cast<size_t>(rd_search_sel_)])];
+        rd_search_open_ = false;
+        readlyrics_show_file(hit);
+        return;
+    }
+    if (arrow && key == 'A') { rd_search_sel_ = std::max(0, rd_search_sel_ - 1); return; }
+    if (arrow && key == 'B') { rd_search_sel_ = std::min(std::max(0, n - 1), rd_search_sel_ + 1); return; }
+    if (arrow) return;
+    if (key == kKeyHome) { rd_search_sel_ = 0; return; }
+    if (key == kKeyEnd) { rd_search_sel_ = std::max(0, n - 1); return; }
+    if (key == 127 || key == 8) { pop_utf8_char(rd_search_q_); rd_search_sel_ = rd_search_first_ = 0; readlyrics_search_rebuild(); return; }
+    if (is_text_key(key) && rd_search_q_.size() < 100) {
+        rd_search_q_ += static_cast<char>(key);
+        rd_search_sel_ = rd_search_first_ = 0;
+        readlyrics_search_rebuild();
+    }
+}
+
+std::vector<std::string> App::build_readlyrics_search_panel() const {
+    const int PW = 74, inner = PW - 4;
+    const std::string border = ansi_for(settings_.border_color, false);
+    const std::string border_bottom = ansi_for(settings_.border_color_bottom, false);
+    const std::string R = "\x1b[0m";
+    const std::string bar = border + settings_.box_vertical + R;
+    std::vector<std::string> out;
+    out.push_back(box_top("SEARCH LYRICS FILES", PW, border));
+    // the query, with a caret
+    {
+        const std::string pre = "Search: ";
+        const int room = std::max(1, inner - display_width(pre) - 1);
+        std::string shown = rd_search_q_;   // a long query keeps its END visible: cut from the front
+        while (display_width(shown) > room && !shown.empty()) {
+            size_t i = 1;
+            while (i < shown.size() && (static_cast<unsigned char>(shown[i]) & 0xC0) == 0x80) ++i;
+            shown.erase(0, i);
+        }
+        out.push_back(bar + " " + header_sgr(settings_) + pre + R + shown + "\x1b[7m \x1b[0m" +
+                      std::string(static_cast<size_t>(std::max(0, inner - display_width(pre) - display_width(shown) - 1)), ' ') + " " + bar);
+    }
+    out.push_back(bar + " " + std::string(static_cast<size_t>(inner), ' ') + " " + bar);
+    const int list_rows = std::clamp(term_rows_ - 12, 3, 14);
+    const int n = static_cast<int>(rd_search_view_.size());
+    int first = std::clamp(rd_search_first_, 0, std::max(0, n - 1));
+    const int sel = std::clamp(rd_search_sel_, 0, std::max(0, n - 1));
+    if (sel < first) first = sel;
+    if (sel >= first + list_rows) first = sel - list_rows + 1;
+    for (int r = 0; r < list_rows; ++r) {
+        const int i = first + r;
+        std::string painted;
+        if (i < n) {
+            const LyricsFileHit& h = rd_search_all_[static_cast<size_t>(rd_search_view_[static_cast<size_t>(i)])];
+            const std::string tail = h.folder.empty() ? std::string() : "  (" + h.folder + ")";
+            const int tail_w = std::min(display_width(tail), inner / 3);
+            std::string left = truncate_str(h.name, std::max(5, inner - tail_w));
+            std::string line = pad_right(left, inner - tail_w) + pad_right(truncate_str(tail, tail_w), tail_w);
+            painted = i == sel ? cursor_sgr(settings_.list_cursor_color, settings_.list_cursor_bg_color) + line + R : line;
+        } else if (r == 0 && n == 0) {
+            painted = pad_right(rd_search_all_.empty() ? "no lyrics files found in the lyrics folders of the library" : "no lyrics file matches", inner);
+        } else {
+            painted = std::string(static_cast<size_t>(inner), ' ');
+        }
+        out.push_back(bar + " " + painted + " " + bar);
+    }
+    out.push_back(bar + " " + std::string(static_cast<size_t>(inner), ' ') + " " + bar);
+    const std::string info = std::to_string(n) + " of " + std::to_string(rd_search_all_.size()) + " files  in " + std::to_string(rd_search_dirs_) + (rd_search_dirs_ == 1 ? " folder" : " folders");
+    out.push_back(bar + " " + legend_sgr(settings_) + pad_right(truncate_str(info, inner), inner) + R + " " + bar);
+    out.push_back(box_bottom(PW, "[↑↓] Pick  [ENTER] Open  [ESC] Close", border_bottom));
+    return out;
 }
 
 std::vector<std::string> App::build_readlyrics_options_panel() const {
@@ -10692,7 +10853,7 @@ void App::build_readlyrics_screen(std::ostringstream& frame, int W, int target_h
     if (rd_confirm_del_ && rd_tsel_ >= 0 && rd_tsel_ < static_cast<int>(rd_tlist_.size()))
         hint = "Delete the " + language_name(rd_tlist_[static_cast<size_t>(rd_tsel_)].to) + " translation?  [y] Yes | [any other key] No";
     else   // the same legend in both panes (TAB only moves the focus indicator): the keys that act on the focused pane say so in one entry
-        hint = "[←→] Choose file/Translation | [TAB] Pane | [↑↓] Scroll | [SPACE/b] Page | [HOME/END] Top/Bottom | [d/DEL] Delete translation | [t] Translate | [SHIFT+t] Show/Toggle/Hide translations | [ESC] Close";
+        hint = "[←→] Choose file/Translation | [TAB] Pane | [↑↓] Scroll | [SPACE/b] Page | [HOME/END] Top/Bottom | [d/DEL] Delete translation | [t] Translate | [SHIFT+t] Show/Hide translations | [CTRL+s] Search | [ESC] Close";
     std::vector<std::string> hint_lines(1);
     {
         size_t pos = 0;
@@ -12354,6 +12515,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "HKeyLyricsTiming", "Lyrics timing overlay: shift the lyrics earlier / later (toggle; only while synced lyrics are loaded)"},
         {nullptr, "#LEFT/RIGHT  UP/DOWN", "Lyrics timing overlay: -/+ 0.1 s / -/+ 0.5 s   [R] reset   [ENTER] save to the .lrc   [ESC] cancel"},
         {nullptr, "HKeyReadLyrics", "READ LYRICS: the saved lyrics of the playing (else hovered) track as plain text; two top lines list the lyrics files (embedded / fetched / older) and the saved translations, which are shown in ( ) below each line"},
+        {nullptr, "#CTRL+s", "READ LYRICS: search EVERY lyrics file by name (all lyrics folders of the library) instead of the playing track's lyrics: type to filter, UP/DOWN pick, ENTER shows the file, ESC closes the search (CTRL+L opens the playing track's lyrics again)"},
         {nullptr, "#LEFT/RIGHT  TAB  UP/DOWN  t  SHIFT+t  d", "READ LYRICS: choose the file / translation, TAB switches the pane, scroll (SPACE, b, HOME, END too)   [t] translate overlay (ENTER fetches)   [SHIFT+t] show / next / hide translations   [d] delete a translation   [ESC] close"},
         {nullptr, "HKeyKaraoke", "Karaoke overlay: the lyrics over the whole screen, sung words highlighted (toggle; fetches the lyrics even with the lyrics engine off; playback keys keep working)"},
         {nullptr, "#@KARAOKESIZE", "Karaoke overlay: lyrics bigger / smaller, sizes 1-5 (the characters * and _; saved when the overlay closes)"},
@@ -15329,6 +15491,11 @@ std::string App::render_frame(TerminalIO& term) {
         if (rd_opts_open_) {
             std::ostringstream panel;
             draw_floating_panel(panel, build_readlyrics_options_panel(), 66, W);
+            shown += panel.str();
+        }
+        if (rd_search_open_) {
+            std::ostringstream panel;
+            draw_floating_panel(panel, build_readlyrics_search_panel(), 74, W);
             shown += panel.str();
         }
         return shown;

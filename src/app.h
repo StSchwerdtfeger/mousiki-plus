@@ -1441,6 +1441,22 @@ private:
     void readlyrics_translate();                        // ENTER in the translate overlay
     void readlyrics_poll();                             // once per frame: takes a finished translation over
     void handle_readlyrics_key(int key);
+    // CTRL+s in READ LYRICS: a search over EVERY lyrics file (by file name) in the lyrics folders of the library, as an
+    // alternative to the lyrics of the current track. ENTER shows the chosen file in the reader (it is read like a
+    // track's own lyrics, translations included); the reader is opened for the playing track again with CTRL+L.
+    struct LyricsFileHit { fs::path path; std::string name; std::string lname; std::string folder; };
+    bool rd_search_open_ = false;
+    std::string rd_search_q_;
+    std::vector<LyricsFileHit> rd_search_all_;          // every lyrics file found when the search was opened
+    std::vector<int> rd_search_view_;                   // indices into rd_search_all_ that match the query
+    size_t rd_search_dirs_ = 0;                         // lyrics folders that were searched
+    int rd_search_sel_ = 0;
+    int rd_search_first_ = 0;
+    void readlyrics_search_open();
+    void readlyrics_search_rebuild();
+    void readlyrics_search_key(int key);
+    void readlyrics_show_file(const LyricsFileHit& hit);
+    std::vector<std::string> build_readlyrics_search_panel() const;
     void build_readlyrics_screen(std::ostringstream& frame, int W, int target_height);
     fs::path lyrics_path_;                              // track path the current lyrics belong to (sidecar location)
     static constexpr int kLyricsEditPanelWidth = 60;
