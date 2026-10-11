@@ -1062,7 +1062,7 @@ int radio_main(int argc, char** argv) {
     };
     // First start of the radio after an install: greet with the help wizard,
     // the same way the music player does. Closing it writes WizardSeen=true.
-    if (!cfg.wizard_seen) {
+    if (wizard::kEnabled && !cfg.wizard_seen) {
         ui.model.wizard_open = true;
         ui.model.wizard_page = 0;
         ui.model.wizard_topic = 0;
@@ -1098,6 +1098,7 @@ int radio_main(int argc, char** argv) {
         }
         apply_timeshift();   // the buffer size changed in the settings (or was put back by discarding them)
         engine.set_scope_raw(cfg.osci().music);   // oscilloscope music mode: the scopes get the unprocessed stream
+        set_marquee_enabled(cfg.marquee);   // ON/OFF "Marquee scrolling"
         radio_enforce_visuals(cfg);   // ON/OFF "Use oscilloscope / spectrogram": a switched-off one never stays
         {   // the spectrogram window (SHIFT+8): the same
             const bool running_sp = spectro_window_running();
@@ -2338,6 +2339,7 @@ int radio_main(int argc, char** argv) {
                 case '/': set_search_focus(true); break;
                 case '?': ui.model.cheat_open = true; ui.model.cheat_scroll = 0; break;
                 case 'W':                         // Shift+W: the help wizard, as in the music player
+                    if (!wizard::kEnabled) break;   // switched off for now (wizard.h)
                     ui.model.wizard_open = true;
                     ui.model.wizard_page = 0;
                     ui.model.wizard_topic = 0;

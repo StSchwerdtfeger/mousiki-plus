@@ -863,7 +863,7 @@ std::vector<std::string> build_search(const Style& s, const UiModel& m, const Ra
 // Rows that fit, and every row that is not hovered, get the plain truncate_str() ("...") instead.
 std::string marquee_or_truncate(int& marquee_row, double& marquee_since, double now, const std::string& text, int width, int row_id) {
     if (row_id != marquee_row) { marquee_row = row_id; marquee_since = now; }
-    if (display_width(text) <= width) return pad_right(truncate_str(text, width), width);
+    if (display_width(text) <= width || !marquee_enabled()) return pad_right(truncate_str(text, width), width);   // fits, or scrolling is off
     const double hold_secs = 1.2;
     const double cols_per_sec = 4.0;
     const std::string loop_text = text + "    ";
@@ -1838,6 +1838,7 @@ const CheatRow kCheatRows[] = {
     {nullptr, "SHIFT+e / SHIFT+i", "COLORS tab: export the current colors as a theme file / import theme files from a folder"},
     {nullptr, "s", "Save radio_config.txt and close"},
     {nullptr, "ESC / q", "Discard the changes made on the screen and close"},
+    {nullptr, "ON/OFF: MARQUEE SCROLLING", "A station name that is too long for its column scrolls; off: it is cut off with ..."},
     {nullptr, "ON/OFF: TUNING NOISE", "Radio static that fades in when you tune another station and fades out when the stream plays"},
     {nullptr, "REFERENCE: ENTER", "Change the key of the hovered command; a key that is already taken is refused with the name of its owner"},
     {nullptr, "REFERENCE: DEL", "Restore the default key of the hovered command"},

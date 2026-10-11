@@ -107,7 +107,7 @@ int theme_index(const RadioSettings& s, const std::vector<themes::Theme>& all) {
 namespace {
 enum RsId {
     kRsPlayback, kRsStartMode,
-    kRsOnAir, kRsPulse, kRsDummy, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
+    kRsOnAir, kRsPulse, kRsDummy, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc,
     kRsScope, kRsOsciStyle,
 };
@@ -122,7 +122,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {true, -1, "ON/OFF"},
         {false, kRsOnAir, "On air ascii"}, {false, kRsPulse, "Pulse wave"}, {false, kRsDummy, "Dummy buttons"},
         {false, kRsVisualizer, "Visualizer"}, {false, kRsStereo, "Stereo sound"}, {false, kRsNormalize, "Normalize volume"},
-        {false, kRsTuneNoise, "Tuning noise"}, {false, kRsTimeshift, "Timeshift buffer"},
+        {false, kRsTuneNoise, "Tuning noise"}, {false, kRsMarquee, "Marquee scrolling"}, {false, kRsTimeshift, "Timeshift buffer"},
         {false, kRsUseOsci, "Use oscilloscope"}, {false, kRsUseSpectro, "Use spectrogram"},   // false: not in the "." cycle (the window still works)
     };
     static const std::vector<SettingsLine> anima = {
@@ -196,6 +196,7 @@ bool* flag_of(RadioSettings& s, int id) {
         case kRsStereo: return &s.stereo;
         case kRsNormalize: return &s.normalize;
         case kRsTuneNoise: return &s.tune_noise;
+        case kRsMarquee: return &s.marquee;
         case kRsUseOsci: return &s.use_osci;
         case kRsUseSpectro: return &s.use_spectro;
         default: return nullptr;
@@ -823,6 +824,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("OsciSphere")) { const std::string l = lower(*v); s.scope_mode = l == "sphere" ? 1 : l == "off" ? 2 : (l == "spectro" || l == "spectrogram") ? 3 : 0; }
     for (const auto& [k, v] : kv) spectro_config_key(s.spectro, k, v);
     if (auto v = get("TuneNoise")) s.tune_noise = as_bool(*v, s.tune_noise);
+    if (auto v = get("MarqueeScrolling")) s.marquee = as_bool(*v, s.marquee);
     if (auto v = get("TimeshiftMinutes")) {
         const int m = std::atoi(v->c_str());
         int best = 0;
@@ -1004,6 +1006,8 @@ bool save_radio_settings(const RadioSettings& s, std::string* err) {
          "UseSpectrogram=" << (s.use_spectro ? "true" : "false") << "\n"
          "# static that fades in when another station is tuned and fades out when the stream plays\n"
          "TuneNoise=" << (s.tune_noise ? "true" : "false") << "\n"
+         "# a station name that is too long for its column scrolls; false = it is cut off with \"...\" instead\n"
+         "MarqueeScrolling=" << (s.marquee ? "true" : "false") << "\n"
          "# the help wizard (SHIFT+w) greeted you once already; false makes it open again on the next start\n"
          "WizardSeen=" << (s.wizard_seen ? "true" : "false") << "\n"
          "# timeshift buffer for pause / rewind / recording from the past: 5 | 15 | 30 | 45 | 60 minutes (on disk, 11.5 MB per minute)\n"

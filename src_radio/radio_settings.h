@@ -134,6 +134,7 @@ struct RadioSettings {
     bool download_same_as_player = true;        // true: use the music player's download folder instead
     std::string history_path;                   // <path>/radio_history/history_radio.txt
     // --- sleep timer (SHIFT+z overlay) and the REFERENCE tab ------------------------------------------
+    bool marquee = true;                        // ON/OFF tab: a station name that is too long scrolls; false = cut off with "..."
     bool tune_noise = false;                    // ON/OFF tab: static that fades in / out when another station is tuned
     // ON/OFF tab: how much of the tuned station is kept for pause / rewind / recording from the past, as an index into
     // kTimeshiftMinutes (5 / 15 / 30 / 45 / 60 min). Kept on disk: 11.5 MB per minute.
