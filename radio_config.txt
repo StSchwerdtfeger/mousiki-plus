@@ -89,6 +89,8 @@ UseOscilloscope=true
 UseSpectrogram=true
 # static that fades in when another station is tuned and fades out when the stream plays
 TuneNoise=false
+# a station name that is too long for its column scrolls; false = it is cut off with "..." instead
+MarqueeScrolling=true
 # the help wizard (SHIFT+w) greeted you once already; false makes it open again on the next start
 WizardSeen=false
 # timeshift buffer for pause / rewind / recording from the past: 5 | 15 | 30 | 45 | 60 minutes (on disk, 11.5 MB per minute)

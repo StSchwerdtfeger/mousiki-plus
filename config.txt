@@ -191,6 +191,15 @@ ReplaceEmoji=true
 ## false = draw the real emoji (alignment then depends on how your terminal measures emoji)
  
 ##-------------------------------------------
+##             MARQUEE SCROLLING
+##-------------------------------------------
+ 
+MarqueeScrolling=true
+## true  = a title that is too long for its column scrolls (the row under the cursor, Name / Artist / Album of the
+##         metadata block, the playlist editor lists)
+## false = nothing scrolls, a too long text is cut off with "..."
+ 
+##-------------------------------------------
 ##             STEREO
 ##-------------------------------------------
  
