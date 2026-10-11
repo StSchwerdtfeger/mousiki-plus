@@ -76,27 +76,33 @@ ColorLyricsActiveWordBg=0
 ElimentDisk=true
 ElimentDummyButtons=true
 ElimentQueue=true
+## Progress Waveform = the braille waveform in the progress bar (off: a plain bar)
 ElimentWaveForm=true
+## VizLyricsField = the field right of the meta data (lyrics, sphere, oscilloscope, spectrogram). false: no field, the meta data take its place and no lyrics are fetched for it.
+VizLyricsField=true
+## ElimentLyrics = the field shows the lyrics now (true) or the visual of LyricViz (false); "." switches it. Needs UseLyrics=true.
 ElimentLyrics=true
 LyricViz=spectro
 ## sphere = the audio-reactive ball | osci = the oscilloscope (both drawn in the VIZ colors) | spectro = the spectrogram (default)
-## Pick it live from this tab's "Lyrics/Viz" row (replaces the old LyricsPlaceholderBall on/off).
+## (LyricViz and ElimentLyrics are where the "." key left the field; the next start begins with VizDefault, see below; VizDefault=last keeps them.)
+VizDefault=lyrics
+## The view the field starts with when Mousiki opens: sphere | osci | spectro | lyrics | last (= the view it was left on, "last used" in Settings -> ANIMA/VIZ -> Lyrics/Viz Default)
 NoLyricsViz=spectro
-## What the lyrics area shows while the lyrics view is on but no lyrics are available (sphere | osci | spectro, default spectro).
-## Its "Use ..." switch below is turned on when you pick it, and cannot be turned off while it is the pick.
+## What the field shows while the lyrics view is on but no lyrics are available (sphere | osci | spectro | none, default spectro).
+## Picking one turns its "Use ..." switch below on; switching that off again moves this pick to the next visual that is on.
 UseLyrics=true
 UseOscilloscope=true
 UseSpectrogram=true
 UseSphere=true
 ## false = left out entirely: not in the "." cycle of the lyrics area. The windows
 ## (SHIFT+8 spectrogram, SHIFT+9 oscilloscope on a German keyboard) and the full screen (SHIFT+u) work either way.
-## The view picked as NoLyricsViz stays on (its switch turns itself on again).
+## Switching a view off moves LyricViz / NoLyricsViz on to the next visual that is on, and UseLyrics=false turns ElimentLyrics off.
 VizOrder=sphere,osci,spectro,lyrics
 ## the order of the views when you press "." (sphere, osci, spectro, lyrics in any order); Settings -> ON/OFF -> Viz Order 1..4
 ## Oscilloscope (SHIFT+o overlay), one block per style: braille = Osci<name>, image = OsciImage<name>. Each style keeps its own values.
 ## Decay = afterglow 0.00-0.99 | DotThreshold 0.01-1.00 (braille: lower = thicker line) | TailBrightness 0.00-1.00 | Interpolation = connect the
 ## samples with lines | ZAxis = beam intensity (ZDepth 0-1, ZSource speed|level) | TraceLength 128-1024 samples | Rotate = 45 degrees (mid vertical) |
-## MonoPhase = phase portrait for near-mono signals | Palette gradient|settings|temperature|aurora|magma|ice|neon|spectrum | Glow 0-1 (image bloom) |
+## MonoPhase = phase portrait for near-mono signals | Palette gradient|settings|temperature|aurora|magma|ice|neon|spectrum|green | Glow 0-1 (image bloom) |
 ## FrameRate = screen refresh while that style is in use: 30 | 45 | 60 | 90 | 120 | 165 | MusicMode = oscilloscope music mode (the scopes
 ## get the decoded signal itself, no EQ / normalization / volume, at a fixed scale and without the phase portrait)
 OsciDecay=0.80
@@ -128,6 +134,24 @@ OsciImageGlow=0.60
 OsciImageFrameRate=30
 OsciImageMusicMode=false
 ## braille | image (a real pixel picture drawn by the terminal: Kitty graphics or Sixel; braille where there is neither)
+## xy (left = horizontal, right = vertical) | yt (amplitude over time, triggered like a normal scope) | overlap (YT drawn over the XY figure) | row (XY in the top half, YT in the bottom half) | col (XY in the left half, YT in the right half)
+OsciMode=xy
+## The big oscilloscope overlay (SHIFT+0, the = key): ScopeGrid = axes / grid over both pictures (SHIFT+a in the overlay) | ScopeValues = the axis values at the grid lines (SHIFT+v) | ScopeGridColor = its colour,
+## 0-255 (SHIFT+c in the overlay); empty = the colour of inactive list elements.
+## The pictures follow OsciStyle: braille dots, or (image) two pixel pictures on a Kitty / Sixel terminal.
+ScopeGrid=true
+ScopeValues=true
+ScopeGridColor=
+## Grid metrics of the big oscilloscope overlay (SHIFT+p in it), per picture. The axis values are always percent of the picture
+## (100% = the loudest part with the automatic size, full scale in Osci music mode). YT: ScopeYtTimeUnit ms|samples|div,
+## ScopeYtTimeDiv 4|8|10|16, ScopeYtValueDiv 2|4|8|10, ScopeYtInfo off|rms|peak|both (RMS level / peak hold in dB, a steady readout).
+## XY: ScopeXyDiv 2|4|8|10, ScopeXyInfo off|corr|balance|both (L/R correlation -1..+1, L/R level balance in dB)
+ScopeYtTimeUnit=ms
+ScopeYtTimeDiv=8
+ScopeYtValueDiv=4
+ScopeYtInfo=both
+ScopeXyDiv=4
+ScopeXyInfo=both
 OsciStyle=braille
 ## image style: auto | kitty | sixel | off, and the pixels of one terminal cell (WxH, empty = ask the terminal)
 OsciImageProtocol=auto
@@ -151,12 +175,13 @@ SpectroChannels=both
 SpectroTimeSpan=30
 SpectroLabels=true
 ## Tune the Osci values live with SHIFT+o and the Spectro values with SHIFT+i in the main UI
+## Visualizer = the Spectrum Bars below the meta data (Settings -> ON/OFF -> Spectrum Bars)
 Visualizer=true
 MetaDataOnly=false
 ## true  = the (search-)lists show embedded metadata only -- the title tag is used
 ##         instead of the filename (files without a title tag keep their filename)
 ## false = lists show filename AND metadata, as before
-## Toggleable live from this panel ("Show meta data only") or with HKeyToggleMetaOnly.
+## Toggleable live with HKeyToggleMetaOnly (SHIFT+n).
  
 ##-------------------------------------------
 ##             PANEL 3: ANIMA/VIZ
@@ -401,6 +426,7 @@ HKeyQueueMoveBottom="%"
 HKeyOscMenu="O"
 HKeySpectroMenu="I"
 HKeySpectroFull="U"
+HKeyScopeBig="="
 HKeyScopeWindow=")"
 HKeySpectroWindow="("
 HKeyNormMenu="V"

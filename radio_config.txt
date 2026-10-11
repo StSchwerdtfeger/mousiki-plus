@@ -163,6 +163,7 @@ HKeyScopeWindow=)
 HKeySpectroWindow=(
 HKeySpectroMenu=I
 HKeySpectroFull=U
+HKeyScopeBig==
 HKeyNormMenu=V
 HKeyEqMenu=E
 HKeyScopeToggle=.
@@ -187,7 +188,7 @@ VisualizerViscosity=3
 # Oscilloscope (SHIFT+o overlay), one block per style: braille = Osci<name>, image = OsciImage<name>. Each style keeps its own values.
 # Decay = afterglow 0.00-0.99 | DotThreshold 0.01-1.00 (braille: lower = thicker line) | TailBrightness 0.00-1.00 | Interpolation = connect the
 # samples with lines | ZAxis = beam intensity (ZDepth 0-1, ZSource speed|level) | TraceLength 128-1024 samples | Rotate = 45 degrees (mid vertical) |
-# MonoPhase = phase portrait for near-mono signals | Palette gradient|settings|temperature|aurora|magma|ice|neon|spectrum | Glow 0-1 (image bloom) |
+# MonoPhase = phase portrait for near-mono signals | Palette gradient|settings|temperature|aurora|magma|ice|neon|spectrum|green | Glow 0-1 (image bloom) |
 # FrameRate = screen refresh while that style is in use: 30 | 45 | 60 | 90 | 120 | 165 | MusicMode = oscilloscope music mode (the scopes get
 # the stream itself, no EQ / normalization / volume, at a fixed scale and without the phase portrait)
 OsciDecay=0.80
@@ -219,6 +220,24 @@ OsciImageGlow=0.60
 OsciImageFrameRate=30
 OsciImageMusicMode=false
 # ON/OFF tab: braille | image (a real pixel picture drawn by the terminal: Kitty graphics or Sixel; braille where there is neither)
+# xy (left = horizontal, right = vertical) | yt (amplitude over time, triggered like a normal scope) | overlap (YT drawn over the XY figure) | row (XY in the top half, YT in the bottom half) | col (XY in the left half, YT in the right half)
+OsciMode=xy
+# The big oscilloscope overlay (SHIFT+0, the = key): ScopeGrid = axes / grid over both pictures (SHIFT+a in the overlay) | ScopeValues = the axis values at the grid lines (SHIFT+v) | ScopeGridColor = its colour,
+# 0-255 (SHIFT+c in the overlay); empty = the colour of inactive list elements.
+# The pictures follow OsciStyle: braille dots, or (image) two pixel pictures on a Kitty / Sixel terminal.
+ScopeGrid=true
+ScopeValues=true
+ScopeGridColor=
+# Grid metrics of the big oscilloscope overlay (SHIFT+p in it), per picture. The axis values are always percent of the picture
+# (100% = the loudest part with the automatic size, full scale in Osci music mode). YT: ScopeYtTimeUnit ms|samples|div,
+# ScopeYtTimeDiv 4|8|10|16, ScopeYtValueDiv 2|4|8|10, ScopeYtInfo off|rms|peak|both (RMS level / peak hold in dB, a steady readout).
+# XY: ScopeXyDiv 2|4|8|10, ScopeXyInfo off|corr|balance|both (L/R correlation -1..+1, L/R level balance in dB)
+ScopeYtTimeUnit=ms
+ScopeYtTimeDiv=8
+ScopeYtValueDiv=4
+ScopeYtInfo=both
+ScopeXyDiv=4
+ScopeXyInfo=both
 OsciStyle=braille
 # image style: auto | kitty | sixel | off
 OsciImageProtocol=auto
