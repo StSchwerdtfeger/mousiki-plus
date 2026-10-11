@@ -110,6 +110,9 @@ struct Settings {
     // Toggled from the ON/OFF tab ("Show meta data only") and with the
     // HKeyToggleMetaOnly hotkey (Shift+N by default).
     bool meta_only = false;
+    // Marquee scrolling of too-long names (list row under the cursor, Name/Artist/Album of the metadata block, playlist
+    // editor lists). false: cut with "..." instead. ON/OFF tab "Marquee Scrolling".
+    bool marquee = true;
 
     // --- appearance / tuning -------------------------------------------
     int visualizer_fluidity = 1;        // 1-10, higher = smoother/slower rise

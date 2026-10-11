@@ -1253,7 +1253,7 @@ std::string App::marquee_or_truncate(const std::string& text, int width, int row
         tracked_idx = row_idx;
         since = std::chrono::steady_clock::now();
     }
-    if (display_width(text) <= width) return pad_right(truncate_str(text, width), width);
+    if (display_width(text) <= width || !settings_.marquee) return pad_right(truncate_str(text, width), width);   // fits, or scrolling is off: cut with "..."
 
     const double hold_secs = 1.2;    // pause on the title's start before scrolling
     const double cols_per_sec = 4.0; // scroll speed
@@ -3015,7 +3015,7 @@ static constexpr int kRefEnd = kRefStart + kRefRowCount;
 // settings_commit_edit() / settings_cycle() and the renderer work with. Adding a row = one id + one line in a layout.
 enum SetId {
     kSidDisk, kSidDummy, kSidQueue, kSidWave, kSidLyricsEngine, kSidLyricViz, kSidVisualizer, kSidNoLyricsViz,
-    kSidStereo, kSidNormalize, kSidMetaOnly, kSidEmoji, kSidUseLyrics, kSidUseOsci, kSidUseSpectro, kSidUseSphere,
+    kSidStereo, kSidNormalize, kSidMetaOnly, kSidEmoji, kSidMarquee, kSidUseLyrics, kSidUseOsci, kSidUseSpectro, kSidUseSphere,
     kSidOrder1, kSidOrder2, kSidOrder3, kSidOrder4,
     kSidPlayback, kSidStartMode,
     kSidVisFluidity, kSidWaveStyle, kSidDiskSpeed, kSidVisDegr, kSidVisVisc, kSidLyrAlign, kSidLyrAnim,
@@ -3030,7 +3030,7 @@ static const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidDisk, "Eliment Disk"}, {false, kSidDummy, "Dummy Buttons"}, {false, kSidQueue, "Queue Display"},
         {false, kSidWave, "WaveForm"}, {false, kSidLyricsEngine, "Lyrics Engine"}, {false, kSidVisualizer, "Visualizer"},
         {false, kSidStereo, "Stereo Sound"}, {false, kSidNormalize, "Normalize Volume"},
-        {false, kSidMetaOnly, "Show meta data only"}, {false, kSidEmoji, "Replace Emoji"},
+        {false, kSidMetaOnly, "Show meta data only"}, {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},
         {false, kSidUseLyrics, "Use Lyrics"}, {false, kSidUseOsci, "Use Oscilloscope"},      // false: left out entirely
         {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"},    // (not in the "." cycle)
     };
@@ -3607,6 +3607,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidNormalize: v = settings_.normalize; break;
             case kSidMetaOnly: v = settings_.meta_only; break;
             case kSidEmoji: v = settings_.replace_emoji; break;
+            case kSidMarquee: v = settings_.marquee; break;
             case kSidUseLyrics: v = settings_.use_lyrics; break;
             case kSidUseOsci: v = settings_.use_osci; break;
             case kSidUseSpectro: v = settings_.use_spectro; break;
@@ -3780,6 +3781,7 @@ void App::settings_commit_edit() {
                 settings_.replace_emoji = is_true;
                 set_emoji_replacement(is_true); // every width calculation follows from the next frame on
                 break;
+            case kSidMarquee: settings_.marquee = is_true; break;
             case kSidUseLyrics: settings_.use_lyrics = is_true; break;
             case kSidUseOsci: settings_.use_osci = is_true; break;
             case kSidUseSpectro: settings_.use_spectro = is_true; break;
@@ -3945,6 +3947,9 @@ void App::settings_cycle(int dir) {
         status_line_ = settings_.meta_only ? "lists: metadata only (no filename)"
                                            : "lists: filename + metadata";
         resort_local_view_keep_selection();
+    }
+    if (id == kSidMarquee) {
+        status_line_ = settings_.marquee ? "marquee: long titles scroll" : "marquee: off, long titles are cut with ...";
     }
     if (id == kSidEmoji) {
         status_line_ = settings_.replace_emoji ? "emoji: drawn as a single ? (layout stays aligned)"
@@ -11842,7 +11847,21 @@ void App::build_karaoke_screen(std::ostringstream& frame, int W, int H) {
     // every frame from the terminal size, so a resize simply re-flows everything. When the lyrics would get narrower
     // than 30 columns the two pictures are left out and the lyrics take the whole width.
     constexpr int kGap = 4;
-    const bool show_art = inner - 2 * (kKaraokeArtW + kGap) >= 30;
+    // Big Japanese / Chinese / Korean letters (sizes 4 and 5) need the room: with the pictures on both sides only
+    // about 50 columns are left, which holds two or three letters per row, so the lyrics take the whole width then.
+    bool wide_script = false;
+    if (settings_.karaoke_lyrics_size >= 4) {
+        std::lock_guard<std::mutex> lock(lyrics_mutex_);
+        if (lyrics_ready_ && lyrics_path_ == current_path_) {
+            for (const auto& l : lyrics_result_.lines) {
+                for (char32_t cp : karaoke_codepoints(l.full_text)) {
+                    if (cp >= 0x1100 && !karaoke_glyph(cp) && (cp <= 0x11FF || (cp >= 0x2E80 && cp <= 0xD7FF) || (cp >= 0xF900 && cp <= 0xFFEF))) { wide_script = true; break; }
+                }
+                if (wide_script) break;
+            }
+        }
+    }
+    const bool show_art = !wide_script && inner - 2 * (kKaraokeArtW + kGap) >= 30;
     const int side_w = show_art ? kKaraokeArtW + kGap : 0;     // art + gap, on each side
     const int lyr_w = inner - 2 * side_w;
 
@@ -11929,9 +11948,9 @@ void App::build_karaoke_screen(std::ostringstream& frame, int W, int H) {
             const double t = (!synced && li == active) ? 1e12 : lt;   // no timing: the current line in the active colour
             const bool hl = is_active || (!synced && li == active);
             std::vector<std::string> rows;
-            // A line that would fill most of the screen (a long Japanese line at size 5) steps down a size at a
+            // A line that would be taller than the screen (a long Japanese line at size 5) steps down a size at a
             // time, and ends up as normal text when even the smallest big letters are too tall for it.
-            const int max_rows = std::max(6, body_h * 2 / 3);
+            const int max_rows = std::max(6, body_h);
             for (int sc = size - 1; size >= 2 && sc >= 1; --sc) {
                 rows.clear();
                 if (!render_big_lyric_line(lines[static_cast<size_t>(li)], t, lyr_w, hl, sc, ks, rows)) break;

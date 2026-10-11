@@ -243,4 +243,9 @@ bool diff_frame_lines(const std::string& body, std::vector<std::string>& prev, s
 // table. Driven by config.txt's ReplaceEmoji.
 void set_emoji_replacement(bool on);
 
+// Marquee scrolling of too-long titles (config.txt / radio_config.txt: MarqueeScrolling). Off: such a text is cut
+// with "..." like every other over-wide text. Each mode sets it from its own settings.
+void set_marquee_enabled(bool on);
+bool marquee_enabled();
+
 } // namespace muisc

@@ -538,6 +538,10 @@ static bool g_replace_emoji = true;
 
 void set_emoji_replacement(bool on) { g_replace_emoji = on; }
 
+static bool g_marquee = true;
+void set_marquee_enabled(bool on) { g_marquee = on; }
+bool marquee_enabled() { return g_marquee; }
+
 namespace {
 
 struct CpRange { uint32_t lo, hi; };

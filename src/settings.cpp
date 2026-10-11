@@ -912,6 +912,7 @@ static Settings load_from_config(const fs::path& path) {
 
         // --- Emoji handling ---------------------------------------------
         if (key == "ReplaceEmoji") { s.replace_emoji = parse_bool(value); continue; }
+        if (key == "MarqueeScrolling") { s.marquee = parse_bool(value); continue; }
 
         // --- Stereo ------------------------------------------------------
         if (key == "StereoPlayback") { s.stereo = parse_bool(value); continue; }
@@ -1363,6 +1364,15 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "ReplaceEmoji=" << (s.replace_emoji ? "true" : "false") << "\n";
     out << "## true  = an emoji in a title is drawn as a single \"?\" so the box borders always stay aligned\n";
     out << "## false = draw the real emoji (alignment then depends on how your terminal measures emoji)\n";
+    out << "\n";
+
+    out << "##-------------------------------------------\n";
+    out << "##             MARQUEE SCROLLING\n";
+    out << "##-------------------------------------------\n\n";
+    out << "MarqueeScrolling=" << (s.marquee ? "true" : "false") << "\n";
+    out << "## true  = a title that is too long for its column scrolls (the row under the cursor, Name / Artist / Album of the\n";
+    out << "##         metadata block, the playlist editor lists)\n";
+    out << "## false = nothing scrolls, a too long text is cut off with \"...\"\n";
     out << "\n";
 
     out << "##-------------------------------------------\n";
