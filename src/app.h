@@ -696,8 +696,11 @@ private:
     GfxProto gfx_proto_ = GfxProto::None;
     std::string gfx_probed_pref_;              // the protocol preference gfx_proto_ was probed for ("" = not yet)
     mutable GfxFrame gfx_;
+    mutable GfxFrame gfx2_;                    // the big oscilloscope overlay's second picture (gfx_ is its YT picture there)
+    mutable bool gfx2_shown_ = false;
     mutable bool gfx_ok_ = false;              // the picture belongs on screen in the frame just rendered
     mutable int gfx_last_crop_ = -1;
+    mutable int scope_cut_last_[8] = {-1, -1, -1, -1, -1, -1, -1, -1};   // the panel cut-outs of the overlay's pictures of the last frame
     mutable int cell_w_ = 9, cell_h_ = 18;
     bool gfx_due_ = true;
     // The "fetching lyrics ..." box laid over the bottom row of the lyrics area's visual this frame (0-based row, col,
@@ -1085,6 +1088,9 @@ private:
     // settings_col_). Colors are clamped/validated as a 0-255 code;
     // everything else is stored close to verbatim.
     void settings_commit_edit();
+    void settings_commit_edit_impl();
+    std::string settings_note_;        // what enforce_visual_switches() changed on its own after the last edit of a setting
+    void lyrics_view_nudge();           // fetch the lyrics of the playing track (the lyrics view has just been switched on)
 
     // --- colour themes (Colors tab, last row: THEME | CREATE THEME) ---------
     // theme_ui_: 0 = the plain Settings screen | 1 = pick a theme to apply | 2 = the CREATE THEME overlay |
@@ -1288,6 +1294,20 @@ private:
     mutable int spectro_area_[4] = {-1, 0, 0, 0};
     SpectroGfx spectro_gfx_;
     bool spectro_full_ = false;
+    // SHIFT+0: the big oscilloscope overlay (YT left, XY right). Each picture has its own scope (own phosphor buffer) fed from
+    // scope_; SHIFT+a toggles the grid, SHIFT+v the axis values, SHIFT+c asks for its colour (the digits typed so far are in scope_big_color_buf_).
+    bool scope_big_ = false;
+    bool scope_big_color_edit_ = false;
+    bool scope_metrics_open_ = false;   // SHIFT+p inside it: the window for the grid metrics (units, divisions, measurements)
+    int scope_metrics_row_ = 0;
+    std::string scope_big_color_buf_;
+    mutable OscilloscopeVisualizer scope_big_xy_, scope_big_yt_;
+    std::string build_scope_big(int W, const char* clear_prefix) const;
+    std::vector<std::string> build_scope_color_panel() const;   // the small window SHIFT+c opens
+    static constexpr int kScopeColorPanelWidth = 48;
+    std::vector<std::string> build_scope_metrics_panel() const;   // the window SHIFT+p opens
+    static constexpr int kScopeMetricsPanelWidth = 52;
+    bool scope_big_key(int key);   // keys of the overlay itself; true = used
     int spectro_menu_row_ = 0;
     static constexpr int kSpectroMenuPanelWidth = 52;
     std::vector<std::string> build_spectro_menu_panel() const;
@@ -1300,7 +1320,7 @@ private:
     bool spectro_win_on_ = false;
     void spectro_window_toggle();
     void spectro_window_sync(bool check_alive = true);
-    void enforce_visual_switches();
+    std::string enforce_visual_switches(int changed = -1);   // returns what it changed, for the status line
     static constexpr int kOsciMenuPanelWidth = 50; // just wide enough for the key legend
     std::vector<std::string> build_osci_menu_panel() const;
     void osci_menu_adjust(int dir);
@@ -1498,6 +1518,7 @@ private:
     void eq_delete_custom(bool confirmed);          // DEL / X
     void queue_move_hovering(int dir); // dir=-1 up, +1 down
     void clamp_queue_selected();
+    void queue_reveal(int idx);   // scroll the queue so that this entry is visible (after adding tracks)
     void handle_key(int key);
     void ensure_visible_row_meta();
     void recompute_waveform_for_current_track();

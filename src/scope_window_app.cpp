@@ -409,7 +409,9 @@ int scope_window_main() {
         drawn = upto;
 
         // ---- braille style: the terminal scope's dot grid, drawn as squares ------------------------------------------------
-        if (cfg.braille) {
+        // The YT modes (SHIFT+o "Scope mode") are drawn by the same scope in either style: the smooth image style only knows the
+        // XY beam, so there the dots just get finer (and touch each other) instead of changing the picture.
+        if (cfg.braille || cfg.mode != 0) {
             if (!braille_was) { braille_scope.reset(); braille_was = true; }
             if (n_raw > 0) {
                 std::vector<float> lr(2 * n_raw);
@@ -429,14 +431,18 @@ int scope_window_main() {
             p.mono_phase = cfg.mono_phase != 0 && !cfg.music;
             p.glow = cfg.glow;
             p.fixed_gain = cfg.music != 0;
-            // A square field in the middle, a dot every `pitch` pixels (about 100 dots across, like the terminal's area).
+            p.mode = cfg.mode;
+            // XY: a square field in the middle, a dot every `pitch` pixels (about 100 dots across, like the terminal's area).
+            // The YT modes use the whole window (the time axis is wide).
             const int side_px = std::min(gpu.w, gpu.h);
-            const int pitch = std::max(4, static_cast<int>(std::lround(side_px / 100.0)));
-            const int rows = std::max(6, side_px / (pitch * 4)), cols = rows * 2;
+            const bool fine = !cfg.braille;
+            const int pitch = fine ? std::max(2, static_cast<int>(std::lround(side_px / 300.0))) : std::max(4, static_cast<int>(std::lround(side_px / 100.0)));
+            const bool wide = cfg.mode != 0;
+            const int rows = std::max(6, (wide ? gpu.h : side_px) / (pitch * 4));
+            const int cols = wide ? std::max(12, gpu.w / (pitch * 2)) : rows * 2;
             const auto cells = braille_scope.render(cols, rows, p);
-            const int grid_px = rows * 4 * pitch;
-            const int ox = (gpu.w - grid_px) / 2, oy = (gpu.h - grid_px) / 2;
-            const int dot = std::max(2, static_cast<int>(std::lround(pitch * 0.72)));
+            const int ox = (gpu.w - cols * 2 * pitch) / 2, oy = (gpu.h - rows * 4 * pitch) / 2;
+            const int dot = fine ? pitch : std::max(2, static_cast<int>(std::lround(pitch * 0.72)));
             const int pad = (pitch - dot) / 2;
             A.SetRenderTarget(R, nullptr);
             A.SetRenderDrawBlendMode(R, sdl::kBlendNone);

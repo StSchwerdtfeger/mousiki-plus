@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 #include "equalizer.h"
+#include "scope_metrics.h"
 #include "spectrogram.h"
 
 namespace muisc {
@@ -14,8 +15,8 @@ namespace fs = std::filesystem;
 
 // Palettes of the oscilloscope (Color row of the SHIFT+o overlay). 0 = the VIZ gradient of the COLORS tab laid over the
 // picture from left to right; the others colour by the beam speed (about the pitch: slow = first colour, fast = last colour).
-constexpr int kOsciPaletteCount = 8;
-extern const char* const kOsciPaletteNames[kOsciPaletteCount];   // gradient, settings, temperature, aurora, magma, ice, neon, spectrum
+constexpr int kOsciPaletteCount = 9;
+extern const char* const kOsciPaletteNames[kOsciPaletteCount];   // gradient, settings, temperature, aurora, magma, ice, neon, spectrum, classic green
 
 // The oscilloscope's parameters of ONE style (braille or image).
 struct OsciSet {
@@ -47,6 +48,13 @@ struct Settings {
     bool element_dummy_buttons = true;
     bool element_queue = true;           // replaces the old queue_visible
     bool element_waveform = true;
+    // "Viz/Lyrics Field" (ON/OFF tab): the field right of the meta data, where the lyrics and the sphere / oscilloscope /
+    // spectrogram are shown. false: no field at all, the meta data (and the spectrum bars) take its width, no lyrics are
+    // fetched for it. config.txt: VizLyricsField.
+    bool element_vizfield = true;
+    // "Lyrics Engine": the field currently shows the lyrics (and they are fetched) instead of the visual lyric_viz picks.
+    // The "." key switches it live. It needs "Use Lyrics": turning one on turns the other on, turning Use Lyrics off turns
+    // this one off (enforce_visual_switches()).
     bool element_lyrics = true;
     // Which visual fills the lyrics panel whenever there is nothing to
     // show there (no synced lyrics found / fetch still running / lyrics
@@ -59,19 +67,25 @@ struct Settings {
     // What the lyrics area shows while the LYRICS view is selected but there are no lyrics to draw (nothing found /
     // fetch still running): 0 = sphere, 1 = oscilloscope, 2 = spectrogram. Before this existed the area showed
     // lyric_viz, i.e. whatever view the "." cycle had been on before the lyrics. config.txt: NoLyricsViz=sphere|osci|spectro.
-    // Its Use switch (Use Oscilloscope / Use Spectrogram) is kept on: enforce_visual_switches().
+    // 3 = nothing (an empty field). Picking a visual that is switched off turns its "Use ..." switch on; switching a "Use ..."
+    // off moves this pick to the next visual that is on (or to "none"): enforce_visual_switches().
     int nolyrics_viz = 2;
     // Settings -> ON/OFF "Use Lyrics / Use Oscilloscope / Use Spectrogram": false leaves that one out entirely (no
     // lyrics fetching, not in the "." cycle; the sphere is always there). The windows (SHIFT+8 / SHIFT+9) work anyway.
     bool use_lyrics = true;
     bool use_osci = true;
     bool use_spectro = true;
-    // "Use Sphere": false leaves the sphere out of the "." cycle as well (it used to be always there). Like the other
-    // visuals it stays on while it is the "No-Lyrics Viz" pick (enforce_visual_switches()). config.txt: UseSphere=.
+    // "Use Sphere": false leaves the sphere out of the "." cycle as well (it used to be always there). config.txt: UseSphere=.
     bool use_sphere = true;
     // The order of the views in the "." cycle (ON/OFF tab: "Viz Order 1..4"): a permutation of
     // 0 = sphere, 1 = oscilloscope, 2 = spectrogram, 3 = lyrics. config.txt: VizOrder=sphere,osci,spectro,lyrics.
     int viz_order[4] = {0, 1, 2, 3};
+    // The view the field starts with when Mousiki opens (ANIMA/VIZ tab: "Lyrics/Viz Default"): 0 = sphere, 1 = oscilloscope,
+    // 2 = spectrogram, 3 = lyrics. The "." key changes the view live, but that is not remembered: the next start begins with
+    // this one again; 4 = "last used": it starts with the view it was left on. config.txt: VizDefault=sphere|osci|spectro|lyrics|last.
+    int viz_default = 3;
+    // The field shows lyrics (and they are fetched) right now: field on, lyrics allowed, lyrics view selected.
+    bool lyrics_on() const { return element_vizfield && use_lyrics && element_lyrics; }
     // Is that view (0..3) switched on at all?
     bool viz_usable(int v) const { return v == 0 ? use_sphere : v == 1 ? use_osci : v == 2 ? use_spectro : use_lyrics; }
     // The next / previous switched-on view after `cur` in viz_order (dir > 0 forward). `only_visuals` leaves the lyrics
@@ -90,6 +104,11 @@ struct Settings {
     // Each style (braille / image) keeps its own parameter set; osci() is the one in use.
     OsciSet osci_set[2];                // [0] = braille, [1] = image
     int osci_style = 0;                 // 0 = braille characters, 1 = image (a real pixel picture: Kitty graphics / Sixel)
+    bool scope_grid = true;             // the big scope overlay (SHIFT+0): axes / grid over both pictures (SHIFT+a there; config.txt: ScopeGrid)
+    bool scope_values = true;           // ... and the axis values at the grid lines (SHIFT+v there; config.txt: ScopeValues)
+    std::string scope_grid_color;       // its colour, 0..255; empty = the colour of inactive list elements (SHIFT+c there; config.txt: ScopeGridColor)
+    ScopeMetrics scope_metrics;         // ... and its grid metrics, per picture (SHIFT+p there; config.txt: ScopeYt* / ScopeXy*)
+    int osci_mode = 0;                  // 0 = XY (L/R), 1 = YT (amplitude over time), 2 = both on top of each other (overlap), 3 = both in two rows, XY above YT, 4 = both in two columns, XY left of YT (config.txt: OsciMode=xy|yt|overlap|row|col)
     std::string gfx_protocol = "auto";  // image style: auto | kitty | sixel | off
     std::string cell_pixels;            // image style: pixels of one terminal cell "WxH"; empty = ask the terminal
     SpectroSettings spectro;            // the spectrogram (SHIFT+i overlay, SHIFT+u full screen), Audacity's defaults
@@ -454,7 +473,7 @@ std::string settings_to_text(const Settings& s);
 
 // ---- the SHIFT+o overlay (osci_settings.cpp) ----
 enum OsciRow { kOrDecay, kOrDot, kOrTail, kOrInterp, kOrZ, kOrZDepth, kOrZSource, kOrTrace, kOrRotate, kOrMono, kOrPalette, kOrGlow,
-               kOrStyle, kOrCells, kOrProtocol, kOrFps, kOrDisplay, kOrRes, kOrMusic, kOsciRowCount };
+               kOrStyle, kOrCells, kOrProtocol, kOrFps, kOrDisplay, kOrRes, kOrMusic, kOrMode, kOsciRowCount };
 // image style: the picture is rendered at 1/1, 1/2 or 1/3 of the screen resolution and enlarged on the way to the terminal
 const char* osci_res_name(int scale);   // "full" | "half" | "third"
 int osci_res_parse(const std::string& v, int def);

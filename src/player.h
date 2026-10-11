@@ -57,6 +57,7 @@ public:
     void pause();
     void resume();
     bool is_paused() const { return paused_; }
+    int sample_rate() const { return sample_rate_.load(); }   // of the stream being played (the scope overlay shows the YT time span)
 
     void seek_relative(double delta_sec);
     void set_volume(int volume_pct);

@@ -11,7 +11,7 @@
 
 namespace muisc {
 
-const char* const kOsciPaletteNames[kOsciPaletteCount] = {"gradient", "settings", "temperature", "aurora", "magma", "ice", "neon", "spectrum"};
+const char* const kOsciPaletteNames[kOsciPaletteCount] = {"gradient", "settings", "temperature", "aurora", "magma", "ice", "neon", "spectrum", "classic green"};
 
 namespace {
 const int kFpsSteps[6] = {30, 45, 60, 90, 120, 165};
@@ -36,7 +36,7 @@ int osci_res_parse(const std::string& v, int def) {
 }
 
 std::vector<int> osci_visible_rows(const Settings& s) {
-    std::vector<int> r = {kOrMusic, kOrStyle, kOrFps};   // no "Display" row: what is shown is the "." key's job
+    std::vector<int> r = {kOrMode, kOrMusic, kOrStyle, kOrFps};   // no "Display" row: what is shown is the "." key's job
     if (s.osci_style == 1) { r.push_back(kOrProtocol); r.push_back(kOrRes); }
     r.push_back(kOrDecay);
     if (s.osci_style != 1) r.push_back(kOrDot);
@@ -49,7 +49,7 @@ std::vector<int> osci_visible_rows(const Settings& s) {
 std::string osci_row_label(int row) {
     static const char* const L[kOsciRowCount] = {"Decay", "Dot threshold", "Tail", "Line/Vec. Interpol.", "Z-Axis (XYZ Mode)",
         "Z Depth", "Z Source", "Trace Length", "Rotate 45 deg (M/S)", "Mono Phase Portrait", "Color", "Glow",
-        "Osci style", "Osci cell pixels", "Image protocol", "Frame rate", "Display", "Image resolution", "Osci music mode"};
+        "Osci style", "Osci cell pixels", "Image protocol", "Frame rate", "Display", "Image resolution", "Osci music mode", "Scope mode"};
     return row >= 0 && row < kOsciRowCount ? L[row] : "";
 }
 
@@ -77,6 +77,7 @@ std::string osci_row_value(const Settings& s, int row) {
         case kOrFps: return std::to_string(o.frame_rate) + " fps";
         case kOrRes: return osci_res_name(s.image_scale);
         case kOrMusic: return on(o.music);
+        case kOrMode: return s.osci_mode == 1 ? "YT" : s.osci_mode == 2 ? "XY + YT (overlap)" : s.osci_mode == 3 ? "XY + YT (row)" : s.osci_mode == 4 ? "XY + YT (col)" : "XY";
         case kOrDisplay: return s.lyric_viz == 1 ? "osci" : s.lyric_viz == 2 ? "spectro" : "sphere";
     }
     return "";
@@ -102,6 +103,7 @@ void osci_adjust(Settings& s, int row, int dir) {
         case kOrCells: s.cell_pixels = kCellSteps[step_in(index_of(kCellSteps, s.cell_pixels, 0), 7, dir)]; break;
         case kOrProtocol: s.gfx_protocol = kProtoSteps[step_in(index_of(kProtoSteps, s.gfx_protocol, 0), 4, dir)]; break;
         case kOrMusic: o.music = dir > 0; break;
+        case kOrMode: s.osci_mode = step_in(s.osci_mode, 5, dir); break;   // XY <-> YT <-> overlap <-> row <-> col
         case kOrRes: s.image_scale = std::clamp(s.image_scale + (dir > 0 ? -1 : 1), 1, 3); break;   // right = sharper
         case kOrFps: {
             int i = 0;
@@ -154,7 +156,7 @@ bool osci_config_key(Settings& s, const std::string& key, const std::string& val
         else if (n == "Rotate") o.rotate = as_bool(value, o.rotate);
         else if (n == "MonoPhase") o.mono_phase = as_bool(value, o.mono_phase);
         else if (n == "Glow") o.glow = as_float(value, o.glow, 0.0f, 1.0f);
-        else if (n == "Palette") { const std::string l = lower(value); for (int i = 0; i < kOsciPaletteCount; ++i) if (l == kOsciPaletteNames[i]) o.palette = i; }
+        else if (n == "Palette") { const std::string l = lower(value); for (int i = 0; i < kOsciPaletteCount; ++i) if (l == kOsciPaletteNames[i] || (i == 8 && (l == "green" || l == "classic"))) o.palette = i; }
         // frame rate and music mode per style; the braille line (written first) also sets the image style, so a config
         // from before (one value for both) gives both styles that value -- the image line that follows overrides it
         else if (n == "FrameRate") { const int fr = fps_snap(as_int(value, o.frame_rate, 30, 165)); o.frame_rate = fr; if (st == 0) s.osci_set[1].frame_rate = fr; }
@@ -162,6 +164,11 @@ bool osci_config_key(Settings& s, const std::string& key, const std::string& val
         else continue;
         return true;
     }
+    if (key == "OsciMode") { const std::string l = lower(value); s.osci_mode = l == "yt" ? 1 : (l == "overlap" || l == "both" || l == "xy+yt") ? 2 : (l == "row" || l == "rows") ? 3 : (l == "col" || l == "cols" || l == "column" || l == "columns") ? 4 : 0; return true; }
+    if (key == "ScopeGrid") { s.scope_grid = as_bool(value, s.scope_grid); return true; }
+    if (key == "ScopeValues") { s.scope_values = as_bool(value, s.scope_values); return true; }
+    if (key == "ScopeGridColor") { s.scope_grid_color = value; return true; }
+    if (scope_metric_parse(s.scope_metrics, key, value)) return true;
     if (key == "OsciStyle") { s.osci_style = lower(value) == "image" ? 1 : 0; return true; }
     if (key == "OsciImageProtocol") { s.gfx_protocol = lower(value); return true; }
     if (key == "OsciImageResolution") { s.image_scale = osci_res_parse(value, s.image_scale); return true; }
@@ -194,7 +201,16 @@ void osci_config_write(std::ostream& out, const Settings& s) {
     out << "## get the decoded signal itself, no EQ / normalization / volume, at a fixed scale and without the phase portrait)\n";
     block("Osci", s.osci_set[0]);
     block("OsciImage", s.osci_set[1]);
+    out << "## The big oscilloscope overlay (SHIFT+0): ScopeGrid = axes / grid over both pictures (SHIFT+a in the overlay) | ScopeGridColor = its colour,\n";
+    out << "## 0-255 (SHIFT+c in the overlay); empty = the colour of inactive list elements.\n";
+    out << "## The pictures follow OsciStyle: braille dots, or (image) two pixel pictures on a Kitty / Sixel terminal.\n";
+    out << "ScopeGrid=" << b(s.scope_grid) << "\n";
+    out << "ScopeValues=" << b(s.scope_values) << "\n";
+    out << "ScopeGridColor=" << s.scope_grid_color << "\n";
+    scope_metric_config_write(out, s.scope_metrics, "##");
     out << "## braille | image (a real pixel picture drawn by the terminal: Kitty graphics or Sixel; braille where there is neither)\n";
+    out << "## xy (left = horizontal, right = vertical) | yt (amplitude over time, triggered like a normal scope) | overlap (YT drawn over the XY figure) | row (XY in the top half, YT in the bottom half)\n";
+    out << "OsciMode=" << (s.osci_mode == 1 ? "yt" : s.osci_mode == 2 ? "overlap" : s.osci_mode == 3 ? "row" : s.osci_mode == 4 ? "col" : "xy") << "\n";
     out << "OsciStyle=" << (s.osci_style == 1 ? "image" : "braille") << "\n";
     out << "## image style: auto | kitty | sixel | off, and the pixels of one terminal cell (WxH, empty = ask the terminal)\n";
     out << "OsciImageProtocol=" << s.gfx_protocol << "\n";

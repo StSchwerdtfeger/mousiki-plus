@@ -121,8 +121,12 @@ std::string mode_switch_key_label() {
 }
 
 std::string symbol_key_label(const std::string& key) {
-    if (key != "(" && key != ")") return key;
+    if (key != "(" && key != ")" && key != "=") return key;
     const std::string c = keyboard_layout_code();
+    if (key == "=") {   // the big scope overlay: SHIFT+0 on a German keyboard
+        if (c == "de" || c == "at" || c == "ch" || c == "es" || c == "it") return "SHIFT+0";
+        return key;
+    }
     if (c == "de" || c == "at" || c == "ch" || c == "es" || c == "it") return key == "(" ? "SHIFT+8" : "SHIFT+9";
     if (c == "us" || c == "gb" || c == "ie" || c == "au" || c == "ca" || c == "en" || c == "nz") return key == "(" ? "SHIFT+9" : "SHIFT+0";
     return key;

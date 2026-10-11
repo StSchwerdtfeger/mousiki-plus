@@ -35,6 +35,7 @@ struct ScopeWinConfig {
     uint8_t color_by_x = 1;        // 1 = palette across the width (the "gradient" colour), 0 = by beam speed
     uint8_t music = 0;             // oscilloscope music mode: fixed scale, finer beam, more smoothing, no phase portrait
     uint8_t braille = 0;           // 1 = the braille style: the terminal scope's dot grid, scaled up (else the smooth image style)
+    uint8_t mode = 0;              // braille style: 0 = XY, 1 = YT, 2 = both overlapping, 3 = both in two rows (SHIFT+o "Scope mode"); modes other than XY are drawn as a fine dot picture in either style
     float dot_threshold = 0.28f;   // braille: brightness a dot needs to light (SHIFT+o "Dot threshold")
     float tail = 0.45f;            // braille: oldest sample of the trace relative to the newest (SHIFT+o "Tail")
     int32_t trace = 1024;          // braille: samples drawn per frame (SHIFT+o "Trace Length")

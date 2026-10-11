@@ -388,6 +388,9 @@ void apply_default_hotkeys(Settings& s) {
             // Shift+I / Shift+U: spectrogram options overlay / spectrogram full screen.
             {"HKeySpectroMenu",                 "I"},
             {"HKeySpectroFull",                 "U"},
+            // The big oscilloscope overlay (YT left, XY right, optional grid): the character of SHIFT+0 on a German keyboard
+            // ("=" -- on a US keyboard the unshifted key next to backspace; ")" is the scope window).
+            {"HKeyScopeBig",                    "="},
             // Shift+V: the loudness normalisation overlay (on/off, target
             // level, max boost, live). Uppercase on purpose -- plain "v" is
             // HKeyToggleNormalize, same convention as the other overlays.
@@ -549,6 +552,8 @@ static std::string unquote(const std::string& s) {
     return t;
 }
 
+static const char* viz_default_name(int v) { return v == 0 ? "sphere" : v == 1 ? "osci" : v == 2 ? "spectro" : v == 3 ? "lyrics" : "last"; }
+
 static bool parse_bool(const std::string& v) {
     std::string s = trim(v);
     for (auto& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -599,6 +604,7 @@ static void skip_about_app_block(std::ifstream& in) {
 
 static Settings load_from_config(const fs::path& path) {
     Settings s;
+    bool have_viz_default = false;  // no VizDefault= line (a config from before): start with the view it was left on
     bool focus_color_set = false;   // no ColorFocus= line: the focus indicator follows the header color
     std::ifstream in(path, std::ios::binary);
     if (!in.is_open()) return s;
@@ -699,8 +705,8 @@ static Settings load_from_config(const fs::path& path) {
             {"MetaDataOnly", "meta_only"},
             {"ElimentDisk", "Eliment_disk"}, {"ElimentDummyButtons", "Element_dummy_buttons"},
             {"ElimentQueue", "Eliment_queue"}, {"ElimentWaveForm", "Eliment_waveform_progress_bar"},
-            {"ElimentLyrics", "Eliment_lyrics"}, {"LyricsPlaceholderBall", "Eliment_lyrics_placeholder_ball"},
-            {"LyricViz", "lyric_viz"}, {"NoLyricsViz", "nolyrics_viz"},
+            {"ElimentLyrics", "Eliment_lyrics"}, {"VizLyricsField", "Eliment_vizfield"}, {"LyricsPlaceholderBall", "Eliment_lyrics_placeholder_ball"},
+            {"LyricViz", "lyric_viz"}, {"NoLyricsViz", "nolyrics_viz"}, {"VizDefault", "viz_default"},
             {"Visualizer", "Eliment_visualizer"},
             {"VisualizerFluidity", "visualizer_fluidity"}, {"DiskRotationSpeed", "disk_rotation_speed"},
             {"VisualizerDegradationSpeed", "visualizer_degradation_speed"}, {"VisualizerViscosity", "visualizer_viscosity"},
@@ -742,6 +748,7 @@ static Settings load_from_config(const fs::path& path) {
         if (key == "Eliment_queue" || key == "Element_queue") { s.element_queue = parse_bool(value); continue; }
         if (key == "Eliment_waveform_progress_bar" || key == "Element_waveform") { s.element_waveform = parse_bool(value); continue; }
         if (key == "Eliment_lyrics" || key == "Element_lyrics") { s.element_lyrics = parse_bool(value); continue; }
+        if (key == "Eliment_vizfield") { s.element_vizfield = parse_bool(value); continue; }
         if (key == "UseLyrics") { s.use_lyrics = parse_bool(value); continue; }
         if (key == "UseOscilloscope") { s.use_osci = parse_bool(value); continue; }
         if (key == "UseSpectrogram") { s.use_spectro = parse_bool(value); continue; }
@@ -780,12 +787,24 @@ static Settings load_from_config(const fs::path& path) {
             else if (v == "spectro" || v == "spectrogram") s.lyric_viz = 2;
             continue; // anything unrecognized keeps the current value
         }
+        if (key == "viz_default") {
+            std::string v = value;
+            for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (v == "sphere") s.viz_default = 0;
+            else if (v == "osci" || v == "oscilloscope") s.viz_default = 1;
+            else if (v == "spectro" || v == "spectrogram") s.viz_default = 2;
+            else if (v == "lyrics") s.viz_default = 3;
+            else if (v == "last" || v == "last used" || v == "last_used" || v == "lastused") s.viz_default = 4;
+            have_viz_default = true;
+            continue;
+        }
         if (key == "nolyrics_viz") {
             std::string v = value;
             for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
             if (v == "osci" || v == "oscilloscope") s.nolyrics_viz = 1;
             else if (v == "sphere") s.nolyrics_viz = 0;
             else if (v == "spectro" || v == "spectrogram") s.nolyrics_viz = 2;
+            else if (v == "none" || v == "off" || v == "nothing") s.nolyrics_viz = 3;
             continue;
         }
         if (key == "osci_stereo") continue; // retired setting: old configs may still contain it, it is ignored
@@ -1106,6 +1125,12 @@ static Settings load_from_config(const fs::path& path) {
     }
 
     if (!focus_color_set) s.focus_color = s.header_color;
+    // The field starts with the default view. A config from before VizDefault existed starts with the view it was left on.
+    if (!have_viz_default) s.viz_default = 4;
+    if (s.viz_default <= 3) {   // 4 = last used: the view the "." key left (ElimentLyrics / LyricViz) stays
+        s.element_lyrics = s.viz_default == 3;
+        if (s.viz_default < 3) s.lyric_viz = s.viz_default;
+    }
     return s;
 }
 
@@ -1304,13 +1329,18 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "ElimentDummyButtons=" << tf(s.element_dummy_buttons) << "\n";
     out << "ElimentQueue=" << tf(s.element_queue) << "\n";
     out << "ElimentWaveForm=" << tf(s.element_waveform) << "\n";
+    out << "VizLyricsField=" << tf(s.element_vizfield) << "\n";
+    out << "## false = no Viz/Lyrics field right of the meta data at all (the meta data take its width; no lyrics are fetched for it)\n";
     out << "ElimentLyrics=" << tf(s.element_lyrics) << "\n";
+    out << "## true = the field shows the lyrics (needs UseLyrics=true), false = it shows the visual of LyricViz. The \".\" key switches it.\n";
     out << "LyricViz=" << (s.lyric_viz == 1 ? "osci" : s.lyric_viz == 2 ? "spectro" : "sphere") << "\n";
     out << "## sphere = the audio-reactive ball | osci = the oscilloscope (both drawn in the VIZ colors) | spectro = the spectrogram\n";
-    out << "## Pick it live from this tab's \"Lyrics/Viz\" row (replaces the old LyricsPlaceholderBall on/off).\n";
-    out << "NoLyricsViz=" << (s.nolyrics_viz == 1 ? "osci" : s.nolyrics_viz == 2 ? "spectro" : "sphere") << "\n";
-    out << "## What the lyrics area shows while the lyrics view is on but no lyrics are available (sphere | osci | spectro).\n";
-    out << "## Its \"Use ...\" switch below is turned on when you pick it, and cannot be turned off while it is the pick.\n";
+    out << "## (LyricViz and ElimentLyrics are where the \".\" key left the field; the next start begins with VizDefault, see below; VizDefault=last keeps them.)\n";
+    out << "VizDefault=" << viz_default_name(s.viz_default) << "\n";
+    out << "## The view the field starts with when Mousiki opens: sphere | osci | spectro | lyrics | last (= the view it was left on, \"last used\" in Settings -> ANIMA/VIZ -> Lyrics/Viz Default)\n";
+    out << "NoLyricsViz=" << (s.nolyrics_viz == 1 ? "osci" : s.nolyrics_viz == 2 ? "spectro" : s.nolyrics_viz == 3 ? "none" : "sphere") << "\n";
+    out << "## What the field shows while the lyrics view is on but no lyrics are available (sphere | osci | spectro | none).\n";
+    out << "## Picking one turns its \"Use ...\" switch below on; switching that off again moves this pick to the next visual that is on.\n";
     out << "UseLyrics=" << tf(s.use_lyrics) << "\n";
     out << "UseOscilloscope=" << tf(s.use_osci) << "\n";
     out << "UseSpectrogram=" << tf(s.use_spectro) << "\n";
@@ -1331,7 +1361,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "## true  = the (search-)lists show embedded metadata only -- the title tag is used\n";
     out << "##         instead of the filename (files without a title tag keep their filename)\n";
     out << "## false = lists show filename AND metadata, as before\n";
-    out << "## Toggleable live from this panel (\"Show meta data only\") or with HKeyToggleMetaOnly.\n";
+    out << "## Toggleable live with HKeyToggleMetaOnly (SHIFT+n).\n";
     out << "\n";
 
     out << "##-------------------------------------------\n";

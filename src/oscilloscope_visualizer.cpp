@@ -1,5 +1,6 @@
 #include "oscilloscope_visualizer.h"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 
 namespace muisc {
@@ -42,6 +43,56 @@ void OscilloscopeVisualizer::reset() {
     cleared_ = true; // glow_ belongs to the render thread; it wipes it on its next frame
 }
 
+void OscilloscopeVisualizer::copy_ring_from(OscilloscopeVisualizer& src) {
+    if (&src == this) return;
+    std::array<float, kRingFrames> a, b;
+    int w;
+    {
+        std::lock_guard<std::mutex> lk(src.mtx_);
+        a = src.ch0_; b = src.ch1_; w = src.write_;
+    }
+    std::lock_guard<std::mutex> lk(mtx_);
+    ch0_ = a; ch1_ = b; write_ = w;
+}
+
+OscilloscopeVisualizer::Measure OscilloscopeVisualizer::measure(const Params& params) {
+    const int n = std::clamp(params.trace, 128, kWindow);
+    double saa = 0.0, sbb = 0.0, sab = 0.0;
+    float pk = 0.0f;
+    {
+        std::lock_guard<std::mutex> lk(mtx_);
+        for (int i = 0; i < n; ++i) {
+            const int idx = (write_ - n + i + kRingFrames) % kRingFrames;
+            const float a = ch0_[idx], b = ch1_[idx];
+            saa += static_cast<double>(a) * a;
+            sbb += static_cast<double>(b) * b;
+            sab += static_cast<double>(a) * b;
+            pk = std::max(pk, std::max(std::fabs(a), std::fabs(b)));
+        }
+    }
+    const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    const double dt = meas_t_ > 0.0 ? std::clamp(now - meas_t_, 0.0, 0.5) : 0.0;
+    meas_t_ = now;
+    // averages over about a second (exponential), so a single loud beat does not move them much
+    const double k = meas_init_ ? 1.0 - std::exp(-dt / 1.0) : 1.0;
+    meas_init_ = true;
+    meas_aa_ += (saa / n - meas_aa_) * k;
+    meas_bb_ += (sbb / n - meas_bb_) * k;
+    meas_ab_ += (sab / n - meas_ab_) * k;
+    // peak hold: the highest peak of the last two seconds
+    if (pk >= meas_peak_ || now - meas_peak_t_ > 2.0) { meas_peak_ = pk; meas_peak_t_ = now; }
+    // what is shown changes twice a second
+    if (now - meas_shown_t_ >= 0.5) {
+        meas_shown_t_ = now;
+        const double ms = 0.5 * (meas_aa_ + meas_bb_);
+        shown_.rms_db = ms > 1e-12 ? static_cast<float>(std::round(10.0 * std::log10(ms))) : -120.0f;
+        shown_.peak_db = meas_peak_ > 1e-6f ? static_cast<float>(std::round(20.0 * std::log10(meas_peak_))) : -120.0f;
+        shown_.corr = (meas_aa_ > 1e-12 && meas_bb_ > 1e-12) ? static_cast<float>(std::round(10.0 * meas_ab_ / std::sqrt(meas_aa_ * meas_bb_)) / 10.0) : 0.0f;
+        shown_.bal_db = (meas_aa_ > 1e-12 && meas_bb_ > 1e-12) ? static_cast<float>(std::round(10.0 * std::log10(meas_aa_ / meas_bb_))) : 0.0f;
+    }
+    return shown_;
+}
+
 void OscilloscopeVisualizer::paint(int pw, int ph, const Params& params) {
     const float decay = std::clamp(params.decay, 0.0f, 0.99f);
     const float tail = std::clamp(params.tail_brightness, 0.0f, 1.0f);
@@ -73,65 +124,6 @@ void OscilloscopeVisualizer::paint(int pw, int ph, const Params& params) {
     } else {
         for (float& v : glow_) v *= decay;
     }
-
-    // --- mono detection + phase-portrait cross-fade ---------------------
-    {
-        double em = 0.0, es = 0.0;
-        for (int i = 0; i < kWin; ++i) {
-            const double m = xs[i] + ys[i], s = xs[i] - ys[i];
-            em += m * m;
-            es += s * s;
-        }
-        const float ratio = static_cast<float>(es / (em + 1e-9));
-        const float target = params.mono_phase ? std::clamp((kMonoNone - ratio) / (kMonoNone - kMonoFull), 0.0f, 1.0f) : 0.0f;
-        mono_ += (target - mono_) * 0.25f;
-
-        if (mono_ > 0.001f) {
-            std::vector<float> mid(kWin), q(kWin);
-            for (int i = 0; i < kWin; ++i) mid[i] = 0.5f * (xs[i] + ys[i]);
-            double rs = 0.0, rq = 0.0;
-            for (int i = 0; i < kWin; ++i) {
-                const int a = std::max(i - kDeriv, 0), b = std::min(i + kDeriv, kWin - 1);
-                q[i] = mid[b] - mid[a];
-                rs += static_cast<double>(mid[i]) * mid[i];
-                rq += static_cast<double>(q[i]) * q[i];
-            }
-            // Scale ds/dt so its rms equals the signal's rms: a pure tone
-            // then draws a circle whatever its pitch.
-            const float want = static_cast<float>(std::sqrt(rs / kWin) / std::max(std::sqrt(rq / kWin), 1e-6));
-            const float clamped = std::min(want, 400.0f);
-            scale_ = scale_ <= 0.0f ? clamped : scale_ + (clamped - scale_) * 0.2f;
-            for (int i = 0; i < kWin; ++i) {
-                xs[i] = xs[i] + (mid[i] - xs[i]) * mono_;
-                ys[i] = ys[i] + (q[i] * scale_ - ys[i]) * mono_;
-            }
-        }
-    }
-
-    // --- 45 degree rotation: side (L-R) on the horizontal, mid (L+R) on the vertical axis ------------
-    if (params.rotate) {
-        constexpr float r2 = 0.70710678f;
-        for (int i = 0; i < kWin; ++i) {
-            const float a = xs[i], b = ys[i];
-            xs[i] = (a - b) * r2;
-            ys[i] = (a + b) * r2;
-        }
-    }
-
-    // --- auto-gain (fast attack, slow release) ---------------------------
-    float frame_peak = 0.0f;
-    for (int i = 0; i < kWin; ++i)
-        frame_peak = std::max(frame_peak, std::max(std::fabs(xs[i]), std::fabs(ys[i])));
-    const float gain = params.fixed_gain ? 1.0f : 1.0f / std::max(peak, 0.05f);
-    {
-        std::lock_guard<std::mutex> lk(mtx_);
-        peak_ = frame_peak > peak ? frame_peak : peak * 0.97f + frame_peak * 0.03f;
-    }
-
-    // --- draw the beam ---------------------------------------------------
-    const int side = std::min(pw, ph);
-    const float cx = (pw - 1) * 0.5f, cy = (ph - 1) * 0.5f;
-    const float amp = (side - 1) * 0.5f * 0.94f;
 
     float cur_hue = 0.0f;   // "frequency" of the segment being drawn
     auto plot = [&](int x, int y, float v) {
@@ -168,48 +160,182 @@ void OscilloscopeVisualizer::paint(int pw, int ph, const Params& params) {
         }
     };
 
-    // Per sample: position, beam speed (-> Z and the "frequency" colour). Speed is in picture units (-1..1) per sample;
-    // a full-scale sine of f Hz moves about 2*pi*f/rate per sample, so log(speed) is a usable pitch scale (40 Hz .. 8 kHz).
-    std::vector<float> px_(kWin), py_(kWin), vx_(kWin), vy_(kWin);
-    for (int i = 0; i < kWin; ++i) {
-        vx_[i] = std::clamp(xs[i] * gain, -1.0f, 1.0f);
-        vy_[i] = std::clamp(ys[i] * gain, -1.0f, 1.0f);
-        px_[i] = cx + vx_[i] * amp;
-        py_[i] = cy - vy_[i] * amp;   // +R is up
-    }
-    const int z_src = params.z_source;
-    const float z_depth = std::clamp(params.z_depth, 0.0f, 1.0f);
-    // The "frequency" colour: beam speed on a log scale, stretched over the range the signal really uses (5 % .. 95 % of this
-    // frame's speeds, smoothed), so a pure tone and a busy mix both sweep through the whole palette instead of sitting at one end.
-    std::vector<float> ht(kWin, 0.0f);
-    {
-        for (int i = 1; i < kWin; ++i) {
-            const float sp = std::hypot(vx_[i] - vx_[i - 1], vy_[i] - vy_[i - 1]);
-            ht[i] = std::clamp((std::log10(std::max(sp, 1e-4f)) + 2.3f) / 2.3f, 0.0f, 1.0f);
+    // Scope mode: 0 XY, 1 YT, 2 both on top of each other, 3 both in two rows (XY in the top half, YT in the bottom half),
+    // 4 both in two columns (XY in the left half, YT in the right half).
+    const int mode = std::clamp(params.mode, 0, 4);
+    const bool draw_xy = mode != 1, draw_yt = mode != 0;
+    const int split = mode == 3 ? std::max(1, ph / 2) : 0;
+    const int splitx = mode == 4 ? std::max(1, pw / 2) : 0;
+    // the rectangle each trace has: first column / width and first row / height
+    const int xy_x0 = 0;
+    const int xy_w = mode == 4 ? splitx : pw;
+    const int xy_h = mode == 3 ? split : ph;
+    const int yt_x0 = mode == 4 ? splitx : 0;
+    const int yt_w = mode == 4 ? std::max(1, pw - splitx) : pw;
+    const int yt_y0 = mode == 3 ? split : 0;
+    const int yt_h = mode == 3 ? std::max(1, ph - split) : ph;
+    if (draw_xy) {
+        // --- mono detection + phase-portrait cross-fade ---------------------
+        {
+            double em = 0.0, es = 0.0;
+            for (int i = 0; i < kWin; ++i) {
+                const double m = xs[i] + ys[i], s = xs[i] - ys[i];
+                em += m * m;
+                es += s * s;
+            }
+            const float ratio = static_cast<float>(es / (em + 1e-9));
+            const float target = params.mono_phase ? std::clamp((kMonoNone - ratio) / (kMonoNone - kMonoFull), 0.0f, 1.0f) : 0.0f;
+            mono_ += (target - mono_) * 0.25f;
+
+            if (mono_ > 0.001f) {
+                std::vector<float> mid(kWin), q(kWin);
+                for (int i = 0; i < kWin; ++i) mid[i] = 0.5f * (xs[i] + ys[i]);
+                double rs = 0.0, rq = 0.0;
+                for (int i = 0; i < kWin; ++i) {
+                    const int a = std::max(i - kDeriv, 0), b = std::min(i + kDeriv, kWin - 1);
+                    q[i] = mid[b] - mid[a];
+                    rs += static_cast<double>(mid[i]) * mid[i];
+                    rq += static_cast<double>(q[i]) * q[i];
+                }
+                // Scale ds/dt so its rms equals the signal's rms: a pure tone
+                // then draws a circle whatever its pitch.
+                const float want = static_cast<float>(std::sqrt(rs / kWin) / std::max(std::sqrt(rq / kWin), 1e-6));
+                const float clamped = std::min(want, 400.0f);
+                scale_ = scale_ <= 0.0f ? clamped : scale_ + (clamped - scale_) * 0.2f;
+                for (int i = 0; i < kWin; ++i) {
+                    xs[i] = xs[i] + (mid[i] - xs[i]) * mono_;
+                    ys[i] = ys[i] + (q[i] * scale_ - ys[i]) * mono_;
+                }
+            }
         }
-        std::vector<float> sorted(ht.begin() + 1, ht.end());
-        std::sort(sorted.begin(), sorted.end());
-        const float lo = sorted[sorted.size() * 5 / 100], hi = sorted[sorted.size() * 95 / 100];
-        hue_lo_ += (lo - hue_lo_) * 0.08f;
-        hue_hi_ += (std::max(hi, lo + 0.12f) - hue_hi_) * 0.08f;
-    }
-    float hue_s = 0.0f;
-    float px = cx, py = cy, pi = tail;
-    for (int i = 0; i < kWin; ++i) {
-        const float x = px_[i], y = py_[i];
-        float inten = tail + (1.0f - tail) * (static_cast<float>(i) / (kWin - 1));
-        const float sp = i > 0 ? std::hypot(vx_[i] - vx_[i - 1], vy_[i] - vy_[i - 1]) : 0.0f;
-        if (params.z_axis) {
-            const float z = z_src == 1 ? std::clamp(std::hypot(vx_[i], vy_[i]) * 0.70710678f * 1.4f, 0.0f, 1.0f)
-                                       : 1.0f / (1.0f + 10.0f * sp);
-            inten *= (1.0f - z_depth) + z_depth * z;
+
+        // --- 45 degree rotation: side (L-R) on the horizontal, mid (L+R) on the vertical axis ------------
+        if (params.rotate) {
+            constexpr float r2 = 0.70710678f;
+            for (int i = 0; i < kWin; ++i) {
+                const float a = xs[i], b = ys[i];
+                xs[i] = (a - b) * r2;
+                ys[i] = (a + b) * r2;
+            }
         }
-        const float hn = std::clamp((ht[i] - hue_lo_) / std::max(0.05f, hue_hi_ - hue_lo_), 0.0f, 1.0f);
-        hue_s += (hn - hue_s) * 0.10f;
-        cur_hue = hue_s;
-        if (params.interpolate && i > 0) wu(px, py, x, y, pi, inten);
-        else wu(x, y, x, y, inten, inten);
-        px = x; py = y; pi = inten;
+
+        // --- auto-gain (fast attack, slow release) ---------------------------
+        float frame_peak = 0.0f;
+        for (int i = 0; i < kWin; ++i)
+            frame_peak = std::max(frame_peak, std::max(std::fabs(xs[i]), std::fabs(ys[i])));
+        const float gain = params.fixed_gain ? 1.0f : 1.0f / std::max(peak, 0.05f);
+        {
+            std::lock_guard<std::mutex> lk(mtx_);
+            peak_ = frame_peak > peak ? frame_peak : peak * 0.97f + frame_peak * 0.03f;
+        }
+
+        // --- draw the beam ---------------------------------------------------
+        const int side = std::min(xy_w, xy_h);
+        const float cx = static_cast<float>(xy_x0) + (xy_w - 1) * 0.5f, cy = (xy_h - 1) * 0.5f;
+        const float amp = (side - 1) * 0.5f * 0.94f;
+
+        // Per sample: position, beam speed (-> Z and the "frequency" colour). Speed is in picture units (-1..1) per sample;
+        // a full-scale sine of f Hz moves about 2*pi*f/rate per sample, so log(speed) is a usable pitch scale (40 Hz .. 8 kHz).
+        std::vector<float> px_(kWin), py_(kWin), vx_(kWin), vy_(kWin);
+        for (int i = 0; i < kWin; ++i) {
+            vx_[i] = std::clamp(xs[i] * gain, -1.0f, 1.0f);
+            vy_[i] = std::clamp(ys[i] * gain, -1.0f, 1.0f);
+            px_[i] = cx + vx_[i] * amp;
+            py_[i] = cy - vy_[i] * amp;   // +R is up
+        }
+        const int z_src = params.z_source;
+        const float z_depth = std::clamp(params.z_depth, 0.0f, 1.0f);
+        // The "frequency" colour: beam speed on a log scale, stretched over the range the signal really uses (5 % .. 95 % of this
+        // frame's speeds, smoothed), so a pure tone and a busy mix both sweep through the whole palette instead of sitting at one end.
+        std::vector<float> ht(kWin, 0.0f);
+        {
+            for (int i = 1; i < kWin; ++i) {
+                const float sp = std::hypot(vx_[i] - vx_[i - 1], vy_[i] - vy_[i - 1]);
+                ht[i] = std::clamp((std::log10(std::max(sp, 1e-4f)) + 2.3f) / 2.3f, 0.0f, 1.0f);
+            }
+            std::vector<float> sorted(ht.begin() + 1, ht.end());
+            std::sort(sorted.begin(), sorted.end());
+            const float lo = sorted[sorted.size() * 5 / 100], hi = sorted[sorted.size() * 95 / 100];
+            hue_lo_ += (lo - hue_lo_) * 0.08f;
+            hue_hi_ += (std::max(hi, lo + 0.12f) - hue_hi_) * 0.08f;
+        }
+        float hue_s = 0.0f;
+        float px = cx, py = cy, pi = tail;
+        for (int i = 0; i < kWin; ++i) {
+            const float x = px_[i], y = py_[i];
+            float inten = tail + (1.0f - tail) * (static_cast<float>(i) / (kWin - 1));
+            const float sp = i > 0 ? std::hypot(vx_[i] - vx_[i - 1], vy_[i] - vy_[i - 1]) : 0.0f;
+            if (params.z_axis) {
+                const float z = z_src == 1 ? std::clamp(std::hypot(vx_[i], vy_[i]) * 0.70710678f * 1.4f, 0.0f, 1.0f)
+                                           : 1.0f / (1.0f + 10.0f * sp);
+                inten *= (1.0f - z_depth) + z_depth * z;
+            }
+            const float hn = std::clamp((ht[i] - hue_lo_) / std::max(0.05f, hue_hi_ - hue_lo_), 0.0f, 1.0f);
+            hue_s += (hn - hue_s) * 0.10f;
+            cur_hue = hue_s;
+            if (params.interpolate && i > 0) wu(px, py, x, y, pi, inten);
+            else wu(x, y, x, y, inten, inten);
+            px = x; py = y; pi = inten;
+        }
+    }
+
+    // --- YT trace: amplitude over time, triggered ------------------------
+    if (draw_yt) {
+        const int span = kWin;                                  // samples across the whole width (the Trace Length row)
+        const int n = std::min(kRingFrames, span * 2);          // look back twice that far to find a trigger point
+        std::vector<float> mid(static_cast<size_t>(n));
+        {
+            std::lock_guard<std::mutex> lk(mtx_);
+            for (int i = 0; i < n; ++i) {
+                const int idx = (write_ - n + i + kRingFrames) % kRingFrames;
+                mid[static_cast<size_t>(i)] = 0.5f * (ch0_[idx] + ch1_[idx]);
+            }
+        }
+        if (wipe) { yt_peak_ = 0.05f; yt_lo_ = 0.20f; yt_hi_ = 0.80f; }
+        // Trigger: the newest rising zero crossing that leaves a whole screen of samples behind it. A small noise guard
+        // (the signal must have been clearly negative just before) keeps hiss from triggering on every ripple.
+        const float guard = 0.03f * std::max(yt_peak_, 0.05f);
+        int start = n - span;                                   // no crossing found: the newest screen, free-running
+        for (int k = n - span; k >= 4; --k) {
+            if (mid[static_cast<size_t>(k)] >= 0.0f && mid[static_cast<size_t>(k) - 1] < 0.0f &&
+                std::min(std::min(mid[static_cast<size_t>(k) - 2], mid[static_cast<size_t>(k) - 3]), mid[static_cast<size_t>(k) - 4]) < -guard) {
+                start = k - 1;
+                break;
+            }
+        }
+        float frame_peak = 0.0f;
+        for (int i = 0; i < span; ++i) frame_peak = std::max(frame_peak, std::fabs(mid[static_cast<size_t>(start + i)]));
+        // the first frames after a track starts already count this frame's own peak, so nothing is drawn clipped
+        const float gain = params.fixed_gain ? 1.0f : 1.0f / std::max(std::max(yt_peak_, frame_peak), 0.05f);
+        yt_peak_ = frame_peak > yt_peak_ ? frame_peak : yt_peak_ * 0.97f + frame_peak * 0.03f;
+
+        const float cy = static_cast<float>(yt_y0) + (yt_h - 1) * 0.5f, amp = (yt_h - 1) * 0.5f * 0.94f;
+        const float x_step = span > 1 ? static_cast<float>(yt_w - 1) / static_cast<float>(span - 1) : 0.0f;
+        std::vector<float> v(static_cast<size_t>(span)), ht(static_cast<size_t>(span), 0.0f);
+        for (int i = 0; i < span; ++i) v[static_cast<size_t>(i)] = std::clamp(mid[static_cast<size_t>(start + i)] * gain, -1.0f, 1.0f);
+        // the "frequency" colour: steepness of the trace, stretched over the range this signal really uses (as for XY)
+        for (int i = 1; i < span; ++i) {
+            const float sp = std::fabs(v[static_cast<size_t>(i)] - v[static_cast<size_t>(i) - 1]);
+            ht[static_cast<size_t>(i)] = std::clamp((std::log10(std::max(sp, 1e-4f)) + 2.3f) / 2.3f, 0.0f, 1.0f);
+        }
+        {
+            std::vector<float> sorted(ht.begin() + 1, ht.end());
+            std::sort(sorted.begin(), sorted.end());
+            const float lo = sorted[sorted.size() * 5 / 100], hi = sorted[sorted.size() * 95 / 100];
+            yt_lo_ += (lo - yt_lo_) * 0.08f;
+            yt_hi_ += (std::max(hi, lo + 0.12f) - yt_hi_) * 0.08f;
+        }
+        const float inten = mode == 2 ? 0.75f : 1.0f;    // on top of the XY figure the trace is a little dimmer
+        float hue_s = 0.0f, px = static_cast<float>(yt_x0), py = cy - v[0] * amp;
+        for (int i = 0; i < span; ++i) {
+            const float x = static_cast<float>(yt_x0) + x_step * static_cast<float>(i), y = cy - v[static_cast<size_t>(i)] * amp;
+            const float hn = std::clamp((ht[static_cast<size_t>(i)] - yt_lo_) / std::max(0.05f, yt_hi_ - yt_lo_), 0.0f, 1.0f);
+            hue_s += (hn - hue_s) * 0.10f;
+            cur_hue = hue_s;
+            if (params.interpolate && i > 0) wu(px, py, x, y, inten, inten);
+            else wu(x, y, x, y, inten, inten);
+            px = x; py = y;
+        }
     }
 
 }
