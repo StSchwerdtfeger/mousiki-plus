@@ -486,6 +486,8 @@ int win_poll_key() {
             if (k.wVirtualKeyCode == 'X' && (wc_ctrl == 0x18 || wc_ctrl == 0)) { g_last_key_was_arrow = false; return kKeyCtrlX; }
             if (k.wVirtualKeyCode == 'V' && (wc_ctrl == 0x16 || wc_ctrl == 0)) { g_last_key_was_arrow = false; return kKeyCtrlV; }
             if (k.wVirtualKeyCode == 'S' && (wc_ctrl == 0x13 || wc_ctrl == 0)) { g_last_key_was_arrow = false; return kKeyCtrlS; }
+            if (k.wVirtualKeyCode == 'P' && (wc_ctrl == 0x10 || wc_ctrl == 0)) { g_last_key_was_arrow = false; return kKeyCtrlP; }
+            if (k.wVirtualKeyCode == 'L' && (wc_ctrl == 0x0c || wc_ctrl == 0)) { g_last_key_was_arrow = false; return kKeyCtrlL; }
         }
     }
 

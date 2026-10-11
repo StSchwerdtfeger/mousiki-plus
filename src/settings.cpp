@@ -301,7 +301,6 @@ void apply_default_hotkeys(Settings& s) {
             {"HKeyNavigateDown",                "ARROW_KEY_DOWN"},
             {"HKeyPlay",                        "ENTER"},
             {"HKeySearch",                      "/"},
-            {"HKeySearchOnline",                "/s:"},
             {"HKeyPlayNextSong",                "n"},
             {"HKeyPlayPreviousSong",            "b"},
             {"HKeySeekForward",                 "ARROW_KEY_RIGHT"},
@@ -326,16 +325,19 @@ void apply_default_hotkeys(Settings& s) {
             {"HKeyConsole",                     "t"},
             {"HKeyToggleMute",                  "x"},
             {"HKeyCheatsheet",                  "?"},
+            // The help wizard. "W" (SHIFT+w) was free: it used to be the
+            // scope window's key, which moved to ")" in v3.1.0 (see the
+            // migration below), and plain "w" stays Toggle Waveform.
+            {"HKeyWizard",                      "W"},
             {"HKeyRetryLyrics",                 "l"},
             {"HKeyShuffleNext",                 "#"},
             {"HKeyToggleLyrics",                "."},
+            {"HKeyToggleLyricsBack",            ","},
             {"HKeyQueueMoveUp",                 "4"},
             {"HKeyQueueMoveDown",               "5"},
             {"HKeyToggleWaveform",              "w"},
             {"HKeyCycleSortMode",               "T"},
             {"HKeyPlaylist",                    "P"},
-            {"HKeySearchPlaylist",              "/p:"},
-            {"HKeySearchFolder",                "/f:"},
             {"HKeyToggleNormalize",             "v"},
             // Shift+N: deliberately the UPPERCASE letter, because plain
             // "n" is already HKeyPlayNextSong and resolve_hotkey_action()
@@ -362,6 +364,14 @@ void apply_default_hotkeys(Settings& s) {
             // floated over the main UI). Uppercase on purpose -- plain "l" is
             // HKeyRetryLyrics.
             {"HKeyListOverlay",                 "L"},
+            // Shift+F: the big folder overlay (a tree of the library's folders;
+            // `f` inside it shows a folder in the list). Uppercase on purpose --
+            // plain "f" is HKeyFilterForFolder.
+            {"HKeyFolderOverlay",               "F"},
+            // Shift+C: the file conversion overlay (high resolution files -> MP3 and other lighter formats).
+            // Uppercase on purpose; the arrow-key collision this key used to have (Shift+c was read as Right =
+            // seek forward) is gone, see App::resolve_hotkey_action().
+            {"HKeyConvertOverlay",              "C"},
             // Shift+K: the big queue overlay (a larger QUEUE pane floated
             // over the main UI). Uppercase on purpose -- plain "k" is
             // HKeyRefreshUi, and "q" stays Quit so the overlay can't quit
@@ -400,6 +410,15 @@ void apply_default_hotkeys(Settings& s) {
             {"HKeyQueueLock",                   "!"},
             {"HKeyQueueMoveTop",                "$"},
             {"HKeyQueueMoveBottom",             "%"},
+            // v3.1.x: keys that used to be fixed in the code and are now rebindable (Settings -> REFERENCE). The
+            // modifier combinations are written as names (ALT+L, CTRL+L, CTRL+SHIFT+Z, CTRL+SHIFT+U); on a Mac
+            // "ALT" is the OPTION key.
+            {"HKeyRescan",                      "R"},             // SHIFT+r: look for new files
+            {"HKeyFetchTags",                   "B"},             // SHIFT+b: AcoustID lookup of the hovered title
+            {"HKeyLyricsTiming",                "ALT+L"},         // lyrics timing overlay
+            {"HKeyReadLyrics",                  "CTRL+L"},        // READ LYRICS overlay
+            {"HKeyQueueUndoClear",              "CTRL+SHIFT+Z"},  // bring back the queue that was just cleared
+            {"HKeyQueueToPlaylist",             "CTRL+SHIFT+U"},  // save the queue as a playlist
         };
         // HKeyResetPreference was defined but nothing ever read it; configs
         // written by older builds still carry it (as "e", which would now
@@ -408,6 +427,11 @@ void apply_default_hotkeys(Settings& s) {
         // and no longer written back (see save_settings()'s hkey_order), so
         // the next save removes the line from config.txt for good.
         s.hotkeys.erase("HKeyResetPreference");
+        // The three search prefixes (/s: /p: /f:) were listed as hotkeys but typing them was never configurable (the
+        // search box parses s: p: f: r: a: sc: b: itself); the lines are dropped so config.txt does not promise anything.
+        s.hotkeys.erase("HKeySearchOnline");
+        s.hotkeys.erase("HKeySearchPlaylist");
+        s.hotkeys.erase("HKeySearchFolder");
         // v3.1.0: volume moved from "1" / "2" to "+" / "-", and the lyrics
         // area cycle from "+" to ".". A config that still carries the old
         // trio exactly as it was shipped is moved over as a whole; a user
@@ -454,6 +478,24 @@ void apply_default_hotkeys(Settings& s) {
             // A key explicitly set to "" (user unbound it on purpose) is
             // left alone rather than silently re-bound.
             if (s.hotkeys.find(action) == s.hotkeys.end()) s.hotkeys[action] = key;
+        }
+        // The wizard's "W" is the one default that can land on an occupied
+        // key: the migration above leaves an old HKeyScopeWindow on "W" when
+        // ")" is already taken. Two actions on one key would make
+        // resolve_hotkey_action() pick between them at random, so the wizard
+        // gives way and is left unbound (rebind it under Settings ->
+        // REFERENCE). Only a config written before the wizard existed can
+        // reach this.
+        // The same goes for the keys that became rebindable later (their old fixed key may have been given to another
+        // action in the meantime, which could never fire: the fixed key was caught first).
+        for (const char* name : {"HKeyWizard", "HKeyRescan", "HKeyFetchTags", "HKeyLyricsTiming", "HKeyReadLyrics",
+                                 "HKeyQueueUndoClear", "HKeyQueueToPlaylist"}) {
+            auto wiz = s.hotkeys.find(name);
+            if (wiz != s.hotkeys.end() && !wiz->second.empty()) {
+                for (const auto& [action, key] : s.hotkeys) {
+                    if (action != name && key == wiz->second) { wiz->second = ""; break; }
+                }
+            }
         }
     }
 }
@@ -541,23 +583,14 @@ static void parse_font_block(std::ifstream& in, Settings& s) {
     }
 }
 
-static void parse_about_app_block(std::ifstream& in, Settings& s) {
+// The ABOUT APP text is hard coded (about_text.h). Older config files still carry it as a
+// ClassTextAboutApp={...}; block, which is skipped here and no longer written back.
+static void skip_about_app_block(std::ifstream& in) {
     std::string line;
     while (std::getline(in, line)) {
         std::string t = trim(line);
         if (t == "};" || t == "}") break;
-        s.about_app_lines.push_back(line);
     }
-    // Trim blank lines from both ends. Trailing ones were already handled;
-    // leading ones weren't -- config.txt's own About block ships with
-    // several blank lines before the actual text (purely for spacing when
-    // editing the file by hand), and with nothing stripping those, they
-    // became the first several rows of the About App tab. On a short
-    // terminal that's often more blank rows than the tab's visible height,
-    // so the tab looked completely empty until scrolled down -- the
-    // content was always there, just always off the bottom of the view.
-    while (!s.about_app_lines.empty() && trim(s.about_app_lines.front()).empty()) s.about_app_lines.erase(s.about_app_lines.begin());
-    while (!s.about_app_lines.empty() && trim(s.about_app_lines.back()).empty()) s.about_app_lines.pop_back();
 }
 
 // =====================================================================
@@ -566,6 +599,7 @@ static void parse_about_app_block(std::ifstream& in, Settings& s) {
 
 static Settings load_from_config(const fs::path& path) {
     Settings s;
+    bool focus_color_set = false;   // no ColorFocus= line: the focus indicator follows the header color
     std::ifstream in(path, std::ios::binary);
     if (!in.is_open()) return s;
 
@@ -608,7 +642,7 @@ static Settings load_from_config(const fs::path& path) {
         }
         // About App text block
         if (t.find("ClassTextAboutApp") != std::string::npos && t.find('{') != std::string::npos) {
-            parse_about_app_block(in, s);
+            skip_about_app_block(in);
             continue;
         }
 
@@ -648,6 +682,8 @@ static Settings load_from_config(const fs::path& path) {
             {"ColorMetadataKey", "meta_key_color"}, {"ColorMetadataVal", "meta_val_color"},
             {"ColorVizLeft", "visualizer_color"}, {"ColorVizRight", "visualizer_color_end"},
             {"ColorProgressBarPlayed", "progress_played_color"}, {"ColorProgressBarPending", "progress_remaining_color"},
+            {"ColorSearchFg", "search_text_color"}, {"ColorSearchBg", "search_bg_color"},
+            {"ColorSearchInactiveFg", "search_inactive_text_color"}, {"ColorSearchInactiveBg", "search_inactive_bg_color"},
             {"ColorListInactiveFg", "list_color"}, {"ColorListInactiveBg", "list_inactive_bg_color"},
             {"ColorListPlayingFg", "list_playing_color"}, {"ColorListPlayingBg", "list_playing_bg_color"},
             {"ColorListCursorFg", "list_cursor_color"}, {"ColorListCursorBg", "list_cursor_bg_color"},
@@ -658,11 +694,13 @@ static Settings load_from_config(const fs::path& path) {
             {"ColorLyricsActiveLineFg", "active_line_color"}, {"ColorLyricsActiveLineBg", "active_line_bg_color"},
             {"ColorLyricsActiveWordFg", "active_word_color"}, {"ColorLyricsActiveWordBg", "active_word_bg_color"},
             {"ColorHeader", "header_color"}, {"ColorLegend", "legend_color"}, {"ColorTabCurrent", "tab_current_color"}, {"ColorTabOther", "tab_other_color"},
+            {"ColorChangeFg", "change_text_color"}, {"ColorChangeBg", "change_bg_color"},
+            {"ColorFocus", "focus_color"},
             {"MetaDataOnly", "meta_only"},
             {"ElimentDisk", "Eliment_disk"}, {"ElimentDummyButtons", "Element_dummy_buttons"},
             {"ElimentQueue", "Eliment_queue"}, {"ElimentWaveForm", "Eliment_waveform_progress_bar"},
             {"ElimentLyrics", "Eliment_lyrics"}, {"LyricsPlaceholderBall", "Eliment_lyrics_placeholder_ball"},
-            {"LyricViz", "lyric_viz"},
+            {"LyricViz", "lyric_viz"}, {"NoLyricsViz", "nolyrics_viz"},
             {"Visualizer", "Eliment_visualizer"},
             {"VisualizerFluidity", "visualizer_fluidity"}, {"DiskRotationSpeed", "disk_rotation_speed"},
             {"VisualizerDegradationSpeed", "visualizer_degradation_speed"}, {"VisualizerViscosity", "visualizer_viscosity"},
@@ -681,6 +719,12 @@ static Settings load_from_config(const fs::path& path) {
         // These two don't map onto an existing key 1:1 (string enum ->
         // bool / int), so they're handled directly instead of aliased.
         if (key == "WaveformStyle") { s.waveform_smooth = (value == "smooth"); continue; }
+        if (key == "StartMode") {
+            std::string v = trim(unquote(value));
+            for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            s.start_mode = (v == "radio") ? "radio" : "player";
+            continue;
+        }
         if (key == "PlaybackMode") {
             std::string v = value;
             for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -701,6 +745,25 @@ static Settings load_from_config(const fs::path& path) {
         if (key == "UseLyrics") { s.use_lyrics = parse_bool(value); continue; }
         if (key == "UseOscilloscope") { s.use_osci = parse_bool(value); continue; }
         if (key == "UseSpectrogram") { s.use_spectro = parse_bool(value); continue; }
+        if (key == "UseSphere") { s.use_sphere = parse_bool(value); continue; }
+        if (key == "VizOrder") {
+            // "sphere,osci,spectro,lyrics" in any order; names that are missing are appended in the default order, so
+            // a short or damaged list never loses a view.
+            std::vector<int> order;
+            std::string item;
+            std::string v = trim(unquote(value)) + ",";
+            for (char ch : v) {
+                if (ch != ',' && ch != ' ' && ch != '>' && ch != ';') { item += static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); continue; }
+                if (item.empty()) continue;
+                int id = (item == "sphere") ? 0 : (item == "osci" || item == "oscilloscope") ? 1
+                       : (item == "spectro" || item == "spectrogram") ? 2 : (item == "lyrics") ? 3 : -1;
+                if (id >= 0 && std::find(order.begin(), order.end(), id) == order.end()) order.push_back(id);
+                item.clear();
+            }
+            for (int id = 0; id < 4; ++id) if (std::find(order.begin(), order.end(), id) == order.end()) order.push_back(id);
+            for (int i = 0; i < 4; ++i) s.viz_order[i] = order[static_cast<size_t>(i)];
+            continue;
+        }
         if (key == "Eliment_lyrics_placeholder_ball" || key == "Element_lyrics_placeholder_ball") {
             // Legacy "Lyric Ball" on/off switch, now a two-way pick
             // (LyricViz=sphere|osci) with no "off" state: true keeps the
@@ -716,6 +779,14 @@ static Settings load_from_config(const fs::path& path) {
             else if (v == "sphere") s.lyric_viz = 0;
             else if (v == "spectro" || v == "spectrogram") s.lyric_viz = 2;
             continue; // anything unrecognized keeps the current value
+        }
+        if (key == "nolyrics_viz") {
+            std::string v = value;
+            for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (v == "osci" || v == "oscilloscope") s.nolyrics_viz = 1;
+            else if (v == "sphere") s.nolyrics_viz = 0;
+            else if (v == "spectro" || v == "spectrogram") s.nolyrics_viz = 2;
+            continue;
         }
         if (key == "osci_stereo") continue; // retired setting: old configs may still contain it, it is ignored
         if (key == "lyrics_alignment") {
@@ -790,9 +861,13 @@ static Settings load_from_config(const fs::path& path) {
         if (key == "tab_current_color") { if (!value.empty()) s.tab_current_color = normalize_color_value(value); continue; }
         if (key == "tab_other_color") { if (!value.empty()) s.tab_other_color = normalize_color_value(value); continue; }
         if (key == "legend_color") { if (!value.empty()) s.legend_color = normalize_color_value(value); continue; }
+        if (key == "focus_color") { if (!value.empty()) { s.focus_color = normalize_color_value(value); focus_color_set = true; } continue; }
+        if (key == "change_text_color") { if (!value.empty()) s.change_text_color = normalize_color_value(value); continue; }
+        if (key == "change_bg_color") { if (!value.empty()) s.change_bg_color = normalize_color_value(value); continue; }
         if (key == "active_line_color") { if (!value.empty()) s.active_line_color = normalize_color_value(value); continue; }
         if (key == "active_line_bg_color") { if (!value.empty()) s.active_line_bg_color = normalize_color_value(value); continue; }
         if (key == "active_word_color") { if (!value.empty()) s.active_word_color = normalize_color_value(value); continue; }
+        if (key == "BorderGradient" || key == "border_gradient") { { std::string v = value; for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); s.border_smooth = (v != "rough"); } continue; }
         if (key == "active_word_bg_color") { if (!value.empty()) s.active_word_bg_color = normalize_color_value(value); continue; }
         if (key == "inactive_line_color") { if (!value.empty()) s.inactive_line_color = normalize_color_value(value); continue; }
         if (key == "inactive_line_bg_color") { if (!value.empty()) s.inactive_line_bg_color = normalize_color_value(value); continue; }
@@ -801,6 +876,10 @@ static Settings load_from_config(const fs::path& path) {
         if (key == "progress_timestamp_color") { if (!value.empty()) s.progress_timestamp_color = normalize_color_value(value); continue; }
         if (key == "meta_key_color") { if (!value.empty()) s.meta_key_color = normalize_color_value(value); continue; }
         if (key == "meta_val_color") { if (!value.empty()) s.meta_val_color = normalize_color_value(value); continue; }
+        if (key == "search_text_color") { if (!value.empty()) s.search_text_color = normalize_color_value(value); continue; }
+        if (key == "search_bg_color") { if (!value.empty()) s.search_bg_color = normalize_color_value(value); continue; }
+        if (key == "search_inactive_text_color") { if (!value.empty()) s.search_inactive_text_color = normalize_color_value(value); continue; }
+        if (key == "search_inactive_bg_color") { if (!value.empty()) s.search_inactive_bg_color = normalize_color_value(value); continue; }
         if (key == "list_color") { if (!value.empty()) s.list_color = normalize_color_value(value); continue; }
         if (key == "list_inactive_bg_color") { if (!value.empty()) s.list_inactive_bg_color = normalize_color_value(value); continue; }
         if (key == "list_playing_color") { if (!value.empty()) s.list_playing_color = normalize_color_value(value); continue; }
@@ -892,6 +971,7 @@ static Settings load_from_config(const fs::path& path) {
 
         // --- Autosave / session snapshot --------------------------------
         if (key == "SleepFade") { s.sleep_fade = parse_bool(value); continue; }
+        if (key == "WizardSeen") { s.wizard_seen = parse_bool(value); continue; }
         if (key == "SidPlayLength") {
             try { s.sid_play_length = std::clamp(std::stoi(trim(unquote(value))), 10, 1800); } catch (...) {}
             continue;
@@ -900,6 +980,20 @@ static Settings load_from_config(const fs::path& path) {
             try { s.karaoke_lyrics_size = std::clamp(std::stoi(trim(unquote(value))), 1, 5); } catch (...) {}
             continue;
         }
+        if (key == "TranslateService") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            if (v == "google" || v == "mymemory") s.translate_service = v;   // (LibreTranslate was dropped: it needs a paid API key)
+            continue;
+        }
+        if (key == "TranslateTo" || key == "TranslateFrom") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            if (!v.empty() && v.size() <= 8) (key == "TranslateTo" ? s.translate_to : s.translate_from) = v;
+            if (s.translate_to == "auto") s.translate_to = "en";
+            continue;
+        }
+        if (key == "TranslateUrl" || key == "TranslateKey") continue;   // retired with LibreTranslate: old configs may still hold them
         if (key == "AutoSave") { s.autosave_enabled = parse_bool(value); continue; }
         if (key == "AutoSaveIndicator") { s.autosave_indicator = parse_bool(value); continue; }
         if (key == "AutoSaveDelayInSec") { try { s.autosave_delay_sec = std::max(1, std::stoi(value)); } catch (...) {} continue; }
@@ -975,6 +1069,15 @@ static Settings load_from_config(const fs::path& path) {
             if (!path.empty()) s.playlist_export_path = path;
             continue;
         }
+        if (key == "ConversionExportPath" || key == "conversion_export_path") {
+            std::string path = trim(unquote(value));
+            if (!path.empty() && path[0] == '~') {
+                const char* home = std::getenv("HOME");
+                if (home) path = std::string(home) + path.substr(1);
+            }
+            if (!path.empty()) s.conversion_export_path = path;
+            continue;
+        }
         if (key == "HistoryPath" || key == "history_path") {
             std::string path = trim(unquote(value));
             if (!path.empty() && path[0] == '~') {
@@ -1001,6 +1104,7 @@ static Settings load_from_config(const fs::path& path) {
         }
     }
 
+    if (!focus_color_set) s.focus_color = s.header_color;
     return s;
 }
 
@@ -1057,40 +1161,36 @@ static Settings load_from_legacy(const fs::path& path) {
 // Public load/save
 // =====================================================================
 
-// The ABOUT APP text lives in config.txt (ClassTextAboutApp), so a config saved by an older
-// version would show that version forever. The port's "Version ... : vX.Y.Z" line is brought
-// up to the running build's version; the original author's "original and final v1.0" line has
-// no vX.Y.Z and is left alone. The column after the version keeps its place.
-static void refresh_about_version(Settings& s) {
-    const std::string cur = std::string("v") + MOUSIKI_VERSION;
-    auto is_digit = [](char c) { return c >= '0' && c <= '9'; };
-    for (auto& line : s.about_app_lines) {
-        if (line.rfind("Version", 0) != 0) continue;
-        for (size_t i = 0; i + 1 < line.size(); ++i) {
-            if (line[i] != 'v' || !is_digit(line[i + 1])) continue;
-            size_t j = i + 1;
-            int dots = 0;
-            while (j < line.size() && (is_digit(line[j]) || (line[j] == '.' && j + 1 < line.size() && is_digit(line[j + 1])))) {
-                if (line[j] == '.') ++dots;
-                ++j;
-            }
-            if (dots != 2) continue;                     // only vX.Y.Z (not "v1.0")
-            const std::string old = line.substr(i, j - i);
-            if (old == cur) break;
-            std::string tail = line.substr(j);
-            const long diff = static_cast<long>(cur.size()) - static_cast<long>(old.size());
-            if (diff > 0) {
-                size_t spaces = 0;
-                while (spaces < tail.size() && tail[spaces] == ' ') ++spaces;
-                const size_t cut = std::min(static_cast<size_t>(diff), spaces > 1 ? spaces - 1 : 0);
-                tail.erase(0, cut);
-            } else if (diff < 0) {
-                tail.insert(0, static_cast<size_t>(-diff), ' ');
-            }
-            line = line.substr(0, i) + cur + tail;
-            break;
-        }
+std::string read_start_mode() {
+    std::ifstream in(config_path());
+    std::string line, mode = "player";
+    while (std::getline(in, line)) {
+        if (line.compare(0, 10, "StartMode=") != 0) continue;
+        std::string v = trim(unquote(line.substr(10)));
+        for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        mode = (v == "radio") ? "radio" : "player";
     }
+    return mode;
+}
+
+bool write_start_mode(const std::string& mode) {
+    const std::string want = std::string("StartMode=") + (mode == "radio" ? "radio" : "player");
+    const fs::path p = config_path();
+    std::vector<std::string> lines;
+    {
+        std::ifstream in(p);
+        std::string line;
+        while (std::getline(in, line)) lines.push_back(line);
+    }
+    bool done = false;
+    for (auto& l : lines) if (!done && l.compare(0, 10, "StartMode=") == 0) { l = want; done = true; }
+    if (!done) lines.push_back(want);
+    std::error_code ec;
+    fs::create_directories(p.parent_path(), ec);
+    std::ofstream out(p, std::ios::trunc);
+    if (!out.is_open()) return false;
+    for (const auto& l : lines) out << l << "\n";
+    return out.good();
 }
 
 Settings load_settings() {
@@ -1133,33 +1233,6 @@ Settings load_settings() {
     // else: all defaults
 
     apply_default_hotkeys(s);
-    if (s.about_app_lines.empty()) {
-        // Same text as the ClassTextAboutApp block of the config.txt template (and the radio's ABOUT APP tab).
-        s.about_app_lines = {
-            "Mousiki",
-            "",
-            "A terminal music player built for people who prefer control.",
-            "Zero external UI bloat. Mousiki is designed around a fast, ",
-            "focused TUI with no unnecessary interface layers. A terminal ",
-            "music player built for people who prefer control.",
-            "",
-            "Developer : ender                         Github   : itzender5820",
-            "Email     : itz.ender5820@gmail.com",
-            "Version   : original and final v1.0       Licence  : Apache licence 2.0",
-            "",
-            "Windows Port / Modification : Steffen Schwerdtfeger     Github   : StSchwerdtfeger",
-            "Version                     : v" MOUSIKI_VERSION "                    Licence  : Apache licence 2.0",
-            "",
-            "Adjusted to also run on Windows. Several features and modifications were",
-            "added, the general design remained. Additions: radio mode, playlist menu, ",
-            "meta data editor incl. fetch meta data function via AcoustID, listening ",
-            "history, big list/queue overlays, equalizer, YX mode oscillator several ",
-            "new hot keys and then some... See Readme.md for full list of additions ",
-            "and changes along the win native port. Done with the help of AI tools.",
-        };
-    } else {
-        refresh_about_version(s);
-    }
     return s;
 }
 
@@ -1174,6 +1247,8 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "# Frame & Controls\n";
     out << "ColorBorderTop=" << s.border_color << "\n";
     out << "ColorBorderBottom=" << s.border_color_bottom << "\n";
+    out << "# BorderGradient: smooth = the frame fades line by line from the top to the bottom colour, rough = only the bottom border line has the bottom colour\n";
+    out << "BorderGradient=" << (s.border_smooth ? "smooth" : "rough") << "\n";
     out << "ColorDiskTop=" << s.disk_color << "\n";
     out << "ColorDiskBottom=" << s.disk_color_end << "\n";
     out << "ColorMetadataKey=" << s.meta_key_color << "\n";
@@ -1189,6 +1264,14 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "# list / queue overlays, the playlist / meta editor and the history) -- 0 = terminal default\n";
     out << "ColorLegend=" << s.legend_color << "\n";
     out << "ColorTabCurrent=" << s.tab_current_color << "\nColorTabOther=" << s.tab_other_color << "\n";
+    out << "\n# \"This field is actively being typed into\" (a PATHS row, a hex colour value, a\n";
+    out << "# hotkey, a meta editor tag) -- 0 = terminal default\n";
+    out << "ColorChangeFg=" << s.change_text_color << "\nColorChangeBg=" << s.change_bg_color << "\n";
+    out << "\n# Pane focus indicator (the little triangle after the title of the pane that has the keys) -- 0 = plain bold\n";
+    out << "ColorFocus=" << s.focus_color << "\n";
+    out << "\n# Search bar: typed query (highlighted behind the query text only) and the idle bar\n# (empty FG = same as List Inactive; empty BG = none)\n";
+    out << "ColorSearchFg=" << s.search_text_color << "\nColorSearchBg=" << s.search_bg_color << "\n";
+    out << "ColorSearchInactiveFg=" << s.search_inactive_text_color << "\nColorSearchInactiveBg=" << s.search_inactive_bg_color << "\n";
     out << "\n# List\n";
     out << "ColorListInactiveFg=" << s.list_color << "\n";
     out << "ColorListInactiveBg=" << s.list_inactive_bg_color << "\n";
@@ -1223,12 +1306,22 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "ElimentLyrics=" << tf(s.element_lyrics) << "\n";
     out << "LyricViz=" << (s.lyric_viz == 1 ? "osci" : s.lyric_viz == 2 ? "spectro" : "sphere") << "\n";
     out << "## sphere = the audio-reactive ball | osci = the oscilloscope (both drawn in the VIZ colors) | spectro = the spectrogram\n";
-    out << "## Pick it live from this tab's \"Lyric Viz\" row (replaces the old LyricsPlaceholderBall on/off).\n";
+    out << "## Pick it live from this tab's \"Lyrics/Viz\" row (replaces the old LyricsPlaceholderBall on/off).\n";
+    out << "NoLyricsViz=" << (s.nolyrics_viz == 1 ? "osci" : s.nolyrics_viz == 2 ? "spectro" : "sphere") << "\n";
+    out << "## What the lyrics area shows while the lyrics view is on but no lyrics are available (sphere | osci | spectro).\n";
+    out << "## Its \"Use ...\" switch below is turned on when you pick it, and cannot be turned off while it is the pick.\n";
     out << "UseLyrics=" << tf(s.use_lyrics) << "\n";
     out << "UseOscilloscope=" << tf(s.use_osci) << "\n";
     out << "UseSpectrogram=" << tf(s.use_spectro) << "\n";
-    out << "## false = left out of the lyrics area: not in the \".\" cycle (the sphere always is). The windows\n";
+    out << "UseSphere=" << tf(s.use_sphere) << "\n";
+    out << "## false = left out of the lyrics area: not in the \".\" cycle. The windows\n";
     out << "## (SHIFT+8 spectrogram, SHIFT+9 oscilloscope) and the full screen (SHIFT+u) work either way.\n";
+    {
+        static const char* const viz_names[4] = {"sphere", "osci", "spectro", "lyrics"};
+        out << "VizOrder=";
+        for (int i = 0; i < 4; ++i) out << (i ? "," : "") << viz_names[std::clamp(s.viz_order[i], 0, 3)];
+        out << "\n## the order of the views when you press \".\" (sphere, osci, spectro, lyrics in any order); set it on Settings -> ON/OFF -> Viz Order 1..4\n";
+    }
     osci_config_write(out, s);
     spectro_config_write(out, s.spectro, "##");
     out << "## Tune all of these live with SHIFT+o in the main UI\n";
@@ -1241,11 +1334,12 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "\n";
 
     out << "##-------------------------------------------\n";
-    out << "##             PANEL 3: ANIMATION\n";
+    out << "##             PANEL 3: ANIMA/VIZ\n";
     out << "##-------------------------------------------\n\n";
     out << "VisualizerFluidity=" << s.visualizer_fluidity << "\n## 1 to 10\n";
     out << "WaveformStyle=" << (s.waveform_smooth ? "smooth" : "raw") << "\n## raw , smooth\n";
     out << "DiskRotationSpeed=" << s.disk_rotation_speed << "\n## 0.01x to 1.00x\n";
+    out << "StartMode=" << (s.start_mode == "radio" ? "radio" : "player") << "\n## player , radio -- the mode Mousiki starts in (the * key switches while it runs; set in Settings -> ON/OFF -> MODES)\n";
     out << "PlaybackMode=" << play_mode_name(s.play_mode) << "\n## list , loop , shuffle , stop , queue then stop\n";
     out << "VisualizerDegradationSpeed=" << s.visualizer_degradation_speed << "\n## 1 to 10\n";
     out << "VisualizerViscosity=" << s.visualizer_viscosity << "\n## 1 to 10\n";
@@ -1323,8 +1417,12 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "##             AUTOSAVE / SESSION SNAPSHOT\n";
     out << "##-------------------------------------------\n\n";
     out << "SleepFade=" << tf(s.sleep_fade) << "\n## sleep timer: fade the volume out over the last 10 % of the time (30 s .. 10 min), then pause\n";
+    out << "WizardSeen=" << tf(s.wizard_seen) << "\n## the help wizard (SHIFT+w) opened itself once already; false makes it greet you again on the next start\n";
     out << "SidPlayLength=" << s.sid_play_length << "\n## SID tunes (C64) are rendered by sidplayfp for this many seconds (10 .. 1800)\n";
     out << "KaraokeLyricsSize=" << s.karaoke_lyrics_size << "\n## karaoke overlay (k): lyrics size 1 (normal text) .. 5, SHIFT and + / SHIFT and - change it there\n";
+    out << "TranslateService=" << s.translate_service << "\n## READ LYRICS (CTRL+L) translation service, picked with [t] there: google | mymemory\n";
+    out << "TranslateTo=" << s.translate_to << "\n## language the lyrics are translated INTO (a code such as en, de, fr, es ...), picked with [t] in READ LYRICS\n";
+    out << "TranslateFrom=" << s.translate_from << "\n## language OF the lyrics: auto = the service detects it, or a code such as de, ja ... (picked with [t])\n";
     out << "AutoSave=" << tf(s.autosave_enabled) << "\n## resume exact song/position/queue/repeat/shuffle next launch\n";
     out << "AutoSaveIndicator=" << tf(s.autosave_indicator) << "\n";
     out << "AutoSaveDelayInSec=" << s.autosave_delay_sec << "\n";
@@ -1377,6 +1475,11 @@ static void write_settings(std::ostream& out, const Settings& s) {
         out << "\n# Where playlists are exported as M3U8 / M3U (one folder; unset means the playlist folder).\n";
         out << "PlaylistExportPath=" << s.playlist_export_path << "\n";
     }
+    if (!s.conversion_export_path.empty()) {
+        out << "\n# Where the file conversion overlay (SHIFT+c) writes converted files (one folder; unset means the\n";
+        out << "# \"conversion-export\" folder inside the download folder).\n";
+        out << "ConversionExportPath=" << s.conversion_export_path << "\n";
+    }
     if (!s.history_path.empty()) {
         out << "\n# Folder of the listening history (history.json; one folder, unset means ~/.cache/mousiki/history).\n";
         out << "HistoryPath=" << s.history_path << "\n";
@@ -1391,7 +1494,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     // Write every mapped hotkey, stable order, whatever the key is named.
     static const char* hkey_order[] = {
         "HKeyNavigateUp", "HKeyNavigateDown", "HKeyPlay", "HKeyPlayNextSong", "HKeyPlayPreviousSong",
-        "HKeyTogglePlayPause", "HKeyCyclePlayMode", "HKeySearch", "HKeySearchOnline",
+        "HKeyTogglePlayPause", "HKeyCyclePlayMode", "HKeySearch",
         "HKeySeekForward", "HKeySeekBackward", "HKeyIncreaseVolume", "HKeyDecreaseVolume",
         "HKeyAddHoveringSongToQueue", "HKeyRemoveHoveringSongFromQueue", "HKeySwitchBetweenCards",
         "HKeyFilterForFolder", "HKeyClearFilter", "HKeyQuit", "HKeyDownloadStream",
@@ -1408,13 +1511,6 @@ static void write_settings(std::ostream& out, const Settings& s) {
         if (!found) out << k << "=\"" << v << "\"\n";
     }
     out << "\n";
-
-    out << "##-------------------------------------------\n";
-    out << "##             PANEL 5: ABOUT APP\n";
-    out << "##-------------------------------------------\n\n";
-    out << "ClassTextAboutApp= {\n\n";
-    for (const auto& l : s.about_app_lines) out << l << "\n";
-    out << "\n\n};\n";
 }
 
 std::string settings_to_text(const Settings& s) {

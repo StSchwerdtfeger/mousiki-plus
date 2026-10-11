@@ -28,6 +28,7 @@ struct HistoryPlay {
     double listened_sec = 0.0;  // seconds of audio actually heard (pause time never counts)
     long long started_at = 0;   // unix seconds, local clock, when this play began
     bool finished = false;      // heard to the (near) end -- see finish_live()
+    std::string playlist;       // saved playlist this play was queued from ("" = not from a playlist); feeds TOP PLAYLISTS
 };
 
 // One aggregated title on the "Top Tracks" tab.
@@ -81,11 +82,19 @@ struct HistoryArchiveTitle {
     std::array<int, 4> tod{};
 };
 
+// Per saved playlist: how often one of its tracks was played (TOP PLAYLISTS tab).
+struct HistoryArchivePlaylist {
+    int plays = 0;
+    double listened_sec = 0.0;
+    std::map<std::string, int> day_plays;   // "YYYY-MM-DD" -> plays, for the week / month / quarter / year lists
+};
+
 struct HistoryArchive {
     long long plays = 0;        // every folded play ...
     long long finished = 0;     // ... and how many of them were heard to the end
     double listened_sec = 0.0;
     std::map<std::string, HistoryArchiveTitle> titles;  // per title: play count + time (Top Tracks, Replays)
+    std::map<std::string, HistoryArchivePlaylist> playlists;  // per saved playlist (Top Playlists)
     std::map<std::string, double> per_day;              // "YYYY-MM-DD" -> seconds (Days with music, averages)
     std::array<double, 24> hours{};                     // seconds per hour of the day (the hour a play started in)
     std::array<double, 7> weekdays{};                   // seconds per weekday, 0 = Monday
@@ -167,6 +176,19 @@ int history_tod_bucket(long long unix_sec);
 // seconds; archived plays count by their calendar day).
 std::vector<HistoryTopRow> history_top_since(const std::vector<HistoryPlay>& plays, const HistoryArchive* archive,
                                              long long since, bool most_first);
+// One row of the TOP PLAYLISTS tab: a saved playlist and how often tracks of it were played.
+struct HistoryPlaylistRow {
+    std::string name;
+    int plays = 0;
+    double listened_sec = 0.0;
+};
+// The `n` most played playlists since `since` (unix seconds; 0 = overall). Plays count by the playlist
+// they were queued from, so only plays recorded since this feature exists carry a playlist.
+std::vector<HistoryPlaylistRow> history_top_playlists(const std::vector<HistoryPlay>& plays, const HistoryArchive* archive,
+                                                      long long since, size_t n);
+// Totals behind the tab's summary: distinct playlists, plays that came from a playlist.
+void history_playlist_totals(const std::vector<HistoryPlay>& plays, const HistoryArchive* archive,
+                             int& playlists, long long& playlist_plays);
 // Like history_top(), but only plays that started in time-of-day bucket `tod`.
 std::vector<HistoryTopRow> history_top_tod(const std::vector<HistoryPlay>& plays, const HistoryArchive* archive,
                                            int tod, bool most_first);

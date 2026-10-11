@@ -87,6 +87,14 @@ constexpr int kKeyAltL = 315;
 // XOFF and freezes the output until Ctrl+Q).
 constexpr int kKeyCtrlS = 316;
 
+// Ctrl+P -- "play" the highlighted file in the big folder overlay (control
+// byte 0x10). Not rebindable.
+constexpr int kKeyCtrlP = 317;
+
+// Ctrl+L -- opens / closes the READ LYRICS overlay (control byte 0x0c). It used to be a second way to open the
+// lyrics timing overlay; that one is Alt+L only now. Not rebindable.
+constexpr int kKeyCtrlL = 318;
+
 // Name of the Alt key as shown in legends / the cheat sheet. The Mac keyboard
 // has no key called Alt -- the same key (the modifier the terminal reports as
 // "Alt/Meta") is labelled Option there. Chosen at compile time, so Windows and
@@ -105,13 +113,8 @@ constexpr int kKeyCtrlS = 316;
 #  define MUISC_ALT_NAME_UC   "ALT"
 #endif
 
-// Label of the lyrics-overlay key: on macOS/Linux Ctrl+L works as well (no terminal
-// setup needed); on Windows only Alt+L exists.
-#if defined(_WIN32)
-#  define MUISC_LYRICS_KEY_UC MUISC_ALT_NAME_UC "+L"
-#else
-#  define MUISC_LYRICS_KEY_UC MUISC_ALT_NAME_UC "+L  CTRL+L"
-#endif
+// Label of the lyrics timing overlay key (Ctrl+L belongs to the READ LYRICS overlay).
+#define MUISC_LYRICS_KEY_UC MUISC_ALT_NAME_UC "+L"
 
 // Raw, non-canonical, no-echo terminal mode + non-blocking key reads.
 // Panel/box drawing lives in app.cpp; this is just the terminal plumbing.

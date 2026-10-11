@@ -127,14 +127,20 @@ TrackMetadata probe_metadata(const fs::path& file, const std::string& fallback_n
         return md;
     }
 
+    // format_tags for MP3 / FLAC / M4A, stream_tags for Ogg Vorbis / Opus (their
+    // tags live on the audio stream, see probe_row_meta). The first value of a
+    // kind wins, and the key is compared case-insensitively: Vorbis comments
+    // come back as TAG:DATE / TAG:ALBUM, ID3 as TAG:date.
     std::string cmd = "ffprobe -v error "
-                       "-show_entries format=duration:format_tags=artist,date,title:stream=sample_rate,codec_name "
+                       "-show_entries format_tags=artist,date,year,title,album:"
+                       "stream_tags=artist,date,year,title,album:stream=sample_rate,codec_name "
                        "-of default=noprint_wrappers=1 " + shell_quote(path_utf8(file));
     ProcResult r = run_capture(cmd);
     if (!r.ok() && r.out.empty()) return md;
 
     std::istringstream stream(r.out);
     std::string line;
+    bool got_title = false, got_artist = false, got_album = false, got_year = false, got_rate = false, got_codec = false;
     while (std::getline(stream, line)) {
         auto eq = line.find('=');
         if (eq == std::string::npos) continue;
@@ -142,17 +148,20 @@ TrackMetadata probe_metadata(const fs::path& file, const std::string& fallback_n
         std::string val = line.substr(eq + 1);
         if (!val.empty() && val.back() == '\r') val.pop_back();
         if (val.empty() || val == "N/A") continue;
+        std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (key == "sample_rate") {
-            md.sampling = val + "KHz"; // matches the mockup's (unconventional) unit label
+            if (!got_rate) { md.sampling = val + "KHz"; got_rate = true; }   // matches the mockup's (unconventional) unit label
         } else if (key == "codec_name") {
-            md.format = to_upper(val);
-        } else if (key == "TAG:title") {
-            md.name = val;
-        } else if (key == "TAG:artist") {
-            md.artist = val;
-        } else if (key == "TAG:date") {
-            md.year = val.substr(0, 4);
+            if (!got_codec) { md.format = to_upper(val); got_codec = true; }
+        } else if (key == "tag:title") {
+            if (!got_title) { md.name = val; got_title = true; }
+        } else if (key == "tag:artist") {
+            if (!got_artist) { md.artist = val; got_artist = true; }
+        } else if (key == "tag:album") {
+            if (!got_album) { md.album = val; got_album = true; }
+        } else if (key == "tag:date" || key == "tag:year") {
+            if (!got_year) { md.year = val.substr(0, 4); got_year = true; }
         }
     }
     // Tracker modules and game music: ffprobe reports the decoded PCM ("PCM_F32LE"); the file type says more.

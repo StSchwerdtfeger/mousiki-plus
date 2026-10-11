@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
     int rc = 0;
     std::unique_ptr<muisc::App> app;   // lives while the radio runs (suspended, playback paused); the radio itself is destroyed on every switch
     try {
-        bool radio = false;
+        bool radio = (muisc::read_start_mode() == "radio");   // Settings -> ON/OFF -> Start Mode
         for (;;) {
             if (!radio) {
                 muisc::set_emoji_replacement(false);   // the radio forces "?" for emoji; the player follows its setting

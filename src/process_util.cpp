@@ -2,6 +2,7 @@
 #include "console_log.h"
 
 #include <array>
+#include <csignal>
 #include <cstring>
 #include <sstream>
 #include <vector>
@@ -53,6 +54,10 @@ ChildProcess::ChildProcess() : impl_(new Impl) {}
 ChildProcess::~ChildProcess() {
     if (impl_->out_fd >= 0) ::close(impl_->out_fd);
     wait();
+}
+
+void ChildProcess::kill() {
+    if (!impl_->reaped && impl_->pid > 0) ::kill(impl_->pid, SIGKILL);
 }
 
 std::ptrdiff_t ChildProcess::read(char* buf, std::size_t n) {
@@ -302,6 +307,10 @@ ChildProcess::~ChildProcess() {
     impl_->out_read = INVALID_HANDLE_VALUE;
     wait();
     if (impl_->process != INVALID_HANDLE_VALUE) CloseHandle(impl_->process);
+}
+
+void ChildProcess::kill() {
+    if (!impl_->reaped && impl_->process != INVALID_HANDLE_VALUE) TerminateProcess(impl_->process, 1);
 }
 
 std::ptrdiff_t ChildProcess::read(char* buf, std::size_t n) {

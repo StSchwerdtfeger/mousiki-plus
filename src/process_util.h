@@ -54,6 +54,11 @@ public:
     // determined. Idempotent.
     int wait();
 
+    // Ends the child right away (SIGKILL / TerminateProcess); wait() then returns. Safe to call from another thread than
+    // the one reading, and after the child has exited. On POSIX the command line should start with "exec " so the
+    // killed process is the program itself and not the shell that started it.
+    void kill();
+
 private:
     ChildProcess();
     friend std::unique_ptr<ChildProcess> spawn_capture(const std::string&, bool);

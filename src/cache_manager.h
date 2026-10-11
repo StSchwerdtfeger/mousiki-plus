@@ -29,6 +29,15 @@ public:
 
     bool is_cached(const std::string& title, const std::string& ext = "opus") const;
 
+    // The download archive shared with yt-dlp runs made outside Mousiki: <download folder>/history/downloaded_history.txt,
+    // in yt-dlp's own format ("youtube <video id>" per line), so `yt-dlp --download-archive <this file>` in a terminal
+    // skips what Mousiki fetched and the other way round. Kept in a sub-folder so it is not moved along with the music.
+    fs::path download_archive_path() const;
+    // Records a finished download ("youtube", "dQw4w9WgXcQ") unless the archive has it already. The file is only ever
+    // appended to -- Mousiki itself does not skip downloads because of it (a deleted song can always be fetched again).
+    // A downloaded_history.txt lying directly in the download folder is moved into the history folder first.
+    void record_download(const std::string& extractor, const std::string& id) const;
+
 private:
     fs::path cache_dir_;
     fs::path download_dir_; // == cache_dir_ unless Settings sets a folder

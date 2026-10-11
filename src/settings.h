@@ -54,13 +54,38 @@ struct Settings {
     // config.txt: LyricViz=sphere|osci. This replaces the old
     // element_lyrics_placeholder_ball on/off switch ("Lyric Ball") --
     // the panel now always shows one of the two and this row picks
-    // which, from the ON/OFF tab's "Lyric Viz" entry.
+    // which, from the ON/OFF tab's "Lyrics/Viz" entry.
     int lyric_viz = 2;                  // default: the spectrogram (in the image style, see SpectroSettings)
+    // What the lyrics area shows while the LYRICS view is selected but there are no lyrics to draw (nothing found /
+    // fetch still running): 0 = sphere, 1 = oscilloscope, 2 = spectrogram. Before this existed the area showed
+    // lyric_viz, i.e. whatever view the "." cycle had been on before the lyrics. config.txt: NoLyricsViz=sphere|osci|spectro.
+    // Its Use switch (Use Oscilloscope / Use Spectrogram) is kept on: enforce_visual_switches().
+    int nolyrics_viz = 2;
     // Settings -> ON/OFF "Use Lyrics / Use Oscilloscope / Use Spectrogram": false leaves that one out entirely (no
     // lyrics fetching, not in the "." cycle; the sphere is always there). The windows (SHIFT+8 / SHIFT+9) work anyway.
     bool use_lyrics = true;
     bool use_osci = true;
     bool use_spectro = true;
+    // "Use Sphere": false leaves the sphere out of the "." cycle as well (it used to be always there). Like the other
+    // visuals it stays on while it is the "No-Lyrics Viz" pick (enforce_visual_switches()). config.txt: UseSphere=.
+    bool use_sphere = true;
+    // The order of the views in the "." cycle (ON/OFF tab: "Viz Order 1..4"): a permutation of
+    // 0 = sphere, 1 = oscilloscope, 2 = spectrogram, 3 = lyrics. config.txt: VizOrder=sphere,osci,spectro,lyrics.
+    int viz_order[4] = {0, 1, 2, 3};
+    // Is that view (0..3) switched on at all?
+    bool viz_usable(int v) const { return v == 0 ? use_sphere : v == 1 ? use_osci : v == 2 ? use_spectro : use_lyrics; }
+    // The next / previous switched-on view after `cur` in viz_order (dir > 0 forward). `only_visuals` leaves the lyrics
+    // (3) out. Returns cur when there is no other one.
+    int viz_step(int cur, int dir, bool only_visuals) const {
+        int pos = 0;
+        for (int i = 0; i < 4; ++i) if (viz_order[i] == cur) pos = i;
+        for (int k = 1; k <= 4; ++k) {
+            const int c = viz_order[((pos + (dir > 0 ? k : -k)) % 4 + 4) % 4];
+            if (c == cur) break;
+            if (viz_usable(c) && !(only_visuals && c == 3)) return c;
+        }
+        return cur;
+    }
     // Oscilloscope look, tuned live from the SHIFT+o overlay in the main UI (config.txt: Osci* / OsciImage*).
     // Each style (braille / image) keeps its own parameter set; osci() is the one in use.
     OsciSet osci_set[2];                // [0] = braille, [1] = image
@@ -109,12 +134,6 @@ struct Settings {
     // Maps ASCII letter → {uppercase_display, lowercase_display}.
     // Empty map = use default ASCII glyphs.
     std::unordered_map<char, std::pair<std::string, std::string>> font_map;
-    // Raw lines of the config file's trailing ClassTextAboutApp={...}; block
-    // -- the About App tab displays these verbatim rather than a hardcoded
-    // string, so editing the config file's own about-text actually changes
-    // what's shown. Falls back to a sensible default if the config has no
-    // such section (e.g. a freshly-generated config.txt).
-    std::vector<std::string> about_app_lines;
 
     // --- colors --------------------------------------------------------
     // Defaults here match the "g_defaults" fallback map from the redesigned
@@ -124,6 +143,7 @@ struct Settings {
     // color" (plain terminal default) until the user sets it.
     std::string border_color = "90";
     std::string border_color_bottom = "90";   // top uses border_color; box_top()/box_bottom() use these two independently
+    bool border_smooth = true;                // BorderGradient=smooth|rough: smooth fades the frame line by line from top to bottom colour; rough = only the bottom border line takes the bottom colour
 
     std::string active_line_color;
     std::string active_line_bg_color;
@@ -135,6 +155,14 @@ struct Settings {
     std::string progress_remaining_color;
     std::string progress_played_color;
     std::string progress_timestamp_color;    // empty = falls back to border_color
+
+    // Search bar input (the "/" box, the meta editor's and the playlist
+    // manager's "Search:" rows). Empty = follow LIST INACTIVE FG/BG, which is
+    // what these bars always looked like; "0" = explicit terminal default.
+    std::string search_text_color;           // typed query: FG / BG, drawn behind the query text only
+    std::string search_bg_color;
+    std::string search_inactive_text_color;  // the rest of the bar (prefix, placeholder, empty field)
+    std::string search_inactive_bg_color;
 
     std::string list_color;
     std::string list_inactive_bg_color;
@@ -172,6 +200,24 @@ struct Settings {
     std::string tab_current_color = "10";   // settings / playlist / history tab strips: the current tab "[NAME]" and the "< \u2194 >" hint
     std::string tab_other_color = "90";     // ... the other tab names
 
+    // "This field is actively being typed into" -- every in-place text edit
+    // across the Settings panel (a PATHS row, a hex colour value, a hotkey)
+    // and the meta editor's tag fields. Defaults "37"/"41" -- direct SGR
+    // 37 (white text) / 41 (red background), exactly the white-on-red this
+    // was always hardcoded as before it had a name of its own -- changeable
+    // from the Colors tab's CHANGE row, or ColorChangeFg=/ColorChangeBg= in
+    // config.txt. "0"/empty = the terminal's own text/background.
+    std::string change_text_color = "37";
+    std::string change_bg_color = "41";
+
+    // The pane focus indicator "\u25c0": the little triangle after a pane's
+    // title that marks which pane has the keys (main screen: the search box,
+    // the file list or the queue; also the meta editor and the playlist
+    // editor). Colors tab FOCUS row, or ColorFocus= in config.txt. Default
+    // "10" = the default header color; a config.txt without the key follows
+    // whatever ColorHeader is, and every theme sets it to its header color.
+    std::string focus_color = "10";
+
     std::string visualizer_color = "32";
     std::string visualizer_color_end = "33";
 
@@ -198,6 +244,9 @@ struct Settings {
 
     // --- playback ------------------------------------------------------
     bool waveform_smooth = true;
+    // Which mode Mousiki starts in: "player" (the music player) or "radio". Settings -> ON/OFF -> MODES -> Start Mode (the
+    // radio's settings have the same row). config.txt: StartMode=player|radio. main() reads it with read_start_mode().
+    std::string start_mode = "player";
     int play_mode = 0; // 0=list 1=loop(repeat) 2=shuffle 3=stop 4=queue then stop (play the queue through once, then stop)
 
     // --- console logging (config.txt: ConsoleVerbosity) -----------------
@@ -239,10 +288,21 @@ struct Settings {
 
     // Sleep timer: glide the volume down over the last 10 % of the time before pausing (Shift+Z overlay).
     bool sleep_fade = true;
+    // Help wizard (SHIFT+w): false means it has never been shown, so the
+    // first launch after an install opens it by itself. It is set to true and
+    // written to config.txt the moment the wizard is first closed, so it only
+    // ever greets a user once -- and deleting the line (or the whole
+    // config.txt) brings the welcome back.
+    bool wizard_seen = false;
     // Karaoke overlay (k): size of the lyrics, 1 = normal text, 2..5 = drawn
     // with the built-in pixel font in braille, each step one font pixel
     // bigger. Changed in the overlay with SHIFT and + / SHIFT and -.
     int karaoke_lyrics_size = 1;
+    // READ LYRICS (CTRL+L) translation, chosen in its translate overlay ([t]): the service (google | mymemory), the
+    // language to translate INTO and the language of the lyrics ("auto" = the service detects it).
+    std::string translate_service = "google";
+    std::string translate_to = "en";
+    std::string translate_from = "auto";
     // SID tunes (C64) are rendered by sidplayfp for this many seconds (config.txt only: SidPlayLength=, 10..1800).
     int sid_play_length = 180;
 
@@ -288,6 +348,11 @@ struct Settings {
     // Saved Playlists tab). Empty = the playlist folder itself. ONE folder
     // (Settings -> PATHS -> PLAYLIST EXPORT PATH, config.txt: PlaylistExportPath=).
     std::string playlist_export_path;
+
+    // Folder the file conversion overlay (SHIFT+c) writes its converted files to. Empty = "conversion-export"
+    // inside the download folder. ONE folder (Settings -> PATHS -> CONVERSION EXPORT PATH, config.txt:
+    // ConversionExportPath=).
+    std::string conversion_export_path;
 
     // --- playlists folder -----------------------------------------------
     // Where saved playlists (App::playlists_dir()) live. Empty (the
@@ -374,6 +439,11 @@ void apply_default_hotkeys(Settings& s);
 // Config file path and I/O. Uses config.txt format (: and == separators).
 // Falls back to reading legacy settings.txt if config.txt doesn't exist.
 fs::path config_path();
+// The StartMode= line of config.txt ("player" or "radio"; "player" when there is none). Read by main() before anything
+// starts, and by the radio, whose Start Mode row is the same setting.
+std::string read_start_mode();
+// Writes that one line into config.txt and leaves the rest of the file alone (the radio's settings screen uses it).
+bool write_start_mode(const std::string& mode);
 Settings load_settings();
 void save_settings(const Settings& s);
 // The text save_settings() would write (used to tell whether the settings screen changed anything).

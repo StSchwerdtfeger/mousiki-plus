@@ -109,7 +109,7 @@ void osci_adjust(Settings& s, int row, int dir) {
             o.frame_rate = kFpsSteps[step_in(i, 6, dir)];
             break;
         }
-        case kOrDisplay: s.lyric_viz = (s.lyric_viz + (dir > 0 ? 1 : 2)) % 3; break;   // sphere -> osci -> spectro
+        case kOrDisplay: s.lyric_viz = s.viz_step(s.lyric_viz, dir > 0 ? 1 : -1, true); break;   // sphere -> osci -> spectro
     }
 }
 

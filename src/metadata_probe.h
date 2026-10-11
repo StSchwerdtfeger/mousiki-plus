@@ -9,6 +9,7 @@ namespace fs = std::filesystem;
 struct TrackMetadata {
     std::string name;
     std::string artist = "-";
+    std::string album = "-";
     std::string year = "-";
     std::string sampling = "-";
     std::string type = "audio only";

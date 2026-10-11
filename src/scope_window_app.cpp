@@ -8,10 +8,14 @@
 //   2. Beam: every sample that arrived since the last frame is drawn once, as a soft line from the previous sample
 //      (a quad with a Gaussian cross-section, added to what is there) -- dense parts of the trace add up and glow.
 //   3. Bloom: the picture is shrunk to 1/2, 1/4 and 1/8 with smooth filtering and the two smallest are added on top.
+// With the braille style set in the oscilloscope overlay (ScopeWinConfig::braille) it draws the terminal scope instead: the same
+// OscilloscopeVisualizer renders the 2 x 4 dot grid of braille cells, and every lit dot becomes a square on the screen --
+// so the braille look can be seen as large as the window (or the whole screen) goes.
 // The playhead runs on the window's own clock at the sample rate, ~35 ms behind the newest sample, so bursts in the pipe
 // never show as jerks.
 #include "scope_window.h"
 #include "scope_sdl.h"
+#include "oscilloscope_visualizer.h"
 
 #include <algorithm>
 #include <atomic>
@@ -249,6 +253,8 @@ int scope_window_main() {
     const bool shot_exit = std::getenv("MOUSIKI_SCOPE_SHOT_EXIT") != nullptr;
 
     ScopeWinConfig cfg;
+    OscilloscopeVisualizer braille_scope;   // the terminal's scope, for the braille style
+    bool braille_was = false;
     unsigned cfg_seen = ~0u;
     std::string title_set;
     std::vector<float> xs, ys, mids, rx, ry, lz_w;
@@ -401,6 +407,70 @@ int scope_window_main() {
             }
         }
         drawn = upto;
+
+        // ---- braille style: the terminal scope's dot grid, drawn as squares ------------------------------------------------
+        if (cfg.braille) {
+            if (!braille_was) { braille_scope.reset(); braille_was = true; }
+            if (n_raw > 0) {
+                std::vector<float> lr(2 * n_raw);
+                for (size_t i = 0; i < n_raw; ++i) { lr[2 * i] = rx[kLz + i]; lr[2 * i + 1] = ry[kLz + i]; }   // rx[kLz ..]: the new samples
+                braille_scope.push_frames(lr.data(), n_raw);
+            }
+            OscilloscopeVisualizer::Params p;
+            p.decay = std::pow(std::clamp(cfg.decay, 0.0f, 0.99f), static_cast<float>(std::clamp(dt, 0.004, 0.15) * 30.0));   // per frame at 30 fps, as in the terminal
+            p.dot_threshold = cfg.dot_threshold;
+            p.tail_brightness = cfg.tail;
+            p.interpolate = cfg.interp != 0;
+            p.z_axis = cfg.z != 0;
+            p.z_depth = cfg.z_depth;
+            p.z_source = cfg.z_source;
+            p.trace = cfg.trace;
+            p.rotate = cfg.rotate != 0;
+            p.mono_phase = cfg.mono_phase != 0 && !cfg.music;
+            p.glow = cfg.glow;
+            p.fixed_gain = cfg.music != 0;
+            // A square field in the middle, a dot every `pitch` pixels (about 100 dots across, like the terminal's area).
+            const int side_px = std::min(gpu.w, gpu.h);
+            const int pitch = std::max(4, static_cast<int>(std::lround(side_px / 100.0)));
+            const int rows = std::max(6, side_px / (pitch * 4)), cols = rows * 2;
+            const auto cells = braille_scope.render(cols, rows, p);
+            const int grid_px = rows * 4 * pitch;
+            const int ox = (gpu.w - grid_px) / 2, oy = (gpu.h - grid_px) / 2;
+            const int dot = std::max(2, static_cast<int>(std::lround(pitch * 0.72)));
+            const int pad = (pitch - dot) / 2;
+            A.SetRenderTarget(R, nullptr);
+            A.SetRenderDrawBlendMode(R, sdl::kBlendNone);
+            A.SetRenderDrawColor(R, 0, 0, 0, 255);
+            A.RenderClear(R);
+            for (int ty = 0; ty < rows && ty < static_cast<int>(cells.size()); ++ty) {
+                for (int tx = 0; tx < cols; ++tx) {
+                    const OscilloscopeVisualizer::Cell& c = cells[static_cast<size_t>(ty)][static_cast<size_t>(tx)];
+                    if (c.braille == 0) continue;
+                    // as in the terminal: 8 brightness steps, the colour across the width (gradient) or by beam speed
+                    const float lvl = std::round(c.level / 255.0f * 7.0f) / 7.0f;
+                    const float k = 0.30f + 0.70f * lvl;
+                    const int h = cfg.color_by_x ? static_cast<int>(std::lround(cols > 1 ? 255.0f * tx / (cols - 1) : 0.0f)) : c.hue;
+                    A.SetRenderDrawColor(R, static_cast<uint8_t>(cfg.pal[h][0] * k), static_cast<uint8_t>(cfg.pal[h][1] * k), static_cast<uint8_t>(cfg.pal[h][2] * k), 255);
+                    for (int yy = 0; yy < 4; ++yy)
+                        for (int xx = 0; xx < 2; ++xx) {
+                            if (c.sub[static_cast<size_t>(yy * 2 + xx)] == 0) continue;
+                            sdl::Rect r{ox + (tx * 2 + xx) * pitch + pad, oy + (ty * 4 + yy) * pitch + pad, dot, dot};
+                            A.RenderFillRect(R, &r);
+                        }
+                }
+            }
+            ++frame_no;
+            if (shot_path && frame_no == shot_frame) {
+                std::vector<uint32_t> px(static_cast<size_t>(gpu.w) * gpu.h);
+                if (A.RenderReadPixels(R, nullptr, sdl::kFmtARGB8888, px.data(), gpu.w * 4) == 0) write_ppm(shot_path, px, gpu.w, gpu.h);
+                if (shot_exit) quit = true;
+            }
+            A.RenderPresent(R);
+            const double spent_b = static_cast<double>(A.GetPerformanceCounter() - t_now) / freq;
+            if (spent_b < 1.0 / 120.0) A.Delay(static_cast<uint32_t>((1.0 / 120.0 - spent_b) * 1000.0));   // the dot grid needs no more than 120 frames/s
+            continue;
+        }
+        braille_was = false;
 
         // ---- the same signal shaping as the terminal scope ----------------------------------------------------------------
         const float k30 = static_cast<float>(dt * 30.0);   // the terminal values are per 1/30 s

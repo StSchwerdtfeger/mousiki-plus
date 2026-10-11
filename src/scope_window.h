@@ -20,7 +20,7 @@
 
 namespace muisc {
 
-// Everything the window needs to look like the scope in the terminal. Sent as raw bytes: both ends are the same binary.
+// Everything the window needs to look like the scope in the terminal (image style, or braille style: braille = 1). Sent as raw bytes: both ends are the same binary.
 struct ScopeWinConfig {
     uint32_t magic = 0x4F43534D;   // "MSCO"
     int32_t rate = 48000;          // sample rate of the samples that follow
@@ -34,7 +34,10 @@ struct ScopeWinConfig {
     uint8_t interp = 1;            // 1 = lines between the samples, 0 = dots
     uint8_t color_by_x = 1;        // 1 = palette across the width (the "gradient" colour), 0 = by beam speed
     uint8_t music = 0;             // oscilloscope music mode: fixed scale, finer beam, more smoothing, no phase portrait
-    uint8_t pad = 0;
+    uint8_t braille = 0;           // 1 = the braille style: the terminal scope's dot grid, scaled up (else the smooth image style)
+    float dot_threshold = 0.28f;   // braille: brightness a dot needs to light (SHIFT+o "Dot threshold")
+    float tail = 0.45f;            // braille: oldest sample of the trace relative to the newest (SHIFT+o "Tail")
+    int32_t trace = 1024;          // braille: samples drawn per frame (SHIFT+o "Trace Length")
     uint8_t pal[256][3] = {};      // palette, index 0..255
     char title[96] = {};           // window title (track / station)
 };

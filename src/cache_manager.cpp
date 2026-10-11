@@ -5,6 +5,8 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <fstream>
+#include <mutex>
 
 namespace muisc {
 
@@ -141,6 +143,43 @@ fs::path CacheManager::path_for(const std::string& title, const std::string& ext
 
     if (!found.empty()) return found;
     return download_dir_ / (stem + "." + ext); // doesn't exist yet: this is the name a download writes
+}
+
+fs::path CacheManager::download_archive_path() const {
+    return download_dir_ / "history" / "downloaded_history.txt";
+}
+
+void CacheManager::record_download(const std::string& extractor, const std::string& id) const {
+    // Only plain ids (a YouTube video id is 11 characters of A-Z a-z 0-9 _ -); URLs and odd input are not recorded.
+    if (id.size() < 5 || id.size() > 40) return;
+    for (unsigned char c : id) if (!(std::isalnum(c) || c == '_' || c == '-')) return;
+    static std::mutex m;   // downloads run on several threads
+    std::lock_guard<std::mutex> lk(m);
+    std::error_code ec;
+    const fs::path file = download_archive_path();
+    fs::create_directories(file.parent_path(), ec);
+    if (ec) return;
+    const fs::path loose = download_dir_ / "downloaded_history.txt";   // an archive yt-dlp left in the download folder itself
+    if (!fs::exists(file, ec) && fs::exists(loose, ec)) {
+        fs::rename(loose, file, ec);
+        if (ec) { ec.clear(); fs::copy_file(loose, file, ec); if (!ec) fs::remove(loose, ec); }
+    }
+    const std::string entry = extractor + " " + id;
+    bool needs_newline = false;
+    {
+        std::ifstream in(file, std::ios::binary);
+        std::string line;
+        while (std::getline(in, line)) {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            if (line == entry) return;
+        }
+    }
+    {
+        std::ifstream in(file, std::ios::binary | std::ios::ate);
+        if (in && in.tellg() > 0) { in.seekg(-1, std::ios::end); char last = 0; in.get(last); needs_newline = last != '\n'; }
+    }
+    std::ofstream out(file, std::ios::binary | std::ios::app);
+    if (out) out << (needs_newline ? "\n" : "") << entry << "\n";
 }
 
 bool CacheManager::is_cached(const std::string& title, const std::string& ext) const {

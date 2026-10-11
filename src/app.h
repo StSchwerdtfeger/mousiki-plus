@@ -3,6 +3,9 @@
 #include <chrono>
 #include <cstdint>
 #include <condition_variable>
+#include <filesystem>
+#include <map>
+#include <set>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -15,6 +18,7 @@
 #include "history.h"
 #include "local_source.h"
 #include "lyrics_fetcher.h"
+#include "lyrics_translate.h"
 #include "meta_editor.h"
 #include "metadata_probe.h"
 #include "native_duration.h"
@@ -28,13 +32,15 @@
 #include "sphere_visualizer.h"
 #include "streaming_pcm.h"
 #include "terminal_ui.h"
+#include "themes.h"
 #include "waveform.h"
 #include "youtube_source.h"
 #include "cache_manager.h"
+#include "converter.h"
 
 namespace muisc {
 
-enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu };
+enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics };
 enum class ListSource { Local, Online, Playlist, Folder };
 
 // One row of the main UI's "/f:" folder list: a folder that directly
@@ -56,6 +62,8 @@ struct QueueItem {
     // played in the current pass through the queue (it then sits at the back).
     // The pass is over -- and playback stops -- when every item has it set.
     bool played = false;
+    // Saved playlist this item was queued from ("" = hand-picked track): the history files the play under it (TOP PLAYLISTS).
+    std::string playlist;
 };
 
 class App {
@@ -80,6 +88,16 @@ private:
     Mode mode_ = Mode::Browse;
     ListSource list_source_ = ListSource::Local;
     std::vector<LocalTrack> all_local_tracks_;
+    // Search index parallel to all_local_tracks_ (rebuilt when the scan changes): the strings a local search compares,
+    // already lowercased / separator-folded, and the cache key, so a keystroke does no allocation and no path conversion
+    // per track. The tag fields are filled in as the background sweep resolves them (tags_seen).
+    struct SearchIdx {
+        std::string key;
+        std::string title_n, folder_artist_n;
+        std::string tag_title_n, artist_n, album_n;
+        bool tags_seen = false;
+    };
+    mutable std::vector<SearchIdx> search_idx_;
     // scan() runs from the constructor, before ConsoleLog::instance().init()
     // is called at the top of run() -- and init() wipes the in-memory log
     // buffer, so anything logged before it would just be discarded. This
@@ -161,6 +179,100 @@ private:
     std::vector<std::string> build_list_overlay_panel(int panel_w, int list_rows) const;
     std::string clamp_output_rows(const std::string& frame, int term_rows) const;
 
+    // --- folder overlay (HKeyFolderOverlay, SHIFT+f) ---------------------
+    // A big floating folder browser: a search bar and the LOCAL AUDIO FILES FOLDER pane, a tree of the library's
+    // folders. ENTER opens / closes a folder (its subfolders and files appear slightly indented below it); `f` on a
+    // folder or on a file does what `f` does in the list (show that folder's files in the LOCAL AUDIO FILES pane,
+    // folder order) and closes the overlay. Like the list overlay it is a plain flag on top of Browse; it owns the
+    // keys it needs and lets the playback keys fall through.
+    struct FoRow {
+        std::string path;    // folder or file path (UTF-8)
+        std::string label;
+        bool is_dir = false;
+        bool expanded = false;
+        int depth = 0;
+        int count = 0;       // tracks below a folder
+    };
+    bool folder_overlay_open_ = false;
+    bool fo_search_ = false;                 // the search field has the keyboard
+    std::string fo_query_;
+    int fo_sel_ = 0, fo_scroll_ = 0;
+    int fo_rows_ = kListVisibleRows;         // list rows the overlay fits; recomputed every frame
+    std::set<std::string> fo_expanded_;
+    std::vector<FoRow> fo_view_;             // the visible rows (tree walk + search filter)
+    std::map<std::string, std::vector<std::string>> fo_subdirs_;   // folder -> sorted subfolders
+    std::map<std::string, std::vector<std::string>> fo_files_;     // folder -> sorted files
+    std::map<std::string, int> fo_count_;                          // folder -> tracks at or below it
+    std::vector<std::string> fo_roots_;
+
+    // --- file conversion overlay (HKeyConvertOverlay, SHIFT+c) -----------
+    // A big floating window to turn high resolution files into MP3 / AAC / Opus: a search bar, a pre-filter (type,
+    // minimum bitrate, hi-res only), a list of the library's files with checkboxes, and the target preset. The marked
+    // files (or just the hovered one) are converted by a background ffmpeg job into the CONVERSION EXPORT PATH; the
+    // originals are never touched. Like the other big overlays it is a plain flag on top of Browse.
+    struct CvFile {
+        std::string path;    // UTF-8
+        std::string name;    // file name with extension
+        std::string ext;     // lower case, with the dot
+        long long size = 0;
+    };
+    bool convert_overlay_open_ = false;
+    bool cv_search_ = false;
+    std::string cv_query_;
+    int cv_sel_ = 0, cv_scroll_ = 0;
+    int cv_rows_ = kListVisibleRows;          // file rows the overlay fits; recomputed every frame
+    int cv_type_ = 1;                         // pre-filter: 0 all, 1 lossless, 2 FLAC, 3 WAV, 4 M4A, 5 OGG, 6 OPUS, 7 AAC, 8 MP3
+    int cv_minkbps_ = 0;                      // pre-filter: index into the minimum-bitrate steps (0 = any)
+    bool cv_hires_ = false;                   // pre-filter: only more than 16 bit or 48 kHz
+    int cv_preset_ = 0;                       // target (convert_preset())
+    std::vector<CvFile> cv_files_;            // every library file outside the export folder
+    std::vector<int> cv_view_;                // indices into cv_files_: what the filters + the search leave
+    std::set<std::string> cv_marked_;
+    // Search bar modes: 0 = files ("/"), 1 = folders ("/f:"), 2 = playlists ("/p:"). In the last two the list shows the
+    // folders / playlists matching the query; ENTER on one narrows the file list to its files (the "scope").
+    int cv_pick_ = 0;
+    std::vector<FolderSummary> cv_folders_;
+    std::vector<PlaylistSummary> cv_playlists_;
+    bool cv_scope_ = false;
+    std::string cv_scope_label_;             // "folder Rock" / "playlist Road trip"
+    std::set<std::string> cv_scope_paths_;   // the files of the scope (UTF-8 paths)
+    mutable std::mutex cv_mu_;
+    std::map<std::string, AudioInfo> cv_info_;   // probe results (guarded by cv_mu_)
+    std::thread cv_probe_th_;
+    std::atomic<bool> cv_probe_stop_{false};
+    std::atomic<int> cv_probe_done_{0};       // probes finished since the overlay opened
+    int cv_probe_seen_ = -1;                  // what the last view rebuild saw
+    int cv_probe_total_ = 0;                  // files the probe thread was asked for
+    int cv_last_done_ = -1;                   // conversion progress last reported on the status line
+    Converter converter_;
+    bool convert_overlay_active() const;
+    void convert_overlay_open();
+    void convert_overlay_close();
+    void convert_overlay_load_files();
+    void convert_overlay_probe_restart();
+    void convert_overlay_rebuild_view();
+    void convert_overlay_start();
+    void convert_overlay_rebuild_picks();     // the folder / playlist list of the "/f:" / "/p:" modes
+    void convert_overlay_pick();              // ENTER on a folder / playlist row: narrow the file list to it
+    int convert_overlay_total() const;        // rows of whatever the list shows right now (files, folders or playlists)
+    void convert_overlay_poll();              // once per frame: re-filter when probes arrived, report progress
+    bool convert_overlay_key(int key);        // true = consumed
+    void convert_overlay_geometry(int W, int& panel_w, int& rows) const;
+    std::vector<std::string> convert_overlay_legend(int panel_w) const;
+    std::vector<std::string> build_convert_overlay_panel(int panel_w, int rows) const;
+    std::string conversion_export_dir() const;
+    AudioInfo cv_info_of(const std::string& path) const;
+    bool folder_overlay_active() const;
+    void folder_overlay_open();
+    void folder_overlay_close();
+    void folder_overlay_build_tree();
+    void folder_overlay_rebuild_view();
+    bool folder_overlay_key(int key);        // true = consumed
+    void folder_overlay_filter();            // `f`: show the hovered folder / the folder of the hovered file in the list
+    void folder_overlay_geometry(int W, int& panel_w, int& rows) const;
+    std::vector<std::string> folder_overlay_legend(int panel_w) const;
+    std::vector<std::string> build_folder_overlay_panel(int panel_w, int rows) const;
+
     // --- queue overlay (HKeyQueueOverlay, SHIFT+k) -----------------------
     // The same idea as the list overlay above, for the QUEUE pane: a large
     // floating copy drawn over the main UI. Also a plain flag (not a Mode),
@@ -196,6 +308,7 @@ private:
     // poll_pending_waveform()/poll_pending_search() just below it.
     std::atomic<uint64_t> row_meta_tags_version_{0};
     uint64_t row_meta_tags_seen_ = 0; // main-thread only, no atomic needed
+    std::chrono::steady_clock::time_point row_meta_refilter_at_{};   // throttle of poll_pending_row_meta_tags()
     void poll_pending_row_meta_tags();
 
     // --- queue ---
@@ -303,6 +416,22 @@ private:
     void playlist_export_begin();          // opens the overlay for the hovered saved playlist
     void playlist_export_run();            // ENTER in the overlay
     std::vector<std::string> build_playlist_export_panel(int panel_w) const;
+
+    // Import overlay ('i' on the Saved Playlists tab): reads the .m3u / .m3u8 files of a folder
+    // (default: the same folder the export overlay starts in) and saves them as playlists of their own.
+    bool playlist_import_open_ = false;
+    std::string playlist_import_dir_;                 // the folder field
+    int playlist_import_field_ = 0;                   // 0 = folder field, 1 = file list
+    std::vector<std::string> playlist_import_files_;  // .m3u / .m3u8 files found in the folder (full paths)
+    std::vector<int> playlist_import_counts_;         // entries per file
+    std::vector<char> playlist_import_marked_;
+    int playlist_import_selected_ = 0;
+    std::string playlist_import_status_;              // shown inside the overlay
+    void playlist_import_begin();
+    void playlist_import_scan();                      // refills the file list from the folder field
+    void playlist_import_run();                       // ENTER in the overlay
+    std::vector<std::string> build_playlist_import_panel(int panel_w) const;
+    std::vector<std::string> build_playlist_manage_search_panel(int width) const; // SEARCH PLAYLISTS
     std::string playlist_status_; // shown at the bottom of the overlay; cleared on (re)entry
 
     void playlist_refresh_lib_view();
@@ -316,6 +445,7 @@ private:
     void playlist_save_current(bool leave = false); // leave: also close the editor (only the "save before exiting?" prompt does)
     void handle_playlist_key(int key);
     void build_playlist_screen(std::ostringstream& frame, int W, int player_h) const;
+    std::vector<std::string> build_playlist_search_panel(int width) const;
     std::vector<std::string> build_playlist_library_panel(int width, int height) const;
     std::vector<std::string> build_playlist_tracks_panel(int width, int height) const;
     std::vector<std::string> build_playlist_manage_panel(int width, int height) const;
@@ -345,8 +475,57 @@ private:
     bool meta_resort_edited_ = false;
     int meta_lib_selected_ = 0;
     int meta_field_ = 0; // hovered row of the field editor (0=FILE .. 4=YEAR)
+    // Two-stage field editor (meta_focus_ == 2): a hovered tag is only
+    // highlighted until ENTER arms this, showing the caret in the CHANGE
+    // colours (change_sgr()) -- the same split the PATHS tab uses between
+    // a selected folder row and one actually being typed into. Reset
+    // whenever focus leaves the field editor or moves to another tag.
+    bool meta_field_editing_ = false;
     std::vector<MetaEditEntry> meta_session_;          // the pending edits
     std::vector<std::string> meta_fetch_list_;         // paths queued for an AcoustID lookup
+    // The FETCH options (bit mask, see meta_editor.h): which tags a fetch fills in. Set on the FETCH LIST tab (its option
+    // line in the header); one setting for the whole list and for SHIFT+b. Default: missing only.
+    unsigned meta_fetch_opts_ = kMetaFetchDefault;   // the ticked boxes of the FETCH LIST tab (used by ENTER = fetch the full list)
+    unsigned meta_prompt_opts_ = kMetaFetchDefault;  // what the pending fetch confirmation will fetch (SHIFT+b missing / SHIFT+n all / the list's boxes)
+    std::string meta_fetch_disclaimer() const;
+    int meta_opt_cursor_ = 0;                          // the box the option line's cursor is on
+    int meta_fetch_skipped_ = 0;                       // files of the running batch that had nothing missing
+    std::string meta_fetch_note_;                      // first MusicBrainz hiccup of the running batch
+    // Per path of the running batch: the tag fields the fetch was allowed to fill in (set when it starts).
+    std::unordered_map<std::string, std::array<bool, kMetaFieldCount>> meta_fetch_want_;
+    // The choice overlay (ENTER on a field with several fetched candidates).
+    bool meta_choice_open_ = false;
+    int meta_choice_field_ = 0;
+    int meta_choice_sel_ = 0;
+    int meta_fetch_focus_ = 0;                         // FETCH LIST tab: 0 = the list, 1 = the option line in the header
+    void meta_toggle_fetch_opt(int i);                 // tick / untick one FETCH option (the exclusivity rules apply)
+    std::array<bool, kMetaFieldCount> meta_want_for(const std::string& path, unsigned opts);
+    void meta_choice_open();
+    void meta_choice_pick();          // ENTER: the highlighted candidate becomes the value
+    void meta_choice_discard();       // DEL / d: drop the fetched value and every candidate
+    bool handle_meta_choice_key(int key);
+    std::vector<std::string> build_meta_choice_panel() const;
+    static constexpr int kMetaChoicePanelWidth = 66;
+    static constexpr int kMetaSavePanelWidth = 56;
+    // Writing the pending edits to the files (CTRL+s -> Y). Every file is a copy through ffmpeg, so hundreds of edits take a
+    // while: the work is done in slices from the render loop (poll_meta_save(), ~0.12 s per frame) instead of in one go, the
+    // screen stays alive, a "please wait" panel with a progress bar shows up when it takes longer than a moment, and ESC
+    // stops after the current file (what is not saved yet stays pending).
+    struct MetaSaveJob {
+        bool active = false;
+        std::vector<MetaEditEntry> todo;    // the session as it was when saving started
+        size_t next = 0;                    // first entry not processed yet
+        std::vector<MetaEditEntry> failed;  // processed, could not be written (stay pending)
+        int ok = 0;
+        std::string first_error;
+        bool cancel = false;
+        std::chrono::steady_clock::time_point started;
+        std::chrono::steady_clock::time_point last_persist;
+    };
+    MetaSaveJob meta_save_;
+    void poll_meta_save();                                    // render loop: one slice of the job
+    void meta_save_finish();                                  // lists, status line, log
+    std::vector<std::string> build_meta_save_panel() const;   // the "please wait" panel
     int meta_fetch_selected_ = 0;
     bool meta_session_loaded_ = false; // load_session() already ran (once per run, not once per open)
     std::string meta_status_; // bottom line of the overlay; cleared on (re)entry
@@ -362,6 +541,7 @@ private:
     fs::path meta_script_; // scripts/fetch_meta.py, next to the exe
     std::thread meta_fetch_thread_;
     std::atomic<bool> meta_fetch_running_{false};
+    MetaFetchCancel meta_fetch_cancel_;          // SHIFT+c on the Fetch List tab
     mutable std::mutex meta_fetch_mutex_;
     std::vector<MetaFetchResult> meta_fetch_results_;
     // Paths the current batch has already delivered successfully (filled in
@@ -385,7 +565,7 @@ private:
     void meta_toggle_resort();         // 'r', edited files to the top of the pane
     // Missing-tag filters over the library pane: 0 = off, 1 = files with no
     // metadata at all ('x'), 2 = missing title (Shift+T), 3 = missing artist
-    // (Shift+A), 4 = missing year (Shift+Y). Pressing the same key again
+    // (Shift+A), 4 = missing year (Shift+Y), 5 = missing album (Shift+L). Pressing the same key again
     // clears it -- see meta_toggle_filter().
     int meta_filter_ = 0;
     void meta_toggle_filter(int filter);
@@ -399,8 +579,11 @@ private:
     std::string meta_hovering_path() const;      // path the picker/editor/fetch tab is on
     void meta_refresh_hover_values();            // fills meta_hover_values_ for this frame
     void meta_add_hovering_to_fetch();           // 'a', mirrors the queue's add key
+    void meta_cancel_fetch();                    // SHIFT+c on the Fetch List tab: stop the running AcoustID batch
+    void meta_add_view_to_fetch();               // SHIFT+f: every title of the (filtered) library pane
     void meta_remove_hovering();                 // DEL/'d'
-    void meta_prompt_single_fetch(const std::string& path); // Shift+B
+    void meta_play_hovering();                   // SHIFT+p: start the hovered track (library pane / fetch list)
+    void meta_prompt_single_fetch(const std::string& path, bool all = false); // Shift+B: missing tags only; Shift+N (meta editor): all tags
     void meta_prompt_list_fetch();                          // Enter on tab 1
     void meta_start_fetch();
     void poll_pending_meta_fetch();
@@ -416,14 +599,21 @@ private:
     std::vector<std::string> build_meta_fetch_panel(int width, int height) const;
 
     // --- listening history overlay (Mode::History, HKeyHistory = Shift+H) ---
-    // Three tabs in the shape of the two overlays above: 1 HISTORY (the last
+    // Four tabs in the shape of the two overlays above: 1 HISTORY (the last
     // 100 plays, newest first), 2 TOP TRACKS (per title, sorted by play count
-    // -- 'r' flips between most- and least-played first), 3 HABITS (session
+    // -- 'r' flips between most- and least-played first), 3 TOP PLAYLISTS (top 5
+    // playlists per period, scrolls), 4 HABITS (session
     // and play-behaviour aggregates, each category under a header_sgr()
     // header). The data itself lives in HistoryStore history_ (appended to on
     // the main thread only, persisted to ~/.cache/mousiki/history/history.json
     // after every finished track and again at shutdown).
-    int history_tab_ = 0;              // 0=History, 1=Top Tracks, 2=Habits
+    int history_tab_ = 0;              // 0=History, 1=Top Tracks, 2=Top Playlists, 3=Habits
+    static constexpr int kHistTabs = 4;
+    static constexpr int kHistTabTop = 1, kHistTabPlaylists = 2, kHistTabHabits = 3;
+    // Playlist context of the track being played / loaded (see QueueItem::playlist). pending_ is set by
+    // play_next_from_queue() just before it starts the item and is consumed by start_*_track(); load_ follows the
+    // load in flight; current_ is what history_begin_current_play() files the play under.
+    std::string pending_queue_playlist_, load_playlist_ctx_, current_playlist_;
     int history_selected_ = 0;         // cursor within tabs 0/1
     int history_scroll_ = 0;           // manual scroll offset (tab 2's content)
     int history_view_top_ = 0;         // first visible list row on tabs 0/1 (window moves only when the cursor leaves it)
@@ -451,6 +641,7 @@ private:
     // of build_history_panel()).
     void build_history_screen(std::ostringstream& frame, int W, int player_h);
     std::vector<std::string> build_history_panel(int width, int height);
+    void history_playlists_lines(int inner, std::vector<std::pair<std::string, int>>& lines) const; // TOP PLAYLISTS tab content
     std::vector<std::string> build_history_add_panel(int width, int height) const; // Top Tracks tab, 2nd pane
     // Queues the n most-played titles (always most-played first, whatever
     // order the Top Tracks list is currently showing). Local files that no
@@ -481,6 +672,8 @@ private:
                                      // (online tracks resolve to a cache path too)
     std::string current_video_id_;  // valid when !current_is_local_
     TrackMetadata metadata_;
+    // metadata_ with the playing file's pending meta-editor edits laid over it -- what the main screen shows.
+    TrackMetadata display_metadata() const;
     std::vector<float> waveform_envelope_;
     std::chrono::steady_clock::time_point waveform_reveal_start_;
     bool waveform_ready_ = false;
@@ -491,7 +684,7 @@ private:
     static constexpr double kAngularVelocity = (2.0 * 3.14159265358979323846 / 48.0) / 0.035;
     mutable FftVisualizer fft_;
     mutable SphereVisualizer sphere_;
-    // The scope alternative to sphere_ (Settings -> ON/OFF -> "Lyric Viz"):
+    // The scope alternative to sphere_ (Settings -> ON/OFF -> "Lyrics/Viz"):
     // fed live by the audio callback via player_.play(..., &scope_), drawn
     // by whoever renders the lyrics panel. mutable, like sphere_, because
     // that renderer is const and the panel's visuals are animation state.
@@ -529,6 +722,9 @@ private:
     mutable int marquee_pl_lib_row_idx_ = -1;
     mutable std::chrono::steady_clock::time_point marquee_pl_lib_since_;
     mutable int marquee_pl_track_row_idx_ = -1;
+    // --- main UI metadata block: Name / Artist / Album each stay on ONE row and scroll when too long ---
+    mutable int marquee_meta_idx_[3] = {-1, -1, -1};
+    mutable std::chrono::steady_clock::time_point marquee_meta_since_[3];
     mutable std::chrono::steady_clock::time_point marquee_pl_track_since_;
 
     // --- lyrics (background-fetched) ---
@@ -583,7 +779,7 @@ private:
     // the full terminal would visually detach the panel from the
     // content it's supposed to be floating over. Vertically centered
     // against term_rows_, nudged up a few rows rather than dead-center.
-    void draw_floating_panel(std::ostringstream& frame, const std::vector<std::string>& lines, int panel_w, int W, int fixed_col = 0) const;
+    void draw_floating_panel(std::ostringstream& frame, const std::vector<std::string>& lines, int panel_w, int W, int fixed_col = 0, bool exact_center = false) const;
     static constexpr int kFloatingPanelUpShift = 3; // rows nudged above true vertical center
 
     // --- console / log overlay (HKeyConsole) ----------------------------
@@ -626,6 +822,9 @@ private:
     // Reference tab so rebinding a hotkey to a key another action already
     // owns is rejected instead of silently creating an overlap.
     std::string hotkey_conflict(const std::string& key_str, const std::string& except_action) const;
+    // True when `key` (as read from the terminal) is the key currently bound to `action` -- for the places that have to
+    // recognise a binding outside the Browse dispatch (a second press that closes an overlay, the meta editor).
+    bool key_is(const char* action, int key) const;
 
     // --- autosave / session snapshot ------------------------------------
     // Consumed exactly once, right after a startup restore: the very
@@ -697,6 +896,7 @@ private:
     // a best-effort "ft./feat." split out of the title into its own
     // field) rather than blank.
     enum class RLField {
+        Source,   // the list of lyrics versions at the top (embedded in the file / fetched / older fetches)
         Title, Artist, Ft,
         TypeReverb, TypeSlowed, TypeUltraSlowed, TypeSpedup, TypeRemix, TypeOther,
         RemixText, OtherText,
@@ -709,7 +909,14 @@ private:
     bool rl_reverb_ = false, rl_slowed_ = false, rl_ultra_slowed_ = false;
     bool rl_spedup_ = false, rl_remix_ = false, rl_other_ = false;
     RLField rl_focus_ = RLField::Title;
-    static constexpr int kRetryLyricsPanelWidth = 62; // matches the reference design exactly
+    std::vector<LyricsVersion> rl_versions_;   // what list_lyrics_versions() found for the playing track
+    int rl_src_sel_ = 0;                       // the highlighted row of that list
+    void rl_choose_version();                  // SPACE on the list: that version is used from now on
+    int rl_src_scroll_ = 0;                    // first visible row of the list (it shows 3 at a time)
+    bool rl_confirm_delete_ = false;           // [d] asked "delete these lyrics?", waiting for y / n
+    void rl_fix_scroll();                      // keeps the highlighted row inside the 3 visible ones
+    void rl_delete_version();                  // after the y: removes the highlighted saved copy
+    static constexpr int kRetryLyricsPanelWidth = 72; // wide enough for the legend on the bottom border
     // The fields actually navigable right now, in on-screen order --
     // RemixText/OtherText only appear in this list once their checkbox
     // is on, which is what makes them "dynamically available".
@@ -878,12 +1085,43 @@ private:
     // settings_col_). Colors are clamped/validated as a 0-255 code;
     // everything else is stored close to verbatim.
     void settings_commit_edit();
+
+    // --- colour themes (Colors tab, last row: THEME | CREATE THEME) ---------
+    // theme_ui_: 0 = the plain Settings screen | 1 = pick a theme to apply | 2 = the CREATE THEME overlay |
+    // 3 = pick a template from inside the creator. All of it lives inside Mode::Settings (text editing inside
+    // the creator uses Mode::ColorEdit with theme_ui_ still set).
+    int theme_ui_ = 0;
+    std::vector<themes::Theme> theme_list_;
+    int theme_sel_ = 0;               // picker cursor
+    Settings theme_draft_;            // creator: the colours being edited (a copy; settings_ is untouched until saved)
+    themes::Theme theme_base_;        // creator: the template whose other keys (the radio's) the new theme keeps
+    std::string theme_name_;          // creator: name of the new theme (25 characters at most)
+    int theme_row_ = -1;              // creator: -1 = the NAME / TEMPLATE row, else the Colors row
+    int theme_col_ = 0;               // creator: 0/1 -- name|button on the top row, FG|BG on a colour row
+    int theme_current_index() const;  // index of the theme settings_ matches exactly, or -1 (custom)
+    void theme_open_picker();
+    void theme_open_creator();
+    void theme_save_new();
+    // SHIFT+e / SHIFT+i on the Colors tab: theme_ui_ 4 = export the current colours as a theme file, 5 = import theme files.
+    std::string theme_io_name_;       // export: the theme's name
+    std::string theme_io_dir_;        // export / import: the folder
+    int theme_io_row_ = 0;            // export: 0 name, 1 folder | import: 0 folder, 1 file list
+    int theme_io_sel_ = 0;            // import: the hovered file
+    std::vector<std::filesystem::path> theme_io_files_;
+    void theme_open_export();
+    void theme_open_import();
+    void theme_io_rescan();
+    void theme_import_files(const std::vector<std::filesystem::path>& files);
+    void handle_theme_key(int key);
+    void build_theme_screen(std::ostringstream& frame, int W, int player_h) const;
     // Left/Right quick-cycle for rows with a fixed set of options (bools,
     // enums). No-op for rows that don't have one (colors, hotkeys) --
     // those are Enter-to-type only.
     void settings_cycle(int dir);
     std::vector<std::string> settings_options_for(int tab, int row) const;
     int settings_max_row() const; // last valid row index for the current tab
+    std::vector<std::string> settings_anima_note(int W) const;   // the note at the bottom of the ANIMA/VIZ tab
+    int settings_tab_first_line(int W, int visible) const;       // first layout line shown on tab 1 / 2 (scrolling)
     // (main_frame_height() was removed -- see the comment where it used to
     // live in app.cpp, right before build_settings_screen(). Every overlay
     // now sizes off term_rows_ directly instead.)
@@ -914,6 +1152,7 @@ private:
         bool download_folder = false;
         bool history_folder = false;   // Path: the single HISTORY PATH field (settings_.history_path)
         bool export_folder = false;    // Path: the single PLAYLIST EXPORT PATH field (settings_.playlist_export_path)
+        bool conversion_folder = false; // Path: the single CONVERSION EXPORT PATH field (settings_.conversion_export_path)
         const char* label = "";    // Header: section title; AddPath: "+ new path"
     };
     // Every display row of the path section, in paint order, with `sel`
@@ -1117,10 +1356,96 @@ private:
     // read back with the lyrics), ESC / Alt+L = cancel (the value from before the
     // overlay opened comes back). Opens only while synced lyrics are loaded.
     double lyrics_edit_orig_delay_ = 0.0;               // delay when the overlay opened (ESC restores it)
+    // Alt+L works inside the karaoke overlay too: the timing is easiest to judge
+    // while the big lyrics are on screen. Set when the overlay was opened from
+    // there, so closing it (save or cancel) goes back to karaoke instead of the
+    // main screen.
+    bool lyrics_edit_from_karaoke_ = false;
     void karaoke_ensure_lyrics();   // the karaoke overlay fetches the lyrics itself when the engine is off
+    // SHIFT+w (HKeyWizard): the Mousiki Plus Help Wizard (Mode::Wizard), a
+    // full-screen tutorial built from the user manual. src/wizard.{h,cpp}
+    // holds the text; the radio shows the same pages with the same palette.
+    //
+    // The pages are one flat sequence, so LEFT / RIGHT read through the whole
+    // wizard like a book:
+    //   page 0            the welcome, with the spinning disk beside it
+    //   page 1            CONTENTS -- UP/DOWN pick a topic, ENTER jumps to it
+    //   page 2 .. n+1     every topic's pages, in contents order
+    // On a topic page UP / DOWN scroll when it is taller than the terminal.
+    // ESC, q or SHIFT+w close it; the first close also sets Settings'
+    // wizard_seen and writes config.txt, so the auto-open happens once.
+    static constexpr int kWizardWelcomePage = 0;
+    static constexpr int kWizardContentsPage = 1;
+    static constexpr int kWizardFirstTopicPage = 2;
+    int wizard_page_ = 0;             // index into the flat page sequence above
+    int wizard_topic_ = 0;            // highlighted row of the CONTENTS page
+    int wizard_scroll_ = 0;           // scroll offset of a topic page that does not fit
+    double wizard_angle_ = 0.0;       // the welcome page's disk, spun at 0.10 whatever is playing
+    void wizard_open();
+    void wizard_close();
+    void wizard_step_page(int delta);                   // LEFT / RIGHT, clamped to the ends
+    int wizard_total_pages() const;                     // welcome + contents + every topic page
+    // Which topic (and which of its pages) a flat page index lands on.
+    // Returns false for the welcome and contents pages.
+    bool wizard_locate(int page, int& topic, int& page_in_topic) const;
+    int wizard_page_of_topic(int topic) const;          // flat index of a topic's first page
+    void build_wizard_screen(std::ostringstream& frame, int W);
+    // CTRL+L (kKeyCtrlL, fixed key): READ LYRICS (Mode::ReadLyrics), a full-screen reader for the saved lyrics of the
+    // playing (else the hovered) track. The top pane is ONE scrollable line with the lyrics files of the track
+    // (embedded / fetched / older copies, LEFT / RIGHT choose), below it the plain lyrics without timestamps
+    // (UP / DOWN / SPACE / b / HOME / END scroll). `t` translates non-English lyrics into English
+    // (scripts/translate_lyrics.py, in the background): the translation is saved in lyrics/translations/ and shown in
+    // "( )" right below each original line; `t` again hides it, `r` translates anew.
+    fs::path rd_track_;                                 // track the files belong to
+    std::string rd_title_;                              // "Artist - Title" for the pane's border
+    std::vector<LyricsVersion> rd_versions_;
+    int rd_sel_ = 0;                                    // chosen file
+    int rd_first_ = 0;                                  // first file shown on the one-line chooser (scrolls with the choice)
+    std::vector<std::string> rd_lines_;                 // plain lyrics of the chosen file
+    std::vector<TranslationInfo> rd_tlist_;             // the translations saved for the chosen file (TRANSLATION pane)
+    int rd_tsel_ = 0;                                   // the one chosen / shown
+    int rd_tfirst_ = 0;                                 // first entry shown on the one-line chooser
+    int rd_pane_ = 0;                                   // pane with the keys: 0 READ LYRICS, 1 TRANSLATION (TAB)
+    bool rd_confirm_del_ = false;                       // "delete this translation?" is asked
+    std::vector<std::string> rd_trans_;                 // the chosen translation, one entry per line
+    std::string rd_from_;                               // language the translation came from ("de")
+    std::string rd_to_, rd_svc_;                        // language it is in ("en") and the service that made it ("google")
+    bool rd_opts_open_ = false;                         // the translate overlay ([t]): service, translate into, lyrics are in
+    int rd_opts_row_ = 0;
+    bool rd_opts_dirty_ = false;
+    std::string rd_opts_warn_;                          // warning inside the translate overlay
+    std::vector<std::string> build_readlyrics_options_panel() const;
+    void readlyrics_options_key(int key);
+    bool rd_show_ = false;                              // translation visible
+    bool rd_same_ = false;                              // the lyrics already are in the target language
+    bool rd_busy_ = false;                              // a translation is running (it goes on when the overlay is closed)
+    // The running translation: what it was asked for and which lyrics it belongs to.
+    std::string rd_job_to_, rd_job_svc_;
+    fs::path rd_job_track_;
+    LyricsVersion rd_job_version_;
+    int rd_scroll_ = 0;
+    std::string rd_status_;
+    bool rd_status_warn_ = false;                       // the status is a warning / error (drawn in red)
+    std::mutex rd_mutex_;
+    bool rd_result_ready_ = false;
+    LyricsTranslation rd_result_;
+    fs::path translate_script_;                         // scripts/translate_lyrics.py
+
+    void readlyrics_open();
+    void readlyrics_close();
+    void readlyrics_load_version();                     // reads the chosen file (and its saved translation)
+    void readlyrics_refresh_translations(const std::string& prefer_to);   // re-reads the saved translations of the chosen file
+    void readlyrics_select_translation(int index);
+    void readlyrics_toggle_translations();              // SHIFT+t: show / next translation / hide
+    void readlyrics_delete_translation();
+    void readlyrics_translate();                        // ENTER in the translate overlay
+    void readlyrics_poll();                             // once per frame: takes a finished translation over
+    void handle_readlyrics_key(int key);
+    void build_readlyrics_screen(std::ostringstream& frame, int W, int target_height);
     fs::path lyrics_path_;                              // track path the current lyrics belong to (sidecar location)
     static constexpr int kLyricsEditPanelWidth = 60;
     void lyrics_edit_open();
+    void lyrics_edit_close();                           // back to karaoke or the main screen, see lyrics_edit_from_karaoke_
     void lyrics_edit_adjust(double step);
     std::vector<std::string> build_lyrics_edit_panel() const;
     // Shift+E (HKeyEqualizer): the equaliser overlay (Mode::Equalizer), a
@@ -1164,6 +1489,7 @@ private:
 
     // --- box drawing helpers (use configured border chars) ---
     std::string box_top(const std::string& label, int total_width, const std::string& border_ansi = "") const;
+    std::string local_pane_label(int total_width) const; // LOCAL AUDIO FILES title, folder name shortened to fit
     std::string box_bottom(int total_width, const std::string& footer = "", const std::string& border_ansi = "") const;
     std::string box_line(const std::string& content, int total_width, const std::string& border_ansi = "") const;
     // box_top()/box_line() for a row whose TAIL is a text field with a caret
@@ -1174,7 +1500,8 @@ private:
     std::string box_top_field(const std::string& prefix, const std::string& field, int field_cols,
                               int total_width, const std::string& border_ansi = "") const;
     std::string box_line_field(const std::string& prefix, const std::string& field, int field_cols,
-                               int total_width, const std::string& border_ansi = "") const;
+                               int total_width, const std::string& border_ansi = "",
+                               const std::string& text_ansi = "") const; // text_ansi: colours for prefix+field+fill
 
     // panel builders
     std::vector<std::string> build_metadata_panel(int width) const;

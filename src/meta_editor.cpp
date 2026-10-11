@@ -46,6 +46,53 @@ bool MetaEditEntry::any_edited() const {
     return false;
 }
 
+bool MetaEditEntry::any_needs_choice() const {
+    for (int i = 0; i < kMetaFieldCount; ++i) if (needs_choice(i)) return true;
+    return false;
+}
+
+void MetaEditEntry::clear_field(int i) {
+    edited[i] = false;
+    value[i].clear();
+    fetched[i] = false;
+    choices[i].clear();
+    choice_aux[i].clear();
+}
+
+const char* meta_fetch_opt_label(int i) {
+    switch (i) {
+        case 0: return "missing only";
+        case 1: return "all";
+        case 2: return "artist";
+        case 3: return "title";
+        case 4: return "album";
+        case 5: return "year";
+        default: return "";
+    }
+}
+
+unsigned meta_fetch_opt_toggle(unsigned opts, int i) {
+    if (i < 0 || i >= kMetaFetchOptCount) return opts;
+    const unsigned bit = 1u << i;
+    const unsigned tags = 0x3Cu;                      // artist | title | album | year
+    if (opts & bit) {                                 // unticking
+        const unsigned rest = opts & ~bit;
+        return rest ? rest : opts;                    // never leave nothing ticked
+    }
+    if (i == 0 || i == 1) return bit;                 // missing only / all: alone
+    return (opts & tags) | bit;                       // a single tag: drops missing only / all, keeps the other tags
+}
+
+std::string meta_fetch_opt_summary(unsigned opts) {
+    std::string s;
+    for (int i = 0; i < kMetaFetchOptCount; ++i) {
+        if (!(opts & (1u << i))) continue;
+        if (!s.empty()) s += ", ";
+        s += meta_fetch_opt_label(i);
+    }
+    return s.empty() ? std::string("missing only") : s;
+}
+
 // =====================================================================
 // Autosaved session -- a BACKUP of the edits, never an application of them
 // =====================================================================
@@ -58,7 +105,8 @@ fs::path meta_session_path() {
     return base / ".cache" / "mousiki" / "meta_session" / "session.json";
 }
 
-bool load_meta_session(std::vector<MetaEditEntry>& entries, std::vector<std::string>& fetch_list) {
+bool load_meta_session(std::vector<MetaEditEntry>& entries, std::vector<std::string>& fetch_list,
+                       unsigned& fetch_opts) {
     fs::path p = meta_session_path();
     std::error_code ec;
     if (!fs::exists(p, ec)) return false;
@@ -80,6 +128,10 @@ bool load_meta_session(std::vector<MetaEditEntry>& entries, std::vector<std::str
             }
         }
     }
+    if (auto* fo = root.find("fetch_options")) {
+        const unsigned v = static_cast<unsigned>(fo->as_number(1));
+        if (v != 0 && v < (1u << kMetaFetchOptCount)) fetch_opts = v;
+    }
     if (auto* arr = root.find("entries")) {
         if (arr->type == Type::Array) {
             for (const auto& item : arr->arr) {
@@ -100,6 +152,28 @@ bool load_meta_session(std::vector<MetaEditEntry>& entries, std::vector<std::str
                 for (int i = 0; i < kMetaFieldCount; ++i) {
                     if (auto* v = item.find(meta_field_name(i))) e.value[i] = v->as_string();
                 }
+                if (auto* fe = item.find("fetched")) {
+                    if (fe->type == Type::Array) {
+                        for (const auto& name : fe->arr) {
+                            if (name.type != Type::String) continue;
+                            for (int i = 0; i < kMetaFieldCount; ++i) {
+                                if (name.str == meta_field_name(i) && e.edited[i]) e.fetched[i] = true;
+                            }
+                        }
+                    }
+                }
+                for (int pass = 0; pass < 2; ++pass) {
+                    if (auto* ch = item.find(pass == 0 ? "choices" : "choice_aux")) {
+                        if (ch->type != Type::Object) continue;
+                        for (int i = 0; i < kMetaFieldCount; ++i) {
+                            auto* list = ch->find(meta_field_name(i));
+                            if (!list || list->type != Type::Array) continue;
+                            for (const auto& s : list->arr) {
+                                if (s.type == Type::String) (pass == 0 ? e.choices[i] : e.choice_aux[i]).push_back(s.str);
+                            }
+                        }
+                    }
+                }
                 if (e.any_edited()) entries.push_back(std::move(e));
             }
         }
@@ -108,7 +182,8 @@ bool load_meta_session(std::vector<MetaEditEntry>& entries, std::vector<std::str
 }
 
 void save_meta_session(const std::vector<MetaEditEntry>& entries,
-                       const std::vector<std::string>& fetch_list) {
+                       const std::vector<std::string>& fetch_list,
+                       unsigned fetch_opts) {
     fs::path p = meta_session_path();
     std::error_code ec;
     fs::create_directories(p.parent_path(), ec);
@@ -119,6 +194,7 @@ void save_meta_session(const std::vector<MetaEditEntry>& entries,
     Value fl = Value::make_arr();
     for (const auto& s : fetch_list) fl.arr.push_back(Value::make_str(s));
     root.set("fetch_list", fl);
+    root.set("fetch_options", Value::make_num(static_cast<double>(fetch_opts)));
 
     Value arr = Value::make_arr();
     for (const auto& e : entries) {
@@ -130,6 +206,24 @@ void save_meta_session(const std::vector<MetaEditEntry>& entries,
         }
         v.set("edited", edited);
         for (int i = 0; i < kMetaFieldCount; ++i) v.set(meta_field_name(i), Value::make_str(e.value[i]));
+        Value fetched = Value::make_arr();
+        Value choices = Value::make_obj(), aux = Value::make_obj();
+        for (int i = 0; i < kMetaFieldCount; ++i) {
+            if (e.fetched[i]) fetched.arr.push_back(Value::make_str(meta_field_name(i)));
+            if (!e.choices[i].empty()) {
+                Value l = Value::make_arr();
+                for (const auto& s : e.choices[i]) l.arr.push_back(Value::make_str(s));
+                choices.set(meta_field_name(i), l);
+                if (!e.choice_aux[i].empty()) {
+                    Value a = Value::make_arr();
+                    for (const auto& s : e.choice_aux[i]) a.arr.push_back(Value::make_str(s));
+                    aux.set(meta_field_name(i), a);
+                }
+            }
+        }
+        v.set("fetched", fetched);
+        v.set("choices", choices);
+        v.set("choice_aux", aux);
         arr.arr.push_back(std::move(v));
     }
     root.set("entries", arr);
@@ -288,9 +382,22 @@ bool apply_meta_entry(const MetaEditEntry& e, std::string* err, std::string* new
 // AcoustID (scripts/fetch_meta.py)
 // =====================================================================
 
+void MetaFetchCancel::request() {
+    requested_ = true;
+    std::lock_guard<std::mutex> lk(mu_);
+    if (child_) child_->kill();
+}
+
+void MetaFetchCancel::attach(ChildProcess* child) {
+    std::lock_guard<std::mutex> lk(mu_);
+    child_ = child;
+    if (child_ && requested_.load()) child_->kill();
+}
+
 MetaFetchOutcome run_acoustid_fetch(const std::vector<MetaFetchRequest>& reqs,
                                     const fs::path& script,
-                                    const std::function<void(const MetaFetchResult&)>& on_result) {
+                                    const std::function<void(const MetaFetchResult&)>& on_result,
+                                    MetaFetchCancel* cancel) {
     MetaFetchOutcome out;
     if (reqs.empty()) {
         out.error = "nothing to fetch";
@@ -331,6 +438,11 @@ MetaFetchOutcome run_acoustid_fetch(const std::vector<MetaFetchRequest>& reqs,
             v.set("path", Value::make_str(r.path));
             v.set("title", Value::make_str(r.title));
             v.set("artist", Value::make_str(r.artist));
+            Value want = Value::make_arr();
+            for (int i = 1; i < kMetaFieldCount; ++i) {
+                if (r.want[i]) want.arr.push_back(Value::make_str(meta_field_name(i)));
+            }
+            v.set("want", want);
             arr.arr.push_back(std::move(v));
         }
         root.set("requests", arr);
@@ -344,12 +456,17 @@ MetaFetchOutcome run_acoustid_fetch(const std::vector<MetaFetchRequest>& reqs,
 
     std::string cmd = python + " " + shell_quote(path_utf8(script)) +
                       " " + shell_quote(path_utf8(req_file));
+#if !defined(_WIN32)
+    cmd = "exec " + cmd;   // a cancel must kill the script itself, not the shell that started it
+#endif
     auto child = spawn_capture(cmd, /*merge_stderr=*/true);
     if (!child) {
         fs::remove(req_file, ec);
         out.error = "could not start " + python;
         return out;
     }
+
+    if (cancel) cancel->attach(child.get());   // a cancel that came in before this point kills it right away
 
     auto handle_line = [&](std::string line) {
         while (!line.empty() && (line.back() == '\r' || line.back() == '\n')) line.pop_back();
@@ -370,7 +487,21 @@ MetaFetchOutcome run_acoustid_fetch(const std::vector<MetaFetchRequest>& reqs,
                     r.set[i] = true;
                     r.value[i] = val->as_string();
                 }
+                // "<field>_choices": [{"value": "...", "aux": "..."}, ...] -- every candidate, best first.
+                if (auto* cl = v.find(std::string(meta_field_name(i)) + "_choices")) {
+                    if (cl->type == Type::Array) {
+                        for (const auto& item : cl->arr) {
+                            if (item.type != Type::Object) continue;
+                            auto* cv = item.find("value");
+                            if (!cv || cv->as_string().empty()) continue;
+                            r.choices[i].push_back(cv->as_string());
+                            auto* ca = item.find("aux");
+                            r.choice_aux[i].push_back(ca ? ca->as_string() : std::string());
+                        }
+                    }
+                }
             }
+            if (auto* n = v.find("note")) r.note = n->as_string();
             ++out.ok_count;
         } else {
             if (auto* e = v.find("error")) r.error = e->as_string();
@@ -399,6 +530,8 @@ MetaFetchOutcome run_acoustid_fetch(const std::vector<MetaFetchRequest>& reqs,
     }
     if (!buffer.empty()) handle_line(buffer);
     int rc = child->wait();
+    if (cancel) cancel->attach(nullptr);
+    out.cancelled = cancel && cancel->requested();
     fs::remove(req_file, ec);
 
     if (rc != 0 && out.ok_count == 0 && out.fail_count == 0) {

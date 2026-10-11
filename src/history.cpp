@@ -49,6 +49,7 @@ Value play_to_json(const HistoryPlay& p) {
     v.set("heard", Value::make_num(p.listened_sec));
     v.set("at", Value::make_num(static_cast<double>(p.started_at)));
     v.set("done", Value::make_bool(p.finished));
+    if (!p.playlist.empty()) v.set("pl", Value::make_str(p.playlist));
     return v;
 }
 
@@ -61,6 +62,7 @@ HistoryPlay play_from_json(const Value& v) {
     if (auto* x = v.find("heard")) p.listened_sec = x->as_number(0.0);
     if (auto* x = v.find("at")) p.started_at = static_cast<long long>(x->as_number(0.0));
     if (auto* x = v.find("done")) p.finished = x->as_bool(false);
+    if (auto* x = v.find("pl")) p.playlist = x->as_string();
     return p;
 }
 
@@ -111,6 +113,22 @@ Value archive_to_json(const HistoryArchive& a) {
         titles.arr.push_back(t);
     }
     v.set("titles", titles);
+    if (!a.playlists.empty()) {
+        Value pls = Value::make_arr();
+        for (const auto& kv : a.playlists) {
+            Value t = Value::make_obj();
+            t.set("name", Value::make_str(kv.first));
+            t.set("n", Value::make_num(kv.second.plays));
+            t.set("heard", Value::make_num(kv.second.listened_sec));
+            if (!kv.second.day_plays.empty()) {
+                Value d = Value::make_obj();
+                for (const auto& dk : kv.second.day_plays) d.set(dk.first, Value::make_num(dk.second));
+                t.set("days", d);
+            }
+            pls.arr.push_back(t);
+        }
+        v.set("playlists", pls);
+    }
     Value days = Value::make_obj();
     for (const auto& kv : a.per_day) days.set(kv.first, Value::make_num(kv.second));
     v.set("days", days);
@@ -152,6 +170,21 @@ void archive_from_json(const Value& v, HistoryArchive& a) {
                     if (y->type == Type::Array)
                         for (size_t i = 0; i < 4 && i < y->arr.size(); ++i) t.tod[i] = static_cast<int>(y->arr[i].as_number(0.0));
                 a.titles[id->as_string()] = t;
+            }
+        }
+    }
+    if (auto* x = v.find("playlists")) {
+        if (x->type == Type::Array) {
+            for (const auto& item : x->arr) {
+                const Value* name = item.find("name");
+                if (!name || name->as_string().empty()) continue;
+                HistoryArchivePlaylist t;
+                if (auto* y = item.find("n")) t.plays = static_cast<int>(y->as_number(0.0));
+                if (auto* y = item.find("heard")) t.listened_sec = y->as_number(0.0);
+                if (auto* y = item.find("days"))
+                    if (y->type == Type::Object)
+                        for (const auto& dk : y->obj) t.day_plays[dk.first] = static_cast<int>(dk.second.as_number(0.0));
+                a.playlists[name->as_string()] = t;
             }
         }
     }
@@ -208,6 +241,12 @@ void HistoryArchive::fold(const HistoryPlay& p) {
             const int b = history_tod_bucket(p.started_at);
             if (b >= 0) ++t.tod[static_cast<size_t>(b)];
         }
+    }
+    if (!p.playlist.empty()) {
+        HistoryArchivePlaylist& pl = playlists[p.playlist];
+        ++pl.plays;
+        pl.listened_sec += p.listened_sec;
+        if (p.started_at > 0) ++pl.day_plays[day_key(p.started_at)];
     }
     add_time_buckets(p, hours, weekdays);
     if (p.started_at > 0) {
@@ -497,6 +536,53 @@ std::vector<HistoryTopRow> history_top_tod(const std::vector<HistoryPlay>& plays
     return top_filtered(plays, archive, most_first,
         [tod](const HistoryPlay& p) { return history_tod_bucket(p.started_at) == tod; },
         [tod](const HistoryArchiveTitle& t) { return t.tod[static_cast<size_t>(tod)]; });
+}
+
+std::vector<HistoryPlaylistRow> history_top_playlists(const std::vector<HistoryPlay>& plays, const HistoryArchive* archive,
+                                                      long long since, size_t n) {
+    std::map<std::string, HistoryPlaylistRow> by_name;
+    for (const HistoryPlay& p : plays) {
+        if (p.playlist.empty() || (since > 0 && p.started_at < since)) continue;
+        HistoryPlaylistRow& r = by_name[p.playlist];
+        r.name = p.playlist;
+        ++r.plays;
+        r.listened_sec += p.listened_sec;
+    }
+    if (archive) {
+        const std::string first_day = since > 0 ? day_key(since) : std::string();
+        for (const auto& kv : archive->playlists) {
+            int cnt = 0;
+            double sec = 0.0;
+            if (since <= 0) { cnt = kv.second.plays; sec = kv.second.listened_sec; }
+            else {
+                for (auto it = kv.second.day_plays.lower_bound(first_day); it != kv.second.day_plays.end(); ++it) cnt += it->second;
+                if (kv.second.plays > 0) sec = kv.second.listened_sec * cnt / kv.second.plays;
+            }
+            if (cnt <= 0) continue;
+            HistoryPlaylistRow& r = by_name[kv.first];
+            r.name = kv.first;
+            r.plays += cnt;
+            r.listened_sec += sec;
+        }
+    }
+    std::vector<HistoryPlaylistRow> rows;
+    rows.reserve(by_name.size());
+    for (auto& kv : by_name) rows.push_back(std::move(kv.second));
+    std::sort(rows.begin(), rows.end(), [](const HistoryPlaylistRow& a, const HistoryPlaylistRow& b) {
+        if (a.plays != b.plays) return a.plays > b.plays;
+        if (a.listened_sec != b.listened_sec) return a.listened_sec > b.listened_sec;
+        return a.name < b.name;
+    });
+    if (rows.size() > n) rows.resize(n);
+    return rows;
+}
+
+void history_playlist_totals(const std::vector<HistoryPlay>& plays, const HistoryArchive* archive,
+                             int& playlists, long long& playlist_plays) {
+    const auto rows = history_top_playlists(plays, archive, 0, static_cast<size_t>(-1));
+    playlists = static_cast<int>(rows.size());
+    playlist_plays = 0;
+    for (const auto& r : rows) playlist_plays += r.plays;
 }
 
 HistoryStats history_stats(const std::vector<HistoryPlay>& plays, const HistoryArchive* archive) {

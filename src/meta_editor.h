@@ -1,8 +1,11 @@
 #pragma once
 #include <array>
 #include <filesystem>
+#include <atomic>
 #include <functional>
+#include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 // ------------------------------------------------------------------------
@@ -39,15 +42,42 @@ struct MetaEditEntry {
     // The pending value for each field. Only meaningful where edited[i] is
     // true; untouched fields fall back to whatever the file already has.
     std::array<std::string, kMetaFieldCount> value{};
+    // --- fetched values that wait for a look from the user -------------------
+    // `fetched[i]`: value[i] came from AcoustID / MusicBrainz and has not been
+    // confirmed or typed over yet (drawn in yellow). `choices[i]` holds the
+    // candidates the fetch found, best first (value[i] is the first one);
+    // `choice_aux[i]` runs parallel to it -- for the album it carries the year
+    // of each candidate, so picking an album can set the year with it.
+    std::array<bool, kMetaFieldCount> fetched{};
+    std::array<std::vector<std::string>, kMetaFieldCount> choices{};
+    std::array<std::vector<std::string>, kMetaFieldCount> choice_aux{};
 
     bool any_edited() const;
+    // More than one candidate and none picked yet: the user has to decide.
+    bool needs_choice(int i) const { return fetched[i] && choices[i].size() >= 2; }
+    bool any_needs_choice() const;
+    // Forget everything a fetch put into field i (the value goes back to what the file has).
+    void clear_field(int i);
 };
+
+// The FETCH options -- checkboxes, kept as a bit mask: 0 missing only, 1 all, 2 artist, 3 title, 4 album, 5 year.
+// "missing only" and "all" exclude each other AND every single tag (ticking one unticks the others); the single tags
+// can be ticked in any combination. Only the ticked tags are fetched, for every title of a fetch.
+constexpr int kMetaFetchOptCount = 6;
+constexpr unsigned kMetaFetchDefault = 1u;      // missing only
+const char* meta_fetch_opt_label(int i);        // "missing only", "all", "artist", ...
+// The mask after the user toggled box i (the rules above; the last ticked box cannot be unticked).
+unsigned meta_fetch_opt_toggle(unsigned opts, int i);
+// "missing only" / "all" / "artist, album" -- for status lines and the FETCH row.
+std::string meta_fetch_opt_summary(unsigned opts);
 
 // --- autosaved session (a backup of the edits; the files stay untouched) ---
 fs::path meta_session_path();
-bool load_meta_session(std::vector<MetaEditEntry>& entries, std::vector<std::string>& fetch_list);
+bool load_meta_session(std::vector<MetaEditEntry>& entries, std::vector<std::string>& fetch_list,
+                       unsigned& fetch_opts);
 void save_meta_session(const std::vector<MetaEditEntry>& entries,
-                       const std::vector<std::string>& fetch_list);
+                       const std::vector<std::string>& fetch_list,
+                       unsigned fetch_opts);
 // Removes the session file. Used when the last pending edit is applied or the
 // session is explicitly discarded -- never as a side effect of just exiting.
 void delete_meta_session();
@@ -67,6 +97,9 @@ struct MetaFetchRequest {
     std::string path;   // the file to fingerprint; echoed back in the result
     std::string title;  // only used for a "no match for: ..." message
     std::string artist; // may be empty; likewise message-only
+    // Which of the tag fields (1..4) the caller wants back. The script only asks MusicBrainz when
+    // album or year is wanted, so a title-only fetch stays as fast as it always was.
+    std::array<bool, kMetaFieldCount> want{};
 };
 
 struct MetaFetchResult {
@@ -76,7 +109,26 @@ struct MetaFetchResult {
     // included); FileName is never set -- AcoustID does not name files.
     std::array<bool, kMetaFieldCount> set{};
     std::array<std::string, kMetaFieldCount> value{};
+    // All candidates the answer carries per field, best first (empty = just value[i]).
+    std::array<std::vector<std::string>, kMetaFieldCount> choices{};
+    std::array<std::vector<std::string>, kMetaFieldCount> choice_aux{};
+    std::string note;   // e.g. "MusicBrainz not reachable" -- the tags that did arrive are still good
     std::string error;
+};
+
+class ChildProcess;   // process_util.h
+
+// Lets another thread stop a running fetch (the helper process is killed; what had arrived by then stays applied).
+class MetaFetchCancel {
+public:
+    void reset() { requested_ = false; }                 // before a new batch starts
+    void request();                                      // any thread
+    bool requested() const { return requested_.load(); }
+    void attach(ChildProcess* child);                    // the fetch itself: the running helper, or nullptr when it is gone
+private:
+    std::atomic<bool> requested_{false};
+    std::mutex mu_;
+    ChildProcess* child_ = nullptr;
 };
 
 struct MetaFetchOutcome {
@@ -84,6 +136,7 @@ struct MetaFetchOutcome {
     int fail_count = 0;
     bool python_missing = false;  // no Python interpreter -> cannot run the helper
     bool script_missing = false;  // scripts/fetch_meta.py not found next to the exe
+    bool cancelled = false;       // stopped on request: the answers that had arrived are kept, the rest was not fetched
     std::string error;            // first fatal/uncategorised failure, for the status line
 };
 
@@ -97,6 +150,7 @@ struct MetaFetchOutcome {
 // configure here. Blocking -- callers run this on their own worker thread.
 MetaFetchOutcome run_acoustid_fetch(const std::vector<MetaFetchRequest>& reqs,
                                     const fs::path& script,
-                                    const std::function<void(const MetaFetchResult&)>& on_result);
+                                    const std::function<void(const MetaFetchResult&)>& on_result,
+                                    MetaFetchCancel* cancel = nullptr);
 
 } // namespace muisc

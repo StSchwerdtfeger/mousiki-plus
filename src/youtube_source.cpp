@@ -63,6 +63,7 @@ std::optional<SongResult> YoutubeSource::resolve(const std::string& query, std::
         return std::nullopt;
     }
 
+    cache_.record_download("youtube", id);   // shared with yt-dlp runs outside Mousiki (history/downloaded_history.txt)
     SongResult result{title, artist, cached, false};
     return result;
 }
@@ -103,6 +104,7 @@ std::optional<SongResult> YoutubeSource::resolve_by_id(const std::string& video_
         return std::nullopt;
     }
 
+    cache_.record_download("youtube", video_id);   // shared with yt-dlp runs outside Mousiki (history/downloaded_history.txt)
     SongResult result{title, artist, cached, false};
     return result;
 }

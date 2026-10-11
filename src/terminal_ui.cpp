@@ -410,6 +410,8 @@ int TerminalIO::poll_key() {
                     if (code == 'Z' || code == 'z') { g_last_key_was_arrow = false; return kKeyCtrlShiftZ; }
                 }
                 if (mod == 5 && (code == 's' || code == 'S')) { g_last_key_was_arrow = false; return kKeyCtrlS; } // Ctrl+S
+                if (mod == 5 && (code == 'p' || code == 'P')) { g_last_key_was_arrow = false; return kKeyCtrlP; } // Ctrl+P
+                if (mod == 5 && (code == 'l' || code == 'L')) { g_last_key_was_arrow = false; return kKeyCtrlL; } // Ctrl+L
                 // "1;<mod> A" -- an arrow (or Home/End) pressed WITH a
                 // modifier, which is how xterm-style terminals report
                 // Shift+Left/Right: "ESC [ 1 ; 2 D". mod is
@@ -456,11 +458,9 @@ int TerminalIO::poll_key() {
     if (c == 0x18) { g_last_key_was_arrow = false; return kKeyCtrlX; }
     if (c == 0x16) { g_last_key_was_arrow = false; return kKeyCtrlV; }
     if (c == 0x13) { g_last_key_was_arrow = false; return kKeyCtrlS; }   // Ctrl+S (IXON is off, see the constructor)
-    // Ctrl+L = second way to open/close the lyrics timing overlay (same key as
-    // Alt+L). On macOS Option only works as a modifier if the terminal is set to
-    // "Option as Meta", which takes away typing special characters with Option
-    // (e.g. @ on a German keyboard is Option+L). Ctrl+L needs no terminal setup.
-    if (c == 0x0c) { g_last_key_was_arrow = false; return kKeyAltL; }
+    if (c == 0x10) { g_last_key_was_arrow = false; return kKeyCtrlP; }   // Ctrl+P
+    // Ctrl+L = the READ LYRICS overlay (it used to be a second way to open the lyrics timing overlay, which is Alt+L only now).
+    if (c == 0x0c) { g_last_key_was_arrow = false; return kKeyCtrlL; }
     g_last_key_was_arrow = false;
     return c;
 #endif

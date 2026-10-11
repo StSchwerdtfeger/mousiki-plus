@@ -26,6 +26,7 @@ static Value track_to_json(const SnapshotTrack& t) {
     v.set("video_id", Value::make_str(t.video_id));
     v.set("title", Value::make_str(t.title));
     v.set("artist", Value::make_str(t.artist));
+    if (!t.playlist.empty()) v.set("playlist", Value::make_str(t.playlist));
     return v;
 }
 
@@ -36,6 +37,7 @@ static SnapshotTrack track_from_json(const Value& v) {
     if (auto* p = v.find("video_id")) t.video_id = p->as_string();
     if (auto* p = v.find("title")) t.title = p->as_string();
     if (auto* p = v.find("artist")) t.artist = p->as_string();
+    if (auto* p = v.find("playlist")) t.playlist = p->as_string();
     return t;
 }
 

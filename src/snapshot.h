@@ -17,6 +17,7 @@ struct SnapshotTrack {
     std::string video_id;  // valid if !is_local
     std::string title;
     std::string artist;
+    std::string playlist;  // saved playlist the entry was queued from ("" = none), for the history's TOP PLAYLISTS
 };
 
 // Deliberately does NOT include anything about appearance/colors --
