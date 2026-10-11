@@ -1,4 +1,4 @@
-# Mousiki User Guide v3.1.0 (Windows · Linux · macOS) – music player and radio
+# Mousiki User Guide v3.3.8 (Windows · Linux · macOS) – music player and radio
 
 Mousiki TUI player is two programs in one: a terminal **music player** (chapters 1 to 10) and an **online radio** (chapter 11), including visualizations such as an oscilloscope and a spectrogram, as well as a Karaoke mode, making use of its lyrics fetching capabilities, to just name some of the integrated features. Press `SHIFT` and `+` on a German keyboard (`SHIFT+8` on an English one: the key that types `*`) to switch between radio and music player mode (see [Two modes in one program](#two-modes-in-one-program) and [Keyboard layouts](#keyboard-layouts-german-and-english)).
 
@@ -61,7 +61,8 @@ Mousiki reacts to the **character** a key types, not to the key itself. Most com
 | `_` | Karaoke overlay: lyrics smaller | `SHIFT` and `-` | `SHIFT` and `-` |
 | `(` | Spectrogram window | `SHIFT+8` | `SHIFT+9` |
 | `)` | Scope window | `SHIFT+9` | `SHIFT+0` |
-| `+` | Volume up | the `+` key | `SHIFT` and `=` (the radio also takes a plain `=`) |
+| `=` | Oscilloscope full screen | `SHIFT+0` | the `=` key |
+| `+` | Volume up | the `+` key | `SHIFT` and `=` |
 | `-` | Volume down | the `-` key | the `-` key (the radio also takes `_` as long as it is not rebound) |
 | `?` | Cheat sheet | `SHIFT` and `ß` | `SHIFT` and `/` |
 | `/` | Search | `SHIFT+7` | the `/` key |
@@ -192,7 +193,7 @@ The metadata panel lists **Name, Artist, Album, Year**, sampling, type, format, 
 
 ![Main screen with the lyric ball](images/Playback_Main_UI_lyric_ball.png)
 
-*Main screen with no lyrics shown: the audio-reactive **lyric ball** (sphere; Settings → ANIMA/VIZ → Lyrics/Viz) fills the area instead.*
+*Main screen with no lyrics shown: the audio-reactive **lyric ball** (sphere; Settings → ANIMA/VIZ → Lyrics/Viz Default) fills the area instead.*
 
 
 | Key | Action | What it does |
@@ -316,7 +317,7 @@ The cheat sheet splits these keys into groups: **NAVIGATION & VIEW** (the lists 
 
 | Key | Action | What it does |
 |---|---|---|
-| `.` / `,` | Cycle lyrics area forward / backward | Cycles the lyrics area through four views: **sphere → oscilloscope → spectrogram → lyrics → sphere …** by default (`,` walks the same order backwards); the order is set with **Viz Order 1..4** on Settings → ON/OFF, and views switched off there with **Use Lyrics / Use Oscilloscope / Use Spectrogram / Use Sphere** are skipped. The three visuals are the lyrics engine's *off* states: no lyrics are fetched from the network while one of them is shown, and the choice is stored in the **Lyrics/Viz** setting. Coming back to the lyrics fetches them for the current track right away. (Up to v3.0.0 this was `+`, which is volume up now.) |
+| `.` / `,` | Cycle lyrics area forward / backward | Cycles the lyrics area through four views: **sphere → oscilloscope → spectrogram → lyrics → sphere …** by default (`,` walks the same order backwards); the order is set with **Viz Order 1..4** on Settings → ON/OFF, and views switched off there with **Use Lyrics / Use Oscilloscope / Use Spectrogram / Use Sphere** are skipped. The three visuals are the lyrics engine's *off* states: no lyrics are fetched from the network while one of them is shown, and the view stays until you change it again (the view Mousiki starts with is **Lyrics/Viz Default**). Coming back to the lyrics fetches them for the current track right away. (Up to v3.0.0 this was `+`, which is volume up now.) |
 | `l` | LYRICS REFETCH AND VERSION CONTROL | Opens the lyrics overlay. The upper part fetches lyrics again with a **manual title and artist**; `ENTER` (**Refetch**) keeps the lyrics in use as an older version (`lyrics/<name>.v<date>.<source>.lrc`, max 10), so timing you saved is never overwritten. The lower part, **LYRICS IN USE**, lists the lyrics embedded in the file, the fetched copy and older copies (three rows, scrolls with `↑`/`↓`; reach it with `↓` or `TAB` from the form); `SPACE` switches to the highlighted one, `d` deletes a saved copy after you confirm with `y` (lyrics embedded in the file cannot be deleted). Lyrics embedded in a file are used before anything is fetched. |
 | `ALT+l` | Adjust lyrics | Opens a small overlay menu for live adjustment of the lyrics timing. |
 | `k` | Karaoke overlay | Shows the lyrics of the playing track over the whole screen, karaoke style. It fetches the lyrics itself when the lyrics engine is off on the main screen (that setting is left alone). See *Karaoke overlay* below. |
@@ -328,6 +329,7 @@ The cheat sheet splits these keys into groups: **NAVIGATION & VIEW** (the lists 
 | `O` (Shift+O) | Oscilloscope tuning | Opens a small overlay to change the oscilloscope **live**: style (braille / image), frame rate, music mode, afterglow, line thickness, tail, glow, Z axis, rotation, colours and more -- each style keeps its own values. See *The oscilloscope* below. |
 | `I` (Shift+I) | Spectrogram options | Opens the spectrogram overlay (style, motion, scale, frequencies, gain, range, window, colours …). See *Spectrogram* below. |
 | `U` (Shift+U) | Spectrogram full screen | The spectrogram over the whole screen, with frequency labels and a time ruler. `ESC` or `SHIFT+u` closes it. |
+| `=` (German `SHIFT+0`, English the `=` key) | Oscilloscope full screen | The oscilloscope over the whole screen: the **YT** trace on the left, the **XY** figure on the right, values in the border, optional grid. `ESC` or the same key closes it. See *Oscilloscope full screen* below. |
 | `)` (German `SHIFT+9`, English `SHIFT+0`) | Scope window | Opens / closes the oscilloscope in **its own window**, drawn by the graphics card at the monitor's refresh rate. See *Scope window* below. (The key is the character `)`.) Works always, also while the oscilloscope is switched off on the ON/OFF tab. |
 | `(` (German `SHIFT+8`, English `SHIFT+9`) | Spectrogram window | Opens / closes the spectrogram in **its own window**, scrolling smoothly at the monitor's refresh rate. See *Spectrogram window* below. Works always. |
 
@@ -393,7 +395,10 @@ Reads the lyrics saved for the **playing** track (when nothing plays: the track 
 | `↑` / `↓` | Scroll one row. `SPACE` / `b`: one page down / up. `HOME` / `END`: top / bottom |
 | `t` | Opens the **translate overlay**: service, language to translate into, language of the lyrics. `ENTER` there **fetches** the translation, `ESC` closes it. This is the only place that fetches |
 | `SHIFT+t` | **Show / toggle / hide** the saved translations. It never fetches: hidden → first translation → next translation … → hidden |
+| `CTRL+s` | **Search the lyrics files** (see below): every lyrics file of the library by file name, as an alternative to the lyrics of the playing track |
 | `ESC`, `q` or `CTRL+L` | Close |
+
+**Search lyrics files (`CTRL+s`).** Opens a small **SEARCH LYRICS FILES** panel over the reader. It lists every `.lrc` / `.txt` file in the `lyrics` folders of your library: the `lyrics` folder inside each folder that holds your tracks, inside each music folder from Settings → PATHS and inside the download cache. The list is read when the panel opens. Type to filter by **file name** (every word you type has to be in the name, in any order, upper / lower case does not matter), `↑` / `↓` pick (`HOME` / `END` jump), `ENTER` shows the file in the reader, `BACKSPACE` deletes a letter, `ESC` or `CTRL+s` closes the panel. A row shows the file name and, in brackets, the folder it belongs to. The chosen file is read like a track's own lyrics: plain text, centred, and `t` translates it (the translation is saved in `translations/` of that file's own lyrics folder, and found there again). It stays until you close the reader with `ESC` or `CTRL+L`; opening the reader again shows the lyrics of the playing track.
 
 - The **READ LYRICS pane** is one line with the lyrics files of the track: the lyrics embedded in the audio file, the fetched copy in use (marked `●`) and the older copies that a refetch put aside (see *How the lyrics form works*). The line scrolls sideways when the files do not fit; `◀` / `▶` show that there are more.
 - The **TRANSLATION pane** is one line with the translations saved for the chosen file, e.g. `● English (Google Translate) | French (MyMemory)`; `●` marks the one that is shown. A file has one translation per language. Below the pane, the border says how many there are, or that one is being fetched.
@@ -409,13 +414,14 @@ Reads the lyrics saved for the **playing** track (when nothing plays: the track 
 
 ### The oscilloscope (lyric visual)
 
-When there are no lyrics to show (lyrics engine off, nothing found, or the fetch is still running) the lyrics area is filled by a **lyric visual**. Messages such as *fetching lyrics ...* or *No synchronized lyrics found* appear for a moment as a **small box over the bottom of the visual**, which keeps its full size (it no longer shrinks by a row, so a spectrogram does not jump). With Settings → ON/OFF → **Lyrics/Viz** (or **No-Lyrics Viz**, while the lyrics view has no lyrics) set to `osci` (or after pressing `.` to the oscilloscope view) that visual is an **XY oscilloscope** instead of the sphere.
+When there are no lyrics to show (lyrics engine off, nothing found, or the fetch is still running) the lyrics area is filled by a **lyric visual**. Messages such as *fetching lyrics ...* or *No synchronized lyrics found* appear for a moment as a **small box over the bottom of the visual**, which keeps its full size (it no longer shrinks by a row, so a spectrogram does not jump). With Settings → ANIMA/VIZ → **Lyrics/Viz Default** (or **No-Lyrics Viz**, while the lyrics view has no lyrics) set to `osci` (or after pressing `.` to the oscilloscope view) that visual is an **XY oscilloscope** instead of the sphere.
 
 **What it can do, in short:**
 - **XY oscilloscope** of the music (left channel = horizontal, right = vertical), with an automatic **phase portrait** for mono tracks, a **45° mid/side view** and an automatic or (in *osci music mode*) fixed scale -- the mode for **oscilloscope music**, which then gets the decoded signal before EQ, normalization and volume.
+- A **YT mode** next to the XY figure: the classic time-domain scope (amplitude over time, triggered), alone, **on top of the XY figure** (*XY + YT (overlap)*), **below it in a row of its own** (*XY + YT (row)*) or **next to it in a column of its own** (*XY + YT (col)*, XY left, YT right) -- overlay row *Scope mode*. A full-screen view shows both side by side (`SHIFT+0`, below).
 - Two **styles**: **braille** characters in any terminal, or an **image** -- a real pixel picture with a glowing beam -- in terminals with Kitty graphics or Sixel (Windows Terminal 1.22+, WezTerm, Kitty, foot …).
 - A **phosphor** look: afterglow (Decay), a bright head and a fading tail, smooth anti-aliased lines between the samples (or only the sample dots), a **Z axis** that dims the beam by speed or brightens it by level, a trace length of 128 – 1024 samples.
-- **Eight colour schemes**: the VIZ gradient of the settings, or palettes that follow the beam speed (a rough "pitch" colour: temperature, aurora, magma, ice, neon, spectrum …).
+- **Nine colour schemes**: the VIZ gradient of the settings, palettes that follow the beam speed (a rough "pitch" colour: temperature, aurora, magma, ice, neon, spectrum …), and **classic green**: one phosphor green for the whole picture, only the brightness of the beam varies, like an old scope.
 - **30 – 165 frames per second**, and all values kept separately for each style.
 - A separate **scope window** (`)`, German `SHIFT+9`, English `SHIFT+0`) drawn by the graphics card at the monitor's refresh rate, which draws every sample.
 
@@ -442,6 +448,7 @@ Playback keeps running while the overlay is open, but its keys are the only ones
 
 | Row | Choices / range | What it does |
 |---|---|---|
+| Scope mode | XY / YT / XY + YT (overlap) / XY + YT (row) / XY + YT (col) | Which picture the scope draws (`OsciMode=` `xy`, `yt`, `overlap`, `row` or `col`; one setting for both styles). **XY**: the beam figure described above. **YT**: the classic time-domain scope -- the signal (left and right mixed) runs from left to right, amplitude up and down, and a **trigger** (a rising zero crossing, with a small noise guard) starts every picture at the same point of the wave, so a steady tone stands still instead of crawling. The **Trace Length** row sets how many samples fit across the width (fewer = zoomed in, a few periods of a bass note; more = a longer stretch). **XY + YT (overlap)** draws the YT trace *on top of* the XY figure in the same buffer, the trace a little dimmer, with one shared afterglow and palette. **XY + YT (row)** gives each its own half of the area: the XY figure in the top half, the YT trace in the bottom half. **XY + YT (col)** does the same side by side: the XY figure in the left half, the YT trace in the right half. Decay, Dot threshold, Line/Vec. Interpol., Color, Glow, the style (braille / image), the frame rate and Osci music mode (fixed scale instead of automatic size) apply to every picture; Tail, Z-Axis, Rotate 45 deg and Mono Phase Portrait only shape the XY figure. The scope window (`SHIFT+9`) follows the mode too (see *Scope window*). |
 | Osci style | braille / image | **braille**: the scope is drawn with Braille characters. **image**: a real pixel picture with glow, drawn by the terminal itself (see *Image style* below). |
 | Osci music mode | on / off | Kept per style (braille and image each have their own). For **oscilloscope music** (tracks composed so that the scope draws pictures, e.g. Jerobeam Fenderson's): the scopes get the **decoded signal itself**, before the equalizer, normalization, limiter, volume and the mono fold (what you hear does not change); the picture keeps a **fixed scale** (full level = the edge) instead of adjusting its size to the loudness; the mono phase portrait is off. The scope window (which follows the *image* style's setting) then also smooths more between the samples and draws a finer beam (see *Scope window*). For the full effect, play lossless files (FLAC / WAV): MP3, AAC, Opus and internet radio round off corners and blur lines. |
 | Frame rate | 30 / 45 / 60 / 90 / 120 / 165 fps | Kept **per style**: the braille and the image scope each have their own frame rate (and all their other values), and the one of the style in use applies. How often the screen (and the scope) is redrawn. Only the lines that changed are sent, so 120 and 165 work in a fast terminal (Windows Terminal, WezTerm, Kitty, Alacritty …) on a monitor with that refresh rate; a terminal never shows more frames than its monitor does. At 165 fps the radio's screen is about 2.3 MB/s of output and about a quarter of one CPU core; if the terminal lags behind, step down. The image style sends at most 60 pictures per second whatever the frame rate (see below). |
@@ -458,7 +465,7 @@ Playback keeps running while the overlay is open, but its keys are the only ones
 | Trace Length | 128 – 1024 samples (step 128) | How much of the signal is drawn at once. |
 | Rotate 45 deg (M/S) | on / off | Rotates the picture by 45°, so mid/side (mono/stereo difference) lies on the axes. |
 | Mono Phase Portrait | on / off | Fades a (nearly) mono signal over to a *phase portrait* (see *The oscilloscope*). Off draws the plain diagonal line. |
-| Color | gradient, settings, temperature, aurora, magma, ice, neon, spectrum | `gradient` uses the VIZ colours of **Settings → COLORS**. The others are palettes that follow the beam speed. |
+| Color | gradient, settings, temperature, aurora, magma, ice, neon, spectrum, classic green | `gradient` uses the VIZ colours of **Settings → COLORS**. The palettes in the middle follow the beam speed. **classic green** is a single phosphor green (`Palette=green` in the config files) with the brightness of the beam as the only variation -- the look of an old analog scope. |
 
 **Each style keeps its own values.** The braille and the image style have separate sets of every row -- Frame rate, Osci music mode, Decay, Tail, Glow and all the others (Image protocol and Image resolution exist only for the image style) -- so switching the style does not lose your tuning; `R` resets only the style in use (its frame rate stays). Decay, threshold and tail move in steps of 0.01 (tail 0.02).
 
@@ -473,6 +480,32 @@ Two starting points for the braille style: for a crisp, "real oscilloscope" look
 ![Oscillator overlay image oscillator](images/Playback_Main_UI_OSCI_MENU_2.png)
 
 
+### Oscilloscope full screen (`SHIFT+0`)
+
+The oscilloscope over the whole screen, like the spectrogram's full screen (`SHIFT+u`), but with **both pictures at once**: the **YT** trace (amplitude over time) on the **left**, the **XY** figure (left channel horizontal, right channel vertical) on the **right**. Each has its own phosphor buffer, so both keep their own afterglow, but they show the same audio. The key is the character `=`: **`SHIFT+0` on a German keyboard** (on an English one the `=` key itself; `SHIFT+0` there types `)`, the scope window). It is a normal key binding (`HKeyScopeBig` in the player, `ScopeBig` in the radio), so it can be changed on the REFERENCE tab. In the radio the plain `=` no longer raises the volume (it used to be a second `+`); `+` still does.
+
+- **Layout.** The two pictures are **boxes of the same size** that look square on screen (a character cell is about twice as high as wide, so a box has twice as many columns as rows): the horizontal grid lines of YT and XY are on the same screen rows. When the terminal is resized the boxes shrink or grow but keep their shape and stay in the middle; what is left over is empty margin. The title is the track (radio: station and song). The name of each picture is centred above its box, kept short so it never reaches into the other picture's field (*samp.*, *horiz.*, *vert.*; when the terminal is narrow the least important parts drop out first): the YT time span in the chosen unit, and what the XY axes are (left / right channel, or side / mid with *Rotate 45 deg*), plus the measurements picked in `SHIFT+p`. The bottom border only lists the keys (`SHIFT+a` grid, `SHIFT+v` values, `SHIFT+c` color, `SHIFT+p` metrics; on a narrow terminal the compact form `SHIFT+a/v/c/p`).
+- **Look.** The overlay follows the **Osci style** of the `SHIFT+o` overlay and uses that style's own values (braille: Decay, Dot threshold, Trace Length, Line/Vec. Interpol., Color, Osci music mode ...; image: the glow, palette ... of the image style). With **braille** both pictures are drawn in braille dots. With **image** on a terminal that speaks the **Kitty graphics protocol** or **Sixel** (see *Image style* above) both pictures are real **pixel images**: smooth beams with glow, the grid, frame and axes as thin pixel lines under the beam (so they are not made of dotted characters), the axis values and names as text around them. Image resolution, Image protocol and the frame rate rule apply as in the main screen (the two pictures count double for Sixel, so lower *Image resolution* first if it stutters). The small windows (`SHIFT+o`, `SHIFT+c`, `SHIFT+p`) cut a hole into the pictures where they cover them. Without Kitty / Sixel the overlay draws braille, whatever *Osci style* says. *Scope mode* does not matter here: the two pictures are always YT and XY.
+- **`SHIFT+o`** opens the oscilloscope options on top of it, so the look can be tuned while watching both pictures. `ESC` closes the options first, the overlay with the next `ESC` (or the overlay key again).
+- **`SHIFT+a`** turns the **axes / grid** on or off (`ScopeGrid=` in the config files; **on by default**). Both pictures are drawn as a **box with a solid frame** (straight lines on all four sides at +-100 %): YT gets a solid zero line, dotted lines at every amplitude division and every time division; XY gets the two axes through the centre and dotted lines at every division. The number of divisions is set in `SHIFT+p`. The grid only shows where the trace is not, so it never changes how the trace looks.
+- **`SHIFT+v`** adds the **axis values** (`ScopeValues=`, **on by default**, works with or without the grid): a column on the left of each box with the vertical axis (`+100%` ... `0` ... `-100%`, one value per division), and a row below it with the horizontal axis -- **milliseconds** under YT (0 to the full time span), **percent** under XY (-100 to +100). The values are not an AM modulation depth: they are **percent of the picture's scale**. With the automatic size (the default) 100 % is the loudest part of the signal, with *Osci music mode* it is full scale (what the converter can output). Each picture says it in a line below its box. The boxes become a little smaller to make room for the values. They use the grid colour.
+- **`SHIFT+c`** opens a **small window** for the **grid colour**: type a number from **0 to 255** (the 256-colour palette; the window shows a swatch of the colour), `ENTER` accepts, `ESC` cancels, an empty value goes back to the default, which is **the colour of inactive list elements** (the list text colour of your colour scheme). It is saved as `ScopeGridColor=`.
+- **`SHIFT+p`** opens a **small window for the grid metrics**, separately for the YT and the XY picture (`UP/DOWN` select a row, `LEFT/RIGHT` change it, `R` resets everything, `SHIFT+p` or `ESC` close; every change is saved at once):
+
+  | Picture | Row | Choices |
+  |---|---|---|
+  | YT | Time unit | **milliseconds** (default), **samples**, **divisions** (the name then shows *ms/div*) |
+  | YT | Time divisions | 4, **8**, 10, 16 (vertical grid lines) |
+  | YT | Value divisions | 2, **4**, 8, 10 (horizontal grid lines) |
+  | YT | Info | off, **RMS level** (the average loudness), **peak hold** (the highest peak of the last two seconds), or **both** (default) -- in dB, shown in the picture's name |
+  | XY | Divisions | 2, **4**, 8, 10 (grid lines per axis) |
+  | XY | Info | off, **correlation** (`corr`, +1 = both channels identical / mono, 0 = unrelated, -1 = opposite phase), **balance** (`bal`, which channel is louder, e.g. `L+2 dB`), or **both** (default) |
+
+  **The axis values are always percent** of the picture, and each picture says so in a line below its box: *100% = loudest part* (the picture is scaled automatically so the loudest part of the signal fills the box) or, with *Osci music mode*, *100% = full scale*. They never change while the music plays, only when the grid settings change. (Earlier versions could show the values as a fraction or as 16-bit numbers; those moved with the automatic size all the time and were removed, and so were the frequency and Lissajous-ratio readouts, which jump around on music.)
+
+  **The readouts are made to be read, not to flicker:** RMS level, correlation and balance are averages over about a second, the peak is held for two seconds, and what is shown is refreshed only twice a second and rounded (whole dB, correlation to 0.1). Levels are in dBFS: 0 dB is the loudest a file can be (a full-scale sine has an RMS of -3 dB), typical music sits at about -20 to -10 dB RMS with peaks around -3 dB; `-- dB` means silence. They do not depend on the automatic size of the picture. Correlation tells how mono the sound is (values near +1 mean the picture is a thin diagonal in XY; near 0 a wide cloud; negative values are a mono-compatibility warning), balance whether the sound is leaning to one side. Config: `ScopeYtTimeUnit`, `ScopeYtTimeDiv`, `ScopeYtValueDiv`, `ScopeYtInfo` (`off|rms|peak|both`), `ScopeXyDiv`, `ScopeXyInfo` (`off|corr|balance|both`).
+- The usual playback keys keep working. `SHIFT+u` (the spectrogram's full screen) replaces this overlay, and the other way round.
+
 ### Scope window (`)`: German `SHIFT+9`, English `SHIFT+0`)
 
 The key that types `)` opens the oscilloscope in **its own window** next to the terminal (again: closes it). It is drawn by the graphics card, like an analog scope: **every sample** that is played is drawn once as a soft beam, the phosphor keeps an afterglow, dense parts of the trace glow brighter and a bloom lies around the beam. It runs at the refresh rate of your monitor (60, 120, 144 Hz …), independent of the terminal and of **Frame rate**. Integrated graphics are plenty; a dedicated card is not needed.
@@ -486,6 +519,7 @@ The key that types `)` opens the oscilloscope in **its own window** next to the 
 | `ESC`, `Q` or the key of `)` (`9` on a German, `0` on an English keyboard, with or without `SHIFT`) | Close the window (the `)` key in the terminal does the same) |
 
 - **The window follows the style of the `SHIFT+o` overlay.** With **Osci style = image** it is the smooth analog scope described above and uses the values of the *image* style: Decay (afterglow), Glow (bloom), Color palette, Z-Axis / Z Depth / Z Source, Rotate 45 deg, Mono Phase Portrait and Line/Vec. Interpol. (off = sample dots). Trace Length and Tail have no meaning there, because the window draws every sample exactly once.
+- **The scope mode follows too.** With *Scope mode* set to YT, *XY + YT (overlap)*, *XY + YT (row)* or *XY + YT (col)* in the `SHIFT+o` overlay the window draws that picture over its whole width (YT is a wide picture), in the dot style: in the *image* style the dots are simply finer and touch each other, because the smooth GPU beam only knows the XY figure -- so there the glow is missing in these four modes.
 - **Braille style in the window.** With **Osci style = braille** the window shows the *braille* scope instead: the same dot grid as in the terminal (2 × 4 dots per cell, the same afterglow, brightness steps and colours), but every lit dot is a square on the screen -- so the braille look can be seen as large as the window, or the whole screen in fullscreen, goes. It uses the braille style's own values from the overlay: Decay, Dot threshold, Tail, Trace Length, Line/Vec. Interpol., Z-Axis, rotation, mono phase portrait, Color and Osci music mode. Changing the style in the overlay switches the open window at once.
 - **Smooth curves:** the window interpolates between the samples (Lanczos, to about 192 000 points per second, 384 000 in *Osci music mode*), like the output filter in front of a real scope, so fast strokes become curves and not small polygons. With **Line/Vec. Interpol.** off it draws only the real samples as dots.
 - **Osci music mode** (`SHIFT+o`): the unprocessed signal, a fixed scale, no phase portrait, the finer beam and the stronger smoothing above -- for oscilloscope music the figures come out as sharp as the file allows.
@@ -511,7 +545,7 @@ The key that types `(` opens the **spectrogram in its own window** (again: close
 
 ### Spectrogram (`SHIFT+i`, `SHIFT+u`)
 
-The third visual for the lyrics area (and the radio's scope block): a **spectrogram** made the way **Audacity** makes its spectrogram view, with Audacity's default settings and colours -- time runs from left to right, the frequency goes up, the colour shows how strong each frequency is. A stereo track is drawn as two channels above each other (left on top), like a stereo track in Audacity. For a perfectly smooth picture open it in its own window with `(` (German `SHIFT+8`, English `SHIFT+9`; see *Spectrogram window*). Switch to it with `.` (sphere → oscilloscope → spectrogram → lyrics) or with **Lyrics/Viz** = `spectro` (radio: **Osci/sphere** = `spectro`). It is the default visual, in the image style (the overlays no longer have a *Display* row: switching the visual is the `.` key's job).
+The third visual for the lyrics area (and the radio's scope block): a **spectrogram** made the way **Audacity** makes its spectrogram view, with Audacity's default settings and colours -- time runs from left to right, the frequency goes up, the colour shows how strong each frequency is. A stereo track is drawn as two channels above each other (left on top), like a stereo track in Audacity. For a perfectly smooth picture open it in its own window with `(` (German `SHIFT+8`, English `SHIFT+9`; see *Spectrogram window*). Switch to it with `.` (sphere → oscilloscope → spectrogram → lyrics) or with **Lyrics/Viz Default** = `spectro` (radio: **Osci/sphere** = `spectro`). It is the default visual, in the image style (the overlays no longer have a *Display* row: switching the visual is the `.` key's job).
 
 ![Spectrogram overlay with settings.](images/Spec_overlay.png)
 
@@ -593,7 +627,7 @@ Fills the whole screen with the lyrics of the track that is playing: the line be
 
 The karaoke picture sits on **both sides**, with four empty columns between each picture and the lyrics, so the lyrics stay centred. It is drawn in the **disk colours** (Settings → COLORS → DISK, top → bottom colour) with a colour wave that runs across it from the left to the right edge, like the radio's ON AIR sign.
 
-**Lyrics size.** `SHIFT` and `+` makes the lyrics bigger, `SHIFT` and `-` smaller, in steps of 1 from **1 to 5**. Only the lyrics change, the pictures stay as they are. Size 1 is normal text. From size 2 on the letters are drawn with Mousiki's own pixel font in braille dots, each step one pixel bigger (a letter is 3 x 2 cells at size 2, 6 x 4 at size 3, up to 12 x 8 at size 5); long lines wrap between words. The built-in font covers the Latin letters, digits, punctuation, the German umlauts and ß and the common accented letters. **Japanese, Chinese, Korean (and Cyrillic, Greek)** lines are drawn big too: their glyphs are taken from a font installed on your computer and drawn in the same braille dots. These characters need more dots to stay readable, so their steps are different: a letter is 16 / 24 / 32 / 40 dots high, that is **4 / 6 / 8 / 10 rows** for the sizes 2 / 3 / 4 / 5, and a full-width character is as wide as it is high (8 / 12 / 16 / 20 columns). A line with no spaces, like a Japanese line, wraps wherever the row is full, and a line that would fill most of the screen steps down a size by itself (down to normal text if even size 2 is too tall). Mixed lines (Latin and Japanese) are drawn with the system font as a whole. Mousiki looks for the font itself: Windows (Yu Gothic, Meiryo, MS Gothic, Microsoft YaHei, Malgun), macOS (Hiragino, PingFang, Apple SD Gothic) and Linux (Noto Sans CJK, Source Han Sans, WenQuanYi, Droid Sans Fallback, IPA / Takao, Unifont in the font folders; install e.g. `fonts-noto-cjk` if there is none). Bold faces are preferred, thin strokes would vanish. To use a particular font, set the environment variable `MOUSIKI_CJK_FONT` to its file (`.ttf`, `.otf` or `.ttc`). Without any such font, and for emoji, a line is shown in normal text as before. The bottom border briefly shows `[ lyrics size n / 5 ]`, and the size is saved to `config.txt` (`KaraokeLyricsSize=`) when the overlay closes. The keys are the characters `*` and `_`: on a German keyboard `SHIFT` and `+` / `SHIFT` and `-`, on an English (US / UK) keyboard `SHIFT+8` / `SHIFT` and `-`; the legend names them for your keyboard.
+**Lyrics size.** `SHIFT` and `+` makes the lyrics bigger, `SHIFT` and `-` smaller, in steps of 1 from **1 to 5**. Only the lyrics change, the pictures stay as they are. Size 1 is normal text. From size 2 on the letters are drawn with Mousiki's own pixel font in braille dots, each step one pixel bigger (a letter is 3 x 2 cells at size 2, 6 x 4 at size 3, up to 12 x 8 at size 5); long lines wrap between words. The built-in font covers the Latin letters, digits, punctuation, the German umlauts and ß and the common accented letters. **Japanese, Chinese, Korean (and Cyrillic, Greek)** lines are drawn big too: their glyphs are taken from a font installed on your computer and drawn in the same braille dots. These characters need more dots to stay readable, so their steps are different: a letter is 16 / 24 / 32 / 40 dots high, that is **4 / 6 / 8 / 10 rows** for the sizes 2 / 3 / 4 / 5, and a full-width character is as wide as it is high (8 / 12 / 16 / 20 columns). A line with no spaces, like a Japanese line, wraps wherever the row is full, and a line that would be taller than the screen steps down a size by itself (down to normal text if even size 2 is too tall). With only about 50 columns between the two pictures, big letters of sizes 4 and 5 would hardly fit two or three to a row, so **at sizes 4 and 5 the two pictures are left out and the lyrics take the whole width** whenever the song's lyrics contain Japanese / Chinese / Korean text. Mixed lines (Latin and Japanese) are drawn with the system font as a whole. Mousiki looks for the font itself: Windows (Yu Gothic, Meiryo, MS Gothic, Microsoft YaHei, Malgun), macOS (Hiragino, PingFang, Apple SD Gothic) and Linux (Noto Sans CJK, Source Han Sans, WenQuanYi, Droid Sans Fallback, IPA / Takao, Unifont in the font folders; install e.g. `fonts-noto-cjk` if there is none). Bold faces are preferred, thin strokes would vanish. To use a particular font, set the environment variable `MOUSIKI_CJK_FONT` to its file (`.ttf`, `.otf` or `.ttc`). Without any such font, and for emoji, a line is shown in normal text as before. The bottom border briefly shows `[ lyrics size n / 5 ]`, and the size is saved to `config.txt` (`KaraokeLyricsSize=`) when the overlay closes. The keys are the characters `*` and `_`: on a German keyboard `SHIFT` and `+` / `SHIFT` and `-`, on an English (US / UK) keyboard `SHIFT+8` / `SHIFT` and `-`; the legend names them for your keyboard.
 
 **Resizing.** The layout is worked out again for every frame, so it follows the terminal size: the lyrics re-wrap to the width between the pictures, the pictures are cropped evenly at the top and bottom on a short terminal, and when the lyrics would get narrower than 30 columns the pictures are left out and the lyrics take the whole width.
 
@@ -604,7 +638,7 @@ The karaoke picture sits on **both sides**, with four empty columns between each
 | `p`, `n` / `b`, `#`, `←` / `→`, `+` / `-`, `x`, `m`, `v` | Work as on the main screen (play/pause, next/previous, shuffle next, seek, volume, mute, play mode, normalization) |
 | `ALT+L` | Opens the [lyrics timing overlay](#lyrics-timing-overlay-altl) **over the karaoke screen**, which is the easiest place to judge an offset: the big lyrics move live while you adjust it. Closing it (save or cancel) returns to karaoke, not to the main screen. |
 
-- The overlay always uses the lyrics engine, **also when it is off on the main screen** (`.`, Settings → ON/OFF → Lyrics Engine or Use Lyrics): it then fetches the lyrics of the playing track itself -- and again after a track change while it is open -- without changing that setting, so the main screen keeps its visual. While they are being fetched, or when none were found, the overlay says so.
+- The overlay always uses the lyrics engine, **also when it is off on the main screen** (`.`, Settings → ON/OFF → Use Lyrics Engine): it then fetches the lyrics of the playing track itself -- and again after a track change while it is open -- without changing that setting, so the main screen keeps its visual. While they are being fetched, or when none were found, the overlay says so.
 - Synced lyrics follow the timing correction of the lyrics timing overlay, which `ALT+L` opens **from here as well** (see the key table above). Lyrics without timestamps are scrolled along with the song.
 
 ![Karaoke mode](images/karaoke_mode.png)
@@ -1133,24 +1167,27 @@ The tab has two categories (in the header colour); change a row with `←`/`→`
 | Playback | list, loop, shuffle, stop, queue then stop | The play mode. Same as the `m` key (`loop` is the mode shown as *repeat*). (`PlaybackMode=`) |
 | Start Mode | player, radio | Which of the two Mousiki **opens with**: the music player or the radio. Picked in either mode's Settings; it is one value, stored as `StartMode=` in the player's `config.txt`, so it is the same whichever mode you set it in. `Start Mode` only decides the start: you can still switch between the two at any time with `*`. (`StartMode=`) |
 
-**ON/OFF** -- switches, most of them true/false. (The folder settings are on the PATHS tab; **Lyrics/Viz**, **No-Lyrics Viz** and the **Viz Order** rows are on ANIMA/VIZ.)
+**ON/OFF** -- switches, most of them true/false. (The folder settings are on the PATHS tab; **Lyrics/Viz Default**, **No-Lyrics Viz** and the **Viz Order** rows are on ANIMA/VIZ.)
 
 | Setting | What it does |
 |---|---|
 | Eliment Disk | Shows or hides the spinning disk in the player area. |
 | Dummy Buttons | Shows or hides the three decorative buttons next to the progress bar. |
 | Queue Display | Shows or hides the Queue panel. |
-| WaveForm | Shows or hides the waveform. With it off, a plain bar is drawn instead. |
-| Lyrics Engine | Turns lyric fetching and display on or off. `.` also switches this: it cycles sphere (off) → oscilloscope (off) → spectrogram (off) → lyrics (on). |
-| Visualizer | Shows or hides the spectrum visualizer. |
+| Progress Waveform | Shows or hides the braille **waveform inside the progress bar** (the whole track as a wave). With it off, a plain `[####----]` bar is drawn instead. (`ElimentWaveForm=`) |
+| Spectrum Bars | Shows or hides the **spectrum bars below the meta data** (the live frequency bars; before: *Visualizer*). With it off the meta data get the two rows. Their motion is set on ANIMA/VIZ → SPECTRUM BARS. (`Visualizer=`) |
 | Stereo Sound | On plays in stereo (about twice the memory per loaded track), off folds left and right into mono. Turning it **off** is immediate. Turning it **on** applies from the next track. |
 | Normalize Volume | Loudness normalization on or off. Same as the `v` key. Target and boost are set with the `SHIFT+v` overlay. |
-| Show meta data only | Rows show the embedded title tag instead of the file name. Same as `SHIFT+n`. The list is re-sorted straight away. |
 | Replace Emoji | An emoji in a title is drawn as a single `?`, so the frame borders stay aligned. Off draws the real emoji. (`ReplaceEmoji=` in `config.txt`.) |
-| Use Lyrics | `false` switches the lyrics off **entirely**: they are never fetched and `.` skips them (the lyrics area then only shows the visuals). Default `true`. (`UseLyrics=`) |
-| Use Oscilloscope | `false` leaves the oscilloscope out: `.` and the **Lyrics/Viz** row skip it. The scope window (`)`) still works. (`UseOscilloscope=`) |
+| Marquee Scrolling | On (default): a name that is too long for its column scrolls -- the row under the cursor in the lists, Name / Artist / Album of the metadata block, the playlist editor's lists. Off: nothing scrolls anywhere and a too long text is cut off with `...`. (`MarqueeScrolling=` in `config.txt`.) |
+| *VIZ/LYRICS FIELD* | |
+| Viz/Lyrics Field | The master switch of the **field right of the meta data** (lyrics, sphere, oscilloscope, spectrogram). `false`: the field is gone, the meta data and the spectrum bars take its width, no lyrics are fetched for it and `.` says so. The big overlays and the windows still work. Default `true`. (`VizLyricsField=`) |
+| Use Lyrics Engine | `false` switches the lyrics off **entirely**: they are never fetched and `.` skips them (the field then only shows the visuals). `true` lets the field show the lyrics (fetched from the net when it does; turning it on while a track plays fetches them at once); whether the field starts with them is set by **Lyrics/Viz Default**, and `.` switches the view while Mousiki runs. Default `true`. (`UseLyrics=`; this replaces the former *Lyrics Engine* row, which did the same) |
+| Use Oscilloscope | `false` leaves the oscilloscope out: `.` and the **Lyrics/Viz Default** row skip it, and the picks that pointed at it (Lyrics/Viz Default, No-Lyrics Viz) move on to the next visual that is on. The scope window (`)`) still works. (`UseOscilloscope=`) |
 | Use Spectrogram | `false` leaves the spectrogram out of the lyrics area: `.` skips it. Full screen (`SHIFT+u`) and the spectrogram window (`(`) still work. (`UseSpectrogram=`) For example: Use Oscilloscope and Use Spectrogram `false` = `.` only switches between the lyrics and the sphere. |
-| Use Sphere | `false` leaves the sphere out of the `.` cycle (it used to be always there). It turns itself on again while it is the **No-Lyrics Viz** pick, and picking it in **Lyrics/Viz** turns it on. (`UseSphere=`) |
+| Use Sphere | `false` leaves the sphere out of the `.` cycle (it used to be always there). Picks that pointed at it move on to the next visual that is on; picking it in **Lyrics/Viz Default** or **No-Lyrics Viz** turns it on again. (`UseSphere=`) |
+
+**How these switches work together.** No combination is left contradicting itself: choosing a view that is switched off (in Lyrics/Viz Default or No-Lyrics Viz) **turns its Use switch on**; switching a Use switch off **takes its dependents with it** instead of being undone -- Use Lyrics Engine off stops the field showing the lyrics, Use Oscilloscope / Spectrogram / Sphere / Lyrics Engine off moves Lyrics/Viz Default and No-Lyrics Viz to the next view that is on (No-Lyrics Viz to `none`, an empty field, when none is left). The status line says what moved. Earlier versions turned the oscilloscope (or the spectrogram) back on by themselves while it was the No-Lyrics pick, so it could not be switched off.
 
 ### Tab 3: ANIMA/VIZ
 
@@ -1173,21 +1210,26 @@ The tab collects everything about the **animations and the visualizations**, in 
 |---|---|---|
 | Disk Speed | 0.01, 0.05, 0.10, 0.17, 0.25, 0.50, 0.75, 1.00 | How fast the disk spins. |
 
-**WAVE** -- the spectrum bars under the meta data, and the waveform of the progress bar.
+**SPECTRUM BARS** -- the bars under the meta data (ON/OFF → Spectrum Bars; before: *WAVE*, *Wave Fluidity* …).
 
 | Setting | Values | What it does |
 |---|---|---|
-| Wave Fluidity | 1–10 | How the spectrum bars **rise**. It affects only the rising motion. |
-| Wave Degradation | 1–10 | How quickly bars **fall**. `1` is a slow, VU-meter-like fade, `10` a near-instant cutoff. |
-| Wave Viscosity | 1–10 | How strongly the bar motion is damped and smoothed between neighbouring bars. |
+| Bars Fluidity | 1–10 | How the spectrum bars **rise**. It affects only the rising motion. |
+| Bars Degradation | 1–10 | How quickly bars **fall**. `1` is a slow, VU-meter-like fade, `10` a near-instant cutoff. |
+| Bars Viscosity | 1–10 | How strongly the bar motion is damped and smoothed between neighbouring bars. |
+
+**PROGRESS WAVEFORM** -- the braille waveform in the progress bar.
+
+| Setting | Values | What it does |
+|---|---|---|
 | Waveform Style | raw, smooth | Waveform drawing style of the progress bar. Same as the `w` key. |
 
-**MODES**
+**WHAT THE FIELD SHOWS**
 
 | Setting | What it does |
 |---|---|
-| Lyrics/Viz | Which visual fills the lyrics area while the lyrics are switched off (the view `.` is on; with the lyrics view on and no lyrics found, **No-Lyrics Viz** below decides): `sphere` (the audio-reactive ball), `osci` (the XY oscilloscope, see *The oscilloscope* above) or `spectro` (the spectrogram, see *Spectrogram*; the default, in the image style). The sphere and the oscilloscope's *gradient* palette use the **VIZ** colors (Settings → Colors → VIZ); the spectrogram has its own colour schemes. Replaces the old *Lyric Ball* on/off switch. The oscilloscope's look is tuned with `SHIFT+o`. |
-| No-Lyrics Viz | What the lyrics area shows while the **lyrics view is on but there are no lyrics** (nothing found, still fetching, track without lyrics): `sphere`, `osci` or `spectro` (default). Before this row existed the area showed whatever view `.` had been on before the lyrics. If the visual you pick is switched off in **Use Sphere** / **Use Oscilloscope** / **Use Spectrogram**, picking it turns that switch **on**; and while it is the pick it cannot be switched off there (it turns itself on again). (`NoLyricsViz=`) |
+| Lyrics/Viz Default | The view the field **starts with when Mousiki opens**: `sphere` (the audio-reactive ball), `osci` (the XY oscilloscope, see *The oscilloscope* above), `spectro` (the spectrogram, see *Spectrogram*) `lyrics`, or **`last used`**. The `.` key changes the view while Mousiki runs, but that is not remembered: the next start begins with the chosen view again (picking a value here also shows it at once). With `last used` it is remembered after all: Mousiki opens with the view it was closed on. Default `lyrics`. With the lyrics view on and no lyrics found, **No-Lyrics Viz** below decides what is shown. The sphere and the oscilloscope's *gradient* palette use the **VIZ** colors (Settings → Colors → VIZ); the spectrogram has its own colour schemes. The oscilloscope's look is tuned with `SHIFT+o`. (`VizDefault=sphere\|osci\|spectro\|lyrics\|last` in `config.txt`) |
+| No-Lyrics Viz | What the lyrics area shows while the **lyrics view is on but there are no lyrics** (nothing found, still fetching, track without lyrics): `sphere`, `osci`, `spectro` (default) or `none` (an empty field). Before this row existed the area showed whatever view `.` had been on before the lyrics. If the visual you pick is switched off in **Use Sphere** / **Use Oscilloscope** / **Use Spectrogram**, picking it turns that switch **on**; switching the switch off later moves this pick on to the next visual that is on. (`NoLyricsViz=`) |
 
 **VIZ/LYRICS ORDER**
 
@@ -1261,14 +1303,17 @@ The credits and versions of the original app and of this port, as text that scro
 | Key in `config.txt` | What it does |
 |---|---|
 | `ReplaceEmoji` | `true` draws an emoji in a title as a single `?` so box borders stay aligned. `false` draws the real emoji. |
+| `MarqueeScrolling` | `true` (default): too long names scroll like a marquee. `false`: they are cut off with `...` instead. Same as Settings → ON/OFF → Marquee Scrolling. |
+| `VizLyricsField`, `ElimentLyrics`, `NoLyricsViz` (`sphere` / `osci` / `spectro` / `none`) | The field right of the meta data on / off; the field shows the lyrics now / the visual of `LyricViz`; what it shows while the lyrics view has no lyrics (Settings → ON/OFF and ANIMA/VIZ). Switches that depend on each other are brought in line when a row is changed or the file is loaded. |
 | `UseLyrics`, `UseOscilloscope`, `UseSpectrogram`, `UseSphere` | `false` switches that view off entirely (Settings → ON/OFF → Use …): not in the `.` cycle; the windows (`(` / `)`) and the full screen (`SHIFT+u`) still work. |
 | `VizOrder` | The order of the views in the `.` cycle: `sphere,osci,spectro,lyrics` in any order (Settings → ANIMA/VIZ → Viz Order 1..4). Missing names are appended. |
+| `HKeyScopeBig` | The oscilloscope full screen, `"="` by default (`SHIFT+0` on a German keyboard). |
 | `HKeySpectroWindow`, `HKeyScopeWindow` | The spectrogram / scope window keys, `"("` / `")"` by default (`SHIFT+8` / `SHIFT+9` on a German keyboard, `SHIFT+9` / `SHIFT+0` on an English one). An old `HKeyScopeWindow="W"` is moved to `")"`. |
 | `ConsoleVerbosity` | `basic` logs every command the app runs and its raw output. `verbose` adds internal and OS-level events. |
 | `AutoSave` | Resumes the exact song, position, queue and play mode at the next launch. |
 | `AutoSaveIndicator`, `AutoSaveChr`, `AutoSaveIndicatorType`, `AutoSaveC1`, `AutoSaveC2` | The small autosave indicator: whether it shows, its character, `blink` or `color` style, and the two pulse colours. |
 | `SpectroStyle`, `SpectroMotion`, `SpectroScale`, `SpectroMinFreq`, `SpectroMaxFreq`, `SpectroGain`, `SpectroRange`, `SpectroFrequencyGain`, `SpectroWindowSize`, `SpectroZeroPadding`, `SpectroColors`, `SpectroChannels`, `SpectroTimeSpan`, `SpectroLabels` | The spectrogram (see *Spectrogram*); normally changed with the `SHIFT+i` overlay. The defaults are Audacity's. |
-| `OsciDecay`, `OsciDotThreshold`, `OsciTailBrightness` and the other `Osci<name>=` / `OsciImage<name>=` lines, `OsciStyle`, `OsciImageProtocol`, `OsciImageResolution` (`full` / `half` / `third`), `OsciFrameRate` / `OsciImageFrameRate` (30 / 45 / 60 / 90 / 120 / 165) and `OsciMusicMode` / `OsciImageMusicMode` (`true` / `false`) | The oscilloscope's values, **all of them per style** (frame rate and music mode included; an old single `FrameRate=` is taken over for both styles) (afterglow 0.00 – 0.99, dot threshold 0.01 – 1.00, tail brightness 0.00 – 1.00, Z axis, trace length, palette …). `Osci…` belongs to the braille style, `OsciImage…` to the image style. Normally changed with the `SHIFT+o` overlay, which writes them here. Values outside the range are limited to it when the file is loaded. |
+| `OsciDecay`, `OsciDotThreshold`, `OsciTailBrightness` and the other `Osci<name>=` / `OsciImage<name>=` lines, `OsciMode` (`xy` / `yt` / `overlap` / `row` / `col`), `ScopeGrid` / `ScopeValues` / `ScopeGridColor` (the grid of the `SHIFT+0` overlay, its axis values and the grid colour, 0-255, empty = the colour of inactive list elements), `ScopeYtTimeUnit` / `ScopeYtTimeDiv` / `ScopeYtValueDiv` / `ScopeYtInfo` / `ScopeXyDiv` / `ScopeXyInfo` (its grid metrics, `SHIFT+p`), `OsciStyle`, `OsciImageProtocol`, `OsciImageResolution` (`full` / `half` / `third`), `OsciFrameRate` / `OsciImageFrameRate` (30 / 45 / 60 / 90 / 120 / 165) and `OsciMusicMode` / `OsciImageMusicMode` (`true` / `false`) | The oscilloscope's values, **all of them per style** (frame rate and music mode included; an old single `FrameRate=` is taken over for both styles) (afterglow 0.00 – 0.99, dot threshold 0.01 – 1.00, tail brightness 0.00 – 1.00, Z axis, trace length, palette …). `Osci…` belongs to the braille style, `OsciImage…` to the image style. Normally changed with the `SHIFT+o` overlay, which writes them here. Values outside the range are limited to it when the file is loaded. |
 | `NormalizeVolume`, `NormalizeTargetLufs`, `NormalizeMaxBoostDb` | Loudness normalization on or off, its target level (-40 to 0 LUFS, default -16) and the most a quiet track may be raised (0 to 24 dB, default 9). Normally changed with the `SHIFT+v` overlay, which writes them here. Values outside the range are limited to it when the file is loaded. |
 | `SidPlayLength` | How many seconds of a C64 SID tune are rendered and played (10 – 1800, default 180). SID tunes have no end of their own. |
 | `SleepFade` | Whether the sleep timer fades the volume out over the last 10 % of its time (default `true`). |
@@ -1337,6 +1382,7 @@ All of them are also in the radio's own cheat sheet (`?`, categorized and scroll
 | `x` | Stop |
 | `SHIFT+t` | Sort stations: list order ↔ name A-Z |
 | `SHIFT+i` / `SHIFT+u` | Spectrogram options / spectrogram full screen (see chapter 3, *Spectrogram*) |
+| `SHIFT+0` (the `=` key) | Oscilloscope full screen: YT left, XY right; inside it `SHIFT+a` grid, `SHIFT+v` axis values, `SHIFT+c` grid colour, `SHIFT+p` grid metrics, `SHIFT+o` options (see chapter 3, *Oscilloscope full screen*) |
 | `.` | Scope block: oscilloscope → sphere → spectrogram, skipping what **Use oscilloscope / Use spectrogram** switch off on the ON/OFF tab (the same key that cycles the lyrics area in the player; up to v3.0.0 this was `o`, which no longer does anything; an old `HKeyScopeToggle=o` line in `radio_config.txt` is ignored and rewritten as `.`) |
 | `v` / `SHIFT+v` | Loudness normalization on/off / its overlay |
 | `SHIFT+e` | Equalizer overlay |
@@ -1574,10 +1620,11 @@ BORDER_COLOR, METADATA, VIZ, LIST, HEADER, LEGEND and TAB_NAMES work as in the p
 | On air ascii | The ON AIR sign and its colour wave |
 | Pulse wave | The faint circle burst behind the sign |
 | Dummy buttons | The `<<< MUTE >>>` boxes next to the dial (the volume bar stays) |
-| Visualizer | The spectrum under the station info |
+| Spectrum Bars | The spectrum under the station info (config key `Visualizer=`) |
 | Stereo sound | Off folds left and right into mono (the dial's footer then says MONO) |
 | Normalize volume | Loudness normalization, as `v` |
 | Tuning noise | Off by default. On: static with crackle fades in while another station is tuned and stays until the new stream plays. It follows volume, mute and the sleep-timer fade and is not recorded. |
+| Marquee scrolling | On (default): a station name that is too long for its column scrolls while the row is hovered (and the tuned preset). Off: it is cut off with `...`. (`MarqueeScrolling=` in `radio_config.txt`.) |
 | Timeshift buffer | How many minutes of the tuned station are kept for pause / rewind and recording from the past: 5, 15, 30 (default), 45 or 60 min (see 11.10). Saved as `TimeshiftMinutes=`. |
 | Use oscilloscope / Use spectrogram | `false` leaves that visual out of the scope block: `.` skips it (the sphere is always there). Full screen (`SHIFT+u`) and the windows `)` / `(` still work. (`UseOscilloscope=`, `UseSpectrogram=`) |
 
@@ -1586,8 +1633,8 @@ BORDER_COLOR, METADATA, VIZ, LIST, HEADER, LEGEND and TAB_NAMES work as in the p
 | Category | Rows |
 |---|---|
 | ON AIR SIGN | **Gradient wave speed** (cycles per second of the ON AIR sign's colour wave) and **Pulse wave speed** (loops per second of the circle burst) |
-| WAVE | Wave Fluidity, Wave Degradation and Wave Viscosity, as in the player |
-| MODES | **Osci/sphere** (right of the station info: oscilloscope, sphere, off, or spectrogram (`spectro`)) and **Osci style** (`braille` or `image`) |
+| SPECTRUM BARS | Bars Fluidity, Bars Degradation and Bars Viscosity, as in the player (before: Wave …) |
+| MODES | **Osci/sphere** (right of the station info: oscilloscope, sphere, off, or spectrogram (`spectro`)) and **Osci style** (`braille` or `image`) and **Scope mode** (`XY`, `YT`, `XY + YT (overlap)`, `XY + YT (row)` or `XY + YT (col)`, set in the `SHIFT+o` overlay; `OsciMode=` in `radio_config.txt`). The oscilloscope full screen (`SHIFT+0`, with grid `SHIFT+a`, axis values `SHIFT+v` and grid colour `SHIFT+c`) is there too (`ScopeBig`, `ScopeGrid=`, `ScopeValues=`, `ScopeGridColor=`) |
 
 The player's Waveform Style, Disk Speed, Lyrics Alignment and Lyrics Animation do not exist in the radio, so those categories are missing.
 
@@ -1653,12 +1700,12 @@ The `@keys` line names the letters of the slots the file was written with (slot 
 | **Email** | itz.ender5820@gmail.com | **Version** | original and final v1.0 |
 | | | **Licence** | Apache Licence 2.0 |
 
-### Windows port, incl. extensive modifications up to v3.1.0 (including the radio mode)
+### Windows port, incl. extensive modifications up to v3.3.8 (including the radio mode)
 
 | | | | |
 |---|---|---|---|
 | **Developer** | Steffen Schwerdtfeger | **GitHub** | [StSchwerdtfeger](https://github.com/StSchwerdtfeger) |
-| **Email** | fanti.blub@gmail.com | **Version** | current v3.1.0 |
+| **Email** | fanti.blub@gmail.com | **Version** | current v3.3.8 |
 | | | **Licence** | Apache Licence 2.0 |
 
 ### Third-party software and licences
