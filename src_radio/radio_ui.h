@@ -9,6 +9,7 @@
 // Every colour comes from the radio's own radio_config.txt (RadioSettings, radio_settings.h) -- nothing is read from
 // the music player's config.txt.
 #include "scope_window.h"
+#include <filesystem>
 #include <string>
 #include <vector>
 #include <memory>
@@ -154,7 +155,7 @@ struct ListMenuModel {
 // themselves live in the RadioSettings that is passed to render_radio_frame().
 struct SettingsModel {
     bool open = false;
-    int tab = 0;                  // 0 = COLORS, 1 = ON/OFF, 2 = ANIMATION, 3 = PATHS
+    int tab = 0;                  // 0 = COLORS, 1 = ON/OFF, 2 = ANIMA/VIZ, 3 = PATHS
     int row = 0;                  // COLORS: 0 .. kColorRowCount-1, ON/OFF: 0 .. kOnOffRowCount-1
     int col = 0;                  // 0 = first cell of the row, 1 = second cell
     bool editing = false;
@@ -162,6 +163,21 @@ struct SettingsModel {
     EditState edit;
     std::string status;           // last line under the hints ("Saved ...", "Not a colour: ...")
     bool dirty = false;           // changed since the last save
+    // --- colour themes (COLORS tab, last row: THEME | CREATE THEME) ---
+    // theme_ui: 0 = the plain tab | 1 = pick a theme to apply | 2 = the CREATE THEME overlay | 3 = pick a template
+    int theme_ui = 0;
+    std::vector<themes::Theme> theme_list;
+    int theme_sel = 0;
+    RadioSettings theme_draft;    // the creator edits a copy
+    themes::Theme theme_base;     // the template whose other keys the new theme keeps
+    std::string theme_name;       // 25 characters at most
+    int theme_row = -1;           // creator: -1 = the NAME / TEMPLATE row, else the COLORS row
+    int theme_col = 0;
+    // SHIFT+e / SHIFT+i: theme_ui 4 = export the current colours as a theme file, 5 = import theme files
+    std::string theme_io_name, theme_io_dir;
+    int theme_io_row = 0;         // export: 0 name, 1 folder | import: 0 folder, 1 file list
+    int theme_io_sel = 0;
+    std::vector<std::filesystem::path> theme_io_files;
 };
 
 // ---- LISTENING HISTORY menu (Shift+H): 1 HISTORY | 2 TOP CHANNELS | 3 HABITS ----------------------------------
@@ -257,6 +273,17 @@ struct UiModel {
     std::string notice;           // one status line in the SEARCH box's hint spot ("recording saved ..."); main clears it after a few seconds
     bool cheat_open = false;      // the full-screen CHEATSHEET ('?'); drawn instead of the radio screen / menu
     mutable int cheat_scroll = 0; // in display lines; clamped while rendering (the renderer is const)
+    // The help wizard (SHIFT+w), the same one the music player has: the text
+    // comes from src/wizard.h, the colours from the PLAYER's config.txt (see
+    // player_wizard_palette()), so it looks identical in both modes. Drawn
+    // instead of the radio screen, like the cheat sheet. The page model is
+    // the player's: 0 = welcome (with the disk), 1 = contents, 2.. = the
+    // topic pages in contents order.
+    bool wizard_open = false;
+    int wizard_page = 0;          // index into that flat page sequence
+    int wizard_topic = 0;         // highlighted row of the contents page
+    mutable int wizard_scroll = 0;// clamped while rendering (the renderer is const)
+    double wizard_angle = 0.0;    // the welcome page's disk, turned at 0.10 by the main loop
     std::vector<int> visible;     // station indices that pass the search filter, in list order
     int cursor = 0;               // position within `visible`
     // Main search box: "p:" typed into the empty box (or "/p:") searches the STATION LISTS instead of the stations; the

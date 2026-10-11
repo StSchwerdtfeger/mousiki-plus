@@ -1,4 +1,5 @@
 #pragma once
+#include "themes.h"
 // Radio mode -- its OWN settings, separate from the music player's `Settings` / config.txt.
 //
 // The radio reads and writes `radio_config.txt` (next to stations.txt and presets.txt in ~/.config/mousiki/, or
@@ -51,6 +52,7 @@ struct RadioSettings {
     // --- colours ----------------------------------------------------------------------------------
     std::string border_top = "170";
     std::string border_bottom = "170";          // the frame fades from border_top (top) to border_bottom (bottom)
+    bool border_smooth = true;                  // BorderGradient=smooth|rough: smooth fades the frame line by line; rough = only the bottom border line takes border_bottom
 
     std::string on_air_upper_left = "170";      // ON AIR sign: gradient from the upper left ...
     std::string on_air_bottom_right = "30";     // ... to the bottom right (plus the travelling colour wave)
@@ -75,6 +77,13 @@ struct RadioSettings {
     std::string volume_current = "170";         // the "#" of the volume bar
     std::string volume_possible = "182";        // the "-" of the volume bar
 
+    // Search bar input (the "/s:" box and the other "Search:" rows). Empty = follow LIST INACTIVE FG/BG,
+    // which is what these bars always looked like; "0" = explicit terminal default.
+    std::string search_fg;                      // typed query: FG / BG, behind the query text only
+    std::string search_bg;
+    std::string search_inactive_fg;             // the rest of the bar (prefix, empty field)
+    std::string search_inactive_bg;
+
     std::string list_fg = "255";                // STATIONS rows (and the station names in PRESETS)
     std::string list_bg;
     std::string list_playing_fg = "245";        // the tuned station
@@ -85,6 +94,7 @@ struct RadioSettings {
     std::string tab_current = "10";             // settings screen: the current tab name "[ON/OFF]" and the "< ↔ >" hint
     std::string tab_other = "90";               // settings screen: the other tab names
 
+    std::string focus = "90";                   // FOCUS: the pane focus indicator "\u25c0" after a pane's title (default = header)
     std::string header = "90";                  // secondary text (see the top of this file)
     std::string legend = "10";                  // key command legends (see the top of this file)
 
@@ -97,8 +107,16 @@ struct RadioSettings {
     SpectroSettings spectro;                    // the spectrogram (SHIFT+i overlay, SHIFT+u full screen), Audacity's defaults
     bool element_visualizer = true;             // the FFT spectrum under the station info
     bool stereo = true;                         // false = fold left + right to mono
+    // Which mode Mousiki starts in ("player" / "radio"): the same setting as the music player's, kept in ITS config.txt
+    // (StartMode=); the radio only reads and writes that one line (player_start_mode() / set_player_start_mode()).
+    std::string start_mode = "player";
     bool use_osci = true;                       // ON/OFF "Use oscilloscope": false = never in the scope block / "." cycle
     bool use_spectro = true;                    // ON/OFF "Use spectrogram": the same for the spectrogram
+    // The help wizard (SHIFT+w): false means it has never been shown here, so
+    // the first start of the radio after an install opens it by itself. Set
+    // and written the first time it is closed, exactly like the player's
+    // WizardSeen -- the two modes count separately, so each greets once.
+    bool wizard_seen = false;
     bool normalize = true;                      // loudness normalisation (SHIFT+v overlay, `v` toggles)
     double normalize_target_lufs = -16.0;       // -40 .. 0
     double normalize_max_boost_db = 9.0;        // 0 .. 24
@@ -145,6 +163,12 @@ struct RadioSettings {
 // ---- the COLORS tab of the settings screen -------------------------------------------------------------
 // One row of the tab: a group name, one or two colour cells (member pointers into RadioSettings). A row with
 // no second cell (label2 == nullptr) is foreground-only.
+// ---- colour themes (see src/themes.h) -------------------------------------------------------------------
+void theme_apply(RadioSettings& s, const themes::Theme& t);
+themes::Theme theme_capture(const RadioSettings& s, themes::Theme base);
+bool theme_matches(const RadioSettings& s, const themes::Theme& t);
+int theme_index(const RadioSettings& s, const std::vector<themes::Theme>& all);   // the theme `s` matches exactly, or -1
+
 struct ColorRowSpec {
     const char* group;                          // "" = continuation of the group above
     const char* label1; std::string RadioSettings::* field1;
@@ -155,33 +179,35 @@ extern const int kColorRowCount;
 // Rows before this index are drawn above the divider line of the tab, the rest below it.
 constexpr int kColorRowsAboveDivider = 7;
 
+// The COLORS tab, top to bottom: row 0 = THEME | CREATE THEME, row 1 = the BORDER_COLOR row (colour row 0), row 2 =
+// SMOOTHNESS (rough / smooth), rows 3.. = the other colour rows. color_field() and the theme creator count colour rows alone.
+inline int color_row_of_tab(int t) { return t == 1 ? 0 : (t >= 3 ? t - 2 : -1); }
+inline int tab_row_of_color(int c) { return c == 0 ? 1 : c + 2; }
+inline int color_tab_row_count() { return kColorRowCount + 2; }   // + THEME + SMOOTHNESS
+
 // Cell (row, col 0/1) of the COLORS tab, or nullptr if that row has no such cell.
 std::string* color_field(RadioSettings& s, int row, int col);
 const std::string* color_field(const RadioSettings& s, int row, int col);
 
-// ---- the ON/OFF tab of the settings screen --------------------------------------------------------------
-// One row = a label and either a bool or the 3-way scope pick (osci / sphere / off).
-struct OnOffRowSpec {
-    const char* label;
-    bool RadioSettings::* flag;     // nullptr for the scope pick
-    int RadioSettings::* choice;    // set for the scope pick
-};
-extern const OnOffRowSpec kOnOffRows[];
+// ---- the ON/OFF and ANIMA/VIZ tabs of the settings screen ----------------------------------------------------------
+// Both tabs are lists of category headers and rows (like the music player's): tab 1 ON/OFF = MODES (Playback, Start Mode)
+// + ON/OFF (the switches), tab 2 ANIMA/VIZ = ON AIR SIGN | VISUALIZER | MODES (the scope pick and its style). The cursor
+// (SettingsModel::row) counts the rows only; rs_row_line() gives the line it is drawn on.
+struct SettingsLine { bool header; int id; const char* text; };       // a category header, or a row (id + label)
+const std::vector<SettingsLine>& rs_layout(int tab);                   // tab 1 or 2
+int rs_row_count(int tab);                                              // selectable rows of the tab
+int rs_row_line(int tab, int row);                                      // line (headers counted) of a row
+const char* rs_row_label(int tab, int row);
+std::string rs_row_value(const RadioSettings& s, int tab, int row);    // "true" / "false", "osci" / "sphere" / "off" / "spectro", ...
+void rs_row_change(RadioSettings& s, int tab, int row, int dir);        // left (-1) / right (+1) / ENTER (0 = next)
+extern const int kOnOffRowCount;                                        // rows of tab 1
+extern const int kAnimRowCount;                                         // rows of tab 2
 inline constexpr int kTimeshiftMinutes[5] = {5, 15, 30, 45, 60};
 inline int timeshift_minutes(const RadioSettings& s) { return kTimeshiftMinutes[s.timeshift_idx < 0 ? 0 : s.timeshift_idx > 4 ? 4 : s.timeshift_idx]; }
-extern const int kOnOffRowCount;
-// Text shown / config value of a row ("true" / "false", or "osci" / "sphere" / "off").
-std::string on_off_value(const RadioSettings& s, int row);
-// Left (-1) / right (+1) / ENTER (0 = next): changes the row's value.
-void on_off_change(RadioSettings& s, int row, int dir);
-
-// ---- the ANIMATION tab ------------------------------------------------------------------------------------------
-// Rows: Vis. Fluidity (1-10) | Gradient wave speed | Pulse wave speed | Playback mode (list / shuffle) |
-//       Vis. Degradation (1-10) | Vis. Viscosity (0-10). Left / right / ENTER cycle (wrapping), like the player.
-extern const char* const kAnimRows[];
-extern const int kAnimRowCount;
-std::string anim_value(const RadioSettings& s, int row);
-void anim_change(RadioSettings& s, int row, int dir);    // -1 / +1 / 0 = next
+std::string scope_mode_name(const RadioSettings& s);                    // "osci" | "sphere" | "off" | "spectro"
+// Start Mode lives in the music player's config.txt (StartMode=player|radio): read it / write just that line.
+std::string player_start_mode();
+bool set_player_start_mode(const std::string& mode);
 
 // ---- the REFERENCE tab: the keys that can be changed ------------------------------------------------------
 // A key is written like the music player writes it: one character (case matters: S and s are different keys), or
@@ -199,8 +225,7 @@ std::string key_conflict(const RadioSettings& s, const std::string& key, int exc
 int key_translate(const RadioSettings& s, int typed);
 // The code of the key an action is bound to right now.
 int key_of(const RadioSettings& s, const char* id);
-extern const char* const kAboutLines[];                                       // the ABOUT tab (same text as the music player's)
-extern const int kAboutLineCount;
+// the ABOUT tab text is about_app_text() (about_text.h), shared with the music player
 
 // ---- the PATHS tab -----------------------------------------------------------------------------------------
 // Rows: 0 STATION LISTS PATH | 1 PRESETS PATH | 2 DOWNLOAD PATH | 3 "Same folder as music player" (bool) | 4 HISTORY PATH.
@@ -222,6 +247,27 @@ StoragePaths resolve_storage_paths(const RadioSettings& s);
 // The music player's DownloadFolder (read from its config.txt, `DownloadFolder=`); "" = the player's built-in default.
 std::string player_download_folder();
 std::filesystem::path radio_default_dir();                           // ~/.config/mousiki
+
+// The help wizard (SHIFT+w) is one feature, so it looks the same in both
+// modes: the radio draws it in the MUSIC PLAYER's colours rather than its
+// own. These are read straight out of the player's config.txt, the same
+// read-only peek player_download_folder() does -- the radio has no other
+// connection to the player's settings. Every field keeps the player's own
+// default when config.txt is missing or does not set that row, so the wizard
+// is always drawn in sensible colours even on a first start.
+struct WizardPalette {
+    std::string border      = "90";   // ColorBorderTop
+    std::string border_bot  = "90";   // ColorBorderBottom
+    std::string header      = "10";   // ColorHeader   -- headings
+    std::string legend      = "90";   // ColorLegend   -- key hints
+    std::string list;                 // ColorListInactiveFg -- body text ("" = the terminal's own)
+    std::string cursor_fg;            // ColorListCursorFg   -- the contents cursor
+    std::string cursor_bg   = "238";  // ColorListCursorBg
+    std::string accent;               // ColorLyricsActiveWordFg, falling back to the cursor / header colour
+    std::string disk_top    = "36";   // ColorDiskTop    -- the welcome page's disk
+    std::string disk_bottom = "34";   // ColorDiskBottom
+};
+WizardPalette player_wizard_palette();
 
 // ---- the SHIFT+o (oscilloscope) and SHIFT+v (loudness) overlays: same knobs and ranges as the music player's ----
 struct Knob { const char* label; double lo, hi, step; };

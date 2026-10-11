@@ -1,4 +1,6 @@
 #include "radio_ui.h"
+#include "about_text.h"
+#include "border_gradient.h"
 #include "scope_window.h"
 #include "keyboard_layout.h"
 #include <algorithm>
@@ -13,6 +15,8 @@
 #include "radio_sign.h"
 #include "sphere_visualizer.h"
 #include "terminal_ui.h"
+#include "disk_art.h"      // the help wizard's welcome page
+#include "wizard.h"        // its text, shared with the music player
 
 namespace muisc::radio {
 
@@ -52,16 +56,21 @@ std::string repeat(const std::string& s, int n) {
 // legend = key command hints, error lines and cheatsheet titles (see radio_settings.h).
 struct Style {
     const RadioSettings& c;
-    std::string border, border_bottom, legend, header, key, val, list, list_playing, list_cursor,
-                preset_inactive, preset_key, vol_current, vol_possible, freq_line, freq_mhz;
+    std::string border, border_bottom, legend, header, focus, key, val, list, list_playing, list_cursor,
+                preset_inactive, preset_key, vol_current, vol_possible, freq_line, freq_mhz, search, search_idle;
     explicit Style(const RadioSettings& cfg) : c(cfg) {
         border = ansi_fg(c.border_top);
         border_bottom = ansi_fg(c.border_bottom);
         legend = ansi_fg(c.legend);
         header = ansi_fg(c.header);
+        focus = ansi_fg(c.focus);
         key = c.meta_key.empty() ? ansi_fg(c.list_fg) : ansi_fg(c.meta_key);
         val = c.meta_val.empty() ? ansi_fg(c.list_fg) : ansi_fg(c.meta_val);
         list = ansi_fg(c.list_fg) + ansi_bg(c.list_bg);
+        // Search bar input: its own TEXT / BG cells, an empty one follows LIST INACTIVE.
+        search = ansi_fg(c.search_fg.empty() ? c.list_fg : c.search_fg) + ansi_bg(c.search_bg.empty() ? c.list_bg : c.search_bg);
+        search_idle = ansi_fg(c.search_inactive_fg.empty() ? c.list_fg : c.search_inactive_fg)
+                    + ansi_bg(c.search_inactive_bg);   // no BG inherited: only the typed query is highlighted
         list_playing = ansi_fg(c.list_playing_fg) + ansi_bg(c.list_playing_bg);
         list_cursor = ansi_fg(c.list_cursor_fg) + ansi_bg(c.list_cursor_bg);
         if (list_cursor.empty()) list_cursor = "\x1b[7m"; // never let the cursor row be invisible
@@ -85,7 +94,21 @@ std::string box_edge(const Style& s, bool top, int w, const std::vector<Seg>& la
     const std::string& l = top ? s.c.box_upper_left : s.c.box_lower_left;
     const std::string& r = top ? s.c.box_upper_right : s.c.box_lower_right;
     int label_w = 0;
-    for (const auto& g : label) label_w += display_width(g.text);
+    // A label may carry colour escapes (pane_title()'s header-coloured focus
+    // triangle); display_width() would count their parameter text as columns
+    // and shorten the border, so measure with the CSI sequences removed.
+    for (const auto& g : label) {
+        std::string plain;
+        for (size_t k = 0; k < g.text.size(); ++k) {
+            if (g.text[k] == '\x1b' && k + 1 < g.text.size() && g.text[k + 1] == '[') {
+                k += 2;
+                while (k < g.text.size() && !(g.text[k] >= 0x40 && g.text[k] <= 0x7e)) ++k;
+                continue;
+            }
+            plain += g.text[k];
+        }
+        label_w += display_width(plain);
+    }
     std::string o = ansi + l + s.c.box_horizontal;
     int used = display_width(l) + display_width(s.c.box_horizontal);
     if (!label.empty()) {
@@ -122,25 +145,29 @@ std::string box_line(const Style& s, const std::string& content, const std::stri
 // `required` tail always gets its room (the field shrinks); an optional one only shows if it fits.
 // `base` is the SGR the field is drawn in -- re-emitted after every reverse-video run.
 std::string field_row(const std::string& base, const std::string& prefix, const std::string& text, const EditState& e,
-                      bool focused, int inner, const std::string& tail, const std::string& tail_ansi, bool required) {
+                      bool focused, int inner, const std::string& tail, const std::string& tail_ansi, bool required,
+                      const std::string& query_ansi = "") {
     const int pw = display_width(prefix);
     const int tw = display_width(tail);
     const int room = std::max(1, inner - pw - (required && tw > 0 ? tw + 1 : 0));
     std::string body;
     int cols;
     if (focused) {
-        const EditPaint p = paint_edit_field(text, e, room, base, true);
+        const EditPaint p = paint_edit_field(text, e, room, (text.empty() || query_ansi.empty()) ? base : query_ansi, true);
         body = p.s; cols = p.cols;
     } else {
         body = utf8_take(text, room);
         cols = display_width(body);
     }
+    // Only a query that was actually typed is highlighted (behind its own length), the rest stays `base`.
+    if (!query_ansi.empty() && !text.empty()) body = query_ansi + body + kReset + base;   // reset: `base` may carry no BG
     const int used = pw + cols;
-    std::string out = base + prefix + body + kReset;
+    // The filler stays inside `base`, so a background colour fills the whole bar.
+    std::string out = base + prefix + body;
     if (tw > 0 && (required || used + tw + 2 <= inner))
-        out += spaces(inner - used - tw) + tail_ansi + tail + kReset;
+        out += spaces(inner - used - tw) + kReset + tail_ansi + tail + kReset;
     else
-        out += spaces(inner - used);
+        out += spaces(inner - used) + kReset;
     return out;
 }
 
@@ -813,8 +840,8 @@ std::vector<std::string> build_search(const Style& s, const UiModel& m, const Ra
     std::string hint;
     if (!st.device_ok) hint = "audio: " + (st.device_error.empty() ? std::string("no output device") : st.device_error) + "  [?] cheatsheet  [q] quit";
     else if (!m.notice.empty()) hint = m.notice;
-    const std::string base = s.c.list_fg.empty() ? "" : ansi_fg(s.c.list_fg);
-    const std::string row = field_row(base, m.search_lists ? "/p: " : "/s: ", m.search, m.search_edit, m.search_focus, inner, hint, s.legend, false);
+    const std::string base = s.search_idle;
+    const std::string row = field_row(base, m.search_lists ? "/p: " : "/s: ", m.search, m.search_edit, m.search_focus, inner, hint, s.legend, false, s.search);
     std::vector<std::string> out(3);
     const std::string btn_top = box_top(s, 7, "", s.border);
     std::string title = m.search_lists ? "SEARCH STATION LISTS" : "SEARCH STATIONS";
@@ -964,9 +991,15 @@ std::vector<std::string> build_lists(const Style& s, const UiModel& m, const Rad
 //   SELECT PRESET             full width, 4 columns x 2 rows of named presets
 //   STATIONS | PRESETS        two equal panes (60 / 60 at 120 columns), 16 content rows each
 //   hints, status line, blank filler down to the terminal height
-// The pane that has the keyboard gets a small "\u25C0" behind its title.
+// The pane that has the keyboard gets a small "\u25C0" behind its title, in
+// the header colour. box_edge() wraps the whole title in one border colour,
+// so the triangle switches colour and then switches straight back to that
+// same border colour (the caller's `s.border`), the same way the player
+// recolours its own focus indicators (see focus_indicator() in app.cpp).
 // ===========================================================================================
-std::string pane_title(const std::string& t, bool focused) { return focused ? t + " \u25C0" : t; }
+std::string pane_title(const Style& s, const std::string& t, bool focused) {
+    return focused ? t + " " + s.focus + "\u25C0" + kReset + s.border : t;
+}
 
 // "SELECT PRESET": the user's named presets in a 4-column grid, scrolling by rows.
 std::vector<std::string> build_preset_pane(const Style& s, const UiModel& m, int W) {
@@ -984,7 +1017,7 @@ std::vector<std::string> build_preset_pane(const Style& s, const UiModel& m, int
     std::vector<std::string> out;
     const std::string title = mn.psearch.empty() ? "SELECT PRESET"
                                                  : "SELECT PRESET (results for: " + utf8_take(mn.psearch, 20) + ")";
-    out.push_back(box_top(s, W, pane_title(title, mn.focus == MenuFocus::Presets), s.border));
+    out.push_back(box_top(s, W, pane_title(s, title, mn.focus == MenuFocus::Presets), s.border));
     for (int r = 0; r < R; ++r) {
         if (pv == 0) {
             out.push_back(box_line(s, seg_line({{s.header, r == 0 ? (total == 0 ? "no presets yet - SHIFT+n creates one" : "no preset matches") : ""}}, inner), s.border));
@@ -1090,12 +1123,12 @@ std::vector<std::string> build_menu(const Style& s, const UiModel& m, const Radi
         const int shown_n = search_presets ? static_cast<int>(mn.pvisible.size()) : vis_n;
         const int all_n = search_presets ? static_cast<int>(m.banks.size()) : total;
         const std::string counter = std::to_string(shown_n) + " / " + std::to_string(all_n);
-        const std::string list_ansi = s.c.list_fg.empty() ? "" : ansi_fg(s.c.list_fg);
+        const std::string list_ansi = s.search_idle;
         const std::string row = field_row(list_ansi, search_presets ? "/p: " : "/s: ",
                                           search_presets ? mn.psearch : mn.search,
                                           search_presets ? mn.psearch_edit : mn.search_edit,
-                                          mn.focus == MenuFocus::Search, inner, counter, s.header, true);
-        out.push_back(box_top(s, W, pane_title(search_presets ? "SEARCH PRESET" : "SEARCH STATION", mn.focus == MenuFocus::Search), s.border));
+                                          mn.focus == MenuFocus::Search, inner, counter, s.header, true, s.search);
+        out.push_back(box_top(s, W, pane_title(s, search_presets ? "SEARCH PRESET" : "SEARCH STATION", mn.focus == MenuFocus::Search), s.border));
         out.push_back(box_line(s, row, s.border));
         out.push_back(box_bottom(s, W, "", s.border_bottom));
     }
@@ -1116,7 +1149,7 @@ std::vector<std::string> build_menu(const Style& s, const UiModel& m, const Radi
 
     // --- STATIONS (full list, or the search results) ------------------------------------------
     std::vector<std::string> left;
-    left.push_back(box_top(s, left_w, pane_title(mn.search.empty() ? "STATIONS" : "STATIONS (results for: " + utf8_take(mn.search, 20) + ")",
+    left.push_back(box_top(s, left_w, pane_title(s, mn.search.empty() ? "STATIONS" : "STATIONS (results for: " + utf8_take(mn.search, 20) + ")",
                                                  mn.focus == MenuFocus::Stations), s.border));
     {
         const int inner = left_w - 4;
@@ -1345,8 +1378,8 @@ std::vector<std::string> build_lists_menu(const Style& s, const UiModel& m, cons
         const int vis_n = static_cast<int>(lm.visible.size());
         const bool sf = lm.focus == ListFocus::Search;
         const std::string counter = std::to_string(vis_n) + " / " + std::to_string(stations.size());
-        out.push_back(box_top(s, W, pane_title("SEARCH ALL STATIONS", sf), s.border));
-        out.push_back(box_line(s, field_row(list_ansi, "Search: ", lm.search, lm.search_edit, sf, inner, counter, s.header, true), s.border));
+        out.push_back(box_top(s, W, pane_title(s, "SEARCH ALL STATIONS", sf), s.border));
+        out.push_back(box_line(s, field_row(s.search_idle, "Search: ", lm.search, lm.search_edit, sf, inner, counter, s.header, true, s.search), s.border));
         out.push_back(box_bottom(s, W, "", s.border_bottom));
 
         // --- STATIONS (all, or the search results)  |  LIST CONTENTS --------------------------
@@ -1356,14 +1389,14 @@ std::vector<std::string> build_lists_menu(const Style& s, const UiModel& m, cons
         const std::string ltitle = lm.search.empty() ? "STATIONS (" + sort + ")"
                                                      : "STATIONS (results for: " + utf8_take(lm.search, 16) + ", " + sort + ")";
         const bool stations_hover = lm.focus == ListFocus::Stations || lm.focus == ListFocus::Search;
-        const auto left = lists_station_pane(s, m, st, left_w, L, pane_title(ltitle, lm.focus == ListFocus::Stations),
+        const auto left = lists_station_pane(s, m, st, left_w, L, pane_title(s, ltitle, lm.focus == ListFocus::Stations),
                                              lm.visible, lm.cursor, stations_hover, true, &lm.items,
                                              lm.marquee_row, lm.marquee_since, "no station matches");
         const int n_items = static_cast<int>(lm.items.size());
         std::string rtitle = "LIST CONTENTS (" + std::to_string(n_items) + ")";
         if (lm.focus == ListFocus::Contents && n_items > 0)
             rtitle += "  " + std::to_string(std::clamp(lm.item_cursor, 0, n_items - 1) + 1) + "/" + std::to_string(n_items);
-        const auto right = lists_station_pane(s, m, st, right_w, L, pane_title(rtitle, lm.focus == ListFocus::Contents),
+        const auto right = lists_station_pane(s, m, st, right_w, L, pane_title(s, rtitle, lm.focus == ListFocus::Contents),
                                               lm.items, lm.item_cursor, lm.focus == ListFocus::Contents, false, nullptr,
                                               lm.marquee2_row, lm.marquee2_since, "empty - ENTER on a station adds it");
         for (size_t i = 0; i < left.size(); ++i) out.push_back(left[i] + right[i]);
@@ -1373,8 +1406,8 @@ std::vector<std::string> build_lists_menu(const Style& s, const UiModel& m, cons
         const int vn = static_cast<int>(lm.mvisible.size());
         const bool sf = lm.mfocus == ListManageFocus::Search;
         const std::string counter = std::to_string(vn) + " / " + std::to_string(total);
-        out.push_back(box_top(s, W, pane_title("SEARCH STATION LISTS", sf), s.border));
-        out.push_back(box_line(s, field_row(list_ansi, "Search: ", lm.msearch, lm.msearch_edit, sf, inner, counter, s.header, true), s.border));
+        out.push_back(box_top(s, W, pane_title(s, "SEARCH STATION LISTS", sf), s.border));
+        out.push_back(box_line(s, field_row(s.search_idle, "Search: ", lm.msearch, lm.msearch_edit, sf, inner, counter, s.header, true, s.search), s.border));
         out.push_back(box_bottom(s, W, "", s.border_bottom));
 
         // --- STATION LISTS (the search results) -----------------------------------------------
@@ -1384,7 +1417,7 @@ std::vector<std::string> build_lists_menu(const Style& s, const UiModel& m, cons
         const std::string sep = s.c.list_separator;
         const int idx_w = 3, count_w = 13;
         const int name_w = std::max(5, inner - idx_w - (2 * display_width(sep) + 3) - count_w);
-        out.push_back(box_top(s, W, pane_title("STATION LISTS (" + std::to_string(vn) + ")", lm.mfocus == ListManageFocus::List), s.border));
+        out.push_back(box_top(s, W, pane_title(s, "STATION LISTS (" + std::to_string(vn) + ")", lm.mfocus == ListManageFocus::List), s.border));
         bool any_hover = false;
         for (int r = 0; r < L; ++r) {
             const int vi = first + r;
@@ -1458,7 +1491,7 @@ std::vector<std::string> build_browse(const Style& s, const UiModel& m, const Ra
     auto field_box = [&](int i, int w) {
         const bool focused = static_cast<int>(bm.focus) == i;
         std::vector<std::string> b;
-        b.push_back(box_top(s, w, pane_title(kBrowseTitles[i], focused), s.border));
+        b.push_back(box_top(s, w, pane_title(s, kBrowseTitles[i], focused), s.border));
         b.push_back(box_line(s, field_row(list_ansi, "", bm.text[i], bm.edit[i], focused, w - 4, "", s.header, false), s.border));
         b.push_back(box_bottom(s, w, "", s.border_bottom));
         return b;
@@ -1492,7 +1525,7 @@ std::vector<std::string> build_browse(const Style& s, const UiModel& m, const Ra
     };
 
     std::vector<std::string> left;
-    left.push_back(box_top(s, left_w, pane_title(title, results_focus), s.border));
+    left.push_back(box_top(s, left_w, pane_title(s, title, results_focus), s.border));
     {
         const int inner = left_w - 4;
         const std::string sep = s.c.list_separator;
@@ -1699,14 +1732,14 @@ const CheatRow kCheatRows[] = {
     {nullptr, "SHIFT+i", "Spectrogram options overlay (style, motion, scale, frequencies, gain, range, window, colors, channels, time span; R = Audacity's defaults)"},
     {nullptr, "SHIFT+u", "Spectrogram full screen with frequency labels and time ruler (toggle; ESC closes)"},
     {nullptr, "SHIFT+o", "Oscilloscope overlay (osci music mode, style, frame rate up to 165 -- all per style --, image protocol, image resolution, afterglow, dot threshold, tail, Line/Vec. Interpol., Z-Axis, Z depth / source, trace length, rotation, mono phase portrait; R resets)"},
-    {nullptr, ")", "Scope window: the oscilloscope in its own window, drawn by the graphics card (toggle; needs SDL2). In it: F / F11 / double-click fullscreen, T always on top, ESC closes"},
+    {nullptr, ")", "Scope window: the oscilloscope in its own window, drawn by the graphics card, braille or image style as set in the SHIFT+o overlay (toggle; needs SDL2). In it: F / F11 / double-click fullscreen, T always on top, ESC closes"},
     {nullptr, "(", "Spectrogram window: the spectrogram in its own window, scrolling smoothly at the monitor's refresh rate (toggle; needs SDL2; same keys inside it)"},
     {nullptr, "SHIFT+z", "Sleep timer: 15 / 30 / 60 / 90 / 120 min, stops the stream (optionally with a fade-out of the volume)"},
     {nullptr, "y", "Record: opens the RECORD overlay (from now on = the moment y was pressed, the last 1 / 5 / 10 / 15 / 30 min, everything buffered); y again stops and saves the MP3"},
     {nullptr, "UP/DOWN/ENTER", "Record overlay: choose the start / start recording (y does the same; ESC cancels)"},
     {nullptr, "h", "Open the LISTENING HISTORY: HISTORY / TOP CHANNELS / HABITS"},
     {nullptr, "SHIFT+l", "Open the big STATIONS overlay (the STATIONS pane with the whole screen)"},
-    {nullptr, "s", "Open the RADIO SETTINGS (colours, switches, animation, paths, keys, about; saved to radio_config.txt)"},
+    {nullptr, "s", "Open the RADIO SETTINGS (colours, modes and switches, animation and visualizer, paths, keys, about; saved to radio_config.txt)"},
     {nullptr, "SHIFT+r", "Reconnect the tuned station"},
     {nullptr, "SHIFT+s", "Open the RADIO BROWSER menu: search stations worldwide (radio-browser.info)"},
     {nullptr, "SHIFT+p", "Open the STATION LISTS menu: build, save and load named station lists"},
@@ -1798,9 +1831,11 @@ const CheatRow kCheatRows[] = {
     {nullptr, "SHIFT+c", "Rename the hovered preset"},
     {nullptr, "SHIFT+d", "Delete the hovered preset (press twice; the last preset cannot be deleted)"},
     {nullptr, "ENTER / ESC", "Name box: confirm / cancel"},
-    {"RADIO SETTINGS (s)", "TAB", "Next tab: COLORS / ON/OFF / ANIMATION / PATHS / REFERENCE / ABOUT APP"},
+    {"RADIO SETTINGS (s)", "TAB", "Next tab: COLORS / ON/OFF / ANIMA/VIZ / PATHS / REFERENCE / ABOUT APP"},
     {nullptr, "UP / DOWN", "Move through the rows (LEFT / RIGHT or ENTER change a switch; ENTER edits a colour, a folder or a key)"},
     {nullptr, "LEFT / RIGHT (editing)", "Move the caret in the colour, folder or key being edited; TAB and the arrows stay in the field until ENTER (apply) or ESC (cancel)"},
+    {nullptr, "ENTER (THEME row)", "COLORS tab: ENTER opens CHOOSE THEME (scrollable, ENTER applies); the CREATE THEME button builds your own theme"},
+    {nullptr, "SHIFT+e / SHIFT+i", "COLORS tab: export the current colors as a theme file / import theme files from a folder"},
     {nullptr, "s", "Save radio_config.txt and close"},
     {nullptr, "ESC / q", "Discard the changes made on the screen and close"},
     {nullptr, "ON/OFF: TUNING NOISE", "Radio static that fades in when you tune another station and fades out when the stream plays"},
@@ -1809,6 +1844,182 @@ const CheatRow kCheatRows[] = {
     {nullptr, "REFERENCE: RESET", "The first row under the note: every key back to its default"},
     {nullptr, "CTRL+SHIFT+u", "Undo the last key change or reset (up to 5, newest first); the cursor jumps to the key that came back"},
 };
+
+// ===========================================================================================
+// The help wizard (SHIFT+w): the same pages the music player shows (src/wizard.h), drawn in
+// the MUSIC PLAYER's colours rather than the radio's, so the feature looks like one thing in
+// both modes. See UiModel::wizard_* for the page model and wizard.h for the markup.
+// ===========================================================================================
+
+namespace {
+
+// One wizard line as coloured segments: the "@X " prefix picks the line's
+// colour, a <<span>> switches to the accent colour and back. Neither ever
+// reaches the terminal, so seg_line()'s width maths stays honest.
+std::vector<Seg> wizard_segs(const std::string& raw, const WizardPalette& p) {
+    const std::string base   = ansi_fg(p.list);
+    const std::string accent = ansi_fg(p.accent);
+    std::string body = raw;
+    std::string line_ansi = base;
+    if (body.size() >= 3 && body[0] == '@' && body[2] == ' ') {
+        switch (body[1]) {
+            case 'H': line_ansi = "\x1b[1m" + ansi_fg(p.header); break;   // heading, bold like the player's
+            case 'D': line_ansi = ansi_fg(p.border); break;               // the diagrams
+            case 'K': line_ansi = ansi_fg(p.legend); break;               // key hints
+            case 'A': line_ansi = accent; break;                          // callouts / arrows
+            default:  break;
+        }
+        body = body.substr(3);
+    }
+    std::vector<Seg> segs;
+    std::string cur;
+    bool in_span = false;
+    for (size_t i = 0; i < body.size();) {
+        if (!in_span && body.compare(i, 2, "<<") == 0) {
+            if (!cur.empty()) { segs.push_back({line_ansi, cur}); cur.clear(); }
+            in_span = true; i += 2; continue;
+        }
+        if (in_span && body.compare(i, 2, ">>") == 0) {
+            if (!cur.empty()) { segs.push_back({accent, cur}); cur.clear(); }
+            in_span = false; i += 2; continue;
+        }
+        cur += body[i];
+        ++i;
+    }
+    if (!cur.empty()) segs.push_back({in_span ? accent : line_ansi, cur});
+    return segs;
+}
+
+} // namespace
+
+std::vector<std::string> build_wizard(const Style& s, const UiModel& m, int W, int rows) {
+    const WizardPalette p = player_wizard_palette();
+    const std::string wb  = ansi_fg(p.border);
+    const std::string wbb = ansi_fg(p.border_bot);
+    const int visible = std::max(1, rows - 2);        // the top and bottom border take two rows
+    const int inner = std::max(0, W - 4);
+    const auto& ts = wizard::topics(wizard::Flavor::Radio);
+
+    // Which topic (and which of its pages) the flat page index lands on.
+    int topic = -1, in_topic = 0;
+    {
+        int rest = m.wizard_page - 2;
+        if (rest >= 0) {
+            for (size_t i = 0; i < ts.size(); ++i) {
+                const int n = static_cast<int>(ts[i].pages.size());
+                if (rest < n) { topic = static_cast<int>(i); in_topic = rest; break; }
+                rest -= n;
+            }
+        }
+    }
+    int total_pages = 2;
+    for (const auto& t : ts) total_pages += static_cast<int>(t.pages.size());
+
+    std::string title = "MOUSIKI PLUS HELP WIZARD";
+    if (m.wizard_page == 1) title += " -- CONTENTS";
+    else if (topic >= 0) {
+        title += " -- " + ts[static_cast<size_t>(topic)].title;
+        if (ts[static_cast<size_t>(topic)].pages.size() > 1)
+            title += " (" + std::to_string(in_topic + 1) + "/" +
+                     std::to_string(ts[static_cast<size_t>(topic)].pages.size()) + ")";
+    }
+    std::vector<std::string> out;
+    out.push_back(box_top(s, W, title, wb));
+
+    // Every row as segments first, so the scroll range counts real rows.
+    std::vector<std::vector<Seg>> body;
+    // Fixed 8-column margin left and right (matches build_wizard_screen() in
+    // the player), backed off just enough to keep the hand-authored topic
+    // pages' kContentWidth available on a narrower terminal instead of
+    // letting them overflow past the right border.
+    constexpr int kWizardMargin = 8;
+    const int pad_left = std::min(kWizardMargin, std::max(0, (inner - wizard::kContentWidth) / 2));
+    auto push = [&](const std::string& raw) {
+        std::vector<Seg> segs{{"", spaces(pad_left)}};
+        for (auto& sg : wizard_segs(raw, p)) segs.push_back(sg);
+        body.push_back(segs);
+    };
+
+    if (m.wizard_page == 0) {
+        // The welcome: the disk on the left in the player's DISK colours,
+        // the text beside it. The one page with two columns.
+        static const muisc::DiskArt disk;
+        const int disk_w = disk.width();
+        const int gap = 3;
+        const auto frame = disk.frame(m.wizard_angle);
+        const auto text = wizard::welcome_lines(MOUSIKI_VERSION);
+        const bool room = inner >= disk_w + gap + 20;
+        const int disk_h = static_cast<int>(frame.size());
+        const int text_h = static_cast<int>(text.size());
+        const int n = room ? std::max(disk_h, text_h) : text_h;
+        // Centre the disk vertically against the whole text block instead
+        // of pinning it to the top row; the text itself still starts at
+        // row 0 (matches build_wizard_screen() in the player).
+        const int disk_top = room ? std::max(0, (n - disk_h) / 2) : 0;
+        for (int i = 0; i < n; ++i) {
+            std::vector<Seg> segs{{"", spaces(pad_left)}};
+            if (room) {
+                const int di = i - disk_top;
+                if (di >= 0 && di < disk_h) {
+                    const float t = disk_h > 1
+                                        ? static_cast<float>(di) / static_cast<float>(disk_h - 1) : 0.0f;
+                    segs.push_back({gradient_fg(p.disk_top, p.disk_bottom, t), frame[static_cast<size_t>(di)]});
+                    const int w = display_width(frame[static_cast<size_t>(di)]);
+                    if (w < disk_w) segs.push_back({"", spaces(disk_w - w)});
+                } else {
+                    segs.push_back({"", spaces(disk_w)});
+                }
+                segs.push_back({"", spaces(gap)});
+            }
+            if (i < text_h)
+                for (auto& sg : wizard_segs(text[static_cast<size_t>(i)], p)) segs.push_back(sg);
+            body.push_back(segs);
+        }
+    } else if (m.wizard_page == 1) {
+        push("@H Choose a topic");
+        push("");
+        for (size_t i = 0; i < ts.size(); ++i) {
+            std::string row = (static_cast<int>(i) == m.wizard_topic ? "  > " : "    ") + ts[i].title;
+            row = pad_right(row, 28) + ts[i].blurb;
+            if (static_cast<int>(i) == m.wizard_topic) {
+                // The cursor row, drawn like the station list's hovering row
+                // but in the player's colours; the highlight is the width of
+                // the content column, not of the whole box.
+                std::string cur = ansi_fg(p.cursor_fg) + ansi_bg(p.cursor_bg);
+                if (cur.empty()) cur = "\x1b[7m";
+                body.push_back({{"", spaces(pad_left)}, {cur, pad_right(row, wizard::kContentWidth)}});
+            } else {
+                body.push_back({{"", spaces(pad_left)}, {ansi_fg(p.list), row}});
+            }
+        }
+        push("");
+        push("@K [UP]/[DOWN] choose a topic   [ENTER] open it");
+        push("@K [<-]/[->] page back and forth through the whole wizard");
+    } else if (topic >= 0) {
+        for (const auto& raw : ts[static_cast<size_t>(topic)].pages[static_cast<size_t>(in_topic)].lines) push(raw);
+    }
+
+    // One blank row top and bottom, inside the border (matches
+    // build_wizard_screen() in the player).
+    const int rows_for_content = std::max(1, visible - 2);
+    const int total = static_cast<int>(body.size());
+    const int max_scroll = std::max(0, total - rows_for_content);
+    m.wizard_scroll = std::clamp(m.wizard_scroll, 0, max_scroll);
+    out.push_back(box_line(s, spaces(inner), wb));
+    int shown = 0;
+    for (int i = m.wizard_scroll; i < total && shown < rows_for_content; ++i, ++shown)
+        out.push_back(box_line(s, seg_line(body[static_cast<size_t>(i)], inner), wb));
+    while (shown < rows_for_content) { out.push_back(box_line(s, spaces(inner), wb)); ++shown; }
+    out.push_back(box_line(s, spaces(inner), wb));
+
+    std::string bottom = "[SHIFT+w / ESC] close";
+    if (m.wizard_page > 0) bottom += "  [<-] back";
+    if (m.wizard_page < total_pages - 1) bottom += "  [->] next";
+    bottom += "  page " + std::to_string(m.wizard_page + 1) + "/" + std::to_string(total_pages);
+    if (max_scroll > 0) bottom += "  [↑↓] scroll";
+    out.push_back(box_bottom(s, W, bottom, wbb));
+    return out;
+}
 
 std::vector<std::string> build_cheatsheet(const Style& s, const UiModel& m, int W, int rows) {
     std::vector<std::string> out;
@@ -2107,7 +2318,7 @@ std::vector<std::string> build_history_menu(const Style& s, const UiModel& m, in
         const int oi = ow - 4;
         std::vector<std::string> panel;
         panel.push_back(box_top(s, ow, "Find on YouTube + download", s.border));
-        panel.push_back(box_line(s, field_row(base, "Search: ", hm.yt_text, hm.yt_edit, hm.yt_in_field, oi, "", s.legend, false), s.border));
+        panel.push_back(box_line(s, field_row(s.search_idle, "Search: ", hm.yt_text, hm.yt_edit, hm.yt_in_field, oi, "", s.legend, false, s.search), s.border));
         std::string status;
         if (hm.yt.searching) status = "searching...";
         else if (!hm.yt.error.empty()) status = hm.yt.error;
@@ -2154,12 +2365,130 @@ std::vector<std::string> build_history_menu(const Style& s, const UiModel& m, in
 // the tab strip ("[ON/OFF]" = current tab), one row per setting. COLORS: colour cells with a live preview on the
 // right; ON/OFF: toggles.
 // ===========================================================================================
-constexpr const char* kSettingsTabs[6] = {"COLORS", "ON/OFF", "ANIMATION", "PATHS", "REFERENCE", "ABOUT APP"};
+constexpr const char* kSettingsTabs[6] = {"COLORS", "ON/OFF", "ANIMA/VIZ", "PATHS", "REFERENCE", "ABOUT APP"};
 
-std::vector<std::string> build_settings(const RadioSettings& c, const SettingsModel& sm, int W, int rows) {
+// The theme picker (also used to choose a template inside the creator): one theme per line with colour swatches.
+std::vector<std::string> build_theme_picker(const RadioSettings& c, const SettingsModel& sm, int W, int rows) {
+    const int inner = W - 4;
+    const int H = std::max(rows, kUiRows);
+    auto bar = [&](int y) {
+        if (!c.border_smooth) return ansi_fg(y >= H - 3 ? c.border_bottom : c.border_top);   // rough: only the bottom border line changes
+        const float t = H > 1 ? static_cast<float>(y) / static_cast<float>(H - 1) : 0.0f;
+        return gradient_fg(c.border_top, c.border_bottom, std::round(t * 32.0f) / 32.0f);
+    };
+    const std::string legend = ansi_fg(c.legend), header = ansi_fg(c.header);
+    std::vector<std::string> out;
+    const std::string title = sm.theme_ui == 1 ? "─ CHOOSE THEME " : "─ CHOOSE THEME AS TEMPLATE ";
+    out.push_back(bar(0) + "┌" + title + repeat("─", std::max(0, W - 2 - display_width(title))) + "┐" + kReset);
+    const int n = static_cast<int>(sm.theme_list.size());
+    const int visible = std::max(1, H - 4);
+    const int first = std::clamp(sm.theme_sel - visible / 2, 0, std::max(0, n - visible));
+    // the marker: the theme in use (picker), or the one the draft matches / is based on (template picker)
+    int cur = sm.theme_ui == 1 ? theme_index(c, sm.theme_list) : -1;
+    if (sm.theme_ui == 3) {
+        cur = theme_index(sm.theme_draft, sm.theme_list);
+        for (int k = 0; k < n && cur < 0; ++k) if (sm.theme_list[static_cast<size_t>(k)].name == sm.theme_base.name) cur = k;
+    }
+    static const struct { const char* key; bool bg; } kSw[] = {
+        {"ColorBorderTop", false}, {"ColorBorderBottom", false}, {"ColorOnAirUpperLeft", false}, {"ColorOnAirBottomRight", false},
+        {"ColorMetadataKey", false}, {"ColorMetadataVal", false}, {"ColorVolumeCurrent", false},
+        {"ColorListInactiveFg", false}, {"ColorListPlayingFg", false}, {"ColorListCursorBg", true}};
+    for (int r = 0; r < visible; ++r) {
+        const int y = static_cast<int>(out.size());
+        const std::string b = bar(y) + "│" + kReset;
+        std::vector<Seg> segs;
+        const int i = first + r;
+        if (i < n) {
+            const themes::Theme& t = sm.theme_list[static_cast<size_t>(i)];
+            segs.push_back({header, i == cur ? "● " : "  "});
+            segs.push_back({i == sm.theme_sel ? "\x1b[7m" : "", pad_right(truncate_str(t.name, themes::kMaxNameLen), themes::kMaxNameLen)});
+            segs.push_back({"", "  "});
+            for (const auto& k : kSw) {
+                const std::string* v = t.get(k.key, true);
+                const std::string val = v ? *v : "";
+                segs.push_back({k.bg ? ansi_bg(val) : ansi_fg(val), k.bg ? "    " : "████"});
+                segs.push_back({"", " "});
+            }
+        }
+        out.push_back(b + " " + seg_line(segs, inner) + " " + b);
+    }
+    while (static_cast<int>(out.size()) < H - 3) {
+        const std::string b = bar(static_cast<int>(out.size())) + "│" + kReset;
+        out.push_back(b + " " + spaces(inner) + " " + b);
+    }
+    out.push_back(bar(H - 3) + "└" + repeat("─", std::max(0, W - 2)) + "┘" + kReset);
+    out.push_back(seg_line({{legend, sm.theme_ui == 1 ? "[↑↓] Select | [ENTER] Apply the theme | [ESC] Back"
+                                                      : "[↑↓] Select | [ENTER] Use as template (copies its colors into the new theme) | [ESC] Back"}}, W));
+    out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status, W)}}, W));
+    return out;
+}
+
+// SHIFT+e / SHIFT+i overlays: export the current colours as a theme file / import theme files from a folder.
+std::vector<std::string> build_theme_io(const RadioSettings& c, const SettingsModel& sm, int W, int rows) {
+    const int inner = W - 4;
+    const int H = std::max(rows, kUiRows);
+    auto bar = [&](int y) {
+        if (!c.border_smooth) return ansi_fg(y >= H - 3 ? c.border_bottom : c.border_top);
+        const float t = H > 1 ? static_cast<float>(y) / static_cast<float>(H - 1) : 0.0f;
+        return gradient_fg(c.border_top, c.border_bottom, std::round(t * 32.0f) / 32.0f);
+    };
+    const std::string legend = ansi_fg(c.legend), header = ansi_fg(c.header);
+    const bool exp = sm.theme_ui == 4;
+    std::vector<std::string> out;
+    const std::string title = exp ? "─ EXPORT THEME " : "─ IMPORT THEMES ";
+    out.push_back(bar(0) + "┌" + title + repeat("─", std::max(0, W - 2 - display_width(title))) + "┐" + kReset);
+    auto row_of = [&](const std::vector<Seg>& segs) {
+        const std::string b = bar(static_cast<int>(out.size())) + "│" + kReset;
+        out.push_back(b + " " + seg_line(segs, inner) + " " + b);
+    };
+    auto field = [&](const char* label, const std::string& value, bool sel, int width) {
+        std::vector<Seg> segs = {{"\x1b[1m" + header, pad_right(label, 15)}, {"", ": "}};
+        if (sel && sm.editing) {
+            const EditPaint p = paint_edit_field(sm.buffer, sm.edit, width, "\x1b[41;37m", true);
+            segs.push_back({"\x1b[41;37m", p.s + spaces(std::max(0, width + 1 - p.cols))});
+        } else {
+            segs.push_back({sel ? "\x1b[7m" : "", pad_right(utf8_take(value, width), width + 1)});
+        }
+        row_of(segs);
+    };
+    row_of({});
+    const int fw = std::max(20, W - 24);
+    if (exp) {
+        field("NAME", sm.theme_io_name, sm.theme_io_row == 0, themes::kMaxNameLen);
+        field("FOLDER", sm.theme_io_dir, sm.theme_io_row == 1, fw);
+        row_of({});
+        row_of({{legend, utf8_take("Exports the colors now set as one theme file: " + (std::filesystem::path(sm.theme_io_dir) / themes::file_name_for(sm.theme_io_name)).string(), inner)}});
+        row_of({{legend, "(radio and player colors are both kept in the file; import it with SHIFT+i)"}});
+    } else {
+        field("FOLDER", sm.theme_io_dir, sm.theme_io_row == 0, fw);
+        row_of({});
+        const int nf = static_cast<int>(sm.theme_io_files.size());
+        row_of({{"\x1b[1m" + header, "Theme files found (" + std::to_string(nf) + ")"}});
+        const int visible = std::max(1, H - 3 - static_cast<int>(out.size()));
+        const int first = std::clamp(sm.theme_io_sel - visible / 2, 0, std::max(0, nf - visible));
+        for (int r = 0; r < visible && first + r < nf; ++r) {
+            const int i = first + r;
+            const size_t nth = themes::read_theme_file(sm.theme_io_files[static_cast<size_t>(i)]).size();
+            const std::string cnt = std::to_string(nth) + (nth == 1 ? " theme" : " themes");
+            const bool sel = sm.theme_io_row == 1 && i == sm.theme_io_sel;
+            row_of({{sel ? "\x1b[7m" : "", pad_right(utf8_take(sm.theme_io_files[static_cast<size_t>(i)].filename().string(), inner - 12), inner - 12)}, {legend, pad_left(cnt, 12)}});
+        }
+        if (nf == 0) row_of({{legend, "no theme files (*.theme, *.txt) in this folder"}});
+    }
+    while (static_cast<int>(out.size()) < H - 3) row_of({});
+    out.push_back(bar(H - 3) + "└" + repeat("─", std::max(0, W - 2)) + "┘" + kReset);
+    out.push_back(seg_line({{legend, sm.editing ? "[ENTER] Apply | [ESC] Cancel | [←→] Cursor | [Ctrl+C/X/V] Copy/Cut/Paste"
+                                   : exp ? "[↑↓] Field | [ENTER] Edit | [s] Export | [ESC] Cancel"
+                                         : "[↑↓] Select | [ENTER] Import the file (or edit the folder) | [a] Import all | [ESC] Cancel"}}, W));
+    out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status, W)}}, W));
+    return out;
+}
+
+std::vector<std::string> build_settings_impl(const RadioSettings& c, const SettingsModel& sm, int W, int rows, const SettingsModel* cr) {
     const int inner = W - 4;
     const int H = std::max(rows, kUiRows);
     auto bar = [&](int y) {   // frame colour of line y: fades from border_top to border_bottom
+        if (!c.border_smooth) return ansi_fg(y >= H - 3 ? c.border_bottom : c.border_top);   // rough: only the bottom border line changes
         const float t = H > 1 ? static_cast<float>(y) / static_cast<float>(H - 1) : 0.0f;
         return gradient_fg(c.border_top, c.border_bottom, std::round(t * 32.0f) / 32.0f);
     };
@@ -2171,7 +2500,29 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
 
     // --- tab strip (2 lines):  ┌─ SETTINGS ─────────┐  COLORS  ┌──┐  [ON/OFF]  ┌─────...─┐
     //                           │                    └──────────┘  └────────────┘       ... │
-    {
+    if (cr) {   // CREATE THEME: title, the NAME / TEMPLATE row, a divider; the COLORS rows of the draft follow
+        const std::string title = "─ CREATE THEME ";
+        out.push_back(bar(0) + "┌" + title + repeat(Hz, std::max(0, W - 2 - display_width(title))) + "┐" + kReset);
+        const std::string b = bar(1) + V + kReset;
+        std::vector<Seg> segs;
+        segs.push_back({"\x1b[1m" + header, pad_right("NAME", 15)});
+        segs.push_back({"", ": "});
+        const bool on_name = cr->theme_row < 0 && cr->theme_col == 0;
+        const bool on_tpl = cr->theme_row < 0 && cr->theme_col == 1;
+        if (on_name && cr->editing) {
+            const EditPaint p = paint_edit_field(cr->buffer, cr->edit, themes::kMaxNameLen, "\x1b[41;37m", true);
+            segs.push_back({"\x1b[41;37m", p.s + spaces(std::max(0, themes::kMaxNameLen + 1 - p.cols))});
+        } else {
+            const bool empty = cr->theme_name.empty();
+            segs.push_back({on_name ? "\x1b[7m" : (empty ? legend : ""),
+                            pad_right(empty ? std::string("(type a name)") : cr->theme_name, themes::kMaxNameLen + 1)});
+        }
+        segs.push_back({"", "   "});
+        segs.push_back({on_tpl ? "\x1b[7m" : "", " CHOOSE THEME AS TEMPLATE "});
+        segs.push_back({legend, "  based on " + cr->theme_base.name});
+        out.push_back(b + " " + seg_line(segs, inner) + " " + b);
+        out.push_back(bar(2) + "├" + repeat(Hz, std::max(0, W - 2)) + "┤" + kReset);
+    } else {
         std::vector<Seg> top, bot;
         const std::string b0 = bar(0), b1 = bar(1);
         top.push_back({b0, "┌─ SETTINGS " + repeat(Hz, 9) + "┐"});
@@ -2203,26 +2554,56 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
         out.push_back(b + " " + seg_line(segs, inner) + " " + b);
     };
 
-    if (sm.tab == 1) {
-        // ---- ON/OFF
-        line({});
-        for (int r = 0; r < kOnOffRowCount; ++r) {
-            const bool sel = r == sm.row;
-            const std::string v = on_off_value(c, r);
-            std::vector<Seg> segs = {{"", "   " + pad_right(kOnOffRows[r].label, 26) + ":  "}, {sel ? "\x1b[7m" : "", v}};
-            if (sel) segs.push_back({tab_cur, spaces(std::max(0, 20 - display_width(v))) + "< ↔ >"});
+    if (sm.tab == 1 || sm.tab == 2) {
+        // ---- ON/OFF and ANIMA/VIZ: rows under category headers (like the player's tabs); scrolls with the cursor
+        struct DLine { std::vector<Seg> segs; int row = -1; };
+        std::vector<DLine> dl;
+        int rr = 0;
+        for (const SettingsLine& l : rs_layout(sm.tab)) {
+            if (l.header) {   // the layout carries its own blank lines (empty headers); the tab starts with one, like the other tabs
+                if (rr == 0 && dl.empty()) dl.push_back({{}, -1});
+                dl.push_back({l.text[0] ? std::vector<Seg>{{"\x1b[1m" + header, std::string("   ") + l.text}} : std::vector<Seg>{}, -1});
+                continue;
+            }
+            const bool sel = rr == sm.row;
+            const std::string v = rs_row_value(c, sm.tab, rr);
+            std::vector<Seg> segs = {{"", "   " + pad_right(l.text, 26) + ":  "}, {sel ? "\x1b[7m" : "", v}};
+            if (sel) segs.push_back({tab_cur, spaces(std::max(0, 20 - display_width(v))) + "< \u2194 >"});
+            dl.push_back({segs, rr});
+            ++rr;
+        }
+        std::vector<std::vector<Seg>> note;   // ANIMA/VIZ: where the oscilloscope and the spectrogram are tuned (pinned at the bottom)
+        if (sm.tab == 2) {
+            note.push_back({});
+            const std::string txt = "The oscilloscope/spectrogram are tuned live via an option overlay: [SHIFT+O] oscilloscope [SHIFT+I] spectrogram. SHIFT+U opens the big overlay of the spectrogram; " +
+                muisc::symbol_key_label(")") + " and " + muisc::symbol_key_label("(") + " open an extra window.";
+            const int cap = std::max(20, inner - 6);
+            std::string rest = txt;
+            while (!rest.empty()) {   // wrapped at spaces
+                std::string ln;
+                if (display_width(rest) <= cap) { ln = rest; rest.clear(); }
+                else {
+                    size_t cut = rest.rfind(' ', static_cast<size_t>(cap));
+                    if (cut == std::string::npos || cut == 0) cut = static_cast<size_t>(cap);
+                    ln = rest.substr(0, cut);
+                    rest = rest.substr(rest.find_first_not_of(' ', cut) == std::string::npos ? rest.size() : rest.find_first_not_of(' ', cut));
+                }
+                note.push_back({{legend, "   " + ln}});
+            }
+        }
+        const int avail = std::max(1, (H - 3) - static_cast<int>(out.size()) - static_cast<int>(note.size()));
+        const int total = static_cast<int>(dl.size());
+        int cur = 0;
+        for (int i = 0; i < total; ++i) if (dl[static_cast<size_t>(i)].row == sm.row) cur = i;
+        int first = std::clamp(cur - avail / 2, 0, std::max(0, total - avail));
+        if (first <= 2) first = 0;   // near the top: keep the first category header visible
+        else if (dl[static_cast<size_t>(first)].row >= 0 && dl[static_cast<size_t>(first) - 1].row < 0) first = std::max(0, first - 1);
+        for (int i = first; i < total && i < first + avail; ++i) {
+            std::vector<Seg> segs = dl[static_cast<size_t>(i)].segs;
             line(segs);
         }
-    } else if (sm.tab == 2) {
-        // ---- ANIMATION
-        line({});
-        for (int r = 0; r < kAnimRowCount; ++r) {
-            const bool sel = r == sm.row;
-            const std::string v = anim_value(c, r);
-            std::vector<Seg> segs = {{"", "   " + pad_right(kAnimRows[r], 26) + ":  "}, {sel ? "\x1b[7m" : "", v}};
-            if (sel) segs.push_back({tab_cur, spaces(std::max(0, 20 - display_width(v))) + "< ↔ >"});
-            line(segs);
-        }
+        while (static_cast<int>(out.size()) < H - 3 - static_cast<int>(note.size())) line({});
+        for (const auto& n : note) line(n);
     } else if (sm.tab == 4) {
         // ---- REFERENCE: the note, then the rebindable keys under category headers; scrolls with the cursor
         struct DLine { std::vector<Seg> segs; int action = -1; };
@@ -2259,8 +2640,8 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
         // ---- ABOUT APP: the music player's text, Up / Down scroll
         const int avail = std::max(1, (H - 3) - static_cast<int>(out.size()) - 1);
         line({});
-        const int first = std::clamp(sm.row, 0, std::max(0, kAboutLineCount - avail));
-        for (int i = first; i < kAboutLineCount && i < first + avail; ++i) line({{"", "   " + std::string(kAboutLines[i])}});
+        const int first = std::clamp(sm.row, 0, std::max(0, static_cast<int>(about_app_text().size()) - avail));
+        for (int i = first; i < static_cast<int>(about_app_text().size()) && i < first + avail; ++i) line({{"", "   " + about_app_text()[i]}});
     } else if (sm.tab == 3) {
         // ---- PATHS: the folder fields, the "same as music player" toggle and the history folder (like the player's PATHS tab:
         // names in the header colour, values in the colour of inactive list rows, an empty field shows the default folder)
@@ -2299,11 +2680,22 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
         line({{legend, "   When folder paths are changed, the respective files are only copied, never moved, and no deletions are performed."}});
     } else {
         // ---- COLORS
+        const int crow = cr ? sm.row : color_row_of_tab(sm.row);   // the colour row the cursor is on (-1: THEME / SMOOTHNESS)
         auto cellv = [&](int r, int col) -> std::string {
             const std::string* f = color_field(c, r, col);
             if (!f) return "";
-            return (sm.editing && sm.row == r && sm.col == col) ? sm.buffer : *f;
+            return (sm.editing && crow == r && sm.col == col) ? sm.buffer : *f;
         };
+        if (!cr) {   // THEME | CREATE THEME, on top
+            const int ci = theme_index(c, sm.theme_list);
+            const std::string tn = ci >= 0 ? sm.theme_list[static_cast<size_t>(ci)].name : std::string("(custom)");
+            const bool on = sm.row == 0;
+            line({{"\x1b[1m" + header, pad_right("THEME", 15)}, {"", pad_right("SELECT", 14) + ": "},
+                  {on && sm.col == 0 ? "\x1b[7m" : "", pad_right(truncate_str(tn, 25), 26)}, {"", "   "},
+                  {on && sm.col == 1 ? "\x1b[7m" : "", " CREATE THEME "}});
+            const std::string b = bar(static_cast<int>(out.size()));
+            line({{b, repeat(Hz, inner)}});
+        }
         auto preview = [&](int r) -> std::vector<Seg> {
             const ColorRowSpec& spec = kColorRows[r];
             const auto is = [&](std::string RadioSettings::* f) { return spec.field1 == f; };
@@ -2328,6 +2720,11 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
                 if (cursor && a.empty()) a = "\x1b[7m";
                 return a;
             };
+            if (is(&RadioSettings::search_fg))
+                return {{ansi_fg(c.search_inactive_fg.empty() ? c.list_fg : c.search_inactive_fg) + ansi_bg(c.search_inactive_bg), "/s: "},
+                        {ansi_fg(v1.empty() ? c.list_fg : v1) + ansi_bg(v2.empty() ? c.list_bg : v2), "QUERY"}};
+            if (is(&RadioSettings::search_inactive_fg))
+                return {{ansi_fg(v1.empty() ? c.list_fg : v1) + ansi_bg(v2), "/s:               "}};
             if (is(&RadioSettings::list_fg)) return {{styled(v1, v2, false), "3 | Station name      | Pop "}};
             if (is(&RadioSettings::list_playing_fg)) return {{styled(v1, v2, false), "3 | Station (tuned)    | Pop "}};
             if (is(&RadioSettings::list_cursor_fg)) return {{styled(v1, v2, true), "3 | Station (hovered)  | Pop "}};
@@ -2335,10 +2732,10 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
             if (is(&RadioSettings::preset_key_fg)) return {{ansi_fg(v1), "1"}, {ansi_fg(c.list_fg) + ansi_bg(c.list_bg), " Station name"}};
             if (is(&RadioSettings::header)) return {{ansi_fg(v1), "tuning ...  buffering 40%"}};
             if (is(&RadioSettings::legend)) return {{ansi_fg(v1), "[TAB] Switch pane | [ENTER] Tune"}};
-            if (is(&RadioSettings::tab_current)) return {{ansi_fg(v1), "[COLORS]"}, {"", "  "}, {ansi_fg(v2), "ON/OFF  ANIMATION"}};
+            if (is(&RadioSettings::tab_current)) return {{ansi_fg(v1), "[COLORS]"}, {"", "  "}, {ansi_fg(v2), "ON/OFF  ANIMA/VIZ"}};
+            if (is(&RadioSettings::focus)) return {{ansi_fg(c.list_fg), "STATIONS "}, {ansi_fg(v1), "\u25C0"}};
             return {};
         };
-        line({});
         for (int r = 0; r < kColorRowCount; ++r) {
             if (r == kColorRowsAboveDivider) {
                 const std::string b = bar(static_cast<int>(out.size()));
@@ -2351,7 +2748,7 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
                 segs.push_back({"", right_align ? pad_left(label, label_w) : pad_right(label, label_w)});
                 segs.push_back({"", ": "});
                 const std::string v = cellv(r, col);
-                const bool sel = sm.row == r && sm.col == col;
+                const bool sel = crow == r && sm.col == col;
                 if (sel && sm.editing) {   // caret and marked range, like the path and key fields
                     const EditPaint p = paint_edit_field(sm.buffer, sm.edit, 4, "\x1b[41;37m", true);
                     segs.push_back({"\x1b[41;37m", p.s + spaces(std::max(0, 5 - p.cols))});
@@ -2372,6 +2769,14 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
             segs.push_back({"", "  "});
             for (auto& g : preview(r)) segs.push_back(g);
             line(segs);
+            if (!cr && r == 0) {   // SMOOTHNESS: how the frame's colour runs from TOP to BOTTOM
+                const bool on = sm.row == 2;
+                std::vector<Seg> sg = {{"", pad_right("", 15)}, {"", pad_right("SMOOTHNESS", 14) + ": "},
+                                       {on ? "\x1b[7m" : "", pad_right(c.border_smooth ? "smooth" : "rough", 7)}};
+                if (on) sg.push_back({tab_cur, "< \u2194 >"});
+                sg.push_back({legend, std::string(on ? "  " : "       ") + (c.border_smooth ? "frame fades from TOP to BOTTOM" : "only the bottom border line = BOTTOM")});
+                line(sg);
+            }
         }
     }
     const int body_end = H - 3;   // the square bottom border, the hint line and the status line follow
@@ -2384,11 +2789,27 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
     else if (sm.tab == 3 && sm.editing) hint = "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type or paste a folder (empty = default)";
     else if (sm.tab == 3) hint = "[TAB] Switch | [↑↓] Navigate | [ENTER] Edit / toggle | [s] Save | [ESC/q] Discard";
     else if (sm.tab >= 1) hint = "[TAB] Switch | [↑↓] Navigate | [←→/ENTER] Change | [s] Save | [ESC/q] Discard";
+    else if (cr && cr->editing) hint = cr->theme_row < 0 ? "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type the theme's name (25 characters at most)"
+                                                       : "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type a palette number 0-255 (empty or 0 = terminal colour)";
+    else if (cr) hint = "[\u2191\u2193\u2190\u2192] Navigate | [ENTER] Edit/Open | [s] Save theme | [ESC] Discard";
     else if (sm.editing) hint = "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type a palette number 0-255 (empty or 0 = terminal colour)";
-    else hint = "[TAB] Switch | [↑↓←→] Navigate | [ENTER] Edit | [s] Save | [ESC/q] Discard";
+    else hint = "[TAB] Switch | [↑↓←→] Navigate | [ENTER] Edit | [SHIFT+e/i] Export/Import theme | [s] Save | [ESC/q] Discard";
     out.push_back(seg_line({{legend, hint}}, W));
     out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status.empty() && sm.dirty ? std::string("Unsaved changes! Save with `s` or discard with `ESC`.") : sm.status, W)}}, W));
     return out;
+}
+
+std::vector<std::string> build_settings(const RadioSettings& c, const SettingsModel& sm, int W, int rows) {
+    if (sm.theme_ui == 4 || sm.theme_ui == 5) return build_theme_io(c, sm, W, rows);
+    if (sm.theme_ui == 1 || sm.theme_ui == 3) return build_theme_picker(c, sm, W, rows);
+    if (sm.theme_ui == 2) {   // the COLORS rows of the draft, in the draft's own colours
+        SettingsModel tm = sm;
+        tm.theme_ui = 0; tm.tab = 0;
+        tm.row = sm.theme_row; tm.col = sm.theme_col;
+        tm.editing = sm.editing && sm.theme_row >= 0;
+        return build_settings_impl(sm.theme_draft, tm, W, rows, &sm);
+    }
+    return build_settings_impl(c, sm, W, rows, nullptr);
 }
 
 // ===========================================================================================
@@ -2667,13 +3088,14 @@ std::vector<std::string> build_spectro_full(const Style& s, const UiModel& m, co
     return out;
 }
 
-std::vector<std::string> render_radio_frame(const UiModel& m, const RadioStatus& st, RadioEngine& engine, const RadioSettings& cfg) {
+std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioStatus& st, RadioEngine& engine, const RadioSettings& cfg) {
     Style s(cfg);
     std::vector<std::string> out;
     m.gfx.active = false;   // set again below when the scope is drawn as an image
     m.spectro_used = false;
     m.spectro_area[0] = -1;
     m.spectro_skip[2] = m.spectro_skip[3] = 0;
+    if (m.wizard_open) return build_wizard(s, m, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.cheat_open) return build_cheatsheet(s, m, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.hmenu.open) return build_history_menu(s, m, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.settings.open) return build_settings(cfg, m.settings, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
@@ -2792,10 +3214,27 @@ std::vector<std::string> render_radio_frame(const UiModel& m, const RadioStatus&
     return out;
 }
 
-// The scope window (SHIFT+9): the image style's values and colours, and "station: artist - title" as its title.
+// BorderGradient=smooth: the finished frame's border lines get the colour of their row, fading from ColorBorderTop (first
+// line with a border) to ColorBorderBottom (last one). The panel builders keep drawing with the two plain colours.
+std::vector<std::string> render_radio_frame(const UiModel& m, const RadioStatus& st, RadioEngine& engine, const RadioSettings& cfg) {
+    std::vector<std::string> out = render_radio_frame_inner(m, st, engine, cfg);
+    if (!cfg.border_smooth || m.settings.open) return out;   // the settings screen paints its own gradient
+    std::vector<std::string> glyphs = {"│", "─", "╭", "╮", "╰", "╯", "├", "┤", "┬", "┴", "┼"};
+    for (const std::string* g : {&cfg.box_upper_left, &cfg.box_upper_right, &cfg.box_lower_left, &cfg.box_lower_right, &cfg.box_vertical, &cfg.box_horizontal})
+        if (!g->empty()) glyphs.push_back(*g);
+    return border_gradient::apply(out, ansi_fg(cfg.border_top), ansi_fg(cfg.border_bottom), glyphs,
+                                  [&](float t) { return gradient_fg(cfg.border_top, cfg.border_bottom, t); });
+}
+
+// The scope window (SHIFT+9): the values and colours of the style in use (braille or image), and "station: artist - title" as its title.
 void fill_scope_window_config(const RadioSettings& cfg, const RadioStatus& st, ScopeWinConfig& c) {
     const Style s(cfg);
-    const OsciSet& o = cfg.osci_set[1];
+    const bool braille = cfg.osci_style == 0;   // the style set in the SHIFT+o overlay: braille = the terminal's dot grid, scaled up
+    const OsciSet& o = cfg.osci_set[braille ? 0 : 1];
+    c.braille = braille ? 1 : 0;
+    c.dot_threshold = o.dot_threshold;
+    c.tail = o.tail;
+    c.trace = o.trace;
     c.decay = o.decay;
     c.glow = o.glow;
     c.z_depth = o.z_depth;
@@ -2805,7 +3244,7 @@ void fill_scope_window_config(const RadioSettings& cfg, const RadioStatus& st, S
     c.mono_phase = o.mono_phase ? 1 : 0;
     c.interp = o.interp ? 1 : 0;
     c.color_by_x = o.palette == 0 ? 1 : 0;
-    c.music = cfg.osci_set[1].music ? 1 : 0;
+    c.music = o.music ? 1 : 0;
     for (int h = 0; h < 256; ++h) {
         int r = 255, g = 255, b = 255;
         palette_rgb(s, o.palette, static_cast<float>(h) / 255.0f, r, g, b);

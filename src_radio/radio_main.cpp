@@ -30,6 +30,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include "about_text.h"
 #include "radio_browser.h"
 #include "radio_engine.h"
 #include "radio_gfx.h"
@@ -43,6 +44,7 @@
 #include "radio_fuzzy.h"
 #include "radio_history.h"
 #include "radio_yt.h"
+#include "wizard.h"      // the help wizard's pages, shared with the music player
 #include "terminal_ui.h"
 
 #if defined(_WIN32)
@@ -437,12 +439,17 @@ int radio_main(int argc, char** argv) {
         if (a2 == "onoff" || a2 == "anim" || a2 == "paths" || a2 == "ref" || a2 == "about") {   // --dump-settings onoff|anim|paths|ref|about [row [edit]]
             const bool anim = a2 == "anim", paths = a2 == "paths", ref = a2 == "ref", about = a2 == "about";
             sm.tab = about ? 5 : ref ? 4 : paths ? 3 : anim ? 2 : 1;
-            const int maxrow = about ? kAboutLineCount : ref ? kKeyActionCount + 1 : paths ? kPathRowCount : anim ? kAnimRowCount : kOnOffRowCount;
+            const int maxrow = about ? static_cast<int>(about_app_text().size()) : ref ? kKeyActionCount + 1 : paths ? kPathRowCount : anim ? kAnimRowCount : kOnOffRowCount;
             sm.row = std::clamp(argc > 3 ? std::atoi(argv[3]) : 0, 0, maxrow - 1);
             if (ref && argc > 4 && std::string(argv[4]) == "edit") { sm.editing = true; sm.buffer = "u"; sm.edit.to_end(sm.buffer); }
             if (paths && argc > 4 && std::string(argv[4]) == "edit") { sm.editing = true; sm.buffer = "/home/me/radio files"; sm.edit.to_end(sm.buffer); }
         } else {
-            sm.row = std::clamp(argc > 2 ? std::atoi(argv[2]) : 0, 0, kColorRowCount - 1);
+            sm.row = std::clamp(argc > 2 ? std::atoi(argv[2]) : 0, 0, color_tab_row_count() - 1);
+            if (a2 == "pick" || a2 == "create") {   // --dump-settings pick|create: the THEME overlays
+                sm.theme_list = themes::load_all();
+                sm.theme_sel = 2; sm.theme_draft = cfg; sm.theme_base = sm.theme_list[0]; sm.theme_name = "My Theme";
+                sm.theme_ui = a2 == "pick" ? 1 : 2; sm.theme_row = argc > 3 ? std::atoi(argv[3]) : -1;
+            } else sm.theme_list = themes::load_all();
             sm.col = argc > 3 ? std::atoi(argv[3]) : 0;
             if (argc > 4 && std::string(argv[4]) == "edit") { sm.editing = true; sm.buffer = "21"; }
         }
@@ -774,6 +781,14 @@ int radio_main(int argc, char** argv) {
         if (save_radio_settings(cfg, &err)) { sm.status = "Saved " + radio_config_path().string(); sm.dirty = false; }
         else sm.status = "Could not save: " + err;
     };
+    // The first time the help wizard is closed it stops opening by itself.
+    // Written right away rather than at exit, so a crash cannot bring the
+    // welcome back on the next start.
+    auto wizard_seen_save = [&]() {
+        if (cfg.wizard_seen) return;
+        cfg.wizard_seen = true;
+        save_radio_settings(cfg, nullptr);
+    };
     // A PATHS value changed: switch the storage files (copying what is missing there), reload what lives in them, move the
     // history store and tell the downloader about the new folder.
     auto storage_changed = [&]() {
@@ -797,13 +812,27 @@ int radio_main(int argc, char** argv) {
         storage = np;
         sm.status = msg.empty() ? "" : msg;
     };
+    auto theme_dir_path = [](std::string dir) {
+        if (!dir.empty() && dir[0] == '~' && (dir.size() == 1 || dir[1] == '/' || dir[1] == '\\')) {
+            const char* home = std::getenv("HOME");
+            if (!home || !*home) home = std::getenv("USERPROFILE");
+            if (home) dir = std::string(home) + dir.substr(1);
+        }
+        return std::filesystem::path(dir);
+    };
+    auto theme_io_rescan = [&]() {
+        SettingsModel& sm = ui.model.settings;
+        sm.theme_io_files = themes::list_theme_files(theme_dir_path(sm.theme_io_dir));
+        sm.theme_io_sel = std::clamp(sm.theme_io_sel, 0, std::max(0, static_cast<int>(sm.theme_io_files.size()) - 1));
+    };
     auto settings_open = [&]() {
         SettingsModel& sm = ui.model.settings;
         settings_snapshot = cfg; settings_snapshot_valid = true;
         sm.open = true; sm.editing = false; sm.status.clear();
         sm.tab = 0; sm.row = 0; sm.col = 0;   // like the music player: always start on the first tab
         sm.row = std::clamp(sm.row, 0, kColorRowCount - 1);
-        if (!color_field(cfg, sm.row, sm.col)) sm.col = 0;
+        sm.theme_ui = 0;
+        sm.theme_list = themes::load_all();
     };
     // [S] saves and leaves the menu; ESC / Q leave WITHOUT saving: what was changed meanwhile is taken back
     // (the settings and the key undo stack as they were when the menu opened).
@@ -818,7 +847,7 @@ int radio_main(int argc, char** argv) {
         }
         settings_snapshot_valid = false;
         key_undo.clear();
-        sm.open = false; sm.editing = false;
+        sm.open = false; sm.editing = false; sm.theme_ui = 0;
         set_text_entry(false);
     };
     auto browse_close = [&]() { ui.model.browse.open = false; set_text_entry(false); ui.model.browse.flash.clear(); };
@@ -1031,6 +1060,14 @@ int radio_main(int argc, char** argv) {
             notice_until = ui.model.t_sec + 6;
         } else { ui.model.notice = err; notice_until = ui.model.t_sec + 10; }
     };
+    // First start of the radio after an install: greet with the help wizard,
+    // the same way the music player does. Closing it writes WizardSeen=true.
+    if (!cfg.wizard_seen) {
+        ui.model.wizard_open = true;
+        ui.model.wizard_page = 0;
+        ui.model.wizard_topic = 0;
+        ui.model.wizard_scroll = 0;
+    }
     while (running) {
         // search results arrive on a worker thread: copy the newest snapshot into the model, once per frame
         {
@@ -1116,6 +1153,63 @@ int radio_main(int argc, char** argv) {
         while ((k = term.poll_key()) != 0) {
             const bool arrow = last_key_was_arrow();
             const int nvis = static_cast<int>(ui.model.visible.size());
+            // ------------------------------------------------------------------ HELP WIZARD (SHIFT+w)
+            if (ui.model.wizard_open) {
+                // Same page model and keys as the player's: LEFT / RIGHT turn
+                // the page, UP / DOWN pick a topic on the contents page and
+                // scroll everywhere else, ENTER opens the highlighted topic.
+                const auto& wt = wizard::topics(wizard::Flavor::Radio);
+                int total_pages = 2;
+                for (const auto& t : wt) total_pages += static_cast<int>(t.pages.size());
+                auto step = [&](int d) {
+                    const int next = std::clamp(ui.model.wizard_page + d, 0, total_pages - 1);
+                    if (next == ui.model.wizard_page) return;
+                    ui.model.wizard_page = next;
+                    ui.model.wizard_scroll = 0;
+                    // Keep the contents cursor on whatever is being read, so
+                    // going back to the list lands on the right topic.
+                    int rest = next - 2;
+                    if (rest >= 0) {
+                        for (size_t i = 0; i < wt.size(); ++i) {
+                            const int n = static_cast<int>(wt[i].pages.size());
+                            if (rest < n) { ui.model.wizard_topic = static_cast<int>(i); break; }
+                            rest -= n;
+                        }
+                    }
+                };
+                if (k == 3 || k == kKeyCtrlC) running = false;
+                else if (arrow) {
+                    if (k == 'C') step(+1);
+                    else if (k == 'D') step(-1);
+                    else if (ui.model.wizard_page == 1) {
+                        const int n = static_cast<int>(wt.size());
+                        if (n > 0 && k == 'A') ui.model.wizard_topic = (ui.model.wizard_topic + n - 1) % n;
+                        if (n > 0 && k == 'B') ui.model.wizard_topic = (ui.model.wizard_topic + 1) % n;
+                    } else {
+                        if (k == 'A') --ui.model.wizard_scroll;      // the renderer clamps both ends
+                        else if (k == 'B') ++ui.model.wizard_scroll;
+                    }
+                } else if (k == 27 || k == 'q' || k == 'Q' || key_translate(cfg, k) == 'W') {
+                    ui.model.wizard_open = false;
+                    out_clear_next = true;
+                    wizard_seen_save();
+                } else if (k == 13 || k == 10) {
+                    if (ui.model.wizard_page == 1) {
+                        int page = 2;
+                        for (int i = 0; i < ui.model.wizard_topic && i < static_cast<int>(wt.size()); ++i)
+                            page += static_cast<int>(wt[static_cast<size_t>(i)].pages.size());
+                        ui.model.wizard_page = page;
+                        ui.model.wizard_scroll = 0;
+                    } else if (ui.model.wizard_page == 0) {
+                        ui.model.wizard_page = 1;
+                    }
+                } else if (k == 8 || k == 127) {                     // BACKSPACE: back to the contents
+                    ui.model.wizard_page = 1;
+                    ui.model.wizard_scroll = 0;
+                } else if (k == 'j') ++ui.model.wizard_scroll;
+                else if (k == 'k') --ui.model.wizard_scroll;
+                continue;
+            }
             // ------------------------------------------------------------------ CHEATSHEET (?)
             if (ui.model.cheat_open) {
                 if (k == 3 || k == kKeyCtrlC) running = false;
@@ -1130,6 +1224,147 @@ int radio_main(int argc, char** argv) {
             // ------------------------------------------------------------------ RADIO SETTINGS (s)
             if (ui.model.settings.open) {
                 SettingsModel& sm = ui.model.settings;
+                if (sm.theme_ui != 0) {                                        // the THEME picker / CREATE THEME overlay
+                    const int nt = static_cast<int>(sm.theme_list.size());
+                    if (sm.editing) {
+                        if (k == 3 || k == kKeyCtrlC) { sm.editing = false; set_text_entry(false); running = false; continue; }
+                        if (k == 27) { sm.editing = false; sm.status.clear(); set_text_entry(false); continue; }
+                        if ((k == 13 || k == 10) && (sm.theme_ui == 4 || sm.theme_ui == 5)) {
+                            if (sm.theme_ui == 4 && sm.theme_io_row == 0) sm.theme_io_name = themes::sanitize_name(sm.buffer);
+                            else {
+                                sm.theme_io_dir = sm.buffer;
+                                if (sm.theme_ui == 5) { theme_io_rescan(); sm.theme_io_sel = 0; sm.theme_io_row = sm.theme_io_files.empty() ? 0 : 1; }
+                            }
+                            sm.editing = false; set_text_entry(false);
+                            continue;
+                        }
+                        if (k == 13 || k == 10) {
+                            if (sm.theme_row < 0) sm.theme_name = themes::sanitize_name(sm.buffer);
+                            else {
+                                std::string* f = color_field(sm.theme_draft, sm.theme_row, sm.theme_col);
+                                if (f && valid_color_value(sm.buffer)) { *f = sm.buffer == "0" ? std::string() : sm.buffer; sm.status.clear(); }
+                                else sm.status = "Not a colour: use a palette number 0-255 (empty or 0 = terminal colour)";
+                            }
+                            sm.editing = false; set_text_entry(false);
+                            continue;
+                        }
+                        if (sm.theme_ui == 4 || sm.theme_ui == 5) {
+                            edit_text_key(sm.buffer, sm.edit, k, (sm.theme_ui == 4 && sm.theme_io_row == 0) ? static_cast<size_t>(themes::kMaxNameLen) : 240, &sm.status);
+                            continue;
+                        }
+                        if (sm.theme_row >= 0 && textedit_detail::is_text_key(k) && !arrow && !(k >= '0' && k <= '9')) continue;
+                        edit_text_key(sm.buffer, sm.edit, k, sm.theme_row < 0 ? static_cast<size_t>(themes::kMaxNameLen) : 3, &sm.status);
+                        continue;
+                    }
+                    if (k == 3 || k == kKeyCtrlC) { settings_close(false); running = false; continue; }
+                    if (sm.theme_ui == 4) {                                    // export the current colours as a theme file
+                        if (k == 27 || (!arrow && (k == 'q' || k == 'Q'))) { sm.theme_ui = 0; sm.status.clear(); continue; }
+                        if (arrow && k == 'A') { sm.theme_io_row = 0; continue; }
+                        if (arrow && k == 'B') { sm.theme_io_row = 1; continue; }
+                        if (k == 13 || k == 10) {
+                            sm.buffer = sm.theme_io_row == 0 ? sm.theme_io_name : sm.theme_io_dir;
+                            sm.edit.to_end(sm.buffer); sm.editing = true; sm.status.clear(); set_text_entry(true);
+                            continue;
+                        }
+                        if (!arrow && (k == 's' || k == 'S')) {
+                            const std::string name = themes::sanitize_name(sm.theme_io_name);
+                            if (name.empty()) { sm.status = "give the theme a name first"; continue; }
+                            const int cur = theme_index(cfg, sm.theme_list);
+                            themes::Theme t = theme_capture(cfg, sm.theme_list[static_cast<size_t>(cur >= 0 ? cur : 0)]);
+                            t.name = name;
+                            const std::filesystem::path file = theme_dir_path(sm.theme_io_dir) / themes::file_name_for(name);
+                            std::string err;
+                            if (!themes::write_theme_file(file, t, err)) { sm.status = err; continue; }
+                            sm.theme_ui = 0; sm.status = "EXPORTED " + file.string();
+                        }
+                        continue;
+                    }
+                    if (sm.theme_ui == 5) {                                    // import theme files from a folder
+                        const int nf = static_cast<int>(sm.theme_io_files.size());
+                        auto import_files = [&](const std::vector<std::filesystem::path>& files) {
+                            int n = 0; std::string last, err;
+                            for (const auto& f : files)
+                                for (themes::Theme& t : themes::read_theme_file(f)) {
+                                    const std::string name = themes::import_theme(t, err);
+                                    if (!name.empty()) { ++n; last = name; }
+                                }
+                            sm.theme_list = themes::load_all();
+                            sm.theme_ui = 0;
+                            sm.status = n == 0 ? (err.empty() ? std::string("no theme found in that file") : err)
+                                               : "IMPORTED " + std::to_string(n) + " THEME" + (n == 1 ? "" : "S") + (n == 1 ? ": " + last : std::string()) + " -- pick it in the THEME row";
+                        };
+                        if (k == 27 || (!arrow && (k == 'q' || k == 'Q'))) { sm.theme_ui = 0; sm.status.clear(); continue; }
+                        if (arrow && k == 'A') { if (sm.theme_io_row == 1 && sm.theme_io_sel > 0) --sm.theme_io_sel; else sm.theme_io_row = 0; continue; }
+                        if (arrow && k == 'B') {
+                            if (sm.theme_io_row == 0) { if (nf > 0) sm.theme_io_row = 1; }
+                            else if (sm.theme_io_sel < nf - 1) ++sm.theme_io_sel;
+                            continue;
+                        }
+                        if (k == 13 || k == 10) {
+                            if (sm.theme_io_row == 0) { sm.buffer = sm.theme_io_dir; sm.edit.to_end(sm.buffer); sm.editing = true; sm.status.clear(); set_text_entry(true); }
+                            else if (sm.theme_io_sel >= 0 && sm.theme_io_sel < nf) import_files({sm.theme_io_files[static_cast<size_t>(sm.theme_io_sel)]});
+                            continue;
+                        }
+                        if (!arrow && k == 'a') { if (nf > 0) import_files(sm.theme_io_files); continue; }
+                        continue;
+                    }
+                    if (sm.theme_ui == 1 || sm.theme_ui == 3) {
+                        if (k == 27 || (!arrow && (k == 'q' || k == 'Q'))) { sm.theme_ui = sm.theme_ui == 3 ? 2 : 0; continue; }
+                        if ((arrow && k == 'A') || (!arrow && k == 'k')) { sm.theme_sel = std::max(0, sm.theme_sel - 1); continue; }
+                        if ((arrow && k == 'B') || (!arrow && k == 'j')) { sm.theme_sel = std::min(std::max(0, nt - 1), sm.theme_sel + 1); continue; }
+                        if (k == kKeyHome) { sm.theme_sel = 0; continue; }
+                        if (k == kKeyEnd) { sm.theme_sel = std::max(0, nt - 1); continue; }
+                        if ((k == 13 || k == 10) && sm.theme_sel >= 0 && sm.theme_sel < nt) {
+                            const themes::Theme& t = sm.theme_list[static_cast<size_t>(sm.theme_sel)];
+                            if (sm.theme_ui == 1) {
+                                theme_apply(cfg, t);
+                                sm.dirty = true; sm.theme_ui = 0; sm.status = "THEME: " + t.name + " (s saves the settings)";
+                            } else {
+                                theme_apply(sm.theme_draft, t);
+                                sm.theme_base = t; sm.theme_ui = 2; sm.status = "template: " + t.name;
+                            }
+                        }
+                        continue;
+                    }
+                    // --- CREATE THEME
+                    if (k == 27 || (!arrow && (k == 'q' || k == 'Q'))) { sm.theme_ui = 0; sm.status.clear(); continue; }
+                    if (!arrow && (k == 's' || k == 'S')) {
+                        themes::Theme t = theme_capture(sm.theme_draft, sm.theme_base);
+                        t.name = themes::sanitize_name(sm.theme_name);
+                        std::string err;
+                        if (!themes::save_theme(t, err)) { sm.status = err; continue; }
+                        sm.theme_list = themes::load_all();
+                        theme_apply(cfg, t);
+                        sm.dirty = true; sm.theme_ui = 0;
+                        sm.status = "THEME \"" + t.name + "\" SAVED AND APPLIED (s saves the settings)";
+                        continue;
+                    }
+                    const bool up = (arrow && k == 'A') || (!arrow && k == 'k');
+                    const bool down = (arrow && k == 'B') || (!arrow && k == 'j');
+                    const bool left = (arrow && k == 'D') || (!arrow && k == 'h');
+                    const bool right = (arrow && k == 'C') || (!arrow && k == 'l');
+                    if (up) { if (sm.theme_row >= 0) { --sm.theme_row; if (sm.theme_row < 0) sm.theme_col = 0; } continue; }
+                    if (down) {
+                        if (sm.theme_row < kColorRowCount - 1) {
+                            ++sm.theme_row;
+                            if (sm.theme_col == 1 && !color_field(sm.theme_draft, sm.theme_row, 1)) sm.theme_col = 0;
+                        }
+                        continue;
+                    }
+                    if (left) { sm.theme_col = 0; continue; }
+                    if (right) { if (sm.theme_row < 0 || color_field(sm.theme_draft, sm.theme_row, 1)) sm.theme_col = 1; continue; }
+                    if (k == 13 || k == 10) {
+                        if (sm.theme_row < 0 && sm.theme_col == 1) {
+                            sm.theme_ui = 3; sm.theme_sel = 0;
+                            for (int i = 0; i < nt; ++i) if (sm.theme_list[static_cast<size_t>(i)].name == sm.theme_base.name) sm.theme_sel = i;
+                            continue;
+                        }
+                        if (sm.theme_row < 0) sm.buffer = sm.theme_name;
+                        else { const std::string* f = color_field(sm.theme_draft, sm.theme_row, sm.theme_col); sm.buffer = f ? *f : std::string(); }
+                        sm.edit.to_end(sm.buffer); sm.editing = true; sm.status.clear(); set_text_entry(true);
+                    }
+                    continue;
+                }
                 if (sm.editing && sm.tab == 3) {                              // a folder field: full line editor
                     if (k == 3) { sm.editing = false; set_text_entry(false); running = false; continue; }
                     if (k == 27 && !last_key_was_arrow()) { sm.editing = false; sm.status.clear(); set_text_entry(false); continue; }
@@ -1183,7 +1418,7 @@ int radio_main(int argc, char** argv) {
                     if (k == 3 || k == kKeyCtrlC) { sm.editing = false; set_text_entry(false); running = false; continue; }
                     if (k == 27) { sm.editing = false; sm.status.clear(); set_text_entry(false); continue; }
                     if (k == 13 || k == 10) {
-                        std::string* f = color_field(cfg, sm.row, sm.col);
+                        std::string* f = color_field(cfg, color_row_of_tab(sm.row), sm.col);
                         if (f && valid_color_value(sm.buffer)) {
                             *f = sm.buffer == "0" ? std::string() : sm.buffer;
                             sm.dirty = true; sm.status.clear();
@@ -1220,9 +1455,9 @@ int radio_main(int argc, char** argv) {
                     sm.tab = (sm.tab + 1) % 6; sm.row = 0; sm.col = 0; sm.status.clear();
                     continue;
                 }
-                const int nrows = sm.tab == 1 ? kOnOffRowCount : sm.tab == 2 ? kAnimRowCount : sm.tab == 3 ? kPathRowCount : sm.tab == 4 ? kKeyActionCount + 1 : sm.tab == 5 ? kAboutLineCount : kColorRowCount;
-                auto fix_col = [&]() { if (sm.tab >= 1 || !color_field(cfg, sm.row, sm.col)) sm.col = 0; };
-                auto toggle = [&](int dir) {   // ON/OFF and ANIMATION rows: left / right / ENTER
+                const int nrows = sm.tab == 1 ? kOnOffRowCount : sm.tab == 2 ? kAnimRowCount : sm.tab == 3 ? kPathRowCount : sm.tab == 4 ? kKeyActionCount + 1 : sm.tab == 5 ? static_cast<int>(about_app_text().size()) : color_tab_row_count();   // + the THEME and SMOOTHNESS rows
+                auto fix_col = [&]() { if (sm.tab >= 1 || (sm.row != 0 && !color_field(cfg, color_row_of_tab(sm.row), sm.col))) sm.col = 0; };
+                auto toggle = [&](int dir) {   // ON/OFF and ANIMA/VIZ rows: left / right / ENTER
                     if (sm.tab == 3) {   // PATHS: only the bool row toggles; the text rows are edited with ENTER
                         if (!path_row_is_bool(sm.row)) {
                             if (dir == 0) {
@@ -1235,7 +1470,7 @@ int radio_main(int argc, char** argv) {
                         sm.dirty = true; sm.status.clear(); storage_changed();
                         return;
                     }
-                    if (sm.tab == 1) on_off_change(cfg, sm.row, dir); else anim_change(cfg, sm.row, dir);
+                    rs_row_change(cfg, sm.tab, sm.row, dir);
                     ui.model.shuffle = cfg.playback_shuffle;
                     sm.dirty = true; sm.status.clear();
                     apply_audio();
@@ -1244,6 +1479,7 @@ int radio_main(int argc, char** argv) {
                     if (k == 'A') sm.row = std::max(0, sm.row - 1);
                     else if (k == 'B') sm.row = std::min(nrows - 1, sm.row + 1);
                     else if (sm.tab >= 1 && sm.tab <= 3) toggle(k == 'C' ? +1 : -1);
+                    else if (sm.row == 2) { cfg.border_smooth = !cfg.border_smooth; sm.dirty = true; sm.status.clear(); }   // SMOOTHNESS
                     else if (k == 'C') sm.col = 1;
                     else if (k == 'D') sm.col = 0;
                     fix_col();
@@ -1253,6 +1489,20 @@ int radio_main(int argc, char** argv) {
                 if (k == 's' || k == 'S') { settings_close(true); continue; }
                 if (k == 'j') { sm.row = std::min(nrows - 1, sm.row + 1); fix_col(); continue; }
                 if (k == 'k') { sm.row = std::max(0, sm.row - 1); fix_col(); continue; }
+                if (sm.tab == 0 && !arrow && (k == 'E' || k == 'I')) {        // SHIFT+e / SHIFT+i: export / import a theme
+                    sm.theme_list = themes::load_all();
+                    if (sm.theme_io_dir.empty()) sm.theme_io_dir = themes::exchange_dir().string();
+                    if (k == 'E') {
+                        const int cur = theme_index(cfg, sm.theme_list);
+                        sm.theme_io_name = cur >= 0 ? sm.theme_list[static_cast<size_t>(cur)].name : std::string("My Theme");
+                        sm.theme_io_row = 0; sm.theme_ui = 4;
+                    } else {
+                        sm.theme_io_sel = 0; theme_io_rescan();
+                        sm.theme_io_row = sm.theme_io_files.empty() ? 0 : 1; sm.theme_ui = 5;
+                    }
+                    sm.status.clear();
+                    continue;
+                }
                 if (sm.tab == 5) continue;                                     // ABOUT APP: only scrolls
                 if (sm.tab == 4) {                                             // REFERENCE
                     if (sm.row == 0) {                                          // the RESET line (right under the note)
@@ -1278,10 +1528,25 @@ int radio_main(int argc, char** argv) {
                     else if (k == 13 || k == 10 || k == ' ') toggle(0);
                     continue;
                 }
+                if (sm.row == 2) {                                              // SMOOTHNESS: rough <-> smooth
+                    if (k == 'h' || k == 'l' || k == 13 || k == 10 || k == ' ') { cfg.border_smooth = !cfg.border_smooth; sm.dirty = true; sm.status.clear(); }
+                    continue;
+                }
                 if (k == 'h') { sm.col = 0; continue; }
-                if (k == 'l') { if (color_field(cfg, sm.row, 1)) sm.col = 1; continue; }
+                if (k == 'l') { if (sm.row == 0 || color_field(cfg, color_row_of_tab(sm.row), 1)) sm.col = 1; continue; }
+                if ((k == 13 || k == 10) && sm.row == 0) {          // THEME | CREATE THEME
+                    sm.theme_list = themes::load_all();
+                    const int cur = theme_index(cfg, sm.theme_list);
+                    if (sm.col == 0) { sm.theme_sel = std::max(0, cur); sm.theme_ui = 1; }
+                    else {
+                        sm.theme_base = sm.theme_list[static_cast<size_t>(cur >= 0 ? cur : 0)];
+                        sm.theme_draft = cfg; sm.theme_name.clear(); sm.theme_row = -1; sm.theme_col = 0; sm.theme_ui = 2;
+                    }
+                    sm.status.clear();
+                    continue;
+                }
                 if (k == 13 || k == 10) {
-                    const std::string* f = color_field(cfg, sm.row, sm.col);
+                    const std::string* f = color_field(cfg, color_row_of_tab(sm.row), sm.col);
                     if (f) { sm.editing = true; sm.buffer = *f; sm.edit.to_end(sm.buffer); sm.status.clear(); set_text_entry(true); }
                     continue;
                 }
@@ -2072,6 +2337,12 @@ int radio_main(int argc, char** argv) {
                 case 'R': engine.reconnect(); break;                          // also for a Radio Browser station that is not in the list
                 case '/': set_search_focus(true); break;
                 case '?': ui.model.cheat_open = true; ui.model.cheat_scroll = 0; break;
+                case 'W':                         // Shift+W: the help wizard, as in the music player
+                    ui.model.wizard_open = true;
+                    ui.model.wizard_page = 0;
+                    ui.model.wizard_topic = 0;
+                    ui.model.wizard_scroll = 0;
+                    break;
                 case 'S': browse_open(); break;   // Shift+S: the RADIO BROWSER search menu
                 case 'P': lm_open(); break;       // Shift+P: the STATION LISTS menu
                 case 'T': ui.toggle_sort(); break; // Shift+T: STATIONS sort, list order <-> name A-Z (search results too)
@@ -2094,6 +2365,11 @@ int radio_main(int argc, char** argv) {
         ui.model.dt = std::chrono::duration<double>(now - last).count();
         ui.model.t_sec = std::chrono::duration<double>(now - t0).count();
         last = now;
+        // The wizard's welcome disk: a fixed 0.10, the same speed the player
+        // spins it at, and turning whether or not a station is playing.
+        if (ui.model.wizard_open)
+            ui.model.wizard_angle = std::fmod(ui.model.wizard_angle + (2.0 * 3.14159265358979323846 / 48.0) / 0.035 * 0.10 * ui.model.dt,
+                                              2.0 * 3.14159265358979323846);
 
         const int rows = term.rows(), cols = term.cols();
         std::string out;
