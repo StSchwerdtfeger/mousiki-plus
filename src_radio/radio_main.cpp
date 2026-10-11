@@ -629,6 +629,7 @@ int radio_main(int argc, char** argv) {
     GfxProto gfx = gfx_probe(cfg.gfx_protocol);
     ui.model.gfx_proto = gfx;
     bool gfx_shown = false;
+    bool gfx2_shown = false;   // the second picture of the big oscilloscope overlay (Kitty image id 1)
     auto next_frame = Clock::now();
     unsigned long gfx_tick = 0;
     bool running = true;
@@ -1708,11 +1709,42 @@ int radio_main(int argc, char** argv) {
                 if (k == key_of(cfg, "SpectroWindow")) { toggle_spectro_window(); continue; }
                 if (k == 27 || k == key_of(cfg, "SpectroMenu")) { ui.model.overlay = 0; settings_save(); continue; }
                 if (k == key_of(cfg, "SpectroFull")) {
-                    ui.model.spectro_full = !ui.model.spectro_full; out_clear_next = true;
+                    ui.model.spectro_full = !ui.model.spectro_full; if (ui.model.spectro_full) ui.model.scope_big = false; out_clear_next = true;
                     continue;
                 }
                 if (k == 'r' || k == 'R') { spectro_reset(cfg.spectro); ui.model.settings.dirty = true; continue; }
                 continue;
+            }
+            if (ui.model.scope_big && ui.model.overlay == 0 && !ui.model.cheat_open) {   // the big oscilloscope overlay (SHIFT+0)
+                UiModel& um = ui.model;
+                if (um.scope_big_color_edit) {                    // the grid colour is being typed: every key belongs to the prompt
+                    if (k == 3 || k == kKeyCtrlC) { running = false; continue; }
+                    if (arrow) continue;
+                    if (k == 27) { um.scope_big_color_edit = false; }
+                    else if (k == 13 || k == 10) {
+                        um.scope_big_color_edit = false;
+                        if (um.scope_big_color_buf.empty()) cfg.scope_grid_color.clear();   // empty = the colour of inactive list elements
+                        else cfg.scope_grid_color = std::to_string(std::clamp(std::atoi(um.scope_big_color_buf.c_str()), 0, 255));
+                        settings_save();
+                    } else if ((k == 127 || k == 8) && !um.scope_big_color_buf.empty()) um.scope_big_color_buf.pop_back();
+                    else if (k >= '0' && k <= '9' && um.scope_big_color_buf.size() < 3) um.scope_big_color_buf.push_back(static_cast<char>(k));
+                    continue;
+                }
+                if (um.scope_metrics_open) {                      // the metrics window: UP / DOWN pick a row, LEFT / RIGHT change it
+                    if (k == 3 || k == kKeyCtrlC) { running = false; continue; }
+                    if (arrow) {
+                        if (k == 'A') um.scope_metrics_row = (um.scope_metrics_row + kScopeMetricRows - 1) % kScopeMetricRows;
+                        else if (k == 'B') um.scope_metrics_row = (um.scope_metrics_row + 1) % kScopeMetricRows;
+                        else if (k == 'C' || k == 'D') { scope_metric_step(cfg.scope_metrics, um.scope_metrics_row, k == 'C' ? 1 : -1); settings_save(); }
+                    } else if (k == 27 || k == 'P') um.scope_metrics_open = false;
+                    else if (k == 'r' || k == 'R') { cfg.scope_metrics = ScopeMetrics(); settings_save(); }
+                    continue;
+                }
+                if (!arrow && k == 27) { um.scope_big = false; out_clear_next = true; continue; }
+                if (!arrow && k == 'P') { um.scope_metrics_open = true; continue; }                                    // SHIFT+p: grid metrics
+                if (!arrow && k == 'A') { cfg.scope_grid = !cfg.scope_grid; settings_save(); continue; }               // SHIFT+a: axes / grid
+                if (!arrow && k == 'V') { cfg.scope_values = !cfg.scope_values; settings_save(); continue; }               // SHIFT+v: axis values
+                if (!arrow && k == 'C') { um.scope_big_color_edit = true; um.scope_big_color_buf.clear(); continue; }   // SHIFT+c: grid colour
             }
             if (ui.model.spectro_full && ui.model.overlay == 0 && !ui.model.cheat_open && k == 27 && !arrow) {   // ESC leaves the full screen
                 ui.model.spectro_full = false;
@@ -1737,6 +1769,7 @@ int radio_main(int argc, char** argv) {
                             osci_adjust(cfg, id, k == 'C' ? +1 : -1);
                             if (cfg.gfx_protocol != proto_before) {   // another protocol was picked: ask / look again
                                 if (gfx_shown) { std::string off = gfx_clear(gfx); write_frame(off); gfx_shown = false; }
+                                if (gfx2_shown) { std::string off = gfx_clear(gfx, 1); write_frame(off); gfx2_shown = false; }
                                 gfx = gfx_probe(cfg.gfx_protocol);
                                 ui.model.gfx_proto = gfx;
                             }
@@ -1744,6 +1777,10 @@ int radio_main(int argc, char** argv) {
                         } else { norm_adjust(cfg, orow, k == 'C' ? +1 : -1); apply_audio(); }
                         ui.model.settings.dirty = true;
                     }
+                    continue;
+                }
+                if (osci && k == key_of(cfg, "ScopeBig")) {   // the big overlay can be opened / closed from the options too
+                    ui.model.scope_big = !ui.model.scope_big; ui.model.spectro_full = false; ui.model.scope_big_color_edit = false; ui.model.scope_metrics_open = false; out_clear_next = true;
                     continue;
                 }
                 if (k == 27 || (osci && k == key_of(cfg, "OsciMenu")) || (!osci && k == key_of(cfg, "NormMenu"))) { close_overlay(); continue; }
@@ -2287,7 +2324,14 @@ int radio_main(int argc, char** argv) {
                     if (engine.status().state == StreamState::Idle) tune_visible(ui.model.cursor);
                     else engine.set_muted(!engine.status().muted);
                     break;
-                case '+': case '=': engine.set_volume(engine.status().volume + 5); break;
+                case '+': engine.set_volume(engine.status().volume + 5); break;
+                case '=':                                  // SHIFT+0 on a German keyboard: the big oscilloscope overlay
+                    ui.model.scope_big = !ui.model.scope_big;
+                    ui.model.spectro_full = false;
+                    ui.model.scope_big_color_edit = false;
+                    ui.model.scope_metrics_open = false;
+                    out_clear_next = true;
+                    break;
                 case '-': case '_': engine.set_volume(engine.status().volume - 5); break;
                 case 'x': engine.stop(); break;
                 case 's': settings_open(); break;      // the RADIO SETTINGS screen
@@ -2306,6 +2350,7 @@ int radio_main(int argc, char** argv) {
                 case 'I': ui.model.overlay = 6; ui.model.overlay_row = kSrStyle; break;   // Shift+I: spectrogram options
                 case 'U':                              // Shift+U: spectrogram full screen
                     ui.model.spectro_full = !ui.model.spectro_full;
+                    if (ui.model.spectro_full) ui.model.scope_big = false;
                     out_clear_next = true;
                     break;
                 case 'h': {                            // the LISTENING HISTORY
@@ -2416,12 +2461,15 @@ int radio_main(int argc, char** argv) {
             if (!ui.model.spectro_used) spectro().set_visible(false);
             if (out.find("\x1b[2J") != std::string::npos) spectro_gfx.invalidate();
             const bool sixel_on = (gfx == GfxProto::Sixel && ui.model.gfx.active) || (sp_img && sp_proto == 2);
-            if (sixel_on && (!gfx_shown || out.find("\x1b[2J") != std::string::npos)) ui.model.gfx.fresh = true;
+            if (sixel_on && (!gfx_shown || out.find("\x1b[2J") != std::string::npos)) { ui.model.gfx.fresh = true; ui.model.gfx2.fresh = true; }
             gfx_fill_holes(out, sixel_on);
             // the image goes after the text (Sixel replaces the cells; a Kitty image sits under the text and is replaced in place)
             if (ui.model.gfx.active && gfx != GfxProto::None) { out += gfx_emit(gfx, ui.model.gfx); gfx_shown = ui.model.gfx.crop < ui.model.gfx.cols; }
             else if (gfx_shown) { out += gfx_clear(gfx); gfx_shown = false; }
             if (gfx == GfxProto::None && gfx_shown) gfx_shown = false;
+            if (ui.model.gfx.active && ui.model.gfx2.active && gfx != GfxProto::None) {
+                if (ui.model.gfx2.fresh || !gfx2_shown) { out += gfx_emit(gfx, ui.model.gfx2); gfx2_shown = true; }
+            } else if (gfx2_shown) { out += gfx_clear(gfx, 1); gfx2_shown = false; }
             if (sp_img) {
                 const int* a = ui.model.spectro_area;
                 const int* sk = ui.model.spectro_skip;
@@ -2442,6 +2490,7 @@ int radio_main(int argc, char** argv) {
     rhist.tick(engine.status(), 0.0, static_cast<long long>(std::time(nullptr)));   // closes the live line
     rhist.close_live();
     if (gfx_shown) { write_frame(gfx_clear(gfx)); gfx_shown = false; }
+    if (gfx2_shown) { write_frame(gfx_clear(gfx, 1)); gfx2_shown = false; }
     if (spectro_gfx.shown()) write_frame(spectro_gfx.clear(gfx == GfxProto::Kitty ? 1 : 2));   // nothing of it may outlive the radio
     if (switch_mode) terminal_hold_alt_screen();   // the player takes the screen over: no flash of the shell in between
     return switch_mode ? kExitSwitchMode : 0;

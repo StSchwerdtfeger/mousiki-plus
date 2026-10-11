@@ -1,6 +1,7 @@
 #include "radio_ui.h"
 #include "about_text.h"
 #include "border_gradient.h"
+#include "scope_big.h"
 #include "scope_window.h"
 #include "keyboard_layout.h"
 #include <algorithm>
@@ -528,6 +529,7 @@ void palette_rgb(const Style& s, int id, float t, int& r, int& g, int& b) {
         return;
     }
     if (id == 2) { temperature_rgb(t, r, g, b); return; }
+    if (id == 8) { r = 70; g = 255; b = 90; return; }   // classic green: the phosphor of an old scope, brightness alone makes the picture
     const int k = std::clamp(id - 3, 0, 4);
     const float f = t * 4.0f;
     const int i = std::min(3, static_cast<int>(f));
@@ -550,8 +552,8 @@ std::string utf8_cp(int cp) {
     return o;
 }
 
-RadioScope::Params scope_params(const RadioSettings& c, double dt) {
-    const OsciSet& o = c.osci();
+RadioScope::Params scope_params(const RadioSettings& c, double dt, int style = -1) {   // style: 0 braille, 1 image, -1 the one in use
+    const OsciSet& o = style < 0 ? c.osci() : c.osci_set[style == 1 ? 1 : 0];
     RadioScope::Params p;
     // the afterglow is set per frame at 30 fps: scale it by the real frame time so a higher frame rate keeps the same look
     p.decay = std::pow(o.decay, static_cast<float>(std::clamp(dt, 0.004, 0.15) * 30.0));
@@ -565,7 +567,8 @@ RadioScope::Params scope_params(const RadioSettings& c, double dt) {
     p.rotate = o.rotate;
     p.mono_phase = o.mono_phase;
     p.glow = o.glow;
-    if (c.osci().music) { p.mono_phase = false; p.fixed_gain = true; }   // oscilloscope music mode: the exact figure
+    p.mode = c.osci_mode;
+    if (o.music) { p.mono_phase = false; p.fixed_gain = true; }   // oscilloscope music mode: the exact figure
     return p;
 }
 
@@ -1731,6 +1734,8 @@ const CheatRow kCheatRows[] = {
     {nullptr, ".", "Cycle the scope block: oscilloscope / sphere / spectrogram, like . in the player (rebindable; what is off on the ON/OFF tab is skipped)"},
     {nullptr, "SHIFT+i", "Spectrogram options overlay (style, motion, scale, frequencies, gain, range, window, colors, channels, time span; R = Audacity's defaults)"},
     {nullptr, "SHIFT+u", "Spectrogram full screen with frequency labels and time ruler (toggle; ESC closes)"},
+    {nullptr, "SHIFT+0", "Oscilloscope full screen: YT mode left, XY mode right, values in the border (toggle; ESC closes; the SHIFT+o options open on top of it). The key is the character = (SHIFT+0 on a German keyboard)"},
+    {nullptr, "SHIFT+a / v / c / p", "Oscilloscope full screen: axes / grid on or off   axis values on or off   grid colour (small window: type 0-255, empty = colour of inactive list elements)   grid metrics (small window: time unit, grid divisions, steady readouts in the picture names: RMS level, peak hold, L/R correlation, L/R balance)"},
     {nullptr, "SHIFT+o", "Oscilloscope overlay (osci music mode, style, frame rate up to 165 -- all per style --, image protocol, image resolution, afterglow, dot threshold, tail, Line/Vec. Interpol., Z-Axis, Z depth / source, trace length, rotation, mono phase portrait; R resets)"},
     {nullptr, ")", "Scope window: the oscilloscope in its own window, drawn by the graphics card, braille or image style as set in the SHIFT+o overlay (toggle; needs SDL2). In it: F / F11 / double-click fullscreen, T always on top, ESC closes"},
     {nullptr, "(", "Spectrogram window: the spectrogram in its own window, scrolling smoothly at the monitor's refresh rate (toggle; needs SDL2; same keys inside it)"},
@@ -2576,7 +2581,9 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
         std::vector<std::vector<Seg>> note;   // ANIMA/VIZ: where the oscilloscope and the spectrogram are tuned (pinned at the bottom)
         if (sm.tab == 2) {
             note.push_back({});
-            const std::string txt = "The oscilloscope/spectrogram are tuned live via an option overlay: [SHIFT+O] oscilloscope [SHIFT+I] spectrogram. SHIFT+U opens the big overlay of the spectrogram; " +
+            const std::string txt = "The oscilloscope/spectrogram are tuned live via an option overlay: [SHIFT+O] oscilloscope [SHIFT+I] spectrogram. [SHIFT+U/" +
+                [] { const std::string k = muisc::symbol_key_label("="); return k.rfind("SHIFT+", 0) == 0 ? k.substr(6) : k; }() +
+                "] opens a big overlay of both; " +
                 muisc::symbol_key_label(")") + " and " + muisc::symbol_key_label("(") + " open an extra window.";
             const int cap = std::max(20, inner - 6);
             std::string rest = txt;
@@ -2817,7 +2824,7 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
 // Overlays over the main screen: SHIFT+o oscilloscope tuning, SHIFT+v loudness normalisation (same rows, ranges and
 // keys as the music player's).
 // ===========================================================================================
-constexpr int kOsciOverlayW = 44;
+constexpr int kOsciOverlayW = 50;
 constexpr int kNormOverlayW = 54;
 constexpr int kSleepOverlayW = 52;
 constexpr int kRecordOverlayW = 56;
@@ -2984,7 +2991,7 @@ std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const R
         for (int i = 0; i < static_cast<int>(ids.size()); ++i) {
             const bool on = i == m.overlay_row;
             lines.push_back(row(std::string(on ? "> " : "  ") + pad_right(osci_row_label(ids[static_cast<size_t>(i)]), 22)
-                                + pad_left(osci_row_value(c, ids[static_cast<size_t>(i)]), 12), on));
+                                + pad_left(osci_row_value(c, ids[static_cast<size_t>(i)]), 18), on));
         }
         lines.push_back(row(c.scope_mode == 2 ? "The scope is switched off (ON/OFF tab: Osci/sphere)"
                                               : "[UP/DOWN] select   [LEFT/RIGHT] change", false, "\x1b[90m"));
@@ -3089,10 +3096,200 @@ std::vector<std::string> build_spectro_full(const Style& s, const UiModel& m, co
     return out;
 }
 
+// SHIFT+0: the oscilloscope over the whole screen, YT on the left and XY on the right, each in its own phosphor buffer (fed from the
+// engine's scope), with an optional grid (SHIFT+a) in an adjustable colour (SHIFT+c). The options overlay can sit on top of it.
+RadioScope& big_scope(int i) { static RadioScope sc[2]; return sc[i & 1]; }
+
+constexpr int kScopeColorW = 48;
+constexpr int kScopeMetricsW = 52;
+
+// The window of the grid metrics (SHIFT+p in the oscilloscope overlay): what the axis values are measured in, the divisions of the
+// grid and the measurement each picture's name shows -- separately for the YT and the XY picture.
+std::vector<std::string> build_scope_metrics_panel(const Style& s, const UiModel& m) {
+    const RadioSettings& c = s.c;
+    const int W = kScopeMetricsW, inner = W - 4;
+    const std::string bar = s.border + c.box_vertical + kReset;
+    auto row = [&](const std::string& plain, bool hi, bool head) {
+        const std::string x = truncate_str(plain, inner);
+        const std::string body = x + spaces(inner - display_width(x));
+        return bar + " " + (hi ? "\x1b[7m" + body + kReset : head ? s.legend + body + kReset : body) + " " + bar;
+    };
+    std::vector<std::string> lines;
+    lines.push_back(box_top(s, W, "Grid metrics", s.border));
+    for (const auto& r : scope_metric_panel_rows(c.scope_metrics, m.scope_metrics_row, inner)) {
+        const bool head = !r.second && r.first.size() > 1 && r.first[0] != ' ' && r.first[0] != '>';
+        lines.push_back(row(r.first, r.second, head));
+    }
+    lines.push_back(row("Readouts are averaged and update twice a second.", false, false));
+    lines.push_back(row("[UP/DOWN] select  [LEFT/RIGHT] change", false, false));
+    lines.push_back(box_bottom(s, W, "[R] reset  [SHIFT+p / ESC] close", s.border_bottom));
+    return lines;
+}
+
+// The small window for typing the grid colour (SHIFT+c in the oscilloscope overlay): the digits typed so far and a swatch.
+std::vector<std::string> build_scope_color_panel(const Style& s, const UiModel& m) {
+    const RadioSettings& c = s.c;
+    const int W = kScopeColorW, inner = W - 4;
+    const std::string bar = s.border + c.box_vertical + kReset;
+    auto row = [&](const std::string& plain) {
+        const std::string x = truncate_str(plain, inner);
+        return bar + " " + x + spaces(inner - display_width(x)) + " " + bar;
+    };
+    const std::string shown = m.scope_big_color_buf.empty() ? (c.scope_grid_color.empty() ? c.list_fg : c.scope_grid_color)
+                                                            : std::to_string(std::clamp(std::atoi(m.scope_big_color_buf.c_str()), 0, 255));
+    std::vector<std::string> lines;
+    lines.push_back(box_top(s, W, "Grid color", s.border));
+    lines.push_back(row("Color (0-255): " + m.scope_big_color_buf + "█"));
+    const std::string label = "Preview: ";
+    std::string blocks;
+    for (int i = 0; i < 8; ++i) blocks += "█";
+    lines.push_back(bar + " " + label + ansi_fg(shown) + blocks + kReset + spaces(inner - static_cast<int>(label.size()) - 8) + " " + bar);
+    lines.push_back(row("Empty = color of inactive list elements"));
+    lines.push_back(box_bottom(s, W, "[ENTER] ok  [ESC] cancel", s.border_bottom));
+    return lines;
+}
+
+std::vector<std::string> build_scope_big(const Style& s, const UiModel& m, const RadioStatus& st, RadioEngine& engine, int W, int rows_total) {
+    const RadioSettings& c = s.c;
+    const int inner = W - 2;
+    const int avail = std::max(3, rows_total - 2);   // between the top and the bottom border
+    const bool grid = c.scope_grid, values = c.scope_values;
+    const ScopeBigGeom g = scope_big_geometry(inner, avail, values);
+    RadioScope& yt = big_scope(0);
+    RadioScope& xy = big_scope(1);
+    yt.copy_ring_from(engine.scope());
+    xy.copy_ring_from(engine.scope());
+    // Osci style "image" on a terminal with Kitty graphics / Sixel: two real pixel pictures (their own values, osci_set[1])
+    const bool image = c.osci_style == 1 && m.gfx_proto != GfxProto::None && g.cols > 0 && g.rows > 0;
+    RadioScope::Params px = scope_params(c, m.dt, image ? 1 : 0);
+    px.mode = 0;
+    RadioScope::Params py = px;
+    py.mode = 1;
+    const OsciSet& os = c.osci_set[image ? 1 : 0];
+    const int pal = os.palette;
+    auto color_of = [&](int tx, int cols, uint8_t hue, float k) {
+        if (pal == 0) return dim_ansi(s.osci_at(cols > 1 ? static_cast<float>(tx) / static_cast<float>(cols - 1) : 0.0f), k);
+        int r = 255, gg = 255, b = 255;
+        palette_rgb(s, pal, hue / 255.0f, r, gg, b);
+        return rgb_seq(r, gg, b, k);
+    };
+    const std::string grid_ansi = ansi_fg(c.scope_grid_color.empty() ? c.list_fg : c.scope_grid_color);
+    const ScopeMetrics& sm = c.scope_metrics;
+    std::vector<std::string> left, right;
+    if (image) {
+        // The terminal draws the pictures itself: the boxes are placeholder cells (the main loop writes the pictures from
+        // m.gfx / m.gfx2), the grid is part of each picture.
+        const int cw0 = std::max(4, m.cell_w), ch0 = std::max(8, m.cell_h);
+        const int cwq = std::clamp(640 / g.cols, 4, cw0);
+        const int scale = std::clamp(c.image_scale, 1, 3);
+        const int cws = std::max(2, std::min(cwq, cw0 / scale));
+        const int chs = std::max(4, static_cast<int>(std::lround(static_cast<double>(cws) * ch0 / cw0)));
+        int gr = 128, gg2 = 128, gb = 128;
+        color_rgb(c.scope_grid_color.empty() ? c.list_fg : c.scope_grid_color, gr, gg2, gb);
+        for (int k = 0; k < 2; ++k) {
+            GfxFrame& F = k == 0 ? m.gfx : m.gfx2;
+            RadioScope& sc = k == 0 ? yt : xy;
+            const RadioScope::Params& pp = k == 0 ? py : px;
+            F.id = k; F.scale = scale; F.out_cw = cw0; F.out_ch = ch0; F.crop = 0; F.cut_w = 0;
+            F.cols = g.cols; F.rows = g.rows; F.w = g.cols * cws; F.h = g.rows * chs;
+            F.row = 1 + g.top + 1;
+            F.col = 1 + g.margin + g.lab + (k == 0 ? 0 : g.cols + g.gap + g.lab);
+            sc.render_image(F.w, F.h, pp, F.level, F.hue);
+            if (pal == 0) {
+                for (int y = 0; y < F.h; ++y)
+                    for (int x = 0; x < F.w; ++x) F.hue[static_cast<size_t>(y) * F.w + x] = static_cast<uint8_t>(x * 255 / std::max(1, F.w - 1));
+            }
+            for (int h2 = 0; h2 < 256; ++h2) {
+                int r = 255, g3 = 255, b = 255;
+                palette_rgb(s, pal, static_cast<float>(h2) / 255.0f, r, g3, b);
+                F.pal[static_cast<size_t>(h2)] = {static_cast<uint8_t>(r), static_cast<uint8_t>(g3), static_cast<uint8_t>(b)};
+            }
+            if (grid) F.grid = k == 0 ? scope_grid_pixels(F.w, F.h, g.cols, g.rows, 1, sm.yt_time_div, sm.yt_value_div)
+                                      : scope_grid_pixels(F.w, F.h, g.cols, g.rows, 0, sm.xy_div, sm.xy_div);
+            else F.grid.clear();
+            F.grid_rgb = {static_cast<uint8_t>(gr), static_cast<uint8_t>(gg2), static_cast<uint8_t>(gb)};
+            F.active = true;
+            F.fresh = m.gfx_due;
+        }
+        left.assign(static_cast<size_t>(g.rows), gfx_hole(g.cols));
+        right = left;
+    } else {
+        left = scope_big_pane(yt, py, g.cols, g.rows, grid, 1, grid_ansi, color_of, sm.yt_time_div, sm.yt_value_div);
+        right = scope_big_pane(xy, px, g.cols, g.rows, grid, 0, grid_ansi, color_of, sm.xy_div, sm.xy_div);
+    }
+
+    ScopeBigInfo info;   // the radio's scope always runs at 48 kHz
+    info.m = sm;
+    info.rotate = os.rotate;
+    info.samples = std::clamp(os.trace, 128, 1024);
+    info.ms = info.samples * 1000.0 / 48000.0;
+    info.music = px.fixed_gain;
+    {
+        const RadioScope::Measure me = yt.measure(px);
+        info.rms_db = me.rms_db;
+        info.peak_db = me.peak_db;
+        info.corr = me.corr;
+        info.bal_db = me.bal_db;
+    }
+    const std::vector<std::string> body = scope_big_compose(g, inner, avail, left, right, s.legend, grid_ansi, info);
+    std::string title = "OSCILLOSCOPE";
+    const std::string name = st.tuned_name.empty() ? st.info.station : st.tuned_name;
+    if (!name.empty()) title += " - " + name;
+    if (!st.info.title.empty()) title += ": " + (st.info.artist.empty() ? st.info.title : st.info.artist + " - " + st.info.title);
+    const std::string bar = s.border + c.box_vertical + kReset;
+    std::vector<std::string> out;
+    out.push_back(box_top(s, W, truncate_str(title, W - 6), s.border));
+    for (const std::string& line : body) out.push_back(bar + line + bar);
+    const std::string foot_head = "[SHIFT+o] options  [" + muisc::symbol_key_label("=") + "/ESC] close  ";
+    const std::string foot = scope_pick_head({foot_head + "[SHIFT+a] grid  [SHIFT+v] values  [SHIFT+c] color  [SHIFT+p] metrics",
+                                              foot_head + "[SHIFT+a/v/c/p] grid / values / color / metrics"}, W - 6);
+    out.push_back(box_bottom(s, W, truncate_str(foot, W - 6), s.border_bottom));
+    std::vector<std::string> panel;
+    int panel_w = kOsciOverlayW;
+    int panel_rect[4] = {0, 0, 0, 0};   // x, y, w, h in cells, 0-based
+    if (m.overlay == 1) panel = build_overlay(s, m, st);   // the oscilloscope options on top of it
+    else if (m.scope_big_color_edit) { panel = build_scope_color_panel(s, m); panel_w = kScopeColorW; }
+    else if (m.scope_metrics_open) { panel = build_scope_metrics_panel(s, m); panel_w = kScopeMetricsW; }
+    if (!panel.empty()) {
+        const int ph = static_cast<int>(panel.size());
+        const int x = std::max(0, (W - panel_w) / 2);
+        const int y = std::clamp((static_cast<int>(out.size()) - ph) / 2, 0, std::max(0, static_cast<int>(out.size()) - ph));
+        for (int i = 0; i < ph && y + i < static_cast<int>(out.size()); ++i)
+            out[static_cast<size_t>(y + i)] = splice_line(out[static_cast<size_t>(y + i)], x, panel[static_cast<size_t>(i)], panel_w);
+        m.spectro_skip[0] = y; m.spectro_skip[1] = x; m.spectro_skip[2] = ph; m.spectro_skip[3] = panel_w;
+        panel_rect[0] = x; panel_rect[1] = y; panel_rect[2] = panel_w; panel_rect[3] = ph;
+    }
+    // image style: a panel cuts a hole into the pictures it covers (pixels cleared; Sixel keeps those cells too), and a
+    // changed hole means new pictures
+    for (int k = 0; k < 2 && image; ++k) {
+        GfxFrame& F = k == 0 ? m.gfx : m.gfx2;
+        int cut[4] = {-1, -1, -1, -1};
+        if (panel_rect[2] > 0 && panel_rect[3] > 0) {
+            const int c0 = std::max(panel_rect[0], F.col), c1 = std::min(panel_rect[0] + panel_rect[2], F.col + F.cols);
+            const int r0 = std::max(panel_rect[1], F.row), r1 = std::min(panel_rect[1] + panel_rect[3], F.row + F.rows);
+            if (c0 < c1 && r0 < r1) { cut[0] = c0 - F.col; cut[1] = r0 - F.row; cut[2] = c1 - c0; cut[3] = r1 - r0; }
+        }
+        if (cut[2] > 0) {
+            F.cut_c = cut[0]; F.cut_r = cut[1]; F.cut_w = cut[2]; F.cut_h = cut[3];
+            const int xa = F.cut_c * F.w / F.cols, xb = (F.cut_c + F.cut_w) * F.w / F.cols;
+            const int ya = F.cut_r * F.h / F.rows, yb = (F.cut_r + F.cut_h) * F.h / F.rows;
+            for (int y2 = ya; y2 < yb && y2 < F.h; ++y2)
+                for (int x2 = xa; x2 < xb && x2 < F.w; ++x2) {
+                    F.level[static_cast<size_t>(y2) * F.w + x2] = 0;
+                    if (!F.grid.empty()) F.grid[static_cast<size_t>(y2) * F.w + x2] = 0;
+                }
+        } else F.cut_w = 0;
+        if (!std::equal(cut, cut + 4, m.scope_cut_last + k * 4)) F.fresh = true;
+        std::copy(cut, cut + 4, m.scope_cut_last + k * 4);
+    }
+    return out;
+}
+
 std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioStatus& st, RadioEngine& engine, const RadioSettings& cfg) {
     Style s(cfg);
     std::vector<std::string> out;
     m.gfx.active = false;   // set again below when the scope is drawn as an image
+    m.gfx2.active = false;
     m.spectro_used = false;
     m.spectro_area[0] = -1;
     m.spectro_skip[2] = m.spectro_skip[3] = 0;
@@ -3104,6 +3301,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     if (m.browse.open) return build_browse(s, m, st, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.menu.open) return build_menu(s, m, st, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.stov.open) return build_stations_overlay(s, m, st, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
+    if (m.scope_big) return build_scope_big(s, m, st, engine, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.spectro_full) return build_spectro_full(s, m, st, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
 
     // Sizing: width follows the terminal (clamped), the frame is as tall as the terminal, and only
@@ -3233,6 +3431,7 @@ void fill_scope_window_config(const RadioSettings& cfg, const RadioStatus& st, S
     const bool braille = cfg.osci_style == 0;   // the style set in the SHIFT+o overlay: braille = the terminal's dot grid, scaled up
     const OsciSet& o = cfg.osci_set[braille ? 0 : 1];
     c.braille = braille ? 1 : 0;
+    c.mode = static_cast<uint8_t>(std::clamp(cfg.osci_mode, 0, 4));
     c.dot_threshold = o.dot_threshold;
     c.tail = o.tail;
     c.trace = o.trace;

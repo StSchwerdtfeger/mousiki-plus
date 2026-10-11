@@ -26,6 +26,15 @@ struct GfxFrame {
     std::vector<uint8_t> level;     // brightness 0..255, w * h
     std::vector<uint8_t> hue;       // colour index 0..255, w * h (see `pal`)
     std::array<std::array<uint8_t, 3>, 256> pal{};   // hue -> colour at full brightness
+    // A second, third ... picture at the same time (the big oscilloscope overlay shows two): Kitty image id offset (0, 1, ...).
+    int id = 0;
+    // Optional grid layer, w * h (empty = none): non-zero pixels are drawn in `grid_rgb` wherever the trace is faint, so the grid
+    // sits under the beam. (The braille style puts the grid in text cells; a picture covers its cells, so it carries its own.)
+    std::vector<uint8_t> grid;
+    std::array<uint8_t, 3> grid_rgb{128, 128, 128};
+    // A rectangle of cells, relative to col / row, that something else covers (a floating panel): the caller has cleared its
+    // pixels; Sixel must not erase its cells either. cut_w = 0: none.
+    int cut_c = 0, cut_r = 0, cut_w = 0, cut_h = 0;
 };
 
 // Which protocol does this terminal speak? `pref` = "auto" | "kitty" | "sixel" | "off" (the environment variable
@@ -36,7 +45,7 @@ GfxProto gfx_probe(const std::string& pref);
 void gfx_cell_pixels(const std::string& override_wxh, int& w, int& h);
 // Escape codes that put the picture on screen (cursor moves included; the cursor position is not kept) / take it away.
 std::string gfx_emit(GfxProto proto, const GfxFrame& f);
-std::string gfx_clear(GfxProto proto);
+std::string gfx_clear(GfxProto proto, int id = 0);   // id: the picture's GfxFrame::id
 const char* gfx_name(GfxProto proto);
 bool gfx_compressed();
 // Placeholder cells for the picture in a text frame (n columns) and their replacement before the frame is written:
@@ -45,3 +54,4 @@ std::string gfx_hole(int n);
 void gfx_fill_holes(std::string& s, bool skip);
 // The most pictures per second sent to the terminal (Kitty 60; Sixel 30 at full resolution, 60 at half / third).
 int gfx_picture_cap(GfxProto proto, int scale);   // Kitty pictures are always zlib-compressed (miniz): cheap enough to send every frame
+

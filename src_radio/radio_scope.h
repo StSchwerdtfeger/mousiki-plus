@@ -29,10 +29,22 @@ public:
         bool mono_phase = true;              // near-mono signals cross-fade to a phase portrait (else a diagonal line)
         float glow = 0.60f;                  // render_image(): strength / size of the bloom around the beam, 0 .. 1
         bool fixed_gain = false;             // oscilloscope music mode: full scale = the edge, no automatic size
+        int mode = 0;                        // 0 = XY (L horizontal, R vertical), 1 = YT (amplitude over time, triggered), 2 = both on top of each other, 3 = both in two rows (XY above YT), 4 = both in two columns (XY left, YT right)
     };
     void push_frames(const float* interleaved_lr, size_t frames);
     void reset();
+    // Takes over the newest audio of another scope, so a second picture of the same signal can be drawn at the same time.
+    void copy_ring_from(RadioScope& src);
     std::vector<std::vector<Cell>> render(int cols, int rows, const Params& params);
+    // Steady readouts for the big overlay's picture names (SHIFT+p there): levels in dBFS (0 dB = full scale), the L/R correlation
+    // (+1 = identical channels, 0 = unrelated, -1 = opposite) and the L/R level balance in dB (positive = left louder). They are
+    // averaged over about a second (RMS, correlation, balance) or held (peak: the highest value of the last two seconds) and
+    // only change twice a second, rounded, so they can be read. Call it once per frame; the values are independent of the
+    // picture's automatic size.
+    struct Measure {
+        float rms_db = -120.0f, peak_db = -120.0f, corr = 0.0f, bal_db = 0.0f;
+    };
+    Measure measure(const Params& params);
     // w x h pixel picture: `level` = brightness 0..255 (bloom included), `hue` = the "frequency" 0..255 of the nearest beam pixel.
     void render_image(int w, int h, const Params& params, std::vector<uint8_t>& level, std::vector<uint8_t>& hue);
 private:
@@ -51,4 +63,11 @@ private:
     float mono_ = 0.0f;
     float scale_ = 0.0f;
     float hue_lo_ = 0.25f, hue_hi_ = 0.85f;   // smoothed range of the beam speeds, so every palette gets used
+    // measure(): the averages and what is shown (render thread only)
+    double meas_t_ = 0.0, meas_aa_ = 0.0, meas_bb_ = 0.0, meas_ab_ = 0.0, meas_peak_t_ = 0.0, meas_shown_t_ = 0.0;
+    float meas_peak_ = 0.0f;
+    bool meas_init_ = false;
+    Measure shown_;
+    float yt_peak_ = 0.05f;                   // YT trace: its own auto-gain (render thread only)
+    float yt_lo_ = 0.20f, yt_hi_ = 0.80f;     // YT trace: smoothed range of the slopes, for the "frequency" colour
 };

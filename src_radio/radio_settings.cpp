@@ -121,7 +121,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {true, -1, ""},
         {true, -1, "ON/OFF"},
         {false, kRsOnAir, "On air ascii"}, {false, kRsPulse, "Pulse wave"}, {false, kRsDummy, "Dummy buttons"},
-        {false, kRsVisualizer, "Visualizer"}, {false, kRsStereo, "Stereo sound"}, {false, kRsNormalize, "Normalize volume"},
+        {false, kRsVisualizer, "Spectrum Bars"}, {false, kRsStereo, "Stereo sound"}, {false, kRsNormalize, "Normalize volume"},
         {false, kRsTuneNoise, "Tuning noise"}, {false, kRsMarquee, "Marquee scrolling"}, {false, kRsTimeshift, "Timeshift buffer"},
         {false, kRsUseOsci, "Use oscilloscope"}, {false, kRsUseSpectro, "Use spectrogram"},   // false: not in the "." cycle (the window still works)
     };
@@ -129,8 +129,8 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {true, -1, "ON AIR SIGN"},
         {false, kRsGradSpeed, "Gradient wave speed"}, {false, kRsPulseSpeed, "Pulse wave speed"},
         {true, -1, ""},
-        {true, -1, "WAVE"},   // the spectrum bars under the station info
-        {false, kRsFluidity, "Wave Fluidity"}, {false, kRsDegr, "Wave Degradation"}, {false, kRsVisc, "Wave Viscosity"},
+        {true, -1, "SPECTRUM BARS"},   // the spectrum bars under the station info
+        {false, kRsFluidity, "Bars Fluidity"}, {false, kRsDegr, "Bars Degradation"}, {false, kRsVisc, "Bars Viscosity"},
         {true, -1, ""},
         {true, -1, "MODES"},
         {false, kRsScope, "Osci/sphere"}, {false, kRsOsciStyle, "Osci style"},
@@ -242,7 +242,7 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
     }
 }
 
-const char* const kOsciPaletteNames[kOsciPaletteCount] = {"gradient", "settings", "temperature", "aurora", "magma", "ice", "neon", "spectrum"};
+const char* const kOsciPaletteNames[kOsciPaletteCount] = {"gradient", "settings", "temperature", "aurora", "magma", "ice", "neon", "spectrum", "classic green"};
 
 namespace {
 const int kFpsSteps[6] = {30, 45, 60, 90, 120, 165};
@@ -266,7 +266,7 @@ int osci_res_parse(const std::string& v, int def) {
 }
 
 std::vector<int> osci_visible_rows(const RadioSettings& s) {
-    std::vector<int> r = {kOrMusic, kOrStyle, kOrFps};   // no "Display" row: what is shown is the "." key's job
+    std::vector<int> r = {kOrMode, kOrMusic, kOrStyle, kOrFps};   // no "Display" row: what is shown is the "." key's job
     if (s.osci_style == 1) { r.push_back(kOrProtocol); r.push_back(kOrRes); }
     r.push_back(kOrDecay);
     if (s.osci_style != 1) r.push_back(kOrDot);
@@ -279,7 +279,7 @@ std::vector<int> osci_visible_rows(const RadioSettings& s) {
 std::string osci_row_label(int row) {
     static const char* const L[kOsciRowCount] = {"Decay", "Dot threshold", "Tail", "Line/Vec. Interpol.", "Z-Axis (XYZ Mode)",
         "Z Depth", "Z Source", "Trace Length", "Rotate 45 deg (M/S)", "Mono Phase Portrait", "Color", "Glow",
-        "Osci style", "Osci cell pixels", "Image protocol", "Frame rate", "Display", "Image resolution", "Osci music mode"};
+        "Osci style", "Osci cell pixels", "Image protocol", "Frame rate", "Display", "Image resolution", "Osci music mode", "Scope mode"};
     return row >= 0 && row < kOsciRowCount ? L[row] : "";
 }
 std::string osci_row_value(const RadioSettings& s, int row) {
@@ -306,6 +306,7 @@ std::string osci_row_value(const RadioSettings& s, int row) {
         case kOrFps: return std::to_string(o.frame_rate) + " fps";
         case kOrRes: return osci_res_name(s.image_scale);
         case kOrMusic: return on(o.music);
+        case kOrMode: return s.osci_mode == 1 ? "YT" : s.osci_mode == 2 ? "XY + YT (overlap)" : s.osci_mode == 3 ? "XY + YT (row)" : s.osci_mode == 4 ? "XY + YT (col)" : "XY";
         case kOrDisplay: return s.scope_mode == 1 ? "sphere" : s.scope_mode == 3 ? "spectro" : "osci";
     }
     return "";
@@ -330,6 +331,7 @@ void osci_adjust(RadioSettings& s, int row, int dir) {
         case kOrCells: s.cell_pixels = kCellSteps[step_in(index_of(kCellSteps, s.cell_pixels, 0), 7, dir)]; break;
         case kOrProtocol: s.gfx_protocol = kProtoSteps[step_in(index_of(kProtoSteps, s.gfx_protocol, 0), 4, dir)]; break;
         case kOrMusic: s.osci().music = dir > 0; break;
+        case kOrMode: s.osci_mode = step_in(s.osci_mode, 5, dir); break;   // XY <-> YT <-> overlap <-> row <-> col
         case kOrRes: s.image_scale = std::clamp(s.image_scale + (dir > 0 ? -1 : 1), 1, 3); break;   // right = sharper
         case kOrFps: {
             int i = 0;
@@ -431,6 +433,13 @@ bool parse_rgb(const std::string& v, RGB& out) {
 }
 
 } // namespace
+
+bool color_rgb(const std::string& color, int& r, int& g, int& b) {
+    RGB c;
+    if (!parse_rgb(color, c)) return false;
+    r = c.r; g = c.g; b = c.b;
+    return true;
+}
 
 std::string ansi_fg(const std::string& color) {
     const int v = color_index(color);
@@ -648,6 +657,7 @@ const KeyAction kKeyActions[] = {
     {nullptr, "SpectroWindow", "Spectrogram Window", "("},    // SHIFT+8 on a German keyboard
     {nullptr, "SpectroMenu", "Spectrogram Options", "I"},
     {nullptr, "SpectroFull", "Spectrogram Full Screen", "U"},
+    {nullptr, "ScopeBig", "Oscilloscope Full Screen", "="},     // SHIFT+0 on a German keyboard: YT left, XY right, grid
     {nullptr, "NormMenu", "Normalization Overlay", "V"},
     {nullptr, "EqMenu", "Equalizer Overlay", "E"},
     {nullptr, "ScopeToggle", "Cycle Osci / Sphere / Spectro", "."},   // "." like the player's lyrics-area cycle (was "o" up to v3.0.0)
@@ -696,7 +706,7 @@ int key_translate(const RadioSettings& s, int typed) {
     if (typed <= 32 && typed != 9) return typed;
     if (typed >= 127) return typed;
     // the old aliases of + and - follow the volume actions while those keep their defaults
-    if (typed == '=' && key_binding(s, 7) == "+") return '+';
+    // ('=' used to be an alias of '+' as well; it is the big scope overlay's key now -- SHIFT+0 on a German keyboard)
     if (typed == '_' && key_binding(s, 8) == "-") return '-';
     for (int i = 0; i < kKeyActionCount; ++i)
         if (key_code(key_binding(s, i)) == typed) return static_cast<unsigned char>(kKeyActions[i].def[0]);
@@ -895,11 +905,16 @@ RadioSettings load_radio_settings(std::string* source_out) {
         if (st == 1) if (auto v = get(key("MusicMode").c_str())) o.music = as_bool(*v, o.music);   // braille: OsciMusicMode above
         if (auto v = get(key("Palette").c_str())) {
             const std::string l = lower(*v);
-            for (int i = 0; i < kOsciPaletteCount; ++i) if (l == kOsciPaletteNames[i]) o.palette = i;
+            for (int i = 0; i < kOsciPaletteCount; ++i) if (l == kOsciPaletteNames[i] || (i == 8 && (l == "green" || l == "classic"))) o.palette = i;
         }
     }
     if (auto v = get("TemperatureColor")) if (as_bool(*v, false)) s.osci_set[0].palette = s.osci_set[1].palette = 2;   // the old on/off option
     if (auto v = get("OsciBraille")) s.osci_style = as_bool(*v, true) ? 0 : 1;   // the old name: false meant "not braille"
+    if (auto v = get("OsciMode")) { const std::string l = lower(*v); s.osci_mode = l == "yt" ? 1 : (l == "overlap" || l == "both" || l == "xy+yt") ? 2 : (l == "row" || l == "rows") ? 3 : (l == "col" || l == "cols" || l == "column" || l == "columns") ? 4 : 0; }
+    if (auto v = get("ScopeGrid")) s.scope_grid = as_bool(*v, s.scope_grid);
+    if (auto v = get("ScopeValues")) s.scope_values = as_bool(*v, s.scope_values);
+    if (auto v = get("ScopeGridColor")) s.scope_grid_color = *v;
+    for (const std::string& k : scope_metric_keys()) if (auto v = get(k.c_str())) scope_metric_parse(s.scope_metrics, k, *v);
     if (auto v = get("OsciStyle")) s.osci_style = lower(*v) == "image" ? 1 : 0;
     if (auto v = get("OsciImageProtocol")) s.gfx_protocol = lower(*v);
     if (auto v = get("OsciImageResolution")) s.image_scale = osci_res_parse(*v, s.image_scale);
@@ -1066,6 +1081,14 @@ bool save_radio_settings(const RadioSettings& s, std::string* err) {
          "# the stream itself, no EQ / normalization / volume, at a fixed scale and without the phase portrait)\n"
          << osci_block("Osci", s.osci_set[0]) << osci_block("OsciImage", s.osci_set[1]) <<
          "# ON/OFF tab: braille | image (a real pixel picture drawn by the terminal: Kitty graphics or Sixel; braille where there is neither)\n"
+         "# xy (left = horizontal, right = vertical) | yt (amplitude over time, triggered like a normal scope) | overlap (YT drawn over the XY figure) | row (XY in the top half, YT in the bottom half)\n"
+         "OsciMode=" << (s.osci_mode == 1 ? "yt" : s.osci_mode == 2 ? "overlap" : s.osci_mode == 3 ? "row" : s.osci_mode == 4 ? "col" : "xy") << "\n"
+         "# The big oscilloscope overlay (SHIFT+0): ScopeGrid = axes / grid over both pictures (SHIFT+a in the overlay) | ScopeGridColor = its colour,\n"
+         "# 0-255 (SHIFT+c in the overlay); empty = the colour of inactive list elements.\n"
+         "# The pictures follow OsciStyle: braille dots, or (image) two pixel pictures on a Kitty / Sixel terminal.\n"
+         "ScopeGrid=" << (s.scope_grid ? "true" : "false") << "\n"
+         "ScopeValues=" << (s.scope_values ? "true" : "false") << "\n"
+         "ScopeGridColor=" << s.scope_grid_color << "\n" << scope_metric_config_text(s.scope_metrics, "#") <<
          "OsciStyle=" << (s.osci_style == 1 ? "image" : "braille") << "\n"
          "# image style: auto | kitty | sixel | off\n"
          "OsciImageProtocol=" << s.gfx_protocol << "\n"

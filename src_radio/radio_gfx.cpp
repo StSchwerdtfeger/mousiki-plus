@@ -50,9 +50,13 @@ std::string kitty_emit(const GfxFrame& f) {
     // crop in picture pixels (the picture may be smaller than the cells: the terminal scales it to c x r cells)
     const int cropx = static_cast<int>(static_cast<long long>(std::clamp(f.crop, 0, f.cols)) * f.w / std::max(1, f.cols));
     const int vis_cols = f.cols - std::clamp(f.crop, 0, f.cols);
-    if (vis_cols <= 0) return gfx_clear(GfxProto::Kitty);
+    if (vis_cols <= 0) return gfx_clear(GfxProto::Kitty, f.id);
     std::vector<uint8_t> rgba(static_cast<size_t>(f.w) * f.h * 4);
     for (size_t i = 0; i < static_cast<size_t>(f.w) * f.h; ++i) {
+        if (!f.grid.empty() && f.grid[i] && f.level[i] < 32) {   // the grid shows where the beam is faint or absent
+            rgba[i * 4] = f.grid_rgb[0] & 0xF8; rgba[i * 4 + 1] = f.grid_rgb[1] & 0xF8; rgba[i * 4 + 2] = f.grid_rgb[2] & 0xF8; rgba[i * 4 + 3] = 0xF8;
+            continue;
+        }
         if (f.level[i] < 8) { rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = rgba[i * 4 + 3] = 0; continue; }
         float r, g, b, a;
         shade(f, f.level[i], f.hue[i], r, g, b, a);
@@ -68,7 +72,7 @@ std::string kitty_emit(const GfxFrame& f) {
         if (mz_compress2(z.data(), &n, rgba.data(), static_cast<mz_ulong>(rgba.size()), 1) == MZ_OK) { payload = base64(z.data(), n); comp = ",o=z"; }
     }
     if (comp.empty()) payload = base64(rgba.data(), rgba.size());
-    std::string keys = "a=T,f=32,s=" + std::to_string(f.w) + ",v=" + std::to_string(f.h) + ",i=" + std::to_string(kImageId) + ",p=1,z=-1,C=1,q=2"
+    std::string keys = "a=T,f=32,s=" + std::to_string(f.w) + ",v=" + std::to_string(f.h) + ",i=" + std::to_string(kImageId + f.id) + ",p=1,z=-1,C=1,q=2"
                      + comp + ",c=" + std::to_string(vis_cols) + ",r=" + std::to_string(f.rows);
     if (cropx > 0) keys += ",x=" + std::to_string(cropx) + ",y=0,w=" + std::to_string(f.w - cropx) + ",h=" + std::to_string(f.h);
     std::string o = at_cell(f.row, f.col + (f.cols - vis_cols));
@@ -111,6 +115,7 @@ std::string sixel_emit(const GfxFrame& f) {
     static std::string pal_text;
     static std::array<std::array<uint8_t, 3>, 256> pal_seen{};
     static bool pal_valid = false;
+    static std::array<uint8_t, 3> grid_seen{};
     static std::vector<uint8_t> bits;           // per colour: one 6-bit mask per output column (kept zeroed between bands)
     static std::vector<int> minx(256), maxx(256);
     const int cols = std::max(1, f.cols);
@@ -137,10 +142,11 @@ std::string sixel_emit(const GfxFrame& f) {
     std::vector<uint8_t> idx(static_cast<size_t>(f.w) * f.h, 0);
     for (size_t i = 0; i < idx.size(); ++i) {
         const int st = step_of[f.level[i]];
-        if (st >= 1) idx[i] = static_cast<uint8_t>(1 + (f.hue[i] >> 4) * 15 + (st - 1));
+        if (!f.grid.empty() && f.grid[i] && f.level[i] < 32) idx[i] = 242;   // the grid colour, under the beam
+        else if (st >= 1) idx[i] = static_cast<uint8_t>(1 + (f.hue[i] >> 4) * 15 + (st - 1));
     }
     // the palette only changes with the colour settings: build its text once
-    if (!pal_valid || pal_seen != f.pal) {
+    if (!pal_valid || pal_seen != f.pal || grid_seen != f.grid_rgb) {
         pal_text.clear();
         for (int hb = 0; hb < 16; ++hb)
             for (int st = 1; st <= 15; ++st) {
@@ -151,7 +157,10 @@ std::string sixel_emit(const GfxFrame& f) {
                 pal_text += '#'; put_int(pal_text, 1 + hb * 15 + st - 1);
                 pal_text += ";2;"; put_int(pal_text, ch(0)); pal_text += ';'; put_int(pal_text, ch(1)); pal_text += ';'; put_int(pal_text, ch(2));
             }
+        pal_text += "#242;2;";   // the grid colour (colour 242 is the only one above the beam's 1 + 16 * 15 colours that is used)
+        put_int(pal_text, f.grid_rgb[0] * 100 / 255); pal_text += ';'; put_int(pal_text, f.grid_rgb[1] * 100 / 255); pal_text += ';'; put_int(pal_text, f.grid_rgb[2] * 100 / 255);
         pal_seen = f.pal;
+        grid_seen = f.grid_rgb;
         pal_valid = true;
     }
     if (bits.size() != static_cast<size_t>(256) * W) bits.assign(static_cast<size_t>(256) * W, 0);
@@ -159,7 +168,14 @@ std::string sixel_emit(const GfxFrame& f) {
     o.reserve(65536);
     // erase the cells first: pixels left transparent would otherwise show the previous picture through
     o += "\x1b[0m";
-    for (int r = 0; r < f.rows; ++r) { o += at_cell(f.row + r, f.col + crop); o += "\x1b["; put_int(o, vis_cols); o += 'X'; }
+    auto erase = [&](int r, int c0, int n) { if (n <= 0) return; o += at_cell(f.row + r, f.col + c0); o += "\x1b["; put_int(o, n); o += 'X'; };
+    for (int r = 0; r < f.rows; ++r) {
+        const bool cut = f.cut_w > 0 && r >= f.cut_r && r < f.cut_r + f.cut_h;   // leave the cells that a panel covers
+        if (!cut) { erase(r, crop, vis_cols); continue; }
+        const int a = std::clamp(f.cut_c, crop, f.cols), b = std::clamp(f.cut_c + f.cut_w, crop, f.cols);
+        erase(r, crop, a - crop);
+        erase(r, b, f.cols - b);
+    }
     o += at_cell(f.row, f.col + crop);
     o += "\x1bP0;1;0q\""; put_int(o, pan); o += ";1;"; put_int(o, W); o += ';'; put_int(o, H);
     o += pal_text;
@@ -211,8 +227,8 @@ std::string gfx_emit(GfxProto proto, const GfxFrame& f) {
     return sixel_emit(f);
 }
 
-std::string gfx_clear(GfxProto proto) {
-    if (proto == GfxProto::Kitty) return "\x1b_Ga=d,d=I,i=" + std::to_string(kImageId) + ",q=2\x1b\\";
+std::string gfx_clear(GfxProto proto, int id) {
+    if (proto == GfxProto::Kitty) return "\x1b_Ga=d,d=I,i=" + std::to_string(kImageId + id) + ",q=2\x1b\\";
     return "";   // Sixel pictures vanish when the cells are written over (every frame does that)
 }
 
@@ -308,3 +324,4 @@ int gfx_picture_cap(GfxProto proto, int scale) {
     if (proto == GfxProto::Kitty) return gfx_compressed() ? 60 : 20;
     return scale > 1 ? 60 : 30;   // Sixel: the encoder is fast; at full resolution the data per picture is what limits
 }
+

@@ -235,6 +235,8 @@ struct UiModel {
     int cell_w = 10, cell_h = 20;
     bool gfx_due = true;
     mutable GfxFrame gfx;
+    mutable GfxFrame gfx2;   // the big oscilloscope overlay shows two pictures (gfx = YT, gfx2 = XY)
+    mutable int scope_cut_last[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
     mutable int gfx_last_crop = -1;
     const std::vector<Station>* stations = nullptr;
     std::vector<int> presets;     // the ACTIVE preset's slots: kPresetCount station indices (-1 = empty), slot i <-> kPresetKeys[i]
@@ -254,6 +256,11 @@ struct UiModel {
     // Spectrogram: full screen (SHIFT+u); where this frame put its picture (row, col, cols, rows; row -1 = none), the
     // cell rectangle an overlay covers, and whether one was drawn at all (else the feed is switched off).
     bool spectro_full = false;
+    bool scope_big = false;                // SHIFT+0: the big oscilloscope overlay (YT left, XY right)
+    bool scope_metrics_open = false;       // SHIFT+p: the grid metrics window
+    int scope_metrics_row = 0;
+    bool scope_big_color_edit = false;     // SHIFT+c: the grid colour is being typed
+    std::string scope_big_color_buf;
     mutable int spectro_area[4] = {-1, 0, 0, 0};
     mutable int spectro_skip[4] = {0, 0, 0, 0};
     mutable bool spectro_used = false;

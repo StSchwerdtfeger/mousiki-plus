@@ -17,6 +17,7 @@
 //   list_*        the STATIONS list rows (also used for the station names in the PRESETS pane)
 //   header        secondary text: captions ("off air"), the ON AIR sign while nothing is live, empty-pane messages, status lines
 //   legend        key command legends: the "[TAB] Switch pane | ..." hint lines, hint tails, error lines, cheatsheet titles
+#include "scope_metrics.h"
 #include "spectrogram.h"
 #include <filesystem>
 #include "equalizer.h"
@@ -28,8 +29,8 @@ namespace muisc::radio {
 
 // Palettes of the scope (Color row of the overlay). 0 = the OSCI gradient of the COLORS tab laid over the picture from left to
 // right; the others colour by the beam speed (about the pitch: slow = first colour, fast = last colour).
-constexpr int kOsciPaletteCount = 8;
-extern const char* const kOsciPaletteNames[kOsciPaletteCount];   // gradient, settings, temperature, aurora, magma, ice, neon, spectrum
+constexpr int kOsciPaletteCount = 9;
+extern const char* const kOsciPaletteNames[kOsciPaletteCount];   // gradient, settings, temperature, aurora, magma, ice, neon, spectrum, classic green
 
 struct OsciSet {
     float decay = 0.80f;                // afterglow per frame, 0.00 .. 0.99
@@ -145,6 +146,11 @@ struct RadioSettings {
     int visualizer_degradation_speed = 8;       // 1 (slow fade) - 10 (near-instant)
     int visualizer_viscosity = 3;               // 0 (bars independent) - 10 (heavy neighbour blending)
     OsciSet osci_set[2];                        // the scope's parameters: [0] = braille, [1] = image (each style keeps its own)
+    bool scope_grid = true;                     // the big scope overlay (SHIFT+0): axes / grid over both pictures (SHIFT+a there; ScopeGrid=)
+    bool scope_values = true;                   // ... and the axis values at the grid lines (SHIFT+v there; ScopeValues=)
+    std::string scope_grid_color;               // its colour 0..255; empty = the colour of inactive list elements (SHIFT+c there; ScopeGridColor=)
+    ScopeMetrics scope_metrics;                 // ... and its grid metrics, per picture (SHIFT+p there; ScopeYt* / ScopeXy*)
+    int osci_mode = 0;                          // ON/OFF: scope mode 0 = XY, 1 = YT (amplitude over time), 2 = both on top of each other (overlap), 3 = both in two rows, 4 = both in two columns (OsciMode=xy|yt|overlap|row|col)
     int osci_style = 0;                         // ON/OFF: 0 = braille, 1 = image (real pixels through the terminal's graphics protocol)
     std::string gfx_protocol = "auto";          // auto | kitty | sixel | off (MOUSIKI_RADIO_GFX overrides)
     std::string cell_pixels;                    // "WxH" pixels of one terminal cell; empty = ask the terminal
@@ -275,7 +281,7 @@ struct Knob { const char* label; double lo, hi, step; };
 constexpr Knob kOsciKnobs[3] = {{"Decay", 0.00, 0.99, 0.01}, {"Dot threshold", 0.01, 1.00, 0.01}, {"Tail", 0.00, 1.00, 0.02}};
 // Overlay rows (ids). Which of them are shown depends on the style: osci_visible_rows().
 enum OsciRow { kOrDecay, kOrDot, kOrTail, kOrInterp, kOrZ, kOrZDepth, kOrZSource, kOrTrace, kOrRotate, kOrMono, kOrPalette, kOrGlow,
-               kOrStyle, kOrCells, kOrProtocol, kOrFps, kOrDisplay, kOrRes, kOrMusic, kOsciRowCount };
+               kOrStyle, kOrCells, kOrProtocol, kOrFps, kOrDisplay, kOrRes, kOrMusic, kOrMode, kOsciRowCount };
 // image style: the picture is rendered at 1/1, 1/2 or 1/3 of the screen resolution and enlarged on the way to the terminal
 const char* osci_res_name(int scale);   // "full" | "half" | "third"
 int osci_res_parse(const std::string& v, int def);
@@ -296,6 +302,7 @@ RadioSettings load_radio_settings(std::string* source_out = nullptr);   // defau
 bool save_radio_settings(const RadioSettings& s, std::string* err = nullptr);
 
 // ---- colour helpers (the radio's own; same value rules as above) -------------------------------------------
+bool color_rgb(const std::string& color, int& r, int& g, int& b);   // 0-255 colour number -> RGB (false: none)
 std::string ansi_fg(const std::string& color);           // "\x1b[38;5;Nm" ... or "" for none
 std::string ansi_bg(const std::string& color);
 std::string sgr_params(const std::string& color);        // "38;5;N" without the escape, or ""
