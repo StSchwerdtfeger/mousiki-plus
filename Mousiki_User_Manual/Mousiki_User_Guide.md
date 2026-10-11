@@ -10,6 +10,7 @@ The key shown for each command is the **default binding**. Your own bindings may
 ## Contents
 
   [Before you start](#before-you-start)  
+  [The Help Wizard (`SHIFT+w`)](#the-help-wizard-shiftw)  
   [1. System (main UI)](#1-system-main-ui)  
   [2. Playback (main UI)](#2-playback-main-ui)  
   [3. Navigation & view, lyrics and visualizations (main UI)](#3-navigation--view-lyrics-and-visualizations-main-ui)  
@@ -37,13 +38,13 @@ Mousiki starts with either of two commands in a terminal: **`mousiki`** or the s
 ### Rebindable vs. fixed keys
 
 - **Rebindable keys** have an action name like `HKeyPlay` in `config.txt` and appear under **Settings → Reference**. Change them in either place.
-- **Fixed keys** are written as literal key names in the cheat sheet (for example `ESC`, `SHIFT+b`, `CTRL+s`, `CTRL+SHIFT+x`, or the keys inside the playlist and meta editors). These cannot be rebound.
+- **Fixed keys** are written as literal key names in the cheat sheet (for example `ESC`, `ENTER`, the arrow keys, `*`, `Y` / `N` in prompts, `CTRL+s`, `CTRL+SHIFT+x`, or the keys inside the playlist and meta editors). These cannot be rebound; *why* is listed under *Settings → REFERENCE*.
 
 ### `ALT` on macOS (`Option`)
 
 This guide writes the modifier as `ALT` (`ALT+L`, `ALT+←` / `ALT+→`). On a Mac that is the **Option (⌥)** key: a macOS build of Mousiki shows `OPTION+L` / `OPTION+LEFT/RIGHT` in the cheat sheet, everything else is identical. Two things to know:
 
-- The lyrics timing overlay can be opened (and closed) with `CTRL+L` on macOS and Linux, which needs no terminal setup. `OPTION+←` / `OPTION+→` (the optional tab switch of the playlist editor, the meta editor and the radio's station lists, see *Menus with tabs and text boxes* below) work in Terminal.app and iTerm2 without it, because they send the standard word-movement codes.
+- `OPTION+L` (the lyrics timing overlay) only works if the terminal sends Option as Meta (Terminal.app: *Use Option as Meta key*; iTerm2: *Esc+* for the left Option key). `CTRL+L` is not an alternative any more: it opens the READ LYRICS overlay. `OPTION+←` / `OPTION+→` (the optional tab switch of the playlist editor, the meta editor and the radio's station lists, see *Menus with tabs and text boxes* below) work in Terminal.app and iTerm2 without it, because they send the standard word-movement codes.
 - **Option+←/→** (tab switch) is sent as `ESC b` / `ESC f` by Terminal.app and iTerm2 out of the box, and Mousiki understands both that and the xterm form, so it works without any terminal setting.
 
 ### Uppercase letters
@@ -64,7 +65,7 @@ Mousiki reacts to the **character** a key types, not to the key itself. Most com
 | `-` | Volume down | the `-` key | the `-` key (the radio also takes `_` as long as it is not rebound) |
 | `?` | Cheat sheet | `SHIFT` and `ß` | `SHIFT` and `/` |
 | `/` | Search | `SHIFT+7` | the `/` key |
-| `:` | In the search prefixes (`/s:`, `/sc:`, `/b:`, `/p:`, `/f:`) | `SHIFT` and `.` | `SHIFT` and `;` |
+| `:` | In the search prefixes (`/r:`, `/a:`, `/s:`, `/sc:`, `/b:`, `/p:`, `/f:`) | `SHIFT` and `.` | `SHIFT` and `;` |
 | `#` | Shuffle next / random channel | the `#` key | US: `SHIFT+3`; UK: the `#` key (`SHIFT+3` is `£`) |
 | `!` `$` `%` | Queue lock / move to top / to bottom | `SHIFT+1` / `SHIFT+4` / `SHIFT+5` | the same |
 | `<` `>` | Equalizer: previous / next preset (also `,` / `.`) | the `<` key / `SHIFT` and `<` | `SHIFT` and `,` / `SHIFT` and `.` |
@@ -105,22 +106,48 @@ Besides MP3, FLAC, WAV, OGG, Opus, M4A and the other usual formats, the player p
 |---|---|---|
 | Tracker modules (Amiga / PC demoscene) | `.mod` `.xm` `.it` `.s3m` `.mptm` `.stm` `.669` `.mtm` `.med` `.okt` `.far` `.ult` `.ams` `.dbm` `.digi` `.dmf` `.dsm` `.gdm` `.imf` `.j2b` `.mdl` `.mt2` `.psm` `.ptm` `.umx` `.plm` | FFmpeg built with **libopenmpt** (most current builds are) |
 | Game console music | `.nsf` `.nsfe` (NES), `.spc` (SNES), `.gbs` (Game Boy), `.vgm` `.vgz` (Sega and others), `.ay`, `.hes`, `.kss`, `.sap`, `.gym` | FFmpeg built with **libgme** |
-| Commodore 64 SID tunes | `.sid` `.psid` `.rsid` | The **sidplayfp** program on the `PATH` (Linux: package `sidplayfp`, macOS: `brew install sidplayfp`) |
+| Commodore 64 SID tunes | `.sid` `.psid` `.rsid` | The **sidplayfp** program on the `PATH` (Linux: package `sidplayfp`; `setup.sh` / `setup.ps1` install it or add it to the `PATH`) |
 
 - The module's title (and for SID: name, author and year from the file header) is used as metadata; the TYPE column says *tracker module*, *game music* or *C64 SID (n tunes)*.
 - A SID tune has no end, so it is rendered once for `SidPlayLength` seconds (default 180, see [Settings that exist only in `config.txt`](#settings-that-exist-only-in-configtxt)) into `~/.cache/mousiki/sid/` and then played from there; the next time it starts at once. Only the first sub-tune is played.
+- `setup.sh` and `setup.ps1` take care of these tools: they upgrade an FFmpeg that is already installed (skip with `--no-upgrade` / `-NoUpgrade`), install or rebuild one with libopenmpt and libgme where the usual package lacks them, and install sidplayfp or put it on the `PATH`. On Windows the project publishes no sidplayfp build: unzip one anywhere and run `setup.ps1` again.
 - If the required tool is missing, the status line says which one, and the track is skipped.
 - Mousiki does not link any of these libraries: libopenmpt (BSD) and libgme (LGPL) are used through FFmpeg, sidplayfp (GPL) runs as a separate program.
 
 ### The main screen
 
-The main screen has a **local/online/playlist list** on the left (titled `LOCAL AUDIO FILES`, `ONLINE RESULTS` or `SAVED PLAYLISTS`), a **Queue** panel, a metadata panel with lyrics or a visualizer, and a search box. Only one of the list or the queue has **focus** at a time. Focus decides where the arrow keys work (see `TAB` below).
+The main screen has a **local/online/playlist list** on the left (titled `LOCAL AUDIO FILES`, `ONLINE RESULTS` or `SAVED PLAYLISTS`), a **Queue** panel, a metadata panel with lyrics or a visualizer, and a search box. Only one pane has **focus** at a time: the search box (while you type), the list or the queue. The focused pane is marked with a small **◀** after its title, in the **FOCUS** colour (Settings > COLORS). Focus decides where the arrow keys work (see `TAB` below).
 
 **Window size.** The list and queue panes use every row the terminal has left under the metadata panel, progress bar and search box, so a maximised window is filled down to its last line. Resize at any time, also while a menu is open: Settings, Console, the playlist and meta editors and the listening history take the same height as the main screen, and the cheat sheet (`?`) uses the full terminal height. The playlist and meta editors keep a few rows at the bottom for their legend and status messages. The cheat sheet and the listening history keep no empty rows. The history shows a status message in a row of its own only while there is one.
 
 ### Play mode letter
 
 The small box next to the search bar shows the current play mode as a letter: `L` list, `R` repeat, `S` shuffle, `O` stop, `Q` queue then stop.
+
+---
+
+## The Help Wizard (`SHIFT+w`)
+
+> **Temporarily switched off.** The wizard does not open at the moment (neither on the first start nor with `SHIFT+w`) and its rows are hidden from the cheat sheet and from Settings → Reference. Its content is kept, so this section describes how it works once it is switched back on (`wizard::kEnabled` in `src/wizard.h`).
+
+The user guide you are reading is also **inside the program**. `SHIFT+w` opens the **Mousiki Plus Help Wizard** in both modes: a welcome page, a contents list, and a tutorial per topic with diagrams that point at the panes they describe.
+
+It **opens by itself the first time you start Mousiki after an install** -- once per mode, and never again after that. (The flag is `WizardSeen=` in `config.txt` and in `radio_config.txt`; setting it back to `false`, or deleting the line, brings the welcome page back on the next start.)
+
+| Key | What it does |
+|---|---|
+| `SHIFT+w` | Open the wizard (and close it again) |
+| `→` / `←` | Next / previous page. The pages are one sequence, so the arrows read through the whole wizard like a book, across topic boundaries. |
+| `↑` / `↓` | On the **contents** page: pick a topic. On a tutorial page: scroll, when the page is taller than the terminal. |
+| `ENTER` | On the **welcome** page: to the contents. On the **contents** page: open the highlighted topic. |
+| `BACKSPACE` | Back to the contents page from anywhere |
+| `ESC` or `q` | Close the wizard |
+
+- The **welcome page** has the spinning disk beside it and names both developers and the **running version** (it is read from the build, so it is never out of date).
+- The **topics** follow this guide. The music player has: Main UI, Search and Download, Meta Data, Playlists, Visualisations, Lyrics, Karaoke, Sound, Sleep mode, History, Settings and What Mousiki plays. The radio has: Radio Main UI, Presets Overlay, Search Radio Stations, Station Lists, Timeshift and Recording, History, Visualisations, Sound, Sleep mode and Radio Settings. Visualisations, Sound and Sleep mode are the same pages in both modes, because the features are.
+- The keys the wizard names are the **shipped defaults**, like the cheat sheet's. A key you rebound yourself is shown under **Settings → REFERENCE**.
+- The wizard is drawn in the **music player's colours in both modes** (`config.txt`: BORDER, HEADER, LEGEND, LIST, DISK and the lyrics' active-word colour as the accent of the arrows), so the feature looks like one thing whichever mode you open it from. The radio reads them from the player's `config.txt` and falls back to the player's own defaults when there is none.
+- Playback keeps running while it is open. The wizard takes every key until you close it, like the cheat sheet (`?`), which stays the quick, scrollable list of every key command.
 
 ---
 
@@ -132,8 +159,9 @@ The small box next to the search bar shows the current play mode as a letter: `L
 | `s` | Open Settings | Opens the Settings panel (see [Settings](#10-settings-individual-tabs) for every tab). Inside Settings, `s` again **saves to `config.txt` and closes**. `ESC` or `q` **discards** the changes made on the screen and closes. |
 | `SHIFT+r` | Rescan library | Rescans the music folders, e.g. after files were copied or downloaded in the meantime or after coming back from the radio. Also works in the meta editor while the library pane or the fetch list has the focus. Fixed key. |
 | `t` | Console / logs | Opens a read-only log view showing what the app has been doing (sort changes, filter changes, queue messages, load timings and so on). Close it with `ESC`, `t` or `T`. |
+| `SHIFT+w` | Help wizard | Opens the [Help Wizard](#the-help-wizard-shiftw): this guide as tutorial pages, with diagrams of the panes. Arrow keys turn the pages, `ENTER` opens a topic, `ESC` closes. It opens by itself on the first start after an install. |
 | `?` | Cheat sheet | (German `SHIFT` and `ß`, English `SHIFT` and `/`.) Opens the command list. Use `↑`/`↓` to scroll (the list is longer than most terminal windows). Close with `?` or `ESC`. |
-| `q` | Quit | Quits the application from the main screen. |
+| `q` | Quit | Quits the application from the main screen. Only the lowercase `q` quits: `SHIFT+q` does nothing, so it cannot quit by accident when you aim for `SHIFT+w` (the help wizard). |
 | `ESC` | Close / back | Closes whatever is open (an overlay, a menu, a prompt; in Settings it discards the changes). On the **main screen** it returns to the *home view*: the full local library, with no search query and no folder filter, scrolled to the top. It does not change the sort mode. |
 | `ENTER` | Confirm / select | Confirms the highlighted choice or starts the highlighted item. What it does depends on where you are (play a track, queue a playlist, commit a search and so on). |
 | `ARROW KEYS` | Navigate | Move up and down through lists, left and right to seek or move a text caret. What they do depends on the current screen. |
@@ -156,13 +184,15 @@ The small box next to the search bar shows the current play mode as a letter: `L
 
 The main screen while a track plays: the disk, the metadata panel, the visualizer and the lyrics area at the top, then the progress bar with its waveform, the volume bar, the search box, and the local file list and queue at the bottom. The box on the right of the search bar shows the play mode letter (here `S` for shuffle).
 
+The metadata panel lists **Name, Artist, Album, Year**, sampling, type, format, file size and location. Name, Artist and Album always take exactly one row each; a value that is too long for the column scrolls as a marquee, so the visualizer below it is never moved or overwritten.
+
 ![Main screen with synchronized lyrics](images/Playback_Main_UI_lyrics.png)
 
 *Main screen with the lyrics engine on: the lyrics fill the right-hand area.*
 
 ![Main screen with the lyric ball](images/Playback_Main_UI_lyric_ball.png)
 
-*Main screen with no lyrics shown: the audio-reactive **lyric ball** (sphere; Settings → ON/OFF → Lyric Viz) fills the area instead.*
+*Main screen with no lyrics shown: the audio-reactive **lyric ball** (sphere; Settings → ANIMA/VIZ → Lyrics/Viz) fills the area instead.*
 
 
 | Key | Action | What it does |
@@ -278,7 +308,7 @@ The cheat sheet splits these keys into three groups: **NAVIGATION & VIEW** (the 
 | `f` | Filter by folder | Narrows the local list to the **folder of the highlighted track**. It also switches the sort back to *folder order*. The pane title then shows `sort: folder order, folder: <name> [c] clear`. The filter stacks on top of an active search. |
 | `c` | Clear filter | Removes the folder filter. It leaves the sort mode alone. |
 | `T` (Shift+T) | Cycle local list sort mode | Cycles the sort of the local list through three modes: **folder order → title A-Z → artist A-Z**. The current mode is shown in the pane title (see below). |
-| `N` (Shift+N) | Toggle metadata-only track list | Switches every list row between **filename** and **metadata title** (the embedded title tag). Files with no title tag, or whose tags have not been read yet, keep showing their filename. This also switches what "title A-Z" sorts by (see below). Also available in **Settings → ON/OFF**. |
+| `N` (Shift+N) | Toggle metadata-only track list | Switches every list row between **filename** and **metadata title** (the embedded title tag). The first line of the metadata block follows it and is labelled **File** or **Title** accordingly. Files with no title tag, or whose tags have not been read yet, keep showing their filename. This also switches what "title A-Z" sorts by (see below). Also available in **Settings → ON/OFF**. |
 | `w` | Toggle waveform style | Switches the waveform between **raw** and **smooth**. |
 | `r` | Refresh UI | Forces a full redraw. Use it when a terminal resize or a switch of terminal session left the screen torn or stale. (Up to v3.0.0 this was `k`, which opens the karaoke overlay now; `SHIFT+r` stays the library rescan.) |
 
@@ -286,8 +316,8 @@ The cheat sheet splits these keys into three groups: **NAVIGATION & VIEW** (the 
 
 | Key | Action | What it does |
 |---|---|---|
-| `.` | Cycle lyrics area | Cycles the lyrics area through four views: **lyrics → sphere → oscilloscope → spectrogram → lyrics …** (views switched off on Settings → ON/OFF with **Use Lyrics / Use Oscilloscope / Use Spectrogram** are skipped; the sphere is always there). The three visuals are the lyrics engine's *off* states: no lyrics are fetched from the network while one of them is shown, and the choice is stored in the **Lyric Viz** setting. Coming back to the lyrics fetches them for the current track right away. (Up to v3.0.0 this was `+`, which is volume up now.) |
-| `l` | Retry lyrics | Opens a small form to fetch lyrics again with a **manual title and artist**. Use it when the automatic match was wrong. |
+| `.` / `,` | Cycle lyrics area forward / backward | Cycles the lyrics area through four views: **sphere → oscilloscope → spectrogram → lyrics → sphere …** by default (`,` walks the same order backwards); the order is set with **Viz Order 1..4** on Settings → ON/OFF, and views switched off there with **Use Lyrics / Use Oscilloscope / Use Spectrogram / Use Sphere** are skipped. The three visuals are the lyrics engine's *off* states: no lyrics are fetched from the network while one of them is shown, and the choice is stored in the **Lyrics/Viz** setting. Coming back to the lyrics fetches them for the current track right away. (Up to v3.0.0 this was `+`, which is volume up now.) |
+| `l` | LYRICS REFETCH AND VERSION CONTROL | Opens the lyrics overlay. The upper part fetches lyrics again with a **manual title and artist**; `ENTER` (**Refetch**) keeps the lyrics in use as an older version (`lyrics/<name>.v<date>.<source>.lrc`, max 10), so timing you saved is never overwritten. The lower part, **LYRICS IN USE**, lists the lyrics embedded in the file, the fetched copy and older copies (three rows, scrolls with `↑`/`↓`; reach it with `↓` or `TAB` from the form); `SPACE` switches to the highlighted one, `d` deletes a saved copy after you confirm with `y` (lyrics embedded in the file cannot be deleted). Lyrics embedded in a file are used before anything is fetched. |
 | `ALT+l` | Adjust lyrics | Opens a small overlay menu for live adjustment of the lyrics timing. |
 | `k` | Karaoke overlay | Shows the lyrics of the playing track over the whole screen, karaoke style. It fetches the lyrics itself when the lyrics engine is off on the main screen (that setting is left alone). See *Karaoke overlay* below. |
 
@@ -334,7 +364,7 @@ A **search** always ranks by match quality, so while a query is active the sort 
 
 ### Lyrics timing overlay (`ALT+L`)
 
-For tracks whose synced lyrics run ahead of or behind the music. The overlay shifts **all** lines (and, for word-synced lyrics, all words) of the playing track by the same amount. The change is visible **live** while the music plays, in the lyrics area and in the three lines shown in the overlay itself (previous, current and next line, with the current one highlighted). `ALT+L` opens only while synced lyrics are loaded for the track; otherwise the status line says so.
+For tracks whose synced lyrics run ahead of or behind the music. The overlay shifts **all** lines (and, for word-synced lyrics, all words) of the playing track by the same amount. The change is visible **live** while the music plays, in the lyrics area and in the three lines shown in the overlay itself (previous, current and next line, with the current one highlighted). `ALT+L` opens only while synced lyrics are loaded for the track; otherwise the status line says so. It opens **from the main screen and from inside the karaoke overlay** (`k`); opened from there, the panel floats over the big lyrics and closing it goes back to karaoke.
 
 | Key | What it does |
 | :--- | :--- |
@@ -342,7 +372,7 @@ For tracks whose synced lyrics run ahead of or behind the music. The overlay shi
 | `↑` / `↓` | Lyrics **later** / **earlier** by 0.5 s |
 | `R` | Back to 0 (the timing as it is in the lyrics file) |
 | `ENTER` or `S` | **Save** the offset into the track's lyrics file and close |
-| `ESC` or `ALT+l` | Cancel: the offset from before the overlay was opened comes back |
+| `ESC` or `ALT+l` | Cancel: the offset from before the overlay was opened comes back (back to karaoke when it was opened from there) |
 
 - A **positive** offset (`+0.3 s`) means the lyrics appear later than their timestamps say, so use it when the lyrics are **too early**. A negative offset makes them appear earlier. The range is ±120 s.
 - Saving writes a standard `[offset:...]` tag at the top of the track's `.lrc` file (in the `lyrics` folder next to the track, in milliseconds, with the usual LRC sign convention: positive = earlier). The timestamps themselves are not changed. The offset is read back whenever the lyrics are loaded from that file, and other players that know the tag use it too. Saving `0` removes the tag.
@@ -351,9 +381,35 @@ For tracks whose synced lyrics run ahead of or behind the music. The overlay shi
 
 ![Lyric offset editor overlay](images/Playlist_menu_LYRIC_OFFSET_EDITOR.png)
 
+### READ LYRICS overlay (`CTRL+L`)
+
+Reads the lyrics saved for the **playing** track (when nothing plays: the track hovered in the list) as plain text, and translates them on request. It is a full-screen overlay; playback keeps running.
+
+| Key | What it does |
+| :--- | :--- |
+| `TAB` | Move the keys between the two top panes: **READ LYRICS** (the lyrics files) and **TRANSLATION** (the saved translations). The pane that has them carries a `◀` |
+| `←` / `→` | Choose in the pane that has the keys: the lyrics file, or the translation (the chosen translation is shown) |
+| `d` / `DEL` | In the TRANSLATION pane: **delete** the chosen translation (asks for `y`) |
+| `↑` / `↓` | Scroll one row. `SPACE` / `b`: one page down / up. `HOME` / `END`: top / bottom |
+| `t` | Opens the **translate overlay**: service, language to translate into, language of the lyrics. `ENTER` there **fetches** the translation, `ESC` closes it. This is the only place that fetches |
+| `SHIFT+t` | **Show / toggle / hide** the saved translations. It never fetches: hidden → first translation → next translation … → hidden |
+| `ESC`, `q` or `CTRL+L` | Close |
+
+- The **READ LYRICS pane** is one line with the lyrics files of the track: the lyrics embedded in the audio file, the fetched copy in use (marked `●`) and the older copies that a refetch put aside (see *How the lyrics form works*). The line scrolls sideways when the files do not fit; `◀` / `▶` show that there are more.
+- The **TRANSLATION pane** is one line with the translations saved for the chosen file, e.g. `● English (Google Translate) | French (MyMemory)`; `●` marks the one that is shown. A file has one translation per language. Below the pane, the border says how many there are, or that one is being fetched.
+- The text below is the plain lyrics: timestamps, word timings and tags such as `[ar:…]` are removed and runs of empty lines become one. The lyrics are **centered**, with two blank rows above and below them.
+- **Translating (`t`).** Use `↑` / `↓` to pick a row of the overlay and `←` / `→` to change it (a letter jumps to the next language starting with it); `ENTER` fetches, `ESC` closes (the choice is saved in `config.txt`).
+  - **Service** – *Google Translate* (default): the key-less web endpoint of Google Translate. It is unofficial and rate limited; the lyrics are sent in a few large requests and a `429` ("too many requests") is retried with growing pauses. If it still answers `429`, wait a minute or pick another service. *MyMemory*: free and key-less, about 5000 characters a day per address (set the environment variable `MOUSIKI_MYMEMORY_EMAIL` to raise that); it translates line by line and is slower. (LibreTranslate was dropped: it needs a paid API key.)
+  - **Translate into** – the target language (about 60 are listed). Default: English.
+  - **Lyrics are in** – *Auto-detect* (default; the service finds out the language) or a language of your choice. Set it by hand when the detection was wrong, for example for short lyrics or mixed languages.
+  - Python 3 and an internet connection are required (the helper is `scripts/translate_lyrics.py`). Lyrics that are already in the target language are reported as such and nothing is saved.
+- **A translation takes a while** and runs in the background: opening or closing the translate overlay, choosing another file or closing READ LYRICS does **not** stop it, and it is saved when it is done (the main screen tells when READ LYRICS is closed). While it runs, pressing `ENTER` for another one shows a **warning** instead of starting it. The translation is shown in `( )` **right below the original line**.
+- Translations are saved in the lyrics folder, in an extra `translations` folder: `<folder of the track>/lyrics/translations/<name>.<language>.txt` (one file per lyrics file and target language, for example `.en.txt` and `.fr.txt`). Next time they are read from there, without a connection; delete one in the TRANSLATION pane. When the lyrics are fetched again, a saved translation no longer fits and is ignored.
+- `CTRL+L` used to be a second way to open the lyrics timing overlay. That overlay opens with `ALT+L` only now.
+
 ### The oscilloscope (lyric visual)
 
-When there are no lyrics to show (lyrics engine off, nothing found, or the fetch is still running) the lyrics area is filled by a **lyric visual**. Messages such as *fetching lyrics ...* or *No synchronized lyrics found* appear for a moment as a **small box over the bottom of the visual**, which keeps its full size (it no longer shrinks by a row, so a spectrogram does not jump). With Settings → ON/OFF → **Lyric Viz** set to `osci` (or after pressing `.` to the oscilloscope view) that visual is an **XY oscilloscope** instead of the sphere.
+When there are no lyrics to show (lyrics engine off, nothing found, or the fetch is still running) the lyrics area is filled by a **lyric visual**. Messages such as *fetching lyrics ...* or *No synchronized lyrics found* appear for a moment as a **small box over the bottom of the visual**, which keeps its full size (it no longer shrinks by a row, so a spectrogram does not jump). With Settings → ON/OFF → **Lyrics/Viz** (or **No-Lyrics Viz**, while the lyrics view has no lyrics) set to `osci` (or after pressing `.` to the oscilloscope view) that visual is an **XY oscilloscope** instead of the sphere.
 
 **What it can do, in short:**
 - **XY oscilloscope** of the music (left channel = horizontal, right = vertical), with an automatic **phase portrait** for mono tracks, a **45° mid/side view** and an automatic or (in *osci music mode*) fixed scale -- the mode for **oscilloscope music**, which then gets the decoded signal before EQ, normalization and volume.
@@ -429,7 +485,8 @@ The key that types `)` opens the oscilloscope in **its own window** next to the 
 | `T` | Always on top on / off |
 | `ESC`, `Q` or the key of `)` (`9` on a German, `0` on an English keyboard, with or without `SHIFT`) | Close the window (the `)` key in the terminal does the same) |
 
-- **Same look as the image style.** The window uses the values of the *image* style from the `SHIFT+o` overlay: Decay (afterglow), Glow (bloom), Color palette, Z-Axis / Z Depth / Z Source, Rotate 45 deg, Mono Phase Portrait and Line/Vec. Interpol. (off = sample dots). Changes show up in the window at once, also while the terminal scope shows braille or the sphere. Trace Length and Tail have no meaning here, because the window draws every sample exactly once.
+- **The window follows the style of the `SHIFT+o` overlay.** With **Osci style = image** it is the smooth analog scope described above and uses the values of the *image* style: Decay (afterglow), Glow (bloom), Color palette, Z-Axis / Z Depth / Z Source, Rotate 45 deg, Mono Phase Portrait and Line/Vec. Interpol. (off = sample dots). Trace Length and Tail have no meaning there, because the window draws every sample exactly once.
+- **Braille style in the window.** With **Osci style = braille** the window shows the *braille* scope instead: the same dot grid as in the terminal (2 × 4 dots per cell, the same afterglow, brightness steps and colours), but every lit dot is a square on the screen -- so the braille look can be seen as large as the window, or the whole screen in fullscreen, goes. It uses the braille style's own values from the overlay: Decay, Dot threshold, Tail, Trace Length, Line/Vec. Interpol., Z-Axis, rotation, mono phase portrait, Color and Osci music mode. Changing the style in the overlay switches the open window at once.
 - **Smooth curves:** the window interpolates between the samples (Lanczos, to about 192 000 points per second, 384 000 in *Osci music mode*), like the output filter in front of a real scope, so fast strokes become curves and not small polygons. With **Line/Vec. Interpol.** off it draws only the real samples as dots.
 - **Osci music mode** (`SHIFT+o`): the unprocessed signal, a fixed scale, no phase portrait, the finer beam and the stronger smoothing above -- for oscilloscope music the figures come out as sharp as the file allows.
 - **Brightness** adjusts itself: a tone that retraces the same figure all the time would otherwise burn white, quiet sparse music would be faint.
@@ -454,7 +511,7 @@ The key that types `(` opens the **spectrogram in its own window** (again: close
 
 ### Spectrogram (`SHIFT+i`, `SHIFT+u`)
 
-The third visual for the lyrics area (and the radio's scope block): a **spectrogram** made the way **Audacity** makes its spectrogram view, with Audacity's default settings and colours -- time runs from left to right, the frequency goes up, the colour shows how strong each frequency is. A stereo track is drawn as two channels above each other (left on top), like a stereo track in Audacity. For a perfectly smooth picture open it in its own window with `(` (German `SHIFT+8`, English `SHIFT+9`; see *Spectrogram window*). Switch to it with `.` (lyrics → sphere → oscilloscope → spectrogram) or with **Lyric Viz** = `spectro` (radio: **Osci/sphere** = `spectro`). It is the default visual, in the image style (the overlays no longer have a *Display* row: switching the visual is the `.` key's job).
+The third visual for the lyrics area (and the radio's scope block): a **spectrogram** made the way **Audacity** makes its spectrogram view, with Audacity's default settings and colours -- time runs from left to right, the frequency goes up, the colour shows how strong each frequency is. A stereo track is drawn as two channels above each other (left on top), like a stereo track in Audacity. For a perfectly smooth picture open it in its own window with `(` (German `SHIFT+8`, English `SHIFT+9`; see *Spectrogram window*). Switch to it with `.` (sphere → oscilloscope → spectrogram → lyrics) or with **Lyrics/Viz** = `spectro` (radio: **Osci/sphere** = `spectro`). It is the default visual, in the image style (the overlays no longer have a *Display* row: switching the visual is the `.` key's job).
 
 ![Spectrogram overlay with settings.](images/Spec_overlay.png)
 
@@ -545,9 +602,10 @@ The karaoke picture sits on **both sides**, with four empty columns between each
 | `ESC` or `k` | Close the overlay |
 | `*` / `_` (German `SHIFT` and `+` / `SHIFT` and `-`, English `SHIFT+8` / `SHIFT` and `-`) | Lyrics bigger / smaller (1 - 5) |
 | `p`, `n` / `b`, `#`, `←` / `→`, `+` / `-`, `x`, `m`, `v` | Work as on the main screen (play/pause, next/previous, shuffle next, seek, volume, mute, play mode, normalization) |
+| `ALT+L` | Opens the [lyrics timing overlay](#lyrics-timing-overlay-altl) **over the karaoke screen**, which is the easiest place to judge an offset: the big lyrics move live while you adjust it. Closing it (save or cancel) returns to karaoke, not to the main screen. |
 
 - The overlay always uses the lyrics engine, **also when it is off on the main screen** (`.`, Settings → ON/OFF → Lyrics Engine or Use Lyrics): it then fetches the lyrics of the playing track itself -- and again after a track change while it is open -- without changing that setting, so the main screen keeps its visual. While they are being fetched, or when none were found, the overlay says so.
-- Synced lyrics follow the timing correction of the lyrics timing overlay (`ALT+L`). Lyrics without timestamps are scrolled along with the song.
+- Synced lyrics follow the timing correction of the lyrics timing overlay, which `ALT+L` opens **from here as well** (see the key table above). Lyrics without timestamps are scrolled along with the song.
 
 ![Karaoke mode](images/karaoke_mode.png)
 
@@ -576,9 +634,13 @@ A small overlay for falling asleep to music. Playback keeps running while it is 
 
 ## 4. Search (main UI)
 
+The cheat sheet (`?`) lists these under two headings: **SEARCH LOCAL (MAIN UI)** (`/`, `/r:`, `/a:`, the playlist and folder searches) and **SEARCH ONLINE (MAIN UI)** (`/s:`, `/sc:`, `/b:`).
+
 | Key | Action | What it does |
 |---|---|---|
 | `/` | Search local folder | (German `SHIFT+7`.) Opens the search box. The list updates **live as you type**. Press `ENTER` to keep the result, or `ESC` to cancel and restore the previous view. |
+| `/r:` + query | Search artists only | Local search limited to the **artist**: the artist tag, or the artist folder when a file has no tag. `/r:miles` lists only tracks by artists matching "miles", not tracks that merely have it in the title. The search bar is labelled **SEARCH ARTISTS**. |
+| `/a:` + query | Search albums only | Local search limited to the **album** tag. The bar is labelled **SEARCH ALBUMS**. (Album tags are resolved in the background after a scan, so a freshly added folder may need a moment.) |
 | `/s:` + query | Search online (YouTube) | Type `s:` followed by your query, then press `ENTER`. Online searches only run on `ENTER`, never per keystroke. |
 | `/sc:` + query | Search SoundCloud | The same for **SoundCloud** (through yt-dlp). `ENTER` on a result plays it, the queue keys queue it, the download key saves it to the download folder. The audio is kept as SoundCloud sends it (no second conversion). Tracks SoundCloud only plays as a **30-second preview** (Go+ and some label releases) and tracks that cannot be played at all are **left out** of the results; to tell them apart each result is looked at in full, so a SoundCloud search takes a few seconds longer than a YouTube one. |
 | `/b:` + query | Search Bandcamp | The same for **Bandcamp** tracks (the search is asked from Bandcamp by `scripts/bandcamp_search.py`, the download is done by yt-dlp). Bandcamp streams the free 128 kbit/s MP3; the full-quality files are for buyers on Bandcamp itself. |
@@ -586,6 +648,8 @@ A small overlay for falling asleep to music. Playback keeps running while it is 
 | `/p:` + query | Search saved playlists | Type `p:` followed by part of a playlist name. The playlist list filters live. `ENTER` on a playlist row queues all of its tracks. |
 | `/f:` + query | Search folders | Type `f:` followed by part of a folder name (or of `<parent folder> <folder>`, e.g. `beatles abbey`). The folder list filters live. `ENTER` on a folder row opens it in the LOCAL AUDIO FILES pane and lists all of its files, exactly like the `f` filter (`c` clears it again). |
 | `L` (Shift+L) | Big list overlay | Floats a larger version of the list pane (LOCAL AUDIO FILES) over the main UI. See below. |
+| `F` (Shift+F) | Big folder overlay | A folder tree of the library with a search bar, floated over the main UI. See below. |
+| `C` (Shift+C) | File conversion overlay | Convert high resolution files to MP3 / AAC / Opus. See below. |
 
 
 **In radio mode** the search works the same way (fuzzy, live, `ESC` clears; the station under the cursor is highlighted while you type, and `ENTER` tunes it); it searches stations, and `p:` the saved station lists (see [11.5](#115-searching-stations-station-lists-and-p)).
@@ -613,6 +677,43 @@ Everything else keeps working from inside the overlay: `ENTER` plays, `T` cycles
 ![Big list overlay](images/Playback_Main_UI_TRACK_OVERLAY.png)
 
 *Big list overlay can be opened via `SHIFT+l` and closed via the same command or `ESC`. Fast scrolling (scroll per page) is possible via `SHIFT+↑/↓`.*
+
+### Big folder overlay (`SHIFT+f`)
+
+A large window with a search bar and the **LOCAL AUDIO FILES FOLDER** pane: a tree of all folders of your library (the folders of the PATHS tab and the download folder, with the number of tracks in each). `ENTER` opens a folder; its subfolders and files appear slightly indented below it, and `ENTER` closes it again.
+
+| Key | Action |
+|---|---|
+| `↑` / `↓`, `SHIFT+↑` / `SHIFT+↓` | Move one row / one page |
+| `ENTER`, `→` / `←` | Open / close the folder (`←` on a closed folder or a file jumps to its parent folder) |
+| `f` | On a **folder**: show that folder in the LOCAL AUDIO FILES pane, exactly like `f` on a track (folder order, `c` clears it again). On a **file**: the same for the file's folder, with the file highlighted. Both close the overlay. |
+| `CTRL+p` | **Play** the highlighted file (the overlay stays open, so you can keep browsing); on a folder it only shows a hint |
+| `/` or `TAB` | Type in the search bar: only folders and files whose name matches (all words) stay in the tree, with the way down to them opened. `ENTER`, `TAB` or `ESC` hand the keyboard back to the tree. |
+| `ESC` or `SHIFT+f` | Close the overlay |
+
+Playback keys (pause, next / previous, seek, volume, mute, normalize) keep working. The key can be changed with `HKeyFolderOverlay` in `config.txt`. The overlay and the big list / queue overlays exclude each other.
+
+### File conversion overlay (`SHIFT+c`)
+
+Turns high resolution files into lighter ones. A large window with a search bar and the list **FILES TO CONVERT**: every file of the library with its format, sample rate / bit depth, bitrate, size and the estimated size after the conversion. The first line inside the list holds the pre-filter and the target, the second shows the export folder, the progress of a running conversion or the result of the last one.
+
+| Key | Action |
+|---|---|
+| `↑` / `↓`, `SHIFT+↑` / `SHIFT+↓` | Move one row / one page |
+| `SPACE` | Mark / unmark the highlighted file (and move on) |
+| `a` | Mark everything that is shown, or unmark it again when all of it is marked |
+| `t` / `SHIFT+t` | Pre-filter **type**, forward / backward: all files, lossless (FLAC, WAV, ALAC), FLAC, WAV, M4A, OGG, OPUS, AAC, MP3 |
+| `r` / `SHIFT+r` | Pre-filter **minimum bitrate**: any, 320, 500 or 1000 kbps |
+| `h` | Pre-filter **hi-res only**: more than 16 bit or more than 48 kHz |
+| `←` / `→` | The **target**: MP3 320 kbps, MP3 V0 (about 245 kbps, variable), MP3 192 kbps, AAC 256 kbps (`.m4a`), Opus 128 kbps |
+| `/` or `TAB` | Type in the search bar (folder and file name, all words must match); `TAB` or `ESC` hand the keyboard back to the list, `ENTER` too (in a plain file search) |
+| `f:` / `p:` in the search bar | Same as in the main search: typing `f:` turns the bar into `/f:` and the list into the **folders** that hold files (filtered by what you type after it), `p:` turns it into `/p:` and lists the saved **playlists**. `ENTER` on a folder or playlist narrows **FILES TO CONVERT** to just its files (a folder: the files directly in it, like `f` in the main list; the pre-filter still applies, the info line says how many match). The search then works inside that selection. Typing `/` in the bar goes back to the full search (and drops the selection); `BACKSPACE` on an empty `/f:` or `/p:` removes the prefix; `ESC` leaves the folder / playlist list, then the selection, then closes the overlay. |
+| `ENTER` | Convert the marked files (the highlighted one when nothing is marked) |
+| `c` | Cancel the running conversion |
+| `CTRL+p` | Play the highlighted file (the overlay stays open) |
+| `ESC` or `SHIFT+c` | Close the overlay. A running conversion goes on in the background and reports on the status line. |
+
+The files are read with `ffprobe` in the background right after the overlay opens (the list says `reading 12/340` meanwhile); filters that need those details (hi-res, minimum bitrate, lossless M4A) show a file as soon as it has been read. The converted files go to the **CONVERSION EXPORT PATH** (Settings → PATHS; by default the `conversion-export` folder inside the download folder), in the same sub folders as the originals below your library folder, with the new extension. **The originals are never changed or deleted.** A file that already exists in the export folder is skipped (so converting the same song to a second MP3 preset needs the old file moved away first). Tags and the cover picture are copied (not to Opus); sample rates above 48 kHz become 44.1 or 48 kHz, more than two channels become stereo. The export folder is left out of the list. Needs `ffmpeg` with `libmp3lame` and `libopus`; the installers and `setup.sh` / `setup.ps1` provide it. The key can be changed with `HKeyConvertOverlay` in `config.txt`.
 
 ## 5. Queue (main UI)
 
@@ -723,6 +824,7 @@ Playlists are stored in **one** folder, set under **Settings → PATHS → PLAYL
 | `4` / `5` | Move the highlighted track up or down in the playlist you are building |
 | `D` / `DEL` / `BACKSPACE` | Remove the highlighted track (track list focused). On the Saved Playlists tab, `DEL` deletes the selected playlist after a Yes/No confirmation. |
 | `e` | On the Saved Playlists tab (list focused): **export** the selected playlist as an **M3U8** (default) or **M3U** file. See *Exporting a playlist* below. |
+| `i` | On the Saved Playlists tab (list focused): **import** `.m3u` / `.m3u8` files from a folder (default: the playlist export folder, else the playlist folder). `SPACE` marks a file, `a` marks all, `TAB` switches between folder field and list, `ENTER` imports the marked files (or the highlighted one), `ESC` cancels. Missing files and stream URLs are skipped and counted in the status line. |
 | `CTRL+s` | Save the playlist (from every pane of the Create/Edit tab, also while typing) |
 | `SHIFT+←` / `SHIFT+→`, `HOME` / `END` | Mark text / jump to the start or end in the name and search fields |
 | `CTRL+C` / `CTRL+X` / `CTRL+V` | Copy, cut and paste text in those fields |
@@ -756,11 +858,12 @@ In a text box you typed into, the first `ESC` only leaves the box (the text stay
 
 ## 7. Meta editor
 
-`M` (Shift+M) opens the **meta/tag editor** for changing a file's **file name**, **artist**, **title**, **album** and **year**, and for looking up missing tags with AcoustID (an audio-fingerprint service).
+`M` (Shift+M) opens the **meta/tag editor** for changing a file's **file name**, **artist**, **title**, **album** and **year**, and for looking up missing tags with AcoustID (an audio-fingerprint service) and, for album and year, MusicBrainz.
 
 **Important safety rules**
 
 - Editing never touches your files directly. All changes go into a **pending edit session**, which is autosaved after every keystroke to `~/.cache/mousiki/meta_session/`. Closing the editor, quitting, or even a crash keeps the session.
+- **The main screen follows the editor live.** The first line (`Title` / `File`) and the `Artist` / `Album` / `Year` lines of the metadata block (and the track title in the oscilloscope / spectrogram windows) show the pending edits of the track that is playing right away, typed by hand or fetched in the editor with `SHIFT+n` / `SHIFT+b`, before anything is saved. The first line is labelled **Title** or **File** and follows `SHIFT+n` like the list rows do: **Title** is the title tag (the file name if the file has none), **File** is the file name (a pending FILE rename shows there). Edits left over from an earlier run appear as soon as the track starts. `CTRL+s` writes them, and the screen keeps showing the saved values. Sampling, Type, Format, File size and Location are read from the file and are not affected.
 - Touched fields and the matching library rows are drawn in the **header colour**, so you can see what will be written.
 - Only `CTRL+s` writes to the files, and it asks first.
 
@@ -780,18 +883,23 @@ In a text box you typed into, the first `ESC` only leaves the box (the text stay
 | `ALT+←` / `ALT+→` | Switch the tab from everywhere, also while typing. |
 | `TAB` | Cycle panels on the Edit tab: search field → library → field editor |
 | `↑` / `↓` | Move through the focused list, or between the five fields in the field editor |
-| `ENTER` | Depends on focus (see below). On the **Fetch List** tab it fetches metadata for the whole list. |
+| `ENTER` | Depends on focus (see below). On the **Fetch List** tab it fetches the full list (with the ticked options). On a field with several fetched options it opens the choice overlay. |
 | `SHIFT+←` / `SHIFT+→` | Mark text in the search field and the field editor |
 | `CTRL+C` / `CTRL+X` / `CTRL+V` | Copy, cut, paste in the search field and the field editor |
-| `a` | Add the highlighted file to the **fetch list** (library focused) |
+| `a` | Add the highlighted file to the **fetch list** (library focused). Add a single title and tick the boxes on the Fetch List tab to fetch just some tags of it |
+| `SHIFT+f` | **Add full list**: adds every title the library pane shows right now to the fetch list (library focused). The search and the missing-tag filter (`x`, `SHIFT+t/a/l/y`) are applied, titles already on the list are skipped, the status line says how many were added. Typical use: filter for `SHIFT+l` (missing album), press `SHIFT+f`, switch to the Fetch List tab and press `ENTER` |
 | `r` | Toggle **edited files on top** of the library pane |
 | `x` | Filter the library to files missing **any** metadata (library pane focused; press again to clear) |
 | `SHIFT+t` | Filter the library to files missing a **title** (press again to clear) |
 | `SHIFT+a` | Filter the library to files missing an **artist** (press again to clear) |
+| `SHIFT+l` | Filter the library to files missing an **album** (press again to clear) |
 | `SHIFT+y` | Filter the library to files missing a **year** (press again to clear) |
-| `SHIFT+b` | Fetch metadata for the highlighted title via AcoustID (asks first) |
+| `SHIFT+p` | **Play** the hovering track (library pane and fetch list) |
+| `SHIFT+b` | **Fetch missing tag**: look up the highlighted title via AcoustID and fill in only its empty tags (asks first) |
+| `SHIFT+n` | **Fetch all tags**: the same, but all tags are fetched and overwrite the existing ones (library pane or fetch list focused; asks first) |
+| `SHIFT+c` | **Cancel the running fetch** (Fetch List tab). The lookup stops at once. What had already arrived stays as pending edits; the titles that were not fetched yet (and the failed ones) stay on the fetch list, so you can start them again later |
 | `DEL` / `d` | Remove the highlighted title from the **fetch list**. It only takes a title off that list: it never deletes the file and does not touch pending edits. If the title is not on the fetch list, the status line says `not on the fetch list`. |
-| `CTRL+s` | Apply all pending edits to the files (asks first) |
+| `CTRL+s` | Apply all pending edits to the files (asks first). Every file is rewritten through ffmpeg (the audio is copied, not re-encoded), so hundreds of edits take a while. The program stays alive: the status line counts `saving 37 / 412 ...`, and when it lasts longer than about a second a **Please wait, this may take a few seconds** panel with a progress bar appears. `ESC` stops after the current file; what is not saved yet stays pending, and so does a file that failed |
 | `CTRL+SHIFT+x` | Discard all pending edits (asks first) |
 | `SHIFT+r` | Rescan the library (library pane or fetch list focused), e.g. after new files arrived |
 | `ESC` | In the field editor: back to the library. In a search field you typed into: leave the field. Otherwise: close the editor (the session is kept). |
@@ -802,38 +910,72 @@ In a text box you typed into, the first `ESC` only leaves the box (the text stay
 |---|---|
 | Search field | Keeps the filter and moves to the library list |
 | Library list | Starts editing the highlighted file's fields |
-| Field editor | Finishes editing this field and goes back to the library (`ESC` does the same) |
-| Fetch List tab | Fetch metadata for every title in the list (asks first) |
+| Field editor | Finishes editing this field and goes back to the library (`ESC` does the same). On a field with several fetched options: opens the choice overlay. |
+| Fetch List tab | **Fetch full list**: every title in the list, only the ticked tags (asks first) |
 
 ### Using the AcoustID lookup
 
-- `SHIFT+b` looks up one title. It works from the meta editor and also directly from the **main list** (only for local files).
-- `a` collects titles into the fetch list, and `ENTER` on the Fetch List tab runs them as a batch.
-- Before anything is fetched you get the disclaimer that the result is not always accurate and previous metadata will be overwritten. Answer with `y`, `n` or `ESC`.
+- `SHIFT+b` (**Fetch missing tag**) looks up one title and fills in only its empty tags. It works from the meta editor and also directly from the **main list** (only for local files). `SHIFT+n` (**Fetch all tags**, meta editor) overwrites all its tags. Neither uses the fetch-option boxes; for other combinations add the title to the fetch list and tick the boxes there.
+- `a` collects titles into the fetch list (`SHIFT+f` adds the whole filtered library pane at once), and `ENTER` on the Fetch List tab runs them as a batch.
+- A running batch is **not** stopped by leaving the meta editor: it continues in the background, the progress (`AcoustID: 3/12 ...`) shows in the status line of the main screen, and the results arrive as pending edits (open the editor again to review them). `SHIFT+c` on the Fetch List tab stops it. Quitting Mousiki (or switching to the radio) cancels a running batch too and keeps what had arrived.
+- Before anything is fetched you get a disclaimer that the result is not always accurate and that only `all` or ticked tags overwrite existing tags. Answer with `y`, `n` or `ESC`.
 - Results only land in the **edit session**, never directly in the files. Low-confidence matches are reported as "no match" rather than written as wrong tags.
 - Applying (`CTRL+s`) writes the tags without re-encoding the audio. A file name edit becomes a plain rename.
+
+### Choosing what is fetched: the fetch options
+
+The header of the **Fetch List** tab has an option line with one checkbox per option:
+
+`Fetch: [x] missing only  [ ] all  [ ] artist  [ ] title  [ ] album  [ ] year`
+
+| Key | What it does |
+|---|---|
+| `TAB` | move the focus between the list and the option line (`◀` marks the focus) |
+| `←` / `→` | move the cursor over the boxes (on the option line) |
+| `SPACE` | tick or untick the box under the cursor |
+| `ENTER` | fetch **every track in the list**, only the ticked tags |
+
+| Option | Fetches |
+|---|---|
+| `missing only` (default) | only the tags that are **empty**; anything that already has a value, typed or in the file, stays as it is |
+| `all` | artist, title, album and year, **overwriting** what is there |
+| `artist` / `title` / `album` / `year` | the ticked tags only, overwriting them; these four combine freely |
+
+`missing only` and `all` exclude each other and the four tag boxes: ticking one of them unticks the others, and ticking a tag box unticks `missing only` / `all`. At least one box always stays ticked. The choice is saved with the session and applies to the fetch list (`ENTER`); `SHIFT+b` / `SHIFT+n` do not use it. A title with nothing to fetch is skipped with the message *nothing to fetch*. The lookup itself uses the audio fingerprint only; tags that are already there are not part of the search.
+
+### Album and year: MusicBrainz and the choice overlay
+
+Album and year belong to one specific release, so a song often has several answers (the album, its remaster, ...). They come from MusicBrainz (one request per second). The first answer is put into the field; the colour shows what is left to do:
+
+| Colour | Meaning |
+|---|---|
+| Header colour | like any edit: typed by you, fetched with only one candidate, or a choice you made |
+| **Legend colour** | several candidates: a choice is waiting. The matching **file row in the LIBRARY pane** uses the same colour |
+
+`ENTER` on a field with several candidates opens the **choice overlay**: `↑`/`↓` select, `ENTER` takes the highlighted one, `DEL` or `d` discards the fetched value together with all options (the field goes back to what the file has), `ESC` closes it. Choosing an album also sets the year of that release while the year is still a fetched suggestion. Open choices are part of the autosaved session. `CTRL+s` mentions them in its question; if some are still open, the first candidate is what gets saved.
 
 ---
 
 ## 8. History
 
-`H` (Shift+H) opens the **listening history** overlay, with three tabs. Nothing you do here changes your music.
+`H` (Shift+H) opens the **listening history** overlay, with four tabs. Nothing you do here changes your music.
 
 | Key | What it does |
 |---|---|
 | `H` | Open the history (and close it again). `ESC` and `q` also close it. |
 | `←` / `→` | Switch the tab (not while the ADD SMART HISTORY TO QUEUE pane has the focus, see below) |
-| `1` / `2` / `3` | Jump to the tab: **1 History**, **2 Top Tracks**, **3 Habits** |
-| `↑` / `↓` | Move the cursor in History and Top Tracks. On Habits they scroll. |
+| `1` – `4` | Jump to the tab: **1 History**, **2 Top Tracks**, **3 Top Playlists**, **4 Habits** |
+| `↑` / `↓` | Move the cursor in History and Top Tracks. On Top Playlists and Habits they scroll. |
 | `r` | On **Top Tracks**: flip between *most played first* and *least played first* |
 | `TAB` | On **Top Tracks**: switch between the track list and the **ADD SMART HISTORY TO QUEUE** pane. `TAB` never switches tabs. |
 | `ENTER` | On a track in **History** or **Top Tracks**: **play it right away** (the overlay stays open and the footer says `playing: …`). A local file that no longer exists is reported instead. In the ADD SMART HISTORY TO QUEUE pane: queue the highlighted list. |
 | `ESC` | In the ADD SMART HISTORY TO QUEUE pane: give the focus back to the track list. Otherwise: close the history. |
 
-### The three tabs
+### The four tabs
 
 - **History**: the last 100 plays. `ENTER` plays the hovered one.
 - **Top Tracks**: one row per title with its length and play count, sorted by play count. `ENTER` plays the hovered title.
+- **Top Playlists**: the five most played saved playlists of the **week**, **month**, **quarter**, **year** and **overall**, all in one pane (two columns on a wide terminal), with the number of plays and the time listened, plus a small summary (playlists played, plays from playlists, share of all plays). A play counts for a playlist when the track was queued from it (`ENTER` or `a` on a playlist row in the main list, or a queue restored from the last session). Tracks you picked one by one count for no playlist, and plays from before this tab existed carry no playlist, so the lists fill up from now on. Week, month, quarter and year are the last 7, 30, 91 and 365 days, like the smart lists below.
 - **Habits**: listening statistics, including average session length, listening time per day, tracks per session, skips, replays and completion rates.
 
 ![History tab](images/Listening_history_HISTORY_TAB.png)
@@ -902,7 +1044,7 @@ Status messages:
 
 ## 10. Settings (individual tabs)
 
-Press `s` on the main screen to open **Settings**. It has six tabs: **COLORS**, **ON/OFF**, **ANIMATION**, **PATHS**, **REFERENCE** and **ABOUT APP**. Settings always open on the first tab. The footer shows `[TAB] Switch | [↑↓←→] Navigate/Cycle | [ENTER] Edit | [s] Save | [ESC/q] Discard`, and the line below it reports what just changed. While there are changes that are not saved yet, that line shows a green ``Unsaved changes! Save with `s` or discard with `ESC`.`` note. While a field is being edited the footer changes to `[ENTER] Apply | [ESC] Cancel | [←→] Cursor | [SHIFT+←→] Mark | [HOME/END] Jump | [Ctrl+C/X/V] Copy/Cut/Paste`.
+Press `s` on the main screen to open **Settings**. It has six tabs: **COLORS**, **ON/OFF**, **ANIMA/VIZ**, **PATHS**, **REFERENCE** and **ABOUT APP**. Settings always open on the first tab. The footer shows `[TAB] Switch | [↑↓←→] Navigate/Cycle | [ENTER] Edit | [s] Save | [ESC/q] Discard`, and the line below it reports what just changed. While there are changes that are not saved yet, that line shows a green ``Unsaved changes! Save with `s` or discard with `ESC`.`` note. While a field is being edited the footer changes to `[ENTER] Apply | [ESC] Cancel | [←→] Cursor | [SHIFT+←→] Mark | [HOME/END] Jump | [Ctrl+C/X/V] Copy/Cut/Paste`.
 
 ### Moving around and editing (all tabs)
 
@@ -927,8 +1069,26 @@ Press `s` on the main screen to open **Settings**. It has six tabs: **COLORS**, 
 
 *The COLORS tab with the live preview on the right.*
 
+#### Border gradient (SMOOTHNESS)
 
-Sets the colours of the interface. There are **16 rows**, each with a name (drawn in the **header colour**), one or two value cells, a colour swatch next to each value and a **live preview** on the right.
+The row under BORDER_COLOR switches the frame gradient between **smooth** (default: the border lines fade row by row from the TOP colour to the BOTTOM colour) and **rough** (only the bottom border line of each pane takes the BOTTOM colour). `←→` or `ENTER` toggle it; config key `BorderGradient=smooth|rough` (music player and radio each have their own).
+
+#### Colour themes
+
+The first row of the COLORS tab (music player **and** radio) is **THEME**. `ENTER` on the theme name opens a list of ready-made colour schemes with swatches; `ENTER` applies one (the field shows `(custom)` when the colors match none). Two themes carry the Mousiki look: `MeowerShell(Default)` and `Serious MeowerShell` (the colors of the default config.txt). Twenty more ship with it: Soft Pastel, Cyberpunk, Greyscale, Nord, Dracula, Solarized Dark, Gruvbox, Monokai, Ocean, Forest, Sunset, Matrix, Amber Terminal, Sakura, Midnight, three colour-blind-friendly schemes (Deuteranopia, Protanopia, Tritanopia), High Contrast and Coffee. The list scrolls with `↑` `↓` `HOME` `END` when there are more themes than fit on the screen, in the template picker of CREATE THEME as well. A theme only changes the Colors tab, and like any change it is kept when you save with `s` and dropped with `ESC`.
+
+`→` to **CREATE THEME** and `ENTER` opens a full-size editor: type a name on top (25 characters at most), optionally press `ENTER` on **CHOOSE THEME AS TEMPLATE** to start from an existing theme, then edit any color cell like on the tab (with the live preview). `s` stores the theme and applies it; `ESC` throws it away.
+
+**Export / import:** `SHIFT+e` on the Colors tab opens **EXPORT THEME**: name (25 characters at most) and folder (default `~/.config/mousiki`), `s` writes the colors now set as `<name>.theme` (player and radio colors in one file). `SHIFT+i` opens **IMPORT THEMES**: pick a folder, `ENTER` imports the highlighted `.theme` / `.txt` file (it may hold several `[Name]` themes), `a` imports every file listed. An imported theme whose name exists gets ` (2)`, ` (3)` ... added; it then shows up in the THEME row.
+
+Note: the numbers 30-47 and 90-107 are sent to the terminal as plain 16-colour codes, and 40-47 / 100-107 are *background* codes -- typed into a text-colour cell they paint a background. The built-in themes avoid them. An older `themes.txt` is upgraded automatically (your own themes stay).
+
+All themes live in `themes.txt` next to `config.txt` (`~/.config/mousiki/`); player and radio share the file. Each theme is a `[Name]` line followed by `ColorXxx=value` lines using the keys of the config files (keys starting with `Radio.` are the radio's own values: `Radio.ColorHeader`, `Radio.ColorLegend`, `Radio.ColorFocus` in the built-in themes, and *every* colour of a theme made or saved in the radio). Built-in themes can be edited there.
+
+**Player and radio can look different.** Each program keeps its own colours (`config.txt` / `radio_config.txt`) and picks its own theme: choosing a theme in one mode never changes the other. A theme made in the radio stores its colours as `Radio.` keys, so the player's look of that theme is not touched; a theme made in the player has no radio values of its own, so the radio shows the same colours for it (except the radio's header, legend and focus colours).
+
+
+Sets the colours of the interface. Each row has a name (drawn in the **header colour**), one or two value cells, a colour swatch next to each value and a **live preview** on the right.
 
 **Values** are numbers from the 256-colour terminal palette (`1`–`255`). `0` or an empty field means "no colour", so the terminal's own default is used. Values in the ranges 30–47 and 90–107 are used as direct terminal colour codes.
 
@@ -950,7 +1110,10 @@ Sets the colours of the interface. There are **16 rows**, each with a name (draw
 | | ACTIVE W FG | BG | The active word. |
 | HEADER | TEXT | none | The section titles in Paths and Reference. Text colour only, no background. |
 | LEGEND | TEXT | none | The key command legends: the hint lines such as `[ESC] close` at the bottom of the Settings, the big list and queue overlays (`SHIFT+l` / `SHIFT+k`), the playlist editor, the meta editor and the listening history, plus the small `< ↔ >` and note hints inside the Settings. Text colour only, no background. Default `90` (the grey they have always had), `0` = the terminal's own text colour. Also available as `ColorLegend=` in `config.txt`. |
+| SEARCH | FG | BG | The text the user typed into a search bar (the `/` box, the meta editor's, the playlist editor's SEARCH LIBRARY and `Search:` rows). Only highlighted behind the length of the query, and only once something was typed. Empty = same as LIST INACTIVE. Also `ColorSearchFg=` / `ColorSearchBg=` in `config.txt`. |
+| | INACTIVE FG | BG | The rest of the search bar (prefix, placeholder, empty field). Empty FG = same as LIST INACTIVE; empty BG = no background, so only the query is highlighted. Also `ColorSearchInactiveFg=` / `ColorSearchInactiveBg=`. |
 | TAB_NAMES | CURRENT | OTHER | The tab names of Settings and of the playlist, meta and history menus: the current tab (drawn as `[NAME]`) and the others. Text colour only. Also `ColorTabCurrent=` / `ColorTabOther=` in `config.txt`. |
+| FOCUS | TEXT | — | The pane focus indicator **◀** after the title of the pane that has the keys (main screen: search box, list or queue; also the meta and playlist editors). Defaults to the header colour; every theme sets it to its header colour. |
 
 `FG` is the text colour, `BG` the background. Use `←`/`→` to pick the cell, then `ENTER` to type a new number.
 
@@ -958,10 +1121,19 @@ Sets the colours of the interface. There are **16 rows**, each with a name (draw
 
 ![Settings, ON/OFF tab](images/Settings_ON_OFF_TAB.png)
 
-*The ON/OFF tab: a list of switches. (The folder settings are on the PATHS tab.)*
+*The ON/OFF tab: the MODES and the ON/OFF categories. (The folder settings are on the PATHS tab; the screenshot is from before the categories.)*
 
 
-This tab is a list of **switches** (change them with `←`/`→`). Most are true/false, but **Lyric Viz** picks between `sphere`, `osci` and `spectro`. The folder settings (LOCAL PATH, DOWNLOAD PATH, PLAYLIST PATH, HISTORY PATH) are on the **PATHS** tab.
+The tab has two categories (in the header colour); change a row with `←`/`→`:
+
+**MODES**
+
+| Setting | Values | What it does |
+|---|---|---|
+| Playback | list, loop, shuffle, stop, queue then stop | The play mode. Same as the `m` key (`loop` is the mode shown as *repeat*). (`PlaybackMode=`) |
+| Start Mode | player, radio | Which of the two Mousiki **opens with**: the music player or the radio. Picked in either mode's Settings; it is one value, stored as `StartMode=` in the player's `config.txt`, so it is the same whichever mode you set it in. `Start Mode` only decides the start: you can still switch between the two at any time with `*`. (`StartMode=`) |
+
+**ON/OFF** -- switches, most of them true/false. (The folder settings are on the PATHS tab; **Lyrics/Viz**, **No-Lyrics Viz** and the **Viz Order** rows are on ANIMA/VIZ.)
 
 | Setting | What it does |
 |---|---|
@@ -969,36 +1141,61 @@ This tab is a list of **switches** (change them with `←`/`→`). Most are true
 | Dummy Buttons | Shows or hides the three decorative buttons next to the progress bar. |
 | Queue Display | Shows or hides the Queue panel. |
 | WaveForm | Shows or hides the waveform. With it off, a plain bar is drawn instead. |
-| Lyrics Engine | Turns lyric fetching and display on or off. `.` also switches this: it cycles lyrics (on) → sphere (off) → oscilloscope (off) → spectrogram (off). |
-| Lyric Viz | Which visual fills the lyrics area while a track is loaded and there are no lyrics to show: `sphere` (the audio-reactive ball), `osci` (the XY oscilloscope, see *The oscilloscope* above) or `spectro` (the spectrogram, see *Spectrogram*; the default, in the image style). The sphere and the oscilloscope's *gradient* palette use the **VIZ** colors (Settings → Colors → VIZ); the spectrogram has its own colour schemes. Replaces the old *Lyric Ball* on/off switch. The oscilloscope's look is tuned with `SHIFT+o`. |
+| Lyrics Engine | Turns lyric fetching and display on or off. `.` also switches this: it cycles sphere (off) → oscilloscope (off) → spectrogram (off) → lyrics (on). |
 | Visualizer | Shows or hides the spectrum visualizer. |
 | Stereo Sound | On plays in stereo (about twice the memory per loaded track), off folds left and right into mono. Turning it **off** is immediate. Turning it **on** applies from the next track. |
 | Normalize Volume | Loudness normalization on or off. Same as the `v` key. Target and boost are set with the `SHIFT+v` overlay. |
 | Show meta data only | Rows show the embedded title tag instead of the file name. Same as `SHIFT+n`. The list is re-sorted straight away. |
 | Replace Emoji | An emoji in a title is drawn as a single `?`, so the frame borders stay aligned. Off draws the real emoji. (`ReplaceEmoji=` in `config.txt`.) |
 | Use Lyrics | `false` switches the lyrics off **entirely**: they are never fetched and `.` skips them (the lyrics area then only shows the visuals). Default `true`. (`UseLyrics=`) |
-| Use Oscilloscope | `false` leaves the oscilloscope out: `.` and the **Lyric Viz** row skip it. The scope window (`)`) still works. (`UseOscilloscope=`) |
+| Use Oscilloscope | `false` leaves the oscilloscope out: `.` and the **Lyrics/Viz** row skip it. The scope window (`)`) still works. (`UseOscilloscope=`) |
 | Use Spectrogram | `false` leaves the spectrogram out of the lyrics area: `.` skips it. Full screen (`SHIFT+u`) and the spectrogram window (`(`) still work. (`UseSpectrogram=`) For example: Use Oscilloscope and Use Spectrogram `false` = `.` only switches between the lyrics and the sphere. |
+| Use Sphere | `false` leaves the sphere out of the `.` cycle (it used to be always there). It turns itself on again while it is the **No-Lyrics Viz** pick, and picking it in **Lyrics/Viz** turns it on. (`UseSphere=`) |
 
-### Tab 3: ANIMATION
+### Tab 3: ANIMA/VIZ
 
 ![Settings, Animation tab](images/Settings_ANIMATION_TAB.png)
 
-*The ANIMATION tab. The `< ↔ >` hint shows that `←`/`→` cycle the value.*
+*The ANIMA/VIZ tab (the screenshot shows its predecessor, the ANIMATION tab). The `< ↔ >` hint shows that `←`/`→` cycle the value.*
 
+The tab collects everything about the **animations and the visualizations**, in five categories (in the header colour, with a blank line before each). All rows are cycled with `←`/`→` (or typed after `ENTER`). If the terminal is too short, the tab **scrolls with the cursor** (▲ / ▼ show that there is more) while the note at the bottom stays in place.
 
-All rows are cycled with `←`/`→` (or typed after `ENTER`).
+**LYRICS**
 
 | Setting | Values | What it does |
 |---|---|---|
-| Vis. Fluidity | 1–10 | How the visualizer bars **rise**. It affects only the rising motion. |
-| Waveform Style | raw, smooth | Waveform drawing style. Same as the `w` key. |
-| Disk Speed | 0.01, 0.05, 0.10, 0.17, 0.25, 0.50, 0.75, 1.00 | How fast the disk spins. |
-| Playback Mode | list, loop, shuffle, stop, queue then stop | The play mode. Same as the `m` key (`loop` is the mode shown as *repeat*). |
-| Vis. Degradation | 1–10 | How quickly bars **fall**. `1` is a slow, VU-meter-like fade, `10` a near-instant cutoff. |
-| Vis. Viscosity | 1–10 | How strongly the bar motion is damped and smoothed between neighbouring bars. |
 | Lyrics Alignment | left, center, right | Where lyric lines sit in their area. |
 | Lyrics Animation | full, word by word, line by line, letter by letter, active line only, active word only | How lyrics are revealed and highlighted as the song plays. |
+
+**DISK**
+
+| Setting | Values | What it does |
+|---|---|---|
+| Disk Speed | 0.01, 0.05, 0.10, 0.17, 0.25, 0.50, 0.75, 1.00 | How fast the disk spins. |
+
+**WAVE** -- the spectrum bars under the meta data, and the waveform of the progress bar.
+
+| Setting | Values | What it does |
+|---|---|---|
+| Wave Fluidity | 1–10 | How the spectrum bars **rise**. It affects only the rising motion. |
+| Wave Degradation | 1–10 | How quickly bars **fall**. `1` is a slow, VU-meter-like fade, `10` a near-instant cutoff. |
+| Wave Viscosity | 1–10 | How strongly the bar motion is damped and smoothed between neighbouring bars. |
+| Waveform Style | raw, smooth | Waveform drawing style of the progress bar. Same as the `w` key. |
+
+**MODES**
+
+| Setting | What it does |
+|---|---|
+| Lyrics/Viz | Which visual fills the lyrics area while the lyrics are switched off (the view `.` is on; with the lyrics view on and no lyrics found, **No-Lyrics Viz** below decides): `sphere` (the audio-reactive ball), `osci` (the XY oscilloscope, see *The oscilloscope* above) or `spectro` (the spectrogram, see *Spectrogram*; the default, in the image style). The sphere and the oscilloscope's *gradient* palette use the **VIZ** colors (Settings → Colors → VIZ); the spectrogram has its own colour schemes. Replaces the old *Lyric Ball* on/off switch. The oscilloscope's look is tuned with `SHIFT+o`. |
+| No-Lyrics Viz | What the lyrics area shows while the **lyrics view is on but there are no lyrics** (nothing found, still fetching, track without lyrics): `sphere`, `osci` or `spectro` (default). Before this row existed the area showed whatever view `.` had been on before the lyrics. If the visual you pick is switched off in **Use Sphere** / **Use Oscilloscope** / **Use Spectrogram**, picking it turns that switch **on**; and while it is the pick it cannot be switched off there (it turns itself on again). (`NoLyricsViz=`) |
+
+**VIZ/LYRICS ORDER**
+
+| Setting | What it does |
+|---|---|
+| Viz Order 1 … 4 | The order of the four views (`sphere`, `osci`, `spectro`, `lyrics`) when you press `.` / `,`. Each row says which view comes at that place; `←` / `→` puts another view there, and the view that was there takes the place it left, so every view stays in the list. The status line shows the whole order, e.g. `"." cycle: osci > lyrics > spectro > sphere`. (`VizOrder=osci,lyrics,spectro,sphere`) |
+
+**Note at the bottom of the tab.** *The oscilloscope/spectrogram are tuned live via an option overlay: [SHIFT+o] oscilloscope [SHIFT+i] spectrogram. SHIFT+u opens the big overlay of the spectrogram; SHIFT+9 and SHIFT+8 open an extra window.* (The window keys are named for your keyboard; on a German one they are `SHIFT+9` and `SHIFT+8`.)
 
 ### Tab 4: PATHS
 
@@ -1013,10 +1210,13 @@ Five sections, each under its header in the header colour. Move onto a row and p
 | LOCAL PATH | `Local Path 1`, `2`, … plus `+ new path` | The folders scanned for music. `ENTER` edits one. `+ new path` (`ENTER`) adds an empty line and opens it for typing. Committing a change **rescans the library immediately**. |
 | DOWNLOAD PATH | one row | Where `y` (Save stream) puts downloaded tracks. Until you set one it shows the default cache folder (`~/.cache/mousiki`). It is added to the scanned folders automatically, so you do not repeat it as a local path. The radio uses the same folder by default. |
 | PLAYLIST PATH | one row | The **one** folder playlists are loaded from, saved to and deleted in. If none is set, the first local path plus `/playlists` is used. Under the path a note says that changing it copies the existing playlists to the new folder. |
+| CONVERSION EXPORT PATH | one row | The **one** folder the file conversion overlay (`SHIFT+c`) writes its converted files to. Empty = the `conversion-export` folder inside the download folder (the row shows the folder in effect). Changing it only affects the next conversion. (`ConversionExportPath=`) |
 | PLAYLIST EXPORT PATH | one row | The **one** folder `e` on the playlist editor's Saved Playlists tab exports M3U8 / M3U files to (see [Exporting a playlist](#exporting-a-playlist-m3u8--m3u)). Empty = the playlist folder. Nothing is copied or moved when it changes. |
 | HISTORY PATH | one row | The **one** folder that holds the listening history (`history.json`). Under the path a note says that an existing `history.json` in the new folder is used, otherwise the current one is copied there. |
 
-DOWNLOAD PATH, PLAYLIST PATH, PLAYLIST EXPORT PATH and HISTORY PATH are single paths: their name sits on the row itself, followed by `:` and the folder, and there is no `+ new path` line. Paths accept `~` and `%USERPROFILE%` shortcuts, and both slash directions on Windows. Emptying a path line and pressing `ENTER` removes that path (for the single paths: resets it to the default). Changed folders only take effect for good when you save with `s`; with `ESC` or `q` they are put back.
+**Shared download archive.** Every YouTube track Mousiki downloads is also written as `youtube <video id>` to `<download folder>/history/downloaded_history.txt`, the file format of yt-dlp's `--download-archive`. Use the same file for downloads you make in a terminal, e.g. `yt-dlp -x -P <download folder> --download-archive <download folder>/history/downloaded_history.txt <playlist-url>`: yt-dlp then skips what Mousiki already fetched and Mousiki's downloads are known to the next terminal run. Changing DOWNLOAD PATH copies this file to the new folder's `history/` (the old one stays; an existing one in the new folder is kept). Mousiki only appends to the file and never skips a download because of it. An existing `downloaded_history.txt` lying directly in the download folder is moved into `history/` the first time Mousiki records a download. Do not put `--download-archive` into yt-dlp's own config file: Mousiki's yt-dlp would then refuse to fetch a song whose file you deleted.
+
+DOWNLOAD PATH, PLAYLIST PATH, PLAYLIST EXPORT PATH, CONVERSION EXPORT PATH and HISTORY PATH are single paths: their name sits on the row itself, followed by `:` and the folder, and there is no `+ new path` line. Paths accept `~` and `%USERPROFILE%` shortcuts, and both slash directions on Windows. Emptying a path line and pressing `ENTER` removes that path (for the single paths: resets it to the default). Changed folders only take effect for good when you save with `s`; with `ESC` or `q` they are put back.
 
 ### Tab 5: REFERENCE
 
@@ -1026,26 +1226,43 @@ DOWNLOAD PATH, PLAYLIST PATH, PLAYLIST EXPORT PATH and HISTORY PATH are single p
 
 The longest tab. It scrolls as one list and has two parts: the hotkeys, then the font map.
 
-**Hotkeys** (editable). A grey note at the top points to the cheat sheet (`?`), and the rebindable commands are listed under the headers PLAYBACK, NAVIGATION & VIEW, LYRICS & KARAOKE, VISUALIZATIONS, SEARCH, QUEUE, PLAYLISTS, META EDITOR, HISTORY, EQUALIZER, DOWNLOADS and SYSTEM (the same groups as in the cheat sheet). Each row shows a label and the key currently bound to it.
+**Hotkeys** (editable). A note at the top says that keys not listed here are fixed and points to the cheat sheet (`?`), and the rebindable commands are listed under the headers PLAYBACK, NAVIGATION & VIEW, LYRICS & KARAOKE, VISUALIZATIONS, SEARCH, QUEUE, PLAYLISTS, META EDITOR, HISTORY, EQUALIZER, DOWNLOADS, LIBRARY and SYSTEM (the same groups as in the cheat sheet). Each row shows a label and the key currently bound to it.
 
 - Press `ENTER` on a row, type the new key, and press `ENTER` again.
-- A key is written as the character itself (`n`, `T`, `#`, `+`) or as a name: `ENTER`, `TAB`, `SPACE`, `ESC`, `BACKSPACE`, `ARROW_KEY_UP`, `ARROW_KEY_DOWN`, `ARROW_KEY_LEFT`, `ARROW_KEY_RIGHT`.
-- If the key is **already used by another action**, the change is refused with `KEY "x" ALREADY USED BY <action> -- try another key`, and you can type another one.
-- The search prefixes (`/`, `/s:`, `/p:`, `/f:`) appear here too and are edited the same way. (`/sc:` SoundCloud and `/b:` Bandcamp are typed in the search box and cannot be changed.)
-- Keys that are **not** rebindable (`ESC`, `SHIFT+b`, the playlist and meta editors' own keys, `CTRL+s`, `CTRL+SHIFT+x`, `CTRL+SHIFT+z/U`, `ALT+l`) are not listed. The cheat sheet shows those.
+- A key is written as the character itself (`n`, `T`, `#`, `+`; a capital letter means `SHIFT` + the letter) or as a name: `ENTER`, `TAB`, `SPACE`, `BACKSPACE`, `ARROW_KEY_UP`, `ARROW_KEY_DOWN`, `ARROW_KEY_LEFT`, `ARROW_KEY_RIGHT` (any case is accepted; `UP`, `DOWN`, `LEFT`, `RIGHT` work as well).
+- A combination cannot be typed as a character. **Press it while the field is being edited** and its name is entered: `ALT+L` (`OPTION+L` on a Mac), `CTRL+L`, `CTRL+SHIFT+U`, `CTRL+SHIFT+Z`. These four are the combinations that can be bound; in `config.txt` they are written by name, e.g. `HKeyReadLyrics="CTRL+L"`.
+- An empty field **unbinds** the command (it then shows `-` in the cheat sheet and legends). `DEL` on a row restores its default.
+- Something that is not a key (`foo`) is refused with `NOT A KEY -- …`; `*` (switches to the radio) and `ESC` (back to the home view) are reserved and refused.
+- If the key is **already used by another action**, the change is refused with `KEY "x" ALREADY USED BY "<command>" -- try another key`, and you can type another one.
+- The help wizard's key (`SHIFT+w`) is listed under SYSTEM and can be rebound like the others.
+- Since this version the tab also lists **Rescan Library** (`SHIFT+r`), **Fetch Missing Tags** (`SHIFT+b`, also used inside the meta editor), **Lyrics Timing Overlay**, **Read Lyrics Overlay**, **Undo Clear Queue** and **Save Queue As Playlist**. They used to be fixed keys.
+- Only `/` (opens the search) is a key. The prefixes typed *inside* the search box (`s:` `sc:` `b:` `p:` `f:` `r:` `a:`) are fixed and are no longer listed here; the cheat sheet describes them.
+
+**What stays fixed, and why.** These are not listed on the tab because rebinding them would break something:
+
+| Fixed key | Reason |
+|---|---|
+| `ESC`, `ENTER`, `TAB`, the arrow keys in menus | They mean the same in every overlay; `ESC` is the way out of anything. (The main screen's *Play*, *Switch Cards*, *Navigate Up / Down* and *Seek* are rebindable.) |
+| `*` (the key that switches to the radio) | Depends on the keyboard layout and must be the same in the player and the radio. |
+| `Y` / `N` in prompts, `CTRL+s`, `CTRL+SHIFT+x` | Confirmation keys must not collide with typed text or a rebound command. |
+| Keys inside an overlay (playlist and meta editors, READ LYRICS `t` / `SHIFT+t` / `d`, conversion, history, equalizer, normalization, oscilloscope and spectrogram overlays, sleep timer, big folder / list / queue overlays, the windows' own `F` / `F11` / `T`) | They only exist while that overlay is open, are shown in its own legend, and share letters with the main screen on purpose. |
+| Text editing: `SHIFT+←→`, `CTRL+C/X/V`, `HOME` / `END`, `DEL` | Terminal conventions for any text field. |
+| Karaoke size `*` / `_` | Same layout dependence as the switch key. |
+| `SHIFT+↑↓` (pages in the big overlays), `CTRL+p` (play in the folder / conversion overlay) | Modifier combinations that only mean something inside those overlays. |
 
 **FONT / CHARACTER MAP** (read-only). Shows the `A = A, a` table from `config.txt`, which lets you re-font the interface with fancy Unicode letters without changing the terminal font. It cannot be edited here. Edit the `font_en={ … }` block in `config.txt` while the app is closed.
 
 ### Tab 6: ABOUT APP
 
-The credits and versions of the original app and of this port, as text that scrolls with `↑` / `↓`. The text is kept in `config.txt` (the `ClassTextAboutApp= { … };` block) and can be edited there while the app is closed; the version line of the port is updated to the running version automatically, so a `config.txt` saved by an older version does not keep showing the old number.
+The credits and versions of the original app and of this port, as text that scrolls with `↑` / `↓`. The text is built into the program (no longer part of `config.txt`, where it used to collect empty lines over time) and always shows the running version. An old `ClassTextAboutApp= { … };` block in an existing `config.txt` is ignored and disappears with the next save.
 
 ### Settings that exist (only) in `config.txt`
 
 | Key in `config.txt` | What it does |
 |---|---|
 | `ReplaceEmoji` | `true` draws an emoji in a title as a single `?` so box borders stay aligned. `false` draws the real emoji. |
-| `UseLyrics`, `UseOscilloscope`, `UseSpectrogram` | `false` switches that visual off entirely (Settings → ON/OFF → Use …): not in the `.` cycle; the windows (`(` / `)`) and the full screen (`SHIFT+u`) still work. |
+| `UseLyrics`, `UseOscilloscope`, `UseSpectrogram`, `UseSphere` | `false` switches that view off entirely (Settings → ON/OFF → Use …): not in the `.` cycle; the windows (`(` / `)`) and the full screen (`SHIFT+u`) still work. |
+| `VizOrder` | The order of the views in the `.` cycle: `sphere,osci,spectro,lyrics` in any order (Settings → ANIMA/VIZ → Viz Order 1..4). Missing names are appended. |
 | `HKeySpectroWindow`, `HKeyScopeWindow` | The spectrogram / scope window keys, `"("` / `")"` by default (`SHIFT+8` / `SHIFT+9` on a German keyboard, `SHIFT+9` / `SHIFT+0` on an English one). An old `HKeyScopeWindow="W"` is moved to `")"`. |
 | `ConsoleVerbosity` | `basic` logs every command the app runs and its raw output. `verbose` adds internal and OS-level events. |
 | `AutoSave` | Resumes the exact song, position, queue and play mode at the next launch. |
@@ -1055,9 +1272,11 @@ The credits and versions of the original app and of this port, as text that scro
 | `NormalizeVolume`, `NormalizeTargetLufs`, `NormalizeMaxBoostDb` | Loudness normalization on or off, its target level (-40 to 0 LUFS, default -16) and the most a quiet track may be raised (0 to 24 dB, default 9). Normally changed with the `SHIFT+v` overlay, which writes them here. Values outside the range are limited to it when the file is loaded. |
 | `SidPlayLength` | How many seconds of a C64 SID tune are rendered and played (10 – 1800, default 180). SID tunes have no end of their own. |
 | `SleepFade` | Whether the sleep timer fades the volume out over the last 10 % of its time (default `true`). |
+| `WizardSeen` | Whether the [help wizard](#the-help-wizard-shiftw) (`SHIFT+w`) has already opened itself once (default `false`, set to `true` the first time it is closed). `false` makes it greet you again on the next start. The radio has the same line in `radio_config.txt`. |
 | `KaraokeLyricsSize` | Lyrics size of the karaoke overlay, `1` (normal text, default) to `5`. Normally changed with `*` / `_` in the overlay (German `SHIFT` and `+` / `-`, English `SHIFT+8` / `SHIFT` and `-`). |
+| `ConversionExportPath` | The folder the file conversion overlay writes to (one folder; unset = `conversion-export` in the download folder). |
 | `PlaylistsPath`, `PlaylistExportPath`, `HistoryPath` | The playlist folder, the playlist export folder and the listening history folder (one each; a second `PlaylistsPath` line is ignored). Normally set under **Settings → PATHS**. |
-| `ColorHeader`, `ColorLegend`, `ColorTabCurrent`, `ColorTabOther` | The header, legend and tab-name colours (also on the COLORS tab). |
+| `ColorHeader`, `ColorLegend`, `ColorTabCurrent`, `ColorTabOther`, `ColorFocus` | The header, legend, tab-name and pane focus indicator colours (also on the COLORS tab). Without `ColorFocus` the indicator follows `ColorHeader`. |
 | `AutoSaveDelayInSec` | How often the session snapshot is saved (default 30 seconds). |
 | `UpperLeftCorner`, `Vertical`, `Horizontal`, `Seprator`, `ListSeparator` and the other border entries | The characters used to draw frames and the list column separator. |
 | `EqualizerEnabled`, `EqualizerBands` | Whether the equalizer is on, and its ten band gains in dB (−12 to 12) for 31, 62, 125, 250, 500 Hz, 1, 2, 4, 8 and 16 kHz, for example `EqualizerBands=0,3,-2,0,0,0,0,0,0,0`. Normally changed with the `SHIFT+e` overlay, which writes them here. Values outside the range are limited to it. A line with fewer or more than ten valid numbers is ignored. |
@@ -1132,6 +1351,7 @@ All of them are also in the radio's own cheat sheet (`?`, categorized and scroll
 | `SHIFT+l` | Big STATIONS overlay |
 | `h` | Listening history |
 | `s` | Settings |
+| `SHIFT+w` | [Help wizard](#the-help-wizard-shiftw): the same wizard, with the radio's own topics |
 | `?` | Cheat sheet |
 | `*` (German `SHIFT` and `+`, English `SHIFT+8`) | Switch to the music player |
 | `q` / `CTRL+c` | Quit |
@@ -1336,25 +1556,40 @@ Like the player's, the history is light-weight: the newest 10 000 lines are kept
 | VOLUME | CURRENT, POSSIBLE | The `#` and `-` of the volume bar |
 | PRESETS | INACTIVE FG/BG, KEY FG | Unassigned preset slots / the shortcut letters |
 
-BORDER_COLOR, METADATA, VIZ, LIST, HEADER, LEGEND and TAB_NAMES work as in the player.
+BORDER_COLOR, METADATA, VIZ, LIST, HEADER, LEGEND and TAB_NAMES work as in the player. **FOCUS** (`ColorFocus`) colours the pane focus indicator **◀** after the title of the pane that has the keys in the radio's menus; a `radio_config.txt` without it follows the radio's HEADER colour.
 
-**ON/OFF** (the radio's own switches):
+**ON/OFF** (the radio's own switches) has two categories, as in the player:
+
+**MODES**
+
+| Row | What it does |
+|---|---|
+| Playback | `shuffle` or `list` for the station surf (same as `m`). Saved as `PlaybackMode=`. |
+| Start Mode | `player` or `radio`: which of the two Mousiki opens with. The same value as in the player's Settings (`StartMode=` in the player's `config.txt`; the radio reads and writes that one line). |
+
+**ON/OFF**
 
 | Row | What it does |
 |---|---|
 | On air ascii | The ON AIR sign and its colour wave |
 | Pulse wave | The faint circle burst behind the sign |
 | Dummy buttons | The `<<< MUTE >>>` boxes next to the dial (the volume bar stays) |
-| Osci/sphere | Right of the station info: oscilloscope, sphere, off, or spectrogram (`spectro`) |
 | Visualizer | The spectrum under the station info |
 | Stereo sound | Off folds left and right into mono (the dial's footer then says MONO) |
 | Normalize volume | Loudness normalization, as `v` |
-| Osci style | `braille` or `image` |
-| Use oscilloscope / Use spectrogram | `false` leaves that visual out of the scope block: `.` skips it (the sphere is always there). Full screen (`SHIFT+u`) and the windows `)` / `(` still work. (`UseOscilloscope=`, `UseSpectrogram=`) |
-| Timeshift buffer | How many minutes of the tuned station are kept for pause / rewind and recording from the past: 5, 15, 30 (default), 45 or 60 min (see 11.10). Saved as `TimeshiftMinutes=`. |
 | Tuning noise | Off by default. On: static with crackle fades in while another station is tuned and stays until the new stream plays. It follows volume, mute and the sleep-timer fade and is not recorded. |
+| Timeshift buffer | How many minutes of the tuned station are kept for pause / rewind and recording from the past: 5, 15, 30 (default), 45 or 60 min (see 11.10). Saved as `TimeshiftMinutes=`. |
+| Use oscilloscope / Use spectrogram | `false` leaves that visual out of the scope block: `.` skips it (the sphere is always there). Full screen (`SHIFT+u`) and the windows `)` / `(` still work. (`UseOscilloscope=`, `UseSpectrogram=`) |
 
-**ANIMATION.** Vis. Fluidity, Vis. Degradation and Vis. Viscosity as in the player, **Playback mode** (list / shuffle for the station surf, same as `m`), plus two radio-only speeds: **Gradient wave speed** (cycles per second of the ON AIR sign's colour wave) and **Pulse wave speed** (loops per second of the circle burst). The player's Waveform Style, Lyrics Alignment and Lyrics Animation do not exist in the radio.
+**ANIMA/VIZ** (the tab used to be called ANIMATION) has three categories and, like the player's, a note at the bottom about `SHIFT+o`, `SHIFT+i`, `SHIFT+u`, `)` and `(`:
+
+| Category | Rows |
+|---|---|
+| ON AIR SIGN | **Gradient wave speed** (cycles per second of the ON AIR sign's colour wave) and **Pulse wave speed** (loops per second of the circle burst) |
+| WAVE | Wave Fluidity, Wave Degradation and Wave Viscosity, as in the player |
+| MODES | **Osci/sphere** (right of the station info: oscilloscope, sphere, off, or spectrogram (`spectro`)) and **Osci style** (`braille` or `image`) |
+
+The player's Waveform Style, Disk Speed, Lyrics Alignment and Lyrics Animation do not exist in the radio, so those categories are missing.
 
 **PATHS.** The radio's files live below these folders. The layout is the player's: the name of the setting in the header colour, its value in the list colour. Every path is a *base*; the radio creates its own sub-folders below it.
 
