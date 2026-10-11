@@ -226,7 +226,9 @@ if(MOUSIKI_BUILD_RADIO_STANDALONE)
       src/history.cpp src/cache_manager.cpp src/youtube_source.cpp src/online_source.cpp
       src/terminal_ui.cpp src/sphere_visualizer.cpp src/indic_handler.cpp src/process_util.cpp src/console_log.cpp
       src/fft_visualizer.cpp src/audio_backend.cpp src/miniaudio_impl.cpp src/keyboard_layout.cpp
-      src/spectrogram.cpp src/scope_window.cpp)
+      src/spectrogram.cpp src/scope_window.cpp src/themes.cpp src/border_gradient.cpp
+      # the help wizard (SHIFT+w): its pages, and the disk its welcome page spins
+      src/wizard.cpp src/disk_art.cpp)
   if(WIN32)
     list(APPEND RADIO_SOURCES src/win_compat.cpp)
   endif()

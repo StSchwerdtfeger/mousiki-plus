@@ -21,6 +21,14 @@
 #   ffmpeg  - (the same one as above) also streams the stations and, with libmp3lame,
 #             converts recordings to MP3. The radio plays through its own audio device.
 #
+# and, for the retro formats (the "What Mousiki plays" page of the first-start wizard):
+#
+#   ffmpeg with libopenmpt + libgme - tracker modules (.mod .xm .it ...) and console music (.nsf .spc ...).
+#             Without those two this script upgrades the ffmpeg that is already installed; if it still lacks them
+#             it says so (on macOS it rebuilds Homebrew's ffmpeg from the homebrew-ffmpeg tap with them).
+#   sidplayfp - Commodore 64 SID tunes (.sid). Installed from the package manager (built from source on macOS
+#             if Homebrew has no sidplayfp) and put on the PATH (a symlink in ~/.local/bin if it sits elsewhere).
+#
 # All of these are independent of each other: mousiki plays local files fine with
 # none of them installed. The radio is built from src_radio/ and runs on Linux and macOS
 # like the player (developed and tested on Linux; the macOS path is the same POSIX code
@@ -36,6 +44,8 @@
 #   --no-install        Don't create the launchers. By default the commands "mousiki"
 #                       and "lala" are created in ~/.local/bin (both start the app).
 #   --install           Create the launchers (the default; kept for older scripts).
+#   --no-upgrade        Don't upgrade an ffmpeg that is already installed (it is upgraded by default,
+#                       so that libopenmpt / libgme support and fixes arrive).
 #   -y, --yes           Don't ask before installing packages (uses sudo if needed).
 #   -h, --help          Show this help.
 
@@ -49,6 +59,7 @@ SKIP_DEPS=0
 BUILD_TYPE="Release"
 DO_INSTALL=1
 ASSUME_YES=0
+UPGRADE_FFMPEG=1
 
 # ---------------------------------------------------------------------------
 # Output helpers
@@ -83,6 +94,7 @@ while [ $# -gt 0 ]; do
             ;;
         --install)    DO_INSTALL=1 ;;
         --no-install) DO_INSTALL=0 ;;
+        --no-upgrade) UPGRADE_FFMPEG=0 ;;
         -y|--yes)     ASSUME_YES=1 ;;
         -h|--help)    usage; exit 0 ;;
         *)            die "unknown option: $1 (try --help)" ;;
@@ -176,6 +188,100 @@ pip_install_ytdlp() {
     python3 -m pip install --quiet --user --break-system-packages --upgrade yt-dlp
 }
 
+
+# ---------------------------------------------------------------------------
+# FFmpeg upgrade + retro-format helpers
+# ---------------------------------------------------------------------------
+# Tracker modules and console music are read through FFmpeg's libopenmpt / libgme demuxers.
+ffmpeg_has_demuxer() {
+    have ffmpeg || return 1
+    local out
+    out="$(ffmpeg -hide_banner -demuxers 2>/dev/null)"
+    grep -qw "$1" <<<"$out"
+}
+ffmpeg_formats_ok() { ffmpeg_has_demuxer libopenmpt && ffmpeg_has_demuxer libgme; }
+
+# pkg_upgrade <package>...   -- upgrade packages that are already installed (never installs new ones)
+pkg_upgrade() {
+    case "$PM" in
+        apt)
+            if [ "$APT_UPDATED" -eq 0 ]; then
+                $SUDO apt-get update || return 1
+                APT_UPDATED=1
+            fi
+            $SUDO apt-get install -y --only-upgrade "$@" ;;
+        dnf)    $SUDO dnf upgrade -y "$@" ;;
+        pacman) $SUDO pacman -S --noconfirm "$@" ;;
+        zypper) $SUDO zypper --non-interactive update "$@" ;;
+        apk)    $SUDO apk add --upgrade "$@" ;;
+        brew)   brew upgrade "$@" ;;
+        *)      return 1 ;;
+    esac
+}
+
+# macOS: Homebrew's own ffmpeg has neither libopenmpt nor libgme. The homebrew-ffmpeg tap can build one with both
+# (from source, so it takes a while). The stock ffmpeg is put back if that fails.
+brew_ffmpeg_with_retro_formats() {
+    brew tap homebrew-ffmpeg/ffmpeg >/dev/null 2>&1 || { warn "could not add the homebrew-ffmpeg/ffmpeg tap"; return 1; }
+    brew uninstall --ignore-dependencies ffmpeg >/dev/null 2>&1
+    if brew install homebrew-ffmpeg/ffmpeg/ffmpeg --with-libopenmpt --with-game-music-emu; then
+        return 0
+    fi
+    warn "building ffmpeg with libopenmpt / libgme failed -- putting Homebrew's stock ffmpeg back"
+    brew install ffmpeg || true
+    return 1
+}
+
+# sidplayfp, found in a directory that is not on the PATH -> symlink it into ~/.local/bin.
+link_sidplayfp_into_path() {
+    have sidplayfp && return 0
+    local d found=""
+    for d in /usr/local/bin /opt/homebrew/bin /usr/games /usr/local/games /opt/sidplayfp/bin "$HOME/bin" "$HOME/.local/bin"; do
+        if [ -x "$d/sidplayfp" ]; then found="$d/sidplayfp"; break; fi
+    done
+    [ -n "$found" ] || return 1
+    case "$found" in
+        "$HOME/.local/bin/sidplayfp") ;;
+        *) mkdir -p "$HOME/.local/bin" && ln -sf "$found" "$HOME/.local/bin/sidplayfp" || return 1 ;;
+    esac
+    case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) PATH="$HOME/.local/bin:$PATH"; export PATH
+        warn "sidplayfp is in ~/.local/bin, which is not on your PATH. Add this to your shell profile:  export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
+    esac
+    step "sidplayfp ($found) is now on the PATH via ~/.local/bin/sidplayfp"
+}
+
+# Fallback when the package manager has no sidplayfp program (Homebrew only ships the library libsidplayfp):
+# build the player from the official release tarball (pinned and checksummed) into ~/.local.
+SIDPLAYFP_VERSION="3.1.0"
+SIDPLAYFP_SHA256="287cc5fe859e242f885f8f2c6da37add62b89b232c8a55d23b74e2c59281f4e7"
+build_sidplayfp_from_source() {
+    have curl || { warn "curl is needed to download sidplayfp"; return 1; }
+    local tmp url="https://github.com/libsidplayfp/sidplayfp/releases/download/v${SIDPLAYFP_VERSION}/sidplayfp-${SIDPLAYFP_VERSION}.tar.gz"
+    tmp="$(mktemp -d)" || return 1
+    if [ "$PM" = "brew" ]; then pkg_install libsidplayfp pkgconf || { rm -rf "$tmp"; return 1; }; fi
+    curl -fsSL -o "$tmp/sid.tar.gz" "$url" || { rm -rf "$tmp"; warn "could not download $url"; return 1; }
+    local got=""
+    if have sha256sum; then got="$(sha256sum "$tmp/sid.tar.gz" | cut -d' ' -f1)"; else got="$(shasum -a 256 "$tmp/sid.tar.gz" | cut -d' ' -f1)"; fi
+    if [ "$got" != "$SIDPLAYFP_SHA256" ]; then
+        rm -rf "$tmp"; warn "SHA-256 mismatch for sidplayfp-${SIDPLAYFP_VERSION}.tar.gz (got $got) -- not building it"; return 1
+    fi
+    ( cd "$tmp" && tar xzf sid.tar.gz && cd "sidplayfp-${SIDPLAYFP_VERSION}" &&
+      ./configure --prefix="$HOME/.local" >"$tmp/configure.log" 2>&1 &&
+      make -j"${JOBS:-2}" >"$tmp/make.log" 2>&1 && make install >>"$tmp/make.log" 2>&1 ) ||
+        { warn "building sidplayfp failed (logs: $tmp/configure.log, $tmp/make.log)"; return 1; }
+    rm -rf "$tmp"
+    export PATH="$HOME/.local/bin:$PATH"
+    return 0
+}
+
+install_sidplayfp() {
+    case "$PM" in
+        apt|dnf|pacman|zypper|apk) pkg_install sidplayfp ;;
+        brew) pkg_install sidplayfp >/dev/null 2>&1 || build_sidplayfp_from_source ;;
+        *) return 1 ;;
+    esac
+}
+
 # ---------------------------------------------------------------------------
 # Dependencies
 # ---------------------------------------------------------------------------
@@ -183,7 +289,7 @@ confirm_install() {
     [ "$ASSUME_YES" -eq 1 ] && return 0
     [ -t 0 ] || return 0   # non-interactive (CI, pipe): don't hang on a prompt
     local reply
-    printf 'Install missing packages with %s%s? [Y/n] ' "${SUDO:+$SUDO }" "$PM"
+    printf 'Install / update packages with %s%s? [Y/n] ' "${SUDO:+$SUDO }" "$PM"
     read -r reply
     case "$reply" in [nN]*) return 1 ;; *) return 0 ;; esac
 }
@@ -223,12 +329,16 @@ install_deps() {
     have python3 || need_python=1
     have curl    || need_curl=1     # radio mode: Radio Browser search
     have_sdl2    || need_sdl=1      # optional: scope / spectrogram windows
+    # Retro formats: an ffmpeg without libopenmpt / libgme, and the sidplayfp program (SID tunes).
+    local need_sid=0 upgrade_ffmpeg=0
+    if ! have sidplayfp && ! link_sidplayfp_into_path; then need_sid=1; fi
+    if have ffmpeg && [ "$need_ffmpeg" -eq 0 ] && [ "$UPGRADE_FFMPEG" -eq 1 ]; then upgrade_ffmpeg=1; fi
     # ALSA/PulseAudio: miniaudio dlopen()s them at runtime, so there is no
     # reliable "is it installed" test that doesn't depend on the distro.
     # Installing the (tiny) dev packages is idempotent and guarantees both.
     [ "$PLATFORM" = "linux" ] && need_audio=1
 
-    if [ $((need_compiler + need_cmake + need_ffmpeg + need_ytdlp + need_python + need_audio + need_curl + need_sdl)) -gt 0 ]; then
+    if [ $((need_compiler + need_cmake + need_ffmpeg + need_ytdlp + need_python + need_audio + need_curl + need_sdl + need_sid + upgrade_ffmpeg)) -gt 0 ]; then
         confirm_install || { warn "skipping package installation at your request."; return 0; }
     fi
 
@@ -272,6 +382,34 @@ install_deps() {
         else
             pkg_install ffmpeg || warn "FFmpeg installation failed -- Opus playback, metadata and AcoustID will not work"
         fi
+    fi
+
+    # --- ffmpeg already there: upgrade it, then make sure it has libopenmpt + libgme -----
+    if [ "$upgrade_ffmpeg" -eq 1 ]; then
+        step "Upgrading FFmpeg (already installed)"
+        pkg_upgrade ffmpeg || warn "could not upgrade ffmpeg (it may have been installed outside the package manager) -- keeping the installed one"
+    fi
+    if have ffmpeg && ! ffmpeg_formats_ok; then
+        if [ "$PM" = "brew" ]; then
+            step "Rebuilding FFmpeg with libopenmpt and libgme (tracker modules, console music) -- this takes a few minutes"
+            brew_ffmpeg_with_retro_formats || true
+        fi
+        if ! ffmpeg_formats_ok; then
+            ffmpeg_has_demuxer libopenmpt || warn "your ffmpeg has no libopenmpt -- tracker modules (.mod .xm .it .s3m ...) will not play."
+            ffmpeg_has_demuxer libgme     || warn "your ffmpeg has no libgme -- console music (.nsf .spc .vgm ...) will not play."
+            if [ "$PM" = "dnf" ] && rpm -q ffmpeg-free >/dev/null 2>&1; then
+                warn "Fedora's ffmpeg-free is a reduced build. Enable RPM Fusion (https://rpmfusion.org), then:  sudo dnf swap ffmpeg-free ffmpeg --allowerasing"
+            else
+                warn "Install an FFmpeg build that includes them (most distro packages do), and make sure it is the first ffmpeg on your PATH."
+            fi
+        fi
+    fi
+
+    # --- sidplayfp (Commodore 64 SID tunes) --------------------------------------
+    if [ "$need_sid" -eq 1 ]; then
+        step "Installing sidplayfp (C64 SID tunes)"
+        install_sidplayfp || warn "could not install sidplayfp -- .sid tunes will not play (everything else works)"
+        link_sidplayfp_into_path || true
     fi
 
     # --- curl (radio mode) ----------------------------------------------------
