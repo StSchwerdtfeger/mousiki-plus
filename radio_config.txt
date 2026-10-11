@@ -13,6 +13,8 @@
 # Frame lines: fade from top to bottom
 ColorBorderTop=170
 ColorBorderBottom=170
+# BorderGradient: smooth = the frame fades line by line from the top to the bottom colour, rough = only the bottom border line has the bottom colour
+BorderGradient=smooth
 
 # ON AIR sign: diagonal gradient (upper left -> bottom right); also the needle, the lamp and the LIVE text
 ColorOnAirUpperLeft=170
@@ -38,6 +40,13 @@ ColorFrequencyMHz=90
 # Volume bar: the # / the -
 ColorVolumeCurrent=170
 ColorVolumePossible=182
+
+# Search bar: typed query (highlighted behind the query text only) and the idle bar
+# (empty FG = same as the STATIONS list rows; empty BG = none)
+ColorSearchFg=
+ColorSearchBg=
+ColorSearchInactiveFg=
+ColorSearchInactiveBg=
 
 # STATIONS list rows (the station names in the PRESETS pane use the same colours)
 ColorListInactiveFg=255
@@ -80,6 +89,8 @@ UseOscilloscope=true
 UseSpectrogram=true
 # static that fades in when another station is tuned and fades out when the stream plays
 TuneNoise=false
+# the help wizard (SHIFT+w) greeted you once already; false makes it open again on the next start
+WizardSeen=false
 # timeshift buffer for pause / rewind / recording from the past: 5 | 15 | 30 | 45 | 60 minutes (on disk, 11.5 MB per minute)
 TimeshiftMinutes=30
 # loudness normalisation (SHIFT+v overlay, v toggles): target -40..0 LUFS, max boost 0..24 dB
@@ -92,7 +103,7 @@ EqualizerBands=0,0,0,0,0,0,0,0,0,0
 # EqualizerPreset=<ten gains>|<name> is one custom preset (made in the overlay with S), up to 24
 
 ##-------------------------------------------
-##              ANIMATION
+##              ANIMA/VIZ
 ##-------------------------------------------
 
 # speeds: 0.01 - 1.00 (colour wave of the ON AIR sign in cycles per second | pulse wave behind it in loops per second)
@@ -159,6 +170,7 @@ HKeyFwd30=]
 HKeyBack5m={
 HKeyGoLive=}
 HKeySettings=s
+HKeyWizard=W
 HKeyCheatsheet=?
 HKeyQuit=q
 
