@@ -7,6 +7,7 @@
 #include "utf8_util.h"
 #include "console_log.h"
 #include "karaoke_font.h"
+#include "glyph_raster.h"
 #include "chiptune.h"
 #include "scope_window.h"
 #include "wizard.h"
@@ -11656,16 +11657,22 @@ static std::vector<char32_t> karaoke_codepoints(const std::string& s) {
     return out;
 }
 
-// One lyric line in BIG letters (karaoke lyrics size 2..5): the built-in 5x7
-// pixel font (karaoke_font.h) scaled by `scale` = size - 1 and drawn in
-// braille, so a letter is 3*scale columns wide and 2*scale rows tall. Words
-// wrap like the normal lyrics, each row is centred in `width` columns, and the
-// colours follow the same rules as render_lyric_line_wrapped() (sung words in
-// the active-word colour, the word being sung bold, the rest of the active
-// line in the active-line colour, other lines in the inactive colour).
-// Returns false -- and leaves `out` alone -- when the line holds a character
-// the font does not have (CJK, emoji, ...); the caller then shows that line
-// as normal text instead.
+// One lyric line in BIG letters (karaoke lyrics size 2..5), drawn in braille.
+// Latin text uses the built-in 5x7 pixel font (karaoke_font.h) scaled by
+// `scale` = size - 1, so a letter is 3*scale columns wide and 2*scale rows
+// tall. A line with characters that font lacks (Japanese, Chinese, Korean,
+// Cyrillic, Greek ...) takes its glyphs from an installed font instead
+// (glyph_raster.h); those are bigger, because a kanji needs about 16 dots to
+// stay readable: the cell is 8*scale + 8 dots high, i.e. 4 / 6 / 8 / 10 rows
+// for the sizes 2 / 3 / 4 / 5, and a full-width character is as many dots wide.
+// Words wrap like the normal lyrics (a word with no spaces, like a Japanese
+// line, breaks wherever the row is full), each row is centred in `width`
+// columns, and the colours follow the same rules as render_lyric_line_wrapped()
+// (sung words in the active-word colour, the word being sung bold, the rest of
+// the active line in the active-line colour, other lines in the inactive colour).
+// Returns false -- and leaves `out` alone -- when the line holds a character no
+// font has (emoji, scripts that need shaping, or no CJK font installed); the
+// caller then shows that line as normal text instead.
 static bool render_big_lyric_line(const LyricLine& line, double elapsed, int width, bool is_active, int scale,
                                   const Settings& st, std::vector<std::string>& out) {
     struct Word { std::vector<char32_t> cps; double t; bool has_ts; };
@@ -11681,11 +11688,30 @@ static bool render_big_lyric_line(const LyricLine& line, double elapsed, int wid
         std::string w;
         while (iss >> w) words.push_back({karaoke_codepoints(w), line.start_time, false});
     }
-    for (const auto& w : words) for (char32_t cp : w.cps) if (!karaoke_glyph(cp)) return false;
+    bool pixel_font = true;   // every character is in the built-in font
+    for (const auto& w : words) for (char32_t cp : w.cps) if (!karaoke_glyph(cp)) pixel_font = false;
     if (words.empty()) { out.push_back(std::string(static_cast<size_t>(std::max(0, width)), ' ')); return true; }
 
-    const int char_cols = 3 * scale;                       // 6 px (5 + 1 gap) * scale / 2 px per braille cell
-    const int per_row = std::max(1, width / char_cols);    // letters per output row
+    // Cell height in dots, and the glyph (width + dots) of every character of the line.
+    const int cell_h = pixel_font ? 8 * scale : 8 * scale + 8;
+    std::unordered_map<char32_t, RasterGlyph> glyphs;
+    if (!pixel_font) {
+        if (!glyph_font_available()) return false;
+        for (const auto& w : words) for (char32_t cp : w.cps) {
+            if (!glyphs.count(cp) && !glyph_rasterize(cp, cell_h, glyphs[cp])) return false;
+        }
+        glyphs.erase(U' ');
+    }
+    // The separator between two words: a pixel-font space, or a quarter of the cell height.
+    const int space_w = pixel_font ? 6 * scale : std::max(3, cell_h / 4);
+    auto char_w = [&](char32_t cp) { return pixel_font ? 6 * scale : glyphs.at(cp).w; };
+    auto text_w = [&](const std::vector<char32_t>& v, size_t n) {
+        int w = 0;
+        for (size_t i = 0; i < n; ++i) w += char_w(v[i]);
+        return w;
+    };
+
+    const int cap = std::max(2, width * 2);                // dots per output row (2 dots per braille column)
     // State per word: 0 inactive line, 1 active line (not sung yet), 2 sung, 3 being sung.
     int singing = -1;
     if (is_active) for (size_t i = 0; i < words.size(); ++i) if (words[i].has_ts && words[i].t <= elapsed) singing = static_cast<int>(i);
@@ -11702,24 +11728,28 @@ static bool render_big_lyric_line(const LyricLine& line, double elapsed, int wid
         "\x1b[1m" + ansi_for(st.active_word_color) + bg_ansi_for(st.active_word_bg_color),
     };
 
-    // Word wrap into rows of at most per_row letters (a word longer than a row is split).
-    struct Piece { std::vector<char32_t> cps; int state; };
+    // Word wrap into rows of at most `cap` dots (a word longer than a row is split where the row is full).
+    struct Piece { std::vector<char32_t> cps; int state; bool space; };
     std::vector<std::vector<Piece>> rows(1);
     int used = 0;
     for (size_t i = 0; i < words.size(); ++i) {
         std::vector<char32_t> rest = words[i].cps;
         while (!rest.empty()) {
-            const int need = used + (used > 0 ? 1 : 0) + static_cast<int>(rest.size());   // row length with this word
-            if (need <= per_row) {
-                if (used > 0) { rows.back().push_back({{U' '}, 0}); ++used; }
-                rows.back().push_back({rest, state_of(i)});
-                used += static_cast<int>(rest.size());
+            const int need = used + (used > 0 ? space_w : 0) + text_w(rest, rest.size());   // row length with this word
+            if (need <= cap) {
+                if (used > 0) { rows.back().push_back({{}, 0, true}); used += space_w; }
+                rows.back().push_back({rest, state_of(i), false});
+                used += text_w(rest, rest.size());
                 rest.clear();
             } else if (used > 0) {
                 rows.emplace_back(); used = 0;
             } else {
-                rows.back().push_back({std::vector<char32_t>(rest.begin(), rest.begin() + per_row), state_of(i)});
-                rest.erase(rest.begin(), rest.begin() + per_row);
+                size_t n = 0;
+                int w = 0;
+                while (n < rest.size() && w + char_w(rest[n]) <= cap) { w += char_w(rest[n]); ++n; }
+                n = std::max<size_t>(n, 1);
+                rows.back().push_back({std::vector<char32_t>(rest.begin(), rest.begin() + static_cast<long>(n)), state_of(i), false});
+                rest.erase(rest.begin(), rest.begin() + static_cast<long>(n));
                 rows.emplace_back(); used = 0;
             }
         }
@@ -11727,22 +11757,31 @@ static bool render_big_lyric_line(const LyricLine& line, double elapsed, int wid
     if (rows.back().empty() && rows.size() > 1) rows.pop_back();
 
     for (const auto& row : rows) {
-        // Pixel grid of the row: 6 * scale px per letter, 8 * scale px tall; each pixel keeps its word's state (+1, 0 = off).
-        int n = 0;
-        for (const auto& p : row) n += static_cast<int>(p.cps.size());
-        const int pw = n * 6 * scale, ph = 8 * scale;
-        std::vector<int8_t> px(static_cast<size_t>(pw * ph), 0);
+        // Pixel grid of the row: cell_h dots tall; each dot keeps its word's state (+1, 0 = off).
+        int pw = 0;
+        for (const auto& p : row) pw += p.space ? space_w : text_w(p.cps, p.cps.size());
+        const int ph = cell_h;
+        std::vector<int8_t> px(static_cast<size_t>(std::max(1, pw) * ph), 0);
         int x0 = 0;
         for (const auto& p : row) {
+            if (p.space) { x0 += space_w; continue; }
             for (char32_t cp : p.cps) {
-                const uint8_t* g = karaoke_glyph(cp);
-                for (int gy = 0; g && gy < 8; ++gy)
-                    for (int gx = 0; gx < 5; ++gx)
-                        if (g[gy] & (1 << (4 - gx)))
-                            for (int sy = 0; sy < scale; ++sy)
-                                for (int sx = 0; sx < scale; ++sx)
-                                    px[static_cast<size_t>((gy * scale + sy) * pw + x0 + gx * scale + sx)] = static_cast<int8_t>(p.state + 1);
-                x0 += 6 * scale;
+                if (pixel_font) {
+                    const uint8_t* g = karaoke_glyph(cp);
+                    for (int gy = 0; g && gy < 8; ++gy)
+                        for (int gx = 0; gx < 5; ++gx)
+                            if (g[gy] & (1 << (4 - gx)))
+                                for (int sy = 0; sy < scale; ++sy)
+                                    for (int sx = 0; sx < scale; ++sx)
+                                        px[static_cast<size_t>((gy * scale + sy) * pw + x0 + gx * scale + sx)] = static_cast<int8_t>(p.state + 1);
+                } else {
+                    const RasterGlyph& g = glyphs.at(cp);
+                    for (int gy = 0; gy < g.h && gy < ph; ++gy)
+                        for (int gx = 0; gx < g.w; ++gx)
+                            if (g.dots[static_cast<size_t>(gy * g.w + gx)])
+                                px[static_cast<size_t>(gy * pw + x0 + gx)] = static_cast<int8_t>(p.state + 1);
+                }
+                x0 += char_w(cp);
             }
         }
         const int cols = (pw + 1) / 2;
@@ -11890,7 +11929,14 @@ void App::build_karaoke_screen(std::ostringstream& frame, int W, int H) {
             const double t = (!synced && li == active) ? 1e12 : lt;   // no timing: the current line in the active colour
             const bool hl = is_active || (!synced && li == active);
             std::vector<std::string> rows;
-            if (size >= 2 && render_big_lyric_line(lines[static_cast<size_t>(li)], t, lyr_w, hl, size - 1, ks, rows)) return rows;
+            // A line that would fill most of the screen (a long Japanese line at size 5) steps down a size at a
+            // time, and ends up as normal text when even the smallest big letters are too tall for it.
+            const int max_rows = std::max(6, body_h * 2 / 3);
+            for (int sc = size - 1; size >= 2 && sc >= 1; --sc) {
+                rows.clear();
+                if (!render_big_lyric_line(lines[static_cast<size_t>(li)], t, lyr_w, hl, sc, ks, rows)) break;
+                if (static_cast<int>(rows.size()) <= max_rows) return rows;
+            }
             return render_lyric_line_wrapped(lines[static_cast<size_t>(li)], t, lyr_w, hl, ks);
         };
         // The lines around the active one, a blank row between two lines; the active one sits in the middle.
@@ -12258,18 +12304,19 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "HKeyFolderOverlay", "Big folder overlay: tree of the library's folders (ENTER opens, f shows the folder in the list, / searches)"},
         {nullptr, "HKeyListOverlay", "Big list overlay: larger LOCAL AUDIO FILES pane (toggle)"},
         {nullptr, "HKeyQueueOverlay", "Big queue overlay: larger QUEUE pane (toggle; replaces the list overlay)"},
-        {nullptr, "HKeyConvertOverlay", "File conversion overlay: turn high resolution files into MP3 / AAC / Opus (marked files go to the CONVERSION EXPORT PATH, the originals stay untouched)"},
-        {nullptr, "#SPACE, a", "Conversion overlay: mark / unmark the hovered file / mark or unmark everything shown"},
-        {nullptr, "#ENTER, LEFT/RIGHT", "Conversion overlay: ENTER converts the marked files (or the hovered one); LEFT/RIGHT choose the target (MP3 320 / V0 / 192, AAC 256, Opus 128)"},
-        {nullptr, "#t, r, h", "Conversion overlay pre-filter: file type (SHIFT+t backwards) / minimum bitrate (SHIFT+r backwards) / hi-res only (above 16 bit or 48 kHz)"},
-        {nullptr, "#/, f:, p:", "Conversion overlay search bar: / full file search; type f: (folders) or p: (saved playlists) and ENTER on one to show only its files; typing / again returns to the full search, ESC steps back"},
-        {nullptr, "#c", "Conversion overlay: cancel the running conversion (it keeps running when the overlay is closed)"},
         {nullptr, "#SHIFT+UP/DOWN", "Big list / queue / folder / conversion overlay: previous / next page (faster scrolling)"},
         {nullptr, "#ESC", "Big list / queue / folder / conversion overlay: close (playback, queue and list keys keep working)"},
         {nullptr, "#ENTER, LEFT/RIGHT", "Big folder overlay: open / close the hovered folder (LEFT on a closed one jumps to its parent)"},
         {nullptr, "#CTRL+p", "Big folder / conversion overlay: play the hovered file (the overlay stays open)"},
         {nullptr, "#/", "Big folder overlay: search the folder tree (ENTER or ESC leaves the search field)"},
         {nullptr, "HKeyRefreshUi", "Refresh UI (redraw)"},
+        // --- File conversion: its own category ---
+        {"FILE CONVERSION (MAIN UI)", "HKeyConvertOverlay", "File conversion overlay: turn high resolution files into MP3 / AAC / Opus (marked files go to the CONVERSION EXPORT PATH, the originals stay untouched)"},
+        {nullptr, "#SPACE, a", "Conversion overlay: mark / unmark the hovered file / mark or unmark everything shown"},
+        {nullptr, "#ENTER, LEFT/RIGHT", "Conversion overlay: ENTER converts the marked files (or the hovered one); LEFT/RIGHT choose the target (MP3 320 / V0 / 192, AAC 256, Opus 128)"},
+        {nullptr, "#t, r, h", "Conversion overlay pre-filter: file type (SHIFT+t backwards) / minimum bitrate (SHIFT+r backwards) / hi-res only (above 16 bit or 48 kHz)"},
+        {nullptr, "#/, f:, p:", "Conversion overlay search bar: / full file search; type f: (folders) or p: (saved playlists) and ENTER on one to show only its files; typing / again returns to the full search, ESC steps back"},
+        {nullptr, "#c", "Conversion overlay: cancel the running conversion (it keeps running when the overlay is closed)"},
         // --- Visualizations and lyrics ---
         {"VISUALIZATIONS AND LYRICS (MAIN UI)", "HKeyToggleLyrics", "Cycle the lyrics area forward: sphere / oscilloscope / spectrogram / lyrics (what is off on Settings > ON/OFF is skipped)"},
         {nullptr, "HKeyToggleLyricsBack", "Cycle the lyrics area backward (same order, reversed)"},
