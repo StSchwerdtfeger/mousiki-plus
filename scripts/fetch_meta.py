@@ -25,9 +25,16 @@ completes, e.g.
 so the caller can show progress and apply results incrementally while the
 batch is still running. stdout is line-flushed for exactly that reason.
 
-Only artist and title are ever filled in: mousiki's editor asks for those two
-fields, and meta=recordings is the metadata bundle that provides them -- no
-releases, no album/year, nothing that would come from one specific pressing.
+Each request may carry a "want" list (any of "artist", "title", "album",
+"year"): what the editor's FETCH row asked for. Artist and title come straight
+from the AcoustID answer. Album and year are specific to a pressing, so they
+take a second step: the recording's MusicBrainz id (part of the AcoustID
+answer) is looked up at MusicBrainz, whose releases are grouped into album
+candidates (an album, its remaster, ...) and year candidates, best first. The
+result then carries the first candidate as the value plus the whole list as
+"album_choices" / "year_choices" ([{"value": ..., "aux": ...}]; for an album
+"aux" is its year), and the editor lets the user pick. MusicBrainz is only
+asked when album or year is wanted, and at most once per second.
 
 Deliberately stdlib-only (urllib, no `requests`): the lyrics helper is the
 only script that needs the third-party package, and metadata lookup should
@@ -57,8 +64,12 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-API = "https://api.acoustid.org/v2/lookup"
+# The two endpoints can be pointed at a test server (MOUSIKI_ACOUSTID_URL / MOUSIKI_MB_URL); nothing else uses them.
+API = os.environ.get("MOUSIKI_ACOUSTID_URL") or "https://api.acoustid.org/v2/lookup"
+MB_API = os.environ.get("MOUSIKI_MB_URL") or "https://musicbrainz.org/ws/2/recording/"
 USER_AGENT = "Mousiki/1.0 (https://github.com/itzender5820/mousiki; metadata editor)"
+MB_USER_AGENT = "MousikiPlus/3.1 (https://github.com/StSchwerdtfeger/mousiki-plus; metadata editor)"
+MB_GAP = 1.1         # seconds between MusicBrainz requests -- it allows one per second
 
 # The AcoustID *application* key every lookup in this script is signed with.
 # Hard-coded on purpose: a key belongs to one registered application, not to a
@@ -182,7 +193,7 @@ def lookup(duration, fp):
         "client": API_KEY,
         "fingerprint": fp,
         "duration": str(int(round(duration))),
-        "meta": "recordings",  # artist + title only; no releases/albums
+        "meta": "recordings",  # the recording ids (also used for the MusicBrainz album/year step)
     }).encode("utf-8")
     req = urllib.request.Request(API, data=body, headers={"User-Agent": USER_AGENT})
 
@@ -281,6 +292,146 @@ def pick_recording(data, duration):
     return best, top_score
 
 
+
+# ---------------------------------------------------------------------
+# MusicBrainz (album + year)
+# ---------------------------------------------------------------------
+
+_last_mb = [0.0]
+
+
+def mb_releases(mbid):
+    """(releases, first_release_year) of one MusicBrainz recording, or raise a LookupError.
+
+    releases: [{"title", "year", "status", "primary", "secondary"}]
+    """
+    query = urllib.parse.urlencode({"inc": "releases+release-groups", "fmt": "json"})
+    url = MB_API + urllib.parse.quote(mbid) + "?" + query
+    req = urllib.request.Request(url, headers={"User-Agent": MB_USER_AGENT, "Accept": "application/json"})
+    raw = None
+    for attempt in range(3):
+        wait = MB_GAP - (time.time() - _last_mb[0])
+        if wait > 0:
+            time.sleep(wait)
+        _last_mb[0] = time.time()
+        try:
+            with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+                raw = resp.read().decode("utf-8", "replace")
+            break
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 503) and attempt < 2:   # MusicBrainz says "slow down"
+                time.sleep(2.5 * (attempt + 1))
+                continue
+            if e.code == 404:
+                return [], ""
+            raise LookupError("MUSICBRAINZ", "MusicBrainz HTTP %d" % e.code)
+        except (urllib.error.URLError, OSError) as e:
+            if attempt < 2:
+                time.sleep(2.0)
+                continue
+            raise LookupError("MUSICBRAINZ", "MusicBrainz not reachable")
+    try:
+        data = json.loads(raw)
+    except (ValueError, TypeError):
+        raise LookupError("MUSICBRAINZ", "unreadable answer from MusicBrainz")
+    releases = []
+    for rel in data.get("releases") or []:
+        if not isinstance(rel, dict):
+            continue
+        title = (rel.get("title") or "").strip()
+        if not title:
+            continue
+        group = rel.get("release-group") or {}
+        releases.append({
+            "title": title,
+            "year": (rel.get("date") or "")[:4] if (rel.get("date") or "")[:4].isdigit() else "",
+            "status": rel.get("status") or "",
+            "primary": group.get("primary-type") or "",
+            "secondary": group.get("secondary-types") or [],
+        })
+    frd = (data.get("first-release-date") or "")[:4]
+    return releases, (frd if frd.isdigit() else "")
+
+
+# Release kinds that are rarely what a person means by "the album of this song".
+_ODD_SECONDARY = {"Compilation", "Live", "Soundtrack", "Remix", "DJ-mix", "Demo", "Mixtape/Street",
+                  "Interview", "Audiobook", "Spokenword", "Audio drama", "Field recording"}
+
+
+def release_score(rel):
+    score = 0
+    if rel["primary"] == "Album":
+        score += 3
+    elif rel["primary"] == "EP":
+        score += 1
+    elif rel["primary"] == "Single":
+        score -= 1
+    if any(s in _ODD_SECONDARY for s in rel["secondary"]):
+        score -= 4
+    if rel["status"] == "Official":
+        score += 2
+    elif rel["status"] in ("Bootleg", "Pseudo-Release", "Withdrawn", "Cancelled"):
+        score -= 3
+    return score
+
+
+def album_candidates(releases):
+    """[{"title", "years"(ascending), "score", "count"}], best first, at most 8."""
+    groups = {}
+    for rel in releases:
+        key = " ".join(rel["title"].casefold().split())
+        g = groups.setdefault(key, {"title": rel["title"], "years": set(), "score": -99, "count": 0})
+        g["count"] += 1
+        g["score"] = max(g["score"], release_score(rel))
+        if rel["year"]:
+            g["years"].add(rel["year"])
+    out = list(groups.values())
+    if out:
+        best = max(g["score"] for g in out)      # singles / compilations only stay when nothing better exists
+        out = [g for g in out if g["score"] >= best - 3]
+    for g in out:
+        g["years"] = sorted(g["years"])
+    out.sort(key=lambda g: (-g["score"], -g["count"], g["years"][0] if g["years"] else "9999", g["title"].casefold()))
+    return out[:8]
+
+
+def order_years(years, first_year):
+    years = sorted(set(y for y in years if y))
+    if first_year and first_year in years:
+        years.remove(first_year)
+        years.insert(0, first_year)
+    return years[:6]
+
+
+def album_year_fields(mbid, want):
+    """The album / year part of one answer: (fields dict, note)."""
+    releases, frd = mb_releases(mbid)
+    albums = album_candidates(releases)
+    if not albums:
+        return {}, "no album found at MusicBrainz"
+    fields = {}
+    top = albums[0]
+    if "album" in want:
+        fields["album"] = top["title"]
+    if "year" in want:
+        if "album" in want and top["years"]:
+            years = order_years(top["years"], frd)       # the years of the album that is shown first
+        else:
+            years = order_years([y for g in albums for y in g["years"]], frd)
+        if years:
+            fields["year"] = years[0]
+            fields["year_choices"] = [{"value": y, "aux": ""} for y in years]
+    if "album" in want:
+        choices = []
+        for i, g in enumerate(albums):
+            year = g["years"][0] if g["years"] else ""
+            if i == 0 and fields.get("year"):
+                year = fields["year"]
+            choices.append({"value": g["title"], "aux": year})
+        fields["album_choices"] = choices
+    return fields, ""
+
+
 def lookup_one(item):
     path = item.get("path") or ""
     if not path:
@@ -294,6 +445,9 @@ def lookup_one(item):
 
     name = os.path.splitext(os.path.basename(path))[0]
     label = (item.get("title") or "").strip() or name
+    want = set(w for w in (item.get("want") or []) if w in ("artist", "title", "album", "year"))
+    if not want:
+        want = {"artist", "title"}   # an older caller: exactly what this script always returned
 
     try:
         duration, fp = fingerprint(path)
@@ -316,10 +470,18 @@ def lookup_one(item):
     # key as "leave that field alone", so a recording without an artist credit
     # can't blank one the file already had. FileName is never set -- AcoustID
     # has no opinion about file names.
-    if title:
+    if title and "title" in want:
         out["title"] = title
-    if artist:
+    if artist and "artist" in want:
         out["artist"] = artist
+    if ("album" in want or "year" in want) and rec.get("id"):
+        try:
+            fields, note = album_year_fields(rec["id"], want)
+            out.update(fields)
+            if note:
+                out["note"] = note
+        except LookupError as e:
+            out["note"] = e.detail
     emit(out)
 
 
