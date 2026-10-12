@@ -12,7 +12,7 @@
 
 # Frame lines: fade from top to bottom
 ColorBorderTop=170
-ColorBorderBottom=170
+ColorBorderBottom=171
 # BorderGradient: smooth = the frame fades line by line from the top to the bottom colour, rough = only the bottom border line has the bottom colour
 BorderGradient=smooth
 

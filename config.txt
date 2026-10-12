@@ -8,7 +8,7 @@
 
 # Frame & Controls
 ColorBorderTop=170
-ColorBorderBottom=170
+ColorBorderBottom=171
 # BorderGradient: smooth = the frame fades line by line from the top to the bottom colour, rough = only the bottom border line has the bottom colour
 BorderGradient=smooth
 ColorDiskTop=170
@@ -36,7 +36,7 @@ ColorChangeFg=37
 ColorChangeBg=41
 
 # Pane focus indicator (the little triangle after the title of the pane that has the keys) -- 0 = plain bold
-ColorFocus=10
+ColorFocus=183
 
 # Search bar: typed query (highlighted behind the query text only) and the idle bar
 # (empty FG = same as List Inactive; empty BG = none)
