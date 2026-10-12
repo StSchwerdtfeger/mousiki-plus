@@ -300,6 +300,7 @@ void norm_reset(RadioSettings& s);                        // target + boost back
 std::filesystem::path radio_config_path();               // where radio_config.txt is read from / written to
 RadioSettings load_radio_settings(std::string* source_out = nullptr);   // defaults when there is no file
 bool save_radio_settings(const RadioSettings& s, std::string* err = nullptr);
+std::string radio_settings_text(const RadioSettings& s);   // what save_radio_settings() would write (compare two to see a change)
 
 // ---- colour helpers (the radio's own; same value rules as above) -------------------------------------------
 bool color_rgb(const std::string& color, int& r, int& g, int& b);   // 0-255 colour number -> RGB (false: none)

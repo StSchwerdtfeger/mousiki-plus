@@ -171,6 +171,9 @@ struct SettingsModel {
     RadioSettings theme_draft;    // the creator edits a copy
     themes::Theme theme_base;     // the template whose other keys the new theme keeps
     std::string theme_name;       // 25 characters at most
+    std::string theme_name_initial;                                       // the NAME the creator opened with ("" new, the theme in use for [e])
+    std::vector<std::pair<std::string, std::string>> theme_initial_kv;    // the draft as the creator opened (to see whether anything changed)
+    int leave_prompt = 0;         // 1: "unsaved settings" question on ESC, 2: "unsaved theme" question (CREATE THEME), 3: "overwrite the theme?", 4: "delete the theme?" (CHOOSE THEME)
     int theme_row = -1;           // creator: -1 = the NAME / TEMPLATE row, else the COLORS row
     int theme_col = 0;
     // SHIFT+e / SHIFT+i: theme_ui 4 = export the current colours as a theme file, 5 = import theme files

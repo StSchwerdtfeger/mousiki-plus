@@ -1839,9 +1839,10 @@ const CheatRow kCheatRows[] = {
     {"RADIO SETTINGS (s)", "TAB", "Next tab: COLORS / ON/OFF / ANIMA/VIZ / PATHS / REFERENCE / ABOUT APP"},
     {nullptr, "UP / DOWN", "Move through the rows (LEFT / RIGHT or ENTER change a switch; ENTER edits a colour, a folder or a key)"},
     {nullptr, "LEFT / RIGHT (editing)", "Move the caret in the colour, folder or key being edited; TAB and the arrows stay in the field until ENTER (apply) or ESC (cancel)"},
-    {nullptr, "ENTER (THEME row)", "COLORS tab: ENTER opens CHOOSE THEME (scrollable, ENTER applies); the CREATE THEME button builds your own theme"},
+    {nullptr, "ENTER (THEME row)", "COLORS tab: ENTER opens CHOOSE THEME (scrollable, ENTER applies, SHIFT+d deletes a theme of your own); the CREATE THEME button builds your own theme"},
+    {nullptr, "e", "COLORS tab: edit the theme in use in the theme creator (a theme of your own can be overwritten, a built-in one needs a new name)"},
     {nullptr, "SHIFT+e / SHIFT+i", "COLORS tab: export the current colors as a theme file / import theme files from a folder"},
-    {nullptr, "s", "Save radio_config.txt and close"},
+    {nullptr, "s", "Save radio_config.txt and close (ESC / q close without saving; with unsaved changes it asks first)"},
     {nullptr, "ESC / q", "Discard the changes made on the screen and close"},
     {nullptr, "ON/OFF: MARQUEE SCROLLING", "A station name that is too long for its column scrolls; off: it is cut off with ..."},
     {nullptr, "ON/OFF: TUNING NOISE", "Radio static that fades in when you tune another station and fades out when the stream plays"},
@@ -2423,7 +2424,10 @@ std::vector<std::string> build_theme_picker(const RadioSettings& c, const Settin
         out.push_back(b + " " + spaces(inner) + " " + b);
     }
     out.push_back(bar(H - 3) + "└" + repeat("─", std::max(0, W - 2)) + "┘" + kReset);
-    out.push_back(seg_line({{legend, sm.theme_ui == 1 ? "[↑↓] Select | [ENTER] Apply the theme | [ESC] Back"
+    if (sm.leave_prompt == 4 && sm.theme_sel >= 0 && sm.theme_sel < n)
+        out.push_back(seg_line({{"\x1b[1;7m", " Do you want to delete theme \"" + truncate_str(sm.theme_list[static_cast<size_t>(sm.theme_sel)].name, themes::kMaxNameLen) + "\"? [y] Yes, delete | [n / ESC] No, keep it"}}, W));
+    else
+    out.push_back(seg_line({{legend, sm.theme_ui == 1 ? "[↑↓] Select | [ENTER] Apply the theme | [SHIFT+d] Delete your own theme | [ESC] Back"
                                                       : "[↑↓] Select | [ENTER] Use as template (copies its colors into the new theme) | [ESC] Back"}}, W));
     out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status, W)}}, W));
     return out;
@@ -2801,8 +2805,12 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
                                                        : "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type a palette number 0-255 (empty or 0 = terminal colour)";
     else if (cr) hint = "[\u2191\u2193\u2190\u2192] Navigate | [ENTER] Edit/Open | [s] Save theme | [ESC] Discard";
     else if (sm.editing) hint = "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type a palette number 0-255 (empty or 0 = terminal colour)";
-    else hint = "[TAB] Switch | [↑↓←→] Navigate | [ENTER] Edit | [SHIFT+e/i] Export/Import theme | [s] Save | [ESC/q] Discard";
-    out.push_back(seg_line({{legend, hint}}, W));
+    else hint = "[TAB] Switch | [↑↓←→] Navigate | [ENTER] Edit | [e] Edit theme | [SHIFT+e/i] Export/Import | [s] Save | [ESC/q] Discard";
+    if (sm.leave_prompt == 3)
+        hint = " Do you want to overwrite theme \"" + truncate_str(themes::sanitize_name(sm.theme_name), themes::kMaxNameLen) + "\"? [y] Yes, overwrite | [n / ESC] No, keep editing";
+    else if (sm.leave_prompt == 2) hint = " Unsaved theme! [s] Save it | [d] Discard it | [ESC] Keep editing";
+    else if (sm.leave_prompt == 1) hint = " Unsaved changes! [s] Save and leave | [d] Discard and leave | [ESC] Keep editing";
+    out.push_back(seg_line({{sm.leave_prompt ? std::string("\x1b[1;7m") : legend, hint}}, W));
     out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status.empty() && sm.dirty ? std::string("Unsaved changes! Save with `s` or discard with `ESC`.") : sm.status, W)}}, W));
     return out;
 }

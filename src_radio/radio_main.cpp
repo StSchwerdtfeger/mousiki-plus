@@ -851,6 +851,54 @@ int radio_main(int argc, char** argv) {
         sm.open = false; sm.editing = false; sm.theme_ui = 0;
         set_text_entry(false);
     };
+    // Has anything been changed since the settings screen opened? (the same text that [s] would write)
+    auto settings_changed = [&]() { return settings_snapshot_valid && radio_settings_text(cfg) != radio_settings_text(settings_snapshot); };
+    // The CREATE THEME overlay. edit_current ([e]): it opens on the colours in use; if they are a theme of your own its name is
+    // already in the NAME field and saving overwrites it (after a question), a built-in theme needs a new name.
+    auto theme_open_creator = [&](bool edit_current) {
+        SettingsModel& sm = ui.model.settings;
+        sm.theme_list = themes::load_all();
+        const int cur = theme_index(cfg, sm.theme_list);
+        sm.theme_base = sm.theme_list[static_cast<size_t>(cur >= 0 ? cur : 0)];
+        sm.theme_draft = cfg; sm.theme_name.clear(); sm.theme_row = -1; sm.theme_col = 0; sm.theme_ui = 2;
+        sm.status.clear();
+        if (edit_current) {
+            if (cur >= 0 && !sm.theme_list[static_cast<size_t>(cur)].builtin) sm.theme_name = sm.theme_list[static_cast<size_t>(cur)].name;
+            else sm.status = cur >= 0 ? "\"" + sm.theme_list[static_cast<size_t>(cur)].name + "\" is built in and cannot be overwritten: give your edit a new name"
+                                      : "these colors are not a saved theme: give them a name";
+        }
+        sm.theme_name_initial = sm.theme_name;
+        sm.theme_initial_kv = theme_capture(sm.theme_draft, sm.theme_base).kv;
+        sm.leave_prompt = 0;
+    };
+    auto theme_changed = [&]() {
+        const SettingsModel& sm = ui.model.settings;
+        return sm.theme_name != sm.theme_name_initial || theme_capture(sm.theme_draft, sm.theme_base).kv != sm.theme_initial_kv;
+    };
+    auto theme_save_now = [&]() {
+        SettingsModel& sm = ui.model.settings;
+        themes::Theme t = theme_capture(sm.theme_draft, sm.theme_base);
+        t.name = themes::sanitize_name(sm.theme_name);
+        std::string err;
+        if (!themes::save_theme(t, err)) { sm.status = err; return; }
+        sm.theme_list = themes::load_all();
+        theme_apply(cfg, t);
+        sm.dirty = true; sm.theme_ui = 0;
+        sm.status = "THEME \"" + t.name + "\" SAVED AND APPLIED (s saves the settings)";
+    };
+    // [s] in the creator: a name is needed, a built-in theme cannot be overwritten, overwriting a theme of your own is asked first.
+    auto theme_try_save = [&]() {
+        SettingsModel& sm = ui.model.settings;
+        const std::string name = themes::sanitize_name(sm.theme_name);
+        if (name.empty()) { sm.status = "give the theme a name first (NAME row), then [s]"; return; }
+        const int at = themes::find_name(sm.theme_list, name);
+        if (at >= 0) {
+            if (sm.theme_list[static_cast<size_t>(at)].builtin) { sm.status = "\"" + sm.theme_list[static_cast<size_t>(at)].name + "\" is a built-in theme and cannot be overwritten -- pick another name"; return; }
+            sm.leave_prompt = 3;
+            return;
+        }
+        theme_save_now();
+    };
     auto browse_close = [&]() { ui.model.browse.open = false; set_text_entry(false); ui.model.browse.flash.clear(); };
     auto browse_search = [&]() {
         BrowseModel& bm = ui.model.browse;
@@ -1226,6 +1274,31 @@ int radio_main(int argc, char** argv) {
             // ------------------------------------------------------------------ RADIO SETTINGS (s)
             if (ui.model.settings.open) {
                 SettingsModel& sm = ui.model.settings;
+                if (sm.leave_prompt != 0 && !sm.editing) {
+                    // the question on top: [s] / ENTER save, [d] discard, anything else (ESC) goes back to editing; "overwrite?" wants [y]
+                    const int kind = sm.leave_prompt;
+                    sm.leave_prompt = 0;
+                    if (k == 3 || k == kKeyCtrlC) { settings_close(false); running = false; continue; }
+                    const bool save = !arrow && (k == 's' || k == 'S' || k == 13 || k == 10);
+                    const bool discard = !arrow && (k == 'd' || k == 'D');
+                    if (kind == 3) { if (!arrow && (k == 'y' || k == 'Y')) theme_save_now(); continue; }
+                    if (kind == 4) {   // "delete the theme?": only y says yes
+                        if (!arrow && (k == 'y' || k == 'Y') && sm.theme_sel >= 0 && sm.theme_sel < static_cast<int>(sm.theme_list.size())) {
+                            const std::string name = sm.theme_list[static_cast<size_t>(sm.theme_sel)].name;
+                            std::string err;
+                            if (themes::delete_theme(name, err)) {
+                                sm.theme_list = themes::load_all();
+                                sm.theme_sel = std::clamp(sm.theme_sel, 0, std::max(0, static_cast<int>(sm.theme_list.size()) - 1));
+                                sm.status = "THEME \"" + name + "\" DELETED";
+                            } else sm.status = err;
+                        }
+                        continue;
+                    }
+                    if (kind == 1) { if (save) settings_close(true); else if (discard) settings_close(false); }
+                    else if (save) theme_try_save();     // may ask once more (overwriting a theme of your own)
+                    else if (discard) { sm.theme_ui = 0; sm.status.clear(); }
+                    continue;
+                }
                 if (sm.theme_ui != 0) {                                        // the THEME picker / CREATE THEME overlay
                     const int nt = static_cast<int>(sm.theme_list.size());
                     if (sm.editing) {
@@ -1316,6 +1389,12 @@ int radio_main(int argc, char** argv) {
                         if ((arrow && k == 'B') || (!arrow && k == 'j')) { sm.theme_sel = std::min(std::max(0, nt - 1), sm.theme_sel + 1); continue; }
                         if (k == kKeyHome) { sm.theme_sel = 0; continue; }
                         if (k == kKeyEnd) { sm.theme_sel = std::max(0, nt - 1); continue; }
+                        if (sm.theme_ui == 1 && !arrow && k == 'D' && sm.theme_sel >= 0 && sm.theme_sel < nt) {   // SHIFT+d: delete a theme of your own
+                            const themes::Theme& t = sm.theme_list[static_cast<size_t>(sm.theme_sel)];
+                            if (t.builtin) sm.status = "\"" + t.name + "\" is a built-in theme and cannot be deleted";
+                            else sm.leave_prompt = 4;   // "Do you want to delete theme?"
+                            continue;
+                        }
                         if ((k == 13 || k == 10) && sm.theme_sel >= 0 && sm.theme_sel < nt) {
                             const themes::Theme& t = sm.theme_list[static_cast<size_t>(sm.theme_sel)];
                             if (sm.theme_ui == 1) {
@@ -1329,18 +1408,11 @@ int radio_main(int argc, char** argv) {
                         continue;
                     }
                     // --- CREATE THEME
-                    if (k == 27 || (!arrow && (k == 'q' || k == 'Q'))) { sm.theme_ui = 0; sm.status.clear(); continue; }
-                    if (!arrow && (k == 's' || k == 'S')) {
-                        themes::Theme t = theme_capture(sm.theme_draft, sm.theme_base);
-                        t.name = themes::sanitize_name(sm.theme_name);
-                        std::string err;
-                        if (!themes::save_theme(t, err)) { sm.status = err; continue; }
-                        sm.theme_list = themes::load_all();
-                        theme_apply(cfg, t);
-                        sm.dirty = true; sm.theme_ui = 0;
-                        sm.status = "THEME \"" + t.name + "\" SAVED AND APPLIED (s saves the settings)";
-                        continue;
+                    if (k == 27 || (!arrow && (k == 'q' || k == 'Q'))) {
+                        if (theme_changed()) { sm.leave_prompt = 2; continue; }   // anything made here is lost on ESC: ask first
+                        sm.theme_ui = 0; sm.status.clear(); continue;
                     }
+                    if (!arrow && (k == 's' || k == 'S')) { theme_try_save(); continue; }
                     const bool up = (arrow && k == 'A') || (!arrow && k == 'k');
                     const bool down = (arrow && k == 'B') || (!arrow && k == 'j');
                     const bool left = (arrow && k == 'D') || (!arrow && k == 'h');
@@ -1487,8 +1559,13 @@ int radio_main(int argc, char** argv) {
                     fix_col();
                     continue;
                 }
-                if (k == 27 || k == 'q' || k == 'Q') { settings_close(false); continue; }
+                if (k == 27 || k == 'q' || k == 'Q') {
+                    if (settings_changed()) { sm.leave_prompt = 1; continue; }   // unsaved changes: ask first
+                    settings_close(false);
+                    continue;
+                }
                 if (k == 's' || k == 'S') { settings_close(true); continue; }
+                if (sm.tab == 0 && !arrow && k == 'e') { theme_open_creator(true); continue; }   // edit the theme in use
                 if (k == 'j') { sm.row = std::min(nrows - 1, sm.row + 1); fix_col(); continue; }
                 if (k == 'k') { sm.row = std::max(0, sm.row - 1); fix_col(); continue; }
                 if (sm.tab == 0 && !arrow && (k == 'E' || k == 'I')) {        // SHIFT+e / SHIFT+i: export / import a theme
@@ -1539,12 +1616,8 @@ int radio_main(int argc, char** argv) {
                 if ((k == 13 || k == 10) && sm.row == 0) {          // THEME | CREATE THEME
                     sm.theme_list = themes::load_all();
                     const int cur = theme_index(cfg, sm.theme_list);
-                    if (sm.col == 0) { sm.theme_sel = std::max(0, cur); sm.theme_ui = 1; }
-                    else {
-                        sm.theme_base = sm.theme_list[static_cast<size_t>(cur >= 0 ? cur : 0)];
-                        sm.theme_draft = cfg; sm.theme_name.clear(); sm.theme_row = -1; sm.theme_col = 0; sm.theme_ui = 2;
-                    }
-                    sm.status.clear();
+                    if (sm.col == 0) { sm.theme_sel = std::max(0, cur); sm.theme_ui = 1; sm.status.clear(); }
+                    else theme_open_creator(false);
                     continue;
                 }
                 if (k == 13 || k == 10) {

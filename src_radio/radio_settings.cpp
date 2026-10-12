@@ -940,15 +940,8 @@ std::string eq_presets_text(const RadioSettings& s) {
 }
 } // namespace
 
-bool save_radio_settings(const RadioSettings& s, std::string* err) {
-    const fs::path p = home_config_path();
-    // Written where it is read from: a ./radio_config.txt that is in use stays the one that is saved.
-    const fs::path target = fs::exists(fs::path("radio_config.txt")) && !fs::exists(p) ? fs::path("radio_config.txt") : p;
-    std::error_code ec;
-    if (target.has_parent_path()) fs::create_directories(target.parent_path(), ec);
-    std::ofstream o(target, std::ios::trunc);
-    if (!o) { if (err) *err = "cannot write " + target.string(); return false; }
-    if (s.start_mode != player_start_mode()) set_player_start_mode(s.start_mode);   // the one setting that lives in the player's config.txt
+// The whole radio_config.txt as text (also how the settings screen sees whether anything changed).
+static void write_radio_settings(std::ostream& o, const RadioSettings& s) {
     auto num = [](float v) { std::ostringstream os; os.precision(2); os << std::fixed << v; return os.str(); };
     auto osci_block = [&](const std::string& P, const OsciSet& o) {
         auto b = [](bool v) { return std::string(v ? "true" : "false"); };
@@ -1102,6 +1095,24 @@ bool save_radio_settings(const RadioSettings& s, std::string* err) {
          "ListSeparator=" << s.list_separator << "\n";
     spectro_config_write(o, s.spectro, "#");
     o << "\n";
+}
+
+std::string radio_settings_text(const RadioSettings& s) {
+    std::ostringstream o;
+    write_radio_settings(o, s);
+    return o.str();
+}
+
+bool save_radio_settings(const RadioSettings& s, std::string* err) {
+    const fs::path p = home_config_path();
+    // Written where it is read from: a ./radio_config.txt that is in use stays the one that is saved.
+    const fs::path target = fs::exists(fs::path("radio_config.txt")) && !fs::exists(p) ? fs::path("radio_config.txt") : p;
+    std::error_code ec;
+    if (target.has_parent_path()) fs::create_directories(target.parent_path(), ec);
+    std::ofstream o(target, std::ios::trunc);
+    if (!o) { if (err) *err = "cannot write " + target.string(); return false; }
+    if (s.start_mode != player_start_mode()) set_player_start_mode(s.start_mode);   // the one setting that lives in the player's config.txt
+    write_radio_settings(o, s);
     if (!o) { if (err) *err = "cannot write " + target.string(); return false; }
     return true;
 }
