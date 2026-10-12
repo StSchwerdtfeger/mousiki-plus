@@ -1452,6 +1452,7 @@ void App::settings_open() {
     settings_snapshot_ = settings_;
     settings_snapshot_text_ = settings_to_text(settings_);
     settings_dirty_ = false;
+    leave_prompt_ = 0;
     theme_ui_ = 0;
     theme_list_ = themes::load_all();
 }
@@ -3382,16 +3383,54 @@ void App::theme_open_picker() {
     force_redraw_ = true;
 }
 
-void App::theme_open_creator() {
+// edit_current (key [e]): the creator opens on the colours in use. If they are a theme of your own, its name is already in the
+// NAME field and saving overwrites it (after a question); a built-in theme (or colours that match no theme) needs a new name.
+void App::theme_open_creator(bool edit_current) {
     theme_list_ = themes::load_all();
     const int cur = theme_current_index();
     theme_base_ = theme_list_[static_cast<size_t>(cur >= 0 ? cur : 0)];
     theme_draft_ = settings_;
+    theme_draft_text_ = settings_to_text(theme_draft_);
+    leave_prompt_ = 0;
     theme_name_.clear();
+    status_line_.clear();
+    if (edit_current) {
+        if (cur >= 0 && !theme_list_[static_cast<size_t>(cur)].builtin) theme_name_ = theme_list_[static_cast<size_t>(cur)].name;
+        else status_line_ = cur >= 0 ? "\"" + theme_list_[static_cast<size_t>(cur)].name + "\" is built in and cannot be overwritten: give your edit a new name"
+                                     : "these colors are not a saved theme: give them a name";
+    }
+    theme_name_initial_ = theme_name_;
     theme_row_ = -1;
     theme_col_ = 0;
     theme_ui_ = 2;
     force_redraw_ = true;
+}
+
+// [s] in the creator: a name is needed, a built-in theme cannot be overwritten, and overwriting a theme of your own is asked first
+// (leave_prompt_ 3; [y] then calls theme_save_new()).
+void App::theme_try_save() {
+    const std::string name = themes::sanitize_name(theme_name_);
+    if (name.empty()) { status_line_ = "give the theme a name first (NAME row), then [s]"; force_redraw_ = true; return; }
+    const std::vector<themes::Theme> all = themes::load_all();
+    const int at = themes::find_name(all, name);
+    if (at >= 0) {
+        const themes::Theme& t = all[static_cast<size_t>(at)];
+        if (t.builtin) { status_line_ = "\"" + t.name + "\" is a built-in theme and cannot be overwritten -- pick another name"; force_redraw_ = true; return; }
+        leave_prompt_ = 3;
+        force_redraw_ = true;
+        return;
+    }
+    theme_save_new();
+}
+
+void App::theme_delete_selected() {
+    if (theme_sel_ < 0 || theme_sel_ >= static_cast<int>(theme_list_.size())) return;
+    const std::string name = theme_list_[static_cast<size_t>(theme_sel_)].name;
+    std::string err;
+    if (!themes::delete_theme(name, err)) { status_line_ = err; return; }
+    theme_list_ = themes::load_all();
+    theme_sel_ = std::clamp(theme_sel_, 0, std::max(0, static_cast<int>(theme_list_.size()) - 1));
+    status_line_ = "THEME \"" + name + "\" DELETED";
 }
 
 void App::theme_save_new() {
@@ -3512,6 +3551,13 @@ void App::handle_theme_key(int key) {
         if (key == 'B') { if (theme_sel_ < n - 1) ++theme_sel_; return; }
         if (key == kKeyHome) { theme_sel_ = 0; return; }
         if (key == kKeyEnd) { theme_sel_ = std::max(0, n - 1); return; }
+        if (theme_ui_ == 1 && key == 'D' && !last_key_was_arrow() && theme_sel_ >= 0 && theme_sel_ < n) {   // SHIFT+d: delete a theme of your own
+            const themes::Theme& t = theme_list_[static_cast<size_t>(theme_sel_)];
+            if (t.builtin) status_line_ = "\"" + t.name + "\" is a built-in theme and cannot be deleted";
+            else leave_prompt_ = 4;   // "Do you want to delete theme?" ([y] calls theme_delete_selected())
+            force_redraw_ = true;
+            return;
+        }
         if ((key == '\r' || key == '\n') && theme_sel_ >= 0 && theme_sel_ < n) {
             const themes::Theme& t = theme_list_[static_cast<size_t>(theme_sel_)];
             if (theme_ui_ == 1) {
@@ -3529,8 +3575,12 @@ void App::handle_theme_key(int key) {
         return;
     }
     // --- the CREATE THEME overlay ---
-    if (key == 27 || key == 'q' || key == 'Q') { theme_ui_ = 0; status_line_.clear(); force_redraw_ = true; return; }
-    if (key == 's' || key == 'S' || key == kKeyCtrlS) { theme_save_new(); return; }
+    if (key == 27 || key == 'q' || key == 'Q') {
+        // anything made here is lost on ESC: ask first (the theme is only kept by [s])
+        if (theme_name_ != theme_name_initial_ || settings_to_text(theme_draft_) != theme_draft_text_) { leave_prompt_ = 2; force_redraw_ = true; return; }
+        theme_ui_ = 0; status_line_.clear(); force_redraw_ = true; return;
+    }
+    if (key == 's' || key == 'S' || key == kKeyCtrlS) { theme_try_save(); return; }
     if (key == 'A') {
         if (theme_row_ >= 0) { --theme_row_; if (theme_row_ < 0) theme_col_ = 0; }
         return;
@@ -4071,6 +4121,20 @@ void App::ref_undo_pop() {
 }
 
 void App::handle_settings_key(int key) {
+    if (leave_prompt_ != 0 && mode_ != Mode::ColorEdit) {
+        // "unsaved changes" question: [s] / ENTER save, [d] discard, anything else (ESC) goes back to editing
+        const int kind = leave_prompt_;
+        leave_prompt_ = 0;
+        force_redraw_ = true;
+        const bool save = key == 's' || key == 'S' || key == '\r' || key == '\n' || key == kKeyCtrlS;
+        const bool discard = key == 'd' || key == 'D';
+        if (kind == 3) { if (key == 'y' || key == 'Y') theme_save_new(); return; }
+        if (kind == 4) { if (key == 'y' || key == 'Y') theme_delete_selected(); return; }   // "delete the theme?": only y says yes   // "overwrite the theme?": only y says yes
+        if (kind == 1) { if (save) settings_close(true); else if (discard) settings_close(false); }
+        else if (save) theme_try_save();   // may ask once more (overwriting a theme of your own)
+        else if (discard) { theme_ui_ = 0; status_line_.clear(); }
+        return;
+    }
     if (theme_ui_ != 0 && mode_ != Mode::ColorEdit) { handle_theme_key(key); return; }
     if (mode_ == Mode::ColorEdit) {
         // The caret can be stale by one keypress after the buffer was
@@ -4221,7 +4285,12 @@ void App::handle_settings_key(int key) {
     // key semantics for this exact case (reference's 's' saves without
     // closing; here 's' saves AND exits, Esc/q just exits without saving).
     if (key == 's' || key == 'S') { settings_close(true); return; }
-    if (key == 27 || key == 'q' || key == 'Q') { settings_close(false); return; }
+    if (key == 27 || key == 'q' || key == 'Q') {
+        settings_update_dirty();
+        if (settings_dirty_) { leave_prompt_ = 1; force_redraw_ = true; return; }   // unsaved changes: ask first
+        settings_close(false);
+        return;
+    }
     if (settings_tab_ == 5) {
         // About App: no fields to edit, but Up/Down still scroll the text.
         if (key == 'A') { if (settings_row_ > 0) --settings_row_; return; }
@@ -4229,7 +4298,8 @@ void App::handle_settings_key(int key) {
         return;
     }
 
-    if (settings_tab_ == 0 && !last_key_was_arrow()) {   // SHIFT+e / SHIFT+i: export / import a theme
+    if (settings_tab_ == 0 && !last_key_was_arrow()) {   // [e] edit the theme in use, SHIFT+e / SHIFT+i: export / import a theme
+        if (key == 'e') { theme_open_creator(true); return; }
         if (key == 'E') { theme_open_export(); return; }
         if (key == 'I') { theme_open_import(); return; }
     }
@@ -11122,8 +11192,11 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
         }
         while (y < MAX_Y) { box_row(y); ++y; }
         bottom_border(MAX_Y);
+        if (leave_prompt_ == 4 && theme_sel_ >= 0 && theme_sel_ < n)
+            pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to delete theme \"" + truncate_str(theme_list_[static_cast<size_t>(theme_sel_)].name, 25) + "\"? [y] Yes, delete | [n / ESC] No, keep it", W - 1) + R);
+        else
         pos(MAX_Y + 1, 1, legend_sgr(settings_) + (theme_ui_ == 1
-            ? "[↑↓] Select | [ENTER] Apply the theme | [ESC] Back"
+            ? "[↑↓] Select | [ENTER] Apply the theme | [SHIFT+d] Delete your own theme | [ESC] Back"
             : "[↑↓] Select | [ENTER] Use as template (copies its colors into the new theme) | [ESC] Back") + R);
         if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
         return;
@@ -11226,6 +11299,11 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
     }
     while (y < MAX_Y) { box_row(y); ++y; }
     bottom_border(MAX_Y);
+    if (leave_prompt_ == 3)
+        pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to overwrite theme \"" + truncate_str(themes::sanitize_name(theme_name_), 25) + "\"? [y] Yes, overwrite | [n / ESC] No, keep editing", W - 1) + R);
+    else if (leave_prompt_ == 2)
+        pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Unsaved theme! [s] Save it | [d] Discard it | [ESC] Keep editing", W - 1) + R);
+    else
     pos(MAX_Y + 1, 1, legend_sgr(settings_) + (editing
         ? "[ENTER] Apply | [ESC] Cancel | [←→] Cursor | [SHIFT+←→] Mark | [Ctrl+C/X/V] Copy/Cut/Paste"
         : "[↑↓←→] Navigate | [ENTER] Edit/Open | [s] Save theme | [ESC] Discard") + R);
@@ -11741,11 +11819,13 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
 
     // While a field is being edited (ENTER), TAB and the arrows stay in it:
     // LEFT/RIGHT move the caret, and only ENTER (apply) or ESC (cancel) leave.
+    if (leave_prompt_ == 1) pos(y, 1, "\x1b[1;7m" + pad(" Unsaved changes! [s] Save and leave | [d] Discard and leave | [ESC] Keep editing", W - 1) + "\x1b[0m");
+    else
     pos(y, 1, legend_sgr(settings_) + (mode_ == Mode::ColorEdit
         ? "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | [SHIFT+\u2190\u2192] Mark | [HOME/END] Jump | [Ctrl+C/X/V] Copy/Cut/Paste"
         : settings_tab_ == 4
         ? "[TAB] Switch | [\u2191\u2193] Navigate | [ENTER] Change | [DEL] Default | [Ctrl+Shift+U] Undo | [s] Save | [ESC/q] Discard"
-        : settings_tab_ == 0 ? "[TAB] Switch | [\u2191\u2193\u2190\u2192] Navigate/Cycle | [ENTER] Edit | [SHIFT+e/i] Export/Import theme | [s] Save | [ESC/q] Discard"
+        : settings_tab_ == 0 ? "[TAB] Switch | [\u2191\u2193\u2190\u2192] Navigate | [ENTER] Edit | [e] Edit theme | [SHIFT+e/i] Export/Import | [s] Save | [ESC/q] Discard"
         : "[TAB] Switch | [\u2191\u2193\u2190\u2192] Navigate/Cycle | [ENTER] Edit | [s] Save | [ESC/q] Discard") + "\x1b[0m");
     y++;
     // The log/status line lives here now -- render_frame() deliberately no
@@ -12672,8 +12752,9 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "#ENTER", "Edit the selected colour, path, value or key in place"},
         {nullptr, "#LEFT/RIGHT (editing)", "Move the caret; SHIFT+LEFT/RIGHT marks, HOME/END jump, CTRL+C/X/V copy / cut / paste"},
         {nullptr, "#ENTER / ESC (editing)", "Apply the edit / cancel it -- only these two leave the field"},
-        {nullptr, "#s / ESC / q", "Save to config.txt and close / discard the changes and close"},
-        {nullptr, "#ENTER (THEME row)", "Colors tab: ENTER opens CHOOSE THEME (scrollable list, ENTER applies); the CREATE THEME button builds your own theme (s saves it)"},
+        {nullptr, "#s / ESC / q", "Save to config.txt and close / close without saving (with unsaved changes it asks first: [s] save, [d] discard, ESC keeps editing)"},
+        {nullptr, "#ENTER (THEME row)", "Colors tab: ENTER opens CHOOSE THEME (scrollable list, ENTER applies, SHIFT+d deletes a theme of your own); the CREATE THEME button builds your own theme (s saves it)"},
+        {nullptr, "#e", "Colors tab: edit the theme in use in the theme creator (a theme of your own can be overwritten, a built-in one needs a new name)"},
         {nullptr, "#SHIFT+e / SHIFT+i", "Colors tab: export the current colors as a theme file / import theme files from a folder"},
         // --- Settings (REFERENCE tab) ---
         {"SETTINGS (REFERENCE TAB)", "#ENTER", "Change the key of the selected command (type the new key, ENTER applies)"},

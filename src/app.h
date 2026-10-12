@@ -743,6 +743,9 @@ private:
     Settings settings_snapshot_;
     std::string settings_snapshot_text_;
     bool settings_dirty_ = false;
+    int leave_prompt_ = 0;               // 1: "unsaved settings" question on ESC, 2: "unsaved theme" question (CREATE THEME), 3: "overwrite the theme?", 4: "delete the theme?" (CHOOSE THEME)
+    std::string theme_name_initial_;     // the NAME the creator opened with ("" for a new theme, the theme in use for [e])
+    std::string theme_draft_text_;       // the CREATE THEME draft as it was when the creator opened (to see whether anything changed)
     void settings_open();
     void settings_close(bool save);
     void settings_update_dirty();
@@ -1106,8 +1109,10 @@ private:
     int theme_col_ = 0;               // creator: 0/1 -- name|button on the top row, FG|BG on a colour row
     int theme_current_index() const;  // index of the theme settings_ matches exactly, or -1 (custom)
     void theme_open_picker();
-    void theme_open_creator();
+    void theme_open_creator(bool edit_current = false);
+    void theme_try_save();
     void theme_save_new();
+    void theme_delete_selected();
     // SHIFT+e / SHIFT+i on the Colors tab: theme_ui_ 4 = export the current colours as a theme file, 5 = import theme files.
     std::string theme_io_name_;       // export: the theme's name
     std::string theme_io_dir_;        // export / import: the folder

@@ -28,6 +28,9 @@ struct Theme {
     void set(const std::string& key, const std::string& value, bool radio_only = false);
 };
 
+// Index of the theme called `name` (case-insensitive, as the store compares names), or -1.
+int find_name(const std::vector<Theme>& all, const std::string& name);
+
 std::filesystem::path file_path();
 
 // Built-in themes first (Default is always index 0), then the user's, in file order.
@@ -37,6 +40,8 @@ std::vector<Theme> load_all();
 // Adds or replaces a user theme in themes.txt. False with `err` set when the name is empty, taken by a
 // built-in theme, or the file cannot be written.
 bool save_theme(const Theme& t, std::string& err);
+// Removes a theme of your own from themes.txt. False with `err` set for a built-in theme or an unknown name.
+bool delete_theme(const std::string& name, std::string& err);
 
 std::string sanitize_name(const std::string& raw);
 

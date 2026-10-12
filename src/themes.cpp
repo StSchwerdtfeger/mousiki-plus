@@ -187,6 +187,12 @@ bool is_builtin_name(const std::string& n) {
 
 } // namespace
 
+int find_name(const std::vector<Theme>& all, const std::string& name) {
+    const std::string n = lower(sanitize_name(name));
+    for (size_t i = 0; i < all.size(); ++i) if (lower(all[i].name) == n) return static_cast<int>(i);
+    return -1;
+}
+
 fs::path file_path() {
     const char* home = std::getenv("HOME");
     if (!home || !*home) home = std::getenv("USERPROFILE");
@@ -355,6 +361,32 @@ bool save_theme(const Theme& in_theme, std::string& err) {
     buf << kHeader;
     for (const Theme& b : all) if (b.builtin) write_theme(buf, b);
     for (const Theme& e : existing) if (!is_builtin_name(e.name)) write_theme(buf, e);
+    std::ofstream out(path, std::ios::trunc);
+    if (!out) { err = "cannot write " + path.string(); return false; }
+    out << buf.str();
+    return true;
+}
+
+bool delete_theme(const std::string& name_in, std::string& err) {
+    const std::string name = sanitize_name(name_in);
+    if (name.empty()) { err = "no theme chosen"; return false; }
+    if (is_builtin_name(name)) { err = "\"" + name + "\" is a built-in theme and cannot be deleted"; return false; }
+    const fs::path path = file_path();
+    std::vector<Theme> existing;
+    std::error_code ec;
+    if (fs::exists(path, ec)) existing = parse_file(path);
+    bool found = false;
+    std::vector<Theme> keep;
+    for (Theme& e : existing) {
+        if (lower(e.name) == lower(name)) { found = true; continue; }
+        keep.push_back(e);
+    }
+    if (!found) { err = "\"" + name + "\" is not in " + path.string(); return false; }
+    const std::vector<Theme> all = load_all();
+    std::ostringstream buf;
+    buf << kHeader;
+    for (const Theme& b : all) if (b.builtin) write_theme(buf, b);
+    for (const Theme& e : keep) if (!is_builtin_name(e.name)) write_theme(buf, e);
     std::ofstream out(path, std::ios::trunc);
     if (!out) { err = "cannot write " + path.string(); return false; }
     out << buf.str();
