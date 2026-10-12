@@ -39,12 +39,13 @@ struct Palette {
     const char *chf, *chb;     // text being edited
     const char *li, *ll, *lw;  // lyrics: inactive line, active line, active word
     const char *wb;            // lyrics: active word background
+    const char *fc = nullptr;  // focus indicator (nullptr: the header colour)
 };
 
 // Colours are 256-colour palette numbers. 30-47 and 90-107 are read as the plain 16-colour codes by the
 // programs, so the themes stay out of that range (except 90, the usual dim grey, in the default).
 const Palette kPalettes[] = {
-    {"Serious MeowerShell",  "170","170","170","30","170","182","170","182","255","245","240","10","90","10","90","37","41","245","251","255","0"},
+    {"Serious MeowerShell",  "170","170","170","30","170","182","170","182","255","245","240","10","90","10","90","37","41","245","251","255","0","182"},
     {"Soft Pastel",          "183","152","218","153","183","230","218","146","253","152","238","183","246","218","244","232","218","245","224","230",""},
     {"Cyberpunk",            "201","51","201","51","51","227","201","54","195","227","53","201","63","51","135","232","227","63","51","201",""},
     {"Greyscale",            "255","240","255","238","250","255","255","240","252","246","238","255","244","255","243","232","252","243","250","255",""},
@@ -78,7 +79,7 @@ Theme expand(const Palette& p) {
     a("ColorVizLeft", p.d1);              a("ColorVizRight", p.d2);
     a("ColorTabCurrent", p.tc);           a("ColorTabOther", p.to);
     a("ColorHeader", p.hd);               a("ColorLegend", p.lg);
-    a("ColorFocus", p.hd);                // the pane focus indicator: the theme's header color
+    a("ColorFocus", p.fc ? p.fc : p.hd);   // the pane focus indicator: the theme's header color unless the theme names its own
     a("Radio.ColorHeader", p.lg);         a("Radio.ColorLegend", p.hd);   // the radio draws them the other way round
     a("Radio.ColorFocus", p.lg);          // ... and its focus indicator follows ITS header colour
     a("ColorSearchFg", "");               a("ColorSearchBg", "");
@@ -113,9 +114,9 @@ Theme meowershell() {
     t.name = "MeowerShell(Default)";
     t.builtin = true;
     static const char* const kv[][2] = {
-        {"ColorBorderTop","170"},{"ColorBorderBottom","170"},{"ColorMetadataKey","170"},{"ColorMetadataVal","182"},
+        {"ColorBorderTop","170"},{"ColorBorderBottom","171"},{"ColorMetadataKey","170"},{"ColorMetadataVal","182"},
         {"ColorVizLeft","170"},{"ColorVizRight","30"},{"ColorTabCurrent","90"},{"ColorTabOther","10"},
-        {"ColorHeader","10"},{"ColorFocus","10"},{"ColorLegend","90"},{"Radio.ColorHeader","90"},{"Radio.ColorLegend","10"},{"Radio.ColorFocus","90"},
+        {"ColorHeader","10"},{"ColorFocus","183"},{"ColorLegend","90"},{"Radio.ColorHeader","90"},{"Radio.ColorLegend","10"},{"Radio.ColorFocus","90"},
         {"ColorSearchFg","37"},{"ColorSearchBg","41"},{"ColorSearchInactiveFg",""},{"ColorSearchInactiveBg",""},
         {"ColorListInactiveFg",""},{"ColorListInactiveBg",""},{"ColorListPlayingFg","30"},{"ColorListPlayingBg","182"},
         {"ColorListCursorFg","10"},{"ColorListCursorBg","238"},{"ColorDiskTop","170"},{"ColorDiskBottom","30"},
@@ -149,7 +150,7 @@ void write_theme(std::ostream& out, const Theme& t) {
 }
 
 const char* kHeader =
-    "# format: 4\n"
+    "# format: 5\n"
     "# Mousiki colour themes (shared by the player and the radio).\n"
     "# [Name] starts a theme; the lines below it use the key names of config.txt / radio_config.txt.\n"
     "# A key a theme leaves out keeps whatever colour is set. Keys starting with \"Radio.\" are the radio's own values (colours made in the radio are stored that way, so the radio and the player can look different in one theme).\n"
@@ -231,11 +232,11 @@ std::vector<Theme> load_all() {
         std::ifstream in(path);
         std::string first;
         std::getline(in, first);
-        if (trim(first) != "# format: 4") {
+        if (trim(first) != "# format: 5") {
             std::vector<Theme> mine;
             for (Theme& ft : parse_file(path)) {
                 if (is_builtin_name(ft.name) || lower(ft.name) == "default") continue;
-                // format 4 added ColorFocus (the pane focus indicator): a theme of your own gets its header color
+                // format 5: the new MeowerShell (default) and Serious MeowerShell values; format 4 added ColorFocus (the pane focus indicator): a theme of your own gets its header color
                 if (!ft.get("ColorFocus", false)) if (const std::string* hd = ft.get("ColorHeader", false)) ft.set("ColorFocus", *hd);
                 bool dup = false;
                 for (const Theme& b : all) {
@@ -282,7 +283,7 @@ bool write_theme_file(const fs::path& file, const Theme& t, std::string& err) {
     if (file.has_parent_path()) fs::create_directories(file.parent_path(), ec);
     std::ofstream out(file, std::ios::trunc);
     if (!out) { err = "cannot write " + file.string(); return false; }
-    out << "# format: 4\n# A Mousiki colour theme. Import it with SHIFT+i on the Colors tab of the settings.\n\n";
+    out << "# format: 5\n# A Mousiki colour theme. Import it with SHIFT+i on the Colors tab of the settings.\n\n";
     write_theme(out, t);
     return true;
 }

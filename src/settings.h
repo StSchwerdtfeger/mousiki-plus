@@ -164,7 +164,7 @@ struct Settings {
     // config value is empty. Everything else genuinely defaults to "no
     // color" (plain terminal default) until the user sets it.
     std::string border_color = "90";
-    std::string border_color_bottom = "90";   // top uses border_color; box_top()/box_bottom() use these two independently
+    std::string border_color_bottom = "171";   // top uses border_color; box_top()/box_bottom() use these two independently
     bool border_smooth = true;                // BorderGradient=smooth|rough: smooth fades the frame line by line from top to bottom colour; rough = only the bottom border line takes the bottom colour
 
     std::string active_line_color;
@@ -238,7 +238,7 @@ struct Settings {
     // editor). Colors tab FOCUS row, or ColorFocus= in config.txt. Default
     // "10" = the default header color; a config.txt without the key follows
     // whatever ColorHeader is, and every theme sets it to its header color.
-    std::string focus_color = "10";
+    std::string focus_color = "183";
 
     std::string visualizer_color = "32";
     std::string visualizer_color_end = "33";

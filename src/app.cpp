@@ -3536,7 +3536,7 @@ void App::handle_theme_key(int key) {
         return;
     }
     if (key == 'B') {
-        if (theme_row_ < 19) { ++theme_row_; if (theme_col_ == 1 && !color_cell(theme_draft_, theme_row_, 1)) theme_col_ = 0; }
+        if (theme_row_ < 20) { ++theme_row_; if (theme_col_ == 1 && !color_cell(theme_draft_, theme_row_, 1)) theme_col_ = 0; }
         return;
     }
     if (key == 'C') {
