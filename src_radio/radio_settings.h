@@ -52,7 +52,7 @@ struct OsciSet {
 struct RadioSettings {
     // --- colours ----------------------------------------------------------------------------------
     std::string border_top = "170";
-    std::string border_bottom = "170";          // the frame fades from border_top (top) to border_bottom (bottom)
+    std::string border_bottom = "171";          // the frame fades from border_top (top) to border_bottom (bottom)
     bool border_smooth = true;                  // BorderGradient=smooth|rough: smooth fades the frame line by line; rough = only the bottom border line takes border_bottom
 
     std::string on_air_upper_left = "170";      // ON AIR sign: gradient from the upper left ...
