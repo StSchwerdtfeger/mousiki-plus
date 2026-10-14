@@ -1,6 +1,6 @@
 <div align="center">
     
-# 📻 Mousiki Plus v3.3.8 - Music and Radio Player 🎵 
+# 📻 Mousiki Plus v4.0.0 - Music and Radio Player 🎵 
 (Windows · Linux · macOS)  
 
 <p align="center">
@@ -50,7 +50,7 @@ The new main UI of the radio mode looks like the below:
 
 <p align="center"><img width="850" height="412" alt="image" src="https://github.com/user-attachments/assets/986ce2b5-45b6-4a5d-95e6-f45683e6c665" /></p>
 
-## Current Status of the Port and Modification (v3.3.8)
+## Current Status of the Port and Modification (v4.0.0)
 
 For now the Mousiki port works well and also includes everything I at least wanted and made sense to me for a music player, so there might be no further major releases that add new features, except of bug-fixes that might appear to me or others in the future (feel free to start discussions or report issues!!). I might adjust the code to be more polished / robust and might optimize the setup release (Win version results currently in ~250MB size, setup itself ~80MB, portable .zip ~100MB)... Since v2.5.0 my version of Mousiki also builds on macOS/Linux again (`setup.sh`), which is a first step towards making it potentially integratable into the main branch of the original project (which still seems way too hard after dozens of comments in the last two weeks, at least from my perspective). The Linux/macOS builds are less tested than the Windows one, so reports from users on those platforms would help finalize it more. 
 Concerning potential new features: further below you'll find a list of [current Ideas on features and modifications](#current-ideas-on-features-and-modifications). The online-radio function is now included (see [radio mode](#default-keybinding-radio-player)); a mixtape creator would be cool, but I'll see. Again, feel free to give feedback in the discussions, report issues you might experience using this modified port or contributing in any other way...
@@ -251,6 +251,26 @@ Keep the `scripts/` folder next to the binary if you move it, otherwise lyrics, 
 | Radio listening history | `~/.config/mousiki/radio_history/` — `history_radio.txt`, `archive_radio.txt` |
 | Radio recordings / downloads | the player's download folder by default, otherwise `<path>/radio_downloads/` (`~/Music/radio_downloads` if the toggle is off and the path empty) |
 
+## Verifying downloads
+
+Every release file (installer, `.deb`, `.pkg`, portable zips) is built by the public GitHub Actions workflow in this repository and comes with:
+
+- `SHA256SUMS.txt` plus a GPG signature (`SHA256SUMS.txt.asc`), and a `.asc` signature next to every package
+- a GitHub build-provenance attestation (proves which commit and workflow built the file)
+
+**Release signing key** (GPG, ed25519, expires 2031-10-06)
+Fingerprint: `0C8F 861B 48F4 7145 EE64  30F6 DE24 4FF4 9A0F 0902`
+
+```bash
+gpg --import mousiki-release-key.asc
+gpg --fingerprint 0C8F861B48F47145EE6430F6DE244FF49A0F0902   # must show the fingerprint above
+gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt
+sha256sum -c --ignore-missing SHA256SUMS.txt                 # Windows: certutil -hashfile <file> SHA256
+gh attestation verify <file> --repo StSchwerdtfeger/Mousiki-v3.0.0-Music-and-Radio-Player
+```
+
+Note: the files are not signed with a purchased code-signing certificate, so Windows SmartScreen and macOS Gatekeeper may still show a warning on first start.
+
 ## Default Keybindings (Music Player)
 
 IN GENERAL: See manual for a full detailed overview of the functionality of the current version of Mousiki. 
@@ -280,7 +300,7 @@ Note that macOS uses the Option key or Ctrl as substitute for ALT! When installi
 | Action | Keybinding | Description |
 | :--- | :--- | :--- |
 | **Switch Player ↔ Radio** | `*` | Switch to the radio mode (and back from there). The key that types `*`: `SHIFT` and `+` on a German keyboard, `SHIFT+8` on an English (US / UK) one; the cheat sheet shows the combination that fits your keyboard layout (detected automatically, `MOUSIKI_KEYBOARD=us\|de\|fr\|…` overrides it). The player is paused and waits in the background, the radio is closed completely when you leave it. Fixed key, not rebindable; `SHIFT + m` stays the meta data editor. `+` on its own is volume up |
-| **Help Wizard** *(temporarily switched off: `wizard::kEnabled = false` in `src/wizard.h`; nothing opens, no key does anything, the text below describes the switched-on state)* | `SHIFT + w` | The user guide as tutorial pages inside the app: a welcome page, a contents list and a tutorial per topic with diagrams of the panes. `←`/`→` turn the page, `↑`/`↓` pick a topic (and scroll a long page), `ENTER` opens it, `ESC` closes. It opens by itself on the first start after an install (once; `WizardSeen=` in `config.txt`) |
+| **Help Wizard** | `SHIFT + w` | The user guide as tutorial pages inside the app (text file `Mousiki_Help_Wizard.txt`): a welcome page, a table of content and a page per subject for the music player and the radio. `←`/`→` turn the page, `t` jumps to the table of content (`↑`/`↓`, `ENTER` pick an entry), `ESC` closes. It opens by itself on the first start after an install (once; `WizardSeen=` in `config.txt`) |
 | **Cheat Sheet** | `?` | List of all key commands (German keyboard: `SHIFT` and `ß`, English: `SHIFT` and `/`) |
 | **Settings** | `s` | Open Settings; inside Settings `s` again saves to `config.txt` and returns |
 | **Exit Settings** | `ESC` / `q` | Discard & close: changes made on the screen are reverted; while there are unsaved changes a green ``Unsaved changes! Save with `s` or discard with `ESC`.`` note is shown. While a field (colour, path, value, key) is being edited, `←/→` move the caret and `TAB` stays in the field; only `ENTER` (apply) or `ESC` (cancel) leave it |
@@ -325,7 +345,7 @@ Note that macOS uses the Option key or Ctrl as substitute for ALT! When installi
 | **Scope window** | `)` (German `SHIFT + 9`, English `SHIFT + 0`) | The oscilloscope in its own window, drawn by the graphics card at the monitor's refresh rate (every sample, phosphor afterglow, bloom). Keys in the window: `F` / `F11` / double-click fullscreen, `T` always on top, `ESC` close. Needs SDL2 (see Prerequisites) |
 | **Oscilloscope tuning** | `SHIFT + o` | Overlay to tune the oscilloscope live: osci music mode, style (braille / image), frame rate (30 – 165), decay, dot threshold, tail, line interpolation, Z axis, trace length, 45° rotation, mono phase portrait, colour palette, glow (image style), image protocol and image resolution (full / half / third: the picture is drawn smaller and enlarged by the terminal or the Sixel encoder, for a smooth image scope at high frame rates). Each style keeps its own values, frame rate and music mode included (`R` resets the style in use, saved on close) |
 | **Normalization tuning** | `SHIFT + v` | Overlay to adjust the loudness normalization parameters |
-| **Lyrics timing** | `ALT + l` | Overlay to shift the lyrics of the playing track earlier / later (`←`/`→` ±0.1 s, `↑`/`↓` ±0.5 s, `R` reset, `ENTER` saves the offset into the track's `.lrc`, `ESC` cancels). Opens from the main screen and from inside the karaoke overlay, where the big lyrics make an offset easiest to judge. |
+| **Lyrics timing** | `ALT + l` | Overlay to shift the lyrics of the playing track earlier / later (`←`/`→` ±0.1 s, `↑`/`↓` ±0.5 s, `SHIFT+←`/`SHIFT+→` seek the track ∓/± 5 s, `R` reset, `ENTER` saves the offset into the track's `.lrc`, `ESC` cancels). Opens from the main screen and from inside the karaoke overlay, where the big lyrics make an offset easiest to judge. |
 | **Equalizer** | `SHIFT + e` | Open Equalizer overlay menu, includes a 10 band EQ with 12 presets (plus your own custom presets). | 
 | **Sleep timer** | `SHIFT + z` | Small overlay: pause playback after 15 / 30 / 60 / 90 / 120 minutes, or stop after the current song (or switch it off). **Fade out** (on/off, `SleepFade` in config.txt) lowers the volume over the last 10 % of the time (30 s to 10 min). Independent of the Stop play mode |
 
@@ -416,7 +436,7 @@ All of them can also be found in the in-app cheat sheet (`?`, categorized, scrol
 | Listening history | `h` |
 | Big STATIONS overlay | `SHIFT + l` (shown as `L`) |
 | Settings | `s` |
-| Help wizard *(temporarily switched off, see above)* | `SHIFT + w` |
+| Help wizard | `SHIFT + w` |
 | Cheat sheet | `?` |
 | Switch to the music player | `*` (German `SHIFT` and `+`, English `SHIFT+8`) |
 | Quit | `q` or `CTRL + c` |
@@ -574,6 +594,7 @@ Below is a list of major and minor addition on top of the original v1.0. The des
 
 ### Major Additions / Modifications
 
+- **v4.0.0:** the smooth border gradient now also colours the floating overlay panels (big list, queue, folder, convert ...); the XY grid no longer flickers in the image oscilloscope; `SHIFT+←`/`SHIFT+→` seek the track in the lyrics timing overlay; a lyrics refetch only overwrites the file when text *and* offset are identical (otherwise your copy is kept as an older version); new default themes and visuals (see above); the manual has new screenshots.
 - **Radio mode** in the same program (see [Radio mode](#default-keybinding-radio-player)): online radio with a tuning-dial look, ON/OFF AIR sign, 16-slot presets, Radio Browser search, station lists, recording to MP3, sleep timer, listening history, own oscilloscope/sphere and its own settings. `SHIFT` and `+` (the `*` character) switches between player and radio; the radio is closed completely when you leave it, the player waits in the background (paused) so it is back instantly. The cheat sheet shows the switch key for your keyboard layout (detected automatically, `MOUSIKI_KEYBOARD` overrides it - NOT TESTED YET IF IT FULLY WORKS).
 
 <p align="center"><img width="848" height="411" alt="image" src="https://github.com/user-attachments/assets/efac8af6-6108-4558-911c-bab5f2e36931" /></p>
@@ -600,7 +621,8 @@ Below is a list of major and minor addition on top of the original v1.0. The des
 - **Classic green** oscilloscope colour (`SHIFT+o` → Color, `Palette=green`): one phosphor green, only the beam brightness varies. The axis values of the oscilloscope overlay (`ScopeValues`) are on by default.
 - **Karaoke legend shorter.** On keyboards where the lyrics size keys are `SHIFT` and `+` / `SHIFT` and `-` (German, Austrian, Spanish, Italian) the bottom legend of the karaoke overlay now reads `[SHIFT and +/-] Lyrics size` instead of `[SHIFT and + / SHIFT and -] Lyrics size`.
 - **Cheat sheet: FILE CONVERSION** is a category of its own now (the conversion overlay's key and the keys inside it moved out of NAVIGATION & VIEW).
-- **Help wizard switched off for now**: `wizard::kEnabled = false` (`src/wizard.h`) keeps it from opening (first start and `SHIFT+w`) and hides its rows in the cheat sheet and REFERENCE tab; the pages and drawing code are untouched, so `true` brings it back.
+- **Help wizard is back on**: `wizard::kEnabled = true` (`src/wizard.h`); it opens on the first start and with `SHIFT+w`, its rows are in the cheat sheet and the REFERENCE tab again.
+- **Help wizard: new text, now a plain file.** The pages live in `Mousiki_Help_Wizard.txt` (`[[New Page]]`, `[[Header]]`, `[KEY]` markup; chapters I-III: overview, music player, radio), compiled into `src/wizard_text.inc` by `tools/wizard_to_inc.py`; `MOUSIKI_WIZARD_FILE=...` tries a changed file without a rebuild. The top border names the chapter, `t` jumps to the table of content (centred), `←`/`→` stay inside the main chapter of the page (the table of content is the way to another one), a page taller than the terminal scrolls with `↑`/`↓` (`SHIFT+↑`/`SHIFT+↓` a whole page) and shows a gradient scrollbar, every page has an empty line at its start and end, `[[Header_line]]` colours a whole line, and both welcome pages spin the disk (speed 0.1) to the left of the text; the tool warns when a welcome line is wider than 72 columns.
 - **Meta editor, live on the main screen**: Name / Artist / Album / Year (and the scope/spectrogram window titles) now show the pending meta edits of the playing track at once -- typed or fetched in the editor via `SHIFT+n` -- and keep the values after `CTRL+s`. The first line is labelled **Title** or **File** and follows `SHIFT+n` like the list rows do (Title: the title tag, or the file name if there is none; File: the file name, including a pending FILE rename).
 - **Meta editor**: `SHIFT+f` (library pane) adds the whole filtered list to the fetch list; `SHIFT+c` (Fetch List tab) cancels a running AcoustID fetch (the helper is killed, arrived results stay as pending edits, the rest stays on the list). Closing the editor leaves a fetch running in the background; quitting or switching to the radio now cancels it instead of waiting for the end of the batch.
 - **Saving many meta data edits** (`CTRL+s` → `Y`) no longer looks like a freeze: the files are written in short slices, the status line counts `saving 37 / 412 ...`, and after about a second a centered *Please wait, this may take a few seconds* panel with a progress bar appears. `ESC` stops after the current file (the rest stays pending). The pending list shrinks while it runs and is saved to the backup file every 2 seconds, so even a crash half-way loses nothing.
@@ -678,8 +700,10 @@ Below is a list of major and minor addition on top of the original v1.0. The des
 - **File conversion overlay** - `SHIFT+c` opens a menu to convert high resolution files (FLAC, WAV, ALAC ...) to MP3 and other lighter formats: search bar, pre-filter (file type, minimum bitrate, hi-res only), `SPACE` marks files, `←/→` picks the target (MP3 320 / V0 / 192, AAC 256, Opus 128), `f:` / `p:` in its search bar pick a folder or a saved playlist (`ENTER` shows only its files, `/` goes back to the full search), `ENTER` converts in the background with ffmpeg (`c` cancels). Files go to the new **Settings → PATHS → CONVERSION EXPORT PATH** (default: `conversion-export` in the download folder, `ConversionExportPath=` in `config.txt`); the originals are never touched, tags and cover are kept. `SHIFT+c` used to seek forward like the right arrow: typed `SHIFT+a`…`d` are no longer confused with the arrow keys.
 - **Big folder overlay** - `SHIFT+f` opens a folder tree of the library with a search bar (LOCAL AUDIO FILES FOLDER pane): `ENTER` opens a folder (subfolders and files appear indented), `CTRL+p` plays the highlighted file, `SHIFT+↑/↓` scrolls a page, `f` on a folder or a file shows that folder in the LOCAL AUDIO FILES pane and closes the overlay. The folder name in the LOCAL AUDIO FILES title is now shortened with `...` when it would break the border.
 - **Smooth border gradient** - the frame now fades row by row from `ColorBorderTop` to `ColorBorderBottom`; a new SMOOTHNESS row under BORDER_COLOR (both modes, `BorderGradient=smooth|rough`) switches back to the old look where only the bottom border line takes the bottom colour. The THEME row moved to the top of the Colors tab.
+- **Unsaved-changes warnings, edit current theme (`e`)** - leaving the settings (`ESC` / `q`) or the CREATE THEME editor with changes now asks first (`s` save, `d` discard, `ESC` keep editing; player and radio). `e` on the Colors tab opens the theme in use in the editor: a theme of your own can be overwritten (its name is already in the NAME field; saving asks "Do you want to overwrite theme ...?"), a built-in one needs a new name. Names are at most 25 characters. `SHIFT+d` in the CHOOSE THEME list deletes a theme of your own (after a "Do you want to delete theme?" question; built-in themes cannot be deleted).
 - **Theme export / import** - `SHIFT+e` / `SHIFT+i` on the Colors tab (player and radio) export the colors as a `.theme` file / import theme files from a folder. The theme pickers mark the applied theme (or the chosen template) with the dot only; the "(yours)" label is gone.
-- **Colour themes** - the Colors tab (player and radio) starts with a **THEME** row: 20 ready-made themes (soft, cyberpunk, greyscale, three colour-blind-friendly ones, ...) plus `MeowerShell(Default)` and `Serious MeowerShell` (the colours of the default config.txt), and **CREATE THEME** for your own (name, optional template, any color cell). Themes live in `themes.txt` next to `config.txt`. The focus triangle `◀` now also shows in the meta editor's search field and the playlist editor's name and search fields.
+- **Colour themes** - the Colors tab (player and radio) starts with a **THEME** row: 20 ready-made themes (soft, cyberpunk, greyscale, three colour-blind-friendly ones, ...) plus `SeriousMeowerShell(Default)` (the default of the music player) and `MeowerShell` (the radio starts with `Dracula`) (the colours of the default config.txt), and **CREATE THEME** for your own (name, optional template, any color cell). Themes live in `themes.txt` next to `config.txt`. The focus triangle `◀` now also shows in the meta editor's search field and the playlist editor's name and search fields.
+- **Colour numbers are palette numbers everywhere** - any number `1`-`255` works in any colour field (text, background, gradient ends); `0` / empty = the terminal's own. Before, `30`-`37` / `90`-`97` (text) and `40`-`47` / `100`-`107` (background) were plain 16-colour codes - typing `104` as a border colour painted a bright-blue background bar. Older `config.txt`, `radio_config.txt` and `themes.txt` are converted once on load (`ColorCodes=palette`, themes `# format: 6`); black is now `16`.
 - **Playlist import, search pane** - `i` on the Saved Playlists list (the legend reads `[e/i] Export/Import`) on the Saved Playlists tab opens an **IMPORT PLAYLISTS** overlay: pick a folder (default: the export / playlist folder), mark `.m3u` / `.m3u8` files with `SPACE` (`a` = all) and `ENTER` imports them as native playlists. The Saved Playlists search row now has its own **SEARCH PLAYLISTS** pane using the search colors.
 - **Karaoke, smart history, M3U8 export** - `k` opens a karaoke overlay (lyrics over the whole screen with a braille karaoke picture in the disk colours; Refresh UI moved to `r`, old configs are migrated). The history's queue pane is now **ADD SMART HISTORY TO QUEUE** with 16 lists in four columns (top N, top of the week / month / quarter / year, time of day, newly added and least played); `TAB` no longer switches the history tabs, `←/→` do. `e` on the playlist editor's Saved Playlists tab exports a playlist as M3U8 / M3U; the export folder is a new single path under Settings → PATHS (`PlaylistExportPath=`).
 
@@ -720,7 +744,7 @@ Below is a list of major and minor addition on top of the original v1.0. The des
 - **Per-style oscilloscope settings:** the braille and the image scope keep everything separately, frame rate and osci music mode included (`OsciFrameRate` / `OsciImageFrameRate`, `OsciMusicMode` / `OsciImageMusicMode`; an old `FrameRate` is taken over for both).
 - **No-Lyrics Viz** (Settings → ANIMA/VIZ → MODES; `NoLyricsViz=sphere|osci|spectro`): which visual the lyrics area shows while the lyrics view is on but no lyrics are available (before: the view `.` had been on before the lyrics). Picking a visual that is switched off under *Use Oscilloscope* / *Use Spectrogram* turns that switch on, and it cannot be switched off while it is the pick. The *Lyric Viz* row is now called **Lyrics/Viz**.
 - **Settings reorganised:** the ON/OFF tab has the categories **MODES** (Playback, and the new **Start Mode**: open Mousiki with the player or with the radio; `StartMode=` in `config.txt`, shared by both modes) and **ON/OFF**. The ANIMATION tab is now **ANIMA/VIZ** with LYRICS, DISK, WAVE (Wave Fluidity / Degradation / Viscosity, Waveform Style), MODES (Lyrics/Viz Default, No-Lyrics Viz) and VIZ/LYRICS ORDER, plus a note about `SHIFT+o`, `SHIFT+i`, `SHIFT+u`, `)` and `(`; it scrolls on a short terminal. The radio's ON/OFF and ANIMA/VIZ tabs follow the same layout. The cheat sheet's search part is split into SEARCH LOCAL (MAIN UI) and SEARCH ONLINE (MAIN UI); new local search prefixes `/r:` (artists only) and `/a:` (albums only).
-- **Default visual:** the spectrogram in the image style (Lyrics/Viz Default = spectro; radio: OsciSphere = spectro). The oscilloscope and spectrogram overlays no longer have a *Display* row (`.` switches the visual).
+- **Default visual:** the oscilloscope in XY mode (ASCII-Braille, 30 Hz); order of the visuals: sphere, oscilloscope, spectrogram, lyrics (Lyrics/Viz Default = osci; radio: OsciSphere = osci). The oscilloscope and spectrogram overlays no longer have a *Display* row (`.` switches the visual).
 - **Lyrics messages** ("fetching lyrics ...", "No synchronized lyrics found") are a small box over the bottom of the lyrics-area visual, which keeps its size (the spectrogram no longer jumps).
 - **Search:** `↑/↓` while typing then `Enter` plays the highlighted track directly; the radio highlights the station under the cursor while searching. `SHIFT+u` (full-screen spectrogram) works whatever **Use Spectrogram** says -- that switch only concerns the field in the main screen.
 
@@ -740,23 +764,3 @@ Below is a list of major and minor addition on top of the original v1.0. The des
 **Major New Features:**
 
 - (NOT SURE ABOUT THIS, but idea sounds nice) Apart from regular playlists a modified playlist feature could be added: pixel art cassette tapes with limited number of tracks, A/B side, which can be shared. The cassettes could consist of a number of basic components like cassette style, label style, a decent number color sets (incl. a randomizer for composing the cassette style that optionally keeps track of what had been used already in the list of "cassette mixtapes"(i.e. with or without possible color redundancies or so))), may incl. a yt-dlp feature, where you can share a "cassette files / mixtapes (.mix files)" with others which include a list of commands (youtube urls) that can be shared and uploaded to your Mousiki player (commands that initialize starting fetching songs from you tube or elsewhere(local search included)); possible royalty free art that could be adjusted for that purpose (https://pixabay.com/illustrations/search/cassette%20tape/)
-
-## Verifying downloads
-
-Every release file (installer, `.deb`, `.pkg`, portable zips) is built by the public GitHub Actions workflow in this repository and comes with:
-
-- `SHA256SUMS.txt` plus a GPG signature (`SHA256SUMS.txt.asc`), and a `.asc` signature next to every package
-- a GitHub build-provenance attestation (proves which commit and workflow built the file)
-
-**Release signing key** (GPG, ed25519, expires 2031-10-06)
-Fingerprint: `0C8F 861B 48F4 7145 EE64  30F6 DE24 4FF4 9A0F 0902`
-
-```bash
-gpg --import mousiki-release-key.asc
-gpg --fingerprint 0C8F861B48F47145EE6430F6DE244FF49A0F0902   # must show the fingerprint above
-gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt
-sha256sum -c --ignore-missing SHA256SUMS.txt                 # Windows: certutil -hashfile <file> SHA256
-gh attestation verify <file> --repo StSchwerdtfeger/Mousiki-v3.0.0-Music-and-Radio-Player
-```
-
-Note: the files are not signed with a purchased code-signing certificate, so Windows SmartScreen and macOS Gatekeeper may still show a warning on first start.

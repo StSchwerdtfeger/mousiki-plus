@@ -4,42 +4,43 @@
 # Written by the settings screen (press s in the radio); edit by hand if you like.
 #
 # Colours are numbers of the 256-colour terminal palette (1-255). 0 or empty = no colour (the terminal's own).
-# 30-47 and 90-107 are sent as direct terminal colour codes.
+# (A file without the next line is an older one: its 30-37 / 90-97 / 40-47 / 100-107 are converted once.)
+ColorCodes=palette
 
 ##-------------------------------------------
 ##              COLORS
 ##-------------------------------------------
 
 # Frame lines: fade from top to bottom
-ColorBorderTop=170
-ColorBorderBottom=171
+ColorBorderTop=141
+ColorBorderBottom=212
 # BorderGradient: smooth = the frame fades line by line from the top to the bottom colour, rough = only the bottom border line has the bottom colour
 BorderGradient=smooth
 
 # ON AIR sign: diagonal gradient (upper left -> bottom right); also the needle, the lamp and the LIVE text
-ColorOnAirUpperLeft=170
-ColorOnAirBottomRight=30
+ColorOnAirUpperLeft=141
+ColorOnAirBottomRight=212
 
 # Station info: the labels (Station, Title ...) and their values
-ColorMetadataKey=170
-ColorMetadataVal=182
+ColorMetadataKey=117
+ColorMetadataVal=231
 
 # FFT spectrum under the station info (ColorVizCenter = optional middle stop of the gradient)
-ColorVizLeft=170
+ColorVizLeft=141
 ColorVizCenter=
-ColorVizRight=30
+ColorVizRight=212
 
 # Oscilloscope (top right)
-ColorOsciLeft=170
-ColorOsciRight=30
+ColorOsciLeft=141
+ColorOsciRight=212
 
 # Frequency band: the line + ticks / the numbers and the small dots
-ColorFrequencyLine=170
-ColorFrequencyMHz=90
+ColorFrequencyLine=141
+ColorFrequencyMHz=246
 
 # Volume bar: the # / the -
-ColorVolumeCurrent=170
-ColorVolumePossible=182
+ColorVolumeCurrent=212
+ColorVolumePossible=60
 
 # Search bar: typed query (highlighted behind the query text only) and the idle bar
 # (empty FG = same as the STATIONS list rows; empty BG = none)
@@ -49,28 +50,28 @@ ColorSearchInactiveFg=
 ColorSearchInactiveBg=
 
 # STATIONS list rows (the station names in the PRESETS pane use the same colours)
-ColorListInactiveFg=255
+ColorListInactiveFg=253
 ColorListInactiveBg=
-ColorListPlayingFg=245
+ColorListPlayingFg=84
 ColorListPlayingBg=
 ColorListCursorFg=
-ColorListCursorBg=240
+ColorListCursorBg=60
 
 # PRESETS pane: key slots without a station / the short-cut key letters
-ColorPresetInactiveFg=90
+ColorPresetInactiveFg=246
 ColorPresetInactiveBg=
-ColorPresetKeyFg=255
+ColorPresetKeyFg=253
 
 # Secondary text: captions (off air, no signal), the ON AIR sign while nothing is live, empty-pane
 # messages, status lines, dimmed entries
-ColorHeader=90
+ColorHeader=246
 
 # Key command legends: the hint lines of the menus ([TAB] Switch pane | ...), their errors, the cheatsheet titles
-ColorLegend=10
+ColorLegend=141
 
 # Settings screen: the current tab name (and the < ↔ > hint) / the other tab names
-ColorTabCurrent=10
-ColorTabOther=90
+ColorTabCurrent=212
+ColorTabOther=246
 
 ##-------------------------------------------
 ##              ON/OFF
@@ -80,7 +81,7 @@ OnAirAscii=true
 PulseWave=true
 DummyButtons=true
 # right of the station info: osci | sphere | off | spectro
-OsciSphere=spectro
+OsciSphere=osci
 Visualizer=true
 StereoSound=true
 # false = left out entirely: not in the "." cycle of the scope block (the sphere always is); the windows
@@ -182,7 +183,7 @@ HKeyQuit=q
 ##-------------------------------------------
 
 # FFT: 1-10 (higher = smoother / slower rise) | 1-10 (higher = bars fall faster) | 0-10 (neighbour blending)
-VisualizerFluidity=1
+VisualizerFluidity=10
 VisualizerDegradationSpeed=8
 VisualizerViscosity=3
 # Oscilloscope (SHIFT+o overlay), one block per style: braille = Osci<name>, image = OsciImage<name>. Each style keeps its own values.

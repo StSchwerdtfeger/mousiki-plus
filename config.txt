@@ -6,18 +6,22 @@
 ##              PANEL 1: COLORS
 ##-------------------------------------------
 
+# Colour numbers are numbers of the 256-colour terminal palette (1-255) in every field; 0 or empty = no colour (the terminal's own).
+# (A file without the next line is an older one: its 30-37 / 90-97 / 40-47 / 100-107 are converted once.)
+ColorCodes=palette
+
 # Frame & Controls
 ColorBorderTop=170
-ColorBorderBottom=171
+ColorBorderBottom=104
 # BorderGradient: smooth = the frame fades line by line from the top to the bottom colour, rough = only the bottom border line has the bottom colour
 BorderGradient=smooth
 ColorDiskTop=170
 ColorDiskBottom=30
-ColorMetadataKey=170
+ColorMetadataKey=140
 ColorMetadataVal=182
 ColorVizLeft=170
 ColorVizRight=30
-ColorProgressBarPlayed=170
+ColorProgressBarPlayed=213
 ColorProgressBarPending=182
 
 # Section headers (the REFERENCE tab's category titles and the
@@ -26,48 +30,48 @@ ColorHeader=10
 
 # Key command legends (the grey hint lines such as "[ESC] close" in the Settings, the big
 # list / queue overlays, the playlist / meta editor and the history) -- 0 = terminal default
-ColorLegend=90
-ColorTabCurrent=10
-ColorTabOther=90
+ColorLegend=8
+ColorTabCurrent=8
+ColorTabOther=10
 
 # "This field is actively being typed into" (a PATHS row, a hex colour value, a
 # hotkey, a meta editor tag) -- 0 = terminal default
-ColorChangeFg=37
-ColorChangeBg=41
+ColorChangeFg=7
+ColorChangeBg=1
 
 # Pane focus indicator (the little triangle after the title of the pane that has the keys) -- 0 = plain bold
 ColorFocus=183
 
 # Search bar: typed query (highlighted behind the query text only) and the idle bar
 # (empty FG = same as List Inactive; empty BG = none)
-ColorSearchFg=
-ColorSearchBg=
+ColorSearchFg=7
+ColorSearchBg=1
 ColorSearchInactiveFg=
 ColorSearchInactiveBg=
 
 # List
-ColorListInactiveFg=255
+ColorListInactiveFg=
 ColorListInactiveBg=
-ColorListPlayingFg=245
-ColorListPlayingBg=
-ColorListCursorFg=
-ColorListCursorBg=240
+ColorListPlayingFg=16
+ColorListPlayingBg=182
+ColorListCursorFg=10
+ColorListCursorBg=238
 
 # Queue
-ColorQueueInactiveFg=255
+ColorQueueInactiveFg=
 ColorQueueInactiveBg=
-ColorQueuePlayingFg=245
-ColorQueuePlayingBg=
+ColorQueuePlayingFg=16
+ColorQueuePlayingBg=182
 ColorQueueCursorFg=
 ColorQueueCursorBg=240
 
 # Lyrics
-ColorLyricsInactiveFg=245
+ColorLyricsInactiveFg=
 ColorLyricsInactiveBg=
-ColorLyricsActiveLineFg=251
+ColorLyricsActiveLineFg=182
 ColorLyricsActiveLineBg=
-ColorLyricsActiveWordFg=255
-ColorLyricsActiveWordBg=0
+ColorLyricsActiveWordFg=
+ColorLyricsActiveWordBg=
 
 ##-------------------------------------------
 ##              PANEL 2: ON/OFF
@@ -82,12 +86,12 @@ ElimentWaveForm=true
 VizLyricsField=true
 ## ElimentLyrics = the field shows the lyrics now (true) or the visual of LyricViz (false); "." switches it. Needs UseLyrics=true.
 ElimentLyrics=true
-LyricViz=spectro
+LyricViz=osci
 ## sphere = the audio-reactive ball | osci = the oscilloscope (both drawn in the VIZ colors) | spectro = the spectrogram (default)
 ## (LyricViz and ElimentLyrics are where the "." key left the field; the next start begins with VizDefault, see below; VizDefault=last keeps them.)
-VizDefault=lyrics
+VizDefault=osci
 ## The view the field starts with when Mousiki opens: sphere | osci | spectro | lyrics | last (= the view it was left on, "last used" in Settings -> ANIMA/VIZ -> Lyrics/Viz Default)
-NoLyricsViz=spectro
+NoLyricsViz=osci
 ## What the field shows while the lyrics view is on but no lyrics are available (sphere | osci | spectro | none, default spectro).
 ## Picking one turns its "Use ..." switch below on; switching that off again moves this pick to the next visual that is on.
 UseLyrics=true
@@ -191,15 +195,15 @@ VisualizerFluidity=10
 ## 1 to 10
 WaveformStyle=raw
 ## raw , smooth
-DiskRotationSpeed=0.25
+DiskRotationSpeed=0.1
 ## 0.01x to 1.00x
 StartMode=player
 ## player , radio -- the mode Mousiki starts in (the * key switches while it runs; set in Settings -> ON/OFF -> MODES)
 PlaybackMode=list
 ## list , loop , shuffle , stop , queue then stop (plays the queue once, then stops -- never falls through to the library)
-VisualizerDegradationSpeed=10
+VisualizerDegradationSpeed=8
 ## 1 to 10
-VisualizerViscosity=1
+VisualizerViscosity=3
 ## 1 to 10
 LyricsAlignment=center
 ## center , left , right
