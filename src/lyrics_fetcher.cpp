@@ -608,13 +608,17 @@ LyricsResult fetch_synced_lyrics(const std::string& title, const std::string& ar
     result.raw_lrc = lrc;
     result.message = (enhanced ? "word-synced lyrics" : "line-synced lyrics") + std::string(" (") + result.source + ")";
 
-    // A refetch never overwrites: the copy in use (it may carry a timing correction) is put aside as an older version
-    // first -- unless the new text is identical, then there is nothing to keep.
+    // A refetch never loses work: the copy in use is put aside as an older version first when its text differs from the
+    // new one OR when its saved timing offset differs from the offset of the new one. Only a copy with the same text
+    // AND the same offset is simply overwritten -- there is nothing to keep.
     {
         std::string old_text;
         const fs::path old = existing_sidecar_file(track_path);
-        if (!old.empty() && read_text_file(old, old_text) && old_text != lrc && old_text.find(lrc) == std::string::npos)
-            archive_current_sidecar(track_path);
+        if (!old.empty() && read_text_file(old, old_text)) {
+            const bool same_text = (old_text == lrc || old_text.find(lrc) != std::string::npos);
+            const bool offset_differs = std::abs(parse_lrc_delay(old_text) - parse_lrc_delay(lrc)) >= 0.0005;
+            if (!same_text || offset_differs) archive_current_sidecar(track_path);
+        }
     }
     save_sidecar(track_path, lrc, result.source); // cache to disk for offline reuse next time
     return result;

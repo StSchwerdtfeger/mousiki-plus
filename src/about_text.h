@@ -9,7 +9,7 @@
 namespace muisc {
 
 inline const std::vector<std::string>& about_app_text() {
-    // "v3.3.8" padded to the width of the column, so "Licence" keeps its place in any version.
+    // "v4.0.0" padded to the width of the column, so "Licence" keeps its place in any version.
     static const std::vector<std::string> lines = [] {
         std::string ver = std::string("v") + MOUSIKI_VERSION;
         if (ver.size() < 26) ver.append(26 - ver.size(), ' ');

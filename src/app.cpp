@@ -619,8 +619,11 @@ static std::string focus_sgr(const Settings& s) {
 // string in `border_ansi` (one colour for the whole row), so to make just the triangle read in the focus colour, the
 // title text itself switches colour for it and then back to `border_ansi` -- the same colour box_top() already has --
 // so the dashes that follow the title stay in the border colour.
-static std::string focus_indicator(const Settings& s, const std::string& border_ansi) {
-    return " " + focus_sgr(s) + "◀" + "\x1b[0m" + border_ansi;
+// The way back to the border colour is a marker (\x01) that box_top() resolves: it puts the border colour straight in front of
+// the first dash after the title, where the smooth border gradient (clamp_output_rows) finds it and gives it the colour of that
+// ROW -- a plain colour escape followed by the blank before the dashes would stay the top colour.
+static std::string focus_indicator(const Settings& s, const std::string&) {
+    return " " + focus_sgr(s) + "◀" + "\x1b[0m" + "\x01";
 }
 
 // The text of `s` without its CSI colour sequences (what is really drawn).
@@ -642,6 +645,8 @@ std::string App::box_top(const std::string& label_in, int total_width, const std
     // terminal's right edge and shifted everything below it (a long file name plus a 3-digit "206/843" in the meta editor).
     // The text part is cut with "..." instead; a focus indicator at the end of the title (" " + colour + "◀") is kept.
     std::string label = label_in;
+    bool back_to_border = false;   // the title ends with a focus indicator: the border colour comes back right before the dashes
+    for (size_t at = label.find('\x01'); at != std::string::npos; at = label.find('\x01')) { label.erase(at, 1); back_to_border = true; }
     if (!label.empty()) {
         const int room = total_width - 1 - display_width(settings_.box_upper_left + settings_.box_horizontal) - 2;   // between "╭─ " and " ╮"
         if (display_width(strip_csi(label)) > room && room >= 6) {
@@ -656,6 +661,7 @@ std::string App::box_top(const std::string& label_in, int total_width, const std
         }
     }
     std::string lbl = label.empty() ? "" : (" " + label + " ");
+    if (back_to_border && !label.empty()) lbl += border_ansi;
     std::string prefix = settings_.box_upper_left + settings_.box_horizontal + lbl;
     // The label may carry colour escapes (the focus indicator's "◀" in the
     // header colour): display_width() counts their parameter text as visible
@@ -3003,7 +3009,7 @@ static const RefHotkeyRow kRefRows[] = {
     {"LIBRARY", "HKeyRescan", "Rescan Library"},   // pick up files that were added while the app runs
     {"SYSTEM", "HKeySetting", "Open Settings"},
     {nullptr, "HKeyConsole", "Console / Logs"},
-    // {nullptr, "HKeyWizard", "Help Wizard"},   // hidden while wizard::kEnabled is false (wizard.h)
+    {nullptr, "HKeyWizard", "Help Wizard"},
     {nullptr, "HKeyCheatsheet", "Cheatsheet"},
     {nullptr, "HKeyQuit", "Quit Application"},
 };
@@ -4419,6 +4425,13 @@ void App::handle_key(int key) {
     // outlive the key that raised it in either of two modes.
     if (handle_meta_prompt_key(key)) return;
 
+    // The help wizard opens from every menu and overlay that is not taking typed text (the main screen has its own
+    // route further down); closing it brings the menu back.
+    if (wizard::kEnabled && mode_ != Mode::Wizard && mode_ != Mode::Browse && key_is("HKeyWizard", key) && wizard_allowed_over_mode()) {
+        wizard_open();
+        return;
+    }
+
     if (mode_ == Mode::ColorEdit || mode_ == Mode::Settings) {
         handle_settings_key(key);
         return;
@@ -4573,6 +4586,10 @@ void App::handle_key(int key) {
         if (arrow && key == 'D') { lyrics_edit_adjust(-0.1); return; } // left: lyrics earlier
         if (arrow && key == 'A') { lyrics_edit_adjust(+0.5); return; } // up
         if (arrow && key == 'B') { lyrics_edit_adjust(-0.5); return; } // down
+        // SHIFT+Left/Right seek the running track (5 s, like the normal seek keys) so a line can be heard again
+        // while it is being re-timed.
+        if (key == kKeyShiftLeft)  { if (has_track_) player_.seek_relative(-5.0); return; }
+        if (key == kKeyShiftRight) { if (has_track_) player_.seek_relative(5.0);  return; }
         if (arrow) return;
         if (key == 'r' || key == 'R') {
             std::lock_guard<std::mutex> lk(lyrics_mutex_);
@@ -4742,45 +4759,23 @@ void App::handle_key(int key) {
     }
 
     if (mode_ == Mode::Wizard) {
-        // LEFT / RIGHT turn the page through the whole wizard, UP / DOWN pick
-        // a topic on the contents page and scroll everywhere else. Nothing
-        // here reaches the player underneath: the wizard is a full-screen
-        // view like the cheat sheet, and playback simply keeps running.
+        // The wizard keeps its own page / part / contents state (src/wizard.cpp); here the key only has to be named.
+        // Nothing reaches the player underneath: the wizard is a full-screen view like the cheat sheet, and playback
+        // simply keeps running.
         const bool arrow = last_key_was_arrow();
+        wizard::Key wk = wizard::Key::None;
         if (arrow) {
-            if (key == 'C') { wizard_step_page(+1); return; }
-            if (key == 'D') { wizard_step_page(-1); return; }
-            if (wizard_page_ == kWizardContentsPage) {
-                const int n = static_cast<int>(wizard::topics(wizard::Flavor::Player).size());
-                if (n > 0 && key == 'A') wizard_topic_ = (wizard_topic_ + n - 1) % n;
-                if (n > 0 && key == 'B') wizard_topic_ = (wizard_topic_ + 1) % n;
-            } else {
-                if (key == 'A') --wizard_scroll_;      // clamped while rendering
-                if (key == 'B') ++wizard_scroll_;
-            }
-            return;
-        }
-        if (key == 27 || key == 'q') { wizard_close(); return; }
-        if (key == '\r' || key == '\n') {
-            // ENTER opens the highlighted topic from the contents, and is the
-            // quickest way to the contents from the welcome page.
-            if (wizard_page_ == kWizardContentsPage) {
-                wizard_page_ = wizard_page_of_topic(wizard_topic_);
-                wizard_scroll_ = 0;
-            } else if (wizard_page_ == kWizardWelcomePage) {
-                wizard_page_ = kWizardContentsPage;
-            }
-            return;
-        }
-        if (key == '\b' || key == 127) {               // BACKSPACE: back to the contents
-            wizard_page_ = kWizardContentsPage;
-            wizard_scroll_ = 0;
-            return;
-        }
-        std::string wiz_action = resolve_hotkey_action(key);
-        if (wiz_action.empty() && key >= 'a' && key <= 'z') wiz_action = resolve_hotkey_action(key - 32);
-        if (wiz_action.empty() && key >= 'A' && key <= 'Z') wiz_action = resolve_hotkey_action(key + 32);
-        if (wiz_action == "HKeyWizard") wizard_close();
+            const bool shifted = last_key_was_shifted();
+            if (key == 'C') wk = wizard::Key::Right;
+            else if (key == 'D') wk = wizard::Key::Left;
+            else if (key == 'A') wk = shifted ? wizard::Key::PageUp : wizard::Key::Up;
+            else if (key == 'B') wk = shifted ? wizard::Key::PageDown : wizard::Key::Down;
+        } else if (key == 27 || key == 'q') wk = wizard::Key::Close;
+        else if (key == '\r' || key == '\n') wk = wizard::Key::Enter;
+        else if (key == '\b' || key == 127) wk = wizard::Key::Back;           // BACKSPACE and [t]: the table of content
+        else if (key == 't' || key == 'T') wk = wizard::Key::Contents;
+        else if (key_is("HKeyWizard", key)) wk = wizard::Key::Close;
+        if (wizard::handle_key(wizard_st_, wk)) wizard_close();
         return;
     }
 
@@ -6464,7 +6459,9 @@ std::vector<std::string> App::build_progress_panel(int total_width) const {
     int used = display_width(prefix_plain);
     int dashes_n = std::max(0, main_total_w - used - 1);
     std::string bottom_line = border_ansi_bottom + settings_.box_lower_left + settings_.box_horizontal + " "
-                             + time_colored + border_ansi_bottom + " "; // re-apply border color -- time_colored's own reset above would otherwise leave the rest of this line uncolored
+                             + time_colored + " "
+                             + border_ansi_bottom; // re-apply the border color -- time_colored's own reset above would otherwise leave the rest of this line uncolored.
+                                                   // Straight in front of the dashes: the smooth gradient only recolours a border escape that a border glyph follows
     for (int i = 0; i < dashes_n; ++i) bottom_line += settings_.box_horizontal;
     bottom_line += settings_.box_lower_right;
     bottom_line += "\x1b[0m";
@@ -8051,7 +8048,7 @@ static std::string header_sgr(const Settings& s) {
 // SGR prefix for the key command legends (the "[ESC] close | [ENTER] ..."
 // hint lines of the Settings panel, the big list / queue overlays and the
 // playlist / meta / history screens): settings_.legend_color, the Colors
-// tab's LEGEND row. The default "90" yields "\x1b[90m", the grey these lines
+// tab's LEGEND row. The default "8" yields "\x1b[38;5;8m", the grey these lines
 // were always drawn in. An explicit 0/empty means "no color" like everywhere
 // else, i.e. the terminal's own text color -- an empty prefix, not a stray
 // escape. Callers close the run with "\x1b[0m" themselves.
@@ -8063,7 +8060,7 @@ static std::string legend_sgr(const Settings& s) {
 // in-place text edit across the Settings panel (a path row, a hex colour
 // value, a hotkey) and, now, the meta editor's tag fields. The Colors
 // tab's CHANGE row (settings_.change_text_color / change_bg_color);
-// defaults to "37"/"41", i.e. "\x1b[37m\x1b[41m" -- the same white-on-red
+// defaults to "7"/"1" (palette white on red) -- the same white-on-red
 // this used to be hardcoded as everywhere it appears, before it had a
 // name of its own in the Colors tab.
 static std::string change_sgr(const Settings& s) {
@@ -11193,7 +11190,7 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
         while (y < MAX_Y) { box_row(y); ++y; }
         bottom_border(MAX_Y);
         if (leave_prompt_ == 4 && theme_sel_ >= 0 && theme_sel_ < n)
-            pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to delete theme \"" + truncate_str(theme_list_[static_cast<size_t>(theme_sel_)].name, 25) + "\"? [y] Yes, delete | [n / ESC] No, keep it", W - 1) + R);
+            pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to delete theme \"" + truncate_str(theme_list_[static_cast<size_t>(theme_sel_)].name, themes::kMaxNameLen) + "\"? [y] Yes, delete | [n / ESC] No, keep it", W - 1) + R);
         else
         pos(MAX_Y + 1, 1, legend_sgr(settings_) + (theme_ui_ == 1
             ? "[↑↓] Select | [ENTER] Apply the theme | [SHIFT+d] Delete your own theme | [ESC] Back"
@@ -11300,7 +11297,7 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
     while (y < MAX_Y) { box_row(y); ++y; }
     bottom_border(MAX_Y);
     if (leave_prompt_ == 3)
-        pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to overwrite theme \"" + truncate_str(themes::sanitize_name(theme_name_), 25) + "\"? [y] Yes, overwrite | [n / ESC] No, keep editing", W - 1) + R);
+        pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to overwrite theme \"" + truncate_str(themes::sanitize_name(theme_name_), themes::kMaxNameLen) + "\"? [y] Yes, overwrite | [n / ESC] No, keep editing", W - 1) + R);
     else if (leave_prompt_ == 2)
         pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Unsaved theme! [s] Save it | [d] Discard it | [ESC] Keep editing", W - 1) + R);
     else
@@ -11450,7 +11447,7 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
             const std::string tn = ci >= 0 ? theme_list_[static_cast<size_t>(ci)].name : std::string("(custom)");
             const bool sel0 = (settings_row_ == 0 && settings_col_ == 0);
             const bool sel1 = (settings_row_ == 0 && settings_col_ == 1);
-            pos(y, 20, (sel0 ? HI : "") + pad(truncate_str(tn, 25), 26) + R);
+            pos(y, 20, (sel0 ? HI : "") + pad(truncate_str(tn, themes::kMaxNameLen), themes::kMaxNameLen + 1) + R);
             pos(y, 50, (sel1 ? HI : "") + " CREATE THEME " + R);
             y++;
             pos(y, 1, B(y) + "\u251c" + repeat("\u2500", W - 2) + "\u2524" + R); y++;
@@ -12325,95 +12322,34 @@ void App::build_karaoke_screen(std::ostringstream& frame, int W, int H) {
 
 // ---------------------------------------------------------------------
 // Help wizard (Mode::Wizard, HKeyWizard = SHIFT+w) -- see app.h for the
-// page model and src/wizard.h for the text and its markup.
+// state and src/wizard.h for the text, its markup and the key handling.
+// This only draws what wizard::render() hands over.
 // ---------------------------------------------------------------------
 
-namespace {
-
-// One wizard line, split into the plain text (for width maths) and the SGR
-// runs that colour it. Built from the "@X " prefix and the <<accent>> spans
-// described in wizard.h: the markup never reaches the terminal, so a line's
-// visible width is simply the width of `plain`.
-struct WizLine {
-    std::string plain;                                   // markup removed
-    std::string ansi;                                    // what is actually printed
-};
-
-WizLine wizard_render_line(const std::string& raw, const Settings& s,
-                           const std::string& base_sgr) {
-    // One accent colour for both the callout lines and the <<spans>>, so an
-    // arrow and the words it points at read as one thing. config.txt ships
-    // most colour fields blank, so the chain ends at header_color, which is
-    // one of the few that always has a value.
-    const std::string accent_name =
-        !s.active_word_color.empty()  ? s.active_word_color
-      : !s.list_cursor_color.empty()  ? s.list_cursor_color
-      : !s.active_line_color.empty()  ? s.active_line_color
-                                      : s.header_color;
-    const std::string accent = ansi_for(accent_name, false);
-
-    std::string body = raw;
-    std::string line_sgr = base_sgr;
-    if (body.size() >= 3 && body[0] == '@' && body[2] == ' ') {
-        switch (body[1]) {
-            case 'H': line_sgr = header_sgr(s); break;                       // section heading (bold)
-            case 'D': line_sgr = ansi_for(s.border_color, false); break;     // the diagrams
-            case 'K': line_sgr = legend_sgr(s); break;                       // key hints
-            case 'A': line_sgr = accent; break;                              // callouts / arrows
-            default:  break;
-        }
-        body = body.substr(3);
+bool App::wizard_allowed_over_mode() const {
+    switch (mode_) {
+        case Mode::Settings:    return theme_ui_ == 0 && leave_prompt_ == 0;   // not in the theme editor or a question
+        case Mode::Console: case Mode::Cheatsheet: case Mode::History: case Mode::ReadLyrics:
+        case Mode::OsciMenu: case Mode::NormMenu: case Mode::SpectroMenu: case Mode::SleepTimer:
+        case Mode::LyricsEdit: case Mode::Karaoke:
+            return true;
+        case Mode::Equalizer:   return !eq_naming_;                            // the "Save as:" prompt takes typed text
+        case Mode::Playlist: case Mode::MetaEdit: return !text_entry_active(); // a text field has the keyboard
+        default:                return false;                                  // text fields (search, playlist and meta editors ...), prompts
     }
-    const std::string R = "\x1b[0m";
-    WizLine out;
-    out.ansi = line_sgr;
-    bool in_span = false;
-    for (size_t i = 0; i < body.size();) {
-        if (body.compare(i, 2, "<<") == 0 && !in_span) { in_span = true;  out.ansi += accent;          i += 2; continue; }
-        if (body.compare(i, 2, ">>") == 0 && in_span)  { in_span = false; out.ansi += R + line_sgr;    i += 2; continue; }
-        out.plain += body[i];
-        out.ansi  += body[i];
-        ++i;
-    }
-    return out;
-}
-
-} // namespace
-
-int App::wizard_total_pages() const {
-    return kWizardFirstTopicPage + wizard::page_count(wizard::Flavor::Player);
-}
-
-bool App::wizard_locate(int page, int& topic, int& page_in_topic) const {
-    if (page < kWizardFirstTopicPage) return false;
-    int rest = page - kWizardFirstTopicPage;
-    const auto& ts = wizard::topics(wizard::Flavor::Player);
-    for (size_t i = 0; i < ts.size(); ++i) {
-        const int n = static_cast<int>(ts[i].pages.size());
-        if (rest < n) { topic = static_cast<int>(i); page_in_topic = rest; return true; }
-        rest -= n;
-    }
-    return false;
-}
-
-int App::wizard_page_of_topic(int topic) const {
-    int page = kWizardFirstTopicPage;
-    const auto& ts = wizard::topics(wizard::Flavor::Player);
-    for (int i = 0; i < topic && i < static_cast<int>(ts.size()); ++i)
-        page += static_cast<int>(ts[static_cast<size_t>(i)].pages.size());
-    return page;
 }
 
 void App::wizard_open() {
-    if (!wizard::kEnabled) return;   // switched off for now (wizard.h)
-    wizard_page_ = kWizardWelcomePage;
-    wizard_topic_ = 0;
-    wizard_scroll_ = 0;
+    if (!wizard::kEnabled) return;   // switched off (wizard.h)
+    if (mode_ != Mode::Wizard) wizard_return_mode_ = mode_;
+    wizard::open(wizard_st_, !settings_.wizard_seen);
     mode_ = Mode::Wizard;
 }
 
 void App::wizard_close() {
-    mode_ = Mode::Browse;
+    mode_ = wizard_return_mode_;
+    wizard_return_mode_ = Mode::Browse;
+    force_redraw_ = true;
     // The first close is what turns the auto-open off for good. Written
     // straight away rather than at exit, so a crash cannot bring the
     // welcome back on the next start.
@@ -12423,163 +12359,52 @@ void App::wizard_close() {
     }
 }
 
-void App::wizard_step_page(int delta) {
-    const int last = wizard_total_pages() - 1;
-    const int next = std::clamp(wizard_page_ + delta, 0, last);
-    if (next == wizard_page_) return;
-    wizard_page_ = next;
-    wizard_scroll_ = 0;
-    // Reading on into a topic keeps the contents list pointing at where you
-    // are, so going back to it lands on the topic you were reading.
-    int topic = 0, in_topic = 0;
-    if (wizard_locate(wizard_page_, topic, in_topic)) wizard_topic_ = topic;
-}
-
 void App::build_wizard_screen(std::ostringstream& frame, int W) {
     const std::string border = ansi_for(settings_.border_color, false);
     const std::string border_bottom = ansi_for(settings_.border_color_bottom, false);
     const std::string R = "\x1b[0m";
     const std::string bar = border + settings_.box_vertical + R;
     const std::string base = ansi_for(settings_.list_color, false);
-    const int inner = std::max(0, W - 4);
     // Same height as every other full-screen view (see build_cheatsheet_screen).
-    const int visible = std::max(1, term_rows_ - 3);
-    const auto& ts = wizard::topics(wizard::Flavor::Player);
+    const int body_rows = std::max(1, term_rows_ - 3);
 
-    int topic = 0, in_topic = 0;
-    const bool on_topic = wizard_locate(wizard_page_, topic, in_topic);
+    // The disk of the first page turns at a fixed 0.10 here, whatever Settings -> ANIMA/VIZ -> Disk Speed says and
+    // whether or not anything is playing, so the greeting always has some life.
+    std::vector<std::string> disk;
+    if (wizard::shows_disk(wizard_st_.page)) disk = disk_.frame(wizard_angle_);
+    const wizard::View v = wizard::render(wizard_st_, W, body_rows, disk);
 
-    std::string title = "MOUSIKI PLUS HELP WIZARD";
-    if (wizard_page_ == kWizardContentsPage) title += " -- CONTENTS";
-    else if (on_topic) {
-        title += " -- " + ts[static_cast<size_t>(topic)].title;
-        if (ts[static_cast<size_t>(topic)].pages.size() > 1)
-            title += " (" + std::to_string(in_topic + 1) + "/" +
-                     std::to_string(ts[static_cast<size_t>(topic)].pages.size()) + ")";
-    }
-    frame << box_top(title, W, border) << "\n";
+    const std::string lead(static_cast<size_t>(v.left), ' ');
+    const std::string trail(static_cast<size_t>(std::max(0, W - v.left - v.box_w)), ' ');
+    // The title is drawn in the header colour; the border colour comes back right in front of the dashes.
+    frame << lead << box_top(header_sgr(settings_) + v.title + R + "\x01", v.box_w, border) << trail << "\n";
 
-    // Every row of the body as plain text + its colour, so the scroll range
-    // and the padding both count real columns and never escape bytes.
-    std::vector<WizLine> body;
-    auto push_raw = [&](const std::string& raw) { body.push_back(wizard_render_line(raw, settings_, base)); };
-
-    if (wizard_page_ == kWizardWelcomePage) {
-        // The disk on the left, the welcome text beside it -- the one page
-        // with a two-column layout. The disk turns at a fixed 0.10 here,
-        // whatever Settings -> ANIMA/VIZ -> Disk Speed says and whether or
-        // not anything is playing, so the welcome always has some life.
-        const int disk_w = disk_.width();
-        const int gap = 3;
-        auto disk_frame = disk_.frame(wizard_angle_);
-        const auto text = wizard::welcome_lines(MOUSIKI_VERSION);
-        const bool room = inner >= disk_w + gap + 20;
-        const int disk_h = static_cast<int>(disk_frame.size());
-        const int text_h = static_cast<int>(text.size());
-        const int rows = room ? std::max(disk_h, text_h) : text_h;
-        // Centre the disk vertically against the whole text block (the
-        // welcome text is taller than the disk) rather than pinning it to
-        // the top row; the text itself still starts at row 0.
-        const int disk_top = room ? std::max(0, (rows - disk_h) / 2) : 0;
-        for (int i = 0; i < rows; ++i) {
-            WizLine out;
-            if (room) {
-                // The disk keeps the DISK colours of the Colors tab, top to
-                // bottom, exactly as the main screen draws it.
-                std::string cell(static_cast<size_t>(disk_w), ' ');
-                std::string cell_ansi = cell;
-                const int di = i - disk_top;
-                if (di >= 0 && di < disk_h) {
-                    const float t = disk_h > 1
-                                        ? static_cast<float>(di) / static_cast<float>(disk_h - 1) : 0.0f;
-                    cell = disk_frame[static_cast<size_t>(di)];
-                    cell_ansi = gradient_ansi(settings_.disk_color, settings_.disk_color_end, t) + cell + R;
-                }
-                out.plain = pad_right(cell, disk_w) + std::string(static_cast<size_t>(gap), ' ');
-                out.ansi  = cell_ansi + std::string(static_cast<size_t>(std::max(0, disk_w - display_width(cell))), ' ')
-                          + std::string(static_cast<size_t>(gap), ' ');
+    for (const wizard::Row& row : v.rows) {
+        frame << lead << bar;
+        for (const wizard::Span& s : row) {
+            switch (s.role) {
+                case wizard::Role::Header: frame << header_sgr(settings_) << s.text << R; break;
+                case wizard::Role::Legend: frame << legend_sgr(settings_) << s.text << R; break;
+                case wizard::Role::Cursor:
+                    frame << ansi_for(settings_.list_cursor_color, false) << bg_ansi_for(settings_.list_cursor_bg_color) << s.text << R;
+                    break;
+                case wizard::Role::Disk:
+                case wizard::Role::Scroll:
+                    frame << gradient_ansi(settings_.disk_color, settings_.disk_color_end, s.t) << s.text << R;
+                    break;
+                default: frame << base << s.text << R; break;
             }
-            if (i < text_h) {
-                const WizLine t = wizard_render_line(text[static_cast<size_t>(i)], settings_, base);
-                out.plain += t.plain;
-                out.ansi  += t.ansi + R;
-            }
-            body.push_back(out);
         }
-    } else if (wizard_page_ == kWizardContentsPage) {
-        push_raw("@H Choose a topic");
-        push_raw("");
-        for (size_t i = 0; i < ts.size(); ++i) {
-            const bool sel = static_cast<int>(i) == wizard_topic_;
-            // The cursor row is drawn like the list's hovering row, so the
-            // wizard picks up whatever the Colors tab says about it.
-            std::string plain = (sel ? "  > " : "    ") + ts[i].title;
-            plain = pad_right(plain, 28) + ts[i].blurb;
-            WizLine l;
-            if (sel) {
-                // The highlight runs the width of the content column, not of
-                // the whole box: padding it to `inner` would overflow the
-                // frame, because the draw loop indents every row by pad_left.
-                l.plain = pad_right(plain, wizard::kContentWidth);
-                l.ansi = ansi_for(settings_.list_cursor_color, false)
-                       + bg_ansi_for(settings_.list_cursor_bg_color) + l.plain + R;
-            } else {
-                l.plain = plain;
-                l.ansi = base + plain + R;
-            }
-            body.push_back(l);
-        }
-        push_raw("");
-        push_raw("@K [UP]/[DOWN] choose a topic   [ENTER] open it");
-        push_raw("@K [<-]/[->] page back and forth through the whole wizard");
-    } else if (on_topic) {
-        for (const auto& raw : ts[static_cast<size_t>(topic)].pages[static_cast<size_t>(in_topic)].lines)
-            push_raw(raw);
+        frame << bar << trail << "\n";
     }
-
-    // Fixed margins: 8 blank columns left and right, 1 blank row top and
-    // bottom, inside the border -- on a terminal too narrow to spare 16
-    // columns for margin, shrink (never go negative) rather than overflow.
-    // `between_bars` is the full width between the two border characters --
-    // box_line() pads its content to `inner` and then adds one more literal
-    // space on each side, so the real budget here is inner + 2, not inner.
-    // The hand-authored topic pages (diagrams included) assume
-    // kContentWidth columns to draw in; an 8-column margin on both sides
-    // only fits that on a terminal wide enough to spare it (90+ columns).
-    // On a standard 80-column terminal, giving the full 8 would force
-    // those lines to overflow past the right border, so the margin backs
-    // off just enough to keep kContentWidth available, the same safety
-    // the old centring math had.
-    constexpr int kWizardMargin = 8;
-    const int between_bars = inner + 2;
-    const int margin = std::min(kWizardMargin, std::max(0, (between_bars - wizard::kContentWidth) / 2));
-    const int content_area = std::max(0, between_bars - 2 * margin);
-    const std::string lead(static_cast<size_t>(margin), ' ');
-    const std::string blank_row = bar + std::string(static_cast<size_t>(between_bars), ' ') + bar;
-    const int rows_for_content = std::max(1, visible - 2);
-
-    const int total = static_cast<int>(body.size());
-    const int max_scroll = std::max(0, total - rows_for_content);
-    wizard_scroll_ = std::clamp(wizard_scroll_, 0, max_scroll);
-
-    frame << blank_row << "\n";
-    int shown = 0;
-    for (int i = wizard_scroll_; i < total && shown < rows_for_content; ++i, ++shown) {
-        const WizLine& l = body[static_cast<size_t>(i)];
-        const int w = display_width(l.plain);
-        frame << bar << lead << l.ansi << R
-              << std::string(static_cast<size_t>(std::max(0, content_area - w)), ' ')
-              << lead << bar << "\n";
-    }
-    while (shown < rows_for_content) { frame << blank_row << "\n"; ++shown; }
-    frame << blank_row << "\n";
 
     std::string bottom = "[" + hotkey_text("HKeyWizard", "SHIFT+w") + " / ESC] close";
-    if (wizard_page_ > kWizardWelcomePage) bottom += "  [<-] back";
-    if (wizard_page_ < wizard_total_pages() - 1) bottom += "  [->] next";
-    bottom += "  page " + std::to_string(wizard_page_ + 1) + "/" + std::to_string(wizard_total_pages());
-    if (max_scroll > 0) bottom += "  [↑↓] scroll";
-    frame << box_bottom(W, bottom, border_bottom) << "\n";
+    bottom += "  [t] TOC";
+    if (v.can_back) bottom += "  [<-] back";
+    if (v.can_next) bottom += "  [->] next";
+    if (v.toc_page) bottom += "  [\xE2\x86\x91\xE2\x86\x93] select  [SHIFT+\xE2\x86\x91\xE2\x86\x93] jump  [ENTER] open";
+    else if (v.scrollable) bottom += "  [\xE2\x86\x91\xE2\x86\x93] scroll  [SHIFT+\xE2\x86\x91\xE2\x86\x93] page";
+    frame << lead << box_bottom(v.box_w, bottom, border_bottom) << trail << "\n";
 }
 
 void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
@@ -12610,7 +12435,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {"SYSTEM (MAIN UI)", "#@SWITCHKEY", "Switch to the RADIO mode (types the * character; playback is paused and the player waits in the background)"},
         {nullptr, "HKeySetting", "Open Settings panel, hit again to save and quit"},
         {nullptr, "HKeyConsole", "Console / logs"},
-        // {nullptr, "HKeyWizard", "Help wizard: the user guide as tutorial pages (arrow keys turn them)"},   // hidden while wizard::kEnabled is false
+        {nullptr, "HKeyWizard", "Help wizard: the user guide as tutorial pages (arrow keys turn them)"},
         {nullptr, "HKeyCheatsheet", "This cheatsheet"},
         {nullptr, "HKeyQuit", "Quit"},
         {nullptr, "#ESC", "Close setting / overlay / menu"},
@@ -14156,7 +13981,23 @@ std::vector<std::string> App::build_queue_overlay_panel(int panel_w, int queue_r
 // draw_floating_panel() for why these don't clear the screen.
 // ---------------------------------------------------------------------
 
-void App::draw_floating_panel(std::ostringstream& frame, const std::vector<std::string>& lines, int panel_w, int W, int fixed_col, bool exact_center) const {
+// BorderGradient=smooth for a panel that is stamped onto the screen (absolute cursor moves, so it never passes through
+// clamp_output_rows()): its own border rows fade from the top to the bottom border colour, top row to bottom row.
+std::vector<std::string> App::panel_gradient(const std::vector<std::string>& lines) const {
+    if (!settings_.border_smooth || lines.size() < 2) return lines;
+    static const std::vector<std::string> kGlyphs = {"\u2502", "\u2500", "\u256d", "\u256e", "\u2570", "\u256f", "\u251c", "\u2524", "\u252c", "\u2534", "\u253c"};
+    std::vector<std::string> glyphs = kGlyphs;
+    for (const std::string* g : {&settings_.box_upper_left, &settings_.box_upper_right, &settings_.box_lower_left,
+                                 &settings_.box_lower_right, &settings_.box_vertical, &settings_.box_horizontal})
+        if (!g->empty()) glyphs.push_back(*g);
+    const std::string top = ansi_for(settings_.border_color, false), bottom = ansi_for(settings_.border_color_bottom, false);
+    return border_gradient::apply(lines, top, bottom, glyphs, [&](float t) {
+        return gradient_ansi(settings_.border_color, settings_.border_color_bottom, t, false);
+    });
+}
+
+void App::draw_floating_panel(std::ostringstream& frame, const std::vector<std::string>& lines_in, int panel_w, int W, int fixed_col, bool exact_center) const {
+    const std::vector<std::string> lines = panel_gradient(lines_in);
     int panel_h = static_cast<int>(lines.size());
     int start_col = fixed_col > 0 ? fixed_col : 1 + std::max(0, (W - panel_w) / 2);
     int start_row = 1 + std::max(0, (term_rows_ - panel_h) / 2 - (exact_center ? 0 : kFloatingPanelUpShift));
@@ -14928,6 +14769,7 @@ std::vector<std::string> App::build_lyrics_edit_panel() const {
     out.push_back(row("> " + text_at(active), HI));
     out.push_back(row("  " + text_at(active + 1), DIM));
     out.push_back(row("[LEFT/RIGHT] -/+ 0.1 s   [DOWN/UP] -/+ 0.5 s", ""));
+    out.push_back(row("[SHIFT+LEFT/RIGHT] seek the track -/+ 5 s", ""));
     out.push_back(box_bottom(W, "[R] reset  [ENTER] save  [ESC] cancel", border_bottom));
     return out;
 }
@@ -15865,7 +15707,7 @@ std::string App::render_frame(TerminalIO& term) {
         // Queue) still float on top of it when they are opened from inside
         // the overlay. Absolute moves only -- no '\n', so it cannot scroll --
         // and rows past the last usable terminal row are dropped.
-        auto lines = build_list_overlay_panel(overlay_panel_w, overlay_list_rows_);
+        const auto lines = panel_gradient(build_list_overlay_panel(overlay_panel_w, overlay_list_rows_));
         const int start_col = 1 + std::max(0, (W - overlay_panel_w) / 2);
         const int start_row = 2; // one background row stays visible above and below
         for (size_t i = 0; i < lines.size(); ++i) {
@@ -15874,7 +15716,7 @@ std::string App::render_frame(TerminalIO& term) {
             floating << "\x1b[" << row << ";" << start_col << "H" << lines[i];
         }
     } else if (convert_overlay_active()) {
-        auto lines = build_convert_overlay_panel(overlay_panel_w, cv_rows_);
+        const auto lines = panel_gradient(build_convert_overlay_panel(overlay_panel_w, cv_rows_));
         const int start_col = 1 + std::max(0, (W - overlay_panel_w) / 2);
         const int start_row = 2;
         for (size_t i = 0; i < lines.size(); ++i) {
@@ -15883,7 +15725,7 @@ std::string App::render_frame(TerminalIO& term) {
             floating << "\x1b[" << row << ";" << start_col << "H" << lines[i];
         }
     } else if (folder_overlay_active()) {
-        auto lines = build_folder_overlay_panel(overlay_panel_w, fo_rows_);
+        const auto lines = panel_gradient(build_folder_overlay_panel(overlay_panel_w, fo_rows_));
         const int start_col = 1 + std::max(0, (W - overlay_panel_w) / 2);
         const int start_row = 2;
         for (size_t i = 0; i < lines.size(); ++i) {
@@ -15893,7 +15735,7 @@ std::string App::render_frame(TerminalIO& term) {
         }
     } else if (queue_overlay_active()) {
         // Same placement as the list overlay; the queue pane's own rows live in it.
-        auto lines = build_queue_overlay_panel(overlay_panel_w, overlay_queue_rows_);
+        const auto lines = panel_gradient(build_queue_overlay_panel(overlay_panel_w, overlay_queue_rows_));
         const int start_col = 1 + std::max(0, (W - overlay_panel_w) / 2);
         const int start_row = 2;
         for (size_t i = 0; i < lines.size(); ++i) {

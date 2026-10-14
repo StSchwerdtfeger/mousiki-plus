@@ -1,5 +1,6 @@
 #include "settings.h"
 #include "path_utf8.h"
+#include "themes.h"
 #include "version.h"
 #include <algorithm>
 #include <array>
@@ -33,22 +34,16 @@ std::string normalize_color_value(const std::string& value) {
     return (it != legacy.end()) ? it->second : value;
 }
 
-// Matches to_ansi(val, is_bg) from the reference implementation exactly,
-// with one deliberate exception: "0"/empty means no color at all,
-// per the explicit earlier requirement that 0 = none everywhere. The
-// reference code doesn't special-case 0 (it would render as 256-color
-// index 0, i.e. black) -- that's the one intentional deviation here,
-// kept because it was a separate, explicit instruction. Everything else
-// -- including the reference's own quirk where is_bg is ignored for the
-// 30-47/90-107 direct-SGR range, and no clamping of out-of-range values
-// -- is matched verbatim, not "fixed".
+// Every colour number is a 256-colour palette number in every field (text, background, gradient ends alike): "104" is
+// palette colour 104 wherever it is typed. 0 / empty = no colour at all (the terminal's own). Numbers above 255 are not
+// clamped -- the terminal decides. config.txt files from before "ColorCodes=palette" used 30-37 / 90-97 (text) and
+// 40-47 / 100-107 (background) as plain 16-colour terminal codes; load_settings() converts those once (see
+// migrate_legacy_colors()).
 std::string ansi_for(const std::string& color_name, bool /*bold*/) {
     if (color_name.empty()) return "";
     int v = 0;
     try { v = std::stoi(color_name); } catch (...) { return ""; }
     if (v <= 0) return "";
-    if (v >= 30 && v <= 47) return "\x1b[" + std::to_string(v) + "m";
-    if (v >= 90 && v <= 107) return "\x1b[" + std::to_string(v) + "m";
     return "\x1b[38;5;" + std::to_string(v) + "m";
 }
 
@@ -57,8 +52,6 @@ std::string bg_ansi_for(const std::string& color_name) {
     int v = 0;
     try { v = std::stoi(color_name); } catch (...) { return ""; }
     if (v <= 0) return "";
-    if (v >= 30 && v <= 47) return "\x1b[" + std::to_string(v) + "m";
-    if (v >= 90 && v <= 107) return "\x1b[" + std::to_string(v) + "m";
     return "\x1b[48;5;" + std::to_string(v) + "m";
 }
 
@@ -67,7 +60,6 @@ std::string sgr_params_for(const std::string& color_name) {
     int v = 0;
     try { v = std::stoi(color_name); } catch (...) { return ""; }
     if (v <= 0) return "";
-    if ((v >= 30 && v <= 47) || (v >= 90 && v <= 107)) return std::to_string(v);
     return "38;5;" + std::to_string(v);
 }
 
@@ -724,6 +716,7 @@ static Settings load_from_config(const fs::path& path) {
         }
         // These two don't map onto an existing key 1:1 (string enum ->
         // bool / int), so they're handled directly instead of aliased.
+        if (key == "ColorCodes") { s.colors_palette = trim(unquote(value)) == "palette"; continue; }   // the marker: colour numbers are palette numbers
         if (key == "WaveformStyle") { s.waveform_smooth = (value == "smooth"); continue; }
         if (key == "StartMode") {
             std::string v = trim(unquote(value));
@@ -1219,11 +1212,31 @@ bool write_start_mode(const std::string& mode) {
     return out.good();
 }
 
+// A config.txt from before "ColorCodes=palette": 30-37 / 90-97 in text fields and 40-47 / 100-107 in background fields were plain
+// 16-colour terminal codes. They become the palette numbers that look the same (black = 16, since 0 means "no colour").
+// The ends of colour fades (disk, visualizer) were always palette numbers and stay.
+static void migrate_legacy_colors(Settings& s) {
+    using themes::ColorRole;
+    for (std::string* f : {&s.border_color, &s.border_color_bottom, &s.meta_key_color, &s.meta_val_color, &s.progress_played_color,
+                           &s.progress_remaining_color, &s.progress_timestamp_color, &s.search_text_color, &s.search_inactive_text_color,
+                           &s.list_color, &s.list_playing_color, &s.list_cursor_color, &s.queue_color, &s.queue_playing_color,
+                           &s.queue_cursor_color, &s.inactive_line_color, &s.active_line_color, &s.active_word_color, &s.header_color,
+                           &s.legend_color, &s.tab_current_color, &s.tab_other_color, &s.change_text_color, &s.focus_color,
+                           &s.button_color, &s.status_color, &s.lyr_inactive_color, &s.lyr_active_line_color, &s.lyr_active_word_color})
+        *f = themes::legacy_to_palette(*f, ColorRole::Text);
+    for (std::string* f : {&s.search_bg_color, &s.search_inactive_bg_color, &s.list_inactive_bg_color, &s.list_playing_bg_color,
+                           &s.list_cursor_bg_color, &s.queue_inactive_bg_color, &s.queue_playing_bg_color, &s.queue_cursor_bg_color,
+                           &s.inactive_line_bg_color, &s.active_line_bg_color, &s.active_word_bg_color, &s.change_bg_color,
+                           &s.pl_active_bg_color})
+        *f = themes::legacy_to_palette(*f, ColorRole::Background);
+}
+
 Settings load_settings() {
     fs::path cfg = config_path();
     std::error_code ec;
 
     Settings s;
+    bool loaded_ok = false;
     if (fs::exists(cfg, ec)) {
         // Defensive: load_from_config() is a hand-written parser that
         // has to tolerate a human editing config.txt directly -- and a
@@ -1239,6 +1252,7 @@ Settings load_settings() {
         // defaults with a visible reason, never take the whole app down.
         try {
             s = load_from_config(cfg);
+            loaded_ok = true;
         } catch (const std::exception& e) {
             std::cerr << "mousiki: couldn't parse " << path_utf8(cfg) << " (" << e.what()
                       << ") -- using defaults for this session. Your file on disk is\n"
@@ -1259,6 +1273,14 @@ Settings load_settings() {
     // else: all defaults
 
     apply_default_hotkeys(s);
+    if (!s.colors_palette) {
+        // An older config.txt: convert its colours, and write the file once so that it carries the marker from now on (otherwise a
+        // palette number typed by hand later would be converted again).
+        const bool from_file = loaded_ok;
+        migrate_legacy_colors(s);
+        s.colors_palette = true;
+        if (from_file) save_settings(s);
+    }
     return s;
 }
 
@@ -1270,6 +1292,8 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "##-------------------------------------------\n";
     out << "##              PANEL 1: COLORS\n";
     out << "##-------------------------------------------\n\n";
+    out << "# Colour numbers are numbers of the 256-colour terminal palette (1-255) in every field; 0 or empty = no colour (the terminal's own).\n";
+    out << "ColorCodes=palette\n\n";
     out << "# Frame & Controls\n";
     out << "ColorBorderTop=" << s.border_color << "\n";
     out << "ColorBorderBottom=" << s.border_color_bottom << "\n";

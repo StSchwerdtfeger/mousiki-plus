@@ -1,4 +1,5 @@
 #pragma once
+#include "wizard.h"
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -785,6 +786,7 @@ private:
     // the full terminal would visually detach the panel from the
     // content it's supposed to be floating over. Vertically centered
     // against term_rows_, nudged up a few rows rather than dead-center.
+    std::vector<std::string> panel_gradient(const std::vector<std::string>& lines) const;   // BorderGradient=smooth for a stamped panel
     void draw_floating_panel(std::ostringstream& frame, const std::vector<std::string>& lines, int panel_w, int W, int fixed_col = 0, bool exact_center = false) const;
     static constexpr int kFloatingPanelUpShift = 3; // rows nudged above true vertical center
 
@@ -1387,33 +1389,17 @@ private:
     // main screen.
     bool lyrics_edit_from_karaoke_ = false;
     void karaoke_ensure_lyrics();   // the karaoke overlay fetches the lyrics itself when the engine is off
-    // SHIFT+w (HKeyWizard): the Mousiki Plus Help Wizard (Mode::Wizard), a
-    // full-screen tutorial built from the user manual. src/wizard.{h,cpp}
-    // holds the text; the radio shows the same pages with the same palette.
-    //
-    // The pages are one flat sequence, so LEFT / RIGHT read through the whole
-    // wizard like a book:
-    //   page 0            the welcome, with the spinning disk beside it
-    //   page 1            CONTENTS -- UP/DOWN pick a topic, ENTER jumps to it
-    //   page 2 .. n+1     every topic's pages, in contents order
-    // On a topic page UP / DOWN scroll when it is taller than the terminal.
-    // ESC, q or SHIFT+w close it; the first close also sets Settings'
-    // wizard_seen and writes config.txt, so the auto-open happens once.
-    static constexpr int kWizardWelcomePage = 0;
-    static constexpr int kWizardContentsPage = 1;
-    static constexpr int kWizardFirstTopicPage = 2;
-    int wizard_page_ = 0;             // index into the flat page sequence above
-    int wizard_topic_ = 0;            // highlighted row of the CONTENTS page
-    int wizard_scroll_ = 0;           // scroll offset of a topic page that does not fit
-    double wizard_angle_ = 0.0;       // the welcome page's disk, spun at 0.10 whatever is playing
+    // SHIFT+w (HKeyWizard): the Mousiki Plus Help Wizard (Mode::Wizard), a full-screen help book. src/wizard.{h,cpp}
+    // holds the text, the page / part / contents state and the key handling; this class only draws it (the radio draws
+    // the same pages the same way). It opens from the main screen and from every menu / overlay that does not take
+    // typed text (wizard_allowed_over_mode()), and closing it returns to the mode it was opened from. The first
+    // close also sets Settings' wizard_seen and writes config.txt, so the first-start greeting shows only once.
+    wizard::State wizard_st_;
+    Mode wizard_return_mode_ = Mode::Browse;
+    double wizard_angle_ = 0.0;       // the first page's disk, spun at 0.10 whatever is playing
     void wizard_open();
     void wizard_close();
-    void wizard_step_page(int delta);                   // LEFT / RIGHT, clamped to the ends
-    int wizard_total_pages() const;                     // welcome + contents + every topic page
-    // Which topic (and which of its pages) a flat page index lands on.
-    // Returns false for the welcome and contents pages.
-    bool wizard_locate(int page, int& topic, int& page_in_topic) const;
-    int wizard_page_of_topic(int topic) const;          // flat index of a topic's first page
+    bool wizard_allowed_over_mode() const;   // false while a text field has the keyboard
     void build_wizard_screen(std::ostringstream& frame, int W);
     // CTRL+L (kKeyCtrlL, fixed key): READ LYRICS (Mode::ReadLyrics), a full-screen reader for the saved lyrics of the
     // playing (else the hovered) track. The top pane is ONE scrollable line with the lyrics files of the track

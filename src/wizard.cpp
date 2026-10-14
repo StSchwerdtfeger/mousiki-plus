@@ -1,1638 +1,805 @@
 #include "wizard.h"
-#include <sstream>
 
-// ---------------------------------------------------------------------------
-// The wizard's text. See wizard.h for the markup ("@H ", "@D ", "@K ", "@A "
-// and the <<accent>> spans) and for the kContentWidth limit every line here
-// is written to.
-//
-// The content follows Mousiki_User_Manual/Mousiki_User_Guide.md: when a key or
-// a default changes there, it changes here too. Keys are written as their
-// DEFAULT bindings -- the wizard teaches the shipped layout, exactly like the
-// cheat sheet (?), and Settings -> REFERENCE is where a rebound key is seen.
-// ---------------------------------------------------------------------------
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
+#include <fstream>
+#include <sstream>
+#include <utility>
+
+#include "version.h"
+
+// The text of the wizard, compiled in: `static const char* const kWizardTextChunks[] = { R"WIZ(...)WIZ", ..., nullptr };`
+// Generated from Mousiki_Help_Wizard.txt by tools/wizard_to_inc.py (several chunks because some compilers
+// limit the size of one string literal).
+#include "wizard_text.inc"
 
 namespace wizard {
-
 namespace {
 
-// Greedy word-wrap to `width` columns. The welcome paragraph is plain ASCII
-// prose (no markup, no multi-byte characters), so a byte-length count is a
-// visible-width count too -- no need for the UTF-8-aware display_width()
-// the rest of the renderer uses for hand-drawn lines.
-std::vector<std::string> wrap_paragraph(const std::string& text, int width) {
+// ---------------------------------------------------------------------------------------------------
+// small helpers
+// ---------------------------------------------------------------------------------------------------
+
+// One UTF-8 character per element (a column each: the wizard text only uses narrow characters).
+std::vector<std::string> utf8_chars(const std::string& s) {
     std::vector<std::string> out;
-    std::istringstream words(text);
-    std::string word, line;
-    while (words >> word) {
-        if (line.empty()) {
-            line = word;
-        } else if (line.size() + 1 + word.size() <= static_cast<size_t>(width)) {
-            line += " " + word;
-        } else {
-            out.push_back(line);
-            line = word;
-        }
+    for (size_t i = 0; i < s.size();) {
+        const unsigned char c = static_cast<unsigned char>(s[i]);
+        size_t n = 1;
+        if (c >= 0xF0) n = 4; else if (c >= 0xE0) n = 3; else if (c >= 0xC0) n = 2;
+        if (i + n > s.size()) n = s.size() - i;
+        out.push_back(s.substr(i, n));
+        i += n;
     }
-    if (!line.empty()) out.push_back(line);
     return out;
 }
 
-// The welcome page sits to the right of the 30-column disk, so its paragraph
-// is wrapped to kWelcomeTextWidth instead of kContentWidth; the renderer
-// centres the disk vertically against this whole block (see
-// build_wizard_screen() / build_wizard()). Only the first line (the "@H "
-// heading) and the last line (the "@K " legend) are coloured -- everything
-// in between is ordinary text, same as the rest of the wizard's markup.
-std::vector<std::string> make_welcome(const std::string& version) {
-    std::vector<std::string> lines;
-    // Real guillemets, not the ASCII "<<"/">>" digraph -- those two characters
-    // are this file's own accent-span markup (see wizard.h), so writing them
-    // literally here would make the renderer swallow them as a span marker.
-    lines.push_back("@H Welcome to the Mousiki Plus \xc2\xab HELP WIZARD \xc2\xbb !!!");
-    lines.push_back("");
-
-    const std::string para =
-        "Mousiki Plus is a terminal UI music and radio player built for lovers of "
-        "the terminal. Apart from playing local files, queuing them and creating "
-        "playlists, the music player contains the feature to listen and download "
-        "online files (YouTube, SoundCloud, Bandcamp), adjust and fetch (AcoustID) "
-        "meta data, a synced lyric function (including timing adjustment and a "
-        "Karaoke mode!), visualizations of your music (e.g. spectrogram, XY-mode "
-        "oscilloscope), an equalizer / sound normalization, sleep timer and a smart "
-        "listening history. The radio player mode includes a lot of the features of "
-        "the regular music player and lets you listen to a vast variety of online "
-        "radio channels that can be added via an online search mode or manually and "
-        "organized by creating stations lists. It includes a recording function and "
-        "a listening history that contains meta data, so you can search and download "
-        "songs you listened to on the radio. Channels can be assigned a preset keys "
-        "to tune in to channels fast.";
-    for (auto& l : wrap_paragraph(para, kWelcomeTextWidth)) lines.push_back(std::move(l));
-
-    lines.push_back("");
-    lines.push_back("Original Mousiki (Linux/macOS/Android):");
-    lines.push_back("ender -- github.com/itzender5820");
-    lines.push_back("Version 1.0 -- Apache 2.0 license");
-    lines.push_back("");
-    lines.push_back("Mousiki Plus (Win/Linux/macOS):");
-    lines.push_back("StSchwerdtfeger -- github.com/StSchwerdtfeger");
-    // `version` comes from MOUSIKI_VERSION (see wizard.h) -- never hardcoded,
-    // so this line is correct after any release without touching this file.
-    lines.push_back("Version " + version + " -- Apache 2.0 license");
-    lines.push_back("");
-    lines.push_back("@K [->] Table of content   [SHIFT+w] Close / Open Help Wizard; [?] Cheat Sheet");
-    return lines;
+int cp_len(const std::string& s) {
+    int n = 0;
+    for (unsigned char c : s) if ((c & 0xC0) != 0x80) ++n;
+    return n;
 }
 
-// --- shared topics ---------------------------------------------------------
-// Visualisations, sound and the sleep timer are the same program code in both
-// modes, so both topic lists use these.
-
-Topic topic_visuals() {
-    Topic t;
-    t.title = "Visualisations";
-    t.blurb = "sphere, oscilloscope, spectrogram";
-    t.pages.push_back({{
-        "@H Three visuals, one key",
-        "",
-        "The player draws them in the <<lyrics area>>, the radio in the",
-        "<<scope block>> right of the station info. The same key cycles",
-        "through them in both modes:",
-        "",
-        "@D   ┌─────────┐   ┌────────┐   ┌─────────────┐   ┌────────────┐",
-        "@D   │ lyrics  │ > │ sphere │ > │ oscilloscope│ > │ spectrogram│",
-        "@D   └─────────┘   └────────┘   └─────────────┘   └────────────┘",
-        "@A        ^ player only              and back to the start",
-        "",
-        "@K   [.]  cycle the lyrics area / scope block",
-        "",
-        "A view switched off under <<Settings -> ON/OFF>> (Use Lyrics",
-        "Engine, Use Oscilloscope, Use Spectrogram, Use Sphere) is",
-        "skipped by [.]. The order is set there too (Viz Order 1..4).",
-        "The view Mousiki starts with is <<ANIMA/VIZ -> Lyrics/Viz",
-        "Default>> (radio: Osci/sphere); [.] changes it only live.",
-        "",
-        "The <<spectrogram is the default>>. All three analyse the decoded",
-        "signal, so volume, equalizer and normalization never change",
-        "the picture.",
-    }});
-    t.pages.push_back({{
-        "@H The XY oscilloscope",
-        "",
-        "Like a real scope in X-Y mode: the <<left channel moves the beam>>",
-        "<<sideways, the right channel up and down>>. Wide stereo fills",
-        "the area, a phase-shifted tone draws an ellipse. A nearly mono",
-        "track fades over to a phase portrait instead of a flat line.",
-        "",
-        "@K   [SHIFT+o]  the tuning overlay, live while the music plays",
-        "",
-        "Rows worth knowing:",
-        "",
-        "@D   Osci style        braille (any terminal) / image (pixels)",
-        "@D   Osci music mode   for oscilloscope music: the unprocessed",
-        "@D                     signal and a fixed scale",
-        "@D   Frame rate        30 / 45 / 60 / 90 / 120 / 165 fps",
-        "@D   Decay             the afterglow; higher = longer trails",
-        "@D   Tail / Glow       bright head, fading tail / line glow",
-        "@D   Z-Axis            beam brightness follows speed or level",
-        "@D   Color             the VIZ gradient or 7 palettes",
-        "",
-        "@A   Each style keeps its OWN values -- switching braille <-> image",
-        "@A   never loses your tuning. [R] resets only the style in use.",
-        "",
-        "Starting points for braille: crisp scope = Decay 0.65, Dot",
-        "threshold 0.35, Tail 0.60. Dreamy glow = 0.90, 0.20, 0.25.",
-    }});
-    t.pages.push_back({{
-        "@H The spectrogram",
-        "",
-        "Made the way <<Audacity>> makes its spectrogram view, with",
-        "Audacity's defaults: a 2048-sample Hann window, zero padding 2,",
-        "the Mel scale from 0 to 20 000 Hz, gain 20 / range 80 dB and the",
-        "Roseus colour map. Time runs left to right, frequency upwards,",
-        "the colour is the strength. Stereo is drawn as two channels.",
-        "",
-        "@K   [SHIFT+i]  options      [SHIFT+u]  full screen",
-        "",
-        "@D   Scale        linear / logarithmic / mel / bark / erb / period",
-        "@D   Motion       sweep (a page at a time) / scroll (newest right)",
-        "@D   Window size  256 .. 8192 -- bigger = sharper frequency lines,",
-        "@D                smaller = crisper clicks and drum hits",
-        "@D   Time span    5 .. 60 s across the width",
-        "@D   Colors       roseus / classic / grayscale / your VIZ gradient",
-        "",
-        "[R] in the overlay puts everything back to Audacity's defaults.",
-        "A change is applied to the last minute of audio at once, so you",
-        "see the difference immediately.",
-        "",
-        "Full screen adds <<frequency labels>> on the left like Audacity's",
-        "ruler and a <<time ruler>> on top.",
-    }});
-    t.pages.push_back({{
-        "@H Their own windows (drawn by the graphics card)",
-        "",
-        "Both visuals can leave the terminal and open a real window,",
-        "redrawn at your <<monitor's refresh rate>> (60, 120, 165 Hz ...):",
-        "",
-        "@K   [)]  scope window         German SHIFT+9, English SHIFT+0",
-        "@K   [(]  spectrogram window   German SHIFT+8, English SHIFT+9",
-        "",
-        "@D   ┌────────────────────────────┐",
-        "@D   │                            │   every sample drawn once,",
-        "@D   │        the beam            │   phosphor afterglow, bloom",
-        "@D   │                            │   around the beam, and",
-        "@D   │                            │   smooth curves between the",
-        "@D   └────────────────────────────┘   samples",
-        "",
-        "@K   In the window:  [F] or [F11] fullscreen   [T] always on top",
-        "@K                   [ESC] or [Q] close",
-        "",
-        "Each window is a <<separate process>> that gets the audio through a",
-        "pipe, so a graphics driver problem can only close the window --",
-        "never stall the music or the terminal.",
-        "",
-        "@A   They need SDL2. The Windows packages include SDL2.dll; on",
-        "@A   Linux/macOS install it (apt: libsdl2-2.0-0, brew: sdl2).",
-        "@A   Position, size and fullscreen are remembered, and the",
-        "@A   windows stay open when you switch player <-> radio.",
-    }});
-    return t;
+std::string trim(const std::string& s) {
+    size_t a = 0, b = s.size();
+    while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
+    while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
+    return s.substr(a, b - a);
 }
 
-Topic topic_sound() {
-    Topic t;
-    t.title = "Sound";
-    t.blurb = "equalizer, loudness, stereo/mono";
-    t.pages.push_back({{
-        "@H The 10-band equalizer",
-        "",
-        "@K   [SHIFT+e]  open it -- the sound changes while you listen",
-        "",
-        "@D    +12 dB ┐",
-        "@D           │  ▁  ▃  ▅  █  ▅  ▃  ▁  ▁  ▃  ▅",
-        "@D     0 dB  ┼──────────────────────────────────",
-        "@D           │",
-        "@D    -12 dB ┘  31 62 125 250 500 1k 2k 4k 8k 16k  Hz",
-        "@A                        ^ the selected band is highlighted",
-        "",
-        "@K   [<-] [->]   pick a band          [UP] [DOWN]  +/- 1 dB",
-        "@K   [,] [.]     previous / next preset   [0]  band to 0 dB",
-        "@K   [SPACE]     equalizer on / off    [R]  back to Flat",
-        "@K   [S]         save the curve as your own preset (up to 24)",
-        "@K   [DEL]       delete the selected custom preset (twice)",
-        "",
-        "Twelve presets are built in (Flat, Bass Boost, Treble Boost,",
-        "Vocal, Rock, Pop, Jazz, Classical, Electronic, Hip-Hop,",
-        "Acoustic, Loudness), then come your own.",
-        "",
-        "@A   <<Preamp>>: boosting bands would clip, so the level is lowered",
-        "@A   by the height of your loudest point (e.g. -7.1 dB for Bass",
-        "@A   Boost). A strong boost is therefore slightly quieter -- turn",
-        "@A   the volume up. The EQ is bypassed completely when it is off.",
-        "",
-        "The radio keeps its own curve and presets in radio_config.txt.",
-    }});
-    t.pages.push_back({{
-        "@H Loudness normalization",
-        "",
-        "Plays every track at the same perceived loudness, so a quiet",
-        "album does not disappear after a loud one.",
-        "",
-        "@K   [v]        on / off, without opening anything",
-        "@K   [SHIFT+v]  the overlay: on/off, target level, max boost",
-        "",
-        "@D   Normalize      off / on                        (default on)",
-        "@D   Target level   -40 .. 0 LUFS                   (default -16)",
-        "@D   Max boost      0 .. 24 dB                      (default 9)",
-        "",
-        "-16 LUFS leaves headroom, -14 matches YouTube and Spotify. The",
-        "grey <<live line>> under the rows shows the playing track's measured",
-        "loudness and the gain actually applied, so you can see at once",
-        "when Max boost is holding a quiet track back.",
-        "",
-        "@A   In the radio a stream has no end, so the loudness is measured",
-        "@A   <<since you tuned in>> and the gain glides in over a second.",
-        "",
-        "@H Stereo or mono",
-        "",
-        "<<Settings -> ON/OFF -> Stereo Sound>>. Off folds left and right",
-        "together (and halves the memory a loaded track needs). Turning",
-        "it off is immediate; turning it on applies from the next track.",
-        "In the radio the dial's footer then reads MONO.",
-    }});
-    t.pages.push_back({{
-        "@H Sample rate: nothing is converted on the way",
-        "",
-        "Every file plays at <<its own sample rate>> (44.1, 48, 88.2,",
-        "96 kHz ...): it is decoded at that rate and the audio device is",
-        "opened with it. Above 96 kHz the track is brought down to",
-        "96 kHz. Where a conversion cannot be avoided it uses a long,",
-        "sharp filter (a 64-tap aresample), not a cheap linear one.",
-        "",
-        "@H Long tracks need little memory",
-        "",
-        "@D   short track    ──>  decoded completely into memory",
-        "@D   long mix       ──>  a 2-minute window around the position",
-        "@A                       90 s ahead, the last 30 s kept, so a",
-        "@A                       short step back is instant",
-        "",
-        "A 200 MB file takes about <<50 MB>> instead of gigabytes. The audio",
-        "is exactly the same -- same rate, same 32-bit samples.",
-        "",
-        "@H The order things happen in",
-        "",
-        "@D   decoded audio > equalizer > normalization > limiter > volume",
-        "@A                 ^",
-        "@A                 the scopes can tap the signal here, before all",
-        "@A                 of it: Osci music mode in the [SHIFT+o] overlay",
-    }});
-    return t;
+std::string rtrim(const std::string& s) {
+    size_t b = s.size();
+    while (b > 0 && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
+    return s.substr(0, b);
 }
 
-Topic topic_sleep() {
-    Topic t;
-    t.title = "Sleep mode";
-    t.blurb = "fall asleep to music, with a fade-out";
-    t.pages.push_back({{
-        "@H The sleep timer",
-        "",
-        "@K   [SHIFT+z]  open the overlay (playback keeps running)",
-        "",
-        "@D   ┌─────────────────────────────┐",
-        "@D   │  15 minutes                 │",
-        "@D   │  30 minutes                 │",
-        "@D   │  60 minutes                 │",
-        "@D   │  90 minutes                 │",
-        "@D   │  120 minutes                │",
-        "@D   │  Stop after current song    │ <<-- player only>>",
-        "@D   │  Fade out            [on]   │ <<-- a toggle, stays open>>",
-        "@D   │  Off                        │",
-        "@D   └─────────────────────────────┘",
-        "",
-        "@K   [UP] [DOWN]  pick      [ENTER]  set it and close",
-        "@K   [ESC] or [SHIFT+z]     close without changing anything",
-        "",
-        "While a timer is armed the remaining time is shown in the",
-        "title of the search bar: <<SEARCH LOCAL  [SLEEP 24:10]>>.",
-        "",
-        "@A   <<Fade out>> (on by default) glides the volume down over the",
-        "@A   last 10 % of the time -- at least 30 s, at most 10 minutes --",
-        "@A   so the music fades away instead of stopping abruptly.",
-        "",
-        "When a minute timer runs out the player <<pauses>> (the position is",
-        "kept, [p] resumes) and the radio <<stops>> the stream. The timer",
-        "never changes the play mode, and it is gone after a restart.",
-    }});
-    return t;
+std::string lower(std::string s) {
+    for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return s;
 }
 
-// --- music player topics ---------------------------------------------------
-
-Topic topic_main_ui() {
-    Topic t;
-    t.title = "Main UI";
-    t.blurb = "the screen, the queue and the big overlays";
-    t.pages.push_back({{
-        "@H The main screen",
-        "",
-        "@D ┌──────────────────────────────────────────────────────────────┐",
-        "@D │  ▓▓▓▓   ARTIST  TITLE  ALBUM        lyrics, sphere, scope    │",
-        "@D │  ▓▓▓▓   (metadata panel)            or spectrogram           │",
-        "@D ├──────────────────────────────────────────────────────────────┤",
-        "@D │  ████████████░░░░░░░░░░░  1:23 / 3:45     waveform           │",
-        "@D │  volume  ##########------                                    │",
-        "@D ├──────────────────────────────────────────────────────────────┤",
-        "@D │  SEARCH LOCAL                                      [ S ]     │",
-        "@D ├───────────────────────────────┬──────────────────────────────┤",
-        "@D │  LOCAL AUDIO FILES            │  QUEUE (locked)              │",
-        "@D │  > a track                    │  1. plays next               │",
-        "@D │    another track              │  2. then this one            │",
-        "@D └───────────────────────────────┴──────────────────────────────┘",
-        "@A      └─ your music folders         └─ plays BEFORE the list",
-        "@A                                       continues",
-        "",
-        "@A   The box right of the search bar is the <<play mode letter>>:",
-        "@A   L list, R repeat, S shuffle, O stop, Q queue then stop.",
-        "@A   [m] steps through them.",
-        "",
-        "@K   [TAB]  move the focus between the list and the queue --",
-        "@K          it decides where [UP]/[DOWN], [a], [d] and [4]/[5] act",
-        "@K   [ENTER] play      [p] play/pause     [n] / [b] next / prev",
-        "@K   [<-] [->] seek 5 s    [+] / [-] volume    [x] mute",
-    }});
-    t.pages.push_back({{
-        "@H Where your music comes from",
-        "",
-        "Mousiki plays what it finds in the folders you point it at:",
-        "",
-        "@K   [s]  Settings  ->  <<PATHS>>  ->  LOCAL PATH",
-        "",
-        "@D   LOCAL PATH",
-        "@D     Local Path 1 : /home/you/Music",
-        "@D     Local Path 2 : /mnt/archive/albums",
-        "@D     + new path                     <<-- ENTER adds a folder>>",
-        "",
-        "Move onto a row, press [ENTER], type the folder, [ENTER] again.",
-        "Committing a change <<rescans the library at once>>. Paths accept",
-        "~ and %USERPROFILE% and both slash directions on Windows.",
-        "An empty line plus [ENTER] removes that path.",
-        "",
-        "@A   Remember to leave Settings with [s] -- that is what writes",
-        "@A   config.txt. [ESC] or [q] puts everything back as it was.",
-        "",
-        "@K   [SHIFT+r]  rescan the library later (after copying files in)",
-        "",
-        "@H Finding your way around the list",
-        "",
-        "@K   [f] filter to the folder of the highlighted track  [c] clear",
-        "@K   [SHIFT+t]  sort: folder order > title A-Z > artist A-Z",
-        "@K   [SHIFT+n]  rows show the title tag instead of the file name",
-        "@K   [r] redraw the screen      [t] the console / log view",
-    }});
-    t.pages.push_back({{
-        "@H Building the queue",
-        "",
-        "The queue plays <<before>> the normal list continues.",
-        "",
-        "@K   With the LIST focused:",
-        "@K     [a]  put the highlighted track at the FRONT (plays next)",
-        "@K     [e]  add it to the END",
-        "@K   With the QUEUE focused ([TAB]):",
-        "@K     [d]  remove          [4] / [5]  move up / down",
-        "@K     [$] / [%]  move to the very top / bottom",
-        "@K     [a]  the bulk-add panel: paste a YouTube playlist link",
-        "",
-        "@K   [!]  lock / unlock      [SHIFT+x]  clear it (asks first)",
-        "@K   [CTRL+SHIFT+z]  undo the last clear (one level)",
-        "@K   [CTRL+SHIFT+u]  save the queue as a playlist",
-        "",
-        "@A   The queue is <<locked by default>>: a played track moves to the",
-        "@A   end instead of leaving, so the queue loops rather than",
-        "@A   draining. The title then reads QUEUE (locked). Press [!] to",
-        "@A   unlock it and let played tracks disappear.",
-    }});
-    t.pages.push_back({{
-        "@H The two big overlays",
-        "",
-        "@K   [SHIFT+l]  the LIST with many more rows",
-        "@K   [SHIFT+k]  the QUEUE with many more rows",
-        "@K   [SHIFT+UP] / [SHIFT+DOWN]  jump a whole page",
-        "@K   [ESC] or the same key again  close",
-        "",
-        "Both share the cursor with the small pane, and everything else",
-        "keeps working from inside them. Only one can be open at a time.",
-    }});
-    return t;
+std::string upper(std::string s) {
+    for (char& c : s) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    return s;
 }
 
-Topic topic_search() {
-    Topic t;
-    t.title = "Search and Download";
-    t.blurb = "local, YouTube, SoundCloud, Bandcamp";
-    t.pages.push_back({{
-        "@H One search box, six kinds of search",
-        "",
-        "@K   [/]  open it (German SHIFT+7). The prefix picks the source:",
-        "",
-        "@D   (nothing)   your local library      live, as you type",
-        "@D   s:  query   YouTube                 on ENTER",
-        "@D   sc: query   SoundCloud              on ENTER",
-        "@D   b:  query   Bandcamp                on ENTER",
-        "@D   p:  query   your saved playlists    live",
-        "@D   f:  query   your folders            live",
-        "",
-        "@A   The local search is <<fuzzy>>: \"X Files\" also finds \"X-Files\".",
-        "@A   It matches the file name, the artist, the title tag and the",
-        "@A   album, and ranks purely by how well things match.",
-        "",
-        "@K   [UP] / [DOWN] while typing, then [ENTER]",
-        "@K        plays the highlighted result <<right away>>",
-        "@K   [ENTER] without moving  keeps the search as the filter",
-        "@K   [ESC]   cancel and restore the previous view",
-        "",
-        "On a <<playlist>> row (p:) [ENTER] queues all of its tracks. On a",
-        "<<folder>> row (f:) it opens that folder in the list, like [f].",
-        "",
-        "Online searches only run on [ENTER], never per keystroke.",
-        "SoundCloud's 30-second previews and unplayable tracks are left",
-        "out of the results, which is why it takes a few seconds longer.",
-    }});
-    t.pages.push_back({{
-        "@H Saving what you are streaming",
-        "",
-        "@K   [y]  save the streamed track that is playing right now",
-        "",
-        "@D   YouTube    ──>  Opus",
-        "@D   SoundCloud ──>  MP3 / Opus / AAC, as the site sends it",
-        "@D   Bandcamp   ──>  the free 128 kbit/s MP3 stream",
-        "@A              no second conversion -- the format is kept",
-        "",
-        "The file is named <<Title - Artist.ext>>, the cached copy is",
-        "removed, and the library refreshes so it appears as a local",
-        "track straight away.",
-        "",
-        "@H Where downloads go",
-        "",
-        "@K   [s]  Settings  ->  <<PATHS>>  ->  DOWNLOAD PATH",
-        "",
-        "Until you set one, Mousiki uses its cache folder",
-        "(~/.cache/mousiki). The download folder is <<scanned automatically>>,",
-        "so you never have to repeat it as a local path. The radio puts",
-        "its recordings in the same folder by default.",
-        "",
-        "@A   Status messages you will see:",
-        "@A     saved to <path>        it worked",
-        "@A     already saved: <name>  that name is already there",
-        "@A     not a cached stream    this is a local file already",
-    }});
-    return t;
+bool starts_with(const std::string& s, const char* p) { return s.compare(0, std::char_traits<char>::length(p), p) == 0; }
+
+std::string replace_all(std::string s, const std::string& from, const std::string& to) {
+    for (size_t at = s.find(from); at != std::string::npos; at = s.find(from, at + to.size())) s.replace(at, from.size(), to);
+    return s;
 }
 
-Topic topic_meta() {
-    Topic t;
-    t.title = "Meta Data";
-    t.blurb = "tags, renaming and the AcoustID lookup";
-    t.pages.push_back({{
-        "@H The meta editor",
-        "",
-        "@K   [SHIFT+m]  open it",
-        "",
-        "@D ┌─────────────────────────────┬──────────────────────────────┐",
-        "@D │ SEARCH                      │  [EDIT]   FETCH LIST         │",
-        "@D ├─────────────────────────────┼──────────────────────────────┤",
-        "@D │ > track_01.mp3              │  FILE   : track_01.mp3       │",
-        "@D │   track_02.mp3              │  ARTIST : ...                │",
-        "@D │   track_03.mp3              │  TITLE  : ...                │",
-        "@D │                             │  ALBUM  : ...                │",
-        "@D │                             │  YEAR   : ...                │",
-        "@D └─────────────────────────────┴──────────────────────────────┘",
-        "@A    └─ the library                 └─ the five fields of the",
-        "@A                                      highlighted file",
-        "",
-        "@H Nothing touches your files until you say so",
-        "",
-        "@A   Every change goes into a <<pending edit session>>, autosaved",
-        "@A   after each keystroke. Closing the editor, quitting, even a",
-        "@A   crash keeps it. Touched fields and their library rows are",
-        "@A   drawn in the header colour, so you can see what will be",
-        "@A   written. <<Only [CTRL+s] writes to the files>>, and it asks.",
-        "",
-        "@K   [TAB] search > library > fields   [UP]/[DOWN] move",
-        "@K   [ENTER] start editing / finish a field",
-        "@K   [CTRL+s] apply everything    [CTRL+SHIFT+x] discard it all",
-        "@K   [<-] [->] switch the tab (or move the caret while typing)",
-    }});
-    t.pages.push_back({{
-        "@H Finding the files that need work",
-        "",
-        "@K   With the library pane focused:",
-        "@K     [x]        files missing ANY metadata",
-        "@K     [SHIFT+t]  files missing a title",
-        "@K     [SHIFT+a]  files missing an artist",
-        "@K     [SHIFT+y]  files missing a year",
-        "@K     [SHIFT+l]  files missing an album",
-        "@K     [r]        edited files on top",
-        "@K     [SHIFT+p]  play the hovering track",
-        "@K   Press the same key again to clear the filter.",
-        "",
-        "@A   Between them these cover the usual tidy-up: find what is",
-        "@A   missing, fix it, and see at a glance what you touched.",
-    }});
-    t.pages.push_back({{
-        "@H Letting AcoustID fill the gaps",
-        "",
-        "AcoustID recognises a track by an <<audio fingerprint>>, so it",
-        "works even when the file has no usable tags at all.",
-        "",
-        "@D   one title      [SHIFT+b]   ──> fills in the missing tags",
-        "@D                  [SHIFT+n]   ──> fetches all, overwrites",
-        "@D                              ([SHIFT+b] also on the main list)",
-        "@D   many titles    [a]         ──> onto the FETCH LIST",
-        "@D                  [SHIFT+f]   ──> the whole filtered pane",
-        "@D                  [ENTER] on that tab fetches the full list",
-        "@D                  [SHIFT+c] there cancels a running fetch",
-        "@A   [DEL] takes a title off the fetch list again -- it never",
-        "@A   deletes the file and never touches your pending edits.",
-        "",
-        "@A   On the FETCH LIST tab, tick what is fetched: <<missing only>>",
-        "@A   (default, empty tags only), <<all>>, or any mix of artist,",
-        "@A   title, album, year. [TAB] [<-] [->] [SPACE]; [ENTER] fetches.",
-        "@A   Album and year come from MusicBrainz; if there are several",
-        "@A   candidates [ENTER] on the field lets you choose.",
-        "@A   A disclaimer comes first. Answer [y], [n] or [ESC].",
-        "@A   Results land in the <<edit session>>, never straight in the",
-        "@A   files, and a low-confidence match is reported as \"no match\"",
-        "@A   rather than written as a wrong tag.",
-        "",
-        "Applying writes the tags <<without re-encoding>> the audio; a file",
-        "name edit becomes a plain rename.",
-    }});
-    return t;
+std::string spaces(int n) { return std::string(static_cast<size_t>(std::max(0, n)), ' '); }
+
+// ---------------------------------------------------------------------------------------------------
+// the document
+// ---------------------------------------------------------------------------------------------------
+
+struct Cell {
+    std::string ch;
+    Role role = Role::Text;
+};
+
+struct Page {
+    bool toc = false;
+    std::vector<std::string> raw;                 // as written (trailing blanks removed)
+    std::vector<std::vector<Cell>> lines;         // parsed
+    std::vector<int> line_entry;                  // toc pages: the entry of each line, else -1
+    std::string number;                           // "1.1" / "II" / ""
+    std::string norm_title;                       // upper-case letters and digits of the first line, without the number
+    std::string border_parent, border_main;       // the chapter titles of the top border
+    std::string group;                            // the main chapter: "0" = welcome + contents, "3" for 3.x, "I" / "III" for a roman page
+    bool welcome = false;                         // one of the two welcome pages (drawn with the disk)
+};
+
+struct Entry {
+    int page = 0;           // the contents page it is written on
+    int line = 0;
+    std::string key;        // "1.2.1" / "II"
+    std::string text;       // "Supported Formats"
+    bool roman = false;
+    int target = -1;        // page it leads to
+};
+
+struct Doc {
+    std::vector<Page> pages;
+    std::vector<Entry> entries;
+    std::string problems;
+};
+
+// [[Header]] / [[Legend]] colour the "capitalised words" in front of them; see wizard.h.
+void apply_marker(std::vector<Cell>& cells, size_t seg_start, Role role, bool toc_page, bool whole_segment) {
+    const size_t n = cells.size();
+    if (toc_page || whole_segment) {
+        for (size_t k = toc_page ? 0 : seg_start; k < n; ++k) cells[k].role = role;
+        return;
+    }
+    size_t end = n;
+    bool first = true;
+    while (end > seg_start) {
+        while (end > seg_start && cells[end - 1].ch == " ") --end;       // blanks between the words
+        if (end <= seg_start) break;
+        size_t begin = end;
+        while (begin > seg_start && cells[begin - 1].ch != " ") --begin;
+        bool has_lower = false, has_alnum = false;
+        for (size_t k = begin; k < end; ++k) {
+            const char c = cells[k].ch.size() == 1 ? cells[k].ch[0] : '\0';
+            if (c >= 'a' && c <= 'z') has_lower = true;
+            if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) has_alnum = true;
+        }
+        const char c0 = cells[begin].ch.size() == 1 ? cells[begin].ch[0] : '\0';
+        const bool title_case = c0 >= 'A' && c0 <= 'Z';
+        bool take = false, stop_after = false;
+        if (first) { take = !has_lower || title_case; stop_after = has_lower; }   // "WIZARD !!!" or a single "Settings"
+        else take = !has_lower && has_alnum;
+        if (!take) break;
+        for (size_t k = begin; k < end; ++k) cells[k].role = role;
+        end = begin;
+        first = false;
+        if (stop_after) break;
+    }
 }
 
-Topic topic_playlist() {
-    Topic t;
-    t.title = "Playlists";
-    t.blurb = "build them, save them, export them";
-    t.pages.push_back({{
-        "@H The playlist editor",
-        "",
-        "@K   [SHIFT+p]  open it -- two tabs, [<-] / [->] switch them",
-        "",
-        "@D ┌──────────────────────────────────────────────────────────────┐",
-        "@D │ Name: my evening mix        [CREATE/EDIT]  SAVED PLAYLISTS   │",
-        "@D ├───────────────────────────────┬──────────────────────────────┤",
-        "@D │ SEARCH / LIBRARY              │  THE PLAYLIST                │",
-        "@D │ > a track                     │  1. first track              │",
-        "@D │   another track               │  2. second track             │",
-        "@D └───────────────────────────────┴──────────────────────────────┘",
-        "@A    └─ [ENTER] adds the                └─ [4]/[5] reorder,",
-        "@A       highlighted track                  [D] removes",
-        "",
-        "@K   [TAB]     name field > library picker > track list",
-        "@K   [CTRL+s]  save -- from every pane, also while typing",
-        "@K   [ESC]     leave a text box; again: leave the editor",
-        "",
-        "Typing in the library pane filters it live. On the second tab,",
-        "<<SAVED PLAYLISTS>>, [ENTER] loads one back into the editor and",
-        "[DEL] deletes it after a Yes/No question.",
-        "",
-        "@A   Playlists hold <<local files only>>. [CTRL+SHIFT+u] on the main",
-        "@A   screen turns the current queue into a playlist and leaves",
-        "@A   streamed items out.",
-        "",
-        "Use them from the main screen with <<p:>> in the search box --",
-        "[ENTER] on a playlist row queues all of its tracks.",
-    }});
-    t.pages.push_back({{
-        "@H Where playlists live",
-        "",
-        "@K   [s]  Settings  ->  <<PATHS>>  ->  PLAYLIST PATH",
-        "",
-        "One folder holds them all. Without one, the first local path",
-        "plus /playlists is used. Changing the path <<copies>> the existing",
-        "playlists to the new folder -- nothing is moved or deleted.",
-        "",
-        "@H Exporting to M3U8 / M3U",
-        "",
-        "On the SAVED PLAYLISTS tab, select one and press [e]:",
-        "",
-        "@D   ┌──────────────────────────────────────────────┐",
-        "@D   │  Folder : /home/you/Music/exports            │",
-        "@D   │  Format : M3U8                               │",
-        "@D   │  File   : my evening mix.m3u8                │",
-        "@D   └──────────────────────────────────────────────┘",
-        "@A        └─ starts at PATHS -> PLAYLIST EXPORT PATH, and can",
-        "@A           be changed here just for this one export",
-        "",
-        "@K   [TAB] or [UP]/[DOWN]  Folder <-> Format",
-        "@K   [<-] [->] or [SPACE]  M3U8 <-> M3U",
-        "@K   [ENTER] or [CTRL+s]   export      [ESC]  cancel",
-        "",
-        "The file is an <<extended M3U>>: #EXTM3U, the playlist name, and",
-        "per track an #EXTINF line followed by its absolute path. Both",
-        "formats are written as UTF-8. Tracks whose file is gone are",
-        "left out, and the status line says how many were exported.",
-    }});
-    return t;
+std::vector<Cell> parse_cells(const std::string& line_in, bool toc_page) {
+    const std::string line = replace_all(line_in, "{VERSION}", MOUSIKI_VERSION);
+    std::vector<Cell> cells;
+    size_t seg_start = 0;
+    const std::string lead = trim(line);
+    const bool whole_kind = starts_with(lead, "=>") || starts_with(lead, "NOTE:");
+    bool header_line = false;                      // [[Header_line]] somewhere in the line: all of it in the header colour
+    auto push = [&](const std::string& text, Role r) {
+        for (const std::string& ch : utf8_chars(text)) cells.push_back({ch, r});
+    };
+    for (size_t i = 0; i < line.size();) {
+        if (line.compare(i, 2, "[[") == 0) {
+            const size_t e = line.find("]]", i + 2);
+            if (e != std::string::npos) {
+                const std::string name_raw = trim(line.substr(i + 2, e - i - 2));
+                const std::string name = lower(name_raw);
+                if (name == "header_line" || name == "header line" || name == "headerline") {
+                    header_line = true;
+                } else if (name == "header" || name == "legend") {
+                    const bool at_end = trim(line.substr(e + 2)).empty();
+                    apply_marker(cells, seg_start, name == "header" ? Role::Header : Role::Legend, toc_page, whole_kind && at_end);
+                    seg_start = cells.size();
+                } else if (name != "new page") {
+                    push(name_raw, Role::Header);        // an unknown [[WORD]] is shown as a header-coloured word
+                }
+                i = e + 2;
+                continue;
+            }
+        }
+        if (line[i] == '[') {
+            const size_t e = line.find(']', i + 1);
+            if (e != std::string::npos && line.find('[', i + 1) > e) {
+                push(line.substr(i, e - i + 1), Role::Legend);   // [KEY]
+                i = e + 1;
+                continue;
+            }
+        }
+        size_t n = 1;
+        const unsigned char c = static_cast<unsigned char>(line[i]);
+        if (c >= 0xF0) n = 4; else if (c >= 0xE0) n = 3; else if (c >= 0xC0) n = 2;
+        n = std::min(n, line.size() - i);
+        cells.push_back({line.substr(i, n), Role::Text});
+        i += n;
+    }
+    while (!cells.empty() && cells.back().ch == " ") cells.pop_back();
+    if (header_line) for (Cell& c : cells) c.role = Role::Header;
+    return cells;
 }
 
-Topic topic_lyrics() {
-    Topic t;
-    t.title = "Lyrics";
-    t.blurb = "synced lyrics, retry and the timing overlay";
-    t.pages.push_back({{
-        "@H Synced lyrics",
-        "",
-        "When the lyrics engine is on, Mousiki fetches the lyrics of the",
-        "playing track and follows along line by line -- word by word",
-        "where the source has word timings.",
-        "",
-        "@D   ┌──────────────────────────────────────────┐",
-        "@D   │   a line that was already sung           │  <<dimmed>>",
-        "@D   │                                          │",
-        "@D   │   the line being sung right now          │  <<active>>",
-        "@D   │                                          │",
-        "@D   │   the line that comes next               │  <<dimmed>>",
-        "@D   └──────────────────────────────────────────┘",
-        "",
-        "@K   [.]  cycle the area: lyrics > sphere > scope > spectrogram",
-        "@K   [k]  the karaoke overlay (its own topic in this wizard)",
-        "",
-        "Colours come from <<Settings -> COLORS -> LYRICS>> (inactive line,",
-        "active line, active word), the alignment and the reveal style",
-        "from <<Settings -> ANIMA/VIZ>> (Lyrics Alignment, Lyrics",
-        "Animation: full, word by word, line by line, letter by letter,",
-        "active line only, active word only).",
-        "",
-        "@A   <<Use Lyrics Engine = false>> (Settings -> ON/OFF) switches",
-        "@A   lyrics off entirely: nothing is fetched, [.] skips them.",
-    }});
-    t.pages.push_back({{
-        "@H When the match is wrong: retry ([l])",
-        "",
-        "The automatic lookup goes by what the file says. When that is",
-        "wrong or incomplete, ask again by hand:",
-        "",
-        "@K   [l]  open the retry form (lyrics engine must be on)",
-        "",
-        "@D   ┌──────────────────────────────────────────────┐",
-        "@D   │  TITLE  : ...                                │",
-        "@D   │  ARTIST : ...                                │",
-        "@D   │  [ ] slowed      [ ] ultra-slowed            │",
-        "@D   │  [ ] sped up     [ ] reverb                  │",
-        "@D   │  [ ] remix       [ ] other                   │",
-        "@D   └──────────────────────────────────────────────┘",
-        "@A        └─ the ticks help with edits whose timing differs from",
-        "@A           the original. Slowed, ultra-slowed and sped up",
-        "@A           exclude each other.",
-        "",
-        "@K   [TAB] or [DOWN]  next field     [UP]  previous field",
-        "@K   [SPACE]  tick or untick         [ENTER]  fetch with these",
-        "@K   [ESC]    cancel",
-        "",
-        "Fetching again <<replaces the lyrics file>> for that track -- and",
-        "with it any timing offset you had saved (see the next page).",
-    }});
-    t.pages.push_back({{
-        "@H Lyrics running early or late: the timing overlay",
-        "",
-        "@K   [ALT+L]  open it -- on the main screen AND in karaoke mode",
-        "",
-        "@D   ┌──────────────────────────────────────────────┐",
-        "@D   │  LYRICS TIMING            offset  +0.3 s     │",
-        "@D   │  ─────────────────────────────────────────   │",
-        "@D   │    the line before                           │",
-        "@D   │  > the line being sung                       │",
-        "@D   │    the line after                            │",
-        "@D   └──────────────────────────────────────────────┘",
-        "@A        └─ these three move live while you adjust, so you can",
-        "@A           judge the offset by ear against the music",
-        "",
-        "@K   [->] / [<-]   lyrics later / earlier by 0.1 s",
-        "@K   [UP] / [DOWN] lyrics later / earlier by 0.5 s",
-        "@K   [R]           back to 0        range: +/- 120 s",
-        "@K   [ENTER] or [S]  save it into the track's lyrics file",
-        "@K   [ESC] or [ALT+L]  cancel -- the old offset comes back",
-        "",
-        "@A   A <<positive>> offset makes the lyrics appear later, so use it",
-        "@A   when they are too early. Saving writes a standard",
-        "@A   [offset:...] tag into the .lrc file, which other players",
-        "@A   understand too; the timestamps themselves are not changed.",
-        "",
-        "It opens only while <<synced>> lyrics are loaded. Opened from the",
-        "karaoke overlay it returns there when you close it.",
-    }});
-    t.pages.push_back({{
-        "@H Reading the lyrics, and translating them",
-        "",
-        "@K   [CTRL+L]  open READ LYRICS (playing track, else the hovered one)",
-        "",
-        "@D   ┌─ READ LYRICS ◀ ────────────────────────────────────────┐",
-        "@D   │ ◀ ● Fetched 2026-10-11 (lrclib) | Earlier 2026-01-01 ▶ │",
-        "@D   └─ 3 lyrics files ───────────────────────────────────────┘",
-        "@D   ┌─ TRANSLATION ──────────────────────────────────────────┐",
-        "@D   │ ● English (Google Translate) | French (MyMemory)       │",
-        "@D   └─ 2 translations ───────────────────────────────────────┘",
-        "@D   ┌─ Artist - Title ───────────────────────────────────────┐",
-        "@D   │ Guten Morgen, liebe Sonne                              │",
-        "@D   │ (Good morning, dear sun)                               │",
-        "@D   └────────────────────────────────────────────────────────┘",
-        "",
-        "@K   [TAB]      switch between the two top panes",
-        "@K   [<-] / [->] choose the file / the translation",
-        "@K   [UP] [DOWN] [SPACE] [b] [HOME] [END]  scroll",
-        "@K   [t]  <<translate overlay>>: service (Google / MyMemory),",
-        "@K        translate into, lyrics are in -- [ENTER] fetches",
-        "@K   [SHIFT+t]  show / next / hide translations (never fetches)",
-        "@K   [d] / [DEL]  delete a translation (TRANSLATION pane)",
-        "",
-        "@A   A translation takes a while and goes on in the background;",
-        "@A   asking for another one meanwhile only gives a warning.",
-    }});
-    return t;
+// The text of a line without its [[markers]].
+std::string plain_text(const std::string& line) {
+    std::string out;
+    for (size_t i = 0; i < line.size();) {
+        if (line.compare(i, 2, "[[") == 0) {
+            const size_t e = line.find("]]", i + 2);
+            if (e != std::string::npos) { i = e + 2; continue; }
+        }
+        out += line[i++];
+    }
+    return trim(out);
 }
 
-Topic topic_karaoke() {
-    Topic t;
-    t.title = "Karaoke";
-    t.blurb = "the lyrics over the whole screen, in 5 sizes";
-    t.pages.push_back({{
-        "@H The karaoke overlay",
-        "",
-        "@K   [k]  open it   --   [ESC] or [k] close",
-        "",
-        "@D ┌─ artist - title ─────────────────────────────────────────────┐",
-        "@D │  ▓▓▓▓                                             ▓▓▓▓       │",
-        "@D │  ▓▓▓▓       a line already sung                   ▓▓▓▓       │",
-        "@D │  ▓▓▓▓                                             ▓▓▓▓       │",
-        "@D │  ▓▓▓▓    THE LINE BEING SUNG NOW                  ▓▓▓▓       │",
-        "@D │  ▓▓▓▓                                             ▓▓▓▓       │",
-        "@D │  ▓▓▓▓       the line that comes next              ▓▓▓▓       │",
-        "@D └─────────────────────────── [ 1:23 / 3:45 ] ──────────────────┘",
-        "@A     └─ the karaoke picture, on both sides, drawn in your DISK",
-        "@A        colours with a wave running across it",
-        "",
-        "The words already sung are drawn in the active-word colour and",
-        "the word being sung is underlined. Lines are centred, with an",
-        "empty row between them.",
-        "",
-        "@A   The overlay <<always>> uses the lyrics engine -- also when it is",
-        "@A   off on the main screen. It fetches the lyrics itself then,",
-        "@A   and again after a track change, without changing that",
-        "@A   setting, so your main screen keeps its visual.",
-    }});
-    t.pages.push_back({{
-        "@H Making the lyrics bigger",
-        "",
-        "@K   [*] / [_]   size 1 to 5",
-        "@K               German:  SHIFT and +  /  SHIFT and -",
-        "@K               English: SHIFT+8      /  SHIFT and -",
-        "",
-        "@D   size 1   normal terminal text",
-        "@D   size 2   3 x 2 cells per letter   ┐  Mousiki's own pixel",
-        "@D   size 3   6 x 4 cells per letter   │  font, drawn in",
-        "@D   size 4   9 x 6 cells per letter   │  braille dots",
-        "@D   size 5   12 x 8 cells per letter  ┘",
-        "",
-        "Only the lyrics change size; the pictures stay as they are.",
-        "Long lines wrap between words. The bottom border briefly shows",
-        "<<[ lyrics size n / 5 ]>>, and the size is saved when you close.",
-        "",
-        "@A   The font covers the Latin letters, digits, punctuation, the",
-        "@A   German umlauts and ss, and the common accented letters. A",
-        "@A   line with characters it does not have (Japanese, emoji ...)",
-        "@A   is shown in normal text instead.",
-    }});
-    t.pages.push_back({{
-        "@H Karaoke: the keys that keep working",
-        "",
-        "@K   [p] play/pause   [n] / [b] next / previous   [#] shuffle",
-        "@K   [<-] [->] seek   [+] / [-] volume   [x] mute   [m] mode",
-        "@K   [v] normalization",
-        "@K   [ALT+L]  the <<lyrics timing overlay>>, right here over the big",
-        "@K            lyrics -- the easiest place to judge an offset",
-        "",
-        "On a narrow terminal the pictures are left out and the lyrics",
-        "take the whole width.",
-    }});
-    return t;
+bool is_number_token(const std::string& t) {
+    if (t.empty()) return false;
+    std::string s = t;
+    if (s.back() == '.') s.pop_back();
+    if (s.empty() || !std::isdigit(static_cast<unsigned char>(s[0])) || !std::isdigit(static_cast<unsigned char>(s.back()))) return false;
+    for (char c : s) if (!std::isdigit(static_cast<unsigned char>(c)) && c != '.') return false;
+    return true;
 }
 
-Topic topic_settings() {
-    Topic t;
-    t.title = "Settings";
-    t.blurb = "all six tabs, and how saving works";
-    t.pages.push_back({{
-        "@H Settings: six tabs",
-        "",
-        "@K   [s]  open them (always on the first tab)",
-        "",
-        "@D   [COLORS]  ON/OFF  ANIMA/VIZ  PATHS  REFERENCE  ABOUT APP",
-        "@A    ^ [TAB] steps through them, wrapping back to COLORS",
-        "",
-        "@K   [UP] / [DOWN]  previous / next row",
-        "@K   [<-] / [->]    step through a row's values, applied at once",
-        "@K   [ENTER]        edit the value as free text",
-        "@K   [s]            <<save to config.txt and close>>",
-        "@K   [ESC] or [q]   <<discard everything>> and close",
-        "",
-        "@A   Every change is <<live>>: you see and hear it while you are",
-        "@A   still in Settings. But only [s] writes it down. Leaving with",
-        "@A   [ESC] puts every row back the way it was when you opened",
-        "@A   Settings -- paths included.",
-        "",
-        "While there are unsaved changes, a green note under the footer",
-        "says so.",
-        "",
-        "@H Text editing, in every field here",
-        "",
-        "@K   [<-] [->] caret    [SHIFT+<-] [SHIFT+->] mark",
-        "@K   [HOME] [END] jump  [DEL] [BACKSPACE] delete",
-        "@K   [CTRL+c] [CTRL+x] [CTRL+v]  copy, cut, paste",
-        "@K   [ENTER] confirm    [ESC] cancel the edit",
-        "",
-        "[TAB] and the arrows never leave a field being edited.",
-    }});
-    t.pages.push_back({{
-        "@H Tab 1: COLORS",
-        "",
-        "<<COLORS>> -- 16 rows, each with one or two cells, a swatch and a",
-        "live preview on the right. Values are numbers from the",
-        "256-colour terminal palette (1-255); 0 or empty means \"no",
-        "colour\", so the terminal's own default is used.",
-        "",
-        "@D   BORDER_COLOR  TOP / BOTTOM     the frame lines",
-        "@D   DISK          TOP / BOTTOM     the spinning disk",
-        "@D   METADATA      KEY / VAL        labels and values",
-        "@D   VIZ           LEFT / RIGHT     visualizer, sphere, gradients",
-        "@D   PROGRESS_BAR  PLAYED / PENDING the progress bar",
-        "@D   LIST / QUEUE  FG / BG          per row state: inactive,",
-        "@D                                  playing, cursor",
-        "@D   LYRICS        FG / BG          inactive line, active line,",
-        "@D                                  active word",
-        "@D   HEADER / LEGEND / TAB_NAMES    headings, key hints, tabs",
-        "",
-        "@K   [<-] / [->] pick the cell, then [ENTER] to type a number",
-    }});
-    t.pages.push_back({{
-        "@H Tab 2: ON/OFF",
-        "",
-        "Two categories, every row changed with [<-] / [->]:",
-        "",
-        "<<MODES>>",
-        "@D   Playback        list / loop / shuffle / stop / queue",
-        "@D                   (same as the [m] key; `loop` is *repeat*)",
-        "@D   Start Mode      player / radio: which of the two Mousiki",
-        "@D                   opens with. Stored as StartMode= in",
-        "@D                   config.txt and shared with the radio.",
-        "",
-        "<<ON/OFF>>",
-        "@D   Eliment Disk, Dummy Buttons, Queue Display,",
-        "@D   Progress Waveform (the wave in the progress bar),",
-        "@D   Spectrum Bars (the bars under the meta data),",
-        "@D   Stereo Sound, Normalize Volume,",
-        "@D   Replace Emoji, Marquee Scrolling",
-        "<<VIZ/LYRICS FIELD>>  (the field right of the meta data)",
-        "@D   Viz/Lyrics Field    false: no field at all, the meta",
-        "@D                       data take its place",
-        "@D   Use Lyrics Engine / Oscilloscope / Spectrogram / Sphere",
-        "@A                   false leaves that view out of the [.]",
-        "@A                   cycle entirely; what depended on it moves",
-        "@A                   on (Lyrics/Viz Default, No-Lyrics Viz) --",
-        "@A                   it is never undone silently",
-        "@A   (metadata-only lists: [SHIFT+n])",
-    }});
-    t.pages.push_back({{
-        "@H Tab 3: ANIMA/VIZ",
-        "",
-        "Scrolls with the cursor when the terminal is short. Every row",
-        "cycles with [<-] / [->]:",
-        "",
-        "<<LYRICS>>",
-        "@D   Lyrics Alignment   left / center / right",
-        "@D   Lyrics Animation   full / word by word / line by line /",
-        "@D                      letter by letter / active line only /",
-        "@D                      active word only",
-        "<<DISK>>",
-        "@D   Disk Speed         0.01 .. 1.00",
-        "<<SPECTRUM BARS>>  (the bars under the meta data)",
-        "@D   Bars Fluidity / Degradation / Viscosity    1-10",
-        "<<PROGRESS WAVEFORM>>",
-        "@D   Waveform Style     raw / smooth          (same as [w])",
-        "<<WHAT THE FIELD SHOWS>>",
-        "@D   Lyrics/Viz Default  sphere / osci / spectro / lyrics /",
-        "@D                      last used: the view the field starts",
-        "@D                      with ([.] changes it only while running)",
-        "@D   No-Lyrics Viz      sphere / osci / spectro / none: shown while",
-        "@D                      the lyrics view has no lyrics; its Use",
-        "@D                      switch is turned on when you pick it",
-        "<<VIZ/LYRICS ORDER>>",
-        "@D   Viz Order 1..4     the order of the views in the [.] cycle",
-        "",
-        "@A   A note at the bottom of the tab: the oscilloscope and the",
-        "@A   spectrogram are tuned with [SHIFT+o] and [SHIFT+i], [SHIFT+u]",
-        "@A   is the big spectrogram overlay, [)] and [(] open the extra",
-        "@A   windows of the oscilloscope and the spectrogram.",
-    }});
-    t.pages.push_back({{
-        "@H Tab 4: PATHS",
-        "",
-        "<<PATHS>> -- five sections. [ENTER] edits a row; the tab scrolls",
-        "with the cursor, so a short terminal is fine.",
-        "",
-        "@D   LOCAL PATH             the folders scanned for music",
-        "@D                          (several, plus \"+ new path\")",
-        "@D   DOWNLOAD PATH          where [y] saves streams",
-        "@D   PLAYLIST PATH          one folder for all playlists",
-        "@D   PLAYLIST EXPORT PATH   where [e] writes M3U8 / M3U",
-        "@D   HISTORY PATH           holds history.json",
-        "",
-        "@A   Changing LOCAL PATH <<rescans at once>>. Changing the playlist",
-        "@A   or history folder <<copies>> what is there -- nothing is moved",
-        "@A   or deleted. Changed folders only stick when you save with [s].",
-    }});
-    t.pages.push_back({{
-        "@H Tab 5: REFERENCE      Tab 6: ABOUT APP",
-        "",
-        "<<REFERENCE>> is the longest tab and has two parts.",
-        "",
-        "@D   Hotkeys        every rebindable command, grouped like the",
-        "@D                  cheat sheet: PLAYBACK, NAVIGATION & VIEW,",
-        "@D                  LYRICS & KARAOKE, VISUALIZATIONS, SEARCH,",
-        "@D                  QUEUE, PLAYLISTS, META EDITOR, HISTORY,",
-        "@D                  EQUALIZER, DOWNLOADS, LIBRARY, SYSTEM",
-        "@D   FONT MAP       the A = A, a table from config.txt",
-        "@D                  (read-only here)",
-        "",
-        "@K   [ENTER] on a hotkey row, type the new key, [ENTER] again",
-        "",
-        "A key is written as the character itself (n, T, #, +; a capital",
-        "is SHIFT + the letter) or as a name: ENTER, TAB, SPACE,",
-        "BACKSPACE, ARROW_KEY_UP / DOWN / LEFT / RIGHT. A combination",
-        "([ALT+L], [CTRL+L], [CTRL+SHIFT+u], [CTRL+SHIFT+z]) is entered by",
-        "pressing it. An empty field unbinds the command.",
-        "",
-        "@A   A key already used by another command is <<refused>>, with a",
-        "@A   message naming it -- so you can never lose a command by",
-        "@A   accident. [*] and [ESC] are reserved. Keys not listed here",
-        "@A   (the editors' and overlays' own keys, [ENTER], the arrows,",
-        "@A   [CTRL+s] ...) are fixed; the cheat sheet [?] shows those.",
-        "",
-        "<<ABOUT APP>> -- the credits and versions, scrolled with [UP] /",
-        "[DOWN]. The text lives in config.txt and can be edited there",
-        "while the app is closed; the version line is brought up to the",
-        "running build automatically.",
-    }});
-    return t;
+bool is_roman_token(const std::string& t) {
+    if (t.empty() || t.size() > 5) return false;
+    for (char c : t) if (c != 'I' && c != 'V' && c != 'X') return false;
+    return true;
 }
 
-Topic topic_history() {
-    Topic t;
-    t.title = "History";
-    t.blurb = "what you played, and 16 smart lists";
-    t.pages.push_back({{
-        "@H The listening history",
-        "",
-        "@K   [SHIFT+h]  open it -- [ESC], [q] or [SHIFT+h] close",
-        "@K   [1] - [4] or [<-] / [->]  jump to a tab",
-        "",
-        "@D   [1 HISTORY]       the last 100 plays: when, what, how long,",
-        "@D                     and PLAY / done / skip",
-        "@D   [2 TOP TRACKS]    one row per title with its play count",
-        "@D   [3 TOP PLAYLISTS] the top 5 saved playlists of the week,",
-        "@D                     month, quarter, year and overall",
-        "@D   [4 HABITS]        sessions, time per day, tracks per",
-        "@D                     session, skips, replays, completion",
-        "",
-        "@K   [UP] / [DOWN]  move (on TOP PLAYLISTS and HABITS they scroll)",
-        "@K   [ENTER]        on HISTORY or TOP TRACKS: <<play it now>>",
-        "@K                  (the overlay stays open)",
-        "@K   [r]            on TOP TRACKS: most played <-> least played",
-        "",
-        "Nothing you do in here changes your music.",
-        "",
-        "@A   A play counts for a playlist when it was queued from a saved",
-        "@A   playlist (Enter or [a] on a playlist row). Plays from before",
-        "@A   TOP PLAYLISTS existed have no playlist and are not counted.",
-        "",
-        "@A   The history keeps the newest 1000 plays one by one and folds",
-        "@A   older ones into lifetime totals per title -- including the",
-        "@A   day and the time of day of every play, so the period and",
-        "@A   time-of-day lists on the next page stay exact over years.",
-        "",
-        "It lives in history.json, in <<Settings -> PATHS -> HISTORY PATH>>.",
-    }});
-    t.pages.push_back({{
-        "@H ADD SMART HISTORY TO QUEUE",
-        "",
-        "Under the TOP TRACKS list sits a pane with <<sixteen ready-made>>",
-        "<<lists>> in four columns:",
-        "",
-        "@D   TOP TRACKS   TOP OF THE...   TIME OF DAY   REDISCOVER",
-        "@D   ──────────   ─────────────   ───────────   ──────────",
-        "@D   Top 10       the week        Morning       newly added",
-        "@D   Top 25       the month       Day           least played",
-        "@D   Top 50       the quarter     Evening       least: month",
-        "@D   Top 100      the year        Night         least: year",
-        "",
-        "@K   [2] (or [->])  go to TOP TRACKS",
-        "@K   [TAB]          move INTO the pane (a mark appears behind",
-        "@K                  its title)",
-        "@K   arrows         pick a list -- while the pane has the focus,",
-        "@K                  [<-] / [->] move between COLUMNS and do not",
-        "@K                  switch tabs",
-        "@K   [ENTER]        add that list to the end of the queue",
-        "@K   [ESC] or [TAB] back to the track list",
-        "",
-        "@A   <<Morning>> 7-11, <<Day>> 11-18, <<Evening>> 18-22, <<Night>> 22-7.",
-        "@A   <<Least played>> counts never-played tracks as 0 and shuffles",
-        "@A   ties every time, which makes it a good way to rediscover",
-        "@A   forgotten music.",
-        "",
-        "Files that moved or were deleted are skipped, and the status",
-        "line says how many tracks were queued.",
-    }});
-    return t;
+// "1.2.1 Supported Formats" -> number "1.2.1", rest "Supported Formats"; "II MUSIC PLAYER MODE" -> "II", "MUSIC PLAYER MODE".
+bool split_number(const std::string& text, std::string& number, std::string& rest, bool& roman) {
+    const size_t sp = text.find(' ');
+    if (sp == std::string::npos) return false;
+    std::string tok = text.substr(0, sp);
+    const std::string r = trim(text.substr(sp + 1));
+    if (r.empty()) return false;
+    if (is_number_token(tok)) {
+        if (tok.back() == '.') tok.pop_back();
+        number = tok; rest = r; roman = false;
+        return true;
+    }
+    if (is_roman_token(tok)) { number = tok; rest = r; roman = true; return true; }
+    return false;
 }
 
-Topic topic_formats() {
-    Topic t;
-    t.title = "What Mousiki plays";
-    t.blurb = "audio, tracker modules and chiptunes";
-    t.pages.push_back({{
-        "@H The usual formats, and some unusual ones",
-        "",
-        "MP3, FLAC, WAV, OGG, Opus, M4A and the other common formats",
-        "play out of the box. So do retro formats, which show up in the",
-        "list, the search and the queue like any other file:",
-        "",
-        "@D   Tracker modules (Amiga / PC demoscene)",
-        "@D     .mod .xm .it .s3m .mptm .stm .669 .mtm .med .okt .far",
-        "@D     .ult .ams .dbm .digi .dmf .dsm .gdm .imf .j2b .mdl .mt2",
-        "@D     .psm .ptm .umx .plm",
-        "@A     needs FFmpeg built with libopenmpt (setup.sh / setup.ps1",
-        "@A     install or upgrade it for you)",
-        "",
-        "@D   Game console music",
-        "@D     .nsf .nsfe (NES)   .spc (SNES)   .gbs (Game Boy)",
-        "@D     .vgm .vgz (Sega)   .ay .hes .kss .sap .gym",
-        "@A     needs FFmpeg built with libgme (same: setup installs it)",
-        "",
-        "@D   Commodore 64 SID tunes",
-        "@D     .sid .psid .rsid",
-        "@A     needs the sidplayfp program on the PATH (setup installs",
-        "@A     it and adds it to the PATH where it can)",
-        "",
-        "The TYPE column says <<tracker module>>, <<game music>> or",
-        "<<C64 SID (n tunes)>>, and the module's own title is used as its",
-        "metadata. If a required tool is missing, the status line says",
-        "which one and the track is skipped.",
-        "",
-        "@A   A SID tune has no end, so it is rendered once for",
-        "@A   SidPlayLength seconds (default 180) and played from there.",
-    }});
-    return t;
+std::string normalise(const std::string& s) {
+    std::string out;
+    for (char c : s) if (std::isalnum(static_cast<unsigned char>(c))) out += static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+    return out;
 }
 
-// --- radio topics ----------------------------------------------------------
-
-Topic topic_radio_main() {
-    Topic t;
-    t.title = "Radio Main UI";
-    t.blurb = "the dial, the panes and the big overlay";
-    t.pages.push_back({{
-        "@H The radio screen",
-        "",
-        "@D ┌──────────────────────────────────────────────────────────────┐",
-        "@D │  ░▒▓ ON AIR ▓▒░   STATION  TITLE  ARTIST      oscilloscope,  │",
-        "@D │                   genre  bitrate  country     sphere or      │",
-        "@D │                   ▁▃▅█▅▃▁ spectrum           spectrogram     │",
-        "@D ├──────────────────────────────────────────────────────────────┤",
-        "@D │  FREQUENCY BAND (MHz)                                        │",
-        "@D │  88 ·  92 ·  96 ▼ 100 ·  104 ·  108                          │",
-        "@D │  ▮▮▮▮▯ STEREO   LIVE 12:34                                   │",
-        "@D ├──────────────────────────────────────────────────────────────┤",
-        "@D │  SEARCH STATIONS                                   [ L ]     │",
-        "@D ├───────────────────────────────┬──────────────────────────────┤",
-        "@D │  STATIONS                     │  PRESETS (Morning)           │",
-        "@D │  > a station                  │  1 one   2 two   3 ...       │",
-        "@D └───────────────────────────────┴──────────────────────────────┘",
-        "@A        └─ your station list          └─ 16 slots on the keys",
-        "@A                                         1..0 and e r t d f g",
-        "@A    ▼ = the needle on the tuned station; the dots are the",
-        "@A        other stations of your list",
-        "",
-        "@K   [UP] / [DOWN] move    [ENTER] tune the hovered station",
-        "@K   [n] / [b] next / previous channel    [#] a random one",
-        "@K   [p] mute/unmute   [x] stop   [R] reconnect   [+] / [-] volume",
-        "@K   [m] surf mode S shuffle <-> L list (it only affects [b])",
-    }});
-    t.pages.push_back({{
-        "@H What the dial's footer tells you",
-        "",
-        "@D   ▮▮▮▮▯ STEREO   LIVE 12:34",
-        "@A    │     │        └─ how long you have been tuned in",
-        "@A    │     └─ STEREO or MONO",
-        "@A    └─ signal strength",
-        "",
-        "@D   ‖ PAUSED -0:45     you pressed SPACE and are behind live",
-        "@D   ◑ TIMESHIFT -2:30  you are listening 2:30 behind live",
-        "@D   REC 01:12          a recording is running",
-        "",
-        "@H The big STATIONS overlay",
-        "",
-        "@K   [SHIFT+l]  the STATIONS pane with the whole screen, plus a",
-        "@K              PRESET NAME column   --   [ESC] closes",
-        "",
-        "@K   [a]        add a station by its <<stream URL>>",
-        "@K              [TAB] switches URL <-> NAME; an empty name",
-        "@K              becomes the host name. The station is appended",
-        "@K              at the end, so preset slots stay valid.",
-        "@K   [SHIFT+c]  give the hovered station a <<preset name>>: a",
-        "@K              shorter second name shown in the PRESETS pane",
-        "",
-        "It shares the search box and the state of the main screen, and",
-        "[ENTER], [n], [b], [#], [p], [x], [+] and [-] work as usual.",
-        "",
-        "@A   Letters are <<case sensitive>> in the radio: [r] recalls a",
-        "@A   preset slot, [R] reconnects the station.",
-    }});
-    return t;
+void finish_page(Doc& d, Page& p) {
+    while (!p.raw.empty() && trim(p.raw.back()).empty()) p.raw.pop_back();
+    size_t skip = 0;
+    while (skip < p.raw.size() && trim(p.raw[skip]).empty()) ++skip;
+    p.raw.erase(p.raw.begin(), p.raw.begin() + static_cast<std::ptrdiff_t>(skip));
+    d.pages.push_back(std::move(p));
+    p = Page();
 }
 
-Topic topic_radio_presets() {
-    Topic t;
-    t.title = "Presets Overlay";
-    t.blurb = "16 slots per preset, as many presets as you like";
-    t.pages.push_back({{
-        "@H Presets: 16 stations on 16 keys",
-        "",
-        "A preset is a named set of <<16 station slots>> on these keys:",
-        "",
-        "@D   1  2  3  4  5  6  7  8  9  0  e  r  t  d  f  g",
-        "@A   └─ press one on the main screen to recall that slot",
-        "",
-        "@K   [SHIFT+<-] / [SHIFT+->]  previous / next preset",
-        "",
-        "The active preset's name is in the pane title: PRESETS (Morning).",
-        "",
-        "@H The PRESETS menu",
-        "",
-        "@K   [SHIFT+k]  open it",
-        "",
-        "@D   ┌──────────────────────────────────────────────────────────┐",
-        "@D   │  SEARCH STATION / SEARCH PRESET                          │",
-        "@D   ├──────────────────────────────────────────────────────────┤",
-        "@D   │  SELECT PRESET    Default   Morning   Jazz   Night       │",
-        "@D   ├───────────────────────────┬──────────────────────────────┤",
-        "@D   │  STATIONS                 │  PRESETS (the 16 slots)      │",
-        "@D   └───────────────────────────┴──────────────────────────────┘",
-        "@A        └─ a small mark behind a pane's title shows which one",
-        "@A           has the keyboard",
-        "",
-        "Names are 1 to 24 characters and unique. Every change is",
-        "written to presets.txt at once.",
-    }});
-    t.pages.push_back({{
-        "@H Keys in the PRESETS menu",
-        "",
-        "@K   [TAB]      SEARCH > SELECT PRESET > STATIONS",
-        "@K   [ENTER]    STATIONS: tune it.  SELECT PRESET: open that",
-        "@K              preset and tune its first filled slot",
-        "@K   [1]..[0], [e r t d f g]   in STATIONS: put the hovered",
-        "@K              station in that slot (the same key again clears",
-        "@K              it; a station sits in one slot only, so it moves)",
-        "@K   [DEL]      remove the hovered station from the preset",
-        "@K   [SHIFT+n]  new preset     [SHIFT+c]  rename the hovered one",
-        "@K   [SHIFT+d]  delete it -- press twice; the last one stays",
-        "@K   [/]        back to the search box    [ESC]  close",
-        "",
-        "@A   A station sits in <<one slot only>>: putting it in another slot",
-        "@A   moves it rather than duplicating it.",
-    }});
-    return t;
+void build_doc(Doc& d, const std::string& text) {
+    // pages
+    Page cur;
+    bool in_page = false;
+    std::istringstream in(text);
+    std::string line;
+    while (std::getline(in, line)) {
+        while (!line.empty() && (line.back() == '\r' || line.back() == '\n')) line.pop_back();
+        line = replace_all(line, "\t", "    ");
+        const std::string t = trim(line);
+        if (starts_with(t, "=>>>")) continue;                                 // a note to the author
+        if (lower(t) == "[[new page]]") {
+            if (in_page) finish_page(d, cur);
+            in_page = true;
+            continue;
+        }
+        if (!in_page) continue;
+        cur.raw.push_back(rtrim(line));
+    }
+    if (in_page) finish_page(d, cur);
+
+    // kind, number and title of every page
+    for (Page& p : d.pages) {
+        if (p.raw.empty()) continue;
+        const std::string first = plain_text(p.raw[0]);
+        p.toc = starts_with(upper(first), "TABLE OF CONTENT");
+        std::string num, rest;
+        bool roman = false;
+        if (!p.toc && split_number(first, num, rest, roman) && !roman) { p.number = num; p.norm_title = normalise(rest); }
+        else p.norm_title = normalise(first);
+    }
+
+    // contents entries
+    for (size_t pi = 0; pi < d.pages.size(); ++pi) {
+        Page& p = d.pages[pi];
+        p.line_entry.assign(p.raw.size(), -1);
+        if (!p.toc) continue;
+        for (size_t li = 0; li < p.raw.size(); ++li) {
+            std::string num, rest;
+            bool roman = false;
+            if (!split_number(plain_text(p.raw[li]), num, rest, roman)) continue;
+            Entry e;
+            e.page = static_cast<int>(pi);
+            e.line = static_cast<int>(li);
+            e.key = num;
+            e.text = rest;
+            e.roman = roman;
+            p.line_entry[li] = static_cast<int>(d.entries.size());
+            d.entries.push_back(e);
+        }
+    }
+
+
+    // where an entry leads: the page with its number, else the page with its title, else the next entry's page
+    for (Entry& e : d.entries) {
+        if (!e.roman)
+            for (size_t pi = 0; pi < d.pages.size() && e.target < 0; ++pi)
+                if (!d.pages[pi].toc && !d.pages[pi].number.empty() && d.pages[pi].number == e.key) e.target = static_cast<int>(pi);
+        const std::string want = normalise(e.text);
+        for (size_t pi = 0; pi < d.pages.size() && e.target < 0; ++pi)
+            if (!d.pages[pi].toc && d.pages[pi].number.empty() && !want.empty() && d.pages[pi].norm_title == want) e.target = static_cast<int>(pi);
+    }
+    for (int i = static_cast<int>(d.entries.size()) - 2; i >= 0; --i)
+        if (d.entries[static_cast<size_t>(i)].target < 0) d.entries[static_cast<size_t>(i)].target = d.entries[static_cast<size_t>(i) + 1].target;
+
+    // the chapter titles of the top border: "II MUSIC PLAYER MODE" and "1 MAIN UI" for a page numbered 1.x
+    for (size_t pi = 0; pi < d.pages.size(); ++pi) {
+        Page& p = d.pages[pi];
+        if (p.toc) continue;
+        int main_entry = -1;
+        if (!p.number.empty()) {
+            const std::string main_key = p.number.substr(0, p.number.find('.'));
+            for (size_t k = 0; k < d.entries.size(); ++k)
+                if (!d.entries[k].roman && d.entries[k].key == main_key) { main_entry = static_cast<int>(k); break; }
+        } else {
+            for (size_t k = 0; k < d.entries.size(); ++k)
+                if (d.entries[k].roman && d.entries[k].target == static_cast<int>(pi)) { main_entry = static_cast<int>(k); break; }
+        }
+        if (main_entry < 0) continue;
+        const Entry& m = d.entries[static_cast<size_t>(main_entry)];
+        p.border_main = m.key + " " + upper(m.text);
+        if (!m.roman)
+            for (int k = main_entry - 1; k >= 0; --k)
+                if (d.entries[static_cast<size_t>(k)].roman) {
+                    p.border_parent = d.entries[static_cast<size_t>(k)].key + " " + upper(d.entries[static_cast<size_t>(k)].text);
+                    break;
+                }
+    }
+
+    // the welcome pages, and the main chapter of every page (the arrows never leave it)
+    int last_toc = -1;
+    for (size_t pi = 0; pi < d.pages.size(); ++pi) if (d.pages[pi].toc) last_toc = static_cast<int>(pi);
+    std::string prev_group;
+    for (size_t pi = 0; pi < d.pages.size(); ++pi) {
+        Page& p = d.pages[pi];
+        p.welcome = pi < 2 && !p.toc;
+        if (p.toc || static_cast<int>(pi) <= last_toc) p.group = "0";
+        else if (!p.number.empty()) p.group = p.number.substr(0, p.number.find('.'));
+        else if (!p.border_main.empty()) p.group = p.border_main.substr(0, p.border_main.find(' '));
+        else p.group = (prev_group.empty() || prev_group == "0") ? "p" + std::to_string(pi) : prev_group;
+        prev_group = p.group;
+    }
+
+    // parse the lines for drawing
+    for (Page& p : d.pages) {
+        p.lines.clear();
+        for (const std::string& r : p.raw) p.lines.push_back(parse_cells(r, p.toc));
+    }
 }
 
-Topic topic_radio_search() {
-    Topic t;
-    t.title = "Search Radio Stations";
-    t.blurb = "your list, saved lists, and Radio Browser";
-    t.pages.push_back({{
-        "@H Searching your own stations",
-        "",
-        "@K   [/]  open the search box under the frequency band",
-        "",
-        "The STATIONS pane filters <<live>> as you type; the station under",
-        "the cursor stays highlighted, [ENTER] tunes it and [ESC] clears",
-        "the search.",
-        "",
-        "@D   (a name, genre or country)   filters your stations",
-        "@D   s:                           back to searching stations",
-        "@D   p:  query                    your saved STATION LISTS",
-        "@A                                [ENTER] fills the pane with",
-        "@A                                that list and tunes its first",
-        "@A                                station",
-        "",
-        "While a list is shown the pane title reads",
-        "<<STATIONS (LIST: name - ESC: all)>> and its rows are numbered by",
-        "position. [n], [b] and [#] then surf <<only inside that list>>.",
-        "[ESC] clears a search still in the box; the next [ESC] returns",
-        "to all stations.",
-        "",
-        "@A   The search is fuzzy and typo tolerant, like the player's.",
-        "@A   The characters - _ . / count as spaces. With a query the",
-        "@A   best match comes first; [SHIFT+t] (sort A-Z) overrides that.",
-    }});
-    t.pages.push_back({{
-        "@H Finding new stations: RADIO BROWSER",
-        "",
-        "@K   [SHIFT+s]  search the public directory radio-browser.info",
-        "",
-        "@D   ┌──────────────────────────────────────────────────────────┐",
-        "@D   │ NAME        TAGS        COUNTRY                          │",
-        "@D   │ STATE       LANGUAGE    BITRATE                          │",
-        "@D   ├──────────────────────────────────────────────────────────┤",
-        "@D   │ RESULTS                                                  │",
-        "@D   │ · a station that is already in your list                 │",
-        "@D   │   another station                                        │",
-        "@D   ├──────────────────────────────────────────────────────────┤",
-        "@D   │ STATION INFO  (every detail of the hovered result)       │",
-        "@D   └──────────────────────────────────────────────────────────┘",
-        "@A     └─ a dot in front means you already have that station",
-        "",
-        "@D   TAGS      comma separated, EVERY tag has to match",
-        "@D   COUNTRY   a name (Germany) or a two-letter code (DE)",
-        "@D   BITRATE   128 = at least 128, 64-192 = range, -192 = at most",
-        "",
-        "@K   [TAB]    NAME > TAGS > COUNTRY > STATE > LANGUAGE >",
-        "@K            BITRATE > RESULTS > NAME",
-        "@K   [ENTER]  in a pane: search. In RESULTS: tune it.",
-        "@K   [a]      in RESULTS: <<add it to your station list>>",
-        "@K   [ESC]    clear a pane; on an empty pane or RESULTS: close",
-        "",
-        "Every search hides broken streams, sorts by clicks and returns",
-        "at most 200 results. It needs <<curl>>.",
-    }});
-    return t;
+std::string read_file(const std::string& path) {
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return std::string();
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    return ss.str();
 }
 
-Topic topic_radio_lists() {
-    Topic t;
-    t.title = "Station Lists";
-    t.blurb = "named collections, built like playlists";
-    t.pages.push_back({{
-        "@H The STATION LISTS menu",
-        "",
-        "Named, ordered collections of stations -- a \"jazz\" list, a",
-        "\"morning\" list -- built exactly like the player's playlist",
-        "editor.",
-        "",
-        "@K   [SHIFT+p]  open it. Two tabs, [<-] / [->] switch them",
-        "@K              ([ALT+<-] / [ALT+->] from every pane, also while",
-        "@K              typing).",
-        "",
-        "@D ┌──────────────────────────────────────────────────────────────┐",
-        "@D │ Name: morning               [CREATE/EDIT]  SAVED LISTS       │",
-        "@D ├──────────────────────────────────────────────────────────────┤",
-        "@D │ SEARCH ALL STATIONS                                          │",
-        "@D ├───────────────────────────────┬──────────────────────────────┤",
-        "@D │ STATIONS                      │ LIST CONTENTS                │",
-        "@D │ > a station ·                 │ 1. first station             │",
-        "@D │   another one                 │ 2. second station            │",
-        "@D └───────────────────────────────┴──────────────────────────────┘",
-        "@A        └─ a dot means it is already       └─ what you are",
-        "@A           in the list being built            building",
-        "",
-        "Lists are stored in stationlists.txt. A station that has been",
-        "removed from your station list is dropped when a list is read.",
-    }});
-    t.pages.push_back({{
-        "@H Keys in the STATION LISTS menu",
-        "",
-        "@K   [TAB]      name > search > STATIONS > LIST CONTENTS",
-        "@K   [ENTER]    in STATIONS: add it to the end of the list.",
-        "@K              In LIST CONTENTS: tune it, to audition the list",
-        "@K   [4] / [5]  move the hovered station up / down",
-        "@K   [DEL] or [d]  remove it",
-        "@K   [SHIFT+t]  sort STATIONS: list order <-> name A-Z",
-        "@K   [CTRL+s]   save under the typed name and stay in the menu",
-        "@K   [ESC]      leave a text box; again: close (it asks about",
-        "@K              unsaved changes)",
-        "",
-        "On tab 2, [ENTER] loads a list back into tab 1 and [DEL]",
-        "deletes it after a Yes/No question.",
-        "",
-        "@A   Open a list on the main screen with <<p:>> in the search box.",
-        "@A   [n], [b] and [#] then surf only inside that list.",
-    }});
-    return t;
-}
-
-Topic topic_radio_timeshift() {
-    Topic t;
-    t.title = "Timeshift and Recording";
-    t.blurb = "pause live radio, and record from the past";
-    t.pages.push_back({{
-        "@H Timeshift: live radio you can pause",
-        "",
-        "From the moment you tune a station, the radio keeps the last",
-        "minutes of it in a rolling buffer <<on disk>>, so live radio can be",
-        "treated like a recording.",
-        "",
-        "@D   tuned in                       now (live)",
-        "@D      |------------------------------|",
-        "@D      |   the buffer: 5 .. 60 min    |",
-        "@D                  ^",
-        "@A                  you can listen anywhere in here",
-        "",
-        "@K   [SPACE]  pause -- the station keeps arriving in the buffer;",
-        "@K            [SPACE] again resumes where you stopped",
-        "@K   [[] / []]  back / forward 30 seconds",
-        "@K            (German keyboard: ALT GR+8 / ALT GR+9)",
-        "@K   [{]      back 5 minutes      [}]  back to live",
-        "@K            (German: ALT GR+7 / ALT GR+0)",
-        "",
-        "Every jump is shown for 4 seconds under the scope block, e.g.",
-        "<<-0:30 | 2:30 behind live>>.",
-        "",
-        "@A   You can never go back before the moment you tuned in --",
-        "@A   internet radio only delivers from \"now\". Catching up with",
-        "@A   []] hands back to the live stream without a gap. Tuning",
-        "@A   another station, [x] or quitting clears the buffer.",
-    }});
-    t.pages.push_back({{
-        "@H The timeshift buffer itself",
-        "",
-        "The buffer size is <<Settings -> ON/OFF -> Timeshift buffer>>",
-        "(5, 15, 30, 45 or 60 minutes; default 30).",
-        "",
-        "@D   radio_timeshift.pcm   in ~/.cache/mousiki/",
-        "@D   about 11.5 MB per minute  ──>  ~345 MB for 30 minutes",
-        "",
-        "@A   It is written by the stream thread and never touched by the",
-        "@A   screen loop, so the interface stays exactly as fast as it is",
-        "@A   without it. The file is deleted when the radio closes.",
-        "",
-        "If a pause lasts longer than the buffer, the oldest part is",
-        "overwritten and playback continues from the oldest audio that",
-        "is still there.",
-    }});
-    t.pages.push_back({{
-        "@H Recording -- including the minutes before you pressed",
-        "",
-        "@K   [y]  open the RECORD overlay. It freezes the moment you",
-        "@K        pressed, so no time is lost while you choose.",
-        "",
-        "@D   ┌──────────────────────────────────────────────┐",
-        "@D   │  From now on (when this opened)              │",
-        "@D   │  The last 1 minute                           │",
-        "@D   │  The last 5 minutes                          │",
-        "@D   │  The last 10 minutes                         │",
-        "@D   │  The last 15 minutes                         │",
-        "@D   │  The last 30 minutes                         │",
-        "@D   │  Everything buffered                         │",
-        "@D   └──────────────────────────────────────────────┘",
-        "@A        └─ a row says \"only m:ss\" when the buffer does not",
-        "@A           reach that far back, and starts at the oldest audio",
-        "",
-        "@K   [UP] / [DOWN] choose   [ENTER] or [y] start   [ESC] cancel",
-        "@K   [y] again while it runs  stop",
-        "",
-        "While it runs the dial's footer shows <<REC mm:ss>>.",
-        "",
-        "@A   It is written from the buffer as a WAV, which ffmpeg then",
-        "@A   converts in the background to <<YYYY-MM-DD_HH-MM-SS.mp3>>,",
-        "@A   named by the time the first recorded second was <<on air>>,",
-        "@A   and taken before volume, mute and the mono fold.",
-        "",
-        "Recordings go to the radio's download folder (Settings ->",
-        "PATHS), which by default is the player's one.",
-    }});
-    return t;
-}
-
-Topic topic_radio_history() {
-    Topic t;
-    t.title = "History";
-    t.blurb = "channels, habits, and finding a song on YouTube";
-    t.pages.push_back({{
-        "@H The radio's own history",
-        "",
-        "@K   [h]  open it -- [ESC], [q] or [h] close",
-        "@K   [1] [2] [3], [<-] / [->] or [TAB]  switch the tab",
-        "@K   [UP] / [DOWN] move    [HOME] / [END] jump to the ends",
-        "",
-        "@D   [1 HISTORY]       WHEN / CHANNEL / ARTIST / TITLE / HEARD",
-        "@D   [2 TOP CHANNELS]  channels by time listened ([r] flips it)",
-        "@D   [3 HABITS]        sessions, time per day, channels, and",
-        "@D                     listening by hour and by weekday",
-        "",
-        "A new HISTORY line starts whenever the channel, the artist or",
-        "the title changes. Lines heard for less than 3 seconds are",
-        "dropped. A session ends after a gap of 30 minutes.",
-        "",
-        "@A   The newest 10 000 lines are kept one by one; older ones are",
-        "@A   folded into lifetime totals per channel, day, hour and",
-        "@A   weekday, so TOP CHANNELS and HABITS stay lifetime figures.",
-    }});
-    t.pages.push_back({{
-        "@H Heard a song on the radio? Download it.",
-        "",
-        "The radio writes down the <<artist and title>> the stream sends.",
-        "On the HISTORY tab that becomes a search:",
-        "",
-        "@K   [y]  on the hovered line -- a small overlay opens and",
-        "@K        searches YouTube for \"artist title\"",
-        "",
-        "@D   ┌──────────────────────────────────────────────┐",
-        "@D   │  FIND ON YOUTUBE: artist title               │",
-        "@D   ├──────────────────────────────────────────────┤",
-        "@D   │  > a result                           [ok]   │",
-        "@D   │    another result                     [..]   │",
-        "@D   │    a third one                        [!!]   │",
-        "@D   └──────────────────────────────────────────────┘",
-        "@A        └─ [ok] done   [..] downloading   [!!] failed",
-        "",
-        "@K   [ENTER]  download the hovered result into the download",
-        "@K            folder (yt-dlp, opus)",
-        "@K   [TAB]    edit the search query",
-        "@K   [ESC]    close the overlay",
-        "",
-        "@A   This is the player's own online search, reached from the",
-        "@A   radio -- so a song you only heard once on air ends up in",
-        "@A   your local library, where the player will find it after a",
-        "@A   rescan ([SHIFT+r] in the player).",
-    }});
-    return t;
-}
-
-Topic topic_radio_settings() {
-    Topic t;
-    t.title = "Radio Settings";
-    t.blurb = "its own file, and what only the radio has";
-    t.pages.push_back({{
-        "@H Settings, the radio's own",
-        "",
-        "@K   [s]  open them. Same frame, tab strip and editing keys as",
-        "@K        the player's: [TAB] next tab, [UP]/[DOWN] rows,",
-        "@K        [<-]/[->] or [ENTER] change a value,",
-        "@K        <<[s] saves and closes, [ESC] / [q] discard>>.",
-        "",
-        "@A   They are stored in <<radio_config.txt>>, separate from the",
-        "@A   player's config.txt. Colours are <<not>> carried over between",
-        "@A   the two modes -- the radio has its own palette.",
-        "",
-        "@H COLORS: the rows only the radio has",
-        "",
-        "@D   ON_AIR         UPPER_LEFT / BOTTOM_RIGHT",
-        "@A                  the ON AIR sign's diagonal gradient, and",
-        "@A                  with it the needle, the lamp and LIVE",
-        "@D   OSCI           LEFT / RIGHT     the oscilloscope",
-        "@D   FREQUENCY_BAR  LINE / MHz       the dial's line and ticks /",
-        "@A                                   the numbers and the dots",
-        "@D   VOLUME         CURRENT / POSSIBLE   the volume bar",
-        "@D   PRESETS        INACTIVE FG/BG, KEY FG",
-        "@A                  empty slots / the shortcut letters",
-        "",
-        "BORDER_COLOR, METADATA, VIZ, LIST, HEADER, LEGEND and TAB_NAMES",
-        "work exactly as in the player.",
-    }});
-    t.pages.push_back({{
-        "@H ON/OFF and ANIMA/VIZ",
-        "",
-        "<<ON/OFF>> -- two categories, as in the player:",
-        "",
-        "<<MODES>>",
-        "@D   Playback          shuffle / list  (same as [m])",
-        "@D   Start Mode        player / radio: which of the two Mousiki",
-        "@D                     opens with (the player's StartMode=)",
-        "<<ON/OFF>>",
-        "@D   On air ascii      the ON AIR sign and its colour wave",
-        "@D   Pulse wave        the faint circle burst behind the sign",
-        "@D   Dummy buttons     the MUTE boxes next to the dial",
-        "@D   Spectrum Bars     the spectrum under the station info",
-        "@D   Stereo sound      off folds left and right into mono",
-        "@D   Normalize volume  loudness normalization, as [v]",
-        "@D   Tuning noise      static with crackle while tuning",
-        "@A                     (off by default; it is never recorded)",
-        "@D   Timeshift buffer  5 / 15 / 30 / 45 / 60 minutes",
-        "@D   Use oscilloscope / Use spectrogram",
-    }});
-    t.pages.push_back({{
-        "@H ANIMA/VIZ and PATHS",
-        "",
-        "<<ANIMA/VIZ>> -- <<ON AIR SIGN>> (Gradient wave speed: the colour",
-        "wave; Pulse wave speed), <<SPECTRUM BARS>> (Bars Fluidity, Degradation,",
-        "Viscosity, as in the player) and <<MODES>> (Osci/sphere:",
-        "osci / sphere / spectro / off, and Osci style: braille / image).",
-        "A note at the bottom names the keys: [SHIFT+o] / [SHIFT+i] tune",
-        "the oscilloscope / spectrogram, [SHIFT+u] the big spectrogram,",
-        "[)] and [(] the extra windows.",
-        "",
-        "<<PATHS>> -- every path is a <<base>> folder; the radio makes its own",
-        "sub-folders below it:",
-        "",
-        "@D   STATION LISTS PATH  <path>/stations/, <path>/station_lists/",
-        "@D   PRESETS PATH        <path>/presets/presets.txt",
-        "@D   DOWNLOAD PATH       <path>/radio_downloads/",
-        "@D   Same folder as music player   on = use the player's one",
-        "@D   HISTORY PATH        <path>/radio_history/",
-        "",
-        "@A   Changed folders are <<copied, never moved>>, and nothing is",
-        "@A   deleted; playback stops and everything reloads.",
-    }});
-    t.pages.push_back({{
-        "@H REFERENCE: rebinding the radio's keys",
-        "",
-        "The keys that are not hard coded, grouped like the player's:",
-        "PLAYBACK, MENUS, TIMESHIFT and SYSTEM.",
-        "",
-        "@K   [ENTER]  on a row, then type ONE character (<<case matters>>)",
-        "@K            or SPACE / TAB / BACKSPACE",
-        "@K   [DEL]    restore that key's default",
-        "@K   [CTRL+SHIFT+u]  undo the last five key changes",
-        "",
-        "The first row, <<Reset all keys to default>>, sits under the",
-        "cheat-sheet note at the top.",
-        "",
-        "@A   A key already in use is <<refused>> -- and the fixed keys count",
-        "@A   too: the 16 preset slot keys (1..0, e r t d f g) and the",
-        "@A   vi-style [j] / [k]. The cheat sheet [?] always lists the",
-        "@A   DEFAULT keys, so it stays a reliable reference.",
-        "",
-        "Keys are stored as HKey<Action>= lines in radio_config.txt.",
-    }});
-    t.pages.push_back({{
-        "@H The radio's files",
-        "",
-        "@D   radio_config.txt   settings, colours, EQ, oscilloscope",
-        "@D   stations.txt       your station list",
-        "@D   presets.txt        the presets and the active one",
-        "@D   stationlists.txt   the saved station lists",
-        "@D   preset_names.txt   the short names for the PRESETS pane",
-        "@D   radio_history/     history_radio.txt, archive_radio.txt",
-        "",
-        "They live in the config folder (~/.config/mousiki/, on Windows",
-        "%USERPROFILE%\\.config\\mousiki\\).",
-    }});
-    return t;
-}
-
-// Built once on first use and handed out by reference afterwards: the pages
-// are static text, so there is no reason to rebuild them on every keypress.
-const std::vector<Topic>& player_topics() {
-    static const std::vector<Topic> v = [] {
-        std::vector<Topic> t;
-        t.push_back(topic_main_ui());
-        t.push_back(topic_search());
-        t.push_back(topic_meta());
-        t.push_back(topic_playlist());
-        t.push_back(topic_visuals());
-        t.push_back(topic_lyrics());
-        t.push_back(topic_karaoke());
-        t.push_back(topic_sound());
-        t.push_back(topic_sleep());
-        t.push_back(topic_history());
-        t.push_back(topic_settings());
-        t.push_back(topic_formats());
-        return t;
+const Doc& doc() {
+    static const Doc d = [] {
+        Doc out;
+        std::string text;
+        if (const char* env = std::getenv("MOUSIKI_WIZARD_FILE")) {
+            if (*env) {
+                text = read_file(env);
+                if (text.empty()) out.problems = std::string("MOUSIKI_WIZARD_FILE: cannot read ") + env + " (using the built-in text)";
+            }
+        }
+        if (text.empty())
+            for (const char* const* c = kWizardTextChunks; *c; ++c) text += *c;
+        build_doc(out, text);
+        if (out.pages.empty()) {
+            Page p;
+            p.raw = {"THE HELP WIZARD HAS NO TEXT [[Header]]", "", "Mousiki_Help_Wizard.txt did not contain a [[New Page]]."};
+            for (const std::string& r : p.raw) p.lines.push_back(parse_cells(r, false));
+            p.line_entry.assign(p.raw.size(), -1);
+            out.pages.push_back(p);
+        }
+        return out;
     }();
-    return v;
+    return d;
 }
 
-const std::vector<Topic>& radio_topics() {
-    static const std::vector<Topic> v = [] {
-        std::vector<Topic> t;
-        t.push_back(topic_radio_main());
-        t.push_back(topic_radio_presets());
-        t.push_back(topic_radio_search());
-        t.push_back(topic_radio_lists());
-        t.push_back(topic_radio_timeshift());
-        t.push_back(topic_radio_history());
-        t.push_back(topic_visuals());
-        t.push_back(topic_sound());
-        t.push_back(topic_sleep());
-        t.push_back(topic_radio_settings());
-        return t;
-    }();
-    return v;
+int last_page() { return static_cast<int>(doc().pages.size()) - 1; }
+
+// first contents page, or -1
+int first_toc_page() {
+    const Doc& d = doc();
+    for (size_t i = 0; i < d.pages.size(); ++i) if (d.pages[i].toc) return static_cast<int>(i);
+    return -1;
+}
+
+// the contents entry that stands for a page: the last entry that leads exactly there, else the last one before it
+int entry_for_page(int page) {
+    const Doc& d = doc();
+    int best = -1;
+    for (size_t k = 0; k < d.entries.size(); ++k)
+        if (d.entries[k].target == page) best = static_cast<int>(k);
+    if (best >= 0) return best;
+    for (size_t k = 0; k < d.entries.size(); ++k)
+        if (d.entries[k].target >= 0 && d.entries[k].target <= page) best = static_cast<int>(k);
+    return best;
+}
+
+int first_entry_on_page(int page) {
+    const Doc& d = doc();
+    for (size_t k = 0; k < d.entries.size(); ++k) if (d.entries[k].page == page) return static_cast<int>(k);
+    return -1;
+}
+
+void go_to_page(State& st, int page) {
+    page = std::clamp(page, st.min_page, last_page());
+    if (page == st.page) return;
+    st.page = page;
+    st.scroll = 0;
+    const Doc& d = doc();
+    if (d.pages[static_cast<size_t>(page)].toc) {
+        // keep the selection when it is on this page, else take the first entry written on it
+        if (st.toc < 0 || st.toc >= static_cast<int>(d.entries.size()) || d.entries[static_cast<size_t>(st.toc)].page != page) {
+            const int e = first_entry_on_page(page);
+            if (e >= 0) st.toc = e;
+        }
+    } else {
+        const int e = entry_for_page(page);
+        if (e >= 0) st.toc = e;
+    }
+}
+
+// ---------------------------------------------------------------------------------------------------
+// layout
+// ---------------------------------------------------------------------------------------------------
+
+Row to_row(const std::vector<Cell>& cells) {
+    Row row;
+    for (const Cell& c : cells) {
+        if (row.empty() || row.back().role != c.role) { Span s; s.role = c.role; row.push_back(s); }
+        row.back().text += c.ch;
+    }
+    return row;
+}
+
+int row_width(const Row& r) {
+    int w = 0;
+    for (const Span& s : r) w += cp_len(s.text);
+    return w;
+}
+
+// A line wider than `width` is wrapped at a blank; the continuation keeps the indentation of the line.
+std::vector<std::vector<Cell>> wrap_cells(std::vector<Cell> cells, int width, int* wrapped) {
+    std::vector<std::vector<Cell>> out;
+    width = std::max(8, width);
+    size_t indent = 0;
+    while (indent < cells.size() && cells[indent].ch == " ") ++indent;
+    indent = std::min(indent, static_cast<size_t>(width / 3));
+    bool first = true;
+    while (static_cast<int>(cells.size()) > width) {
+        size_t cut = static_cast<size_t>(width);
+        size_t sp = cut;
+        while (sp > indent + 1 && cells[sp].ch != " ") --sp;
+        if (sp <= indent + 1) sp = cut;                       // no blank to break at: hard cut
+        std::vector<Cell> head(cells.begin(), cells.begin() + static_cast<std::ptrdiff_t>(sp));
+        while (!head.empty() && head.back().ch == " ") head.pop_back();
+        out.push_back(std::move(head));
+        size_t from = sp;
+        while (from < cells.size() && cells[from].ch == " ") ++from;
+        std::vector<Cell> tail(indent, Cell{" ", Role::Text});
+        tail.insert(tail.end(), cells.begin() + static_cast<std::ptrdiff_t>(from), cells.end());
+        cells = std::move(tail);
+        if (first && wrapped) ++*wrapped;
+        first = false;
+    }
+    out.push_back(std::move(cells));
+    return out;
+}
+
+struct Laid {
+    std::vector<Row> rows;          // without margins
+    int selected_row = -1;          // the cursor row of a contents page
+    int wrapped = 0;
+};
+
+// The widest line and the most lines of the contents pages: they are centred as one block, so that every one of them
+// keeps its place when the selection moves from one to the next.
+void toc_extent(int& w, int& h) {
+    static int bw = -1, bh = 0;
+    if (bw < 0) {
+        bw = 0;
+        for (const Page& p : doc().pages) {
+            if (!p.toc) continue;
+            bh = std::max(bh, static_cast<int>(p.lines.size()));
+            for (const auto& l : p.lines) bw = std::max(bw, static_cast<int>(l.size()));
+        }
+    }
+    w = bw;
+    h = bh;
+}
+
+Laid layout(const Page& p, int inner, int margin, const State& st, const std::vector<std::string>& disk) {
+    Laid out;
+    const int cw = std::max(10, inner - 2 * margin);
+    // a welcome page: the disk on the left, the text beside it
+    if (p.welcome) {
+        int disk_w = 0;
+        for (const std::string& l : disk) disk_w = std::max(disk_w, cp_len(l));
+        const int disk_h = static_cast<int>(disk.size());
+        int left = std::max(margin, kWelcomeLeft);        // columns in front of the disk
+        int text_w = kWelcomeTextWidth;
+        bool room = disk_h > 0;
+        if (room) {
+            const int need = left + disk_w + kDiskGap + text_w + 1;
+            if (need > inner) left = std::max(margin, left - (need - inner));     // a narrow frame: the disk moves left first
+            text_w = std::min(kWelcomeTextWidth, inner - left - disk_w - kDiskGap - 1);
+            room = text_w >= 40;
+        }
+        if (!room) text_w = cw;
+        std::vector<Row> text;
+        for (const auto& cells : p.lines)
+            for (auto& piece : wrap_cells(cells, text_w, &out.wrapped)) text.push_back(to_row(piece));
+        // the disk keeps the place it has in a 120x30 terminal: centred in the 26 rows below the blank row there
+        constexpr int kDiskTopRow = 5;
+        const int rows = std::max(static_cast<int>(text.size()), room ? kDiskTopRow + disk_h : 0);
+        for (int i = 0; i < rows; ++i) {
+            Row r;
+            if (room) {
+                r.push_back({Role::Text, spaces(left - margin), 0.0f});
+                const int di = i - kDiskTopRow;
+                if (di >= 0 && di < disk_h) {
+                    Span s;
+                    s.role = Role::Disk;
+                    s.text = disk[static_cast<size_t>(di)];
+                    s.t = disk_h > 1 ? static_cast<float>(di) / static_cast<float>(disk_h - 1) : 0.0f;
+                    r.push_back(s);
+                    const int w = cp_len(s.text);
+                    if (w < disk_w) r.push_back({Role::Text, spaces(disk_w - w), 0.0f});
+                } else {
+                    r.push_back({Role::Text, spaces(disk_w), 0.0f});
+                }
+                r.push_back({Role::Text, spaces(kDiskGap), 0.0f});
+            }
+            if (i < static_cast<int>(text.size())) for (const Span& s : text[static_cast<size_t>(i)]) r.push_back(s);
+            out.rows.push_back(std::move(r));
+        }
+        return out;
+    }
+    int toc_w = 0, toc_h = 0;
+    if (p.toc) toc_extent(toc_w, toc_h);
+    const int block_w = std::min(cw, toc_w);
+    const int off = p.toc ? std::max(0, (cw - block_w) / 2) : 0;       // a contents page is centred as a block
+    for (size_t li = 0; li < p.lines.size(); ++li) {
+        const bool selected = p.toc && p.line_entry[li] >= 0 && p.line_entry[li] == st.toc;
+        if (selected) {
+            std::string text;
+            for (const Cell& c : p.lines[li]) text += c.ch;
+            const int w = cp_len(text);
+            Row r;
+            if (off > 0) r.push_back({Role::Text, spaces(off), 0.0f});
+            r.push_back({Role::Cursor, text + spaces(std::max(w, block_w) - w), 0.0f});
+            out.selected_row = static_cast<int>(out.rows.size());
+            out.rows.push_back(std::move(r));
+            continue;
+        }
+        for (auto& piece : wrap_cells(p.lines[li], p.toc ? std::max(cw - off, 8) : cw, &out.wrapped)) {
+            Row r = to_row(piece);
+            if (off > 0) r.insert(r.begin(), Span{Role::Text, spaces(off), 0.0f});
+            out.rows.push_back(std::move(r));
+        }
+    }
+    return out;
+}
+
+int margin_for(int box_w) { return box_w >= 100 ? kMargin : (box_w >= 70 ? 3 : 1); }
+
+// the pages [first, last] of the main chapter a page belongs to
+std::pair<int, int> chapter_range(int page) {
+    const Doc& d = doc();
+    const std::string& g = d.pages[static_cast<size_t>(page)].group;
+    int a = page, b = page;
+    while (a > 0 && d.pages[static_cast<size_t>(a - 1)].group == g) --a;
+    while (b < last_page() && d.pages[static_cast<size_t>(b + 1)].group == g) ++b;
+    return {a, b};
 }
 
 } // namespace
 
-std::vector<std::string> welcome_lines(const std::string& version) {
-    return make_welcome(version);
+// ---------------------------------------------------------------------------------------------------
+// public
+// ---------------------------------------------------------------------------------------------------
+
+bool shows_disk(int page) {
+    const Doc& d = doc();
+    return page >= 0 && page < static_cast<int>(d.pages.size()) && d.pages[static_cast<size_t>(page)].welcome;
 }
 
-const std::vector<Topic>& topics(Flavor f) {
-    return f == Flavor::Player ? player_topics() : radio_topics();
+void open(State& st, bool first_launch) {
+    const Doc& d = doc();
+    if (first_launch && !st.started) {
+        st.page = 0;
+        st.min_page = 0;
+        st.scroll = 0;
+    } else if (!st.started) {
+        st.min_page = std::min(1, last_page());
+        st.page = std::min(1, last_page());
+        st.scroll = 0;
+    }
+    st.started = true;
+    if (st.page > last_page()) st.page = last_page();
+    if (st.page < st.min_page) st.page = st.min_page;
+    if (st.toc < 0 || st.toc >= static_cast<int>(d.entries.size())) st.toc = std::max(0, std::min(0, static_cast<int>(d.entries.size()) - 1));
 }
 
-int page_count(Flavor f) {
-    int n = 0;
-    for (const auto& t : topics(f)) n += static_cast<int>(t.pages.size());
-    return n;
+bool handle_key(State& st, Key key) {
+    const Doc& d = doc();
+    switch (key) {
+        case Key::Close: return true;
+        case Key::Left:
+        case Key::Right: {
+            // only inside the main chapter of the page: the table of content is the way to another one
+            const bool right = key == Key::Right;
+            const auto range = chapter_range(st.page);
+            const int to = st.page + (right ? 1 : -1);
+            if (to < std::max(range.first, st.min_page) || to > range.second) break;
+            go_to_page(st, to);
+            break;
+        }
+        case Key::Up:
+        case Key::Down: {
+            const Page& p = d.pages[static_cast<size_t>(st.page)];
+            if (p.toc && !d.entries.empty()) {
+                const int n = static_cast<int>(d.entries.size());
+                st.toc = std::clamp(st.toc + (key == Key::Down ? 1 : -1), 0, n - 1);
+                const int pg = d.entries[static_cast<size_t>(st.toc)].page;
+                if (pg != st.page) { st.page = pg; st.scroll = 0; }
+            } else {
+                st.scroll = std::clamp(st.scroll + (key == Key::Down ? 1 : -1), 0, std::max(0, st.max_scroll));
+            }
+            break;
+        }
+        case Key::PageUp:
+        case Key::PageDown: {
+            const Page& p = d.pages[static_cast<size_t>(st.page)];
+            const int dir = key == Key::PageDown ? 1 : -1;
+            if (p.toc && !d.entries.empty()) {
+                const int n = static_cast<int>(d.entries.size());
+                st.toc = std::clamp(st.toc + dir * 5, 0, n - 1);
+                const int pg = d.entries[static_cast<size_t>(st.toc)].page;
+                if (pg != st.page) { st.page = pg; st.scroll = 0; }
+            } else {
+                st.scroll = std::clamp(st.scroll + dir * std::max(1, st.view_rows - 1), 0, std::max(0, st.max_scroll));
+            }
+            break;
+        }
+        case Key::Enter: {
+            const Page& p = d.pages[static_cast<size_t>(st.page)];
+            if (p.toc) {
+                if (st.toc >= 0 && st.toc < static_cast<int>(d.entries.size()) && d.entries[static_cast<size_t>(st.toc)].target >= 0)
+                    go_to_page(st, d.entries[static_cast<size_t>(st.toc)].target);
+            } else if (p.welcome) {
+                const int t = first_toc_page();
+                if (t >= 0) go_to_page(st, t);
+            }
+            break;
+        }
+        case Key::Back:
+        case Key::Contents: {
+            const int cur = st.page;
+            if (d.pages[static_cast<size_t>(cur)].toc) break;
+            const int e = entry_for_page(cur);
+            int t = e >= 0 ? d.entries[static_cast<size_t>(e)].page : first_toc_page();
+            if (t < 0) break;
+            if (e >= 0) st.toc = e;
+            st.page = t;
+            st.scroll = 0;
+            break;
+        }
+        case Key::None: break;
+    }
+    return false;
 }
+
+View render(State& st, int cols, int body_rows, const std::vector<std::string>& disk) {
+    const Doc& d = doc();
+    View v;
+    v.box_w = std::clamp(cols, 20, kBoxWidth);
+    v.left = std::max(0, (cols - v.box_w) / 2);
+    const int inner = v.box_w - 2;
+    const int margin = margin_for(v.box_w);
+    if (st.page > last_page()) st.page = last_page();
+    if (st.page < st.min_page) st.page = st.min_page;
+    const Page& p = d.pages[static_cast<size_t>(st.page)];
+
+    // top border title
+    {
+        const std::string base = "MOUSIKI PLUS HELP WIZARD";
+        const std::string sep = " \xE2\x94\x80 ";                        // " ─ "
+        const int room = v.box_w - 8;
+        std::string t = base;
+        if (!p.border_main.empty()) {
+            std::string full = base + sep + (p.border_parent.empty() ? "" : p.border_parent + sep) + p.border_main;
+            std::string short_ = base + sep + p.border_main;
+            if (cp_len(full) <= room) t = full;
+            else if (cp_len(short_) <= room) t = short_;
+            else t = base;
+        }
+        v.title = t;
+    }
+
+    Laid laid = layout(p, inner, margin, st, disk);
+    // a contents page is centred vertically too (as the block of all contents pages)
+    if (p.toc) {
+        int tw = 0, th = 0;
+        toc_extent(tw, th);
+        const int room = std::max(1, body_rows - 2);
+        const int voff = th < room ? (room - th) / 2 : 0;
+        if (voff > 0) {
+            laid.rows.insert(laid.rows.begin(), static_cast<size_t>(voff), Row());
+            if (laid.selected_row >= 0) laid.selected_row += voff;
+        }
+    }
+    // an empty line at the beginning and at the end of every page (they scroll with it)
+    laid.rows.insert(laid.rows.begin(), Row());
+    laid.rows.push_back(Row());
+    if (laid.selected_row >= 0) ++laid.selected_row;
+    const int total = static_cast<int>(laid.rows.size());
+    const int avail = std::max(1, body_rows);
+    st.view_rows = avail;
+    st.max_scroll = std::max(0, total - avail);
+    if (p.toc && laid.selected_row >= 0) {          // the page follows the selection
+        // one row of margin on both sides, so the empty line at the top / bottom of the page shows at its ends
+        if (laid.selected_row < st.scroll + 1) st.scroll = laid.selected_row - 1;
+        if (laid.selected_row >= st.scroll + avail - 1) st.scroll = laid.selected_row - avail + 2;
+        if (laid.selected_row <= avail - 2) st.scroll = 0;       // the top of the page (its title) fits above the selection: show it
+    }
+    st.scroll = std::clamp(st.scroll, 0, st.max_scroll);
+    v.scrollable = total > avail;
+
+    const std::string lead = spaces(margin);
+    // the scrollbar: the last column of every row, a thumb as tall as the visible part is of the page
+    const int thumb = std::max(1, std::min(body_rows, (body_rows * avail + total - 1) / std::max(1, total)));
+    const int thumb_at = st.max_scroll > 0 ? (st.scroll * (body_rows - thumb) + st.max_scroll / 2) / st.max_scroll : 0;
+    auto framed = [&](const Row& r, int line) {
+        Row out;
+        out.push_back({Role::Text, lead, 0.0f});
+        for (const Span& s : r) out.push_back(s);
+        const int w = margin + row_width(r);
+        if (v.scrollable) {
+            if (w < inner - 1) out.push_back({Role::Text, spaces(inner - 1 - w), 0.0f});
+            const bool on = line >= thumb_at && line < thumb_at + thumb;
+            out.push_back({Role::Scroll, on ? "\xE2\x96\x88" : "\xE2\x96\x91",      // full block / light shade
+                           body_rows > 1 ? static_cast<float>(line) / static_cast<float>(body_rows - 1) : 0.0f});
+        } else if (w < inner) {
+            out.push_back({Role::Text, spaces(inner - w), 0.0f});
+        }
+        return out;
+    };
+    for (int line = 0; line < body_rows; ++line) {
+        const int i = st.scroll + line;
+        v.rows.push_back(framed(i < total ? laid.rows[static_cast<size_t>(i)] : Row(), line));
+    }
+
+    // the arrows stay inside the main chapter
+    const auto range = chapter_range(st.page);
+    v.page_no = st.page - st.min_page + 1;
+    v.page_total = last_page() - st.min_page + 1;
+    v.can_back = st.page > std::max(range.first, st.min_page);
+    v.can_next = st.page < range.second;
+    v.toc_page = p.toc;
+    return v;
+}
+
+int page_count() { return static_cast<int>(doc().pages.size()); }
+
+int page_rows(int page, int cols) {
+    const Doc& d = doc();
+    if (page < 0 || page >= static_cast<int>(d.pages.size())) return 0;
+    const int box_w = std::clamp(cols, 20, kBoxWidth);
+    State st;
+    st.toc = -1;
+    std::vector<std::string> disk(15, std::string(30, 'x'));
+    return static_cast<int>(layout(d.pages[static_cast<size_t>(page)], box_w - 2, margin_for(box_w), st, disk).rows.size());
+}
+
+int page_title_width(int page) {
+    const Doc& d = doc();
+    if (page < 0 || page >= static_cast<int>(d.pages.size())) return 0;
+    const Page& p = d.pages[static_cast<size_t>(page)];
+    std::string t = "MOUSIKI PLUS HELP WIZARD";
+    if (!p.border_main.empty()) t += " - " + (p.border_parent.empty() ? "" : p.border_parent + " - ") + p.border_main;
+    return cp_len(t);
+}
+
+const std::string& problems() { return doc().problems; }
 
 } // namespace wizard

@@ -203,7 +203,10 @@ bool last_key_was_shifted() { return g_last_key_was_shifted; }
 // Both platforms therefore keep the requested state and re-derive the
 // console's mode from it every time.
 // ---------------------------------------------------------------------------
+static bool g_text_entry_requested = false;
+bool text_entry_active() { return g_text_entry_requested; }
 void set_text_entry(bool on) {
+    g_text_entry_requested = on;
 #if defined(_WIN32)
     win_set_text_entry(on);
 #else

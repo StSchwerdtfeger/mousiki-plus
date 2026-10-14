@@ -182,6 +182,8 @@ bool last_key_was_shifted();
 // them), and the caller restores it by calling with false again. Safe to
 // call every frame with the same value.
 void set_text_entry(bool on);
+// What the last set_text_entry() call said: a text field has the keyboard right now (so a typed capital is text, not a command).
+bool text_entry_active();
 
 // The system clipboard as UTF-8, and the setter for it. Used by Ctrl+C/X/V
 // in the text fields, so a copied path or title can also be pasted OUTSIDE

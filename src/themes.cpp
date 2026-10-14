@@ -42,10 +42,8 @@ struct Palette {
     const char *fc = nullptr;  // focus indicator (nullptr: the header colour)
 };
 
-// Colours are 256-colour palette numbers. 30-47 and 90-107 are read as the plain 16-colour codes by the
-// programs, so the themes stay out of that range (except 90, the usual dim grey, in the default).
+// Colours are palette numbers (see legacy_to_palette()).
 const Palette kPalettes[] = {
-    {"Serious MeowerShell",  "170","170","170","30","170","182","170","182","255","245","240","10","90","10","90","37","41","245","251","255","0","182"},
     {"Soft Pastel",          "183","152","218","153","183","230","218","146","253","152","238","183","246","218","244","232","218","245","224","230",""},
     {"Cyberpunk",            "201","51","201","51","51","227","201","54","195","227","53","201","63","51","135","232","227","63","51","201",""},
     {"Greyscale",            "255","240","255","238","250","255","255","240","252","246","238","255","244","255","243","232","252","243","250","255",""},
@@ -108,28 +106,55 @@ Theme expand(const Palette& p) {
     return t;
 }
 
-// The hand-made default theme (not expressible as a Palette: it also colours the search bar, the playing row and so on).
-Theme meowershell() {
+// The two hand-made themes (not expressible as a Palette: they also colour the search bar, the playing row and so on).
+// "SeriousMeowerShell(Default)" is the music player's default and list index 0 (the base/fallback theme everywhere);
+// "MeowerShell" is the cyber-cat original, index 1.
+Theme hand_made(const char* name, const char* const (*kv)[2], size_t n) {
     Theme t;
-    t.name = "MeowerShell(Default)";
+    t.name = name;
     t.builtin = true;
-    static const char* const kv[][2] = {
-        {"ColorBorderTop","170"},{"ColorBorderBottom","171"},{"ColorMetadataKey","170"},{"ColorMetadataVal","182"},
-        {"ColorVizLeft","170"},{"ColorVizRight","30"},{"ColorTabCurrent","90"},{"ColorTabOther","10"},
-        {"ColorHeader","10"},{"ColorFocus","183"},{"ColorLegend","90"},{"Radio.ColorHeader","90"},{"Radio.ColorLegend","10"},{"Radio.ColorFocus","90"},
-        {"ColorSearchFg","37"},{"ColorSearchBg","41"},{"ColorSearchInactiveFg",""},{"ColorSearchInactiveBg",""},
-        {"ColorListInactiveFg",""},{"ColorListInactiveBg",""},{"ColorListPlayingFg","30"},{"ColorListPlayingBg","182"},
-        {"ColorListCursorFg","10"},{"ColorListCursorBg","238"},{"ColorDiskTop","170"},{"ColorDiskBottom","30"},
-        {"ColorProgressBarPlayed","170"},{"ColorProgressBarPending","182"},{"ColorChangeFg","37"},{"ColorChangeBg","41"},
-        {"ColorQueueInactiveFg",""},{"ColorQueueInactiveBg",""},{"ColorQueuePlayingFg","30"},{"ColorQueuePlayingBg","182"},
-        {"ColorQueueCursorFg",""},{"ColorQueueCursorBg","240"},{"ColorLyricsInactiveFg",""},{"ColorLyricsInactiveBg",""},
-        {"ColorLyricsActiveLineFg","182"},{"ColorLyricsActiveLineBg",""},{"ColorLyricsActiveWordFg",""},{"ColorLyricsActiveWordBg",""},
-        {"ColorOnAirUpperLeft","170"},{"ColorOnAirBottomRight","30"},{"ColorVizCenter",""},{"ColorOsciLeft","170"},
-        {"ColorOsciRight","30"},{"ColorFrequencyLine","170"},{"ColorFrequencyMHz","90"},{"ColorVolumeCurrent","170"},
-        {"ColorVolumePossible","182"},{"ColorPresetInactiveFg","90"},{"ColorPresetInactiveBg",""},{"ColorPresetKeyFg","255"},
-    };
-    for (const auto& e : kv) t.kv.emplace_back(e[0], e[1]);
+    for (size_t i = 0; i < n; ++i) t.kv.emplace_back(kv[i][0], kv[i][1]);
     return t;
+}
+
+Theme serious_meowershell() {
+    static const char* const kv[][2] = {
+        {"ColorBorderTop","170"},{"ColorBorderBottom","104"},{"ColorMetadataKey","140"},{"ColorMetadataVal","182"},
+        {"ColorVizLeft","170"},{"ColorVizRight","30"},{"ColorTabCurrent","8"},{"ColorTabOther","10"},{"ColorHeader","10"},
+        {"ColorFocus","183"},{"ColorLegend","8"},{"Radio.ColorHeader","8"},{"Radio.ColorLegend","10"},
+        {"Radio.ColorFocus","8"},{"ColorSearchFg","7"},{"ColorSearchBg","1"},{"ColorSearchInactiveFg",""},
+        {"ColorSearchInactiveBg",""},{"ColorListInactiveFg",""},{"ColorListInactiveBg",""},{"ColorListPlayingFg","16"},
+        {"ColorListPlayingBg","182"},{"ColorListCursorFg","10"},{"ColorListCursorBg","238"},{"ColorDiskTop","170"},
+        {"ColorDiskBottom","30"},{"ColorProgressBarPlayed","213"},{"ColorProgressBarPending","182"},{"ColorChangeFg","7"},
+        {"ColorChangeBg","1"},{"ColorQueueInactiveFg",""},{"ColorQueueInactiveBg",""},{"ColorQueuePlayingFg","16"},
+        {"ColorQueuePlayingBg","182"},{"ColorQueueCursorFg",""},{"ColorQueueCursorBg","240"},{"ColorLyricsInactiveFg",""},
+        {"ColorLyricsInactiveBg",""},{"ColorLyricsActiveLineFg","182"},{"ColorLyricsActiveLineBg",""},
+        {"ColorLyricsActiveWordFg",""},{"ColorLyricsActiveWordBg",""},{"ColorOnAirUpperLeft","170"},
+        {"ColorOnAirBottomRight","30"},{"ColorVizCenter",""},{"ColorOsciLeft","170"},{"ColorOsciRight","30"},
+        {"ColorFrequencyLine","170"},{"ColorFrequencyMHz","8"},{"ColorVolumeCurrent","170"},{"ColorVolumePossible","182"},
+        {"ColorPresetInactiveFg","8"},{"ColorPresetInactiveBg",""},{"ColorPresetKeyFg","255"},
+    };
+    return hand_made("SeriousMeowerShell(Default)", kv, sizeof kv / sizeof kv[0]);
+}
+
+Theme meowershell() {
+    static const char* const kv[][2] = {
+        {"ColorBorderTop","170"},{"ColorBorderBottom","182"},{"ColorMetadataKey","170"},{"ColorMetadataVal","182"},
+        {"ColorVizLeft","170"},{"ColorVizRight","30"},{"ColorTabCurrent","8"},{"ColorTabOther","10"},{"ColorHeader","10"},
+        {"ColorFocus","183"},{"ColorLegend","8"},{"Radio.ColorHeader","8"},{"Radio.ColorLegend","10"},
+        {"Radio.ColorFocus","8"},{"ColorSearchFg","7"},{"ColorSearchBg","1"},{"ColorSearchInactiveFg",""},
+        {"ColorSearchInactiveBg",""},{"ColorListInactiveFg",""},{"ColorListInactiveBg",""},{"ColorListPlayingFg","16"},
+        {"ColorListPlayingBg","182"},{"ColorListCursorFg","10"},{"ColorListCursorBg","238"},{"ColorDiskTop","170"},
+        {"ColorDiskBottom","30"},{"ColorProgressBarPlayed","170"},{"ColorProgressBarPending","182"},{"ColorChangeFg","7"},
+        {"ColorChangeBg","1"},{"ColorQueueInactiveFg",""},{"ColorQueueInactiveBg",""},{"ColorQueuePlayingFg","16"},
+        {"ColorQueuePlayingBg","182"},{"ColorQueueCursorFg",""},{"ColorQueueCursorBg","240"},{"ColorLyricsInactiveFg",""},
+        {"ColorLyricsInactiveBg",""},{"ColorLyricsActiveLineFg","182"},{"ColorLyricsActiveLineBg",""},
+        {"ColorLyricsActiveWordFg",""},{"ColorLyricsActiveWordBg",""},{"ColorOnAirUpperLeft","170"},
+        {"ColorOnAirBottomRight","30"},{"ColorVizCenter",""},{"ColorOsciLeft","170"},{"ColorOsciRight","30"},
+        {"ColorFrequencyLine","170"},{"ColorFrequencyMHz","8"},{"ColorVolumeCurrent","170"},{"ColorVolumePossible","182"},
+        {"ColorPresetInactiveFg","8"},{"ColorPresetInactiveBg",""},{"ColorPresetKeyFg","255"},
+    };
+    return hand_made("MeowerShell", kv, sizeof kv / sizeof kv[0]);
 }
 
 std::string trim(const std::string& s) {
@@ -150,7 +175,8 @@ void write_theme(std::ostream& out, const Theme& t) {
 }
 
 const char* kHeader =
-    "# format: 5\n"
+    "# format: 7\n"
+    "# Colours are numbers of the 256-colour terminal palette (1-255, 0 or empty = none).\n"
     "# Mousiki colour themes (shared by the player and the radio).\n"
     "# [Name] starts a theme; the lines below it use the key names of config.txt / radio_config.txt.\n"
     "# A key a theme leaves out keeps whatever colour is set. Keys starting with \"Radio.\" are the radio's own values (colours made in the radio are stored that way, so the radio and the player can look different in one theme).\n"
@@ -179,8 +205,26 @@ std::vector<Theme> parse_file(const fs::path& p) {
     return out;
 }
 
+// The number in a "# format: N" first line (0: no such line -- a hand-made file).
+int file_format(const fs::path& p) {
+    std::ifstream in(p);
+    std::string first;
+    std::getline(in, first);
+    first = trim(first);
+    const std::string tag = "# format:";
+    if (first.compare(0, tag.size(), tag) != 0) return 0;
+    try { return std::stoi(trim(first.substr(tag.size()))); } catch (...) { return 0; }
+}
+
+// Themes from before format 6 used 30-37 / 90-97 / 40-47 / 100-107 as plain 16-colour codes.
+void convert_legacy(Theme& t) {
+    for (auto& p : t.kv) p.second = legacy_to_palette(p.second, role_of_key(p.first));
+}
+
 bool is_builtin_name(const std::string& n) {
-    if (lower(n) == lower(meowershell().name)) return true;
+    if (lower(n) == lower(serious_meowershell().name) || lower(n) == lower(meowershell().name)) return true;
+    // names of earlier versions: the built-ins were renamed, so a copy in an old themes.txt is not a theme of the user's
+    if (lower(n) == "meowershell(default)" || lower(n) == "serious meowershell") return true;
     for (const Palette& p : kPalettes) if (lower(p.name) == lower(n)) return true;
     return false;
 }
@@ -191,6 +235,33 @@ int find_name(const std::vector<Theme>& all, const std::string& name) {
     const std::string n = lower(sanitize_name(name));
     for (size_t i = 0; i < all.size(); ++i) if (lower(all[i].name) == n) return static_cast<int>(i);
     return -1;
+}
+
+ColorRole role_of_key(const std::string& key_in) {
+    std::string k = key_in;
+    if (k.compare(0, 6, "Radio.") == 0) k = k.substr(6);
+    static const char* const gradient[] = {"ColorDiskTop", "ColorDiskBottom", "ColorVizLeft", "ColorVizCenter", "ColorVizRight",
+                                           "ColorOsciLeft", "ColorOsciRight", "ColorOnAirUpperLeft", "ColorOnAirBottomRight"};
+    for (const char* g : gradient) if (k == g) return ColorRole::Gradient;
+    if (k.size() > 2 && k.compare(k.size() - 2, 2, "Bg") == 0) return ColorRole::Background;
+    return ColorRole::Text;
+}
+
+std::string legacy_to_palette(const std::string& value, ColorRole role) {
+    if (role == ColorRole::Gradient || value.empty()) return value;
+    for (unsigned char c : value) if (!std::isdigit(c)) return value;
+    if (value.size() > 3) return value;
+    const int v = std::stoi(value);
+    if (role == ColorRole::Text) {
+        if (v == 30) return "16";
+        if (v >= 31 && v <= 37) return std::to_string(v - 30);
+        if (v >= 90 && v <= 97) return std::to_string(v - 82);
+    } else {
+        if (v == 40) return "16";
+        if (v >= 41 && v <= 47) return std::to_string(v - 40);
+        if (v >= 100 && v <= 107) return std::to_string(v - 92);
+    }
+    return value;
 }
 
 fs::path file_path() {
@@ -217,7 +288,8 @@ std::string sanitize_name(const std::string& raw) {
 
 std::vector<Theme> load_all() {
     std::vector<Theme> all;
-    all.push_back(meowershell());   // list index 0: the base/fallback theme everywhere
+    all.push_back(serious_meowershell());   // list index 0: the base/fallback theme everywhere
+    all.push_back(meowershell());
     for (const Palette& p : kPalettes) all.push_back(expand(p));
 
     const fs::path path = file_path();
@@ -238,10 +310,14 @@ std::vector<Theme> load_all() {
         std::ifstream in(path);
         std::string first;
         std::getline(in, first);
-        if (trim(first) != "# format: 5") {
+        if (trim(first) != "# format: 7") {
+            const int old_format = file_format(path);
             std::vector<Theme> mine;
             for (Theme& ft : parse_file(path)) {
                 if (is_builtin_name(ft.name) || lower(ft.name) == "default") continue;
+                // format 6: every colour number is a palette number (30-37 / 90-97 / 40-47 / 100-107 used to be plain 16-colour codes)
+                if (old_format > 0 && old_format < 6) convert_legacy(ft);
+                // format 7: the built-ins were renamed (SeriousMeowerShell(Default) is index 0 now, MeowerShell the second theme)
                 // format 5: the new MeowerShell (default) and Serious MeowerShell values; format 4 added ColorFocus (the pane focus indicator): a theme of your own gets its header color
                 if (!ft.get("ColorFocus", false)) if (const std::string* hd = ft.get("ColorHeader", false)) ft.set("ColorFocus", *hd);
                 bool dup = false;
@@ -289,14 +365,16 @@ bool write_theme_file(const fs::path& file, const Theme& t, std::string& err) {
     if (file.has_parent_path()) fs::create_directories(file.parent_path(), ec);
     std::ofstream out(file, std::ios::trunc);
     if (!out) { err = "cannot write " + file.string(); return false; }
-    out << "# format: 5\n# A Mousiki colour theme. Import it with SHIFT+i on the Colors tab of the settings.\n\n";
+    out << "# format: 7\n# A Mousiki colour theme. Import it with SHIFT+i on the Colors tab of the settings.\n\n";
     write_theme(out, t);
     return true;
 }
 
 std::vector<Theme> read_theme_file(const fs::path& file) {
     std::vector<Theme> out;
+    const int format = file_format(file);
     for (Theme& t : parse_file(file)) {
+        if (format > 0 && format < 6) convert_legacy(t);   // an old export: its 90 / 37 / 41 were plain 16-colour codes
         bool has_color = false;
         for (const auto& p : t.kv) if (p.first.find("Color") != std::string::npos) { has_color = true; break; }
         if (has_color) out.push_back(t);
@@ -344,6 +422,7 @@ bool save_theme(const Theme& in_theme, std::string& err) {
     if (is_builtin_name(t.name)) { err = "\"" + t.name + "\" is a built-in theme -- pick another name"; return false; }
 
     const fs::path path = file_path();
+    load_all();   // an old themes.txt is converted and rewritten first, so what is read below is current
     std::vector<Theme> existing;
     {
         std::error_code ec;
@@ -372,6 +451,7 @@ bool delete_theme(const std::string& name_in, std::string& err) {
     if (name.empty()) { err = "no theme chosen"; return false; }
     if (is_builtin_name(name)) { err = "\"" + name + "\" is a built-in theme and cannot be deleted"; return false; }
     const fs::path path = file_path();
+    load_all();   // an old themes.txt is converted and rewritten first
     std::vector<Theme> existing;
     std::error_code ec;
     if (fs::exists(path, ec)) existing = parse_file(path);

@@ -1,5 +1,6 @@
 #include "terminal_gfx.h"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -48,14 +49,33 @@ void shade(const GfxFrame& f, uint8_t level, uint8_t hue, float& r, float& g, fl
     b = static_cast<float>(f.pal[hue][2]) * (1.0f - hot) + 255.0f * hot;
 }
 
+// The grid layer under the beam. It used to disappear wherever the beam was brighter than level 32 -- a hard threshold, and in
+// the XY picture the afterglow of a busy figure keeps crossing it, so grid dots blinked on and off from frame to frame.
+// Now a grid pixel is hidden once the beam is clearly there (>= 48) and comes back only when it has clearly faded (< 12):
+// the two thresholds apart keep it from toggling. The state is kept per picture (YT and XY each have their own id).
+const std::vector<uint8_t>& grid_hidden(const GfxFrame& f) {
+    static std::array<std::vector<uint8_t>, 8> state;
+    std::vector<uint8_t>& hid = state[static_cast<size_t>(f.id) & 7];
+    const size_t n = static_cast<size_t>(f.w) * f.h;
+    if (hid.size() != n) hid.assign(n, 0);
+    if (f.grid.size() != n) { std::fill(hid.begin(), hid.end(), 0); return hid; }
+    for (size_t i = 0; i < n; ++i) {
+        if (!f.grid[i]) { hid[i] = 0; continue; }
+        if (hid[i]) { if (f.level[i] < 12) hid[i] = 0; }
+        else if (f.level[i] >= 48) hid[i] = 1;
+    }
+    return hid;
+}
+
 std::string kitty_emit(const GfxFrame& f) {
     // crop in picture pixels (the picture may be smaller than the cells: the terminal scales it to c x r cells)
     const int cropx = static_cast<int>(static_cast<long long>(std::clamp(f.crop, 0, f.cols)) * f.w / std::max(1, f.cols));
     const int vis_cols = f.cols - std::clamp(f.crop, 0, f.cols);
     if (vis_cols <= 0) return gfx_clear(GfxProto::Kitty, f.id);
     std::vector<uint8_t> rgba(static_cast<size_t>(f.w) * f.h * 4);
+    const std::vector<uint8_t>& hid = grid_hidden(f);
     for (size_t i = 0; i < static_cast<size_t>(f.w) * f.h; ++i) {
-        if (!f.grid.empty() && f.grid[i] && f.level[i] < 32) {   // the grid shows where the beam is faint or absent
+        if (!f.grid.empty() && f.grid[i] && !hid[i]) {   // the grid shows where the beam is faint or absent
             rgba[i * 4] = f.grid_rgb[0] & 0xF8; rgba[i * 4 + 1] = f.grid_rgb[1] & 0xF8; rgba[i * 4 + 2] = f.grid_rgb[2] & 0xF8; rgba[i * 4 + 3] = 0xF8;
             continue;
         }
@@ -142,9 +162,10 @@ std::string sixel_emit(const GfxFrame& f) {
     uint8_t step_of[256];
     for (int l = 0; l < 256; ++l) step_of[l] = static_cast<uint8_t>(std::lround(curve(static_cast<float>(l) / 255.0f) * 15.0f));
     std::vector<uint8_t> idx(static_cast<size_t>(f.w) * f.h, 0);
+    const std::vector<uint8_t>& hid = grid_hidden(f);
     for (size_t i = 0; i < idx.size(); ++i) {
         const int st = step_of[f.level[i]];
-        if (!f.grid.empty() && f.grid[i] && f.level[i] < 32) idx[i] = 242;   // the grid colour, under the beam
+        if (!f.grid.empty() && f.grid[i] && !hid[i]) idx[i] = 242;   // the grid colour, under the beam
         else if (st >= 1) idx[i] = static_cast<uint8_t>(1 + (f.hue[i] >> 4) * 15 + (st - 1));
     }
     // the palette only changes with the colour settings: build its text once

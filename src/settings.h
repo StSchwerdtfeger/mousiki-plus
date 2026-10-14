@@ -63,13 +63,13 @@ struct Settings {
     // element_lyrics_placeholder_ball on/off switch ("Lyric Ball") --
     // the panel now always shows one of the two and this row picks
     // which, from the ON/OFF tab's "Lyrics/Viz" entry.
-    int lyric_viz = 2;                  // default: the spectrogram (in the image style, see SpectroSettings)
+    int lyric_viz = 1;                  // default: the oscilloscope (0 = sphere, 1 = oscilloscope, 2 = spectrogram)
     // What the lyrics area shows while the LYRICS view is selected but there are no lyrics to draw (nothing found /
     // fetch still running): 0 = sphere, 1 = oscilloscope, 2 = spectrogram. Before this existed the area showed
     // lyric_viz, i.e. whatever view the "." cycle had been on before the lyrics. config.txt: NoLyricsViz=sphere|osci|spectro.
     // 3 = nothing (an empty field). Picking a visual that is switched off turns its "Use ..." switch on; switching a "Use ..."
     // off moves this pick to the next visual that is on (or to "none"): enforce_visual_switches().
-    int nolyrics_viz = 2;
+    int nolyrics_viz = 1;
     // Settings -> ON/OFF "Use Lyrics / Use Oscilloscope / Use Spectrogram": false leaves that one out entirely (no
     // lyrics fetching, not in the "." cycle; the sphere is always there). The windows (SHIFT+8 / SHIFT+9) work anyway.
     bool use_lyrics = true;
@@ -83,7 +83,7 @@ struct Settings {
     // The view the field starts with when Mousiki opens (ANIMA/VIZ tab: "Lyrics/Viz Default"): 0 = sphere, 1 = oscilloscope,
     // 2 = spectrogram, 3 = lyrics. The "." key changes the view live, but that is not remembered: the next start begins with
     // this one again; 4 = "last used": it starts with the view it was left on. config.txt: VizDefault=sphere|osci|spectro|lyrics|last.
-    int viz_default = 3;
+    int viz_default = 1;
     // The field shows lyrics (and they are fetched) right now: field on, lyrics allowed, lyrics view selected.
     bool lyrics_on() const { return element_vizfield && use_lyrics && element_lyrics; }
     // Is that view (0..3) switched on at all?
@@ -134,13 +134,14 @@ struct Settings {
     bool marquee = true;
 
     // --- appearance / tuning -------------------------------------------
-    int visualizer_fluidity = 1;        // 1-10, higher = smoother/slower rise
+    int visualizer_fluidity = 10;       // 1-10, higher = smoother/slower rise
     int visualizer_degradation_speed = 8; // 1 (slow fade) - 10 (near-instant), how fast bars fall after a drop
     int visualizer_viscosity = 3;       // 0 (bars move independently) - 10 (heavy neighbor blending)
-    std::string disk_color = "36";
-    std::string disk_color_end = "34"; // empty = solid disk_color, no gradient
+    bool colors_palette = false;        // config.txt says ColorCodes=palette (colour numbers are palette numbers); false = an older file, converted on load
+    std::string disk_color = "170";
+    std::string disk_color_end = "30"; // empty = solid disk_color, no gradient
     bool disk_color_gradient = true;    // true = use disk_color_end as a gradient stop, false = solid/"generic" disk_color only
-    double disk_rotation_speed = 1.0;   // multiplier on the reference angular velocity, range 0.01x-1.00x
+    double disk_rotation_speed = 0.1;   // multiplier on the reference angular velocity, range 0.01x-1.00x
 
     // --- border / separator characters (from config.txt) ---------------
     std::string box_upper_left = "\u256d";   // ╭
@@ -163,43 +164,43 @@ struct Settings {
     // except these seven, which fall back to a real color even when the
     // config value is empty. Everything else genuinely defaults to "no
     // color" (plain terminal default) until the user sets it.
-    std::string border_color = "90";
-    std::string border_color_bottom = "171";   // top uses border_color; box_top()/box_bottom() use these two independently
+    std::string border_color = "170";
+    std::string border_color_bottom = "104";   // top uses border_color; box_top()/box_bottom() use these two independently
     bool border_smooth = true;                // BorderGradient=smooth|rough: smooth fades the frame line by line from top to bottom colour; rough = only the bottom border line takes the bottom colour
 
-    std::string active_line_color;
+    std::string active_line_color = "182";
     std::string active_line_bg_color;
     std::string active_word_color;
     std::string active_word_bg_color;
     std::string inactive_line_color;
     std::string inactive_line_bg_color;
 
-    std::string progress_remaining_color;
-    std::string progress_played_color;
+    std::string progress_remaining_color = "182";
+    std::string progress_played_color = "213";
     std::string progress_timestamp_color;    // empty = falls back to border_color
 
     // Search bar input (the "/" box, the meta editor's and the playlist
     // manager's "Search:" rows). Empty = follow LIST INACTIVE FG/BG, which is
     // what these bars always looked like; "0" = explicit terminal default.
-    std::string search_text_color;           // typed query: FG / BG, drawn behind the query text only
-    std::string search_bg_color;
+    std::string search_text_color = "7";           // typed query: FG / BG, drawn behind the query text only
+    std::string search_bg_color = "1";
     std::string search_inactive_text_color;  // the rest of the bar (prefix, placeholder, empty field)
     std::string search_inactive_bg_color;
 
     std::string list_color;
     std::string list_inactive_bg_color;
-    std::string list_playing_color;
-    std::string list_cursor_color;
+    std::string list_playing_color = "16";
+    std::string list_cursor_color = "10";
 
     std::string queue_color;
     std::string queue_inactive_bg_color;
-    std::string queue_playing_color;
-    std::string queue_playing_bg_color;
+    std::string queue_playing_color = "16";
+    std::string queue_playing_bg_color = "182";
     std::string queue_cursor_color;     // the "hovering" row once you Tab into the queue
-    std::string queue_cursor_bg_color = "238";     // "0" = no background; default matches list_cursor_bg_color so the hovering row is always visible
+    std::string queue_cursor_bg_color = "240";     // "0" = no background; default matches list_cursor_bg_color so the hovering row is always visible
 
     // Row background colors. Value "0" (or empty) = no background color.
-    std::string list_playing_bg_color;
+    std::string list_playing_bg_color = "182";
     std::string list_cursor_bg_color = "238"; // one of the seven config-level defaults (ColorListCursorBg)
 
     std::string button_color;
@@ -214,23 +215,23 @@ struct Settings {
 
     // Key command legends: the grey "[ESC] close | [ENTER] confirm" hint lines
     // of the Settings panel, the big list / queue overlays, the playlist
-    // editor, the meta editor and the listening history. Default "90" --
-    // direct SGR 90 (bright black), exactly the grey they have always been
+    // editor, the meta editor and the listening history. Default "8" --
+    // palette colour 8 (bright black), the grey they have always been
     // drawn in -- changeable from the Colors tab's LEGEND row, or ColorLegend=
     // in config.txt. "0"/empty = the terminal's own text color.
-    std::string legend_color = "90";
-    std::string tab_current_color = "10";   // settings / playlist / history tab strips: the current tab "[NAME]" and the "< \u2194 >" hint
-    std::string tab_other_color = "90";     // ... the other tab names
+    std::string legend_color = "8";
+    std::string tab_current_color = "8";   // settings / playlist / history tab strips: the current tab "[NAME]" and the "< \u2194 >" hint
+    std::string tab_other_color = "10";     // ... the other tab names
 
     // "This field is actively being typed into" -- every in-place text edit
     // across the Settings panel (a PATHS row, a hex colour value, a hotkey)
-    // and the meta editor's tag fields. Defaults "37"/"41" -- direct SGR
-    // 37 (white text) / 41 (red background), exactly the white-on-red this
+    // and the meta editor's tag fields. Defaults "7"/"1" -- palette
+    // 7 (white text) / 1 (red background), the white-on-red this
     // was always hardcoded as before it had a name of its own -- changeable
     // from the Colors tab's CHANGE row, or ColorChangeFg=/ColorChangeBg= in
     // config.txt. "0"/empty = the terminal's own text/background.
-    std::string change_text_color = "37";
-    std::string change_bg_color = "41";
+    std::string change_text_color = "7";
+    std::string change_bg_color = "1";
 
     // The pane focus indicator "\u25c0": the little triangle after a pane's
     // title that marks which pane has the keys (main screen: the search box,
@@ -240,12 +241,12 @@ struct Settings {
     // whatever ColorHeader is, and every theme sets it to its header color.
     std::string focus_color = "183";
 
-    std::string visualizer_color = "32";
-    std::string visualizer_color_end = "33";
+    std::string visualizer_color = "170";
+    std::string visualizer_color_end = "30";
 
     // New colors from config.txt
-    std::string meta_key_color;          // label text ("Name", "Artist") — empty = inherit list_color
-    std::string meta_val_color;          // value text — empty = inherit list_color
+    std::string meta_key_color = "140";          // label text ("Name", "Artist") — empty = inherit list_color
+    std::string meta_val_color = "182";          // value text — empty = inherit list_color
     std::string status_color;            // status line — empty = default
     std::string pl_active_bg_color;      // playlist active row background — empty = none
 

@@ -15,7 +15,7 @@
 
 namespace themes {
 
-constexpr int kMaxNameLen = 25;
+constexpr int kMaxNameLen = 27;
 
 struct Theme {
     std::string name;
@@ -30,6 +30,16 @@ struct Theme {
 
 // Index of the theme called `name` (case-insensitive, as the store compares names), or -1.
 int find_name(const std::vector<Theme>& all, const std::string& name);
+
+// ---- colour numbers ----
+// Every colour number is a 256-colour palette number (1-255, 0 = none) in every field. Before format 6 of themes.txt /
+// before "ColorCodes=palette" in config.txt and radio_config.txt, 30-37 and 90-97 (text fields) and 40-47 and 100-107
+// (background fields) were plain 16-colour terminal codes. The old files are converted once, when they are loaded.
+enum class ColorRole { Text, Background, Gradient };   // Gradient: ends of a colour fade -- always were palette numbers
+ColorRole role_of_key(const std::string& config_key);  // "ColorBorderTop", "Radio.ColorLegend", ...
+// The palette number that looks like the old plain code `value` had in a field of that role; anything else is unchanged.
+// Black is "16" (palette 0 is "no colour" in the settings).
+std::string legacy_to_palette(const std::string& value, ColorRole role);
 
 std::filesystem::path file_path();
 
