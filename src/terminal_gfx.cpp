@@ -49,22 +49,11 @@ void shade(const GfxFrame& f, uint8_t level, uint8_t hue, float& r, float& g, fl
     b = static_cast<float>(f.pal[hue][2]) * (1.0f - hot) + 255.0f * hot;
 }
 
-// The grid layer under the beam. It used to disappear wherever the beam was brighter than level 32 -- a hard threshold, and in
-// the XY picture the afterglow of a busy figure keeps crossing it, so grid dots blinked on and off from frame to frame.
-// Now a grid pixel is hidden once the beam is clearly there (>= 48) and comes back only when it has clearly faded (< 12):
-// the two thresholds apart keep it from toggling. The state is kept per picture (YT and XY each have their own id).
-const std::vector<uint8_t>& grid_hidden(const GfxFrame& f) {
-    static std::array<std::vector<uint8_t>, 8> state;
-    std::vector<uint8_t>& hid = state[static_cast<size_t>(f.id) & 7];
-    const size_t n = static_cast<size_t>(f.w) * f.h;
-    if (hid.size() != n) hid.assign(n, 0);
-    if (f.grid.size() != n) { std::fill(hid.begin(), hid.end(), 0); return hid; }
-    for (size_t i = 0; i < n; ++i) {
-        if (!f.grid[i]) { hid[i] = 0; continue; }
-        if (hid[i]) { if (f.level[i] < 12) hid[i] = 0; }
-        else if (f.level[i] >= 48) hid[i] = 1;
-    }
-    return hid;
+// The grid layer: a grid pixel is always drawn and the beam shows only between the grid lines. (Letting the beam replace grid
+// pixels, by a threshold, a hold or "the brighter wins", made grid lines blink wherever a signal ran along them or touched the
+// borders of the picture: with no afterglow the pixel is the beam for one picture and the grid again for the next.)
+inline bool grid_shows(const GfxFrame& f, size_t i) {
+    return !f.grid.empty() && f.grid[i];
 }
 
 std::string kitty_emit(const GfxFrame& f) {
@@ -73,9 +62,8 @@ std::string kitty_emit(const GfxFrame& f) {
     const int vis_cols = f.cols - std::clamp(f.crop, 0, f.cols);
     if (vis_cols <= 0) return gfx_clear(GfxProto::Kitty, f.id);
     std::vector<uint8_t> rgba(static_cast<size_t>(f.w) * f.h * 4);
-    const std::vector<uint8_t>& hid = grid_hidden(f);
     for (size_t i = 0; i < static_cast<size_t>(f.w) * f.h; ++i) {
-        if (!f.grid.empty() && f.grid[i] && !hid[i]) {   // the grid shows where the beam is faint or absent
+        if (grid_shows(f, i)) {   // the grid shows where the beam is fainter than it
             rgba[i * 4] = f.grid_rgb[0] & 0xF8; rgba[i * 4 + 1] = f.grid_rgb[1] & 0xF8; rgba[i * 4 + 2] = f.grid_rgb[2] & 0xF8; rgba[i * 4 + 3] = 0xF8;
             continue;
         }
@@ -162,11 +150,28 @@ std::string sixel_emit(const GfxFrame& f) {
     uint8_t step_of[256];
     for (int l = 0; l < 256; ++l) step_of[l] = static_cast<uint8_t>(std::lround(curve(static_cast<float>(l) / 255.0f) * 15.0f));
     std::vector<uint8_t> idx(static_cast<size_t>(f.w) * f.h, 0);
-    const std::vector<uint8_t>& hid = grid_hidden(f);
     for (size_t i = 0; i < idx.size(); ++i) {
         const int st = step_of[f.level[i]];
-        if (!f.grid.empty() && f.grid[i] && !hid[i]) idx[i] = 242;   // the grid colour, under the beam
+        if (grid_shows(f, i)) idx[i] = 242;   // the grid colour, under the beam
         else if (st >= 1) idx[i] = static_cast<uint8_t>(1 + (f.hue[i] >> 4) * 15 + (st - 1));
+    }
+    // The picture is opaque: every pixel that is not beam or grid is drawn black (colour 243), so a new picture replaces the old
+    // one in place. (It used to erase the cells first and draw on transparent pixels -- when the terminal painted between the
+    // erase and the picture, which happens with the big pictures of loud music, the whole picture blinked away for a frame.)
+    // The cells a floating panel covers stay transparent.
+    {
+        int xa = -1, xb = -1, ya = -1, yb = -1;
+        if (f.cut_w > 0) {
+            xa = f.cut_c * f.w / cols - 1; xb = (f.cut_c + f.cut_w) * f.w / cols + 1;
+            ya = f.cut_r * f.h / std::max(1, f.rows) - 1; yb = (f.cut_r + f.cut_h) * f.h / std::max(1, f.rows) + 1;
+        }
+        for (int y = 0; y < f.h; ++y) {
+            const bool yin = y >= ya && y < yb;
+            for (int x = 0; x < f.w; ++x) {
+                uint8_t& c = idx[static_cast<size_t>(y) * f.w + x];
+                if (c == 0 && !(yin && x >= xa && x < xb)) c = 243;
+            }
+        }
     }
     // the palette only changes with the colour settings: build its text once
     if (!pal_valid || pal_seen != f.pal || grid_seen != f.grid_rgb) {
@@ -180,6 +185,7 @@ std::string sixel_emit(const GfxFrame& f) {
                 pal_text += '#'; put_int(pal_text, 1 + hb * 15 + st - 1);
                 pal_text += ";2;"; put_int(pal_text, ch(0)); pal_text += ';'; put_int(pal_text, ch(1)); pal_text += ';'; put_int(pal_text, ch(2));
             }
+        pal_text += "#243;2;0;0;0";   // the opaque background of the picture
         pal_text += "#242;2;";   // the grid colour (colour 242 is the only one above the beam's 1 + 16 * 15 colours that is used)
         put_int(pal_text, f.grid_rgb[0] * 100 / 255); pal_text += ';'; put_int(pal_text, f.grid_rgb[1] * 100 / 255); pal_text += ';'; put_int(pal_text, f.grid_rgb[2] * 100 / 255);
         pal_seen = f.pal;
@@ -189,16 +195,7 @@ std::string sixel_emit(const GfxFrame& f) {
     if (bits.size() != static_cast<size_t>(256) * W) bits.assign(static_cast<size_t>(256) * W, 0);
     std::string o;
     o.reserve(65536);
-    // erase the cells first: pixels left transparent would otherwise show the previous picture through
     o += "\x1b[0m";
-    auto erase = [&](int r, int c0, int n) { if (n <= 0) return; o += at_cell(f.row + r, f.col + c0); o += "\x1b["; put_int(o, n); o += 'X'; };
-    for (int r = 0; r < f.rows; ++r) {
-        const bool cut = f.cut_w > 0 && r >= f.cut_r && r < f.cut_r + f.cut_h;   // leave the cells that a panel covers
-        if (!cut) { erase(r, crop, vis_cols); continue; }
-        const int a = std::clamp(f.cut_c, crop, f.cols), b = std::clamp(f.cut_c + f.cut_w, crop, f.cols);
-        erase(r, crop, a - crop);
-        erase(r, b, f.cols - b);
-    }
     o += at_cell(f.row, f.col + crop);
     o += "\x1bP0;1;0q\""; put_int(o, pan); o += ";1;"; put_int(o, W); o += ';'; put_int(o, H);
     o += pal_text;

@@ -223,7 +223,9 @@ void OscilloscopeVisualizer::paint(int pw, int ph, const Params& params) {
         float frame_peak = 0.0f;
         for (int i = 0; i < kWin; ++i)
             frame_peak = std::max(frame_peak, std::max(std::fabs(xs[i]), std::fabs(ys[i])));
-        const float gain = params.fixed_gain ? 1.0f : 1.0f / std::max(peak, 0.05f);
+        // this frame's own peak counts at once (like the YT picture): with last frame's peak alone a louder frame was drawn clipped
+        // against the borders of the grid and the next one, scaled down again, jumped back -- the figure pumped in size
+        const float gain = params.fixed_gain ? 1.0f : 1.0f / std::max(std::max(peak, frame_peak), 0.05f);
         {
             std::lock_guard<std::mutex> lk(mtx_);
             peak_ = frame_peak > peak ? frame_peak : peak * 0.97f + frame_peak * 0.03f;

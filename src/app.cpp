@@ -6125,6 +6125,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
                     g.cols = lyrics_w; g.rows = viz_rows_h; g.w = lyrics_w * cws; g.h = viz_rows_h * chs;
                     g.col = 2 + disk_w + (settings_.element_disk ? sep_w : 2) + meta_w;
                     g.row = 1;
+                    g.id = 0; g.grid.clear(); g.cut_w = 0;   // no grid on the main screen (the big overlay sets one on the same frame object)
                     scope_.render_image(g.w, g.h, osci_params, g.level, g.hue);
                     if (pal == 0) {
                         for (int y = 0; y < g.h; ++y)
@@ -16090,6 +16091,14 @@ int App::run() {
             } else if (gfx2_shown_) {
                 wire += gfx_clear(gfx_proto_, 1);
                 gfx2_shown_ = false;
+                // Sixel has no way to delete a picture: the overlay's two pictures stay on screen until their cells are written
+                // over. The main screen's line diff and the picture holes would leave them, so the next frame is a full one
+                // and the main picture is sent again (it erases its own cells first).
+                if (gfx_proto_ == GfxProto::Sixel) {
+                    last_frame_str.clear();
+                    prev_lines.clear();
+                    gfx_shown = false;
+                }
             }
         }
         if (sp_img) {
