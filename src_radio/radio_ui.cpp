@@ -115,9 +115,21 @@ std::string box_edge(const Style& s, bool top, int w, const std::vector<Seg>& la
     if (!label.empty()) {
         o += " ";
         for (const auto& g : label) {
-            if (g.ansi.empty()) o += g.text; else o += kReset + g.ansi + g.text + kReset + ansi;
+            if (g.ansi.empty()) {
+                // A separator like " ─ " inside the label: the border colour goes in front of its dash (see below), or the dash
+                // keeps the plain top/bottom colour when the smooth border gradient is on.
+                size_t sp = 0;
+                while (sp < g.text.size() && g.text[sp] == ' ') ++sp;
+                if (!s.c.box_horizontal.empty() && g.text.compare(sp, s.c.box_horizontal.size(), s.c.box_horizontal) == 0)
+                    o += g.text.substr(0, sp) + ansi + g.text.substr(sp);
+                else
+                    o += g.text;
+            } else o += kReset + g.ansi + g.text + kReset + ansi;
         }
-        o += " ";
+        // The border colour goes straight in front of the dashes: the smooth border gradient only recolours a border escape
+        // that is followed by a border glyph, so an escape followed by this blank stayed the TOP colour and the right part
+        // of the line (behind the title / focus triangle) no longer matched the left part.
+        o += " " + ansi;
         used += label_w + 2;
     }
     const int dashes = std::max(0, w - used - display_width(r));
@@ -1047,16 +1059,17 @@ std::vector<std::string> build_preset_pane(const Style& s, const UiModel& m, int
 }
 
 // Replaces the visible columns [x, x + pw) of an ANSI-coloured line with `panel` (exactly pw columns wide).
-// Escapes inside the covered part are kept behind the panel, so the colours after it stay right.
+// What the line had set up to the panel's left edge (its colour, if no reset came since) and the escapes inside the covered part
+// are put back behind the panel, so the colours after it stay right (the border to the right of a panel used to turn white).
 std::string splice_line(const std::string& base, int x, const std::string& panel, int pw) {
-    std::string out, held, straddle_right;
+    std::string out, held, straddle_right, active;
     bool done = false;
     int col = 0;
     const int xe = x + pw;
     auto emit_panel = [&]() {
         if (done) return;
         done = true;
-        out += std::string(kReset) + panel + kReset + held + straddle_right;
+        out += std::string(kReset) + panel + kReset + active + held + straddle_right;
     };
     size_t i = 0;
     while (i < base.size()) {
@@ -1069,7 +1082,10 @@ std::string splice_line(const std::string& base, int x, const std::string& panel
                 if (j < base.size()) ++j;
             }
             const std::string esc = base.substr(i, j - i);
-            if (col < x) out += esc;
+            if (col < x) {
+                out += esc;
+                if (esc == "\x1b[0m" || esc == "\x1b[m") active.clear(); else active += esc;
+            }
             else if (col < xe) held += esc;
             else { emit_panel(); out += esc; }
             i = j;
@@ -1855,176 +1871,54 @@ const CheatRow kCheatRows[] = {
 // ===========================================================================================
 // The help wizard (SHIFT+w): the same pages the music player shows (src/wizard.h), drawn in
 // the MUSIC PLAYER's colours rather than the radio's, so the feature looks like one thing in
-// both modes. See UiModel::wizard_* for the page model and wizard.h for the markup.
+// both modes. The text, layout and state are all wizard::render()'s; this only paints them.
 // ===========================================================================================
-
-namespace {
-
-// One wizard line as coloured segments: the "@X " prefix picks the line's
-// colour, a <<span>> switches to the accent colour and back. Neither ever
-// reaches the terminal, so seg_line()'s width maths stays honest.
-std::vector<Seg> wizard_segs(const std::string& raw, const WizardPalette& p) {
-    const std::string base   = ansi_fg(p.list);
-    const std::string accent = ansi_fg(p.accent);
-    std::string body = raw;
-    std::string line_ansi = base;
-    if (body.size() >= 3 && body[0] == '@' && body[2] == ' ') {
-        switch (body[1]) {
-            case 'H': line_ansi = "\x1b[1m" + ansi_fg(p.header); break;   // heading, bold like the player's
-            case 'D': line_ansi = ansi_fg(p.border); break;               // the diagrams
-            case 'K': line_ansi = ansi_fg(p.legend); break;               // key hints
-            case 'A': line_ansi = accent; break;                          // callouts / arrows
-            default:  break;
-        }
-        body = body.substr(3);
-    }
-    std::vector<Seg> segs;
-    std::string cur;
-    bool in_span = false;
-    for (size_t i = 0; i < body.size();) {
-        if (!in_span && body.compare(i, 2, "<<") == 0) {
-            if (!cur.empty()) { segs.push_back({line_ansi, cur}); cur.clear(); }
-            in_span = true; i += 2; continue;
-        }
-        if (in_span && body.compare(i, 2, ">>") == 0) {
-            if (!cur.empty()) { segs.push_back({accent, cur}); cur.clear(); }
-            in_span = false; i += 2; continue;
-        }
-        cur += body[i];
-        ++i;
-    }
-    if (!cur.empty()) segs.push_back({in_span ? accent : line_ansi, cur});
-    return segs;
-}
-
-} // namespace
 
 std::vector<std::string> build_wizard(const Style& s, const UiModel& m, int W, int rows) {
     const WizardPalette p = player_wizard_palette();
     const std::string wb  = ansi_fg(p.border);
     const std::string wbb = ansi_fg(p.border_bot);
-    const int visible = std::max(1, rows - 2);        // the top and bottom border take two rows
-    const int inner = std::max(0, W - 4);
-    const auto& ts = wizard::topics(wizard::Flavor::Radio);
+    const int body_rows = std::max(1, rows - 2);        // the top and bottom border take two rows
 
-    // Which topic (and which of its pages) the flat page index lands on.
-    int topic = -1, in_topic = 0;
-    {
-        int rest = m.wizard_page - 2;
-        if (rest >= 0) {
-            for (size_t i = 0; i < ts.size(); ++i) {
-                const int n = static_cast<int>(ts[i].pages.size());
-                if (rest < n) { topic = static_cast<int>(i); in_topic = rest; break; }
-                rest -= n;
-            }
-        }
-    }
-    int total_pages = 2;
-    for (const auto& t : ts) total_pages += static_cast<int>(t.pages.size());
+    static const muisc::DiskArt disk;
+    std::vector<std::string> disk_frame;
+    if (wizard::shows_disk(m.wizard.page)) disk_frame = disk.frame(m.wizard_angle);
+    const wizard::View v = wizard::render(m.wizard, W, body_rows, disk_frame);
 
-    std::string title = "MOUSIKI PLUS HELP WIZARD";
-    if (m.wizard_page == 1) title += " -- CONTENTS";
-    else if (topic >= 0) {
-        title += " -- " + ts[static_cast<size_t>(topic)].title;
-        if (ts[static_cast<size_t>(topic)].pages.size() > 1)
-            title += " (" + std::to_string(in_topic + 1) + "/" +
-                     std::to_string(ts[static_cast<size_t>(topic)].pages.size()) + ")";
-    }
+    const std::string lead = spaces(v.left);
+    const std::string trail = spaces(std::max(0, W - v.left - v.box_w));
+    const std::string bar = wb + s.c.box_vertical + kReset;
+    const std::string header = "\x1b[1m" + ansi_fg(p.header);
+    const std::string legend = ansi_fg(p.legend);
+    const std::string base = ansi_fg(p.list);
+    std::string cursor = ansi_fg(p.cursor_fg) + ansi_bg(p.cursor_bg);
+    if (cursor.empty()) cursor = "\x1b[7m";
+
     std::vector<std::string> out;
-    out.push_back(box_top(s, W, title, wb));
-
-    // Every row as segments first, so the scroll range counts real rows.
-    std::vector<std::vector<Seg>> body;
-    // Fixed 8-column margin left and right (matches build_wizard_screen() in
-    // the player), backed off just enough to keep the hand-authored topic
-    // pages' kContentWidth available on a narrower terminal instead of
-    // letting them overflow past the right border.
-    constexpr int kWizardMargin = 8;
-    const int pad_left = std::min(kWizardMargin, std::max(0, (inner - wizard::kContentWidth) / 2));
-    auto push = [&](const std::string& raw) {
-        std::vector<Seg> segs{{"", spaces(pad_left)}};
-        for (auto& sg : wizard_segs(raw, p)) segs.push_back(sg);
-        body.push_back(segs);
-    };
-
-    if (m.wizard_page == 0) {
-        // The welcome: the disk on the left in the player's DISK colours,
-        // the text beside it. The one page with two columns.
-        static const muisc::DiskArt disk;
-        const int disk_w = disk.width();
-        const int gap = 3;
-        const auto frame = disk.frame(m.wizard_angle);
-        const auto text = wizard::welcome_lines(MOUSIKI_VERSION);
-        const bool room = inner >= disk_w + gap + 20;
-        const int disk_h = static_cast<int>(frame.size());
-        const int text_h = static_cast<int>(text.size());
-        const int n = room ? std::max(disk_h, text_h) : text_h;
-        // Centre the disk vertically against the whole text block instead
-        // of pinning it to the top row; the text itself still starts at
-        // row 0 (matches build_wizard_screen() in the player).
-        const int disk_top = room ? std::max(0, (n - disk_h) / 2) : 0;
-        for (int i = 0; i < n; ++i) {
-            std::vector<Seg> segs{{"", spaces(pad_left)}};
-            if (room) {
-                const int di = i - disk_top;
-                if (di >= 0 && di < disk_h) {
-                    const float t = disk_h > 1
-                                        ? static_cast<float>(di) / static_cast<float>(disk_h - 1) : 0.0f;
-                    segs.push_back({gradient_fg(p.disk_top, p.disk_bottom, t), frame[static_cast<size_t>(di)]});
-                    const int w = display_width(frame[static_cast<size_t>(di)]);
-                    if (w < disk_w) segs.push_back({"", spaces(disk_w - w)});
-                } else {
-                    segs.push_back({"", spaces(disk_w)});
-                }
-                segs.push_back({"", spaces(gap)});
-            }
-            if (i < text_h)
-                for (auto& sg : wizard_segs(text[static_cast<size_t>(i)], p)) segs.push_back(sg);
-            body.push_back(segs);
-        }
-    } else if (m.wizard_page == 1) {
-        push("@H Choose a topic");
-        push("");
-        for (size_t i = 0; i < ts.size(); ++i) {
-            std::string row = (static_cast<int>(i) == m.wizard_topic ? "  > " : "    ") + ts[i].title;
-            row = pad_right(row, 28) + ts[i].blurb;
-            if (static_cast<int>(i) == m.wizard_topic) {
-                // The cursor row, drawn like the station list's hovering row
-                // but in the player's colours; the highlight is the width of
-                // the content column, not of the whole box.
-                std::string cur = ansi_fg(p.cursor_fg) + ansi_bg(p.cursor_bg);
-                if (cur.empty()) cur = "\x1b[7m";
-                body.push_back({{"", spaces(pad_left)}, {cur, pad_right(row, wizard::kContentWidth)}});
-            } else {
-                body.push_back({{"", spaces(pad_left)}, {ansi_fg(p.list), row}});
+    // the title is drawn in the header colour; box_edge() brings the border colour back in front of the dashes
+    out.push_back(lead + box_top(s, v.box_w, header + v.title + kReset, wb) + trail);
+    for (const wizard::Row& row : v.rows) {
+        std::string line = lead + bar;
+        for (const wizard::Span& sp : row) {
+            switch (sp.role) {
+                case wizard::Role::Header: line += header + sp.text + kReset; break;
+                case wizard::Role::Legend: line += legend + sp.text + kReset; break;
+                case wizard::Role::Cursor: line += cursor + sp.text + kReset; break;
+                case wizard::Role::Disk:
+                case wizard::Role::Scroll: line += gradient_fg(p.disk_top, p.disk_bottom, sp.t) + sp.text + kReset; break;
+                default:                   line += base + sp.text + kReset; break;
             }
         }
-        push("");
-        push("@K [UP]/[DOWN] choose a topic   [ENTER] open it");
-        push("@K [<-]/[->] page back and forth through the whole wizard");
-    } else if (topic >= 0) {
-        for (const auto& raw : ts[static_cast<size_t>(topic)].pages[static_cast<size_t>(in_topic)].lines) push(raw);
+        out.push_back(line + bar + trail);
     }
-
-    // One blank row top and bottom, inside the border (matches
-    // build_wizard_screen() in the player).
-    const int rows_for_content = std::max(1, visible - 2);
-    const int total = static_cast<int>(body.size());
-    const int max_scroll = std::max(0, total - rows_for_content);
-    m.wizard_scroll = std::clamp(m.wizard_scroll, 0, max_scroll);
-    out.push_back(box_line(s, spaces(inner), wb));
-    int shown = 0;
-    for (int i = m.wizard_scroll; i < total && shown < rows_for_content; ++i, ++shown)
-        out.push_back(box_line(s, seg_line(body[static_cast<size_t>(i)], inner), wb));
-    while (shown < rows_for_content) { out.push_back(box_line(s, spaces(inner), wb)); ++shown; }
-    out.push_back(box_line(s, spaces(inner), wb));
 
     std::string bottom = "[SHIFT+w / ESC] close";
-    if (m.wizard_page > 0) bottom += "  [<-] back";
-    if (m.wizard_page < total_pages - 1) bottom += "  [->] next";
-    bottom += "  page " + std::to_string(m.wizard_page + 1) + "/" + std::to_string(total_pages);
-    if (max_scroll > 0) bottom += "  [↑↓] scroll";
-    out.push_back(box_bottom(s, W, bottom, wbb));
+    bottom += "  [t] TOC";
+    if (v.can_back) bottom += "  [<-] back";
+    if (v.can_next) bottom += "  [->] next";
+    if (v.toc_page) bottom += "  [\xE2\x86\x91\xE2\x86\x93] select  [SHIFT+\xE2\x86\x91\xE2\x86\x93] jump  [ENTER] open";
+    else if (v.scrollable) bottom += "  [\xE2\x86\x91\xE2\x86\x93] scroll  [SHIFT+\xE2\x86\x91\xE2\x86\x93] page";
+    out.push_back(lead + box_bottom(s, v.box_w, bottom, wbb) + trail);
     return out;
 }
 
@@ -2703,7 +2597,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
             const std::string tn = ci >= 0 ? sm.theme_list[static_cast<size_t>(ci)].name : std::string("(custom)");
             const bool on = sm.row == 0;
             line({{"\x1b[1m" + header, pad_right("THEME", 15)}, {"", pad_right("SELECT", 14) + ": "},
-                  {on && sm.col == 0 ? "\x1b[7m" : "", pad_right(truncate_str(tn, 25), 26)}, {"", "   "},
+                  {on && sm.col == 0 ? "\x1b[7m" : "", pad_right(truncate_str(tn, themes::kMaxNameLen), themes::kMaxNameLen + 1)}, {"", "   "},
                   {on && sm.col == 1 ? "\x1b[7m" : "", " CREATE THEME "}});
             const std::string b = bar(static_cast<int>(out.size()));
             line({{b, repeat(Hz, inner)}});

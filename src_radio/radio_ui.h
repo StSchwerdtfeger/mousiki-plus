@@ -9,6 +9,7 @@
 // Every colour comes from the radio's own radio_config.txt (RadioSettings, radio_settings.h) -- nothing is read from
 // the music player's config.txt.
 #include "scope_window.h"
+#include "wizard.h"
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -283,17 +284,13 @@ struct UiModel {
     std::string notice;           // one status line in the SEARCH box's hint spot ("recording saved ..."); main clears it after a few seconds
     bool cheat_open = false;      // the full-screen CHEATSHEET ('?'); drawn instead of the radio screen / menu
     mutable int cheat_scroll = 0; // in display lines; clamped while rendering (the renderer is const)
-    // The help wizard (SHIFT+w), the same one the music player has: the text
-    // comes from src/wizard.h, the colours from the PLAYER's config.txt (see
-    // player_wizard_palette()), so it looks identical in both modes. Drawn
-    // instead of the radio screen, like the cheat sheet. The page model is
-    // the player's: 0 = welcome (with the disk), 1 = contents, 2.. = the
-    // topic pages in contents order.
+    // The help wizard (SHIFT+w), the same one the music player has: the text, the layout, the page / part / contents
+    // state and the key handling come from src/wizard.h, the colours from the PLAYER's config.txt (see
+    // player_wizard_palette()), so it looks identical in both modes. Drawn instead of the radio screen, like the cheat
+    // sheet -- so every menu and overlay underneath stays exactly as it was and is there again after the wizard closes.
     bool wizard_open = false;
-    int wizard_page = 0;          // index into that flat page sequence
-    int wizard_topic = 0;         // highlighted row of the contents page
-    mutable int wizard_scroll = 0;// clamped while rendering (the renderer is const)
-    double wizard_angle = 0.0;    // the welcome page's disk, turned at 0.10 by the main loop
+    mutable wizard::State wizard; // clamped while rendering (the renderer is const)
+    double wizard_angle = 0.0;    // the first page's disk, turned at 0.10 by the main loop
     std::vector<int> visible;     // station indices that pass the search filter, in list order
     int cursor = 0;               // position within `visible`
     // Main search box: "p:" typed into the empty box (or "/p:") searches the STATION LISTS instead of the stations; the

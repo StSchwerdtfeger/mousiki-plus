@@ -790,6 +790,11 @@ int radio_main(int argc, char** argv) {
         cfg.wizard_seen = true;
         save_radio_settings(cfg, nullptr);
     };
+    auto wizard_open_now = [&]() {
+        if (!wizard::kEnabled) return;
+        wizard::open(ui.model.wizard, !cfg.wizard_seen);
+        ui.model.wizard_open = true;
+    };
     // A PATHS value changed: switch the storage files (copying what is missing there), reload what lives in them, move the
     // history store and tell the downloader about the new folder.
     auto storage_changed = [&]() {
@@ -1111,12 +1116,7 @@ int radio_main(int argc, char** argv) {
     };
     // First start of the radio after an install: greet with the help wizard,
     // the same way the music player does. Closing it writes WizardSeen=true.
-    if (wizard::kEnabled && !cfg.wizard_seen) {
-        ui.model.wizard_open = true;
-        ui.model.wizard_page = 0;
-        ui.model.wizard_topic = 0;
-        ui.model.wizard_scroll = 0;
-    }
+    if (wizard::kEnabled && !cfg.wizard_seen) wizard_open_now();
     while (running) {
         // search results arrive on a worker thread: copy the newest snapshot into the model, once per frame
         {
@@ -1205,59 +1205,29 @@ int radio_main(int argc, char** argv) {
             const int nvis = static_cast<int>(ui.model.visible.size());
             // ------------------------------------------------------------------ HELP WIZARD (SHIFT+w)
             if (ui.model.wizard_open) {
-                // Same page model and keys as the player's: LEFT / RIGHT turn
-                // the page, UP / DOWN pick a topic on the contents page and
-                // scroll everywhere else, ENTER opens the highlighted topic.
-                const auto& wt = wizard::topics(wizard::Flavor::Radio);
-                int total_pages = 2;
-                for (const auto& t : wt) total_pages += static_cast<int>(t.pages.size());
-                auto step = [&](int d) {
-                    const int next = std::clamp(ui.model.wizard_page + d, 0, total_pages - 1);
-                    if (next == ui.model.wizard_page) return;
-                    ui.model.wizard_page = next;
-                    ui.model.wizard_scroll = 0;
-                    // Keep the contents cursor on whatever is being read, so
-                    // going back to the list lands on the right topic.
-                    int rest = next - 2;
-                    if (rest >= 0) {
-                        for (size_t i = 0; i < wt.size(); ++i) {
-                            const int n = static_cast<int>(wt[i].pages.size());
-                            if (rest < n) { ui.model.wizard_topic = static_cast<int>(i); break; }
-                            rest -= n;
-                        }
-                    }
-                };
+                // The page / part / contents state and what a key does live in src/wizard.cpp, the same for both modes.
+                wizard::Key wk = wizard::Key::None;
                 if (k == 3 || k == kKeyCtrlC) running = false;
                 else if (arrow) {
-                    if (k == 'C') step(+1);
-                    else if (k == 'D') step(-1);
-                    else if (ui.model.wizard_page == 1) {
-                        const int n = static_cast<int>(wt.size());
-                        if (n > 0 && k == 'A') ui.model.wizard_topic = (ui.model.wizard_topic + n - 1) % n;
-                        if (n > 0 && k == 'B') ui.model.wizard_topic = (ui.model.wizard_topic + 1) % n;
-                    } else {
-                        if (k == 'A') --ui.model.wizard_scroll;      // the renderer clamps both ends
-                        else if (k == 'B') ++ui.model.wizard_scroll;
-                    }
-                } else if (k == 27 || k == 'q' || k == 'Q' || key_translate(cfg, k) == 'W') {
+                    const bool shifted = last_key_was_shifted();
+                    if (k == 'C') wk = wizard::Key::Right;
+                    else if (k == 'D') wk = wizard::Key::Left;
+                    else if (k == 'A') wk = shifted ? wizard::Key::PageUp : wizard::Key::Up;
+                    else if (k == 'B') wk = shifted ? wizard::Key::PageDown : wizard::Key::Down;
+                } else if (k == 27 || k == 'q' || k == 'Q' || key_translate(cfg, k) == 'W') wk = wizard::Key::Close;
+                else if (k == 13 || k == 10) wk = wizard::Key::Enter;
+                else if (k == 8 || k == 127) wk = wizard::Key::Back;                 // BACKSPACE and [t]: the table of content
+                else if (k == 't' || k == 'T') wk = wizard::Key::Contents;
+                if (wizard::handle_key(ui.model.wizard, wk)) {
                     ui.model.wizard_open = false;
                     out_clear_next = true;
                     wizard_seen_save();
-                } else if (k == 13 || k == 10) {
-                    if (ui.model.wizard_page == 1) {
-                        int page = 2;
-                        for (int i = 0; i < ui.model.wizard_topic && i < static_cast<int>(wt.size()); ++i)
-                            page += static_cast<int>(wt[static_cast<size_t>(i)].pages.size());
-                        ui.model.wizard_page = page;
-                        ui.model.wizard_scroll = 0;
-                    } else if (ui.model.wizard_page == 0) {
-                        ui.model.wizard_page = 1;
-                    }
-                } else if (k == 8 || k == 127) {                     // BACKSPACE: back to the contents
-                    ui.model.wizard_page = 1;
-                    ui.model.wizard_scroll = 0;
-                } else if (k == 'j') ++ui.model.wizard_scroll;
-                else if (k == 'k') --ui.model.wizard_scroll;
+                }
+                continue;
+            }
+            // SHIFT+w opens the wizard from every menu and overlay too -- unless a text field has the keyboard (then it is a letter).
+            if (wizard::kEnabled && !arrow && !text_entry_active() && key_translate(cfg, k) == 'W') {
+                wizard_open_now();
                 continue;
             }
             // ------------------------------------------------------------------ CHEATSHEET (?)
@@ -2457,11 +2427,7 @@ int radio_main(int argc, char** argv) {
                 case '/': set_search_focus(true); break;
                 case '?': ui.model.cheat_open = true; ui.model.cheat_scroll = 0; break;
                 case 'W':                         // Shift+W: the help wizard, as in the music player
-                    if (!wizard::kEnabled) break;   // switched off for now (wizard.h)
-                    ui.model.wizard_open = true;
-                    ui.model.wizard_page = 0;
-                    ui.model.wizard_topic = 0;
-                    ui.model.wizard_scroll = 0;
+                    wizard_open_now();
                     break;
                 case 'S': browse_open(); break;   // Shift+S: the RADIO BROWSER search menu
                 case 'P': lm_open(); break;       // Shift+P: the STATION LISTS menu

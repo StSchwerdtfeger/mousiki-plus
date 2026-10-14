@@ -4,8 +4,8 @@
 //
 // The radio reads and writes `radio_config.txt` (next to stations.txt and presets.txt in ~/.config/mousiki/, or
 // ./radio_config.txt) and uses nothing from src/settings.*. Colours are plain decimal 256-colour palette indices
-// as strings ("1".."255"); "0" or an empty string means "no colour" (the terminal's own). Values 30-47 and 90-107
-// are sent as direct SGR codes, like the player does.
+// as strings ("1".."255"); "0" or an empty string means "no colour" (the terminal's own). Every number
+// is a palette colour in every field, like the player.
 //
 // Every colour field is named after WHAT it colours (not after the player element it was once borrowed from):
 //   on_air_*      the ON AIR sign's diagonal gradient (and the needle / lamp / LIVE text, which use its first colour)
@@ -51,32 +51,32 @@ struct OsciSet {
 
 struct RadioSettings {
     // --- colours ----------------------------------------------------------------------------------
-    std::string border_top = "170";
-    std::string border_bottom = "171";          // the frame fades from border_top (top) to border_bottom (bottom)
+    std::string border_top = "141";
+    std::string border_bottom = "212";          // the frame fades from border_top (top) to border_bottom (bottom)
     bool border_smooth = true;                  // BorderGradient=smooth|rough: smooth fades the frame line by line; rough = only the bottom border line takes border_bottom
 
-    std::string on_air_upper_left = "170";      // ON AIR sign: gradient from the upper left ...
-    std::string on_air_bottom_right = "30";     // ... to the bottom right (plus the travelling colour wave)
+    std::string on_air_upper_left = "141";      // ON AIR sign: gradient from the upper left ...
+    std::string on_air_bottom_right = "212";     // ... to the bottom right (plus the travelling colour wave)
 
-    std::string meta_key = "170";               // station info labels ("Station", "Title" ...)
-    std::string meta_val = "182";               // station info values (also the station name next to the needle)
+    std::string meta_key = "117";               // station info labels ("Station", "Title" ...)
+    std::string meta_val = "231";               // station info values (also the station name next to the needle)
 
-    std::string viz_left = "170";               // FFT spectrum, left edge
+    std::string viz_left = "141";               // FFT spectrum, left edge
     std::string viz_center;                     // optional middle stop (config file only); empty = plain left -> right
-    std::string viz_right = "30";               // FFT spectrum, right edge
+    std::string viz_right = "212";               // FFT spectrum, right edge
 
-    std::string osci_left = "170";              // oscilloscope, left edge
-    std::string osci_right = "30";              // oscilloscope, right edge
+    std::string osci_left = "141";              // oscilloscope, left edge
+    std::string osci_right = "212";              // oscilloscope, right edge
 
-    std::string freq_line = "170";              // the frequency line and its ticks
-    std::string freq_mhz = "90";                // the numbers (88 92 96 ...) and the small dots for stations
+    std::string freq_line = "141";              // the frequency line and its ticks
+    std::string freq_mhz = "246";                 // the numbers (88 92 96 ...) and the small dots for stations
 
-    std::string preset_inactive_fg = "90";      // PRESETS pane: key slots that have no station ("5 -")
+    std::string preset_inactive_fg = "246";       // PRESETS pane: key slots that have no station ("5 -")
     std::string preset_inactive_bg;
-    std::string preset_key_fg = "255";          // PRESETS pane: the short-cut key letters (1 2 ... e r t d f g)
+    std::string preset_key_fg = "253";          // PRESETS pane: the short-cut key letters (1 2 ... e r t d f g)
 
-    std::string volume_current = "170";         // the "#" of the volume bar
-    std::string volume_possible = "182";        // the "-" of the volume bar
+    std::string volume_current = "212";         // the "#" of the volume bar
+    std::string volume_possible = "60";        // the "-" of the volume bar
 
     // Search bar input (the "/s:" box and the other "Search:" rows). Empty = follow LIST INACTIVE FG/BG,
     // which is what these bars always looked like; "0" = explicit terminal default.
@@ -85,26 +85,26 @@ struct RadioSettings {
     std::string search_inactive_fg;             // the rest of the bar (prefix, empty field)
     std::string search_inactive_bg;
 
-    std::string list_fg = "255";                // STATIONS rows (and the station names in PRESETS)
+    std::string list_fg = "253";                // STATIONS rows (and the station names in PRESETS)
     std::string list_bg;
-    std::string list_playing_fg = "245";        // the tuned station
+    std::string list_playing_fg = "84";        // the tuned station
     std::string list_playing_bg;
     std::string list_cursor_fg;                 // the hovered row
-    std::string list_cursor_bg = "240";
+    std::string list_cursor_bg = "60";
 
-    std::string tab_current = "10";             // settings screen: the current tab name "[ON/OFF]" and the "< ↔ >" hint
-    std::string tab_other = "90";               // settings screen: the other tab names
+    std::string tab_current = "212";             // settings screen: the current tab name "[ON/OFF]" and the "< ↔ >" hint
+    std::string tab_other = "246";                // settings screen: the other tab names
 
-    std::string focus = "90";                   // FOCUS: the pane focus indicator "\u25c0" after a pane's title (default = header)
-    std::string header = "90";                  // secondary text (see the top of this file)
-    std::string legend = "10";                  // key command legends (see the top of this file)
+    std::string focus = "246";                    // FOCUS: the pane focus indicator "\u25c0" after a pane's title (default = header)
+    std::string header = "246";                   // secondary text (see the top of this file)
+    std::string legend = "141";                  // key command legends (see the top of this file)
 
     // --- looks / tuning (config file only for now; the settings screen has the colours only) ----------
     // --- the ON/OFF tab ---------------------------------------------------------------------------
     bool on_air_ascii = true;                   // the ON AIR sign (with its colour wave)
     bool pulse_wave = true;                     // the faint circle burst behind the sign
     bool dummy_buttons = true;                  // the <<< MUTE >>> boxes next to the frequency band
-    int scope_mode = 3;                         // right of the station info: 0 = oscilloscope, 1 = sphere, 2 = off, 3 = spectrogram (default)
+    int scope_mode = 0;                         // right of the station info: 0 = oscilloscope, 1 = sphere, 2 = off, 3 = spectrogram; default: the oscilloscope
     SpectroSettings spectro;                    // the spectrogram (SHIFT+i overlay, SHIFT+u full screen), Audacity's defaults
     bool element_visualizer = true;             // the FFT spectrum under the station info
     bool stereo = true;                         // false = fold left + right to mono
@@ -142,7 +142,7 @@ struct RadioSettings {
     int timeshift_idx = 2;
     bool sleep_fade = true;                     // the sleep timer fades the volume out before it stops the stream
     std::map<std::string, std::string> keys;    // rebound keys by action id (kKeyActions); absent = the default
-    int visualizer_fluidity = 1;                // 1-10, higher = smoother / slower rise
+    int visualizer_fluidity = 10;               // 1-10, higher = smoother / slower rise
     int visualizer_degradation_speed = 8;       // 1 (slow fade) - 10 (near-instant)
     int visualizer_viscosity = 3;               // 0 (bars independent) - 10 (heavy neighbour blending)
     OsciSet osci_set[2];                        // the scope's parameters: [0] = braille, [1] = image (each style keeps its own)
@@ -263,10 +263,10 @@ std::filesystem::path radio_default_dir();                           // ~/.confi
 // default when config.txt is missing or does not set that row, so the wizard
 // is always drawn in sensible colours even on a first start.
 struct WizardPalette {
-    std::string border      = "90";   // ColorBorderTop
-    std::string border_bot  = "90";   // ColorBorderBottom
+    std::string border      = "8";    // ColorBorderTop
+    std::string border_bot  = "8";    // ColorBorderBottom
     std::string header      = "10";   // ColorHeader   -- headings
-    std::string legend      = "90";   // ColorLegend   -- key hints
+    std::string legend      = "8";    // ColorLegend   -- key hints
     std::string list;                 // ColorListInactiveFg -- body text ("" = the terminal's own)
     std::string cursor_fg;            // ColorListCursorFg   -- the contents cursor
     std::string cursor_bg   = "238";  // ColorListCursorBg

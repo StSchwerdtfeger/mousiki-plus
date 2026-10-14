@@ -441,24 +441,22 @@ bool color_rgb(const std::string& color, int& r, int& g, int& b) {
     return true;
 }
 
+// Every colour number is a 256-colour palette number in every field (see themes::legacy_to_palette for the old files).
 std::string ansi_fg(const std::string& color) {
     const int v = color_index(color);
     if (v <= 0) return "";
-    if ((v >= 30 && v <= 47) || (v >= 90 && v <= 107)) return "\x1b[" + std::to_string(v) + "m";
     return "\x1b[38;5;" + std::to_string(v) + "m";
 }
 
 std::string ansi_bg(const std::string& color) {
     const int v = color_index(color);
     if (v <= 0) return "";
-    if ((v >= 30 && v <= 47) || (v >= 90 && v <= 107)) return "\x1b[" + std::to_string(v) + "m";   // direct codes ignore fg/bg, like the player
     return "\x1b[48;5;" + std::to_string(v) + "m";
 }
 
 std::string sgr_params(const std::string& color) {
     const int v = color_index(color);
     if (v <= 0) return "";
-    if ((v >= 30 && v <= 47) || (v >= 90 && v <= 107)) return std::to_string(v);
     return "38;5;" + std::to_string(v);
 }
 
@@ -923,6 +921,13 @@ RadioSettings load_radio_settings(std::string* source_out) {
     glyph("BoxLowerLeft", s.box_lower_left);   glyph("BoxLowerRight", s.box_lower_right);
     glyph("BoxVertical", s.box_vertical);      glyph("BoxHorizontal", s.box_horizontal);
     glyph("ListSeparator", s.list_separator);
+    // A radio_config.txt from before "ColorCodes=palette": 30-37 / 90-97 (text) and 40-47 / 100-107 (background) were plain 16-colour
+    // codes. They become the palette numbers that look the same; the file is written once so that it carries the marker from now on.
+    const auto cc = kv.find("colorcodes");
+    if (cc == kv.end() || lower(cc->second) != "palette") {
+        for (const ThemeKey& k : kThemeKeys) s.*(k.p) = themes::legacy_to_palette(s.*(k.p), themes::role_of_key(k.key));
+        save_radio_settings(s);
+    }
     return s;
 }
 
@@ -957,8 +962,9 @@ static void write_radio_settings(std::ostream& o, const RadioSettings& s) {
          "# Location (Linux/macOS): $HOME/.config/mousiki/radio_config.txt  (or ./radio_config.txt next to the program)\n"
          "# Written by the settings screen (press s in the radio); edit by hand if you like.\n"
          "#\n"
-         "# Colours are numbers of the 256-colour terminal palette (1-255). 0 or empty = no colour (the terminal's own).\n"
-         "# 30-47 and 90-107 are sent as direct terminal colour codes.\n\n"
+         "# Colours are numbers of the 256-colour terminal palette (1-255) in every field. 0 or empty = no colour (the terminal's own).\n"
+         "# (A file without the next line is an older one: its 30-37 / 90-97 / 40-47 / 100-107 are converted once.)\n"
+         "ColorCodes=palette\n\n"
          "##-------------------------------------------\n"
          "##              COLORS\n"
          "##-------------------------------------------\n\n"
