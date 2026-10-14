@@ -1,4 +1,4 @@
-# Mousiki User Guide v3.3.8 (Windows · Linux · macOS) – music player and radio
+# Mousiki User Guide v4.0.0 (Windows · Linux · macOS) – music player and radio
 
 Mousiki TUI player is two programs in one: a terminal **music player** (chapters 1 to 10) and an **online radio** (chapter 11), including visualizations such as an oscilloscope and a spectrogram, as well as a Karaoke mode, making use of its lyrics fetching capabilities, to just name some of the integrated features. Press `SHIFT` and `+` on a German keyboard (`SHIFT+8` on an English one: the key that types `*`) to switch between radio and music player mode (see [Two modes in one program](#two-modes-in-one-program) and [Keyboard layouts](#keyboard-layouts-german-and-english)).
 
@@ -129,28 +129,25 @@ The small box next to the search bar shows the current play mode as a letter: `L
 
 ## The Help Wizard (`SHIFT+w`)
 
-> **Temporarily switched off.** The wizard does not open at the moment (neither on the first start nor with `SHIFT+w`) and its rows are hidden from the cheat sheet and from Settings → Reference. Its content is kept, so this section describes how it works once it is switched back on (`wizard::kEnabled` in `src/wizard.h`).
+The user guide you are reading is also **inside the program**. `SHIFT+w` opens the **Mousiki Plus Help Wizard** in both modes (from every menu and overlay that is not taking typed text): a welcome page, a **table of content** and a page per subject, written in the order of this guide's chapters -- II **Music player mode** (main UI, search / filter / download, curating your files, lyrics and karaoke, visualizations, sound and sleep timer, history, settings and colour themes) and III **Radio player mode** (main UI, finding stations, timeshift / recording / history, radio settings).
 
-The user guide you are reading is also **inside the program**. `SHIFT+w` opens the **Mousiki Plus Help Wizard** in both modes: a welcome page, a contents list, and a tutorial per topic with diagrams that point at the panes they describe.
-
-It **opens by itself the first time you start Mousiki after an install** -- once per mode, and never again after that. (The flag is `WizardSeen=` in `config.txt` and in `radio_config.txt`; setting it back to `false`, or deleting the line, brings the welcome page back on the next start.)
+It **opens by itself the first time you start Mousiki after an install** with the first welcome page -- once per mode, and never again after that. Both welcome pages show the spinning disk (fixed speed 0.1) to the left of the text. (The flag is `WizardSeen=` in `config.txt` and in `radio_config.txt`; setting it back to `false`, or deleting the line, brings the welcome page back on the next start.) Opened with `SHIFT+w` it starts at the second welcome page the first time in a session and at the page you left it on after that.
 
 | Key | What it does |
 |---|---|
-| `SHIFT+w` | Open the wizard (and close it again) |
-| `→` / `←` | Next / previous page. The pages are one sequence, so the arrows read through the whole wizard like a book, across topic boundaries. |
-| `↑` / `↓` | On the **contents** page: pick a topic. On a tutorial page: scroll, when the page is taller than the terminal. |
-| `ENTER` | On the **welcome** page: to the contents. On the **contents** page: open the highlighted topic. |
-| `BACKSPACE` | Back to the contents page from anywhere |
-| `ESC` or `q` | Close the wizard |
+| `SHIFT+w` / `ESC` / `q` | Open / close the wizard |
+| `→` / `←` | Next / previous page **inside the current main chapter**: from page 3.1 only the pages 3.x can be reached. The way to another chapter is the table of content. The welcome pages and the table of content count as one chapter. |
+| `t` or `BACKSPACE` | Back to the **table of content** (`TOC` in the legend), with the entry of the current page highlighted |
+| `↑` / `↓` | On the table of content: pick an entry (the page scrolls with it). On any other page that is taller than the terminal: scroll it one row; a scrollbar in the disk's gradient colours at the right edge shows that the page scrolls. |
+| `SHIFT+↑` / `SHIFT+↓` | A whole page up / down (on the table of content: jump five entries) |
+| `ENTER` | On the welcome page: to the table of content. On the table of content: open the highlighted entry. |
 
-- The **welcome page** has the spinning disk beside it and names both developers and the **running version** (it is read from the build, so it is never out of date).
-- The **topics** follow this guide. The music player has: Main UI, Search and Download, Meta Data, Playlists, Visualisations, Lyrics, Karaoke, Sound, Sleep mode, History, Settings and What Mousiki plays. The radio has: Radio Main UI, Presets Overlay, Search Radio Stations, Station Lists, Timeshift and Recording, History, Visualisations, Sound, Sleep mode and Radio Settings. Visualisations, Sound and Sleep mode are the same pages in both modes, because the features are.
+- The **top border** names the chapter: `MOUSIKI PLUS HELP WIZARD ─ II MUSIC PLAYER MODE ─ 3 CURATING YOUR FILES`; the bottom border lists the keys that work on the current page. Every page starts and ends with an empty line. The table of content is centred in the frame.
+- Colours: headings use the **header colour**, everything in `[square brackets]` (the keys) the **legend colour**, the rest the list colour. The wizard is drawn in the **music player's colours in both modes** (`config.txt`), so it looks the same whichever mode you open it from.
 - The keys the wizard names are the **shipped defaults**, like the cheat sheet's. A key you rebound yourself is shown under **Settings → REFERENCE**.
-- The wizard is drawn in the **music player's colours in both modes** (`config.txt`: BORDER, HEADER, LEGEND, LIST, DISK and the lyrics' active-word colour as the accent of the arrows), so the feature looks like one thing whichever mode you open it from. The radio reads them from the player's `config.txt` and falls back to the player's own defaults when there is none.
 - Playback keeps running while it is open. The wizard takes every key until you close it, like the cheat sheet (`?`), which stays the quick, scrollable list of every key command.
 
----
+**The text is a plain file**, `Mousiki_Help_Wizard.txt` in the repository: a page starts with a line `[[New Page]]`, `[[Header]]` colours the capitalised words in front of it, `[[Header_line]]` anywhere in a line colours the whole line, `[KEY]` is drawn in the legend colour, `{VERSION}` is the running version and lines starting with `=>>>` are notes to the author (see the top of the file). It is compiled into the program by `python3 tools/wizard_to_inc.py` (writes `src/wizard_text.inc`). To try an edit without rebuilding, start Mousiki with `MOUSIKI_WIZARD_FILE=/path/to/Mousiki_Help_Wizard.txt`.
 
 ## 1. System (main UI)
 
@@ -160,7 +157,7 @@ It **opens by itself the first time you start Mousiki after an install** -- once
 | `s` | Open Settings | Opens the Settings panel (see [Settings](#10-settings-individual-tabs) for every tab). Inside Settings, `s` again **saves to `config.txt` and closes**. `ESC` or `q` **discards** the changes made on the screen and closes. |
 | `SHIFT+r` | Rescan library | Rescans the music folders, e.g. after files were copied or downloaded in the meantime or after coming back from the radio. Also works in the meta editor while the library pane or the fetch list has the focus. Fixed key. |
 | `t` | Console / logs | Opens a read-only log view showing what the app has been doing (sort changes, filter changes, queue messages, load timings and so on). Close it with `ESC`, `t` or `T`. |
-| `SHIFT+w` | Help wizard | Opens the [Help Wizard](#the-help-wizard-shiftw): this guide as tutorial pages, with diagrams of the panes. Arrow keys turn the pages, `ENTER` opens a topic, `ESC` closes. It opens by itself on the first start after an install. |
+| `SHIFT+w` | Help wizard | Opens the [Help Wizard](#the-help-wizard-shiftw): this guide as tutorial pages. Arrow keys turn the pages, `t` shows the table of content, `ESC` closes. It opens by itself on the first start after an install. |
 | `?` | Cheat sheet | (German `SHIFT` and `ß`, English `SHIFT` and `/`.) Opens the command list. Use `↑`/`↓` to scroll (the list is longer than most terminal windows). Close with `?` or `ESC`. |
 | `q` | Quit | Quits the application from the main screen. Only the lowercase `q` quits: `SHIFT+q` does nothing, so it cannot quit by accident when you aim for `SHIFT+w` (the help wizard). |
 | `ESC` | Close / back | Closes whatever is open (an overlay, a menu, a prompt; in Settings it discards the changes). On the **main screen** it returns to the *home view*: the full local library, with no search query and no folder filter, scrolled to the top. It does not change the sort mode. |
@@ -372,13 +369,15 @@ For tracks whose synced lyrics run ahead of or behind the music. The overlay shi
 | :--- | :--- |
 | `→` / `←` | Lyrics **later** / **earlier** by 0.1 s |
 | `↑` / `↓` | Lyrics **later** / **earlier** by 0.5 s |
+| `SHIFT+→` / `SHIFT+←` | **Seek** the running track forward / back by 5 s, to hear a passage again while re-timing it |
 | `R` | Back to 0 (the timing as it is in the lyrics file) |
 | `ENTER` or `S` | **Save** the offset into the track's lyrics file and close |
 | `ESC` or `ALT+l` | Cancel: the offset from before the overlay was opened comes back (back to karaoke when it was opened from there) |
 
 - A **positive** offset (`+0.3 s`) means the lyrics appear later than their timestamps say, so use it when the lyrics are **too early**. A negative offset makes them appear earlier. The range is ±120 s.
 - Saving writes a standard `[offset:...]` tag at the top of the track's `.lrc` file (in the `lyrics` folder next to the track, in milliseconds, with the usual LRC sign convention: positive = earlier). The timestamps themselves are not changed. The offset is read back whenever the lyrics are loaded from that file, and other players that know the tag use it too. Saving `0` removes the tag.
-- The offset belongs to **one track's lyrics file**. Fetching the lyrics again with `l` (retry) replaces the file and resets the offset. If there is no lyrics file for the track, the offset still applies until the track changes, but saving reports that it could not be saved.
+- The offset belongs to **one track's lyrics file**. Fetching the lyrics again with `l` (retry) only overwrites the file when the fetched text **and** offset are identical to it; if the text or the offset differs (for example because you re-timed the lyrics), your current copy is kept as an older version. If there is no lyrics file for the track, the offset still applies until the track changes, but saving reports that it could not be saved.
+- While the overlay is open, `SHIFT+←` / `SHIFT+→` seek the running track, so you can re-time the lyrics against the music.
 - Playback keeps running while the overlay is open; only its keys react.
 
 ![Lyric offset editor overlay](images/Playlist_menu_LYRIC_OFFSET_EDITOR.png)
@@ -411,6 +410,10 @@ Reads the lyrics saved for the **playing** track (when nothing plays: the track 
 - **A translation takes a while** and runs in the background: opening or closing the translate overlay, choosing another file or closing READ LYRICS does **not** stop it, and it is saved when it is done (the main screen tells when READ LYRICS is closed). While it runs, pressing `ENTER` for another one shows a **warning** instead of starting it. The translation is shown in `( )` **right below the original line**.
 - Translations are saved in the lyrics folder, in an extra `translations` folder: `<folder of the track>/lyrics/translations/<name>.<language>.txt` (one file per lyrics file and target language, for example `.en.txt` and `.fr.txt`). Next time they are read from there, without a connection; delete one in the TRANSLATION pane. When the lyrics are fetched again, a saved translation no longer fits and is ignored.
 - `CTRL+L` used to be a second way to open the lyrics timing overlay. That overlay opens with `ALT+L` only now.
+
+![READ LYRICS with a translation](images/lyrics_read_translate.png)
+
+*READ LYRICS with a translation shown below the lines.*
 
 ### The oscilloscope (lyric visual)
 
@@ -506,6 +509,10 @@ The oscilloscope over the whole screen, like the spectrogram's full screen (`SHI
   **The readouts are made to be read, not to flicker:** RMS level, correlation and balance are averages over about a second, the peak is held for two seconds, and what is shown is refreshed only twice a second and rounded (whole dB, correlation to 0.1). Levels are in dBFS: 0 dB is the loudest a file can be (a full-scale sine has an RMS of -3 dB), typical music sits at about -20 to -10 dB RMS with peaks around -3 dB; `-- dB` means silence. They do not depend on the automatic size of the picture. Correlation tells how mono the sound is (values near +1 mean the picture is a thin diagonal in XY; near 0 a wide cloud; negative values are a mono-compatibility warning), balance whether the sound is leaning to one side. Config: `ScopeYtTimeUnit`, `ScopeYtTimeDiv`, `ScopeYtValueDiv`, `ScopeYtInfo` (`off|rms|peak|both`), `ScopeXyDiv`, `ScopeXyInfo` (`off|corr|balance|both`).
 - The usual playback keys keep working. `SHIFT+u` (the spectrogram's full screen) replaces this overlay, and the other way round.
 
+![Big oscilloscope overlay](images/Playback_Main_UI_OSCI_BIG_OVERLAY.png)
+
+*The big oscilloscope overlay with YT and XY pictures.*
+
 ### Scope window (`)`: German `SHIFT+9`, English `SHIFT+0`)
 
 The key that types `)` opens the oscilloscope in **its own window** next to the terminal (again: closes it). It is drawn by the graphics card, like an analog scope: **every sample** that is played is drawn once as a soft beam, the phosphor keeps an afterglow, dense parts of the trace glow brighter and a bloom lies around the beam. It runs at the refresh rate of your monitor (60, 120, 144 Hz …), independent of the terminal and of **Frame rate**. Integrated graphics are plenty; a dedicated card is not needed.
@@ -545,7 +552,7 @@ The key that types `(` opens the **spectrogram in its own window** (again: close
 
 ### Spectrogram (`SHIFT+i`, `SHIFT+u`)
 
-The third visual for the lyrics area (and the radio's scope block): a **spectrogram** made the way **Audacity** makes its spectrogram view, with Audacity's default settings and colours -- time runs from left to right, the frequency goes up, the colour shows how strong each frequency is. A stereo track is drawn as two channels above each other (left on top), like a stereo track in Audacity. For a perfectly smooth picture open it in its own window with `(` (German `SHIFT+8`, English `SHIFT+9`; see *Spectrogram window*). Switch to it with `.` (sphere → oscilloscope → spectrogram → lyrics) or with **Lyrics/Viz Default** = `spectro` (radio: **Osci/sphere** = `spectro`). It is the default visual, in the image style (the overlays no longer have a *Display* row: switching the visual is the `.` key's job).
+The third visual for the lyrics area (and the radio's scope block): a **spectrogram** made the way **Audacity** makes its spectrogram view, with Audacity's default settings and colours -- time runs from left to right, the frequency goes up, the colour shows how strong each frequency is. A stereo track is drawn as two channels above each other (left on top), like a stereo track in Audacity. For a perfectly smooth picture open it in its own window with `(` (German `SHIFT+8`, English `SHIFT+9`; see *Spectrogram window*). Switch to it with `.` (sphere → oscilloscope → spectrogram → lyrics) or with **Lyrics/Viz Default** = `spectro` (radio: **Osci/sphere** = `spectro`). The default visual is the oscilloscope; the spectrogram is drawn in the image style (the overlays no longer have a *Display* row: switching the visual is the `.` key's job).
 
 ![Spectrogram overlay with settings.](images/Spec_overlay.png)
 
@@ -727,6 +734,10 @@ A large window with a search bar and the **LOCAL AUDIO FILES FOLDER** pane: a tr
 
 Playback keys (pause, next / previous, seek, volume, mute, normalize) keep working. The key can be changed with `HKeyFolderOverlay` in `config.txt`. The overlay and the big list / queue overlays exclude each other.
 
+![Folder overlay](images/Playback_Main_UI_FOLDER_OVERLAY.png)
+
+*The folder overlay (`SHIFT+f`).*
+
 ### File conversion overlay (`SHIFT+c`)
 
 Turns high resolution files into lighter ones. A large window with a search bar and the list **FILES TO CONVERT**: every file of the library with its format, sample rate / bit depth, bitrate, size and the estimated size after the conversion. The first line inside the list holds the pre-filter and the target, the second shows the export folder, the progress of a running conversion or the result of the last one.
@@ -829,6 +840,10 @@ Paste a YouTube playlist link to queue tracks from it.
 1. **Type or paste the link** and press `ENTER` to fetch it (`ESC` cancels).
 2. Once the results appear: `↑`/`↓` move, `SPACE` stars or unstars a row, `a` queues **all** of them, and `ENTER` queues **only the starred** ones.
 3. `ESC` throws everything away.
+
+![Bulk add: link entered and results listed](images/Queue_Add_Bulk.png)
+
+*Bulk add with the fetched results.*
 
 ---
 
@@ -1012,6 +1027,10 @@ Album and year belong to one specific release, so a song often has several answe
 - **Top Playlists**: the five most played saved playlists of the **week**, **month**, **quarter**, **year** and **overall**, all in one pane (two columns on a wide terminal), with the number of plays and the time listened, plus a small summary (playlists played, plays from playlists, share of all plays). A play counts for a playlist when the track was queued from it (`ENTER` or `a` on a playlist row in the main list, or a queue restored from the last session). Tracks you picked one by one count for no playlist, and plays from before this tab existed carry no playlist, so the lists fill up from now on. Week, month, quarter and year are the last 7, 30, 91 and 365 days, like the smart lists below.
 - **Habits**: listening statistics, including average session length, listening time per day, tracks per session, skips, replays and completion rates.
 
+![Top Playlists tab](images/Listening_history_TOP_PLAYLISTS_TAB.png)
+
+*TOP PLAYLISTS tab.*
+
 ![History tab](images/Listening_history_HISTORY_TAB.png)
 
 ***History** tab: when each track was played, its title, its length and its state (`PLAY` = playing now, `done` = played to the end, `skip` = skipped).*
@@ -1105,17 +1124,23 @@ Press `s` on the main screen to open **Settings**. It has six tabs: **COLORS**, 
 
 #### Border gradient (SMOOTHNESS)
 
-The row under BORDER_COLOR switches the frame gradient between **smooth** (default: the border lines fade row by row from the TOP colour to the BOTTOM colour) and **rough** (only the bottom border line of each pane takes the BOTTOM colour). `←→` or `ENTER` toggle it; config key `BorderGradient=smooth|rough` (music player and radio each have their own).
+The row under BORDER_COLOR switches the frame gradient between **smooth** (default: the border lines fade row by row from the TOP colour to the BOTTOM colour) and **rough** (only the bottom border line of each pane takes the BOTTOM colour). `←→` or `ENTER` toggle it; config key `BorderGradient=smooth|rough` (music player and radio each have their own). The smooth gradient also colours the frames of the floating overlays (big list, queue, folder, conversion and the other panels), not only the main screen.
 
 #### Colour themes
 
-The first row of the COLORS tab (music player **and** radio) is **THEME**. `ENTER` on the theme name opens a list of ready-made colour schemes with swatches; `ENTER` applies one (the field shows `(custom)` when the colors match none). Two themes carry the Mousiki look: `MeowerShell(Default)` and `Serious MeowerShell` (the colors of the default config.txt). Twenty more ship with it: Soft Pastel, Cyberpunk, Greyscale, Nord, Dracula, Solarized Dark, Gruvbox, Monokai, Ocean, Forest, Sunset, Matrix, Amber Terminal, Sakura, Midnight, three colour-blind-friendly schemes (Deuteranopia, Protanopia, Tritanopia), High Contrast and Coffee. The list scrolls with `↑` `↓` `HOME` `END` when there are more themes than fit on the screen, in the template picker of CREATE THEME as well. A theme only changes the Colors tab, and like any change it is kept when you save with `s` and dropped with `ESC`.
+The first row of the COLORS tab (music player **and** radio) is **THEME**. `ENTER` on the theme name opens a list of ready-made colour schemes with swatches; `ENTER` applies one (the field shows `(custom)` when the colors match none). Two themes carry the Mousiki look: `SeriousMeowerShell(Default)` (the default of the music player; the colors of the default config.txt) and `MeowerShell`. The default of the radio is `Dracula`. Twenty more ship with it: Soft Pastel, Cyberpunk, Greyscale, Nord, Dracula, Solarized Dark, Gruvbox, Monokai, Ocean, Forest, Sunset, Matrix, Amber Terminal, Sakura, Midnight, three colour-blind-friendly schemes (Deuteranopia, Protanopia, Tritanopia), High Contrast and Coffee. The list scrolls with `↑` `↓` `HOME` `END` when there are more themes than fit on the screen, in the template picker of CREATE THEME as well. A theme only changes the Colors tab, and like any change it is kept when you save with `s` and dropped with `ESC`.
 
-`→` to **CREATE THEME** and `ENTER` opens a full-size editor: type a name on top (25 characters at most), optionally press `ENTER` on **CHOOSE THEME AS TEMPLATE** to start from an existing theme, then edit any color cell like on the tab (with the live preview). `s` stores the theme and applies it; `ESC` throws it away.
+`→` to **CREATE THEME** and `ENTER` opens a full-size editor: type a name on top (27 characters at most), optionally press `ENTER` on **CHOOSE THEME AS TEMPLATE** to start from an existing theme, then edit any color cell like on the tab (with the live preview). `s` stores the theme and applies it; `ESC` throws it away -- but with anything changed it **asks first** (*Unsaved theme!* `s` save it, `d` discard it, `ESC` keep editing), so a theme is not lost by forgetting `s`. If the name is already a theme of your own, `s` asks **"Do you want to overwrite theme ...?"** (`y` overwrites, anything else goes back); a built-in theme can never be overwritten, its name is refused.
 
-**Export / import:** `SHIFT+e` on the Colors tab opens **EXPORT THEME**: name (25 characters at most) and folder (default `~/.config/mousiki`), `s` writes the colors now set as `<name>.theme` (player and radio colors in one file). `SHIFT+i` opens **IMPORT THEMES**: pick a folder, `ENTER` imports the highlighted `.theme` / `.txt` file (it may hold several `[Name]` themes), `a` imports every file listed. An imported theme whose name exists gets ` (2)`, ` (3)` ... added; it then shows up in the THEME row.
+**Delete a theme (`SHIFT+d`).** In the CHOOSE THEME list `SHIFT+d` deletes the highlighted theme of your own, after the question *Do you want to delete theme "..."?* (`y` deletes, anything else keeps it). Built-in themes cannot be deleted. If the deleted theme is the one in use, its colors stay set until you pick another.
 
-Note: the numbers 30-47 and 90-107 are sent to the terminal as plain 16-colour codes, and 40-47 / 100-107 are *background* codes -- typed into a text-colour cell they paint a background. The built-in themes avoid them. An older `themes.txt` is upgraded automatically (your own themes stay).
+**Edit the theme in use (`e`).** On the Colors tab `e` opens the same editor on the colors currently set. If they are a theme of your own, its name is already in the NAME field: change the colors and press `s` to overwrite it (after the question above), or change the name to save a copy. For a built-in theme (or colors that match no saved theme) the name is empty: give it a new name. Theme names are at most 27 characters, as wide as the highlight in CHOOSE THEME.
+
+**Leaving the settings.** `ESC` / `q` leave without saving, as before -- but if anything was changed, a line at the bottom asks *Unsaved changes!* `s` save and leave, `d` discard and leave, `ESC` keep editing (player and radio).
+
+**Export / import:** `SHIFT+e` on the Colors tab opens **EXPORT THEME**: name (27 characters at most) and folder (default `~/.config/mousiki`), `s` writes the colors now set as `<name>.theme` (player and radio colors in one file). `SHIFT+i` opens **IMPORT THEMES**: pick a folder, `ENTER` imports the highlighted `.theme` / `.txt` file (it may hold several `[Name]` themes), `a` imports every file listed. An imported theme whose name exists gets ` (2)`, ` (3)` ... added; it then shows up in the THEME row.
+
+Note: every colour number is a palette number, in every field -- text, background and the ends of a colour fade (`104` is palette colour 104 wherever you type it). Older `config.txt`, `radio_config.txt` and `themes.txt` files, which still used `30`–`37`, `90`–`97` (text) and `40`–`47`, `100`–`107` (background) as plain 16-colour codes, are converted once when they are loaded, so your colours look the same; the files then carry `ColorCodes=palette` (themes: `# format: 7`). Black is `16`, because `0` means "no colour".
 
 All themes live in `themes.txt` next to `config.txt` (`~/.config/mousiki/`); player and radio share the file. Each theme is a `[Name]` line followed by `ColorXxx=value` lines using the keys of the config files (keys starting with `Radio.` are the radio's own values: `Radio.ColorHeader`, `Radio.ColorLegend`, `Radio.ColorFocus` in the built-in themes, and *every* colour of a theme made or saved in the radio). Built-in themes can be edited there.
 
@@ -1124,7 +1149,7 @@ All themes live in `themes.txt` next to `config.txt` (`~/.config/mousiki/`); pla
 
 Sets the colours of the interface. Each row has a name (drawn in the **header colour**), one or two value cells, a colour swatch next to each value and a **live preview** on the right.
 
-**Values** are numbers from the 256-colour terminal palette (`1`–`255`). `0` or an empty field means "no colour", so the terminal's own default is used. Values in the ranges 30–47 and 90–107 are used as direct terminal colour codes.
+**Values** are numbers from the 256-colour terminal palette (`1`–`255`); any number works in any field. `0` or an empty field means "no colour", so the terminal's own default is used (black is `16`; `8` is the usual dim grey).
 
 | Row | First cell | Second cell | What it colours |
 |---|---|---|---|
@@ -1208,15 +1233,15 @@ The tab collects everything about the **animations and the visualizations**, in 
 
 | Setting | Values | What it does |
 |---|---|---|
-| Disk Speed | 0.01, 0.05, 0.10, 0.17, 0.25, 0.50, 0.75, 1.00 | How fast the disk spins. |
+| Disk Speed | 0.01, 0.05, 0.10, 0.17, 0.25, 0.50, 0.75, 1.00 | How fast the disk spins. Default `0.10`. |
 
 **SPECTRUM BARS** -- the bars under the meta data (ON/OFF → Spectrum Bars; before: *WAVE*, *Wave Fluidity* …).
 
 | Setting | Values | What it does |
 |---|---|---|
-| Bars Fluidity | 1–10 | How the spectrum bars **rise**. It affects only the rising motion. |
-| Bars Degradation | 1–10 | How quickly bars **fall**. `1` is a slow, VU-meter-like fade, `10` a near-instant cutoff. |
-| Bars Viscosity | 1–10 | How strongly the bar motion is damped and smoothed between neighbouring bars. |
+| Bars Fluidity | 1–10 | How the spectrum bars **rise**. It affects only the rising motion. Default `10`. |
+| Bars Degradation | 1–10 | How quickly bars **fall**. `1` is a slow, VU-meter-like fade, `10` a near-instant cutoff. Default `8`. |
+| Bars Viscosity | 1–10 | How strongly the bar motion is damped and smoothed between neighbouring bars. Default `3`. |
 
 **PROGRESS WAVEFORM** -- the braille waveform in the progress bar.
 
@@ -1228,8 +1253,8 @@ The tab collects everything about the **animations and the visualizations**, in 
 
 | Setting | What it does |
 |---|---|
-| Lyrics/Viz Default | The view the field **starts with when Mousiki opens**: `sphere` (the audio-reactive ball), `osci` (the XY oscilloscope, see *The oscilloscope* above), `spectro` (the spectrogram, see *Spectrogram*) `lyrics`, or **`last used`**. The `.` key changes the view while Mousiki runs, but that is not remembered: the next start begins with the chosen view again (picking a value here also shows it at once). With `last used` it is remembered after all: Mousiki opens with the view it was closed on. Default `lyrics`. With the lyrics view on and no lyrics found, **No-Lyrics Viz** below decides what is shown. The sphere and the oscilloscope's *gradient* palette use the **VIZ** colors (Settings → Colors → VIZ); the spectrogram has its own colour schemes. The oscilloscope's look is tuned with `SHIFT+o`. (`VizDefault=sphere\|osci\|spectro\|lyrics\|last` in `config.txt`) |
-| No-Lyrics Viz | What the lyrics area shows while the **lyrics view is on but there are no lyrics** (nothing found, still fetching, track without lyrics): `sphere`, `osci`, `spectro` (default) or `none` (an empty field). Before this row existed the area showed whatever view `.` had been on before the lyrics. If the visual you pick is switched off in **Use Sphere** / **Use Oscilloscope** / **Use Spectrogram**, picking it turns that switch **on**; switching the switch off later moves this pick on to the next visual that is on. (`NoLyricsViz=`) |
+| Lyrics/Viz Default | The view the field **starts with when Mousiki opens**: `sphere` (the audio-reactive ball), `osci` (the XY oscilloscope, see *The oscilloscope* above), `spectro` (the spectrogram, see *Spectrogram*) `lyrics`, or **`last used`**. The `.` key changes the view while Mousiki runs, but that is not remembered: the next start begins with the chosen view again (picking a value here also shows it at once). With `last used` it is remembered after all: Mousiki opens with the view it was closed on. Default `osci`. With the lyrics view on and no lyrics found, **No-Lyrics Viz** below decides what is shown. The sphere and the oscilloscope's *gradient* palette use the **VIZ** colors (Settings → Colors → VIZ); the spectrogram has its own colour schemes. The oscilloscope's look is tuned with `SHIFT+o`. (`VizDefault=sphere\|osci\|spectro\|lyrics\|last` in `config.txt`) |
+| No-Lyrics Viz | What the lyrics area shows while the **lyrics view is on but there are no lyrics** (nothing found, still fetching, track without lyrics): `sphere`, `osci` (default), `spectro` or `none` (an empty field). Before this row existed the area showed whatever view `.` had been on before the lyrics. If the visual you pick is switched off in **Use Sphere** / **Use Oscilloscope** / **Use Spectrogram**, picking it turns that switch **on**; switching the switch off later moves this pick on to the next visual that is on. (`NoLyricsViz=`) |
 
 **VIZ/LYRICS ORDER**
 
@@ -1297,6 +1322,10 @@ The longest tab. It scrolls as one list and has two parts: the hotkeys, then the
 ### Tab 6: ABOUT APP
 
 The credits and versions of the original app and of this port, as text that scrolls with `↑` / `↓`. The text is built into the program (no longer part of `config.txt`, where it used to collect empty lines over time) and always shows the running version. An old `ClassTextAboutApp= { … };` block in an existing `config.txt` is ignored and disappears with the next save.
+
+![ABOUT APP tab](images/Settings_ABOUT_APP_TAB.png)
+
+*The ABOUT APP tab.*
 
 ### Settings that exist (only) in `config.txt`
 
@@ -1397,7 +1426,7 @@ All of them are also in the radio's own cheat sheet (`?`, categorized and scroll
 | `SHIFT+l` | Big STATIONS overlay |
 | `h` | Listening history |
 | `s` | Settings |
-| `SHIFT+w` | [Help wizard](#the-help-wizard-shiftw): the same wizard, with the radio's own topics |
+| `SHIFT+w` | [Help wizard](#the-help-wizard-shiftw): the same wizard, with the radio chapters (III) at its end |
 | `?` | Cheat sheet |
 | `*` (German `SHIFT` and `+`, English `SHIFT+8`) | Switch to the music player |
 | `q` / `CTRL+c` | Quit |
@@ -1565,6 +1594,10 @@ The STATIONS pane with the whole screen for its rows and an extra **PRESET NAME*
 
 `↑` / `↓` choose, `ENTER` or `y` starts recording, `ESC` cancels. While it runs the dial's footer shows `REC mm:ss`; `y` again stops (at what you are hearing at that moment, so in timeshift it ends at your listening position). The recording is written from the buffer as a WAV file, which ffmpeg then converts in the background to `<YYYY-MM-DD_HH-MM-SS>.mp3`, named by the time the first recorded second was **on air** (the ID3 title is the current "artist - title", or the station name). The WAV is removed afterwards (it is kept if the conversion fails). Tuning another station or `x` ends the recording too, and recordings shorter than half a second are discarded. Recordings go to the radio's download folder (see 11.12, PATHS), which by default is the player's one. The recording is taken before volume, mute and the mono fold.
 
+![Radio RECORD overlay](images_radio/radio_record.png)
+
+*The RECORD overlay: where the recording starts.*
+
 ### 11.11 Listening history (`h`)
 
 The radio keeps its own listening history, shaped like the player's (chapter 8) but with **channels** instead of tracks. Three tabs (`1` `2` `3`, `←/→`, `TAB`), `↑/↓` move, `HOME/END` jump to the ends, `ESC`, `q` or `h` close. The bottom border shows the line count or the sort direction.
@@ -1700,12 +1733,12 @@ The `@keys` line names the letters of the slots the file was written with (slot 
 | **Email** | itz.ender5820@gmail.com | **Version** | original and final v1.0 |
 | | | **Licence** | Apache Licence 2.0 |
 
-### Windows port, incl. extensive modifications up to v3.3.8 (including the radio mode)
+### Windows port, incl. extensive modifications up to v4.0.0 (including the radio mode)
 
 | | | | |
 |---|---|---|---|
 | **Developer** | Steffen Schwerdtfeger | **GitHub** | [StSchwerdtfeger](https://github.com/StSchwerdtfeger) |
-| **Email** | fanti.blub@gmail.com | **Version** | current v3.3.8 |
+| **Email** | fanti.blub@gmail.com | **Version** | current v4.0.0 |
 | | | **Licence** | Apache Licence 2.0 |
 
 ### Third-party software and licences
