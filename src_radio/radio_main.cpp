@@ -2508,7 +2508,12 @@ int radio_main(int argc, char** argv) {
             if (gfx == GfxProto::None && gfx_shown) gfx_shown = false;
             if (ui.model.gfx.active && ui.model.gfx2.active && gfx != GfxProto::None) {
                 if (ui.model.gfx2.fresh || !gfx2_shown) { out += gfx_emit(gfx, ui.model.gfx2); gfx2_shown = true; }
-            } else if (gfx2_shown) { out += gfx_clear(gfx, 1); gfx2_shown = false; }
+            } else if (gfx2_shown) {
+                out += gfx_clear(gfx, 1); gfx2_shown = false;
+                // Sixel cannot delete a picture: the overlay's pictures stay until their cells are written over, so the next
+                // frame is a full one and the main picture is sent again
+                if (gfx == GfxProto::Sixel) { prev_lines.clear(); gfx_shown = false; }
+            }
             if (sp_img) {
                 const int* a = ui.model.spectro_area;
                 const int* sk = ui.model.spectro_skip;

@@ -601,6 +601,7 @@ bool build_scope_image(const Style& s, const UiModel& m, RadioEngine& engine, in
     const int cws = std::max(2, std::min(cwq, cw0 / g.scale));
     const int chs = std::max(4, static_cast<int>(std::lround(static_cast<double>(cws) * ch0 / cw0)));
     g.cols = scope_w; g.rows = kPanelH; g.w = scope_w * cws; g.h = kPanelH * chs;
+    g.id = 0; g.grid.clear(); g.cut_w = 0;   // no grid on the main screen (the big overlay sets one on the same frame object)
     engine.scope().render_image(g.w, g.h, scope_params(s.c, m.dt), g.level, g.hue);
     const int pal = s.c.osci().palette;
     if (pal == 0) {   // OSCI gradient over the picture: the colour follows the horizontal position, like the braille scope
