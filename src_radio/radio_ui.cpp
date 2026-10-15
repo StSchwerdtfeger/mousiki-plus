@@ -581,6 +581,10 @@ RadioScope::Params scope_params(const RadioSettings& c, double dt, int style = -
     p.glow = o.glow;
     p.mode = c.osci_mode;
     if (o.music) { p.mono_phase = false; p.fixed_gain = true; }   // oscilloscope music mode: the exact figure
+    p.crt = o.crt;
+    p.low_rate_blank = o.low_rate;
+    p.dwell = o.dwell;
+    p.rough = o.rough;
     return p;
 }
 
@@ -592,7 +596,7 @@ bool build_scope_image(const Style& s, const UiModel& m, RadioEngine& engine, in
     GfxFrame& g = m.gfx;
     // pixels per cell, capped so a big terminal does not mean a huge picture (the terminal scales it up)
     const int cw0 = std::max(4, m.cell_w), ch0 = std::max(8, m.cell_h);
-    const int cwq = std::clamp(560 / scope_w, 4, cw0);
+    const int cwq = std::clamp(osci_detail_cap(s.c.image_detail, false) / scope_w, 4, cw0);
     // Image resolution (SHIFT+o): render 1/scale of it; Kitty scales the picture up itself, Sixel repeats its pixels up to
     // the real cell size (out_cw x out_ch). Less to render, encode and send per frame.
     g.scale = std::clamp(s.c.image_scale, 1, 3);
@@ -3083,7 +3087,7 @@ std::vector<std::string> build_scope_big(const Style& s, const UiModel& m, const
         // The terminal draws the pictures itself: the boxes are placeholder cells (the main loop writes the pictures from
         // m.gfx / m.gfx2), the grid is part of each picture.
         const int cw0 = std::max(4, m.cell_w), ch0 = std::max(8, m.cell_h);
-        const int cwq = std::clamp(640 / g.cols, 4, cw0);
+        const int cwq = std::clamp(osci_detail_cap(c.image_detail, true) / g.cols, 4, cw0);
         const int scale = std::clamp(c.image_scale, 1, 3);
         const int cws = std::max(2, std::min(cwq, cw0 / scale));
         const int chs = std::max(4, static_cast<int>(std::lround(static_cast<double>(cws) * ch0 / cw0)));
@@ -3124,7 +3128,7 @@ std::vector<std::string> build_scope_big(const Style& s, const UiModel& m, const
     ScopeBigInfo info;   // the radio's scope always runs at 48 kHz
     info.m = sm;
     info.rotate = os.rotate;
-    info.samples = std::clamp(os.trace, 128, 1024);
+    info.samples = std::clamp(os.trace, 128, 8192);
     info.ms = info.samples * 1000.0 / 48000.0;
     info.music = px.fixed_gain;
     {
@@ -3348,6 +3352,10 @@ void fill_scope_window_config(const RadioSettings& cfg, const RadioStatus& st, S
     c.interp = o.interp ? 1 : 0;
     c.color_by_x = o.palette == 0 ? 1 : 0;
     c.music = o.music ? 1 : 0;
+    c.crt = o.crt ? 1 : 0;
+    c.low_rate = o.low_rate ? 1 : 0;
+    c.dwell = o.dwell ? 1 : 0;
+    c.rough = o.rough ? 1 : 0;
     for (int h = 0; h < 256; ++h) {
         int r = 255, g = 255, b = 255;
         palette_rgb(s, o.palette, static_cast<float>(h) / 255.0f, r, g, b);

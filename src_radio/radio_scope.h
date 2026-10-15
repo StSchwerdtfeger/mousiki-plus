@@ -24,11 +24,16 @@ public:
         bool z_axis = false;                 // beam intensity follows the Z signal
         float z_depth = 0.70f;               // how strongly Z darkens the beam, 0 .. 1
         int z_source = 0;                    // 0 = beam speed (fast = dim, like a CRT), 1 = signal level (far from centre = bright)
-        int trace = 1024;                    // samples drawn per frame, 128 .. 1024
+        int trace = 1024;                    // samples drawn per frame, 128 .. 8192
         bool rotate = false;                 // turn the picture by 45 degrees: mid on the vertical, side on the horizontal axis
         bool mono_phase = true;              // near-mono signals cross-fade to a phase portrait (else a diagonal line)
         float glow = 0.60f;                  // render_image(): strength / size of the bloom around the beam, 0 .. 1
         bool fixed_gain = false;             // oscilloscope music mode: full scale = the edge, no automatic size
+        float frame_dt = 0.0f;               // music mode: seconds since the last picture (0 = measured with the clock)
+        bool crt = true;                     // CRT beam (every sample once, light added by dwell time); off = the classic look (trace window, max-blended)
+        bool low_rate_blank = true;          // music mode with the CRT beam: below 96 kHz, fade out moves faster than strokes (the jumps)
+        bool dwell = true;                   // CRT beam: light by dwell time; off = every stroke equally bright
+        bool rough = false;                  // automatic size from the previous frame's peak only: a sudden louder beat is clamped to the edges (lines along the square)
         int mode = 0;                        // 0 = XY (L horizontal, R vertical), 1 = YT (amplitude over time, triggered), 2 = both on top of each other, 3 = both in two rows (XY above YT), 4 = both in two columns (XY left, YT right)
     };
     void push_frames(const float* interleaved_lr, size_t frames);
@@ -49,12 +54,17 @@ public:
     void render_image(int w, int h, const Params& params, std::vector<uint8_t>& level, std::vector<uint8_t>& hue);
 private:
     void paint(int pw, int ph, const Params& params);   // beam -> glow_ / hue_ (render thread)
-    static constexpr int kRingFrames = 2048;
-    static constexpr int kWindow = 1024;
+    static constexpr int kRingFrames = 16384;
+    static constexpr int kWindow = 8192;
     std::mutex mtx_;
     std::array<float, kRingFrames> ch0_{};
     std::array<float, kRingFrames> ch1_{};
     int write_ = 0;
+    int last_write_ = 0;   // ring position at the previous paint(): how many samples are new
+    float rate_est_ = 0.0f;    // music mode: the sample rate, measured from the new samples per second (low rates get blanking)
+    double last_paint_ = 0.0;  // music mode: clock time of the previous paint(), for the time-based afterglow
+    bool energy_ = false;  // music mode: glow_ holds added beam energy (shown as 1 - e^-E), else brightness 0..1 (max-blended)
+    float shown(float g) const;
     float peak_ = 0.05f;
     bool cleared_ = false;
     std::vector<float> glow_;

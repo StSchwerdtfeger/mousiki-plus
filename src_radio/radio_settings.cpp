@@ -40,6 +40,10 @@ const ColorRowSpec kColorRows[] = {
 const int kColorRowCount = static_cast<int>(sizeof(kColorRows) / sizeof(kColorRows[0]));
 
 namespace {
+int osci_trace_step(int t, int dir) {   // Trace Length: 128 .. 1024 in steps of 128, then 2048, 4096, 8192
+    if (dir > 0) return t < 1024 ? std::min(1024, t + 128) : std::min(8192, t * 2);
+    return t <= 1024 ? std::max(128, t - 128) : t / 2;
+}
 struct ThemeKey { const char* key; std::string RadioSettings::* p; };
 const ThemeKey kThemeKeys[] = {
     {"ColorBorderTop", &RadioSettings::border_top},       {"ColorBorderBottom", &RadioSettings::border_bottom},
@@ -266,8 +270,16 @@ int osci_res_parse(const std::string& v, int def) {
 }
 
 std::vector<int> osci_visible_rows(const RadioSettings& s) {
-    std::vector<int> r = {kOrMode, kOrMusic, kOrStyle, kOrFps};   // no "Display" row: what is shown is the "." key's job
-    if (s.osci_style == 1) { r.push_back(kOrProtocol); r.push_back(kOrRes); }
+    std::vector<int> r = {kOrMode, kOrMusic};
+    {   // the beam: CRT or classic in both modes; low-rate blanking only matters in music mode, rough mode only without it
+        const OsciSet& o = s.osci();
+        r.push_back(kOrCrt);
+        if (o.crt) r.push_back(kOrDwell);
+        if (o.crt && o.music) r.push_back(kOrLowRate);
+        if (!o.music) r.push_back(kOrRough);
+    }
+    for (int id : {kOrStyle, kOrFps}) r.push_back(id);   // no "Display" row: what is shown is the "." key's job
+    if (s.osci_style == 1) { r.push_back(kOrProtocol); r.push_back(kOrRes); r.push_back(kOrDetail); }
     r.push_back(kOrDecay);
     if (s.osci_style != 1) r.push_back(kOrDot);
     r.push_back(kOrTail);
@@ -279,7 +291,7 @@ std::vector<int> osci_visible_rows(const RadioSettings& s) {
 std::string osci_row_label(int row) {
     static const char* const L[kOsciRowCount] = {"Decay", "Dot threshold", "Tail", "Line/Vec. Interpol.", "Z-Axis (XYZ Mode)",
         "Z Depth", "Z Source", "Trace Length", "Rotate 45 deg (M/S)", "Mono Phase Portrait", "Color", "Glow",
-        "Osci style", "Osci cell pixels", "Image protocol", "Frame rate", "Display", "Image resolution", "Osci music mode", "Scope mode"};
+        "Osci style", "Osci cell pixels", "Image protocol", "Frame rate", "Display", "Image resolution", "Osci music mode", "Scope mode", "Image detail", "Beam", "Low-rate blanking", "Dwell brightness", "Rough mode"};
     return row >= 0 && row < kOsciRowCount ? L[row] : "";
 }
 std::string osci_row_value(const RadioSettings& s, int row) {
@@ -305,6 +317,11 @@ std::string osci_row_value(const RadioSettings& s, int row) {
         case kOrProtocol: return s.gfx_protocol;
         case kOrFps: return std::to_string(o.frame_rate) + " fps";
         case kOrRes: return osci_res_name(s.image_scale);
+        case kOrDetail: return s.image_detail == 1 ? "high (1024 px)" : "normal (560 px)";
+        case kOrCrt: return s.osci().crt ? "CRT" : "classic";
+        case kOrLowRate: return s.osci().low_rate ? "on (below 96 kHz)" : "off";
+        case kOrDwell: return s.osci().dwell ? "on" : "off (strokes equal)";
+        case kOrRough: return s.osci().rough ? "on (edge clipping)" : "off";
         case kOrMusic: return on(o.music);
         case kOrMode: return s.osci_mode == 1 ? "YT" : s.osci_mode == 2 ? "XY + YT (overlap)" : s.osci_mode == 3 ? "XY + YT (row)" : s.osci_mode == 4 ? "XY + YT (col)" : "XY";
         case kOrDisplay: return s.scope_mode == 1 ? "sphere" : s.scope_mode == 3 ? "spectro" : "osci";
@@ -322,7 +339,7 @@ void osci_adjust(RadioSettings& s, int row, int dir) {
         case kOrZ: o.z = dir > 0; break;
         case kOrZDepth: o.z_depth = snap(o.z_depth + dir * 0.05, 0.05, 0.0, 1.0); break;
         case kOrZSource: o.z_source = dir > 0 ? 1 : 0; break;
-        case kOrTrace: o.trace = std::clamp(o.trace + dir * 128, 128, 1024); break;
+        case kOrTrace: o.trace = osci_trace_step(o.trace, dir); break;
         case kOrRotate: o.rotate = dir > 0; break;
         case kOrMono: o.mono_phase = dir > 0; break;
         case kOrPalette: o.palette = step_in(o.palette, kOsciPaletteCount, dir); break;
@@ -333,6 +350,11 @@ void osci_adjust(RadioSettings& s, int row, int dir) {
         case kOrMusic: s.osci().music = dir > 0; break;
         case kOrMode: s.osci_mode = step_in(s.osci_mode, 5, dir); break;   // XY <-> YT <-> overlap <-> row <-> col
         case kOrRes: s.image_scale = std::clamp(s.image_scale + (dir > 0 ? -1 : 1), 1, 3); break;   // right = sharper
+        case kOrDetail: s.image_detail = dir > 0 ? 1 : 0; break;
+        case kOrCrt: s.osci().crt = dir > 0; break;
+        case kOrLowRate: s.osci().low_rate = dir > 0; break;
+        case kOrDwell: s.osci().dwell = dir > 0; break;
+        case kOrRough: s.osci().rough = dir > 0; break;
         case kOrFps: {
             int i = 0;
             for (int k = 0; k < 6; ++k) if (kFpsSteps[k] == s.osci().frame_rate) i = k;
@@ -359,7 +381,7 @@ void radio_enforce_visuals(RadioSettings& s) {
 
 void osci_reset(RadioSettings& s) {   // the parameters of the style in use; the shared rows (style, protocol, cells) and its fps stay
     const int fps = s.osci().frame_rate;
-    s.osci() = OsciSet{};
+    s.osci() = s.osci_style == 1 ? OsciSet{} : OsciSet::braille_defaults();
     s.osci().frame_rate = fps;
     if (s.osci_style == 1) s.osci().glow = 0.60f;
 }
@@ -895,11 +917,15 @@ RadioSettings load_radio_settings(std::string* source_out) {
         if (auto v = get(key("ZAxis").c_str())) o.z = as_bool(*v, o.z);
         if (auto v = get(key("ZDepth").c_str())) o.z_depth = as_float(*v, o.z_depth, 0.0f, 1.0f);
         if (auto v = get(key("ZSource").c_str())) o.z_source = lower(*v) == "level" ? 1 : 0;
-        if (auto v = get(key("TraceLength").c_str())) o.trace = as_int(*v, o.trace, 128, 1024);
+        if (auto v = get(key("TraceLength").c_str())) o.trace = as_int(*v, o.trace, 128, 8192);
         if (auto v = get(key("Rotate").c_str())) o.rotate = as_bool(*v, o.rotate);
         if (auto v = get(key("MonoPhase").c_str())) o.mono_phase = as_bool(*v, o.mono_phase);
         if (auto v = get(key("Glow").c_str())) o.glow = as_float(*v, o.glow, 0.0f, 1.0f);
         if (auto v = get(key("FrameRate").c_str())) o.frame_rate = fps_snap(as_int(*v, o.frame_rate, 30, 165));
+        if (auto v = get(key("CrtBeam").c_str())) o.crt = as_bool(*v, o.crt);
+        if (auto v = get(key("LowRateBlanking").c_str())) o.low_rate = as_bool(*v, o.low_rate);
+        if (auto v = get(key("DwellBrightness").c_str())) o.dwell = as_bool(*v, o.dwell);
+        if (auto v = get(key("RoughMode").c_str())) o.rough = as_bool(*v, o.rough);
         if (st == 1) if (auto v = get(key("MusicMode").c_str())) o.music = as_bool(*v, o.music);   // braille: OsciMusicMode above
         if (auto v = get(key("Palette").c_str())) {
             const std::string l = lower(*v);
@@ -916,6 +942,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("OsciStyle")) s.osci_style = lower(*v) == "image" ? 1 : 0;
     if (auto v = get("OsciImageProtocol")) s.gfx_protocol = lower(*v);
     if (auto v = get("OsciImageResolution")) s.image_scale = osci_res_parse(*v, s.image_scale);
+    if (auto v = get("OsciImageDetail")) s.image_detail = lower(*v) == "high" ? 1 : 0;
     auto glyph = [&](const char* key, std::string& field) { if (auto v = get(key)) if (!v->empty()) field = *v; };
     glyph("BoxUpperLeft", s.box_upper_left);   glyph("BoxUpperRight", s.box_upper_right);
     glyph("BoxLowerLeft", s.box_lower_left);   glyph("BoxLowerRight", s.box_lower_right);
@@ -955,7 +982,8 @@ static void write_radio_settings(std::ostream& o, const RadioSettings& s) {
              + P + "ZSource=" + (o.z_source == 1 ? "level" : "speed") + "\n" + P + "TraceLength=" + std::to_string(o.trace) + "\n"
              + P + "Rotate=" + b(o.rotate) + "\n" + P + "MonoPhase=" + b(o.mono_phase) + "\n"
              + P + "Palette=" + kOsciPaletteNames[std::clamp(o.palette, 0, kOsciPaletteCount - 1)] + "\n" + P + "Glow=" + num(o.glow) + "\n"
-             + P + "FrameRate=" + std::to_string(o.frame_rate) + "\n" + P + "MusicMode=" + b(o.music) + "\n";
+             + P + "FrameRate=" + std::to_string(o.frame_rate) + "\n" + P + "MusicMode=" + b(o.music) + "\n"
+             + P + "CrtBeam=" + b(o.crt) + "\n" + P + "LowRateBlanking=" + b(o.low_rate) + "\n" + P + "DwellBrightness=" + b(o.dwell) + "\n" + P + "RoughMode=" + b(o.rough) + "\n";
     };
     o << "# Mousiki radio mode -- settings (separate from the music player's config.txt)\n"
          "# Location (Windows): %USERPROFILE%\\.config\\mousiki\\radio_config.txt\n"
@@ -1074,10 +1102,14 @@ static void write_radio_settings(std::ostream& o, const RadioSettings& s) {
          "VisualizerViscosity=" << s.visualizer_viscosity << "\n"
          "# Oscilloscope (SHIFT+o overlay), one block per style: braille = Osci<name>, image = OsciImage<name>. Each style keeps its own values.\n"
          "# Decay = afterglow 0.00-0.99 | DotThreshold 0.01-1.00 (braille: lower = thicker line) | TailBrightness 0.00-1.00 | Interpolation = connect the\n"
-         "# samples with lines | ZAxis = beam intensity (ZDepth 0-1, ZSource speed|level) | TraceLength 128-1024 samples | Rotate = 45 degrees (mid vertical) |\n"
+         "# samples with lines | ZAxis = beam intensity (ZDepth 0-1, ZSource speed|level) | TraceLength 128-8192 samples | Rotate = 45 degrees (mid vertical) |\n"
          "# MonoPhase = phase portrait for near-mono signals | Palette gradient|settings|temperature|aurora|magma|ice|neon|spectrum | Glow 0-1 (image bloom) |\n"
          "# FrameRate = screen refresh while that style is in use: 30 | 45 | 60 | 90 | 120 | 165 | MusicMode = oscilloscope music mode (the scopes get\n"
-         "# the stream itself, no EQ / normalization / volume, at a fixed scale and without the phase portrait)\n"
+         "# the stream itself, no EQ / normalization / volume, at a fixed scale and without the phase portrait; the XY beam\n"
+         "# adds light like a CRT -- Decay about 0.10 gives the look of osci-render)\n"
+         "# CrtBeam = true: the CRT beam | false: the classic look (both with and without music mode) | LowRateBlanking (music mode, CRT beam) = fade out the\n"
+         "# jumps between shapes in files below 96 kHz | DwellBrightness (CRT beam) = true: slow strokes bright, jumps dark |\n"
+         "# false: every stroke equally bright (the jump lines show) | RoughMode (not music mode) = size from the previous frame's peak, loud beats clip along the edges\n"
          << osci_block("Osci", s.osci_set[0]) << osci_block("OsciImage", s.osci_set[1]) <<
          "# ON/OFF tab: braille | image (a real pixel picture drawn by the terminal: Kitty graphics or Sixel; braille where there is neither)\n"
          "# xy (left = horizontal, right = vertical) | yt (amplitude over time, triggered like a normal scope) | overlap (YT drawn over the XY figure) | row (XY in the top half, YT in the bottom half)\n"
@@ -1093,6 +1125,8 @@ static void write_radio_settings(std::ostream& o, const RadioSettings& s) {
          "OsciImageProtocol=" << s.gfx_protocol << "\n"
          "# image style: full | half | third of the screen resolution (lower = less work and data per frame, a softer and wider beam)\n"
          "OsciImageResolution=" << osci_res_name(s.image_scale) << "\n"
+         "# image style: normal | high -- the widest picture rendered (560 / 1024 px): high = sharper thin lines, more data per frame\n"
+         "OsciImageDetail=" << (s.image_detail == 1 ? "high" : "normal") << "\n"
          "\n"
 
          "BoxUpperLeft=" << s.box_upper_left << "\nBoxUpperRight=" << s.box_upper_right << "\n"

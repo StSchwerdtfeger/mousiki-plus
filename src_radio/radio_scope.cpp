@@ -17,6 +17,11 @@ constexpr float kMonoFull = 0.003f; // about -25 dB of side energy
 constexpr float kMonoNone = 0.020f; // about -17 dB
 constexpr int kDeriv = 3;           // half-width of the central difference for ds/dt
 
+// Music mode: beam energy of one picture per pixel of the picture's side (how bright a figure is drawn).
+constexpr float kExposure = 9.0f;
+// Music mode below 96 kHz: beam speed (full scale widths per second) above which a move counts as a jump and fades out.
+constexpr float kBlankSpeed = 20000.0f;
+
 } // namespace
 
 void RadioScope::push_frames(const float* interleaved_lr, size_t frames) {
@@ -93,10 +98,25 @@ RadioScope::Measure RadioScope::measure(const Params& params) {
 }
 
 void RadioScope::paint(int pw, int ph, const Params& params) {
-    const float decay = std::clamp(params.decay, 0.0f, 0.99f);
+    const float decay_set = std::clamp(params.decay, 0.0f, 0.99f);
     const float tail = std::clamp(params.tail_brightness, 0.0f, 1.0f);
 
-    const int kWin = std::clamp(params.trace, 128, kWindow);   // samples drawn this frame (the newest ones)
+    const int kTrace = std::clamp(params.trace, 128, kWindow);   // Trace Length (also the YT trace's width)
+    int kWin = kTrace;                                            // samples drawn this frame (the newest ones)
+    // Music mode works like a real CRT: every sample since the last picture is drawn exactly once and ADDS its light to the
+    // phosphor (glow_ = energy), so a figure is never cut to Trace Length and broken into dots, and nothing is drawn twice.
+    const bool energy = params.crt;   // the CRT beam, with or without music mode
+    int fresh = 0;
+    {
+        std::lock_guard<std::mutex> lk(mtx_);
+        fresh = (write_ - last_write_ + kRingFrames) % kRingFrames;
+        last_write_ = write_;
+    }
+    if (energy) {
+        // paused / no new audio: keep the picture as it is (like the frozen spectrum bars) instead of fading it out
+        if (fresh == 0 && energy_ && glow_w_ == pw && glow_h_ == ph) return;
+        kWin = std::clamp(fresh + 1, 2, kWindow);
+    }
     // --- snapshot the newest kWin frames, oldest -> newest -------------
     std::vector<float> xs(kWin), ys(kWin);
     float peak;
@@ -113,9 +133,26 @@ void RadioScope::paint(int pw, int ph, const Params& params) {
         cleared_ = false;
     }
 
+    // (params.decay already is the fade for this frame's time: the caller turns the Decay setting, per 1/30 s, into it.)
+    const float decay = decay_set;
+    // Music mode: the beam light a picture brings follows the time it covers (in 1/60 s), so 30 and 165 Hz look equally bright.
+    float frame_share = 1.0f;
+    if (energy) {
+        float dt = params.frame_dt;
+        const double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+        if (dt <= 0.0f) dt = last_paint_ > 0.0 ? static_cast<float>(std::clamp(now - last_paint_, 0.004, 0.15)) : 1.0f / 60.0f;
+        last_paint_ = now;
+        frame_share = dt * 60.0f;
+        if (fresh > 0) {   // the sample rate the samples arrive at (a smoothed estimate is enough: low or high)
+            const float r = static_cast<float>(fresh) / dt;
+            rate_est_ = rate_est_ <= 0.0f ? r : rate_est_ + (r - rate_est_) * 0.05f;
+        }
+    }
+
     // --- phosphor buffer: resize / wipe / decay --------------------------
     if (wipe) { mono_ = 0.0f; scale_ = 0.0f; }
-    if (glow_w_ != pw || glow_h_ != ph || wipe) {
+    if (glow_w_ != pw || glow_h_ != ph || wipe || energy != energy_) {
+        energy_ = energy;
         glow_.assign(static_cast<size_t>(pw) * ph, 0.0f);
         hue_.assign(static_cast<size_t>(pw) * ph, 0.0f);
         glow_w_ = pw;
@@ -125,12 +162,19 @@ void RadioScope::paint(int pw, int ph, const Params& params) {
     }
 
     float cur_hue = 0.0f;   // "frequency" of the segment being drawn
+    bool add_light = false; // the XY beam in music mode: light is added, not max-blended
     auto plot = [&](int x, int y, float v) {
         if (x < 0 || x >= pw || y < 0 || y >= ph || v <= 0.0f) return;
         const size_t at = static_cast<size_t>(y) * pw + x;
         float& g = glow_[at];
+        if (add_light) {
+            if (v >= 0.35f * g) hue_[at] = cur_hue;
+            g += v;
+            return;
+        }
+        if (energy) v = -std::log(1.0f - std::min(v, 0.95f));   // the YT trace (max-blended) in an energy buffer
         if (v >= g) hue_[at] = cur_hue;
-        g = std::max(g, std::min(v, 1.0f));
+        g = std::max(g, energy ? v : std::min(v, 1.0f));
     };
     // Xiaolin Wu anti-aliased line; `i0`/`i1` = beam brightness at the ends.
     auto wu = [&](float x0, float y0, float x1, float y1, float i0, float i1) {
@@ -222,7 +266,9 @@ void RadioScope::paint(int pw, int ph, const Params& params) {
         float frame_peak = 0.0f;
         for (int i = 0; i < kWin; ++i)
             frame_peak = std::max(frame_peak, std::max(std::fabs(xs[i]), std::fabs(ys[i])));
-        const float gain = params.fixed_gain ? 1.0f : 1.0f / std::max(peak, 0.05f);
+        // this frame's own peak counts at once: with last frame's peak alone a louder frame is drawn clipped against the borders;
+        // Rough mode keeps exactly that older behaviour (the clipped beam runs along the edges of the square)
+        const float gain = params.fixed_gain ? 1.0f : 1.0f / std::max(params.rough ? peak : std::max(peak, frame_peak), 0.05f);
         {
             std::lock_guard<std::mutex> lk(mtx_);
             peak_ = frame_peak > peak ? frame_peak : peak * 0.97f + frame_peak * 0.03f;
@@ -235,10 +281,35 @@ void RadioScope::paint(int pw, int ph, const Params& params) {
 
         // Per sample: position, beam speed (-> Z and the "frequency" colour). Speed is in picture units (-1..1) per sample;
         // a full-scale sine of f Hz moves about 2*pi*f/rate per sample, so log(speed) is a usable pitch scale (40 Hz .. 8 kHz).
-        std::vector<float> px_(kWin), py_(kWin), vx_(kWin), vy_(kWin);
+        std::vector<float> vx0(kWin), vy0(kWin);
         for (int i = 0; i < kWin; ++i) {
-            vx_[i] = std::clamp(xs[i] * gain, -1.0f, 1.0f);
-            vy_[i] = std::clamp(ys[i] * gain, -1.0f, 1.0f);
+            vx0[i] = std::clamp(xs[i] * gain, -1.0f, 1.0f);
+            vy0[i] = std::clamp(ys[i] * gain, -1.0f, 1.0f);
+        }
+        // Reconstruct the curve between the samples (Catmull-Rom): drawn straight from sample to sample a sine looks like a
+        // polygon and fast tones lose their roundness. Fewer sub-steps on long traces keep the line count in check.
+        // (music mode with the classic beam: the samples as they are, straight lines between them -- the look from before)
+        const int up = (params.interpolate && kWin >= 4 && params.crt) ? (kWin <= 1024 ? 4 : (kWin <= 4096 ? 2 : 1)) : 1;
+        const int nn = (kWin - 1) * up + 1;
+        std::vector<float> px_(nn), py_(nn), vx_(nn), vy_(nn);
+        if (up == 1) { vx_ = vx0; vy_ = vy0; }
+        else {
+            auto cr = [](float p0, float p1, float p2, float p3, float t) {
+                return 0.5f * ((2.0f * p1) + (-p0 + p2) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t * t +
+                               (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t * t * t);
+            };
+            for (int i = 0; i < kWin - 1; ++i) {
+                const int i0 = std::max(i - 1, 0), i3 = std::min(i + 2, kWin - 1);
+                for (int k = 0; k < up; ++k) {
+                    const float t = static_cast<float>(k) / up;
+                    vx_[i * up + k] = std::clamp(cr(vx0[i0], vx0[i], vx0[i + 1], vx0[i3], t), -1.0f, 1.0f);
+                    vy_[i * up + k] = std::clamp(cr(vy0[i0], vy0[i], vy0[i + 1], vy0[i3], t), -1.0f, 1.0f);
+                }
+            }
+            vx_[nn - 1] = vx0[kWin - 1];
+            vy_[nn - 1] = vy0[kWin - 1];
+        }
+        for (int i = 0; i < nn; ++i) {
             px_[i] = cx + vx_[i] * amp;
             py_[i] = cy - vy_[i] * amp;   // +R is up
         }
@@ -246,10 +317,10 @@ void RadioScope::paint(int pw, int ph, const Params& params) {
         const float z_depth = std::clamp(params.z_depth, 0.0f, 1.0f);
         // The "frequency" colour: beam speed on a log scale, stretched over the range the signal really uses (5 % .. 95 % of this
         // frame's speeds, smoothed), so a pure tone and a busy mix both sweep through the whole palette instead of sitting at one end.
-        std::vector<float> ht(kWin, 0.0f);
+        std::vector<float> ht(nn, 0.0f);
         {
-            for (int i = 1; i < kWin; ++i) {
-                const float sp = std::hypot(vx_[i] - vx_[i - 1], vy_[i] - vy_[i - 1]);
+            for (int i = 1; i < nn; ++i) {
+                const float sp = std::hypot(vx_[i] - vx_[i - 1], vy_[i] - vy_[i - 1]) * static_cast<float>(up);
                 ht[i] = std::clamp((std::log10(std::max(sp, 1e-4f)) + 2.3f) / 2.3f, 0.0f, 1.0f);
             }
             std::vector<float> sorted(ht.begin() + 1, ht.end());
@@ -260,27 +331,60 @@ void RadioScope::paint(int pw, int ph, const Params& params) {
         }
         float hue_s = 0.0f;
         float px = cx, py = cy, pi = tail;
-        for (int i = 0; i < kWin; ++i) {
+        // Music mode: one picture's worth of beam energy (scaled to the picture size), shared equally by the segments -- each
+        // stands for the same time, so its light per pixel is that share divided by its length (slow = bright, jumps = dark);
+        // the samples drawn early in the frame have already faded a little (the afterglow runs per sample, not per frame).
+        add_light = energy;
+        const float blank_v = energy && params.fixed_gain && params.low_rate_blank && rate_est_ > 1000.0f && rate_est_ < 96000.0f ? kBlankSpeed : 0.0f;
+        // The light is scaled by (1 - fade per 1/60 s): parts that stand still end equally bright whatever Decay is, and Decay
+        // only sets how long a moving figure trails (0.10 per 1/30 s is the reference, 1 - 0.10^0.5 = 0.684).
+        const float d60 = frame_share > 0.0f ? std::pow(decay, 1.0f / frame_share) : decay;
+        const float keep = std::max(0.02f, 1.0f - d60) / 0.684f;
+        // a bigger picture (Image detail high) keeps the 1-pixel line, which covers less of it: a little more light keeps the look
+        const float big = std::pow(std::max(1.0f, static_cast<float>(side) / 540.0f), 0.75f);
+        const float seg_e = energy ? kExposure * big * keep * frame_share * static_cast<float>(side) / static_cast<float>(std::max(1, nn - 1)) : 0.0f;
+        // Dwell brightness off: every segment gets the same light per pixel (the average a segment of this frame would get),
+        // so fast strokes and the jumps between shapes are as bright as slow strokes -- the look without the CRT weighting.
+        float flat_len = 1.0f;
+        if (energy && !params.dwell && nn > 1) {
+            double sum = 0.0;
+            for (int i = 1; i < nn; ++i) sum += std::hypot(px_[i] - px_[i - 1], py_[i] - py_[i - 1]);
+            flat_len = std::max(0.7f, static_cast<float>(sum / (nn - 1)));
+        }
+        for (int i = 0; i < nn; ++i) {
             const float x = px_[i], y = py_[i];
-            float inten = tail + (1.0f - tail) * (static_cast<float>(i) / (kWin - 1));
-            const float sp = i > 0 ? std::hypot(vx_[i] - vx_[i - 1], vy_[i] - vy_[i - 1]) : 0.0f;
+            float inten = energy ? std::pow(decay, static_cast<float>(nn - 1 - i) / static_cast<float>(std::max(1, nn - 1)))
+                                 : tail + (1.0f - tail) * (static_cast<float>(i) / (nn - 1));
+            const float sp = i > 0 ? std::hypot(vx_[i] - vx_[i - 1], vy_[i] - vy_[i - 1]) * static_cast<float>(up) : 0.0f;
             if (params.z_axis) {
                 const float z = z_src == 1 ? std::clamp(std::hypot(vx_[i], vy_[i]) * 0.70710678f * 1.4f, 0.0f, 1.0f)
                                            : 1.0f / (1.0f + 10.0f * sp);
                 inten *= (1.0f - z_depth) + z_depth * z;
             }
             const float hn = std::clamp((ht[i] - hue_lo_) / std::max(0.05f, hue_hi_ - hue_lo_), 0.0f, 1.0f);
-            hue_s += (hn - hue_s) * 0.10f;
+            hue_s += (hn - hue_s) * (0.10f / static_cast<float>(up));
             cur_hue = hue_s;
-            if (params.interpolate && i > 0) wu(px, py, x, y, pi, inten);
+            if (energy) {
+                if (i == 0) { px = x; py = y; pi = inten; continue; }   // the first sample only joins on to the last frame
+                float e = seg_e / (params.dwell ? std::max(std::hypot(x - px, y - py), 0.7f) : flat_len);
+                if (blank_v > 0.0f) {
+                    // Below 96 kHz the jumps between shapes are rounded off to a few samples, only a few times faster than a fast
+                    // stroke, and ring a little: moves faster than strokes ever go (full scale widths per second) are faded out.
+                    const float v = std::hypot(vx_[i] - vx_[i - 1], vy_[i] - vy_[i - 1]) * static_cast<float>(up) * rate_est_ / blank_v;
+                    e /= 1.0f + v * v * v;
+                }
+                if (params.interpolate) wu(px, py, x, y, pi * e, inten * e);
+                else wu(x, y, x, y, inten * seg_e, inten * seg_e);
+            } else if (params.interpolate && i > 0) wu(px, py, x, y, pi, inten);
             else wu(x, y, x, y, inten, inten);
             px = x; py = y; pi = inten;
         }
+        add_light = false;
     }
 
     // --- YT trace: amplitude over time, triggered ------------------------
     if (draw_yt) {
-        const int span = kWin;                                  // samples across the whole width (the Trace Length row)
+        const int span = kTrace;                                // samples across the whole width (the Trace Length row)
         const int n = std::min(kRingFrames, span * 2);          // look back twice that far to find a trigger point
         std::vector<float> mid(static_cast<size_t>(n));
         {
@@ -357,7 +461,7 @@ RadioScope::render(int cols, int rows, const Params& params) {
             for (int yy = 0; yy < 4; ++yy) {
                 for (int xx = 0; xx < 2; ++xx) {
                     const size_t at = static_cast<size_t>(ty * 4 + yy) * pw + tx * 2 + xx;
-                    const float v = glow_[at];
+                    const float v = shown(glow_[at]);
                     if (v >= dot_threshold) {
                         pattern |= kBrailleMap[yy][xx];
                         cell.sub[static_cast<size_t>(yy * 2 + xx)] = static_cast<uint8_t>(std::lround(std::clamp(v, 0.0f, 1.0f) * 255.0f));
@@ -375,6 +479,10 @@ RadioScope::render(int cols, int rows, const Params& params) {
 
 // A true pixel picture: the same beam, drawn on a w x h grid, then a soft bloom around every lit pixel (a bright core,
 // a dimmer rim, a faint halo) so the line has the look of a phosphor trace instead of a 1 pixel wire.
+float RadioScope::shown(float g) const {
+    return energy_ ? 1.0f - std::exp(-g) : g;
+}
+
 void RadioScope::render_image(int w, int h, const Params& params, std::vector<uint8_t>& level, std::vector<uint8_t>& hue) {
     level.assign(static_cast<size_t>(std::max(0, w)) * std::max(0, h), 0);
     hue.assign(level.size(), 0);
@@ -393,7 +501,7 @@ void RadioScope::render_image(int w, int h, const Params& params, std::vector<ui
     for (int y = 0; y < h; ++y) {
         for (int x = 0; x < w; ++x) {
             const size_t at = static_cast<size_t>(y) * w + x;
-            const float g = glow_[at];
+            const float g = shown(glow_[at]);
             if (g < 0.02f) continue;
             for (int dy = -R; dy <= R; ++dy) {
                 const int yy = y + dy;
