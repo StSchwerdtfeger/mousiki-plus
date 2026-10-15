@@ -914,8 +914,10 @@ The border can fade from the top to the bottom color line by line (BorderGradien
 
 COLOR THEMES: [[Header]]
 The first row, THEME, holds ready-made schemes (the default MeowerShell, Serious MeowerShell and
-many more) and the themes you made yourself.
+30 more, e.g. Catppuccin Mocha, Tokyo Night, Kanagawa, Outrun) and the themes you made yourself,
+which the list shows after the built-in ones, named in the header color.
 [ENTER]        on the theme name: the list; [ENTER] applies a theme
+[↑↓ / SHIFT+↑↓] in that list: one theme / a page (a scrollbar on the right shows where you are)
 [SHIFT+d]      in that list: delete a theme of your own (asks first)
 [ENTER]        on CREATE THEME: the theme editor
 [e]            edit the theme in use in that editor
