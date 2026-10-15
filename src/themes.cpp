@@ -64,6 +64,17 @@ const Palette kPalettes[] = {
     {"Colorblind Tritanopia","203","80","203","80","80","224","203","66","255","217","53","203","246","210","244","232","203","244","80","255",""},
     {"High Contrast",        "255","255","226","51","226","255","226","244","255","226","21","226","250","226","250","232","226","250","255","231",""},
     {"Coffee",               "137","58","173","242","180","223","173","242","187","180","58","180","243","180","243","232","180","243","187","230",""},
+    // v4.1.0: ten more (dark-terminal themes; the last value is the focus colour)
+    {"Catppuccin Mocha",    "183","111","218","116","111","189","218","239","146","218","237","183","243","183","243","232","183","243","189","218","","183"},
+    {"Tokyo Night",         "111","141","141","117","111","189","117","238","146","215","236","111","60","111","60","232","111","60","189","117","","141"},
+    {"Rose Pine",           "181","183","168","152","152","223","181","239","146","222","237","181","102","181","102","235","181","102","223","168","","183"},
+    {"Everforest",          "108","109","180","108","108","187","180","238","145","180","236","108","243","108","243","235","108","243","187","180","","109"},
+    {"Kanagawa",            "67","174","179","174","110","187","179","238","145","179","236","110","60","110","60","234","110","60","187","174","","67"},
+    {"Vaporwave",           "218","123","218","141","123","225","218","60","183","123","54","218","97","218","97","232","123","97","225","218","","123"},
+    {"Outrun",              "208","199","214","93","81","225","199","54","183","214","53","199","96","199","96","232","214","96","225","214","","208"},
+    {"Ember",               "202","124","220","160","208","223","202","238","180","220","52","208","137","208","137","232","208","137","223","220","","202"},
+    {"Glacier",             "195","67","255","74","117","255","153","238","152","195","24","153","66","153","66","232","153","66","255","117","","195"},
+    {"Lavender Haze",       "183","147","219","141","147","225","183","239","189","219","60","183","103","183","103","232","183","103","225","219","","147"},
 };
 
 Theme expand(const Palette& p) {
@@ -175,7 +186,7 @@ void write_theme(std::ostream& out, const Theme& t) {
 }
 
 const char* kHeader =
-    "# format: 7\n"
+    "# format: 8\n"
     "# Colours are numbers of the 256-colour terminal palette (1-255, 0 or empty = none).\n"
     "# Mousiki colour themes (shared by the player and the radio).\n"
     "# [Name] starts a theme; the lines below it use the key names of config.txt / radio_config.txt.\n"
@@ -310,10 +321,14 @@ std::vector<Theme> load_all() {
         std::ifstream in(path);
         std::string first;
         std::getline(in, first);
-        if (trim(first) != "# format: 7") {
+        if (trim(first) != "# format: 8") {   // format 8 (v4.1.0): ten more built-in themes are written into the file
             const int old_format = file_format(path);
             std::vector<Theme> mine;
             for (Theme& ft : parse_file(path)) {
+                if (old_format == 7 && is_builtin_name(ft.name)) {   // format 7 already had today's keys: keep edits made to a built-in theme
+                    for (Theme& t : all) if (lower(t.name) == lower(ft.name)) for (const auto& kvp : ft.kv) t.set(kvp.first, kvp.second);
+                    continue;
+                }
                 if (is_builtin_name(ft.name) || lower(ft.name) == "default") continue;
                 // format 6: every colour number is a palette number (30-37 / 90-97 / 40-47 / 100-107 used to be plain 16-colour codes)
                 if (old_format > 0 && old_format < 6) convert_legacy(ft);
@@ -365,7 +380,7 @@ bool write_theme_file(const fs::path& file, const Theme& t, std::string& err) {
     if (file.has_parent_path()) fs::create_directories(file.parent_path(), ec);
     std::ofstream out(file, std::ios::trunc);
     if (!out) { err = "cannot write " + file.string(); return false; }
-    out << "# format: 7\n# A Mousiki colour theme. Import it with SHIFT+i on the Colors tab of the settings.\n\n";
+    out << "# format: 8\n# A Mousiki colour theme. Import it with SHIFT+i on the Colors tab of the settings.\n\n";
     write_theme(out, t);
     return true;
 }

@@ -3553,6 +3553,11 @@ void App::handle_theme_key(int key) {
     }
     if (theme_ui_ == 1 || theme_ui_ == 3) {
         if (key == 27 || key == 'q' || key == 'Q') { theme_ui_ = (theme_ui_ == 3) ? 2 : 0; return; }
+        if ((key == 'A' || key == 'B') && last_key_was_arrow() && last_key_was_shifted()) {   // SHIFT+up / down: a page
+            const int page = std::max(1, theme_page_ - 1);
+            theme_sel_ = std::clamp(theme_sel_ + (key == 'A' ? -page : page), 0, std::max(0, n - 1));
+            return;
+        }
         if (key == 'A') { if (theme_sel_ > 0) --theme_sel_; return; }
         if (key == 'B') { if (theme_sel_ < n - 1) ++theme_sel_; return; }
         if (key == kKeyHome) { theme_sel_ = 0; return; }
@@ -11183,7 +11188,8 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
             const themes::Theme& t = theme_list_[static_cast<size_t>(i)];
             std::string name = pad(truncate_str(t.name, themes::kMaxNameLen), themes::kMaxNameLen);
             pos(y, 3, (i == cur ? header_sgr(settings_) + "●" + R : " "));
-            pos(y, 5, (i == theme_sel_ ? HI : std::string()) + name + R);
+            // your own themes (not built in) are named in the header colour
+            pos(y, 5, (t.builtin ? std::string() : header_sgr(settings_)) + (i == theme_sel_ ? HI : std::string()) + name + R);
             std::string sw;
             for (const auto& k : kSw) {
                 const std::string* v = t.get(k.key, false);
@@ -11193,13 +11199,23 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
             pos(y, 33, sw);
         }
         while (y < MAX_Y) { box_row(y); ++y; }
+        // more themes than rows: a scrollbar in the last column (a thumb as tall as the visible part is of the list)
+        theme_page_ = visible;
+        if (n > visible) {
+            const int thumb = std::max(1, std::min(visible, (visible * visible + n - 1) / n));
+            const int thumb_at = (scroll * (visible - thumb) + (n - visible) / 2) / std::max(1, n - visible);
+            for (int r = 0; r < visible && 2 + r < MAX_Y; ++r) {
+                const bool on = r >= thumb_at && r < thumb_at + thumb;
+                pos(2 + r, W - 2, (on ? header_sgr(settings_) + "\u2588" : legend_sgr(settings_) + "\u2591") + R);
+            }
+        }
         bottom_border(MAX_Y);
         if (leave_prompt_ == 4 && theme_sel_ >= 0 && theme_sel_ < n)
             pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to delete theme \"" + truncate_str(theme_list_[static_cast<size_t>(theme_sel_)].name, themes::kMaxNameLen) + "\"? [y] Yes, delete | [n / ESC] No, keep it", W - 1) + R);
         else
         pos(MAX_Y + 1, 1, legend_sgr(settings_) + (theme_ui_ == 1
-            ? "[↑↓] Select | [ENTER] Apply the theme | [SHIFT+d] Delete your own theme | [ESC] Back"
-            : "[↑↓] Select | [ENTER] Use as template (copies its colors into the new theme) | [ESC] Back") + R);
+            ? "[↑↓] Select | [SHIFT+↑↓] Page | [ENTER] Apply the theme | [SHIFT+d] Delete your own theme | [ESC] Back"
+            : "[↑↓] Select | [SHIFT+↑↓] Page | [ENTER] Use as template (copies its colors into the new theme) | [ESC] Back") + R);
         if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
         return;
     }

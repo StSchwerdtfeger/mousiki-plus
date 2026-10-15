@@ -1104,6 +1104,7 @@ private:
     int theme_ui_ = 0;
     std::vector<themes::Theme> theme_list_;
     int theme_sel_ = 0;               // picker cursor
+    mutable int theme_page_ = 20;     // picker: rows on screen, set while drawing (SHIFT+up / down move by a page)
     Settings theme_draft_;            // creator: the colours being edited (a copy; settings_ is untouched until saved)
     themes::Theme theme_base_;        // creator: the template whose other keys (the radio's) the new theme keeps
     std::string theme_name_;          // creator: name of the new theme (25 characters at most)

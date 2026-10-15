@@ -921,8 +921,10 @@ The border can fade from the top to the bottom color line by line (BorderGradien
 
 COLOR THEMES: [[Header]]
 The first row, THEME, holds ready-made schemes (the default MeowerShell, Serious MeowerShell and
-many more) and the themes you made yourself.
+30 more, e.g. Catppuccin Mocha, Tokyo Night, Kanagawa, Outrun) and the themes you made yourself,
+which the list shows after the built-in ones, named in the header color.
 [ENTER]        on the theme name: the list; [ENTER] applies a theme
+[↑↓ / SHIFT+↑↓] in that list: one theme / a page (a scrollbar on the right shows where you are)
 [SHIFT+d]      in that list: delete a theme of your own (asks first)
 [ENTER]        on CREATE THEME: the theme editor
 [e]            edit the theme in use in that editor
@@ -1011,11 +1013,11 @@ LETTERS ARE MORE OFTEN CASE SENSITIVE IN THE RADIO: [[Header]]
 
 FROM TOP TO BOTTOM: [[Header]]
 TOP PANE:[[Header]] the ON AIR sign (OFF AIR while nothing is live), the station info (station, title,
-artist, genre, bitrate, sampling rate, type, country), a spectrum under it and the oscilloscope,
+)WIZ",
+R"WIZ(artist, genre, bitrate, sampling rate, type, country), a spectrum under it and the oscilloscope,
 sphere or spectrogram on the right.
 FREQUENCY BAND (MHz):[[Header]] a tuning dial. The needle shows the tuned station, dots mark the other
-)WIZ",
-R"WIZ(stations of your list. Below it: signal strength, STEREO or MONO, LIVE and the time since you tuned in
+stations of your list. Below it: signal strength, STEREO or MONO, LIVE and the time since you tuned in
 (PAUSED -m:ss while paused, TIMESHIFT -m:ss while you listen behind live) and REC mm:ss while recording.
 SEARCH STATIONS:[[Header]] with the play mode letter on its right (S shuffle / L list, [m] toggles; it
 only affects [b]).
@@ -1161,13 +1163,13 @@ your local library.
 
 [[New Page]]
 11.3 RADIO HISTORY [[Header]]
-
+)WIZ",
+R"WIZ(
 THE RADIO'S OWN HISTORY: [[Header]]
 [h] opens it; [ESC], [q] or [h] close it. [1] [2] [3], [<-/->] or [TAB] switch the tab, [UP]/[DOWN]
 move, [HOME]/[END] jump to the ends.
 [1] HISTORY        WHEN / CHANNEL / ARTIST / TITLE / HEARD
-)WIZ",
-R"WIZ([2] TOP CHANNELS   channels by time listened ([r] flips the order)
+[2] TOP CHANNELS   channels by time listened ([r] flips the order)
 [3] HABITS         sessions, time per day, channels, and listening by hour and by weekday
 A new HISTORY line starts whenever the channel, the artist or the title changes. Lines heard for less
 than 3 seconds are dropped. A session ends after a gap of 30 minutes. The newest 10 000 lines are
