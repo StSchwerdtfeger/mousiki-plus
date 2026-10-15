@@ -14,6 +14,10 @@ namespace muisc {
 const char* const kOsciPaletteNames[kOsciPaletteCount] = {"gradient", "settings", "temperature", "aurora", "magma", "ice", "neon", "spectrum", "classic green"};
 
 namespace {
+int osci_trace_step(int t, int dir) {   // Trace Length: 128 .. 1024 in steps of 128, then 2048, 4096, 8192
+    if (dir > 0) return t < 1024 ? std::min(1024, t + 128) : std::min(8192, t * 2);
+    return t <= 1024 ? std::max(128, t - 128) : t / 2;
+}
 const int kFpsSteps[6] = {30, 45, 60, 90, 120, 165};
 const char* const kCellSteps[7] = {"", "8x16", "9x18", "10x20", "12x24", "14x28", "16x32"};
 const char* const kProtoSteps[4] = {"auto", "kitty", "sixel", "off"};
@@ -36,8 +40,16 @@ int osci_res_parse(const std::string& v, int def) {
 }
 
 std::vector<int> osci_visible_rows(const Settings& s) {
-    std::vector<int> r = {kOrMode, kOrMusic, kOrStyle, kOrFps};   // no "Display" row: what is shown is the "." key's job
-    if (s.osci_style == 1) { r.push_back(kOrProtocol); r.push_back(kOrRes); }
+    std::vector<int> r = {kOrMode, kOrMusic};
+    {   // the beam: CRT or classic in both modes; low-rate blanking only matters in music mode, rough mode only without it
+        const OsciSet& o = s.osci();
+        r.push_back(kOrCrt);
+        if (o.crt) r.push_back(kOrDwell);
+        if (o.crt && o.music) r.push_back(kOrLowRate);
+        if (!o.music) r.push_back(kOrRough);
+    }
+    for (int id : {kOrStyle, kOrFps}) r.push_back(id);   // no "Display" row: what is shown is the "." key's job
+    if (s.osci_style == 1) { r.push_back(kOrProtocol); r.push_back(kOrRes); r.push_back(kOrDetail); }
     r.push_back(kOrDecay);
     if (s.osci_style != 1) r.push_back(kOrDot);
     r.push_back(kOrTail);
@@ -49,7 +61,7 @@ std::vector<int> osci_visible_rows(const Settings& s) {
 std::string osci_row_label(int row) {
     static const char* const L[kOsciRowCount] = {"Decay", "Dot threshold", "Tail", "Line/Vec. Interpol.", "Z-Axis (XYZ Mode)",
         "Z Depth", "Z Source", "Trace Length", "Rotate 45 deg (M/S)", "Mono Phase Portrait", "Color", "Glow",
-        "Osci style", "Osci cell pixels", "Image protocol", "Frame rate", "Display", "Image resolution", "Osci music mode", "Scope mode"};
+        "Osci style", "Osci cell pixels", "Image protocol", "Frame rate", "Display", "Image resolution", "Osci music mode", "Scope mode", "Image detail", "Beam", "Low-rate blanking", "Dwell brightness", "Rough mode"};
     return row >= 0 && row < kOsciRowCount ? L[row] : "";
 }
 
@@ -76,6 +88,11 @@ std::string osci_row_value(const Settings& s, int row) {
         case kOrProtocol: return s.gfx_protocol;
         case kOrFps: return std::to_string(o.frame_rate) + " fps";
         case kOrRes: return osci_res_name(s.image_scale);
+        case kOrDetail: return s.image_detail == 1 ? "high (1024 px)" : "normal (560 px)";
+        case kOrCrt: return s.osci().crt ? "CRT" : "classic";
+        case kOrLowRate: return s.osci().low_rate ? "on (below 96 kHz)" : "off";
+        case kOrDwell: return s.osci().dwell ? "on" : "off (strokes equal)";
+        case kOrRough: return s.osci().rough ? "on (edge clipping)" : "off";
         case kOrMusic: return on(o.music);
         case kOrMode: return s.osci_mode == 1 ? "YT" : s.osci_mode == 2 ? "XY + YT (overlap)" : s.osci_mode == 3 ? "XY + YT (row)" : s.osci_mode == 4 ? "XY + YT (col)" : "XY";
         case kOrDisplay: return s.lyric_viz == 1 ? "osci" : s.lyric_viz == 2 ? "spectro" : "sphere";
@@ -94,7 +111,7 @@ void osci_adjust(Settings& s, int row, int dir) {
         case kOrZ: o.z = dir > 0; break;
         case kOrZDepth: o.z_depth = snap(o.z_depth + dir * 0.05, 0.05, 0.0, 1.0); break;
         case kOrZSource: o.z_source = dir > 0 ? 1 : 0; break;
-        case kOrTrace: o.trace = std::clamp(o.trace + dir * 128, 128, 1024); break;
+        case kOrTrace: o.trace = osci_trace_step(o.trace, dir); break;
         case kOrRotate: o.rotate = dir > 0; break;
         case kOrMono: o.mono_phase = dir > 0; break;
         case kOrPalette: o.palette = step_in(o.palette, kOsciPaletteCount, dir); break;
@@ -105,6 +122,11 @@ void osci_adjust(Settings& s, int row, int dir) {
         case kOrMusic: o.music = dir > 0; break;
         case kOrMode: s.osci_mode = step_in(s.osci_mode, 5, dir); break;   // XY <-> YT <-> overlap <-> row <-> col
         case kOrRes: s.image_scale = std::clamp(s.image_scale + (dir > 0 ? -1 : 1), 1, 3); break;   // right = sharper
+        case kOrDetail: s.image_detail = dir > 0 ? 1 : 0; break;
+        case kOrCrt: s.osci().crt = dir > 0; break;
+        case kOrLowRate: s.osci().low_rate = dir > 0; break;
+        case kOrDwell: s.osci().dwell = dir > 0; break;
+        case kOrRough: s.osci().rough = dir > 0; break;
         case kOrFps: {
             int i = 0;
             for (int k = 0; k < 6; ++k) if (kFpsSteps[k] == o.frame_rate) i = k;
@@ -117,7 +139,7 @@ void osci_adjust(Settings& s, int row, int dir) {
 
 void osci_reset(Settings& s) {   // the parameters of the style in use; the shared rows (style, protocol, cells) and its fps stay
     const int fps = s.osci().frame_rate;
-    s.osci() = OsciSet{};
+    s.osci() = s.osci_style == 1 ? OsciSet{} : OsciSet::braille_defaults();
     s.osci().frame_rate = fps;
     if (s.osci_style == 1) s.osci().glow = 0.60f;
 }
@@ -152,7 +174,7 @@ bool osci_config_key(Settings& s, const std::string& key, const std::string& val
         else if (n == "ZAxis") o.z = as_bool(value, o.z);
         else if (n == "ZDepth") o.z_depth = as_float(value, o.z_depth, 0.0f, 1.0f);
         else if (n == "ZSource") o.z_source = lower(value) == "level" ? 1 : 0;
-        else if (n == "TraceLength") o.trace = as_int(value, o.trace, 128, 1024);
+        else if (n == "TraceLength") o.trace = as_int(value, o.trace, 128, 8192);
         else if (n == "Rotate") o.rotate = as_bool(value, o.rotate);
         else if (n == "MonoPhase") o.mono_phase = as_bool(value, o.mono_phase);
         else if (n == "Glow") o.glow = as_float(value, o.glow, 0.0f, 1.0f);
@@ -160,6 +182,10 @@ bool osci_config_key(Settings& s, const std::string& key, const std::string& val
         // frame rate and music mode per style; the braille line (written first) also sets the image style, so a config
         // from before (one value for both) gives both styles that value -- the image line that follows overrides it
         else if (n == "FrameRate") { const int fr = fps_snap(as_int(value, o.frame_rate, 30, 165)); o.frame_rate = fr; if (st == 0) s.osci_set[1].frame_rate = fr; }
+        else if (n == "CrtBeam") o.crt = as_bool(value, o.crt);
+        else if (n == "LowRateBlanking") o.low_rate = as_bool(value, o.low_rate);
+        else if (n == "DwellBrightness") o.dwell = as_bool(value, o.dwell);
+        else if (n == "RoughMode") o.rough = as_bool(value, o.rough);
         else if (n == "MusicMode") { o.music = as_bool(value, o.music); if (st == 0) s.osci_set[1].music = o.music; }
         else continue;
         return true;
@@ -172,6 +198,7 @@ bool osci_config_key(Settings& s, const std::string& key, const std::string& val
     if (key == "OsciStyle") { s.osci_style = lower(value) == "image" ? 1 : 0; return true; }
     if (key == "OsciImageProtocol") { s.gfx_protocol = lower(value); return true; }
     if (key == "OsciImageResolution") { s.image_scale = osci_res_parse(value, s.image_scale); return true; }
+    if (key == "OsciImageDetail") { s.image_detail = lower(value) == "high" ? 1 : 0; return true; }
     if (key == "FrameRate") {   // up to v3.0.0 one value for both styles
         const int fr = fps_snap(as_int(value, 30, 30, 165));
         s.osci_set[0].frame_rate = s.osci_set[1].frame_rate = fr;
@@ -191,14 +218,19 @@ void osci_config_write(std::ostream& out, const Settings& s) {
             << P << "Rotate=" << b(o.rotate) << "\n" << P << "MonoPhase=" << b(o.mono_phase) << "\n"
             << P << "Palette=" << kOsciPaletteNames[std::clamp(o.palette, 0, kOsciPaletteCount - 1)] << "\n"
             << P << "Glow=" << num(o.glow) << "\n" << P << "FrameRate=" << o.frame_rate << "\n"
-            << P << "MusicMode=" << b(o.music) << "\n";
+            << P << "MusicMode=" << b(o.music) << "\n" << P << "CrtBeam=" << b(o.crt) << "\n"
+            << P << "LowRateBlanking=" << b(o.low_rate) << "\n" << P << "DwellBrightness=" << b(o.dwell) << "\n" << P << "RoughMode=" << b(o.rough) << "\n";
     };
     out << "## Oscilloscope (SHIFT+o overlay), one block per style: braille = Osci<name>, image = OsciImage<name>. Each style keeps its own values.\n";
     out << "## Decay = afterglow 0.00-0.99 | DotThreshold 0.01-1.00 (braille: lower = thicker line) | TailBrightness 0.00-1.00 | Interpolation = connect the\n";
     out << "## samples with lines | ZAxis = beam intensity (ZDepth 0-1, ZSource speed|level) | TraceLength 128-1024 samples | Rotate = 45 degrees (mid vertical) |\n";
     out << "## MonoPhase = phase portrait for near-mono signals | Palette gradient|settings|temperature|aurora|magma|ice|neon|spectrum | Glow 0-1 (image bloom) |\n";
     out << "## FrameRate = screen refresh while that style is in use: 30 | 45 | 60 | 90 | 120 | 165 | MusicMode = oscilloscope music mode (the scopes\n";
-    out << "## get the decoded signal itself, no EQ / normalization / volume, at a fixed scale and without the phase portrait)\n";
+    out << "## get the decoded signal itself, no EQ / normalization / volume, at a fixed scale and without the phase portrait; the XY beam\n";
+    out << "## adds light like a CRT -- Decay about 0.10 gives the look of osci-render)\n";
+    out << "## CrtBeam = true: the CRT beam | false: the classic look (both with and without music mode) | LowRateBlanking (music mode, CRT beam) = fade out the\n";
+    out << "## jumps between shapes in files below 96 kHz | DwellBrightness (CRT beam) = true: slow strokes bright, jumps dark |\n";
+    out << "## false: every stroke equally bright (the jump lines show) | RoughMode (not music mode) = size from the previous frame's peak, loud beats clip along the edges\n";
     block("Osci", s.osci_set[0]);
     block("OsciImage", s.osci_set[1]);
     out << "## The big oscilloscope overlay (SHIFT+0): ScopeGrid = axes / grid over both pictures (SHIFT+a in the overlay) | ScopeGridColor = its colour,\n";
@@ -216,6 +248,8 @@ void osci_config_write(std::ostream& out, const Settings& s) {
     out << "OsciImageProtocol=" << s.gfx_protocol << "\n";
     out << "## image style: full | half | third of the screen resolution (lower = less work and data per frame, a softer and wider beam)\n";
     out << "OsciImageResolution=" << osci_res_name(s.image_scale) << "\n";
+    out << "## image style: normal | high -- the widest picture rendered (560 / 1024 px): high = sharper thin lines, more data per frame\n";
+    out << "OsciImageDetail=" << (s.image_detail == 1 ? "high" : "normal") << "\n";
 
 }
 

@@ -5808,6 +5808,10 @@ OscilloscopeVisualizer::Params osci_scope_params(const Settings& s, double dt, i
     p.glow = o.glow;
     p.mode = s.osci_mode;
     if (o.music) { p.mono_phase = false; p.fixed_gain = true; }   // oscilloscope music mode: the exact figure
+    p.crt = o.crt;
+    p.low_rate_blank = o.low_rate;
+    p.dwell = o.dwell;
+    p.rough = o.rough;
     return p;
 }
 } // namespace
@@ -6113,7 +6117,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
                     // image style: the terminal draws the picture; the cells stay blank here and the loop emits it
                     gfx_cell_pixels(settings_.cell_pixels, cell_w_, cell_h_);
                     const int cw0 = std::max(4, cell_w_), ch0 = std::max(8, cell_h_);
-                    const int cwq = std::clamp(560 / lyrics_w, 4, cw0);
+                    const int cwq = std::clamp(osci_detail_cap(settings_.image_detail, false) / lyrics_w, 4, cw0);
                     GfxFrame& g = gfx_;
                     // Image resolution (SHIFT+o): render 1/scale of it; Kitty scales the picture up itself, Sixel repeats
                     // its pixels up to the real cell size (out_cw x out_ch). Less to render, encode and send per frame.
@@ -16219,6 +16223,10 @@ void App::scope_window_sync(bool check_alive) {
     c.interp = o.interp ? 1 : 0;
     c.color_by_x = o.palette == 0 ? 1 : 0;
     c.music = o.music ? 1 : 0;
+    c.crt = o.crt ? 1 : 0;
+    c.low_rate = o.low_rate ? 1 : 0;
+    c.dwell = o.dwell ? 1 : 0;
+    c.rough = o.rough ? 1 : 0;
     for (int h = 0; h < 256; ++h) {
         int r = 255, g = 255, b = 255;
         osci_palette_rgb(settings_, o.palette, static_cast<float>(h) / 255.0f, r, g, b);
@@ -16490,7 +16498,7 @@ std::string App::build_scope_big(int W, const char* clear_prefix) const {
         // main loop through gfx_ / gfx2_), the grid is part of each picture.
         gfx_cell_pixels(settings_.cell_pixels, cell_w_, cell_h_);
         const int cw0 = std::max(4, cell_w_), ch0 = std::max(8, cell_h_);
-        const int cwq = std::clamp(640 / g.cols, 4, cw0);
+        const int cwq = std::clamp(osci_detail_cap(settings_.image_detail, true) / g.cols, 4, cw0);
         const int scale = std::clamp(settings_.image_scale, 1, 3);   // Osci image resolution: 1/scale of the screen resolution
         const int cws = std::max(2, std::min(cwq, cw0 / scale));
         const int chs = std::max(4, static_cast<int>(std::lround(static_cast<double>(cws) * ch0 / cw0)));
@@ -16532,7 +16540,7 @@ std::string App::build_scope_big(int W, const char* clear_prefix) const {
     ScopeBigInfo info;
     info.m = sm;
     info.rotate = os.rotate;
-    info.samples = std::clamp(os.trace, 128, 1024);
+    info.samples = std::clamp(os.trace, 128, 8192);
     info.ms = info.samples * 1000.0 / std::max(8000, player_.sample_rate());
     info.music = px.fixed_gain;
     {

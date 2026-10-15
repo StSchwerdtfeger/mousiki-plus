@@ -27,13 +27,19 @@ struct OsciSet {
     bool z = false;                     // Z-Axis (XYZ mode): the beam intensity follows a Z signal
     float z_depth = 0.70f;              // 0.00 .. 1.00, how strongly Z modulates the beam
     int z_source = 0;                   // 0 = beam speed, 1 = signal level
-    int trace = 1024;                   // samples per frame, 128 .. 1024
+    int trace = 1024;                   // samples per frame, 128 .. 8192
     bool rotate = false;                // 45 degree rotation (M/S view)
     bool mono_phase = true;             // near-mono signals draw a phase portrait instead of a diagonal line
     int palette = 0;                    // see kOsciPaletteNames
     float glow = 0.60f;                 // image: size / strength of the bloom around the beam, 0.00 .. 1.00
     int frame_rate = 30;                // screen refresh while this style is in use: 30 | 45 | 60 | 90 | 120 | 165 fps
     bool music = false;                 // oscilloscope music mode (SHIFT+o): unprocessed signal, fixed scale, no phase portrait
+    bool crt = true;                    // music mode: CRT beam (every sample once, light by dwell time); false = the classic look
+    bool low_rate = true;               // music mode, CRT beam: below 96 kHz the jumps between shapes are faded out
+    bool dwell = true;                  // CRT beam: light by dwell time (slow strokes bright, jumps dark); false = every stroke equally bright
+    bool rough = false;                 // automatic size from the previous frame's peak only (sudden louder beats clamped to the edges); not in music mode
+    // braille starts with the classic beam and rough mode (loud beats clip along the edges); the image style with the CRT beam
+    static OsciSet braille_defaults() { OsciSet o; o.crt = false; o.rough = true; return o; }
 };
 
 // Colors: every field holds a plain decimal ANSI 256-color palette index
@@ -102,7 +108,7 @@ struct Settings {
     }
     // Oscilloscope look, tuned live from the SHIFT+o overlay in the main UI (config.txt: Osci* / OsciImage*).
     // Each style (braille / image) keeps its own parameter set; osci() is the one in use.
-    OsciSet osci_set[2];                // [0] = braille, [1] = image
+    OsciSet osci_set[2] = {OsciSet::braille_defaults(), OsciSet{}};   // [0] = braille, [1] = image
     int osci_style = 0;                 // 0 = braille characters, 1 = image (a real pixel picture: Kitty graphics / Sixel)
     bool scope_grid = true;             // the big scope overlay (SHIFT+0): axes / grid over both pictures (SHIFT+a there; config.txt: ScopeGrid)
     bool scope_values = true;           // ... and the axis values at the grid lines (SHIFT+v there; config.txt: ScopeValues)
@@ -113,6 +119,7 @@ struct Settings {
     std::string cell_pixels;            // image style: pixels of one terminal cell "WxH"; empty = ask the terminal
     SpectroSettings spectro;            // the spectrogram (SHIFT+i overlay, SHIFT+u full screen), Audacity's defaults
     int image_scale = 2;                // image style: 1 = full, 2 = half, 3 = a third of the screen resolution (enlarged on output)
+    int image_detail = 0;               // image style: 0 = normal (picture up to 560 px wide), 1 = high (up to 1024 px)
     OsciSet& osci() { return osci_set[osci_style == 1 ? 1 : 0]; }
     const OsciSet& osci() const { return osci_set[osci_style == 1 ? 1 : 0]; }
     int lyrics_alignment = 0; // 0=center (default), 1=left, 2=right
@@ -474,7 +481,10 @@ std::string settings_to_text(const Settings& s);
 
 // ---- the SHIFT+o overlay (osci_settings.cpp) ----
 enum OsciRow { kOrDecay, kOrDot, kOrTail, kOrInterp, kOrZ, kOrZDepth, kOrZSource, kOrTrace, kOrRotate, kOrMono, kOrPalette, kOrGlow,
-               kOrStyle, kOrCells, kOrProtocol, kOrFps, kOrDisplay, kOrRes, kOrMusic, kOrMode, kOsciRowCount };
+               kOrStyle, kOrCells, kOrProtocol, kOrFps, kOrDisplay, kOrRes, kOrMusic, kOrMode, kOrDetail, kOrCrt, kOrLowRate, kOrDwell, kOrRough, kOsciRowCount };
+// image style: Image detail (SHIFT+o) -- the widest picture rendered: normal = 560 px (big overlay 640 per picture), high = 1024
+// (1280), for sharper thin lines; more to render and send per frame (Sixel especially)
+inline int osci_detail_cap(int detail, bool big) { return detail == 1 ? (big ? 1280 : 1024) : (big ? 640 : 560); }
 // image style: the picture is rendered at 1/1, 1/2 or 1/3 of the screen resolution and enlarged on the way to the terminal
 const char* osci_res_name(int scale);   // "full" | "half" | "third"
 int osci_res_parse(const std::string& v, int def);

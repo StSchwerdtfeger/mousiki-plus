@@ -39,6 +39,10 @@ struct ScopeWinConfig {
     float dot_threshold = 0.28f;   // braille: brightness a dot needs to light (SHIFT+o "Dot threshold")
     float tail = 0.45f;            // braille: oldest sample of the trace relative to the newest (SHIFT+o "Tail")
     int32_t trace = 1024;          // braille: samples drawn per frame (SHIFT+o "Trace Length")
+    uint8_t crt = 1;               // CRT beam (light by dwell time), with or without music mode; 0 = the classic look
+    uint8_t low_rate = 1;          // music mode, CRT beam: below 96 kHz the jumps between shapes are faded out
+    uint8_t dwell = 1;             // CRT beam: light by dwell time; 0 = every stroke equally bright
+    uint8_t rough = 0;             // not music mode: size from the previous frame's peak (loud beats clip along the edges)
     uint8_t pal[256][3] = {};      // palette, index 0..255
     char title[96] = {};           // window title (track / station)
 };

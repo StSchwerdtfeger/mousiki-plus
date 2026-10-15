@@ -678,7 +678,15 @@ TUNING OVERLAY:[[Header]] [SHIFT+o] opens it, the picture changes live while the
 Scope mode       XY, YT, XY + YT (overlap), XY + YT (row), XY + YT (column)
 Osci style       braille (works in any terminal) / image (pixels, needs Kitty graphics or Sixel)
 Osci music mode  for oscilloscope music: the unprocessed signal and a fixed scale
+Beam             CRT: every sample drawn once, light by the time the beam spends on a spot
+                 (image default) / classic: the old look with a tail (braille default)
+Dwell brightness CRT beam: slow strokes bright, jumps dark; off = every stroke equally bright
+Low-rate blank.  music mode, CRT beam: files below 96 kHz get the jumps between shapes faded out
+Rough mode       not in music mode: loud beats clip along the edges of the square (edge clipping;
+                 braille default on, image default off)
 Frame rate       30 / 45 / 60 / 90 / 120 / 165 fps
+Image res/detail image style: drawn at full / half / third resolution; detail normal / high =
+                 up to 560 / 1024 pixels wide (high: sharper thin lines, more data per frame)
 Decay            the afterglow, higher = longer trails
 Tail / Glow      bright head with fading tail / line glow
 Z-Axis           beam brightness follows speed or level
@@ -687,6 +695,9 @@ Each style keeps its own values, so switching between braille and image never lo
 [R] resets only the style in use.
 Starting points for braille: crisp scope = Decay 0.65, Dot threshold 0.35, Tail 0.60.
 Dreamy glow = 0.90, 0.20, 0.25.
+)WIZ",
+R"WIZ(Oscilloscope music (e.g. Jerobeam Fenderson): Osci music mode on, Beam CRT, Decay about 0.10,
+Image resolution full, Image detail high -- close to osci-render. Lossless files work best.
 
 THE BIG OSCILLOSCOPE: [[Header]]
 [SHIFT+0] (the [=] key; German keyboard SHIFT+0) opens it over the whole screen: YT (amplitude over
@@ -702,8 +713,7 @@ signal (full scale in Osci music mode).
 5.3 SPECTROGRAM AND EXTRA WINDOWS [[Header]]
 
 THE SPECTROGRAM: [[Header]]
-)WIZ",
-R"WIZ(Made the way Audacity makes its spectrogram view, with Audacity's defaults (2048-sample Hann window,
+Made the way Audacity makes its spectrogram view, with Audacity's defaults (2048-sample Hann window,
 zero padding 2, Mel scale 0 to 20 000 Hz, gain 20 / range 80 dB, Roseus colors). Stereo is drawn
 as two channels.
 [SHIFT+i] options        [SHIFT+u] full screen (with frequency labels on the left and a time ruler on top)
@@ -844,7 +854,8 @@ A play counts for a playlist when it was queued from a saved playlist ([ENTER] o
 row). The history keeps the newest 1000 plays one by one and folds older ones into lifetime totals
 per title, including the day and the time of day of every play, so the period and time-of-day lists
 stay exact over years. It lives in history.json, in [s] Settings[[Header]] ->> PATHS[[Header]] ->> HISTORY PATH[[Header]].
-
+)WIZ",
+R"WIZ(
 [[New Page]]
 7.2 SMART HISTORY LISTS [[Header]]
 
@@ -868,8 +879,7 @@ TIMES OF DAY: [[Header]]
 Morning 7-11, Day 11-18, Evening 18-22, Night 22-7.
 
 REDISCOVER: [[Header]]
-)WIZ",
-R"WIZ(Least played counts never-played tracks as 0 and shuffles ties every time, which makes it a good way
+Least played counts never-played tracks as 0 and shuffles ties every time, which makes it a good way
 to rediscover forgotten music.
 
 Files that moved or were deleted are skipped, and the status line says how many tracks were queued.
@@ -1004,7 +1014,8 @@ TOP PANE:[[Header]] the ON AIR sign (OFF AIR while nothing is live), the station
 artist, genre, bitrate, sampling rate, type, country), a spectrum under it and the oscilloscope,
 sphere or spectrogram on the right.
 FREQUENCY BAND (MHz):[[Header]] a tuning dial. The needle shows the tuned station, dots mark the other
-stations of your list. Below it: signal strength, STEREO or MONO, LIVE and the time since you tuned in
+)WIZ",
+R"WIZ(stations of your list. Below it: signal strength, STEREO or MONO, LIVE and the time since you tuned in
 (PAUSED -m:ss while paused, TIMESHIFT -m:ss while you listen behind live) and REC mm:ss while recording.
 SEARCH STATIONS:[[Header]] with the play mode letter on its right (S shuffle / L list, [m] toggles; it
 only affects [b]).
@@ -1016,8 +1027,7 @@ KEYS ON THE MAIN SCREEN: [[Header]]
 [p]          mute / unmute              [x]      stop          [R]  reconnect
 [+] / [-]    volume                     [/]      search        [SHIFT+t]  sort list order <-> A-Z
 [SHIFT+k] presets   [SHIFT+s] radio browser   [SHIFT+p] station lists   [SHIFT+l] big stations overlay
-)WIZ",
-R"WIZ([h] history   [s] settings   [?] cheat sheet   [SHIFT+w] this wizard   [q] quit
+[h] history   [s] settings   [?] cheat sheet   [SHIFT+w] this wizard   [q] quit
 
 THE BIG STATIONS OVERLAY: [[Header]]
 [SHIFT+l] shows the STATIONS pane over the whole screen plus a PRESET NAME column.
@@ -1156,7 +1166,8 @@ THE RADIO'S OWN HISTORY: [[Header]]
 [h] opens it; [ESC], [q] or [h] close it. [1] [2] [3], [<-/->] or [TAB] switch the tab, [UP]/[DOWN]
 move, [HOME]/[END] jump to the ends.
 [1] HISTORY        WHEN / CHANNEL / ARTIST / TITLE / HEARD
-[2] TOP CHANNELS   channels by time listened ([r] flips the order)
+)WIZ",
+R"WIZ([2] TOP CHANNELS   channels by time listened ([r] flips the order)
 [3] HABITS         sessions, time per day, channels, and listening by hour and by weekday
 A new HISTORY line starts whenever the channel, the artist or the title changes. Lines heard for less
 than 3 seconds are dropped. A session ends after a gap of 30 minutes. The newest 10 000 lines are
@@ -1169,8 +1180,7 @@ overlay that searches YouTube for "artist title". [ENTER] downloads the hovered 
 download folder (yt-dlp, opus), [TAB] edits the search query, [ESC] closes. A result is marked
 [ok] done, [..] downloading, [!!] failed.
 This is the online search of the music player reached from the radio, so a song you only heard once
-)WIZ",
-R"WIZ(on air ends up in your local library (after a rescan with [SHIFT+r] in the player).
+on air ends up in your local library (after a rescan with [SHIFT+r] in the player).
 
 
 [[New Page]]

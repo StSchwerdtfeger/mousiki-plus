@@ -201,6 +201,8 @@ void write_ppm(const std::string& path, const std::vector<uint32_t>& px, int w, 
 constexpr float kMonoFull = 0.003f, kMonoNone = 0.020f;
 constexpr int kDeriv = 3;
 constexpr int kLz = 3;   // Lanczos-3: 6 samples per interpolated point
+constexpr float kDwell = 1.0f;   // music mode: segments shorter than this many beam half widths get the full beam
+constexpr float kBlankSpeed = 20000.0f;   // music mode below 96 kHz: beam speed (full scale widths per second) of a jump
 
 } // namespace
 
@@ -265,6 +267,7 @@ int scope_window_main() {
     double play = 0.0;
     uint64_t drawn = 0;
     bool started = false;
+    float peak_prev = 0.05f;
     float peak = 0.05f, mono = 0.0f, pscale = 0.0f, spd_lo = -3.0f, spd_hi = -1.5f;
     float last_x = 0.0f, last_y = 0.0f;
     bool have_last = false;
@@ -431,6 +434,10 @@ int scope_window_main() {
             p.mono_phase = cfg.mono_phase != 0 && !cfg.music;
             p.glow = cfg.glow;
             p.fixed_gain = cfg.music != 0;
+            p.crt = cfg.crt != 0;
+            p.low_rate_blank = cfg.low_rate != 0;
+            p.dwell = cfg.dwell != 0;
+            p.rough = cfg.rough != 0;
             p.mode = cfg.mode;
             // XY: a square field in the middle, a dot every `pitch` pixels (about 100 dots across, like the terminal's area).
             // The YT modes use the whole window (the time axis is wide).
@@ -528,9 +535,11 @@ int scope_window_main() {
             float fp = 0.0f;
             for (size_t i = 0; i < n; ++i) fp = std::max(fp, std::max(std::fabs(xs[i]), std::fabs(ys[i])));
             const float keep = std::pow(0.97f, k30);
+            peak_prev = peak;
             peak = fp > peak ? fp : peak * keep + fp * (1.0f - keep);
         }
-        const float gain = cfg.music ? 1.0f : 1.0f / std::max(peak, 0.05f);   // music mode: full scale = the edge
+        // music mode: full scale = the edge; rough mode: the previous frame's peak only, so a sudden louder beat clips along the edges
+        const float gain = cfg.music ? 1.0f : 1.0f / std::max(cfg.rough ? peak_prev : peak, 0.05f);
 
         // ---- phosphor decay, in steps of 1/60 s ---------------------------------------------------------------------------
         A.SetRenderTarget(R, gpu.accum);
@@ -619,6 +628,20 @@ int scope_window_main() {
             ++spd_n;
             const float spd_t = (lspd - spd_lo) / std::max(0.2f, spd_hi - spd_lo);
             float a = 1.0f;
+            // Music mode: every segment stands for the same time, so its light is spread over its length -- slow strokes are
+            // bright, the fast jumps between shapes (the extra lines) nearly vanish, as on a real CRT.
+            if (cfg.crt) {
+                if (cfg.dwell) a *= std::min(1.0f, kDwell * hw / std::max(len, 1e-3f));
+                if (cfg.music && cfg.low_rate && rate < 96000.0) {
+                    // below 96 kHz the jumps between shapes are rounded off to a few samples and ring a little: moves faster
+                    // than strokes ever go (full scale widths per second) fade out, as in the terminal
+                    const float v = len / amp * static_cast<float>(ups) * static_cast<float>(rate) / kBlankSpeed;
+                    a /= 1.0f + v * v * v;
+                }
+                // the samples of this frame are not equally old: the earlier ones have already faded (Decay is per 1/30 s),
+                // so a figure redrawn several times within one frame leaves one bright newest copy, not a fan of equal ones
+                a *= std::pow(std::clamp(cfg.decay, 0.0f, 0.99f), static_cast<float>(dt * 30.0) * static_cast<float>(n - 1 - i) / static_cast<float>(n));
+            }
             if (cfg.z) {
                 float zf;
                 if (cfg.z_source == 0) zf = 1.0f / (1.0f + len / (3.0f * hw));
@@ -640,10 +663,12 @@ int scope_window_main() {
             dens_tmp.clear();
             for (float d : dens) if (d > 0.05f) dens_tmp.push_back(d);
             if (dens_tmp.size() >= 8) {
-                const size_t at = dens_tmp.size() - 1 - dens_tmp.size() / 10;
+                // music mode: the busiest 1 % (the parts that stand still) set the exposure, so a figure that moves fast
+                // keeps the faint light of its few passes instead of being lifted to full brightness
+                const size_t at = dens_tmp.size() - 1 - dens_tmp.size() / (cfg.crt ? 100 : 10);
                 std::nth_element(dens_tmp.begin(), dens_tmp.begin() + static_cast<long>(at), dens_tmp.end());
                 const float busy = std::max(dens_tmp[at], 1e-3f);
-                const float want = std::clamp(1.8f / busy, 0.02f, 0.90f);
+                const float want = std::clamp(1.8f / busy, 0.02f, cfg.crt ? 40.0f : 0.90f);   // CRT: the dwell weight dims every segment
                 expo += (want - expo) * std::min(1.0f, static_cast<float>(dt) * 4.0f);
             }
         }
