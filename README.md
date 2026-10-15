@@ -44,11 +44,16 @@ The latest addition is the mentioned **[radio player mode](#default-keybinding-r
 
 My current setup looks like the last .gif and the below below. The current default config.txt uses the below theme too. It is adjusted to fit my cyber-cat themed **MeowerShell** terminal setup [(see Gihub repository for config files)](https://github.com/StSchwerdtfeger/Meower-Shell), which includes FastFetch, Oh-My-Posh and loads of recommendations for lovers of the terminal, e.g. helpful apps like yazi, fzf fuzzy search ...
 
-<p align="center"><img width="779" height="392" alt="grafik" src="https://github.com/user-attachments/assets/a16c6728-37e1-4124-86a4-591677656f00" /></p>
+<p align="center"><img width="850" height="397" alt="grafik" src="https://github.com/user-attachments/assets/95b5b4b0-a69b-42e5-a68b-09ac7c786314" /></p>
 
 The new main UI of the radio mode looks like the below:
 
-<p align="center"><img width="850" height="412" alt="image" src="https://github.com/user-attachments/assets/986ce2b5-45b6-4a5d-95e6-f45683e6c665" /></p>
+<p align="center"><img width="850" height="412" alt="grafik" src="https://github.com/user-attachments/assets/3a04fa3e-a59b-423c-89be-d6dd284e06e8" /></p>
+
+Here are some of the new themes, including color blind adjusted versions
+
+<p align="center"><img width="829" height="383" alt="grafik" src="https://github.com/user-attachments/assets/a9777cd5-eb67-4cde-a5a9-6c6192b4b2e9" /></p>
+
 
 ## Current Status of the Port and Modification (v4.0.0)
 
