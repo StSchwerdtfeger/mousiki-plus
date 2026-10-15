@@ -2307,7 +2307,8 @@ std::vector<std::string> build_theme_picker(const RadioSettings& c, const Settin
         if (i < n) {
             const themes::Theme& t = sm.theme_list[static_cast<size_t>(i)];
             segs.push_back({header, i == cur ? "● " : "  "});
-            segs.push_back({i == sm.theme_sel ? "\x1b[7m" : "", pad_right(truncate_str(t.name, themes::kMaxNameLen), themes::kMaxNameLen)});
+            // your own themes (not built in) are named in the header colour
+            segs.push_back({(t.builtin ? std::string() : header) + (i == sm.theme_sel ? "\x1b[7m" : ""), pad_right(truncate_str(t.name, themes::kMaxNameLen), themes::kMaxNameLen)});
             segs.push_back({"", "  "});
             for (const auto& k : kSw) {
                 const std::string* v = t.get(k.key, true);
@@ -2316,7 +2317,14 @@ std::vector<std::string> build_theme_picker(const RadioSettings& c, const Settin
                 segs.push_back({"", " "});
             }
         }
-        out.push_back(b + " " + seg_line(segs, inner) + " " + b);
+        // more themes than rows: a scrollbar in the last column (a thumb as tall as the visible part is of the list)
+        std::string sb = " ";
+        if (n > visible) {
+            const int thumb = std::max(1, std::min(visible, (visible * visible + n - 1) / n));
+            const int thumb_at = (first * (visible - thumb) + (n - visible) / 2) / std::max(1, n - visible);
+            sb = r >= thumb_at && r < thumb_at + thumb ? header + "\u2588" + kReset : legend + "\u2591" + kReset;
+        }
+        out.push_back(b + " " + seg_line(segs, inner - 2) + " " + sb + " " + b);
     }
     while (static_cast<int>(out.size()) < H - 3) {
         const std::string b = bar(static_cast<int>(out.size())) + "│" + kReset;
@@ -2326,8 +2334,8 @@ std::vector<std::string> build_theme_picker(const RadioSettings& c, const Settin
     if (sm.leave_prompt == 4 && sm.theme_sel >= 0 && sm.theme_sel < n)
         out.push_back(seg_line({{"\x1b[1;7m", " Do you want to delete theme \"" + truncate_str(sm.theme_list[static_cast<size_t>(sm.theme_sel)].name, themes::kMaxNameLen) + "\"? [y] Yes, delete | [n / ESC] No, keep it"}}, W));
     else
-    out.push_back(seg_line({{legend, sm.theme_ui == 1 ? "[↑↓] Select | [ENTER] Apply the theme | [SHIFT+d] Delete your own theme | [ESC] Back"
-                                                      : "[↑↓] Select | [ENTER] Use as template (copies its colors into the new theme) | [ESC] Back"}}, W));
+    out.push_back(seg_line({{legend, sm.theme_ui == 1 ? "[↑↓] Select | [SHIFT+↑↓] Page | [ENTER] Apply the theme | [SHIFT+d] Delete your own theme | [ESC] Back"
+                                                      : "[↑↓] Select | [SHIFT+↑↓] Page | [ENTER] Use as template (copies its colors into the new theme) | [ESC] Back"}}, W));
     out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status, W)}}, W));
     return out;
 }

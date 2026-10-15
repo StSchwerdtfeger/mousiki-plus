@@ -1355,6 +1355,10 @@ int radio_main(int argc, char** argv) {
                     }
                     if (sm.theme_ui == 1 || sm.theme_ui == 3) {
                         if (k == 27 || (!arrow && (k == 'q' || k == 'Q'))) { sm.theme_ui = sm.theme_ui == 3 ? 2 : 0; continue; }
+                        if (arrow && (k == 'A' || k == 'B') && last_key_was_shifted()) {   // SHIFT+up / down: a page
+                            sm.theme_sel = std::clamp(sm.theme_sel + (k == 'A' ? -10 : 10), 0, std::max(0, nt - 1));
+                            continue;
+                        }
                         if ((arrow && k == 'A') || (!arrow && k == 'k')) { sm.theme_sel = std::max(0, sm.theme_sel - 1); continue; }
                         if ((arrow && k == 'B') || (!arrow && k == 'j')) { sm.theme_sel = std::min(std::max(0, nt - 1), sm.theme_sel + 1); continue; }
                         if (k == kKeyHome) { sm.theme_sel = 0; continue; }
