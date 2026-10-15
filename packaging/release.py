@@ -811,7 +811,22 @@ ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 ChangesEnvironment=yes
-CloseApplications=no
+; upgrade over any running copy: Restart Manager closes mousiki.exe so its file is not locked
+CloseApplications=force
+CloseApplicationsFilter=*.exe,*.dll
+RestartApplications=no
+; the previous install is found through the fixed AppId and reuses its folder / per-user-or-all-users mode
+UsePreviousAppDir=yes
+UsePreviousPrivileges=yes
+UsePreviousTasks=yes
+
+[InstallDelete]
+; clean the program folders first so files dropped in a newer version do not linger (settings live outside {app})
+Type: filesandordirs; Name: "{app}\app"
+Type: filesandordirs; Name: "{app}\scripts"
+Type: filesandordirs; Name: "{app}\docs"
+Type: filesandordirs; Name: "{app}\bin"
+Type: filesandordirs; Name: "{app}\pylib"
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; Flags: unchecked
@@ -1076,7 +1091,7 @@ Installed-Size: %d
 Maintainer: Mousiki release toolkit <noreply@localhost>
 Depends: libc6, libstdc++6, python3, ffmpeg, curl, libasound2 | libasound2t64, libpulse0
 Recommends: pulseaudio-utils | pipewire-pulse, xclip | wl-clipboard, python3-requests, xdg-utils, libsdl2-2.0-0
-Homepage: https://github.com/StSchwerdtfeger/Mousiki-v3.0.0-Music-and-Radio-Player
+Homepage: https://github.com/StSchwerdtfeger/mousiki-plus
 Description: Terminal music player and online radio (TUI)
  Mousiki plays local files and online sources (via the bundled yt-dlp) in the
  terminal, with spectrum/oscilloscope visualizers, synced lyrics, an equalizer,
@@ -1200,8 +1215,12 @@ def build_macos(a, ctx):
     root = ws / "pkgroot"
     build_mac_pkgroot(stage, root)
     comp = ws / "mousiki-component.pkg"
+    # preinstall: remove the old program folder so an upgrade leaves no stale files (user settings are in ~/.config)
+    scripts = ws / "pkgscripts"
+    rmtree(scripts)
+    write_text(scripts / "preinstall", "#!/bin/sh\nrm -rf /usr/local/lib/mousiki\nexit 0\n", executable=True)
     run(["pkgbuild", "--root", root, "--identifier", "io.github.mousiki.player", "--version", ver,
-         "--install-location", "/", "--ownership", "recommended", comp])
+         "--install-location", "/", "--ownership", "recommended", "--scripts", scripts, comp])
     out = dist / ("Mousiki-%s-macos-%s.pkg" % (ver, arch))
     if out.exists():
         out.unlink()
@@ -1365,7 +1384,7 @@ def cmd_linux_wsl(a):
             flags.append(name)
     if a.version:
         flags += ["--version", a.version]
-    inner = "python3 %s build --target linux " + ("--zip" if kind == "zip" else "--src") + " %s --dist %s --work \"$HOME/.cache/mousiki-release\" %s" % (
+    inner = ("python3 %s build --target linux " + ("--zip" if kind == "zip" else "--src") + " %s --dist %s --work \"$HOME/.cache/mousiki-release\" %s") % (
         shlex.quote(w_script), shlex.quote(w_zip), shlex.quote(w_dist), " ".join(shlex.quote(f) for f in flags))
     log("Building the Linux packages inside WSL (build tree lives in the WSL home for speed)")
     rc = run(wsl_base(a.distro) + ["--", "bash", "-lc", inner], check=False)
