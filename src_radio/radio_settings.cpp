@@ -40,10 +40,6 @@ const ColorRowSpec kColorRows[] = {
 const int kColorRowCount = static_cast<int>(sizeof(kColorRows) / sizeof(kColorRows[0]));
 
 namespace {
-int osci_trace_step(int t, int dir) {   // Trace Length: 128 .. 1024 in steps of 128, then 2048, 4096, 8192
-    if (dir > 0) return t < 1024 ? std::min(1024, t + 128) : std::min(8192, t * 2);
-    return t <= 1024 ? std::max(128, t - 128) : t / 2;
-}
 struct ThemeKey { const char* key; std::string RadioSettings::* p; };
 const ThemeKey kThemeKeys[] = {
     {"ColorBorderTop", &RadioSettings::border_top},       {"ColorBorderBottom", &RadioSettings::border_bottom},
@@ -110,7 +106,7 @@ int theme_index(const RadioSettings& s, const std::vector<themes::Theme>& all) {
 
 namespace {
 enum RsId {
-    kRsPlayback, kRsStartMode,
+    kRsPlayback, kRsStartMode, kRsBlackBg, kRsShareProfiles,
     kRsOnAir, kRsPulse, kRsDummy, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc,
     kRsScope, kRsOsciStyle,
@@ -121,7 +117,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
     // A header with an empty text is the blank line before the next header.
     static const std::vector<SettingsLine> on_off = {
         {true, -1, "MODES"},
-        {false, kRsPlayback, "Playback"}, {false, kRsStartMode, "Start Mode"},
+        {false, kRsPlayback, "Playback"}, {false, kRsStartMode, "Start Mode"}, {false, kRsBlackBg, "Black Background"}, {false, kRsShareProfiles, "Share Profiles"},
         {true, -1, ""},
         {true, -1, "ON/OFF"},
         {false, kRsOnAir, "On air ascii"}, {false, kRsPulse, "Pulse wave"}, {false, kRsDummy, "Dummy buttons"},
@@ -203,6 +199,7 @@ bool* flag_of(RadioSettings& s, int id) {
         case kRsMarquee: return &s.marquee;
         case kRsUseOsci: return &s.use_osci;
         case kRsUseSpectro: return &s.use_spectro;
+        case kRsBlackBg: return &s.black_background;
         default: return nullptr;
     }
 }
@@ -213,6 +210,7 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
     if (id < 0) return "";
     if (bool* f = flag_of(const_cast<RadioSettings&>(s), id)) return *f ? "true" : "false";
     switch (id) {
+        case kRsShareProfiles: return s.share_profiles ? "true" : "false";
         case kRsPlayback: return s.playback_shuffle ? "shuffle" : "list";
         case kRsStartMode: return s.start_mode == "radio" ? "radio" : "player";
         case kRsTimeshift: return std::to_string(timeshift_minutes(s)) + " min";
@@ -233,6 +231,7 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
     if (bool* f = flag_of(s, id)) { *f = dir == 0 ? !*f : dir > 0; return; }
     auto step = [&](int& v, int n) { v = dir == 0 ? (v + 1) % n : (v + (dir > 0 ? 1 : n - 1)) % n; };
     switch (id) {
+        case kRsShareProfiles: radio_share_profiles(s, dir == 0 ? !s.share_profiles : dir > 0); break;
         case kRsPlayback: s.playback_shuffle = !s.playback_shuffle; break;
         case kRsStartMode: s.start_mode = s.start_mode == "radio" ? "player" : "radio"; break;
         case kRsTimeshift: step(s.timeshift_idx, 5); break;
@@ -246,122 +245,14 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
     }
 }
 
-const char* const kOsciPaletteNames[kOsciPaletteCount] = {"gradient", "settings", "temperature", "aurora", "magma", "ice", "neon", "spectrum", "classic green"};
-
-namespace {
-const int kFpsSteps[6] = {30, 45, 60, 90, 120, 165};
-const char* const kCellSteps[7] = {"", "8x16", "9x18", "10x20", "12x24", "14x28", "16x32"};
-const char* const kProtoSteps[4] = {"auto", "kitty", "sixel", "off"};
-template <class T, size_t N> int index_of(const T (&arr)[N], const std::string& v, int def) {
-    for (size_t i = 0; i < N; ++i) if (v == arr[i]) return static_cast<int>(i);
-    return def;
-}
-int step_in(int idx, int n, int dir) { return std::clamp(idx + (dir > 0 ? 1 : -1), 0, n - 1); }
-}
-
-const char* osci_res_name(int scale) { return scale >= 3 ? "third" : scale == 2 ? "half" : "full"; }
-int osci_res_parse(const std::string& v, int def) {
-    std::string l = v;
-    for (char& c : l) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    if (l == "full" || l == "1") return 1;
-    if (l == "half" || l == "2") return 2;
-    if (l == "third" || l == "3") return 3;
-    return def;
-}
-
-std::vector<int> osci_visible_rows(const RadioSettings& s) {
-    std::vector<int> r = {kOrMode, kOrMusic};
-    {   // the beam: CRT or classic in both modes; low-rate blanking only matters in music mode, rough mode only without it
-        const OsciSet& o = s.osci();
-        r.push_back(kOrCrt);
-        if (o.crt) r.push_back(kOrDwell);
-        if (o.crt && o.music) r.push_back(kOrLowRate);
-        if (!o.music) r.push_back(kOrRough);
-    }
-    for (int id : {kOrStyle, kOrFps}) r.push_back(id);   // no "Display" row: what is shown is the "." key's job
-    if (s.osci_style == 1) { r.push_back(kOrProtocol); r.push_back(kOrRes); r.push_back(kOrDetail); }
-    r.push_back(kOrDecay);
-    if (s.osci_style != 1) r.push_back(kOrDot);
-    r.push_back(kOrTail);
-    for (int id : {kOrInterp, kOrZ, kOrZDepth, kOrZSource, kOrTrace, kOrRotate, kOrMono, kOrPalette}) r.push_back(id);
-    if (s.osci_style == 1) r.push_back(kOrGlow);
-    return r;
-}
-
-std::string osci_row_label(int row) {
-    static const char* const L[kOsciRowCount] = {"Decay", "Dot threshold", "Tail", "Line/Vec. Interpol.", "Z-Axis (XYZ Mode)",
-        "Z Depth", "Z Source", "Trace Length", "Rotate 45 deg (M/S)", "Mono Phase Portrait", "Color", "Glow",
-        "Osci style", "Osci cell pixels", "Image protocol", "Frame rate", "Display", "Image resolution", "Osci music mode", "Scope mode", "Image detail", "Beam", "Low-rate blanking", "Dwell brightness", "Rough mode"};
-    return row >= 0 && row < kOsciRowCount ? L[row] : "";
-}
 std::string osci_row_value(const RadioSettings& s, int row) {
-    char b[24];
-    const OsciSet& o = s.osci();
-    auto on = [](bool v) { return std::string(v ? "on" : "off"); };
-    auto f2 = [&](double v) { std::snprintf(b, sizeof b, "%.2f", v); return std::string(b); };
-    switch (row) {
-        case kOrDecay: return f2(o.decay);
-        case kOrDot: return f2(o.dot_threshold);
-        case kOrTail: return f2(o.tail);
-        case kOrInterp: return on(o.interp);
-        case kOrZ: return on(o.z);
-        case kOrZDepth: return f2(o.z_depth);
-        case kOrZSource: return o.z_source == 1 ? "level" : "speed";
-        case kOrTrace: return std::to_string(o.trace);
-        case kOrRotate: return on(o.rotate);
-        case kOrMono: return o.music ? std::string("off (music mode)") : on(o.mono_phase);
-        case kOrPalette: return kOsciPaletteNames[std::clamp(o.palette, 0, kOsciPaletteCount - 1)];
-        case kOrGlow: return f2(o.glow);
-        case kOrStyle: return s.osci_style == 1 ? "image" : "braille";
-        case kOrCells: return s.cell_pixels.empty() ? "auto" : s.cell_pixels;
-        case kOrProtocol: return s.gfx_protocol;
-        case kOrFps: return std::to_string(o.frame_rate) + " fps";
-        case kOrRes: return osci_res_name(s.image_scale);
-        case kOrDetail: return s.image_detail == 1 ? "high (1024 px)" : "normal (560 px)";
-        case kOrCrt: return s.osci().crt ? "CRT" : "classic";
-        case kOrLowRate: return s.osci().low_rate ? "on (below 96 kHz)" : "off";
-        case kOrDwell: return s.osci().dwell ? "on" : "off (strokes equal)";
-        case kOrRough: return s.osci().rough ? "on (edge clipping)" : "off";
-        case kOrMusic: return on(o.music);
-        case kOrMode: return s.osci_mode == 1 ? "YT" : s.osci_mode == 2 ? "XY + YT (overlap)" : s.osci_mode == 3 ? "XY + YT (row)" : s.osci_mode == 4 ? "XY + YT (col)" : "XY";
-        case kOrDisplay: return s.scope_mode == 1 ? "sphere" : s.scope_mode == 3 ? "spectro" : "osci";
-    }
-    return "";
+    if (row == kOrDisplay) return s.scope_mode == 1 ? "sphere" : s.scope_mode == 3 ? "spectro" : "osci";
+    return muisc::osci_row_value(static_cast<const VizPrefs&>(s), row);
 }
+
 void osci_adjust(RadioSettings& s, int row, int dir) {
-    OsciSet& o = s.osci();
-    auto snap = [](double v, double step, double lo, double hi) { return static_cast<float>(std::clamp(std::round(v / step) * step, lo, hi)); };
-    switch (row) {
-        case kOrDecay: o.decay = snap(o.decay + dir * 0.01, 0.01, 0.0, 0.99); break;
-        case kOrDot: o.dot_threshold = snap(o.dot_threshold + dir * 0.01, 0.01, 0.01, 1.0); break;
-        case kOrTail: o.tail = snap(o.tail + dir * 0.01, 0.01, 0.0, 1.0); break;
-        case kOrInterp: o.interp = dir > 0; break;
-        case kOrZ: o.z = dir > 0; break;
-        case kOrZDepth: o.z_depth = snap(o.z_depth + dir * 0.05, 0.05, 0.0, 1.0); break;
-        case kOrZSource: o.z_source = dir > 0 ? 1 : 0; break;
-        case kOrTrace: o.trace = osci_trace_step(o.trace, dir); break;
-        case kOrRotate: o.rotate = dir > 0; break;
-        case kOrMono: o.mono_phase = dir > 0; break;
-        case kOrPalette: o.palette = step_in(o.palette, kOsciPaletteCount, dir); break;
-        case kOrGlow: o.glow = snap(o.glow + dir * 0.05, 0.05, 0.0, 1.0); break;
-        case kOrStyle: s.osci_style = dir > 0 ? 1 : 0; break;
-        case kOrCells: s.cell_pixels = kCellSteps[step_in(index_of(kCellSteps, s.cell_pixels, 0), 7, dir)]; break;
-        case kOrProtocol: s.gfx_protocol = kProtoSteps[step_in(index_of(kProtoSteps, s.gfx_protocol, 0), 4, dir)]; break;
-        case kOrMusic: s.osci().music = dir > 0; break;
-        case kOrMode: s.osci_mode = step_in(s.osci_mode, 5, dir); break;   // XY <-> YT <-> overlap <-> row <-> col
-        case kOrRes: s.image_scale = std::clamp(s.image_scale + (dir > 0 ? -1 : 1), 1, 3); break;   // right = sharper
-        case kOrDetail: s.image_detail = dir > 0 ? 1 : 0; break;
-        case kOrCrt: s.osci().crt = dir > 0; break;
-        case kOrLowRate: s.osci().low_rate = dir > 0; break;
-        case kOrDwell: s.osci().dwell = dir > 0; break;
-        case kOrRough: s.osci().rough = dir > 0; break;
-        case kOrFps: {
-            int i = 0;
-            for (int k = 0; k < 6; ++k) if (kFpsSteps[k] == s.osci().frame_rate) i = k;
-            s.osci().frame_rate = kFpsSteps[step_in(i, 6, dir)];
-            break;
-        }
-        case kOrDisplay: {   // osci -> sphere -> spectro (off only on the ON/OFF tab; switched-off ones are skipped)
+    if (row != kOrDisplay) { muisc::osci_adjust(static_cast<VizPrefs&>(s), row, dir); return; }
+    {   // osci -> sphere -> spectro (off only on the ON/OFF tab; switched-off ones are skipped)
             static const int order[3] = {0, 1, 3};
             int i = s.scope_mode == 1 ? 1 : s.scope_mode == 3 ? 2 : 0;
             for (int k = 0; k < 3; ++k) {
@@ -370,8 +261,6 @@ void osci_adjust(RadioSettings& s, int row, int dir) {
                 break;
             }
             s.scope_mode = order[i];
-            break;
-        }
     }
 }
 void radio_enforce_visuals(RadioSettings& s) {
@@ -379,12 +268,6 @@ void radio_enforce_visuals(RadioSettings& s) {
     if (s.scope_mode == 3 && !s.use_spectro) s.scope_mode = 1;
 }
 
-void osci_reset(RadioSettings& s) {   // the parameters of the style in use; the shared rows (style, protocol, cells) and its fps stay
-    const int fps = s.osci().frame_rate;
-    s.osci() = s.osci_style == 1 ? OsciSet{} : OsciSet::braille_defaults();
-    s.osci().frame_rate = fps;
-    if (s.osci_style == 1) s.osci().glow = 0.60f;
-}
 void norm_adjust(RadioSettings& s, int row, int dir) {
     if (row == 0) { s.normalize = dir > 0; return; }
     double* v = row == 1 ? &s.normalize_target_lufs : &s.normalize_max_boost_db;
@@ -575,8 +458,9 @@ std::string player_download_folder() {
     return "";
 }
 
-std::string player_start_mode() {
-    // The start mode lives in the player's config.txt (StartMode=player|radio), one value for both programs.
+namespace {
+// One KEY=value line of the player's config.txt (the settings both programs share live there): the value, "" when missing.
+std::string player_config_value(const std::string& key_lower) {
     std::ifstream in(radio_default_dir() / "config.txt");
     std::string line;
     while (std::getline(in, line)) {
@@ -584,38 +468,78 @@ std::string player_start_mode() {
         if (line.empty() || line[0] == '#') continue;
         const size_t eq = line.find('=');
         if (eq == std::string::npos) continue;
-        if (lower(trim(line.substr(0, eq))) == "startmode") return lower(trim(line.substr(eq + 1))) == "radio" ? "radio" : "player";
+        if (lower(trim(line.substr(0, eq))) == key_lower) return trim(line.substr(eq + 1));
     }
-    return "player";
+    return "";
 }
-
-bool set_player_start_mode(const std::string& mode) {
-    // Rewrites that one line of the player's config.txt (appended when it is missing); nothing else in the file is touched.
-    // A config.txt that does not exist is not created here: the player owns it.
+// Rewrites that one line (appended when it is missing); nothing else in the file is touched. A config.txt that does not
+// exist is not created here: the player owns it.
+bool set_player_config_value(const std::string& key, const std::string& value) {
     const fs::path f = radio_default_dir() / "config.txt";
     std::ifstream in(f);
     if (!in) return false;
     std::vector<std::string> lines;
     std::string line;
     bool found = false;
-    const std::string value = mode == "radio" ? "radio" : "player";
     while (std::getline(in, line)) {
         const std::string t = trim(line);
         const size_t eq = t.find('=');
-        if (!t.empty() && t[0] != '#' && eq != std::string::npos && lower(trim(t.substr(0, eq))) == "startmode") {
-            if (!found) lines.push_back("StartMode=" + value);
+        if (!t.empty() && t[0] != '#' && eq != std::string::npos && lower(trim(t.substr(0, eq))) == lower(key)) {
+            if (!found) lines.push_back(key + "=" + value);
             found = true;
             continue;
         }
         lines.push_back(line);
     }
     in.close();
-    if (!found) lines.push_back("StartMode=" + value);
+    if (!found) lines.push_back(key + "=" + value);
     std::ofstream out(f, std::ios::trunc);
     if (!out) return false;
     for (const auto& l : lines) out << l << "\n";
     return true;
 }
+} // namespace
+
+std::string player_start_mode() {
+    // The start mode lives in the player's config.txt (StartMode=player|radio), one value for both programs.
+    return lower(player_config_value("startmode")) == "radio" ? "radio" : "player";
+}
+
+bool set_player_start_mode(const std::string& mode) {
+    return set_player_config_value("StartMode", mode == "radio" ? "radio" : "player");
+}
+
+bool player_black_background() {
+    // Black Background: one value for both programs, BlackBackground= in the player's config.txt (true when missing)
+    const std::string v = lower(player_config_value("blackbackground"));
+    return !(v == "false" || v == "0" || v == "off" || v == "no");
+}
+
+bool set_player_black_background(bool on) {
+    return set_player_config_value("BlackBackground", on ? "true" : "false");
+}
+
+bool player_share_profiles() {
+    const std::string v = lower(player_config_value("shareprofiles"));
+    return v == "true" || v == "1" || v == "on" || v == "yes";
+}
+
+bool set_player_share_profiles(bool on) {
+    return set_player_config_value("ShareProfiles", on ? "true" : "false");
+}
+
+void radio_share_profiles(RadioSettings& s, bool on) {
+    if (on) {
+        if (!s.share_profiles) s.own_viz = s;          // the radio's own look is kept (the VizPrefs part of s)
+        s.share_profiles = true;
+        VizPrefs pv;
+        if (read_player_viz(pv)) s.take_shared_from(pv);   // no player config.txt yet: the radio keeps its own values
+    } else {
+        if (s.share_profiles) s.take_shared_from(s.own_viz);   // back to the radio's own values (its grid colour was never shared)
+        s.share_profiles = false;
+    }
+}
+
 
 WizardPalette player_wizard_palette() {
     WizardPalette p;
@@ -897,57 +821,25 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("PulseWaveSpeed")) try { s.pulse_wave_speed = std::clamp(std::stod(*v), 0.01, 1.0); } catch (...) {}
     if (auto v = get("PlaybackMode")) s.playback_shuffle = lower(*v) != "list";
     s.start_mode = player_start_mode();
+    s.black_background = player_black_background();
     if (auto v = get("Visualizer")) s.element_visualizer = as_bool(*v, s.element_visualizer);
     if (auto v = get("VisualizerFluidity")) s.visualizer_fluidity = as_int(*v, s.visualizer_fluidity, 1, 10);
     if (auto v = get("VisualizerDegradationSpeed")) s.visualizer_degradation_speed = as_int(*v, s.visualizer_degradation_speed, 1, 10);
     if (auto v = get("VisualizerViscosity")) s.visualizer_viscosity = as_int(*v, s.visualizer_viscosity, 0, 10);
-    // Up to v3.0.0 one frame rate and one music mode for both styles: they become the starting value of both.
-    auto fps_snap = [](int fr) { return fr >= 143 ? 165 : fr >= 105 ? 120 : fr >= 75 ? 90 : fr >= 52 ? 60 : fr >= 38 ? 45 : 30; };
-    if (auto v = get("FrameRate")) s.osci_set[0].frame_rate = s.osci_set[1].frame_rate = fps_snap(as_int(*v, 30, 30, 165));
-    if (auto v = get("OsciMusicMode")) s.osci_set[0].music = s.osci_set[1].music = as_bool(*v, false);
-    // The scope's parameters, once per style: braille = Osci<name>, image = OsciImage<name>.
-    for (int st = 0; st < 2; ++st) {
-        const std::string P = st == 0 ? "Osci" : "OsciImage";
-        OsciSet& o = s.osci_set[st];
-        auto key = [&](const char* n) { return P + n; };
-        if (auto v = get(key("Decay").c_str())) o.decay = as_float(*v, o.decay, 0.0f, 0.99f);
-        if (auto v = get(key("DotThreshold").c_str())) o.dot_threshold = as_float(*v, o.dot_threshold, 0.01f, 1.0f);
-        if (auto v = get(key("TailBrightness").c_str())) o.tail = as_float(*v, o.tail, 0.0f, 1.0f);
-        if (auto v = get(key("Interpolation").c_str())) o.interp = as_bool(*v, o.interp);
-        if (auto v = get(key("ZAxis").c_str())) o.z = as_bool(*v, o.z);
-        if (auto v = get(key("ZDepth").c_str())) o.z_depth = as_float(*v, o.z_depth, 0.0f, 1.0f);
-        if (auto v = get(key("ZSource").c_str())) o.z_source = lower(*v) == "level" ? 1 : 0;
-        if (auto v = get(key("TraceLength").c_str())) o.trace = as_int(*v, o.trace, 128, 8192);
-        if (auto v = get(key("Rotate").c_str())) o.rotate = as_bool(*v, o.rotate);
-        if (auto v = get(key("MonoPhase").c_str())) o.mono_phase = as_bool(*v, o.mono_phase);
-        if (auto v = get(key("Glow").c_str())) o.glow = as_float(*v, o.glow, 0.0f, 1.0f);
-        if (auto v = get(key("FrameRate").c_str())) o.frame_rate = fps_snap(as_int(*v, o.frame_rate, 30, 165));
-        if (auto v = get(key("CrtBeam").c_str())) o.crt = as_bool(*v, o.crt);
-        if (auto v = get(key("LowRateBlanking").c_str())) o.low_rate = as_bool(*v, o.low_rate);
-        if (auto v = get(key("DwellBrightness").c_str())) o.dwell = as_bool(*v, o.dwell);
-        if (auto v = get(key("RoughMode").c_str())) o.rough = as_bool(*v, o.rough);
-        if (st == 1) if (auto v = get(key("MusicMode").c_str())) o.music = as_bool(*v, o.music);   // braille: OsciMusicMode above
-        if (auto v = get(key("Palette").c_str())) {
-            const std::string l = lower(*v);
-            for (int i = 0; i < kOsciPaletteCount; ++i) if (l == kOsciPaletteNames[i] || (i == 8 && (l == "green" || l == "classic"))) o.palette = i;
-        }
-    }
-    if (auto v = get("TemperatureColor")) if (as_bool(*v, false)) s.osci_set[0].palette = s.osci_set[1].palette = 2;   // the old on/off option
+    // The oscilloscope settings: the player's reader (viz_prefs.h). An older "FrameRate" / "OsciMusicMode" (one value for both styles)
+    // gives both styles that value and the per-style keys that follow override it.
     if (auto v = get("OsciBraille")) s.osci_style = as_bool(*v, true) ? 0 : 1;   // the old name: false meant "not braille"
-    if (auto v = get("OsciMode")) { const std::string l = lower(*v); s.osci_mode = l == "yt" ? 1 : (l == "overlap" || l == "both" || l == "xy+yt") ? 2 : (l == "row" || l == "rows") ? 3 : (l == "col" || l == "cols" || l == "column" || l == "columns") ? 4 : 0; }
-    if (auto v = get("ScopeGrid")) s.scope_grid = as_bool(*v, s.scope_grid);
-    if (auto v = get("ScopeValues")) s.scope_values = as_bool(*v, s.scope_values);
-    if (auto v = get("ScopeGridColor")) s.scope_grid_color = *v;
+    for (const auto& [k, v] : kv) osci_config_key(s, k, v);
     for (const std::string& k : scope_metric_keys()) if (auto v = get(k.c_str())) scope_metric_parse(s.scope_metrics, k, *v);
-    if (auto v = get("OsciStyle")) s.osci_style = lower(*v) == "image" ? 1 : 0;
-    if (auto v = get("OsciImageProtocol")) s.gfx_protocol = lower(*v);
-    if (auto v = get("OsciImageResolution")) s.image_scale = osci_res_parse(*v, s.image_scale);
-    if (auto v = get("OsciImageDetail")) s.image_detail = lower(*v) == "high" ? 1 : 0;
+    if (auto v = get("TemperatureColor")) if (as_bool(*v, false)) s.osci_set[0].palette = s.osci_set[1].palette = 2;   // the old on/off option
     auto glyph = [&](const char* key, std::string& field) { if (auto v = get(key)) if (!v->empty()) field = *v; };
     glyph("BoxUpperLeft", s.box_upper_left);   glyph("BoxUpperRight", s.box_upper_right);
     glyph("BoxLowerLeft", s.box_lower_left);   glyph("BoxLowerRight", s.box_lower_right);
     glyph("BoxVertical", s.box_vertical);      glyph("BoxHorizontal", s.box_horizontal);
     glyph("ListSeparator", s.list_separator);
+    // Share Profiles: the radio's own values go to the backup (own_viz), the player's take their place
+    s.share_profiles = false;
+    if (player_share_profiles()) radio_share_profiles(s, true);
     // A radio_config.txt from before "ColorCodes=palette": 30-37 / 90-97 (text) and 40-47 / 100-107 (background) were plain 16-colour
     // codes. They become the palette numbers that look the same; the file is written once so that it carries the marker from now on.
     const auto cc = kv.find("colorcodes");
@@ -973,18 +865,8 @@ std::string eq_presets_text(const RadioSettings& s) {
 } // namespace
 
 // The whole radio_config.txt as text (also how the settings screen sees whether anything changed).
-static void write_radio_settings(std::ostream& o, const RadioSettings& s) {
+static void write_radio_file(std::ostream& o, const RadioSettings& s) {
     auto num = [](float v) { std::ostringstream os; os.precision(2); os << std::fixed << v; return os.str(); };
-    auto osci_block = [&](const std::string& P, const OsciSet& o) {
-        auto b = [](bool v) { return std::string(v ? "true" : "false"); };
-        return P + "Decay=" + num(o.decay) + "\n" + P + "DotThreshold=" + num(o.dot_threshold) + "\n" + P + "TailBrightness=" + num(o.tail) + "\n"
-             + P + "Interpolation=" + b(o.interp) + "\n" + P + "ZAxis=" + b(o.z) + "\n" + P + "ZDepth=" + num(o.z_depth) + "\n"
-             + P + "ZSource=" + (o.z_source == 1 ? "level" : "speed") + "\n" + P + "TraceLength=" + std::to_string(o.trace) + "\n"
-             + P + "Rotate=" + b(o.rotate) + "\n" + P + "MonoPhase=" + b(o.mono_phase) + "\n"
-             + P + "Palette=" + kOsciPaletteNames[std::clamp(o.palette, 0, kOsciPaletteCount - 1)] + "\n" + P + "Glow=" + num(o.glow) + "\n"
-             + P + "FrameRate=" + std::to_string(o.frame_rate) + "\n" + P + "MusicMode=" + b(o.music) + "\n"
-             + P + "CrtBeam=" + b(o.crt) + "\n" + P + "LowRateBlanking=" + b(o.low_rate) + "\n" + P + "DwellBrightness=" + b(o.dwell) + "\n" + P + "RoughMode=" + b(o.rough) + "\n";
-    };
     o << "# Mousiki radio mode -- settings (separate from the music player's config.txt)\n"
          "# Location (Windows): %USERPROFILE%\\.config\\mousiki\\radio_config.txt\n"
          "# Location (Linux/macOS): $HOME/.config/mousiki/radio_config.txt  (or ./radio_config.txt next to the program)\n"
@@ -1100,33 +982,9 @@ static void write_radio_settings(std::ostream& o, const RadioSettings& s) {
          "VisualizerFluidity=" << s.visualizer_fluidity << "\n"
          "VisualizerDegradationSpeed=" << s.visualizer_degradation_speed << "\n"
          "VisualizerViscosity=" << s.visualizer_viscosity << "\n"
-         "# Oscilloscope (SHIFT+o overlay), one block per style: braille = Osci<name>, image = OsciImage<name>. Each style keeps its own values.\n"
-         "# Decay = afterglow 0.00-0.99 | DotThreshold 0.01-1.00 (braille: lower = thicker line) | TailBrightness 0.00-1.00 | Interpolation = connect the\n"
-         "# samples with lines | ZAxis = beam intensity (ZDepth 0-1, ZSource speed|level) | TraceLength 128-8192 samples | Rotate = 45 degrees (mid vertical) |\n"
-         "# MonoPhase = phase portrait for near-mono signals | Palette gradient|settings|temperature|aurora|magma|ice|neon|spectrum | Glow 0-1 (image bloom) |\n"
-         "# FrameRate = screen refresh while that style is in use: 30 | 45 | 60 | 90 | 120 | 165 | MusicMode = oscilloscope music mode (the scopes get\n"
-         "# the stream itself, no EQ / normalization / volume, at a fixed scale and without the phase portrait; the XY beam\n"
-         "# adds light like a CRT -- Decay about 0.10 gives the look of osci-render)\n"
-         "# CrtBeam = true: the CRT beam | false: the classic look (both with and without music mode) | LowRateBlanking (music mode, CRT beam) = fade out the\n"
-         "# jumps between shapes in files below 96 kHz | DwellBrightness (CRT beam) = true: slow strokes bright, jumps dark |\n"
-         "# false: every stroke equally bright (the jump lines show) | RoughMode (not music mode) = size from the previous frame's peak, loud beats clip along the edges\n"
-         << osci_block("Osci", s.osci_set[0]) << osci_block("OsciImage", s.osci_set[1]) <<
-         "# ON/OFF tab: braille | image (a real pixel picture drawn by the terminal: Kitty graphics or Sixel; braille where there is neither)\n"
-         "# xy (left = horizontal, right = vertical) | yt (amplitude over time, triggered like a normal scope) | overlap (YT drawn over the XY figure) | row (XY in the top half, YT in the bottom half)\n"
-         "OsciMode=" << (s.osci_mode == 1 ? "yt" : s.osci_mode == 2 ? "overlap" : s.osci_mode == 3 ? "row" : s.osci_mode == 4 ? "col" : "xy") << "\n"
-         "# The big oscilloscope overlay (SHIFT+0): ScopeGrid = axes / grid over both pictures (SHIFT+a in the overlay) | ScopeGridColor = its colour,\n"
-         "# 0-255 (SHIFT+c in the overlay); empty = the colour of inactive list elements.\n"
-         "# The pictures follow OsciStyle: braille dots, or (image) two pixel pictures on a Kitty / Sixel terminal.\n"
-         "ScopeGrid=" << (s.scope_grid ? "true" : "false") << "\n"
-         "ScopeValues=" << (s.scope_values ? "true" : "false") << "\n"
-         "ScopeGridColor=" << s.scope_grid_color << "\n" << scope_metric_config_text(s.scope_metrics, "#") <<
-         "OsciStyle=" << (s.osci_style == 1 ? "image" : "braille") << "\n"
-         "# image style: auto | kitty | sixel | off\n"
-         "OsciImageProtocol=" << s.gfx_protocol << "\n"
-         "# image style: full | half | third of the screen resolution (lower = less work and data per frame, a softer and wider beam)\n"
-         "OsciImageResolution=" << osci_res_name(s.image_scale) << "\n"
-         "# image style: normal | high -- the widest picture rendered (560 / 1024 px): high = sharper thin lines, more data per frame\n"
-         "OsciImageDetail=" << (s.image_detail == 1 ? "high" : "normal") << "\n"
+         ;
+    osci_config_write(o, s, "#");
+    o <<
          "\n"
 
          "BoxUpperLeft=" << s.box_upper_left << "\nBoxUpperRight=" << s.box_upper_right << "\n"
@@ -1137,9 +995,30 @@ static void write_radio_settings(std::ostream& o, const RadioSettings& s) {
     o << "\n";
 }
 
+// The oscilloscope / spectrogram part as text (the grid colour belongs to the theme and is not shared).
+static std::string viz_text(const VizPrefs& v) {
+    VizPrefs t = v;
+    t.scope_grid_color.clear();
+    std::ostringstream o;
+    osci_config_write(o, t, "#");
+    spectro_config_write(o, t.spectro, "#");
+    return o.str();
+}
+
+// What radio_config.txt gets: with Share Profiles on, the radio's OWN oscilloscope / spectrogram settings (the backup), not the
+// player's that are in use meanwhile.
+static void write_radio_settings(std::ostream& o, const RadioSettings& s) {
+    if (!s.share_profiles) { write_radio_file(o, s); return; }
+    RadioSettings own = s;
+    own.take_shared_from(s.own_viz);
+    own.share_profiles = false;
+    write_radio_file(o, own);
+}
+
 std::string radio_settings_text(const RadioSettings& s) {
     std::ostringstream o;
     write_radio_settings(o, s);
+    if (s.share_profiles) o << "# shared with the player:\n" << viz_text(s);   // so that a change of the shared values counts as a change
     return o.str();
 }
 
@@ -1151,9 +1030,15 @@ bool save_radio_settings(const RadioSettings& s, std::string* err) {
     if (target.has_parent_path()) fs::create_directories(target.parent_path(), ec);
     std::ofstream o(target, std::ios::trunc);
     if (!o) { if (err) *err = "cannot write " + target.string(); return false; }
-    if (s.start_mode != player_start_mode()) set_player_start_mode(s.start_mode);   // the one setting that lives in the player's config.txt
+    if (s.start_mode != player_start_mode()) set_player_start_mode(s.start_mode);   // the settings that live in the player's config.txt
+    if (s.black_background != player_black_background()) set_player_black_background(s.black_background);
+    if (s.share_profiles != player_share_profiles()) set_player_share_profiles(s.share_profiles);
     write_radio_settings(o, s);
     if (!o) { if (err) *err = "cannot write " + target.string(); return false; }
+    if (s.share_profiles) {   // the radio's edits of the shared settings go to the player's config.txt
+        VizPrefs now;
+        if (read_player_viz(now) && viz_text(now) != viz_text(s)) write_player_viz(s);
+    }
     return true;
 }
 

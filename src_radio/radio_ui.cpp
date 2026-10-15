@@ -1,4 +1,5 @@
 #include "radio_ui.h"
+#include "overlay_common.h"
 #include "about_text.h"
 #include "border_gradient.h"
 #include "scope_big.h"
@@ -2319,10 +2320,10 @@ std::vector<std::string> build_theme_picker(const RadioSettings& c, const Settin
         }
         // more themes than rows: a scrollbar in the last column (a thumb as tall as the visible part is of the list)
         std::string sb = " ";
-        if (n > visible) {
-            const int thumb = std::max(1, std::min(visible, (visible * visible + n - 1) / n));
-            const int thumb_at = (first * (visible - thumb) + (n - visible) / 2) / std::max(1, n - visible);
-            sb = r >= thumb_at && r < thumb_at + thumb ? header + "\u2588" + kReset : legend + "\u2591" + kReset;
+        {
+        muisc::overlay::Thumb th;
+        if (muisc::overlay::scroll_thumb(first, visible, n, th))
+            sb = bar(y) + (r >= th.at && r < th.at + th.len ? "\u2588" : "\u2591") + kReset;   // border-gradient colour of that row
         }
         out.push_back(b + " " + seg_line(segs, inner - 2) + " " + sb + " " + b);
     }
@@ -2334,8 +2335,8 @@ std::vector<std::string> build_theme_picker(const RadioSettings& c, const Settin
     if (sm.leave_prompt == 4 && sm.theme_sel >= 0 && sm.theme_sel < n)
         out.push_back(seg_line({{"\x1b[1;7m", " Do you want to delete theme \"" + truncate_str(sm.theme_list[static_cast<size_t>(sm.theme_sel)].name, themes::kMaxNameLen) + "\"? [y] Yes, delete | [n / ESC] No, keep it"}}, W));
     else
-    out.push_back(seg_line({{legend, sm.theme_ui == 1 ? "[↑↓] Select | [SHIFT+↑↓] Page | [ENTER] Apply the theme | [SHIFT+d] Delete your own theme | [ESC] Back"
-                                                      : "[↑↓] Select | [SHIFT+↑↓] Page | [ENTER] Use as template (copies its colors into the new theme) | [ESC] Back"}}, W));
+    out.push_back(seg_line({{legend, sm.theme_ui == 1 ? "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Apply | [SHIFT+d] Delete your own theme | [ESC] Back"
+                                                      : "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Use as template | [ESC] Back"}}, W));
     out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status, W)}}, W));
     return out;
 }
@@ -3200,7 +3201,7 @@ std::vector<std::string> build_scope_big(const Style& s, const UiModel& m, const
     return out;
 }
 
-std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioStatus& st, RadioEngine& engine, const RadioSettings& cfg) {
+std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioStatus& st, RadioEngine& engine, const RadioSettings& cfg, bool peek) {
     Style s(cfg);
     std::vector<std::string> out;
     m.gfx.active = false;   // set again below when the scope is drawn as an image
@@ -3211,7 +3212,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     if (m.wizard_open) return build_wizard(s, m, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.cheat_open) return build_cheatsheet(s, m, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.hmenu.open) return build_history_menu(s, m, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
-    if (m.settings.open) return build_settings(cfg, m.settings, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
+    if (m.settings.open && !peek) return build_settings(cfg, m.settings, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.lmenu.open) return build_lists_menu(s, m, st, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.browse.open) return build_browse(s, m, st, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.menu.open) return build_menu(s, m, st, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
@@ -3330,14 +3331,30 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
 
 // BorderGradient=smooth: the finished frame's border lines get the colour of their row, fading from ColorBorderTop (first
 // line with a border) to ColorBorderBottom (last one). The panel builders keep drawing with the two plain colours.
-std::vector<std::string> render_radio_frame(const UiModel& m, const RadioStatus& st, RadioEngine& engine, const RadioSettings& cfg) {
-    std::vector<std::string> out = render_radio_frame_inner(m, st, engine, cfg);
-    if (!cfg.border_smooth || m.settings.open) return out;   // the settings screen paints its own gradient
+std::vector<std::string> render_radio_frame(const UiModel& m, const RadioStatus& st, RadioEngine& engine, const RadioSettings& cfg_in) {
+    // SHIFT+p in the theme picker: the normal main screen, drawn with the highlighted theme and kept still (the first frame
+    // is stored and handed out again until the preview closes, the theme changes or the window is resized)
+    const SettingsModel& sm0 = m.settings;
+    const bool peek = sm0.open && sm0.theme_peek && (sm0.theme_ui == 1 || sm0.theme_ui == 3) && sm0.theme_sel >= 0 &&
+                      sm0.theme_sel < static_cast<int>(sm0.theme_list.size());
+    static std::vector<std::string> peek_cache;
+    static int peek_key = -1, peek_cols = 0, peek_rows = 0;
+    if (peek && !peek_cache.empty() && peek_key == sm0.theme_sel && peek_cols == m.cols && peek_rows == m.rows) return peek_cache;
+    if (!peek) peek_cache.clear();
+    RadioSettings themed;
+    if (peek) { themed = cfg_in; theme_apply(themed, sm0.theme_list[static_cast<size_t>(sm0.theme_sel)]); }
+    const RadioSettings& cfg = peek ? themed : cfg_in;
+    std::vector<std::string> out = render_radio_frame_inner(m, st, engine, cfg, peek);
+    auto keep = [&](std::vector<std::string> v) {
+        if (peek) { peek_cache = v; peek_key = sm0.theme_sel; peek_cols = m.cols; peek_rows = m.rows; }
+        return v;
+    };
+    if (!cfg.border_smooth || (m.settings.open && !peek)) return keep(std::move(out));   // the settings screen paints its own gradient
     std::vector<std::string> glyphs = {"│", "─", "╭", "╮", "╰", "╯", "├", "┤", "┬", "┴", "┼"};
     for (const std::string* g : {&cfg.box_upper_left, &cfg.box_upper_right, &cfg.box_lower_left, &cfg.box_lower_right, &cfg.box_vertical, &cfg.box_horizontal})
         if (!g->empty()) glyphs.push_back(*g);
-    return border_gradient::apply(out, ansi_fg(cfg.border_top), ansi_fg(cfg.border_bottom), glyphs,
-                                  [&](float t) { return gradient_fg(cfg.border_top, cfg.border_bottom, t); });
+    return keep(border_gradient::apply(out, ansi_fg(cfg.border_top), ansi_fg(cfg.border_bottom), glyphs,
+                                       [&](float t) { return gradient_fg(cfg.border_top, cfg.border_bottom, t); }));
 }
 
 // The scope window (SHIFT+9): the values and colours of the style in use (braille or image), and "station: artist - title" as its title.

@@ -18,6 +18,7 @@
 //   header        secondary text: captions ("off air"), the ON AIR sign while nothing is live, empty-pane messages, status lines
 //   legend        key command legends: the "[TAB] Switch pane | ..." hint lines, hint tails, error lines, cheatsheet titles
 #include "scope_metrics.h"
+#include "viz_prefs.h"
 #include "spectrogram.h"
 #include <filesystem>
 #include "equalizer.h"
@@ -25,37 +26,15 @@
 #include <vector>
 #include <string>
 
+namespace muisc {
+// (src/settings.cpp) the player's oscilloscope / spectrogram settings in config.txt, for Share Profiles
+bool read_player_viz(VizPrefs& out);
+bool write_player_viz(const VizPrefs& v);
+}
+
 namespace muisc::radio {
 
-// Palettes of the scope (Color row of the overlay). 0 = the OSCI gradient of the COLORS tab laid over the picture from left to
-// right; the others colour by the beam speed (about the pitch: slow = first colour, fast = last colour).
-constexpr int kOsciPaletteCount = 9;
-extern const char* const kOsciPaletteNames[kOsciPaletteCount];   // gradient, settings, temperature, aurora, magma, ice, neon, spectrum, classic green
-
-struct OsciSet {
-    float decay = 0.80f;                // afterglow per frame, 0.00 .. 0.99
-    float dot_threshold = 0.28f;        // braille: brightness a subpixel needs to light a dot, 0.01 .. 1.00
-    float tail = 0.45f;                 // brightness of the oldest trace sample, 0.00 .. 1.00
-    bool interp = true;                 // Line/Vec. Interpol.: connect the samples with lines
-    bool z = false;                     // Z-Axis (XYZ mode): the beam intensity follows a Z signal
-    float z_depth = 0.70f;              // 0.00 .. 1.00, how strongly Z modulates the beam
-    int z_source = 0;                   // 0 = beam speed, 1 = signal level
-    int trace = 1024;                   // samples per frame, 128 .. 8192
-    bool rotate = false;                // 45 degree rotation (M/S view)
-    bool mono_phase = true;             // near-mono signals draw a phase portrait instead of a diagonal line
-    int palette = 0;                    // see kOsciPaletteNames
-    float glow = 0.60f;                 // image: size / strength of the bloom around the beam, 0.00 .. 1.00
-    int frame_rate = 30;                // screen refresh while this style is in use: 30 | 45 | 60 | 90 | 120 | 165 fps
-    bool music = false;                 // oscilloscope music mode (SHIFT+o): unprocessed signal, fixed scale, no phase portrait
-    bool crt = true;                    // music mode: CRT beam (every sample once, light by dwell time); false = the classic look
-    bool low_rate = true;               // music mode, CRT beam: below 96 kHz the jumps between shapes are faded out
-    bool dwell = true;                  // CRT beam: light by dwell time (slow strokes bright, jumps dark); false = every stroke equally bright
-    bool rough = false;                 // automatic size from the previous frame's peak only (sudden louder beats clamped to the edges); not in music mode
-    // braille starts with the classic beam and rough mode (loud beats clip along the edges); the image style with the CRT beam
-    static OsciSet braille_defaults() { OsciSet o; o.crt = false; o.rough = true; return o; }
-};
-
-struct RadioSettings {
+struct RadioSettings : VizPrefs {
     // --- colours ----------------------------------------------------------------------------------
     std::string border_top = "141";
     std::string border_bottom = "212";          // the frame fades from border_top (top) to border_bottom (bottom)
@@ -111,12 +90,19 @@ struct RadioSettings {
     bool pulse_wave = true;                     // the faint circle burst behind the sign
     bool dummy_buttons = true;                  // the <<< MUTE >>> boxes next to the frequency band
     int scope_mode = 0;                         // right of the station info: 0 = oscilloscope, 1 = sphere, 2 = off, 3 = spectrogram; default: the oscilloscope
-    SpectroSettings spectro;                    // the spectrogram (SHIFT+i overlay, SHIFT+u full screen), Audacity's defaults
     bool element_visualizer = true;             // the FFT spectrum under the station info
     bool stereo = true;                         // false = fold left + right to mono
     // Which mode Mousiki starts in ("player" / "radio"): the same setting as the music player's, kept in ITS config.txt
     // (StartMode=); the radio only reads and writes that one line (player_start_mode() / set_player_start_mode()).
     std::string start_mode = "player";
+    // Black Background: the terminal's background is black while Mousiki runs. One value with the player, in ITS config.txt
+    // (BlackBackground=); read / written like the start mode.
+    bool black_background = true;
+    // Share Profiles (ON/OFF -> MODES; ShareProfiles= in the player's config.txt, one value for both): with it on, the oscilloscope and
+    // spectrogram settings (the VizPrefs base) are the player's. `own_viz` keeps the radio's own values meanwhile (they stay in
+    // radio_config.txt and come back when it is turned off). Colours / themes are never shared.
+    bool share_profiles = false;
+    VizPrefs own_viz;
     bool use_osci = true;                       // ON/OFF "Use oscilloscope": false = never in the scope block / "." cycle
     bool use_spectro = true;                    // ON/OFF "Use spectrogram": the same for the spectrogram
     // The help wizard (SHIFT+w): false means it has never been shown here, so
@@ -151,19 +137,7 @@ struct RadioSettings {
     int visualizer_fluidity = 10;               // 1-10, higher = smoother / slower rise
     int visualizer_degradation_speed = 8;       // 1 (slow fade) - 10 (near-instant)
     int visualizer_viscosity = 3;               // 0 (bars independent) - 10 (heavy neighbour blending)
-    OsciSet osci_set[2] = {OsciSet::braille_defaults(), OsciSet{}};   // the scope's parameters: [0] = braille, [1] = image (each style keeps its own)
-    bool scope_grid = true;                     // the big scope overlay (SHIFT+0): axes / grid over both pictures (SHIFT+a there; ScopeGrid=)
-    bool scope_values = true;                   // ... and the axis values at the grid lines (SHIFT+v there; ScopeValues=)
-    std::string scope_grid_color;               // its colour 0..255; empty = the colour of inactive list elements (SHIFT+c there; ScopeGridColor=)
-    ScopeMetrics scope_metrics;                 // ... and its grid metrics, per picture (SHIFT+p there; ScopeYt* / ScopeXy*)
-    int osci_mode = 0;                          // ON/OFF: scope mode 0 = XY, 1 = YT (amplitude over time), 2 = both on top of each other (overlap), 3 = both in two rows, 4 = both in two columns (OsciMode=xy|yt|overlap|row|col)
-    int osci_style = 0;                         // ON/OFF: 0 = braille, 1 = image (real pixels through the terminal's graphics protocol)
-    std::string gfx_protocol = "auto";          // auto | kitty | sixel | off (MOUSIKI_RADIO_GFX overrides)
-    std::string cell_pixels;                    // "WxH" pixels of one terminal cell; empty = ask the terminal
-    int image_scale = 2;                        // image style: 1 = full, 2 = half, 3 = a third of the screen resolution
-    int image_detail = 0;                       // image style: 0 = normal (picture up to 560 px wide), 1 = high (up to 1024 px)
-    OsciSet& osci() { return osci_set[osci_style == 1 ? 1 : 0]; }                 // the set of the style in use
-    const OsciSet& osci() const { return osci_set[osci_style == 1 ? 1 : 0]; }
+    // (the oscilloscope / spectrogram settings -- osci_set, osci_style, osci_mode, gfx_protocol, spectro ... -- are the VizPrefs base)
 
     std::string box_upper_left = "╭";      // ╭
     std::string box_upper_right = "╮";     // ╮
@@ -222,6 +196,14 @@ std::string scope_mode_name(const RadioSettings& s);                    // "osci
 // Start Mode lives in the music player's config.txt (StartMode=player|radio): read it / write just that line.
 std::string player_start_mode();
 bool set_player_start_mode(const std::string& mode);
+// Black Background lives there too (BlackBackground=true|false, true when missing).
+bool player_black_background();
+bool set_player_black_background(bool on);
+// Share Profiles lives there too (ShareProfiles=true|false, false when missing).
+bool player_share_profiles();
+bool set_player_share_profiles(bool on);
+// Turns Share Profiles on (the radio takes over the player's values, its own are kept) or off (its own come back).
+void radio_share_profiles(RadioSettings& s, bool on);
 
 // ---- the REFERENCE tab: the keys that can be changed ------------------------------------------------------
 // A key is written like the music player writes it: one character (case matters: S and s are different keys), or
@@ -286,21 +268,10 @@ WizardPalette player_wizard_palette();
 // ---- the SHIFT+o (oscilloscope) and SHIFT+v (loudness) overlays: same knobs and ranges as the music player's ----
 struct Knob { const char* label; double lo, hi, step; };
 constexpr Knob kOsciKnobs[3] = {{"Decay", 0.00, 0.99, 0.01}, {"Dot threshold", 0.01, 1.00, 0.01}, {"Tail", 0.00, 1.00, 0.02}};
-// Overlay rows (ids). Which of them are shown depends on the style: osci_visible_rows().
-enum OsciRow { kOrDecay, kOrDot, kOrTail, kOrInterp, kOrZ, kOrZDepth, kOrZSource, kOrTrace, kOrRotate, kOrMono, kOrPalette, kOrGlow,
-               kOrStyle, kOrCells, kOrProtocol, kOrFps, kOrDisplay, kOrRes, kOrMusic, kOrMode, kOrDetail, kOrCrt, kOrLowRate, kOrDwell, kOrRough, kOsciRowCount };
-// image style: Image detail (SHIFT+o) -- the widest picture rendered: normal = 560 px (big overlay 640 per picture), high = 1024
-// (1280), for sharper thin lines; more to render and send per frame (Sixel especially)
-inline int osci_detail_cap(int detail, bool big) { return detail == 1 ? (big ? 1280 : 1024) : (big ? 640 : 560); }
-// image style: the picture is rendered at 1/1, 1/2 or 1/3 of the screen resolution and enlarged on the way to the terminal
-const char* osci_res_name(int scale);   // "full" | "half" | "third"
-int osci_res_parse(const std::string& v, int def);
-std::vector<int> osci_visible_rows(const RadioSettings& s);
+// (the overlay rows, osci_visible_rows(), osci_reset() ... are the player's: viz_prefs.h; the radio adds only its "Display" row)
 constexpr Knob kNormKnobs[3] = {{"Normalize", 0.0, 1.0, 1.0}, {"Target level", -40.0, 0.0, 1.0}, {"Max boost", 0.0, 24.0, 1.0}};
-std::string osci_row_label(int row);
-std::string osci_row_value(const RadioSettings& s, int row);
+std::string osci_row_value(const RadioSettings& s, int row);   // adds kOrDisplay (osci / sphere / spectro)
 void osci_adjust(RadioSettings& s, int row, int dir);     // dir -1 / +1
-void osci_reset(RadioSettings& s);
 // "Use oscilloscope / spectrogram" off: what is switched off never stays in the scope block.
 void radio_enforce_visuals(RadioSettings& s);
 void norm_adjust(RadioSettings& s, int row, int dir);     // row 0 = on/off (left off, right on)

@@ -33,7 +33,8 @@
 #include "about_text.h"
 #include "radio_browser.h"
 #include "radio_engine.h"
-#include "radio_gfx.h"
+#include "terminal_gfx.h"
+#include "remote_control.h"
 #include "radio_stations.h"
 #include "radio_ui.h"
 #include "scope_window.h"
@@ -77,11 +78,6 @@ size_t count_chars(const std::string& s) {
     size_t n = 0;
     for (unsigned char c : s) if ((c & 0xC0) != 0x80) ++n;
     return n;
-}
-
-std::string lower(std::string s) {
-    for (auto& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return s;
 }
 
 // A text field limited in CHARACTERS (the editor limits bytes): a typed character into a full field is refused, a
@@ -702,6 +698,39 @@ int radio_main(int argc, char** argv) {
             if (prev != cur) { tune_to(prev, false); return; }
         }
     };
+    // Remote control (`mousiki --cmd next` ... see src/remote_control.h): the same actions as the keys, without touching the UI state.
+    auto remote_apply = [&](const muisc::remote::Command& c) {
+        const RadioStatus rs = engine.status();
+        const bool tuned = rs.state != StreamState::Idle && rs.state != StreamState::Failed;
+        const std::string& n = c.name;
+        if (n == "next") tune_relative(+1);
+        else if (n == "prev") tune_back();
+        else if (n == "shuffle") tune_shuffle();
+        else if (n == "play-pause") {
+            if (!tuned) tune_visible(ui.model.cursor);
+            else engine.toggle_pause();
+        }
+        else if (n == "play") {
+            if (!tuned) tune_visible(ui.model.cursor);
+            else if (rs.timeshift_paused) engine.toggle_pause();
+            else if (rs.muted) engine.set_muted(false);
+        }
+        else if (n == "pause") { if (tuned && !rs.timeshift_paused) engine.toggle_pause(); }
+        else if (n == "stop") engine.stop();
+        else if (n == "volume-up") engine.set_volume(rs.volume + static_cast<int>(muisc::remote::number(c.arg, 5)));
+        else if (n == "volume-down") engine.set_volume(rs.volume - static_cast<int>(muisc::remote::number(c.arg, 5)));
+        else if (n == "volume") {
+            const int v = static_cast<int>(muisc::remote::number(c.arg, rs.volume));
+            engine.set_volume((!c.arg.empty() && (c.arg[0] == '+' || c.arg[0] == '-')) ? rs.volume + v : v);
+        }
+        else if (n == "mute") engine.set_muted(true);
+        else if (n == "unmute") engine.set_muted(false);
+        else if (n == "toggle-mute") engine.set_muted(!rs.muted);
+        else if (n == "seek") { if (tuned) engine.jump(muisc::remote::number(c.arg, 0)); }
+        else if (n == "live") { if (tuned) engine.go_live(); }
+        else if (n == "switch-mode") { switch_mode = true; running = false; }
+        else if (n == "quit") running = false;
+    };
     auto set_search_focus = [&](bool on) {
         ui.model.search_focus = on;
         if (on) ui.model.search_edit.to_end(ui.model.search);   // caret behind the text, nothing marked
@@ -1117,7 +1146,18 @@ int radio_main(int argc, char** argv) {
     // First start of the radio after an install: greet with the help wizard,
     // the same way the music player does. Closing it writes WizardSeen=true.
     if (wizard::kEnabled && !cfg.wizard_seen) wizard_open_now();
+    muisc::remote::start("radio");
     while (running) {
+        muisc::remote::tick("radio");
+        for (const muisc::remote::Command& rc : muisc::remote::poll()) remote_apply(rc);
+        {   // what `mousiki --status` prints
+            const RadioStatus rs = engine.status();
+            const char* st = rs.state == StreamState::Idle ? "stopped" : rs.state == StreamState::Failed ? "failed"
+                           : rs.timeshift_paused ? "paused" : rs.muted ? "muted" : "playing";
+            muisc::remote::publish_status({{"mode", "radio"}, {"state", st}, {"station", rs.tuned_name.empty() ? rs.info.station : rs.tuned_name},
+                                           {"artist", rs.info.artist}, {"title", rs.info.title}, {"volume", std::to_string(rs.volume)},
+                                           {"muted", rs.muted ? "yes" : "no"}, {"behind_live_sec", std::to_string(static_cast<int>(rs.behind_sec))}});
+        }
         // search results arrive on a worker thread: copy the newest snapshot into the model, once per frame
         {
             const BrowseSnapshot snap = browser.snapshot();
@@ -1354,6 +1394,8 @@ int radio_main(int argc, char** argv) {
                         continue;
                     }
                     if (sm.theme_ui == 1 || sm.theme_ui == 3) {
+                        if (sm.theme_peek) { sm.theme_peek = false; continue; }   // any key closes the preview
+                        if (!arrow && k == 'P') { sm.theme_peek = true; continue; }
                         if (k == 27 || (!arrow && (k == 'q' || k == 'Q'))) { sm.theme_ui = sm.theme_ui == 3 ? 2 : 0; continue; }
                         if (arrow && (k == 'A' || k == 'B') && last_key_was_shifted()) {   // SHIFT+up / down: a page
                             sm.theme_sel = std::clamp(sm.theme_sel + (k == 'A' ? -10 : 10), 0, std::max(0, nt - 1));
@@ -2482,6 +2524,7 @@ int radio_main(int argc, char** argv) {
                 const unsigned long every = static_cast<unsigned long>(std::max(1, (cfg.osci().frame_rate + cap / 2) / cap));
                 ui.model.gfx_due = (gfx_tick % every) == 0;
             }
+            terminal_black_background(cfg.black_background);   // Settings -> ON/OFF -> MODES (only writes when it changes)
             auto frame = render_radio_frame(ui.model, engine.status(), engine, cfg);
             // Lines are joined with "\r\n"; the LAST line gets no newline, so a frame that fills the
             // whole terminal can never scroll. No per-line "\x1b[K" either: a line that fills the last
@@ -2532,6 +2575,7 @@ int radio_main(int argc, char** argv) {
         if (next_frame < after) next_frame = after;
         std::this_thread::sleep_until(next_frame);
     }
+    muisc::remote::stop();
     set_text_entry(false);
     if (ui.model.settings.dirty) settings_save();
     engine.stop();

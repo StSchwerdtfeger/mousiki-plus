@@ -20,7 +20,7 @@
 #include "radio_textedit.h"
 #include "radio_eq.h"
 #include "radio_settings.h"
-#include "radio_gfx.h"
+#include "terminal_gfx.h"
 #include "radio_history.h"
 #include "radio_yt.h"
 
@@ -167,6 +167,7 @@ struct SettingsModel {
     // --- colour themes (COLORS tab, last row: THEME | CREATE THEME) ---
     // theme_ui: 0 = the plain tab | 1 = pick a theme to apply | 2 = the CREATE THEME overlay | 3 = pick a template
     int theme_ui = 0;
+    bool theme_peek = false;      // SHIFT+p in the picker: the main screen in the highlighted theme (any key closes it)
     std::vector<themes::Theme> theme_list;
     int theme_sel = 0;
     RadioSettings theme_draft;    // the creator edits a copy

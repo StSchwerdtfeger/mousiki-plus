@@ -21,7 +21,9 @@
 #include <string>
 #include "equalizer.h"
 #include "fft_visualizer.h"
-#include "radio_scope.h"
+#include "oscilloscope_visualizer.h"
+
+using RadioScope = muisc::OscilloscopeVisualizer;   // the radio uses the player's scope class (one copy; its own settings live in radio_config.txt)
 #include "radio_stations.h"
 
 namespace muisc::radio {
