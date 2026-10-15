@@ -1,4 +1,7 @@
 #include "app.h"
+#include "text_edit.h"
+#include "overlay_common.h"
+#include "remote_control.h"
 #include "about_text.h"
 #include "border_gradient.h"
 #include "mode_switch.h"
@@ -75,20 +78,6 @@ void run_guarded(const char* what, F&& body) noexcept {
 // ASCII-only, deliberately: this folds track titles and artist names, which
 // are UTF-8. std::tolower over raw bytes mangles multi-byte sequences under
 // any single-byte locale -- see ascii_lower() in utf8_util.h.
-// Every text-entry field below (search box, bulk-add link field, color
-// hex field, the retry-lyrics title/artist/type fields) used to only
-// accept key values 32-126 -- plain printable ASCII. That's not just a
-// Windows gap: a typed umlaut, accented letter, or any other non-ASCII
-// character arrives as a multi-byte UTF-8 sequence whose individual byte
-// values are all >= 0x80 (continuation bytes 0x80-0xBF, lead bytes
-// 0xC2-0xF4), every one of which used to fail this check and simply
-// never reach the buffer -- on POSIX with a real UTF-8 terminal just as
-// much as on Windows. win_poll_key() (Windows) and the POSIX raw-input
-// path both hand such a keystroke over one UTF-8 byte per call already;
-// this is what actually lets any of those bytes through.
-bool is_text_key(int key) {
-    return (key >= 32 && key < 127) || (key >= 0x80 && key <= 0xFF);
-}
 
 // Removes exactly one full UTF-8 codepoint from the end of a text-entry
 // buffer, not just its last byte. A plain pop_back() left a dangling lead
@@ -103,371 +92,9 @@ void pop_utf8_char(std::string& s) {
     s.erase(i);
 }
 
-// ---------------------------------------------------------------------------
-// Single-line text editing: caret, selection, and how a field is painted
-//
-// A text field in this app is a plain std::string plus two BYTE offsets (see
-// edit_caret_/edit_anchor_ in app.h): the caret, and the other end of the
-// selection -- equal to the caret when nothing is marked, which makes
-// "caret != anchor" the selection test itself. Offsets are in bytes because
-// that is what the buffers hold, but every movement and every deletion is
-// quantised to the codepoint boundaries below, so a multi-byte character is
-// never split in half.
-//
-// Two editors share this code and are never active at the same time:
-// Mode::ColorEdit (the Settings' in-place value editing) and the meta
-// editor's field editor. Both own their offsets and pass them in.
-// ---------------------------------------------------------------------------
-
-// Every byte offset at which `s` may be split without breaking UTF-8: 0,
-// then the start of each codepoint, then s.size() itself.
-static std::vector<size_t> utf8_cuts(const std::string& s) {
-    std::vector<size_t> cuts;
-    cuts.reserve(s.size() + 1);
-    cuts.push_back(0);
-    size_t i = 0;
-    while (i < s.size()) {
-        unsigned char c = static_cast<unsigned char>(s[i]);
-        size_t n = 1;
-        if ((c & 0xE0) == 0xC0) n = 2;
-        else if ((c & 0xF0) == 0xE0) n = 3;
-        else if ((c & 0xF8) == 0xF0) n = 4;
-        i += n;
-        if (i > s.size()) i = s.size(); // truncated lead byte: treat the tail as one char
-        cuts.push_back(i);
-    }
-    return cuts;
-}
-
-static size_t utf8_prev_cut(const std::string& s, size_t off) {
-    if (off == 0) return 0;
-    size_t best = 0;
-    for (size_t c : utf8_cuts(s)) {
-        if (c >= off) break;
-        best = c;
-    }
-    return best;
-}
-
-static size_t utf8_next_cut(const std::string& s, size_t off) {
-    if (off >= s.size()) return s.size();
-    for (size_t c : utf8_cuts(s)) if (c > off) return c;
-    return s.size();
-}
-
-static void le_clamp(const std::string& s, size_t& caret, size_t& anchor) {
-    if (caret > s.size()) caret = s.size();
-    if (anchor > s.size()) anchor = s.size();
-}
-
-static void le_range(size_t caret, size_t anchor, size_t& a, size_t& b) {
-    a = std::min(caret, anchor);
-    b = std::max(caret, anchor);
-}
-
-static bool le_has_sel(size_t caret, size_t anchor) { return caret != anchor; }
-
-static void le_erase_selection(std::string& s, size_t& caret, size_t& anchor) {
-    size_t a = 0, b = 0;
-    le_range(caret, anchor, a, b);
-    if (a == b) return;
-    s.erase(a, b - a);
-    caret = anchor = a;
-}
-
-// dir: -1 left, +1 right. shift keeps anchor where it was (marking), which
-// is exactly the difference between Shift+Left and Left.
-static void le_move(std::string& s, size_t& caret, size_t& anchor, int dir, bool shift) {
-    le_clamp(s, caret, anchor);
-    caret = (dir < 0) ? utf8_prev_cut(s, caret) : utf8_next_cut(s, caret);
-    if (!shift) anchor = caret;
-}
-
-static void le_backspace(std::string& s, size_t& caret, size_t& anchor) {
-    le_clamp(s, caret, anchor);
-    if (le_has_sel(caret, anchor)) { le_erase_selection(s, caret, anchor); return; }
-    size_t p = utf8_prev_cut(s, caret);
-    s.erase(p, caret - p);
-    caret = anchor = p;
-}
-
-static void le_delete_forward(std::string& s, size_t& caret, size_t& anchor) {
-    le_clamp(s, caret, anchor);
-    if (le_has_sel(caret, anchor)) { le_erase_selection(s, caret, anchor); return; }
-    size_t n = utf8_next_cut(s, caret);
-    s.erase(caret, n - caret);
-    anchor = caret;
-}
-
-// `limit` is the field's maximum byte length -- the same cap the old
-// "append at the end" code enforced with its inline size() checks.
-static void le_insert(std::string& s, size_t& caret, size_t& anchor, char c, size_t limit) {
-    le_clamp(s, caret, anchor);
-    le_erase_selection(s, caret, anchor);
-    if (s.size() >= limit) return;
-    s.insert(caret, 1, c);
-    caret = anchor = caret + 1;
-}
-
-// Paste. Clipboard text can be multi-line and arbitrary length: control
-// characters are dropped (a newline inside a single-line row would corrupt
-// the layout) and whatever still doesn't fit is trimmed, codepoint-aligned,
-// against the same limit.
-static void le_paste(std::string& s, size_t& caret, size_t& anchor, const std::string& text, size_t limit) {
-    le_clamp(s, caret, anchor);
-    le_erase_selection(s, caret, anchor);
-    std::string t;
-    t.reserve(text.size());
-    for (unsigned char c : text) {
-        if (c >= 32 && c != 127) t.push_back(static_cast<char>(c));
-    }
-    if (t.empty()) return;
-    const size_t room = (s.size() >= limit) ? 0 : limit - s.size();
-    while (t.size() > room && !t.empty()) t.erase(utf8_prev_cut(t, t.size()), std::string::npos);
-    if (t.empty()) return;
-    s.insert(caret, t);
-    caret = anchor = caret + t.size();
-}
-
-// One keystroke, every single-line text field in the app.
-//
-// Caret movement, Shift+arrows marking, Home/End, Ctrl+C/X/V and typing --
-// the same key set the Settings' ColorEdit and the meta editor's field editor
-// grew first, factored out here so the four search/filter boxes (the main
-// UI's "/", the meta editor's Search line, the playlist editor's name and
-// library boxes and the playlist list's own search) can offer exactly the
-// same thing instead of a fifth hand-rolled copy.
-//
-// Returns true only when the TEXT really changed, which is what tells the
-// caller to re-run whatever filter the box drives; pure caret/clipboard keys
-// return false. `status` (nullable) receives the short feedback these keys
-// produce ("COPIED"/"CUT"/"PASTED"), because a box with no status line of
-// its own should not go silent on a copy.
-static bool edit_text_key(std::string& buf, size_t& caret, size_t& anchor, int key,
-                          size_t limit, std::string* status) {
-    auto say = [&](const char* s) { if (status) *status = s; };
-    // Modifier combinations arrive as their own sentinel values
-    // (terminal_ui.h) precisely because the bare ones are already taken: an
-    // arrow press collapses to the letter it would otherwise type, and a
-    // typed 'c' has to stay a typed 'c' inside a word.
-    if (key == kKeyHome) { caret = anchor = 0; return false; }
-    if (key == kKeyEnd) { caret = anchor = buf.size(); return false; }
-    if (key == kKeyShiftLeft) { le_move(buf, caret, anchor, -1, true); return false; }
-    if (key == kKeyShiftRight) { le_move(buf, caret, anchor, +1, true); return false; }
-    if (key == kKeyDelete) { le_delete_forward(buf, caret, anchor); return true; }
-    if (key == kKeyCtrlC) {
-        size_t a = 0, b = 0;
-        le_range(caret, anchor, a, b);
-        std::string t = (a == b) ? buf : buf.substr(a, b - a);
-        clipboard_set(t);
-        say(t.empty() ? "nothing selected" : "COPIED");
-        return false;
-    }
-    if (key == kKeyCtrlX) {
-        size_t a = 0, b = 0;
-        le_range(caret, anchor, a, b);
-        if (a == b) return false; // no selection: cut must never empty the field
-        clipboard_set(buf.substr(a, b - a));
-        le_erase_selection(buf, caret, anchor);
-        say("CUT");
-        return true;
-    }
-    if (key == kKeyCtrlV) { le_paste(buf, caret, anchor, clipboard_get(), limit); say("PASTED"); return true; }
-    if (key == 127 || key == 8) { le_backspace(buf, caret, anchor); return true; }
-    // A genuinely typed A-D goes into the buffer ("C:\" has no way past this
-    // check otherwise), while an arrow press moves the caret Left/Right -- and
-    // Up/Down is dropped here: every field this is used on is a single line,
-    // and the boxes that DO want Up/Down for the list below them claim those
-    // keys before calling in.
-    if (last_key_was_arrow() && (key == 'A' || key == 'B')) return false;
-    if (last_key_was_arrow() && (key == 'C' || key == 'D')) {
-        le_move(buf, caret, anchor, key == 'D' ? -1 : +1, false);
-        return false;
-    }
-    if (is_text_key(key)) { le_insert(buf, caret, anchor, static_cast<char>(key), limit); return true; }
-    return false;
-}
-
-// (App::edit_focus() lives below, outside this anonymous namespace.)
-
-// What one field looks like on screen after all of that.
-struct EditPaint {
-    std::string s;  // the windowed text, selection wrapped in reverse video
-    int cols = 0;   // display columns s really occupies (ANSI escapes not counted)
-    int caret = 0;  // 0-based column of the caret inside that window
-};
-
-// Paints a field into `w` columns: a window scrolled so the caret stays
-// visible (the buffer can be far longer than the field), the selected range
-// in reverse video, and -- with `block` -- the caret itself drawn as a █,
-// which is how the meta editor shows a cursor. The Settings tabs instead move
-// the REAL terminal cursor to `caret` (they already do that today) and pass
-// block = false.
-//
-// `restore` is re-emitted after the selection so the field keeps its own
-// colour; it must be exactly the SGR the caller has already put in effect,
-// because display_width() cannot see through ANSI escapes -- colouring first
-// and measuring afterwards would miscount every row.
-static EditPaint paint_edit_field(const std::string& s, size_t caret, size_t anchor, int w,
-                                  const std::string& restore, bool block) {
-    EditPaint out;
-    if (w < 1) w = 1;
-    le_clamp(s, caret, anchor);
-    if (anchor > caret) std::swap(anchor, caret);
-
-    const std::vector<size_t> cuts = utf8_cuts(s);
-    std::vector<int> col(cuts.size(), 0); // col[i] = display column of cuts[i]
-    for (size_t i = 1; i < cuts.size(); ++i) {
-        col[i] = col[i - 1] + display_width(s.substr(cuts[i - 1], cuts[i] - cuts[i - 1]));
-    }
-    auto idx_of = [&](size_t off) -> size_t {
-        for (size_t i = 0; i < cuts.size(); ++i) if (cuts[i] == off) return i;
-        return cuts.size() - 1;
-    };
-    const size_t caret_i = idx_of(caret);
-    const size_t anchor_i = idx_of(anchor);
-
-    // The leftmost window that still keeps the caret inside it: starting any
-    // further left would push the caret past the right edge, starting further
-    // right would hide text the caret is sitting on.
-    const int caret_col = col[caret_i];
-    const int target = caret_col - (w - 1);
-    size_t lo_i = 0;
-    for (size_t i = 0; i <= caret_i; ++i) {
-        if (col[i] >= target) { lo_i = i; break; }
-        lo_i = caret_i;
-    }
-    size_t hi_i = lo_i;
-    while (hi_i + 1 < cuts.size() && col[hi_i + 1] - col[lo_i] <= w) ++hi_i;
-    if (hi_i < caret_i) hi_i = caret_i;
-
-    out.caret = caret_col - col[lo_i];
-    if (out.caret < 0) out.caret = 0;
-    if (out.caret > w - 1) out.caret = w - 1;
-
-    auto emit = [&](size_t from, size_t to, bool sel, const char* glyph) {
-        std::string body = glyph ? std::string(glyph) : s.substr(from, to - from);
-        if (body.empty()) return;
-        if (sel) out.s += "\x1b[7m" + body + "\x1b[0m" + restore;
-        else out.s += body;
-    };
-    for (size_t i = lo_i; i < hi_i; ++i) {
-        const bool sel = (i >= anchor_i && i < caret_i);
-        if (block && i == caret_i) emit(cuts[i], cuts[i + 1], sel, "\u2588");
-        else emit(cuts[i], cuts[i + 1], sel, nullptr);
-    }
-    // Caret at (or beyond) the end of the window: there is no character to
-    // replace, so the block is appended -- which only fits because the window
-    // above reserves the column (col[caret_i] - col[lo_i] <= w-1).
-    if (block && caret_i >= hi_i) emit(0, 0, false, "\u2588");
-
-    out.cols = col[hi_i] - col[lo_i];
-    if (block && caret_i >= hi_i) out.cols += 1;
-    return out;
-}
-
-std::string lower(std::string s) {
-    return ascii_lower_str(std::move(s));
-}
 
 bool contains_ci(const std::string& hay, const std::string& needle) {
     return lower(hay).find(lower(needle)) != std::string::npos;
-}
-
-// Lowercases AND folds common word-separator punctuation (hyphen,
-// underscore, dot, slash) down to plain spaces. Used only for search
-// matching (fuzzy_score below), never for display.
-//
-// Without this, a tag/filename like "X-Files" is one glued-together
-// token "x-files" as far as matching is concerned, while a query typed
-// as "X Files" is two separate words ["x", "files"]. Tier 1 (exact
-// substring) fails because "x-files" never contains the literal text
-// "x files". Tier 2 (per-word fuzzy) also fails: comparing whole word
-// "x" against whole word "x-files" gives a huge edit distance (adding
-// "-files"), well below the 0.55 quality floor -- even though every
-// individual word the user typed is actually present. Folding the
-// separator to a space first turns "x-files" into "x files" so both
-// tiers line up with "X Files" the same way they already would for a
-// title that happens to use a plain space.
-std::string normalize_for_search(std::string s) {
-    s = lower(std::move(s));
-    for (char& c : s) {
-        if (c == '-' || c == '_' || c == '.' || c == '/') c = ' ';
-    }
-    return s;
-}
-
-std::vector<std::string> split_words(const std::string& s) {
-    std::vector<std::string> words;
-    std::string cur;
-    for (char c : s) {
-        if (c == ' ' || c == '\t') {
-            if (!cur.empty()) { words.push_back(cur); cur.clear(); }
-        } else {
-            cur += c;
-        }
-    }
-    if (!cur.empty()) words.push_back(cur);
-    return words;
-}
-
-// Standard edit distance (single-char insert/delete/substitute cost 1).
-// Small strings only (track titles/artists/search words) — the O(n*m)
-// DP table is negligible at this scale.
-int levenshtein(const std::string& a, const std::string& b) {
-    size_t n = a.size(), m = b.size();
-    std::vector<std::vector<int>> dp(n + 1, std::vector<int>(m + 1, 0));
-    for (size_t i = 0; i <= n; ++i) dp[i][0] = static_cast<int>(i);
-    for (size_t j = 0; j <= m; ++j) dp[0][j] = static_cast<int>(j);
-    for (size_t i = 1; i <= n; ++i) {
-        for (size_t j = 1; j <= m; ++j) {
-            int cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
-            dp[i][j] = std::min({dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost});
-        }
-    }
-    return dp[n][m];
-}
-
-// Typo-tolerant match score: higher is better, negative means "not a
-// match at all" (excluded from results). An exact literal substring
-// match always outranks every fuzzy match, regardless of how good the
-// fuzzy quality is — so "another love" typed exactly always sits above
-// a merely-close fuzzy hit. Within the fuzzy tier, each query word must
-// find a reasonably close word somewhere in the target (a query word
-// that's wildly different from everything in the target means this
-// isn't really a match, even if some OTHER query word happens to fit)
-// — this is what lets "anogher lobe" (typo'd "another love") still find
-// the track: word-level edit distance tolerates the substituted
-// characters that a plain substring or subsequence check would miss
-// entirely (neither "anogher" nor "lobe" appears anywhere in "another
-// love" as literal text).
-double fuzzy_score(const std::string& query, const std::string& target) {
-    std::string q = normalize_for_search(query), t = normalize_for_search(target);
-    if (q.empty()) return 0.0;
-
-    size_t pos = t.find(q);
-    if (pos != std::string::npos) {
-        return 1000.0 - std::min<double>(static_cast<double>(pos), 900.0); // tier 1: exact substring, earlier position ranks higher
-    }
-
-    auto q_words = split_words(q);
-    auto t_words = split_words(t);
-    if (q_words.empty() || t_words.empty()) return -1.0;
-
-    double total_quality = 0.0;
-    for (auto& qw : q_words) {
-        double best_quality = -1.0;
-        for (auto& tw : t_words) {
-            size_t max_len = std::max(qw.size(), tw.size());
-            if (max_len == 0) continue;
-            double normalized = static_cast<double>(levenshtein(qw, tw)) / static_cast<double>(max_len);
-            double quality = 1.0 - normalized;
-            if (quality > best_quality) best_quality = quality;
-        }
-        if (best_quality < 0.55) return -1.0; // this query word doesn't fit anywhere close enough -- not a real match
-        total_quality += best_quality;
-    }
-    return (total_quality / static_cast<double>(q_words.size())) * 100.0; // tier 2: fuzzy, always below tier 1's range
 }
 
 // ---- the same matching as fuzzy_score(), for a library of tens of thousands of tracks ------------------------------------
@@ -3040,14 +2667,14 @@ enum SetId {
     kSidVizField, kSidDisk, kSidDummy, kSidQueue, kSidWave, kSidLyricsEngine, kSidLyricViz, kSidVisualizer, kSidNoLyricsViz,
     kSidStereo, kSidNormalize, kSidMetaOnly, kSidEmoji, kSidMarquee, kSidUseLyrics, kSidUseOsci, kSidUseSpectro, kSidUseSphere,
     kSidOrder1, kSidOrder2, kSidOrder3, kSidOrder4,
-    kSidPlayback, kSidStartMode,
+    kSidPlayback, kSidStartMode, kSidBlackBg, kSidShareProfiles,
     kSidVisFluidity, kSidWaveStyle, kSidDiskSpeed, kSidVisDegr, kSidVisVisc, kSidLyrAlign, kSidLyrAnim,
 };
 struct SetLine { bool header; int id; const char* text; };   // a category header, or a row (id + label)
 static const std::vector<SetLine>& settings_layout(int tab) {
     static const std::vector<SetLine> on_off = {
         {true, -1, "MODES"},
-        {false, kSidPlayback, "Playback"}, {false, kSidStartMode, "Start Mode"},
+        {false, kSidPlayback, "Playback"}, {false, kSidStartMode, "Start Mode"}, {false, kSidBlackBg, "Black Background"}, {false, kSidShareProfiles, "Share Profiles"},
         {true, -1, ""},
         {true, -1, "ON/OFF"},
         {false, kSidDisk, "Eliment Disk"}, {false, kSidDummy, "Dummy Buttons"}, {false, kSidQueue, "Queue Display"},
@@ -3552,6 +3179,8 @@ void App::handle_theme_key(int key) {
         return;
     }
     if (theme_ui_ == 1 || theme_ui_ == 3) {
+        if (theme_peek_) { theme_peek_ = false; peek_frame_.clear(); force_redraw_ = true; return; }   // any key closes the preview
+        if (key == 'P' && !last_key_was_arrow() && theme_sel_ >= 0 && theme_sel_ < n) { theme_peek_ = true; peek_frame_.clear(); force_redraw_ = true; return; }
         if (key == 27 || key == 'q' || key == 'Q') { theme_ui_ = (theme_ui_ == 3) ? 2 : 0; return; }
         if ((key == 'A' || key == 'B') && last_key_was_arrow() && last_key_was_shifted()) {   // SHIFT+up / down: a page
             const int page = std::max(1, theme_page_ - 1);
@@ -3690,6 +3319,8 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidVisualizer: v = settings_.element_visualizer; break;
             case kSidNoLyricsViz: return settings_.nolyrics_viz == 1 ? "osci" : settings_.nolyrics_viz == 2 ? "spectro" : settings_.nolyrics_viz == 3 ? "none" : "sphere";
             case kSidStereo: v = settings_.stereo; break;
+            case kSidBlackBg: v = settings_.black_background; break;
+            case kSidShareProfiles: v = settings_.share_profiles; break;
             case kSidNormalize: v = settings_.normalize; break;
             case kSidMetaOnly: v = settings_.meta_only; break;
             case kSidEmoji: v = settings_.replace_emoji; break;
@@ -3890,6 +3521,8 @@ void App::settings_commit_edit_impl() {
                 set_emoji_replacement(is_true); // every width calculation follows from the next frame on
                 break;
             case kSidMarquee: settings_.marquee = is_true; break;
+            case kSidBlackBg: settings_.black_background = is_true; break;   // the render loop applies it
+            case kSidShareProfiles: settings_.share_profiles = is_true; break;   // the radio reads it when it starts
             case kSidUseLyrics: settings_.use_lyrics = is_true; break;
             case kSidUseOsci: settings_.use_osci = is_true; break;
             case kSidUseSpectro: settings_.use_spectro = is_true; break;
@@ -4080,6 +3713,10 @@ void App::settings_cycle(int dir) {
         status_line_ = o;
     }
     if (id == kSidPlayback) status_line_ = std::string("playback: ") + play_mode_name(settings_.play_mode);
+    if (id == kSidBlackBg) status_line_ = settings_.black_background ? "black background: on -- the terminal is black while Mousiki runs (given back on exit)"
+                                                                     : "black background: off -- the terminal keeps its own background";
+    if (id == kSidShareProfiles) status_line_ = settings_.share_profiles ? "share profiles: on -- the radio uses these oscilloscope / spectrogram settings (its own come back when this is off)"
+                                                                         : "share profiles: off -- the radio keeps its own oscilloscope / spectrogram settings";
     if (id == kSidStartMode) status_line_ = settings_.start_mode == "radio" ? "Mousiki starts in the radio (the music player is one SHIFT+* away)"
                                                                             : "Mousiki starts with the music player";
 }
@@ -4413,6 +4050,93 @@ void App::start_online_track(const OnlineResult& result) {
 // ---------------------------------------------------------------------
 // Input handling
 // ---------------------------------------------------------------------
+
+// What the radio may have changed in config.txt while the player was suspended: Start Mode, Black Background, Share Profiles and,
+// with Share Profiles on, the oscilloscope / spectrogram settings (the radio writes its edits of them there).
+void App::sync_after_radio() {
+    settings_.start_mode = read_start_mode();
+    settings_.black_background = read_black_background();
+    settings_.share_profiles = read_share_profiles();
+    if (settings_.share_profiles) { VizPrefs v; if (read_player_viz(v)) settings_.take_shared_from(v); }
+}
+
+// ---- actions shared by the hotkeys and the remote control ------------------------------------------------------------------
+void App::act_play_pause() {
+    if (has_track_) { if (player_.is_paused()) player_.resume(); else player_.pause(); }
+}
+
+void App::act_volume_change(int delta) {
+    if (has_track_) player_.set_volume(std::clamp(player_.volume() + delta, 0, 100));
+}
+
+void App::act_mute(int how) {   // force volume to 0 without touching the pause state
+    const bool want = how < 0 ? !muted_ : how > 0;
+    if (want == muted_) return;
+    if (want) {
+        pre_mute_volume_ = player_.volume();
+        player_.set_volume(0);
+        muted_ = true;
+        log_event("muted");
+    } else {
+        player_.set_volume(pre_mute_volume_);
+        muted_ = false;
+        log_event("unmuted");
+    }
+}
+
+void App::act_next() {
+    // The queue (if any) takes priority, same as auto-advance-on-finish does, and respects Shuffle/Queue-then-stop via
+    // play_next_from_queue() -- a manual skip still always actually skips, though: Repeat/Stop/Queue-then-stop only govern
+    // *automatic* advance, not an explicit "next" press.
+    if (!queue_.empty()) play_next_from_queue();
+    else play_relative(1);
+}
+
+void App::act_prev() {
+    // Relative to what's actually playing (see current_track_list_index()), not the hover cursor. No queue equivalent: a FIFO
+    // queue has no well-defined "previous" once an item's been consumed.
+    play_relative(-1);
+}
+
+// Commands from `mousiki --cmd ...` and the status file for `mousiki --status`. Called every frame.
+void App::remote_poll() {
+    remote::tick("player");
+    for (const remote::Command& c : remote::poll()) {
+        const std::string& n = c.name;
+        if (n == "play-pause") act_play_pause();
+        else if (n == "play") { if (has_track_ && player_.is_paused()) player_.resume(); }
+        else if (n == "pause" || n == "stop") { if (has_track_ && !player_.is_paused()) player_.pause(); }
+        else if (n == "next") act_next();
+        else if (n == "prev") act_prev();
+        else if (n == "shuffle") play_relative_random();
+        else if (n == "volume-up") act_volume_change(static_cast<int>(remote::number(c.arg, 5)));
+        else if (n == "volume-down") act_volume_change(-static_cast<int>(remote::number(c.arg, 5)));
+        else if (n == "volume") {
+            if (has_track_) {
+                const int v = static_cast<int>(remote::number(c.arg, player_.volume()));
+                player_.set_volume(std::clamp((!c.arg.empty() && (c.arg[0] == '+' || c.arg[0] == '-')) ? player_.volume() + v : v, 0, 100));
+            }
+        }
+        else if (n == "mute") act_mute(1);
+        else if (n == "unmute") act_mute(0);
+        else if (n == "toggle-mute") act_mute(-1);
+        else if (n == "seek") { if (has_track_) player_.seek_relative(remote::number(c.arg, 0.0)); }
+        else if (n == "switch-mode") { switch_mode_ = true; quit_ = true; }
+        else if (n == "quit") quit_ = true;
+        // "live" belongs to the radio: ignored here
+    }
+    const TrackMetadata md = has_track_ ? display_metadata() : TrackMetadata{};
+    char pos[32], dur[32];
+    std::snprintf(pos, sizeof pos, "%.1f", has_track_ ? player_.poll_elapsed() : 0.0);
+    std::snprintf(dur, sizeof dur, "%zu", has_track_ ? total_sec_ : static_cast<size_t>(0));
+    remote::publish_status({{"mode", "player"},
+                            {"state", !has_track_ ? "stopped" : player_.is_paused() ? "paused" : muted_ ? "muted" : "playing"},
+                            {"title", has_track_ ? md.name : std::string()},
+                            {"artist", has_track_ && md.artist != "-" ? md.artist : std::string()},
+                            {"album", has_track_ && md.album != "-" ? md.album : std::string()},
+                            {"position_sec", pos}, {"duration_sec", dur},
+                            {"volume", std::to_string(player_.volume())}, {"muted", muted_ ? "yes" : "no"}});
+}
 
 void App::handle_key(int key) {
     if (key == 0) return;
@@ -5164,25 +4888,15 @@ void App::handle_key(int key) {
             log_event("added to end of queue");
         }
     } else if (action == "HKeyTogglePlayPause") {
-        if (has_track_) { if (player_.is_paused()) player_.resume(); else player_.pause(); }
+        act_play_pause();
     } else if (action == "HKeyIncreaseVolume") {
-        if (has_track_) player_.set_volume(std::min(100, player_.volume() + 5));
+        act_volume_change(+5);
     } else if (action == "HKeyDecreaseVolume") {
-        if (has_track_) player_.set_volume(std::max(0, player_.volume() - 5));
+        act_volume_change(-5);
     } else if (action == "HKeyPlayNextSong") {
-        // The queue (if any) takes priority, same as auto-advance-on-
-        // finish does, and respects Shuffle/Queue-then-stop via
-        // play_next_from_queue() -- a manual skip still always actually
-        // skips, though: Repeat/Stop/Queue-then-stop only govern
-        // *automatic* advance, not an explicit "next" press.
-        if (!queue_.empty()) play_next_from_queue();
-        else play_relative(1);
+        act_next();
     } else if (action == "HKeyPlayPreviousSong") {
-        // Relative to what's actually playing (see
-        // current_track_list_index()), not the hover cursor. No queue
-        // equivalent: a FIFO queue has no well-defined "previous" once
-        // an item's been consumed.
-        play_relative(-1);
+        act_prev();
     } else if (action == "HKeyShuffleNext") {
         // Shuffle to a random next track in the current list -- a
         // manual one-off jump, independent of Play Mode
@@ -5301,16 +5015,7 @@ void App::handle_key(int key) {
         resort_local_view_keep_selection(); // "title A-Z" follows the displayed title
         force_redraw_ = true;
     } else if (action == "HKeyToggleMute") { // force volume to 0 without touching pause state
-        if (!muted_) {
-            pre_mute_volume_ = player_.volume();
-            player_.set_volume(0);
-            muted_ = true;
-            log_event("muted");
-        } else {
-            player_.set_volume(pre_mute_volume_);
-            muted_ = false;
-            log_event("unmuted");
-        }
+        act_mute(-1);
     } else if (action == "HKeyWizard") {
         wizard_open();
     } else if (action == "HKeyCheatsheet") {
@@ -11199,14 +10904,12 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
             pos(y, 33, sw);
         }
         while (y < MAX_Y) { box_row(y); ++y; }
-        // more themes than rows: a scrollbar in the last column (a thumb as tall as the visible part is of the list)
+        // more themes than rows: a scrollbar in the last column, in the colour of the border gradient at that row
         theme_page_ = visible;
-        if (n > visible) {
-            const int thumb = std::max(1, std::min(visible, (visible * visible + n - 1) / n));
-            const int thumb_at = (scroll * (visible - thumb) + (n - visible) / 2) / std::max(1, n - visible);
+        if (overlay::Thumb th; overlay::scroll_thumb(scroll, visible, n, th)) {
             for (int r = 0; r < visible && 2 + r < MAX_Y; ++r) {
-                const bool on = r >= thumb_at && r < thumb_at + thumb;
-                pos(2 + r, W - 2, (on ? header_sgr(settings_) + "\u2588" : legend_sgr(settings_) + "\u2591") + R);
+                const bool on = r >= th.at && r < th.at + th.len;
+                pos(2 + r, W - 2, B(2 + r) + (on ? "\u2588" : "\u2591") + R);
             }
         }
         bottom_border(MAX_Y);
@@ -11214,8 +10917,8 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
             pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to delete theme \"" + truncate_str(theme_list_[static_cast<size_t>(theme_sel_)].name, themes::kMaxNameLen) + "\"? [y] Yes, delete | [n / ESC] No, keep it", W - 1) + R);
         else
         pos(MAX_Y + 1, 1, legend_sgr(settings_) + (theme_ui_ == 1
-            ? "[↑↓] Select | [SHIFT+↑↓] Page | [ENTER] Apply the theme | [SHIFT+d] Delete your own theme | [ESC] Back"
-            : "[↑↓] Select | [SHIFT+↑↓] Page | [ENTER] Use as template (copies its colors into the new theme) | [ESC] Back") + R);
+            ? "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Apply | [SHIFT+d] Delete your own theme | [ESC] Back"
+            : "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Use as template | [ESC] Back") + R);
         if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
         return;
     }
@@ -15273,6 +14976,27 @@ void App::karaoke_ensure_lyrics() {
 }
 
 std::string App::render_frame(TerminalIO& term) {
+    // SHIFT+p in the theme picker: the normal main screen with the highlighted theme, kept still (the first frame is stored and
+    // handed out again; the caller skips identical frames) until a key closes it, the theme changes or the window is resized.
+    if (theme_peek_ && !peek_busy_ && theme_sel_ >= 0 && theme_sel_ < static_cast<int>(theme_list_.size())) {
+        if (peek_frame_.empty() || peek_sel_ != theme_sel_ || peek_cols_ != term.cols() || peek_rows_ != term.rows()) {
+            const Settings saved = settings_;
+            const Mode saved_mode = mode_;
+            const int saved_ui = theme_ui_;
+            const std::string saved_status = status_line_;
+            theme_apply(settings_, theme_list_[static_cast<size_t>(theme_sel_)]);
+            mode_ = Mode::Browse;
+            theme_ui_ = 0;
+            status_line_ = "THEME PREVIEW: " + theme_list_[static_cast<size_t>(theme_sel_)].name + "  (any key goes back)";
+            peek_busy_ = true;
+            force_redraw_ = true;
+            try { peek_frame_ = render_frame(term); } catch (...) { peek_frame_.clear(); }
+            peek_busy_ = false;
+            settings_ = saved; mode_ = saved_mode; theme_ui_ = saved_ui; status_line_ = saved_status;
+            peek_sel_ = theme_sel_; peek_cols_ = term.cols(); peek_rows_ = term.rows();
+        }
+        return peek_frame_;
+    }
     frame_main_len_ = std::string::npos;   // set by the main screen: where its line part ends (the overlays follow)
     spectro_used_ = false;
     spectro_area_[0] = -1;
@@ -15847,7 +15571,8 @@ int App::run() {
     // Coming back from the radio the App is still alive (it was only suspended): nothing is initialised or restored again.
     const bool resuming = suspended_;
     suspended_ = false;
-    if (resuming) settings_.start_mode = read_start_mode();   // the radio's settings may have changed it meanwhile
+    remote::start("player");
+    if (resuming) sync_after_radio();   // the radio's settings may have changed some of ours meanwhile
     bool restored = false;
     if (!resuming) {
     ConsoleLog::instance().init(settings_.console_verbosity == 1 ? LogVerbosity::Verbose : LogVerbosity::Basic);
@@ -15975,6 +15700,7 @@ int App::run() {
         poll_meta_save();          // the next slice of a running save
         readlyrics_poll();         // a finished lyrics translation
         maybe_autosave();
+        remote_poll();             // `mousiki --cmd ...` and the status file
 
         auto now = std::chrono::steady_clock::now();
         double dt = std::chrono::duration<double>(now - last_frame_time_).count();
@@ -16023,6 +15749,7 @@ int App::run() {
         // the outside. Skip that one frame instead (the next resize event or
         // frame will usually lay out fine), log it, and force a full repaint
         // once rendering works again.
+        terminal_black_background(settings_.black_background);   // Settings -> ON/OFF -> MODES (only writes when it changes)
         std::string frame_str;
         try {
             frame_str = render_frame(term);
@@ -16154,8 +15881,10 @@ int App::run() {
         save_settings(settings_);
         if (settings_.autosave_enabled) save_snapshot(build_snapshot());
         suspended_ = true;
+        remote::stop();
         return kExitSwitchMode;
     }
+    remote::stop();
     term.restore();
     shutdown();
     std::cout << "\nbye.\n";
@@ -16165,7 +15894,7 @@ int App::run() {
 // Everything that has to happen when the player really ends (quit, or quit from the radio while the player was
 // suspended): close the play in the history, stop the audio, save, join the threads.
 void App::shutdown() {
-    if (suspended_) settings_.start_mode = read_start_mode();   // quit from the radio: its Start Mode row may have changed it
+    if (suspended_) sync_after_radio();   // quit from the radio: its rows may have changed them
     suspended_ = false;
     history_end_current_play();
     history_.save();

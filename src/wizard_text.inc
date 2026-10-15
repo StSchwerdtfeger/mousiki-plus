@@ -683,7 +683,7 @@ Beam             CRT: every sample drawn once, light by the time the beam spends
 Dwell brightness CRT beam: slow strokes bright, jumps dark; off = every stroke equally bright
 Low-rate blank.  music mode, CRT beam: files below 96 kHz get the jumps between shapes faded out
 Rough mode       not in music mode: loud beats clip along the edges of the square (edge clipping;
-                 braille default on, image default off)
+                 braille default on, image default off); not optimal, technically, but looks cool :D
 Frame rate       30 / 45 / 60 / 90 / 120 / 165 fps
 Image res/detail image style: drawn at full / half / third resolution; detail normal / high =
                  up to 560 / 1024 pixels wide (high: sharper thin lines, more data per frame)
@@ -694,9 +694,9 @@ Color            the VIZ gradient or 8 palettes
 Each style keeps its own values, so switching between braille and image never loses your tuning.
 [R] resets only the style in use.
 Starting points for braille: crisp scope = Decay 0.65, Dot threshold 0.35, Tail 0.60.
-Dreamy glow = 0.90, 0.20, 0.25.
 )WIZ",
-R"WIZ(Oscilloscope music (e.g. Jerobeam Fenderson): Osci music mode on, Beam CRT, Decay about 0.10,
+R"WIZ(Dreamy glow = 0.90, 0.20, 0.25.
+Oscilloscope music (e.g. Jerobeam Fenderson): Osci music mode on, Beam CRT, Decay about 0.10,
 Image resolution full, Image detail high -- close to osci-render. Lossless files work best.
 
 THE BIG OSCILLOSCOPE: [[Header]]
@@ -938,7 +938,9 @@ built-in theme needs a new name. [ESC] with unsaved changes asks first, leaving 
 8.3 ON/OFF, ANIMA/VIZ AND PATHS [[Header]]
 
 ON/OFF TAB: [[Header]] every row is changed with [<-/->]
-MODES: Playback (like [m]), Start Mode (player / radio: which of the two Mousiki opens with)
+MODES: Playback (like [m]), Start Mode (player / radio: which of the two Mousiki opens with),
+Black Background (on: the terminal is black while Mousiki runs, its own color comes back on exit)
+Share Profiles (on: the radio uses the player's oscilloscope/spectrogram settings; its own values are kept and come back when off)
 Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars, Stereo Sound,
 Normalize Volume, Replace Emoji, Marquee Scrolling
 VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
@@ -1007,14 +1009,14 @@ sphere and spectrogram (there are no lyrics).
 
 LETTERS ARE MORE OFTEN CASE SENSITIVE IN THE RADIO: [[Header]]
 [r] recalls a preset slot, [R] reconnects the station.
-
+)WIZ",
+R"WIZ(
 [[New Page]]
 9.1 THE RADIO SCREEN AND ITS KEYS [[Header]]
 
 FROM TOP TO BOTTOM: [[Header]]
 TOP PANE:[[Header]] the ON AIR sign (OFF AIR while nothing is live), the station info (station, title,
-)WIZ",
-R"WIZ(artist, genre, bitrate, sampling rate, type, country), a spectrum under it and the oscilloscope,
+artist, genre, bitrate, sampling rate, type, country), a spectrum under it and the oscilloscope,
 sphere or spectrogram on the right.
 FREQUENCY BAND (MHz):[[Header]] a tuning dial. The needle shows the tuned station, dots mark the other
 stations of your list. Below it: signal strength, STEREO or MONO, LIVE and the time since you tuned in
@@ -1157,14 +1159,14 @@ volume, mute and the mono fold.
 
 WHERE IT GOES: [[Header]]
 Into the download folder of the radio ([s] Settings[[Header]] ->> PATHS[[Header]]), which by default is
-the one of the music player. After a rescan ([SHIFT+r] in the player) the recordings are part of
+)WIZ",
+R"WIZ(the one of the music player. After a rescan ([SHIFT+r] in the player) the recordings are part of
 your local library.
 
 
 [[New Page]]
 11.3 RADIO HISTORY [[Header]]
-)WIZ",
-R"WIZ(
+
 THE RADIO'S OWN HISTORY: [[Header]]
 [h] opens it; [ESC], [q] or [h] close it. [1] [2] [3], [<-/->] or [TAB] switch the tab, [UP]/[DOWN]
 move, [HOME]/[END] jump to the ends.
@@ -1204,9 +1206,10 @@ BORDER_COLOR, METADATA, VIZ, LIST, HEADER, LEGEND and TAB_NAMES work as in the p
 THEME row, [e], [SHIFT+d] and the unsaved-changes questions.
 
 ON/OFF: [[Header]]
-Playback (shuffle / list, like [m]), Start Mode (player / radio), On air ascii, Pulse wave, Dummy buttons,
-Spectrum Bars, Stereo sound, Normalize volume, Tuning noise (static while tuning, off by default and
-never recorded), Timeshift buffer (5 / 15 / 30 / 45 / 60 minutes), Use oscilloscope / Use spectrogram.
+Playback (shuffle / list, like [m]), Start Mode (player / radio), Black Background, On air ascii,
+Pulse wave, Dummy buttons, Spectrum Bars, Stereo sound, Normalize volume, Tuning noise (static while
+tuning, off by default and never recorded), Timeshift buffer (5 / 15 / 30 / 45 / 60 minutes),
+Use oscilloscope / Use spectrogram.
 
 ANIMA/VIZ: [[Header]]
 Gradient wave speed and Pulse wave speed (the ON AIR sign), Bars Fluidity / Degradation / Viscosity,
@@ -1237,5 +1240,19 @@ stations.txt       your station list                    presets.txt       the pr
 stationlists.txt   the saved station lists              preset_names.txt  the short names of the PRESETS pane
 radio_history/     history_radio.txt and archive_radio.txt
 All of them live in the config folder: ~/.config/mousiki/ (Windows: %USERPROFILE%\.config\mousiki\).
+
+[[New Page]]
+8.4 REMOTE CONTROL AND KEY BINDINGS [[Header]]
+
+A running player or radio can be controlled with the same program:
+  mousiki --cmd next | prev | play-pause | stop | shuffle | mute | live | switch-mode | quit
+  mousiki --cmd volume 60    mousiki --cmd volume-up    mousiki --cmd seek -30
+  mousiki --status           what is playing now
+No media keys on your keyboard? Bind ANY key combination in your system to such a line:
+GNOME/KDE: custom shortcut with the command   mousiki --cmd next
+i3/sway:   bindsym Ctrl+Mod1+Right exec mousiki --cmd next
+Windows:   AutoHotkey   ^!Right::Run "mousiki.exe" --cmd next, , Hide
+macOS:     Shortcuts app (Run Shell Script) or skhd
+THEME PREVIEW: [[Header]] in the CHOOSE THEME list [SHIFT+p] shows a still copy of the main screen in the highlighted theme; any key goes back.
 )WIZ",
 nullptr };

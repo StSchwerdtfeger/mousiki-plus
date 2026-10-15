@@ -2,6 +2,7 @@
 #include "indic_handler.h"
 #include "utf8_util.h"
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
@@ -47,11 +48,16 @@ static std::string g_clipboard;
 // raw write() and tcsetattr() and nothing else.
 // ---------------------------------------------------------------------------
 static volatile sig_atomic_t g_signals_installed = 0;
+// The black background's way back, ready for the signal handler (which may only call write()): see terminal_black_background().
+static char g_bg_restore[128] = {};
+static size_t g_bg_restore_len = 0;
+static volatile sig_atomic_t g_bg_restore_armed = 0;
 
 static void fatal_signal_handler(int sig) {
     if (g_signals_installed) {
         tcsetattr(STDIN_FILENO, TCSANOW, &g_orig_termios);
         static const char kLeave[] = "\x1b[?25h\x1b[?1049l";
+        if (g_bg_restore_armed) { ssize_t r = write(STDOUT_FILENO, g_bg_restore, g_bg_restore_len); (void)r; }
         ssize_t ignored = write(STDOUT_FILENO, kLeave, sizeof(kLeave) - 1);
         (void)ignored;
     }
@@ -81,10 +87,80 @@ static void remove_fatal_signal_handlers() {
 }
 #endif
 
+// ---------------------------------------------------------------------------
+// Black terminal background
+// ---------------------------------------------------------------------------
+static bool g_bg_black = false;     // OSC 11 black is in force
+static bool g_bg_asked = false;     // the terminal's own background was asked for (only the first time)
+#if defined(_WIN32)
+static char g_bg_restore[128] = {};
+static size_t g_bg_restore_len = 0;
+static int g_bg_restore_armed = 0;
+#endif
+
+// The terminal's own default background as it reports it ("rgb:1e1e/1e1e/1e1e"), or "" when it does not answer. The query
+// is followed by a device attributes request, which every terminal answers, so the wait ends at once (the same exchange
+// as the graphics probe); 250 ms at the most.
+static std::string bg_query() {
+#if defined(_WIN32)
+    return "";
+#else
+    if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO)) return "";
+    std::cout << std::flush;
+    const char q[] = "\x1b]11;?\x1b\\\x1b[c";
+    if (::write(STDOUT_FILENO, q, sizeof q - 1) < 0) return "";
+    std::string reply;
+    for (int waited = 0; waited < 250;) {
+        struct pollfd pfd = {STDIN_FILENO, POLLIN, 0};
+        if (::poll(&pfd, 1, 25) <= 0) { waited += 25; continue; }
+        char buf[256];
+        const ssize_t n = ::read(STDIN_FILENO, buf, sizeof buf);
+        if (n <= 0) break;
+        reply.append(buf, static_cast<size_t>(n));
+        const size_t da = reply.find("\x1b[?");
+        if (da != std::string::npos && reply.find('c', da) != std::string::npos) break;
+    }
+    const size_t at = reply.find("]11;");
+    if (at == std::string::npos) return "";
+    std::string col;
+    for (size_t i = at + 4; i < reply.size(); ++i) {
+        const char c = reply[i];
+        if (c == '\x07' || c == '\x1b') break;
+        if (!(std::isalnum(static_cast<unsigned char>(c)) || c == '/' || c == ':' || c == '#')) return "";
+        col += c;
+    }
+    return col.size() >= 4 && col.size() <= 40 ? col : std::string();
+#endif
+}
+
+void terminal_black_background(bool on) {
+    if (on == g_bg_black) return;
+    if (on) {
+        if (!g_bg_asked) {
+            g_bg_asked = true;
+            // the way back: OSC 111 (the terminal's configured default) and, when the terminal told us, its exact colour
+            std::string back = "\x1b]111\x1b\\";
+            const std::string own = bg_query();
+            if (!own.empty() && own != "rgb:0000/0000/0000") back += "\x1b]11;" + own + "\x1b\\";
+            g_bg_restore_len = std::min(back.size(), sizeof g_bg_restore);
+            std::copy(back.begin(), back.begin() + static_cast<std::ptrdiff_t>(g_bg_restore_len), g_bg_restore);
+        }
+        std::cout << "\x1b]11;rgb:00/00/00\x1b\\" << std::flush;
+        g_bg_black = true;
+        g_bg_restore_armed = 1;
+    } else {
+        g_bg_restore_armed = 0;
+        std::cout.write(g_bg_restore, static_cast<std::streamsize>(g_bg_restore_len));
+        std::cout << std::flush;
+        g_bg_black = false;
+    }
+}
+void terminal_background_restore() { terminal_black_background(false); }
+
 static bool g_alt_screen_held = false;
 void terminal_hold_alt_screen() { g_alt_screen_held = true; }
 void terminal_release_alt_screen() {
-    if (g_alt_screen_held) { std::cout << "\x1b[?25h" << "\x1b[?1049l" << std::flush; g_alt_screen_held = false; }
+    if (g_alt_screen_held) { terminal_background_restore(); std::cout << "\x1b[?25h" << "\x1b[?1049l" << std::flush; g_alt_screen_held = false; }
 }
 
 TerminalIO::TerminalIO() {
@@ -142,7 +218,10 @@ void TerminalIO::restore() {
         remove_fatal_signal_handlers();
         tcsetattr(STDIN_FILENO, TCSANOW, &g_orig_termios);
 #endif
-        if (!g_alt_screen_held) std::cout << "\x1b[?25h" << "\x1b[?1049l" << std::flush; // show cursor, leave alt-screen (not when the other mode takes it over)
+        if (!g_alt_screen_held) {   // show cursor, leave alt-screen and give the terminal its background back (not when the other mode takes it over)
+            terminal_background_restore();
+            std::cout << "\x1b[?25h" << "\x1b[?1049l" << std::flush;
+        }
         raw_mode_active_ = false;
     }
 }

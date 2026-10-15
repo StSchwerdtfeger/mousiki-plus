@@ -5,12 +5,20 @@
 #include "app.h"
 #include "mode_switch.h"
 #include "scope_window.h"
+#include "remote_control.h"
 
 #if defined(_WIN32)
 #include "win_compat.h"
 #endif
 
 int main(int argc, char** argv) {
+    // `mousiki --cmd next`, `mousiki --status`: remote control of a running Mousiki (src/remote_control.h). No terminal, no audio.
+    if (muisc::remote::is_client_call(argc, argv)) {
+#if defined(_WIN32)
+        muisc::win_bootstrap_env();
+#endif
+        return muisc::remote::client_main(argc, argv);
+    }
     // `mousiki --scope-window`: the oscilloscope window, started by the player / radio itself (src/scope_window.h).
     // It never touches the terminal.
     if (argc > 1 && std::string(argv[1]) == "--scope-window") {

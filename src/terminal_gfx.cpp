@@ -257,6 +257,7 @@ const char* gfx_name(GfxProto p) { return p == GfxProto::Kitty ? "kitty" : p == 
 void gfx_cell_pixels(const std::string& override_wxh, int& w, int& h) {
     w = 0; h = 0;
     const char* e = std::getenv("MOUSIKI_CELLPX");
+    if (!e || !*e) e = std::getenv("MOUSIKI_RADIO_CELLPX");   // older name, still accepted
     const std::string ov = e && *e ? e : override_wxh;
     int a = 0, b = 0;
     if (std::sscanf(ov.c_str(), "%dx%d", &a, &b) == 2 && a >= 4 && b >= 8) { w = a; h = b; return; }
@@ -271,7 +272,8 @@ void gfx_cell_pixels(const std::string& override_wxh, int& w, int& h) {
 
 GfxProto gfx_probe(const std::string& pref_in) {
     std::string pref = pref_in;
-    if (const char* e = std::getenv("MOUSIKI_GFX")) if (*e) pref = e;
+    if (const char* e = std::getenv("MOUSIKI_GFX")) { if (*e) pref = e; }
+    else if (const char* r = std::getenv("MOUSIKI_RADIO_GFX")) { if (*r) pref = r; }   // older name, still accepted
     for (auto& c : pref) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     if (pref == "off" || pref == "none" || pref == "0" || pref == "false") return GfxProto::None;
     if (pref == "kitty") return GfxProto::Kitty;

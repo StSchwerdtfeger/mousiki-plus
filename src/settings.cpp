@@ -718,6 +718,18 @@ static Settings load_from_config(const fs::path& path) {
         // bool / int), so they're handled directly instead of aliased.
         if (key == "ColorCodes") { s.colors_palette = trim(unquote(value)) == "palette"; continue; }   // the marker: colour numbers are palette numbers
         if (key == "WaveformStyle") { s.waveform_smooth = (value == "smooth"); continue; }
+        if (key == "BlackBackground") {
+            std::string v = trim(unquote(value));
+            for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            s.black_background = !(v == "false" || v == "0" || v == "off" || v == "no");
+            continue;
+        }
+        if (key == "ShareProfiles") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.share_profiles = (v == "true" || v == "1" || v == "on" || v == "yes");
+            continue;
+        }
         if (key == "StartMode") {
             std::string v = trim(unquote(value));
             for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -1192,6 +1204,47 @@ std::string read_start_mode() {
     return mode;
 }
 
+bool read_black_background() {
+    std::ifstream in(config_path());
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.compare(0, 16, "BlackBackground=") != 0) continue;
+        std::string v = trim(line.substr(16));
+        for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        return !(v == "false" || v == "0" || v == "off" || v == "no");
+    }
+    return true;
+}
+
+bool read_share_profiles() {
+    std::ifstream in(config_path());
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.compare(0, 14, "ShareProfiles=") != 0) continue;
+        std::string v = trim(unquote(line.substr(14)));
+        for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        return v == "true" || v == "1" || v == "on" || v == "yes";
+    }
+    return false;
+}
+
+bool read_player_viz(VizPrefs& out) {
+    std::error_code ec;
+    if (!fs::exists(config_path(), ec)) return false;
+    const Settings s = load_settings();
+    out.take_shared_from(s);   // (keeps out's own grid colour)
+    return true;
+}
+
+bool write_player_viz(const VizPrefs& v) {
+    std::error_code ec;
+    if (!fs::exists(config_path(), ec)) return false;
+    Settings s = load_settings();
+    s.take_shared_from(v);     // (keeps the player's own grid colour)
+    save_settings(s);
+    return true;
+}
+
 bool write_start_mode(const std::string& mode) {
     const std::string want = std::string("StartMode=") + (mode == "radio" ? "radio" : "player");
     const fs::path p = config_path();
@@ -1377,7 +1430,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
         for (int i = 0; i < 4; ++i) out << (i ? "," : "") << viz_names[std::clamp(s.viz_order[i], 0, 3)];
         out << "\n## the order of the views when you press \".\" (sphere, osci, spectro, lyrics in any order); set it on Settings -> ON/OFF -> Viz Order 1..4\n";
     }
-    osci_config_write(out, s);
+    osci_config_write(out, s, "##");
     spectro_config_write(out, s.spectro, "##");
     out << "## Tune all of these live with SHIFT+o in the main UI\n";
     out << "Visualizer=" << tf(s.element_visualizer) << "\n";
@@ -1395,6 +1448,8 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "WaveformStyle=" << (s.waveform_smooth ? "smooth" : "raw") << "\n## raw , smooth\n";
     out << "DiskRotationSpeed=" << s.disk_rotation_speed << "\n## 0.01x to 1.00x\n";
     out << "StartMode=" << (s.start_mode == "radio" ? "radio" : "player") << "\n## player , radio -- the mode Mousiki starts in (the * key switches while it runs; set in Settings -> ON/OFF -> MODES)\n";
+    out << "BlackBackground=" << (s.black_background ? "true" : "false") << "\n## true , false -- the terminal's background is black while Mousiki runs (given back on exit; player and radio)\n";
+    out << "ShareProfiles=" << (s.share_profiles ? "true" : "false") << "\n## true , false -- the radio uses this file's oscilloscope and spectrogram settings instead of its own (its own come back when this is false; player and radio)\n";
     out << "PlaybackMode=" << play_mode_name(s.play_mode) << "\n## list , loop , shuffle , stop , queue then stop\n";
     out << "VisualizerDegradationSpeed=" << s.visualizer_degradation_speed << "\n## 1 to 10\n";
     out << "VisualizerViscosity=" << s.visualizer_viscosity << "\n## 1 to 10\n";

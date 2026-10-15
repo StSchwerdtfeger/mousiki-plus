@@ -1102,6 +1102,9 @@ private:
     // 3 = pick a template from inside the creator. All of it lives inside Mode::Settings (text editing inside
     // the creator uses Mode::ColorEdit with theme_ui_ still set).
     int theme_ui_ = 0;
+    bool theme_peek_ = false, peek_busy_ = false;   // SHIFT+p in the theme picker: a still copy of the main screen in the highlighted theme
+    std::string peek_frame_;
+    int peek_sel_ = -1, peek_cols_ = 0, peek_rows_ = 0;
     std::vector<themes::Theme> theme_list_;
     int theme_sel_ = 0;               // picker cursor
     mutable int theme_page_ = 20;     // picker: rows on screen, set while drawing (SHIFT+up / down move by a page)
@@ -1512,6 +1515,14 @@ private:
     void clamp_queue_selected();
     void queue_reveal(int idx);   // scroll the queue so that this entry is visible (after adding tracks)
     void handle_key(int key);
+    // Actions shared by the hotkeys and the remote control (`mousiki --cmd ...`, src/remote_control.h).
+    void act_play_pause();
+    void act_volume_change(int delta);
+    void act_mute(int how);          // -1 toggle, 0 unmute, 1 mute
+    void act_next();
+    void act_prev();
+    void sync_after_radio();         // adopt what the radio changed in config.txt meanwhile
+    void remote_poll();              // commands from outside + the status file; called every frame
     void ensure_visible_row_meta();
     void recompute_waveform_for_current_track();
     std::string render_frame(TerminalIO& term);
