@@ -673,7 +673,15 @@ TUNING OVERLAY:[[Header]] [SHIFT+o] opens it, the picture changes live while the
 Scope mode       XY, YT, XY + YT (overlap), XY + YT (row), XY + YT (column)
 Osci style       braille (works in any terminal) / image (pixels, needs Kitty graphics or Sixel)
 Osci music mode  for oscilloscope music: the unprocessed signal and a fixed scale
+Beam             CRT: every sample drawn once, light by the time the beam spends on a spot
+                 (image default) / classic: the old look with a tail (braille default)
+Dwell brightness CRT beam: slow strokes bright, jumps dark; off = every stroke equally bright
+Low-rate blank.  music mode, CRT beam: files below 96 kHz get the jumps between shapes faded out
+Rough mode       not in music mode: loud beats clip along the edges of the square (edge clipping;
+                 braille default on, image default off)
 Frame rate       30 / 45 / 60 / 90 / 120 / 165 fps
+Image res/detail image style: drawn at full / half / third resolution; detail normal / high =
+                 up to 560 / 1024 pixels wide (high: sharper thin lines, more data per frame)
 Decay            the afterglow, higher = longer trails
 Tail / Glow      bright head with fading tail / line glow
 Z-Axis           beam brightness follows speed or level
@@ -682,6 +690,8 @@ Each style keeps its own values, so switching between braille and image never lo
 [R] resets only the style in use.
 Starting points for braille: crisp scope = Decay 0.65, Dot threshold 0.35, Tail 0.60.
 Dreamy glow = 0.90, 0.20, 0.25.
+Oscilloscope music (e.g. Jerobeam Fenderson): Osci music mode on, Beam CRT, Decay about 0.10,
+Image resolution full, Image detail high -- close to osci-render. Lossless files work best.
 
 THE BIG OSCILLOSCOPE: [[Header]]
 [SHIFT+0] (the [=] key; German keyboard SHIFT+0) opens it over the whole screen: YT (amplitude over
