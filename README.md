@@ -1,6 +1,6 @@
 <div align="center">
     
-# 📻 Mousiki Plus v4.0.0 - Music and Radio Player 🎵 
+# 📻 Mousiki Plus v4.1.0 - Music and Radio Player 🎵 
 (Windows · Linux · macOS)  
 
 <p align="center">
@@ -55,7 +55,7 @@ Here are some of the new themes, including color blind adjusted versions
 <p align="center"><img width="829" height="383" alt="grafik" src="https://github.com/user-attachments/assets/a9777cd5-eb67-4cde-a5a9-6c6192b4b2e9" /></p>
 
 
-## Current Status of the Port and Modification (v4.0.0)
+## Current Status of the Port and Modification (v4.1.0)
 
 For now the Mousiki port works well and also includes everything I at least wanted and made sense to me for a music player, so there might be no further major releases that add new features, except of bug-fixes that might appear to me or others in the future (feel free to start discussions or report issues!!). I might adjust the code to be more polished / robust and might optimize the setup release (Win version results currently in ~250MB size, setup itself ~80MB, portable .zip ~100MB)... Since v2.5.0 my version of Mousiki also builds on macOS/Linux again (`setup.sh`), which is a first step towards making it potentially integratable into the main branch of the original project (which still seems way too hard after dozens of comments in the last two weeks, at least from my perspective). The Linux/macOS builds are less tested than the Windows one, so reports from users on those platforms would help finalize it more. 
 Concerning potential new features: further below you'll find a list of [current Ideas on features and modifications](#current-ideas-on-features-and-modifications). The online-radio function is now included (see [radio mode](#default-keybinding-radio-player)); a mixtape creator would be cool, but I'll see. Again, feel free to give feedback in the discussions, report issues you might experience using this modified port or contributing in any other way...
