@@ -213,6 +213,10 @@ DiskRotationSpeed=0.1
 ## 0.01x to 1.00x
 StartMode=player
 ## player , radio -- the mode Mousiki starts in (the * key switches while it runs; set in Settings -> ON/OFF -> MODES)
+BlackBackground=true
+## true , false -- the terminal's background is black while Mousiki runs (given back on exit; player and radio)
+ShareProfiles=false
+## true , false -- the radio uses the player's oscilloscope and spectrogram settings (its own are kept as a backup and come back when off)
 PlaybackMode=list
 ## list , loop , shuffle , stop , queue then stop (plays the queue once, then stops -- never falls through to the library)
 VisualizerDegradationSpeed=8

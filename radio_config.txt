@@ -77,6 +77,8 @@ ColorTabOther=246
 ##              ON/OFF
 ##-------------------------------------------
 
+# Share Profiles (Settings -> ON/OFF -> MODES) is ONE switch stored as ShareProfiles= in the player's config.txt. While it is on the
+# oscilloscope/spectrogram values of the player are used; the radio's own ones are kept below as '## own ...' lines and come back when off.
 OnAirAscii=true
 PulseWave=true
 DummyButtons=true

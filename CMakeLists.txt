@@ -227,6 +227,8 @@ if(MOUSIKI_BUILD_RADIO_STANDALONE)
       src/terminal_ui.cpp src/sphere_visualizer.cpp src/indic_handler.cpp src/process_util.cpp src/console_log.cpp
       src/fft_visualizer.cpp src/audio_backend.cpp src/miniaudio_impl.cpp src/keyboard_layout.cpp
       src/spectrogram.cpp src/scope_window.cpp src/themes.cpp src/border_gradient.cpp
+      # shared with the player: the oscilloscope and the terminal picture output (Kitty / Sixel)
+      src/oscilloscope_visualizer.cpp src/terminal_gfx.cpp src/remote_control.cpp
       # the help wizard (SHIFT+w): its pages, and the disk its welcome page spins
       src/wizard.cpp src/disk_art.cpp)
   if(WIN32)
@@ -258,3 +260,22 @@ if(MOUSIKI_BUILD_RADIO_STANDALONE)
 endif()
 
 message(STATUS "mousiki: building for ${CMAKE_SYSTEM_NAME}")
+
+
+# ---------------------------------------------------------------------------
+# Automated tests (tests/): cmake -DMOUSIKI_BUILD_TESTS=ON ..  then  ctest  (or run mousiki_tests directly).
+# The test program is built from the same sources and settings as the player (everything but src/main.cpp), so it checks the real code.
+# ---------------------------------------------------------------------------
+option(MOUSIKI_BUILD_TESTS "Build the automated tests (mousiki_tests)" OFF)
+if(MOUSIKI_BUILD_TESTS)
+  enable_testing()
+  file(GLOB MOUSIKI_TEST_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/tests/*.cpp")
+  get_target_property(MOUSIKI_ALL_SOURCES mousiki SOURCES)
+  list(FILTER MOUSIKI_ALL_SOURCES EXCLUDE REGEX "(^|/)src/main\\.cpp$")
+  add_executable(mousiki_tests ${MOUSIKI_TEST_SOURCES} ${MOUSIKI_ALL_SOURCES})
+  target_include_directories(mousiki_tests PRIVATE "${CMAKE_SOURCE_DIR}/tests" $<TARGET_PROPERTY:mousiki,INCLUDE_DIRECTORIES>)
+  target_compile_definitions(mousiki_tests PRIVATE $<TARGET_PROPERTY:mousiki,COMPILE_DEFINITIONS>)
+  target_compile_options(mousiki_tests PRIVATE $<TARGET_PROPERTY:mousiki,COMPILE_OPTIONS>)
+  target_link_libraries(mousiki_tests PRIVATE $<TARGET_PROPERTY:mousiki,LINK_LIBRARIES>)
+  add_test(NAME mousiki_tests COMMAND mousiki_tests)
+endif()
