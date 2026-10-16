@@ -159,7 +159,7 @@ Three themes are made for colour vision deficiencies: **Colorblind Deuteranopia*
 - **Phone remote** (Settings → ON/OFF → Remote App): switch it on, scan the QR code and the phone shows a Mousiki screen drawn by Mousiki itself in your theme -- the spinning disk, meta data, working buttons, volume, playback mode, the local list and your playlists (tap: play / into the queue), clear queue, the manual, and the radio with its sign, station and the whole station list (tap to tune). Any phone browser, or the Android app **Mousiki Remote** ([remote_app/](remote_app/)). PIN-protected, home network only, off by default.
 - **Command line remote:** `mousiki --cmd next`, `--cmd volume 60`, `--cmd seek -30`, `mousiki --status` ... (`mousiki --cmd --help` lists all). Bind them to any keys of your system to get global media keys, also on keyboards without them.
 
-### Platforms
+## quick start: Installers and Portables for Windows / macOS / Linux 
 
 Windows (installer, portable zip), Linux (`.deb`, portable) and macOS (`.pkg`, portable) from the [latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest), or build it yourself (below). Release files are signed (GPG) and come with build-provenance attestations; an installer upgrades an existing version and keeps your settings. Automated tests: `cmake -DMOUSIKI_BUILD_TESTS=ON`.
 
