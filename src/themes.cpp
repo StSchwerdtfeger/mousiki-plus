@@ -64,7 +64,7 @@ const Palette kPalettes[] = {
     {"Colorblind Tritanopia","203","80","203","80","80","224","203","66","255","217","53","203","246","210","244","232","203","244","80","255",""},
     {"High Contrast",        "255","255","226","51","226","255","226","244","255","226","21","226","250","226","250","232","226","250","255","231",""},
     {"Coffee",               "137","58","173","242","180","223","173","242","187","180","58","180","243","180","243","232","180","243","187","230",""},
-    // v4.1.0: ten more (dark-terminal themes; the last value is the focus colour)
+    // v4.2.0: ten more (dark-terminal themes; the last value is the focus colour)
     {"Catppuccin Mocha",    "183","111","218","116","111","189","218","239","146","218","237","183","243","183","243","232","183","243","189","218","","183"},
     {"Tokyo Night",         "111","141","141","117","111","189","117","238","146","215","236","111","60","111","60","232","111","60","189","117","","141"},
     {"Rose Pine",           "181","183","168","152","152","223","181","239","146","222","237","181","102","181","102","235","181","102","223","168","","183"},
@@ -77,7 +77,7 @@ const Palette kPalettes[] = {
     {"Lavender Haze",       "183","147","219","141","147","225","183","239","189","219","60","183","103","183","103","232","183","103","225","219","","147"},
 };
 
-// `v8`: the theme as v4.1.0 first shipped it (some text colours empty = the terminal's own text colour, which differs
+// `v8`: the theme as v4.2.0 first shipped it (some text colours empty = the terminal's own text colour, which differs
 // from terminal to terminal); without it every text colour is a fixed palette number, so the theme looks the same
 // in every terminal (Windows Terminal, CMD, GNOME, ... whatever their colour schemes say).
 Theme expand(const Palette& p, bool v8 = false) {
@@ -127,7 +127,7 @@ Theme expand(const Palette& p, bool v8 = false) {
 // The two hand-made themes were made in a terminal whose own colour scheme turns some of the 16 base colours
 // into other colours (10 is yellow there, 8 and 1 pink) and whose default text colour is light blue. In another
 // terminal (CMD, a GNOME terminal ...) the same numbers look different: 10 is green, 8 grey, the default text grey.
-// Since v4.1.0 they only use the 240 fixed colours (16-255), which look the same in every terminal: the colours they
+// Since v4.2.0 they only use the 240 fixed colours (16-255), which look the same in every terminal: the colours they
 // were made with. `v8` gives the old values (used to recognise a config.txt that still holds them).
 std::string universal_color(const std::string& key, const std::string& v) {
     if (v == "10") return "227";   // yellow
@@ -338,7 +338,7 @@ std::vector<Theme> load_all() {
         std::ifstream in(path);
         std::string first;
         std::getline(in, first);
-        if (trim(first) != "# format: 9") {   // format 9 (v4.1.0): the built-ins use fixed colours only; format 8: ten more built-in themes
+        if (trim(first) != "# format: 9") {   // format 9 (v4.2.0): the built-ins use fixed colours only; format 8: ten more built-in themes
             const int old_format = file_format(path);
             std::vector<Theme> mine;
             for (Theme& ft : parse_file(path)) {

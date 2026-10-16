@@ -463,7 +463,7 @@ Settings load_settings();
 // Upgrade safety: config.txt / radio_config.txt carry "# Written by Mousiki v<version>". Before a version other than the
 // one that wrote the file rewrites it, the old file is copied to <name>.bak (one backup, replaced at the next upgrade).
 std::string config_stamp_line();
-std::string config_written_by(const std::filesystem::path& p);   // "" when the file has no stamp (older than v4.1.0)
+std::string config_written_by(const std::filesystem::path& p);   // "" when the file has no stamp (older than v4.2.0)
 bool backup_config_if_older(const std::filesystem::path& p);     // true when a .bak was written
 void save_settings(const Settings& s);
 // The text save_settings() would write (used to tell whether the settings screen changed anything).
