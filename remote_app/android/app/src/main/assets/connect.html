@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Mousiki Remote</title>
+<style>
+  /* Mousiki's default look: black background, the border fading from palette 170 to 104, header 10, legend 8 */
+  :root { --top: #D75FD7; --bottom: #8787D7; --head: #16C60C; --legend: #767676; --text: #CCCCCC; --field: #3A3A3A; --warn: #FF5F5F; }
+  html, body { margin: 0; background: #000; color: var(--text); height: 100%;
+               font-family: ui-monospace, 'Cascadia Mono', 'DejaVu Sans Mono', 'Roboto Mono', 'Droid Sans Mono', monospace;
+               font-size: 15px; -webkit-tap-highlight-color: transparent; }
+  .wrap { min-height: 100%; display: flex; align-items: center; justify-content: center; padding: 14px; box-sizing: border-box; }
+  .box { position: relative; width: 100%; max-width: 420px; padding: 22px 16px 16px; border: 2px solid transparent; border-radius: 12px;
+         background: linear-gradient(#000, #000) padding-box, linear-gradient(var(--top), var(--bottom)) border-box; box-sizing: border-box; }
+  .title { position: absolute; top: -12px; left: 18px; background: #000; padding: 0 8px; color: var(--top); letter-spacing: 1px; }
+  .title b { color: var(--head); }
+  label { display: block; color: var(--top); margin: 12px 0 4px; }
+  input[type=text], input[type=tel] { width: 100%; box-sizing: border-box; background: var(--field); color: #F2F2F2; border: 0;
+         font: inherit; padding: 8px 10px; outline: none; }
+  input:focus { background: #4E4E4E; }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; }
+  .btn { display: block; width: 100%; margin-top: 14px; padding: 10px; background: #000; color: var(--top); font: inherit;
+         border: 2px solid transparent; border-radius: 10px;
+         background: linear-gradient(#000, #000) padding-box, linear-gradient(var(--top), var(--bottom)) border-box; }
+  .btn:active { background: linear-gradient(#222, #222) padding-box, linear-gradient(var(--top), var(--bottom)) border-box; }
+  .msg { color: var(--warn); margin-top: 12px; min-height: 1em; }
+  .legend { color: var(--legend); font-size: 13px; margin-top: 12px; line-height: 1.45; }
+  .found { margin-top: 8px; }
+  .found div { padding: 8px 10px; margin-top: 6px; color: var(--head); background: #111; border-left: 3px solid var(--top); }
+  .opt { display: flex; justify-content: space-between; margin-top: 12px; color: var(--text); }
+  .opt span:last-child { color: var(--head); }
+</style>
+</head>
+<body>
+<div class="wrap"><div class="box">
+  <div class="title">MOUSIKI <b>REMOTE</b></div>
+  <label for="host">ADDRESS</label>
+  <div class="row">
+    <div><input id="host" type="text" inputmode="url" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="192.168.1.20"></div>
+    <div style="flex:0 0 30%"><input id="port" type="tel" inputmode="numeric" placeholder="4747"></div>
+  </div>
+  <label for="pin">PIN</label>
+  <input id="pin" type="tel" inputmode="numeric" maxlength="8" placeholder="6 digits">
+  <button class="btn" id="go">[ CONNECT ]</button>
+  <button class="btn" id="scan">[ FIND MOUSIKI IN THIS NETWORK ]</button>
+  <div class="found" id="found"></div>
+  <div class="msg" id="msg"></div>
+  <div class="opt" id="keep"><span>Keep the screen on</span><span></span></div>
+  <div class="opt" id="auto"><span>Connect at start</span><span></span></div>
+  <div class="legend">
+    In Mousiki (player or radio): Settings &rarr; ON/OFF &rarr; MODES &rarr; <b>Remote App</b> = true. The address and the PIN are
+    shown there, and <code>mousiki --remote-info</code> prints them. The phone and the computer must be in the same network.
+  </div>
+</div></div>
+<script>
+"use strict";
+const A = window.MousikiApp;
+const $ = id => document.getElementById(id);
+function get(k, d) { return A ? (A.get(k) || d) : d; }
+$("host").value = get("host", "");
+$("port").value = get("port", "4747");
+$("pin").value = get("pin", "");
+if (location.hash.length > 1) $("msg").textContent = decodeURIComponent(location.hash.slice(1));
+
+function opt(id, key) {
+  const show = () => { $(id).lastElementChild.textContent = get(key, "true") === "true" ? "true" : "false"; };
+  $(id).addEventListener("click", () => { if (A) A.setOption(key, get(key, "true") !== "true"); show(); });
+  show();
+}
+opt("keep", "keep_on");
+opt("auto", "auto");
+
+$("go").addEventListener("click", () => {
+  const host = $("host").value.trim().replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  let port = $("port").value.trim() || "4747";
+  const m = /^(.*):(\d+)$/.exec(host);
+  let h = host;
+  if (m) { h = m[1]; port = m[2]; }
+  const pin = $("pin").value.replace(/\D/g, "");
+  if (!h) { $("msg").textContent = "Enter the address of the computer Mousiki runs on."; return; }
+  if (pin.length < 4) { $("msg").textContent = "Enter the PIN (4 to 8 digits)."; return; }
+  $("msg").textContent = "connecting ...";
+  if (A) A.connect(h, port, pin);
+});
+
+window.mousikiFound = list => {
+  $("scan").disabled = false;
+  $("scan").textContent = "[ FIND MOUSIKI IN THIS NETWORK ]";
+  const f = $("found");
+  f.innerHTML = "";
+  if (!list.length) { $("msg").textContent = "No Mousiki found (Remote App on? same network? port " + ($("port").value || "4747") + "?)"; return; }
+  $("msg").textContent = "";
+  list.forEach(ip => {
+    const d = document.createElement("div");
+    d.textContent = "▶ " + ip;
+    d.addEventListener("click", () => { $("host").value = ip; f.innerHTML = ""; $("pin").focus(); });
+    f.appendChild(d);
+  });
+};
+$("scan").addEventListener("click", () => {
+  if (!A) return;
+  $("scan").disabled = true;
+  $("scan").textContent = "searching ...";
+  $("msg").textContent = "";
+  A.scan($("port").value.trim() || "4747");
+});
+</script>
+</body>
+</html>

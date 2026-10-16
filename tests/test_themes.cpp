@@ -103,3 +103,34 @@ TEST(themes_names_are_sanitized) {
     CHECK(s.size() <= static_cast<size_t>(themes::kMaxNameLen));
     CHECK(!s.empty());
 }
+
+// Since v4.1.0 the built-in themes only use the 240 fixed colours (16-255) and give every text a colour: the 16 base
+// colours and the "terminal's own" text colour change with the terminal's colour scheme (10 is green in CMD, yellow elsewhere).
+TEST(themes_built_ins_look_the_same_in_every_terminal) {
+    mt::TempHome home;
+    for (const themes::Theme& t : themes::load_all()) {
+        if (!t.builtin) continue;
+        for (const auto& [k, v] : t.kv) {
+            const bool bg = k.size() > 2 && k.compare(k.size() - 2, 2, "Bg") == 0;
+            if (k == "ColorVizCenter" || k.find("Radio.") == 0) continue;
+            if (!bg) CHECK(!v.empty());                                    // no text left to the terminal's own colour
+            if (!v.empty()) {
+                const int n = std::atoi(v.c_str());
+                if (n < 16) { std::cerr << "    " << t.name << ": " << k << "=" << v << "\n"; }
+                CHECK(n >= 16 && n <= 255);
+            }
+        }
+    }
+}
+
+TEST(themes_renewed_built_ins_pair_old_and_new) {
+    const auto pairs = themes::renewed_builtins();
+    CHECK(pairs.size() >= 30);
+    const themes::Theme& def_old = pairs[0].first;
+    const themes::Theme& def_new = pairs[0].second;
+    CHECK_EQ(def_new.name, std::string("SeriousMeowerShell(Default)"));
+    CHECK_EQ(*def_old.get("ColorHeader", false), std::string("10"));      // what v4.1.0 first shipped
+    CHECK_EQ(*def_new.get("ColorHeader", false), std::string("227"));     // the yellow it was made with
+    CHECK_EQ(*def_new.get("ColorLegend", false), std::string("199"));
+    CHECK_EQ(*def_new.get("ColorListInactiveFg", false), std::string("75"));
+}

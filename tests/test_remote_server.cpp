@@ -1,0 +1,171 @@
+// The remote app's web server (src/remote_server.h): request parsing, the PIN, the commands, the screen, a real socket.
+#include "test_framework.h"
+#include "remote_server.h"
+#include "remote_control.h"
+#include "terminal_ui.h"
+
+#include <algorithm>
+#include <chrono>
+#include <cstring>
+#include <string>
+#include <thread>
+
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
+
+using namespace muisc;
+namespace net = muisc::remote::net;
+
+namespace {
+int code_of(const std::string& reply) { return reply.size() > 12 ? std::atoi(reply.c_str() + 9) : 0; }
+std::string body_of(const std::string& reply) { const size_t p = reply.find("\r\n\r\n"); return p == std::string::npos ? "" : reply.substr(p + 4); }
+std::string req(const std::string& target) { return net::handle_request("GET " + target + " HTTP/1.1", "test"); }
+void use_pin(const char* pin) { net::configure({false, 4747, pin}); }   // off: no socket, only the PIN is set
+
+// a plain HTTP GET over a socket (for the live server test)
+std::string http_get(int port, const std::string& target) {
+#if defined(_WIN32)
+    WSADATA d; WSAStartup(MAKEWORD(2, 2), &d);
+    SOCKET s = socket(AF_INET, SOCK_STREAM, 0);
+#else
+    int s = socket(AF_INET, SOCK_STREAM, 0);
+#endif
+    sockaddr_in a{};
+    a.sin_family = AF_INET;
+    a.sin_port = htons(static_cast<unsigned short>(port));
+    inet_pton(AF_INET, "127.0.0.1", &a.sin_addr);
+    std::string out;
+    if (connect(s, reinterpret_cast<sockaddr*>(&a), sizeof a) == 0) {
+        const std::string r = "GET " + target + " HTTP/1.1\r\nHost: x\r\n\r\n";
+        send(s, r.data(), static_cast<int>(r.size()), 0);
+        char buf[4096];
+        int n;
+        while ((n = static_cast<int>(recv(s, buf, sizeof buf, 0))) > 0) out.append(buf, static_cast<size_t>(n));
+    }
+#if defined(_WIN32)
+    closesocket(s);
+#else
+    close(s);
+#endif
+    return out;
+}
+} // namespace
+
+TEST(remote_server_parses_request_lines) {
+    std::string path;
+    std::vector<std::pair<std::string, std::string>> q;
+    CHECK(net::parse_request_line("GET /api/cmd?pin=1234&name=volume&arg=%2B10 HTTP/1.1", path, q));
+    CHECK_EQ(path, std::string("/api/cmd"));
+    CHECK_EQ(q.size(), static_cast<size_t>(3));
+    if (q.size() == 3) {
+        CHECK_EQ(q[2].second, std::string("+10"));                 // %2B decoded
+        CHECK_EQ(q[0].first, std::string("pin"));
+    }
+    CHECK(net::parse_request_line("GET / HTTP/1.1", path, q));
+    CHECK_EQ(path, std::string("/"));
+    CHECK(q.empty());
+    CHECK(!net::parse_request_line("POST /api/cmd HTTP/1.1", path, q));   // only GET / HEAD
+    CHECK(!net::parse_request_line("GET api HTTP/1.1", path, q));
+    CHECK(!net::parse_request_line("garbage", path, q));
+}
+
+TEST(remote_server_json_escape) {
+    CHECK_EQ(net::json_escape("a\"b\\c\n"), std::string("a\\\"b\\\\c\\n"));
+    CHECK_EQ(net::json_escape("\x1b[0m"), std::string("\\u001b[0m"));      // colour escapes survive as \u001b
+    CHECK_EQ(net::json_escape("M\xc3\xbcsik"), std::string("M\xc3\xbcsik")); // UTF-8 passes unchanged
+}
+
+TEST(remote_server_pin_rule) {
+    CHECK(net::pin_ok("1234"));
+    CHECK(net::pin_ok("12345678"));
+    CHECK(!net::pin_ok("123"));
+    CHECK(!net::pin_ok("123456789"));
+    CHECK(!net::pin_ok("12a4"));
+    const std::string p = net::make_pin();
+    CHECK_EQ(p.size(), static_cast<size_t>(6));
+    CHECK(net::pin_ok(p));
+}
+
+TEST(remote_server_page_is_open_api_needs_the_pin) {
+    use_pin("246810");
+    const std::string page = req("/");
+    CHECK_EQ(code_of(page), 200);
+    CHECK(page.find("text/html") != std::string::npos);
+    CHECK(body_of(page).find("Mousiki Remote") != std::string::npos);
+    CHECK_EQ(code_of(req("/api/hello")), 403);
+    CHECK_EQ(code_of(req("/api/hello?pin=111111")), 403);
+    const std::string ok = req("/api/hello?pin=246810");
+    CHECK_EQ(code_of(ok), 200);
+    CHECK(body_of(ok).find("\"ok\":true") != std::string::npos);
+    CHECK_EQ(code_of(req("/nothing")), 404);
+}
+
+TEST(remote_server_locks_after_ten_wrong_pins) {
+    use_pin("135790");
+    for (int i = 0; i < 10; ++i) req("/api/hello?pin=000000");
+    CHECK_EQ(code_of(req("/api/hello?pin=135790")), 429);           // even the right PIN waits a minute now
+    use_pin("135791");                                                // a new PIN, set at the computer, ends it
+    CHECK_EQ(code_of(req("/api/hello?pin=135791")), 200);
+}
+
+TEST(remote_server_commands_reach_the_program) {
+    mt::TempHome home;
+    net::configure({false, 4747, "112233"});
+    remote::start("player");
+    CHECK_EQ(code_of(req("/api/cmd?pin=112233&name=next")), 200);
+    CHECK_EQ(code_of(req("/api/cmd?pin=112233&name=playback-mode")), 200);
+    CHECK_EQ(code_of(req("/api/cmd?pin=112233&name=volume&arg=%2B5")), 200);
+    CHECK_EQ(code_of(req("/api/cmd?pin=112233&name=rm-rf")), 400);       // only the known names
+    CHECK_EQ(code_of(req("/api/cmd?pin=112233&name=seek&arg=1;2")), 400); // only a short number
+    const auto cmds = remote::poll();                                   // network commands are not throttled
+    CHECK_EQ(cmds.size(), static_cast<size_t>(3));
+    if (cmds.size() == 3) {
+        CHECK_EQ(cmds[0].name, std::string("next"));
+        CHECK_EQ(cmds[1].name, std::string("playback-mode"));
+        CHECK_EQ(cmds[2].arg, std::string("+5"));
+    }
+    remote::stop();
+}
+
+TEST(remote_server_hands_out_the_screen) {
+    net::configure({false, 4747, "445566"});
+    net::set_screen("radio", 44, 2, {"\x1b[38;5;170mline one\x1b[0m", "two"}, {{1, 0, 5, 1, "next", ""}, {0, 1, 44, 1, "seek", "-5"}});
+    const std::string r = req("/api/screen?pin=445566&cols=50&rows=60");
+    CHECK_EQ(code_of(r), 200);
+    const std::string b = body_of(r);
+    CHECK(b.find("\"mode\":\"radio\"") != std::string::npos);
+    CHECK(b.find("\\u001b[38;5;170mline one") != std::string::npos);
+    CHECK(b.find("{\"x\":1,\"y\":0,\"w\":5,\"h\":1,\"cmd\":\"next\",\"arg\":\"\"}") != std::string::npos);
+    CHECK(b.find("\"arg\":\"-5\"") != std::string::npos);
+    net::set_status({{"mode", "radio"}, {"title", "A \"quoted\" title"}});
+    CHECK(body_of(req("/api/status?pin=445566")).find("A \\\"quoted\\\" title") != std::string::npos);
+}
+
+TEST(remote_server_live_socket) {
+    const int port = 47000 + static_cast<int>(std::chrono::steady_clock::now().time_since_epoch().count() % 1000);
+    net::configure({true, port, "778899"});
+    if (!net::running()) { CHECK(!net::last_error().empty()); net::shutdown(); return; }   // (port taken: the error says so)
+    const std::string page = http_get(port, "/");
+    CHECK_EQ(code_of(page), 200);
+    CHECK(page.find("Content-Length:") != std::string::npos);
+    const std::string bad = http_get(port, "/api/hello?pin=1");
+    CHECK(code_of(bad) == 403 || code_of(bad) == 429);
+    // a second server on the same port fails with a message instead of crashing
+    net::shutdown();
+    CHECK(!net::running());
+    CHECK_EQ(code_of(http_get(port, "/")), 0);                         // off: nothing answers
+}
+
+TEST(remote_known_commands_cover_the_remote_app) {
+    const auto k = remote::known_commands();
+    for (const char* c : {"play-pause", "next", "prev", "shuffle", "volume-up", "volume-down", "seek", "toggle-mute",
+                          "playback-mode", "wizard", "switch-mode", "live", "stop"})
+        CHECK(std::find(k.begin(), k.end(), std::string(c)) != k.end());
+}

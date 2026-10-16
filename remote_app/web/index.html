@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<title>Mousiki Remote</title>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; touch-action: manipulation;
+               -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+  #wrap { position: fixed; inset: 0; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+  #box { position: relative; width: 100%; height: 100%; }
+  canvas { position: absolute; left: 0; top: 0; }
+  #type { position: absolute; left: -1000px; top: 0; width: 10px; height: 10px; opacity: 0; }
+</style>
+</head>
+<body>
+<div id="wrap"><div id="box"><canvas id="c"></canvas></div></div>
+<input id="type" type="tel" inputmode="numeric" autocomplete="off" maxlength="8">
+<script>
+"use strict";
+// =====================================================================================================================
+// Mousiki Remote -- the page of the remote app. Mousiki itself draws the phone screen (its disk, boxes, buttons and the
+// colours of the theme in use) and sends it as lines of terminal text with colour escapes; this page paints them like a
+// terminal does -- braille as thick dots, box lines as real lines -- and sends back the command of the box you tap.
+// The same page runs in the Android app (src: remote_app/android) and in any phone browser.
+// =====================================================================================================================
+
+const MANUAL_URL = "https://github.com/StSchwerdtfeger/mousiki-plus/blob/main/Mousiki_User_Manual/Mousiki_User_Guide.md";
+const APP = window.MousikiApp || null;          // the Android app's bridge (absent in a browser)
+const BASE_COLS = 44, MIN_ROWS = 42, CELL_RATIO = 2.05;
+
+// ---- preferences (per phone) ----------------------------------------------------------------------------------------
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("mousiki." + k); return v === null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("mousiki." + k, v); } catch (e) {} },
+};
+let pin = "";
+{
+  const m = /pin=(\d{4,8})/.exec(location.hash);
+  if (m) { pin = m[1]; store.set("pin", pin); history.replaceState(null, "", location.pathname); }
+  else pin = store.get("pin", "");
+}
+let paletteName = store.get("palette", "windows");   // the 16 base colours differ between terminals
+let dotSize = store.get("dots", "thick");
+
+// ---- the 256 colours of the terminal palette ------------------------------------------------------------------------
+const BASE16 = {
+  windows: ["#0C0C0C","#C50F1F","#13A10E","#C19C00","#0037DA","#881798","#3A96DD","#CCCCCC",
+            "#767676","#E74856","#16C60C","#F9F1A5","#3B78FF","#B4009E","#61D6D6","#F2F2F2"],
+  xterm:   ["#000000","#CD0000","#00CD00","#CDCD00","#0000EE","#CD00CD","#00CDCD","#E5E5E5",
+            "#7F7F7F","#FF0000","#00FF00","#FFFF00","#5C5CFF","#FF00FF","#00FFFF","#FFFFFF"],
+  gnome:   ["#2E3436","#CC0000","#4E9A06","#C4A000","#3465A4","#75507B","#06989A","#D3D7CF",
+            "#555753","#EF2929","#8AE234","#FCE94F","#729FCF","#AD7FA8","#34E2E2","#EEEEEC"],
+};
+const PALETTE_LABEL = { windows: "Windows Terminal", xterm: "xterm", gnome: "GNOME / Tango" };
+let PAL = [];
+function buildPalette() {
+  PAL = BASE16[paletteName] ? BASE16[paletteName].slice() : BASE16.windows.slice();
+  const lv = [0, 95, 135, 175, 215, 255];
+  for (let r = 0; r < 6; r++) for (let g = 0; g < 6; g++) for (let b = 0; b < 6; b++) PAL.push(rgb(lv[r], lv[g], lv[b]));
+  for (let i = 0; i < 24; i++) { const v = 8 + i * 10; PAL.push(rgb(v, v, v)); }
+}
+function rgb(r, g, b) { return "#" + [r, g, b].map(x => x.toString(16).padStart(2, "0")).join(""); }
+let textColor = "";   // the theme's colour for text without one of its own (sent by Mousiki), like the terminal's default
+const DEFAULT_FG = () => textColor || PAL[7];
+const DEFAULT_BG = "#000000";   // Mousiki's Black Background
+buildPalette();
+
+// ---- terminal text -> cells ------------------------------------------------------------------------------------------
+// display width of a code point (0 = joins the previous cell, 2 = takes two cells), close to what Mousiki counts
+function cpWidth(cp) {
+  if (cp === 0x200D || (cp >= 0x300 && cp <= 0x36F) || (cp >= 0xFE00 && cp <= 0xFE0F) || cp === 0x20E3) return 0;
+  if ((cp >= 0x1100 && cp <= 0x115F) || (cp >= 0x2E80 && cp <= 0x303E) || (cp >= 0x3041 && cp <= 0x33FF) ||
+      (cp >= 0x3400 && cp <= 0x4DBF) || (cp >= 0x4E00 && cp <= 0x9FFF) || (cp >= 0xA000 && cp <= 0xA4CF) ||
+      (cp >= 0xAC00 && cp <= 0xD7A3) || (cp >= 0xF900 && cp <= 0xFAFF) || (cp >= 0xFE30 && cp <= 0xFE4F) ||
+      (cp >= 0xFF00 && cp <= 0xFF60) || (cp >= 0xFFE0 && cp <= 0xFFE6) || (cp >= 0x1F300 && cp <= 0x1F64F) ||
+      (cp >= 0x1F900 && cp <= 0x1F9FF) || (cp >= 0x1FA70 && cp <= 0x1FAFF) || (cp >= 0x20000 && cp <= 0x3FFFD)) return 2;
+  return 1;
+}
+
+function parseLine(s) {
+  const cells = [];
+  let fg = null, bg = null, bold = false, dim = false, ul = false, inv = false;
+  for (let i = 0; i < s.length;) {
+    const ch = s.codePointAt(i);
+    const len = ch > 0xFFFF ? 2 : 1;
+    if (ch === 0x1B && s[i + 1] === "[") {          // CSI ... final byte
+      let j = i + 2;
+      while (j < s.length && !(s.charCodeAt(j) >= 0x40 && s.charCodeAt(j) <= 0x7E)) j++;
+      if (s[j] === "m") {
+        const p = s.slice(i + 2, j).split(";").map(x => x === "" ? 0 : parseInt(x, 10));
+        for (let k = 0; k < p.length; k++) {
+          const v = p[k];
+          if (v === 0) { fg = bg = null; bold = dim = ul = inv = false; }
+          else if (v === 1) bold = true;
+          else if (v === 2) dim = true;
+          else if (v === 22) { bold = false; dim = false; }
+          else if (v === 4) ul = true;
+          else if (v === 24) ul = false;
+          else if (v === 7) inv = true;
+          else if (v === 27) inv = false;
+          else if (v >= 30 && v <= 37) fg = PAL[v - 30];
+          else if (v >= 90 && v <= 97) fg = PAL[v - 90 + 8];
+          else if (v === 39) fg = null;
+          else if (v >= 40 && v <= 47) bg = PAL[v - 40];
+          else if (v >= 100 && v <= 107) bg = PAL[v - 100 + 8];
+          else if (v === 49) bg = null;
+          else if ((v === 38 || v === 48) && p[k + 1] === 5) { const c = PAL[p[k + 2] & 255]; if (v === 38) fg = c; else bg = c; k += 2; }
+          else if ((v === 38 || v === 48) && p[k + 1] === 2) { const c = rgb(p[k + 2] & 255, p[k + 3] & 255, p[k + 4] & 255); if (v === 38) fg = c; else bg = c; k += 4; }
+        }
+      }
+      i = j + 1;
+      continue;
+    }
+    i += len;
+    if (ch < 0x20) continue;
+    const w = cpWidth(ch);
+    if (w === 0) { if (cells.length) cells[cells.length - 1].ch += String.fromCodePoint(ch); continue; }
+    cells.push({ ch: String.fromCodePoint(ch), cp: ch, fg, bg, bold, dim, ul, inv, wide: w === 2 });
+    if (w === 2) cells.push(null);                    // the second half of a wide character
+  }
+  return cells;
+}
+
+// ---- the canvas ------------------------------------------------------------------------------------------------------
+const box = document.getElementById("box");
+const cv = document.getElementById("c");
+const ctx = cv.getContext("2d");
+let cols = BASE_COLS, rows = MIN_ROWS, cw = 9, ch = 18, ox = 0, oy = 0, dpr = 1, fontPx = 14, fontYOff = 0;
+let screen = null;        // the last screen from Mousiki: {rev, mode, cols, rows, lines, zones}
+let grid = [];            // its cells
+let overlay = null;       // a panel of this page on top of the screen (PIN, menu, connection lost)
+let flash = null;         // the tapped zone, lit for a moment
+
+function layout() {
+  const W = box.clientWidth, H = box.clientHeight;
+  dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  let w = W / BASE_COLS, h = w * CELL_RATIO;
+  if (Math.floor(H / h) < MIN_ROWS) { h = H / MIN_ROWS; w = h / CELL_RATIO; }
+  cols = Math.max(BASE_COLS, Math.min(80, Math.floor(W / w)));
+  rows = Math.max(20, Math.min(80, Math.floor(H / h)));
+  cw = Math.floor(w * dpr * 100) / 100;
+  ch = Math.floor(h * dpr * 100) / 100;
+  cv.width = Math.round(W * dpr);
+  cv.height = Math.round(H * dpr);
+  cv.style.width = W + "px";
+  cv.style.height = H + "px";
+  ox = Math.floor((cv.width - cols * cw) / 2);
+  oy = Math.floor((cv.height - rows * ch) / 2);
+  // a monospace font whose glyphs are one cell wide
+  ctx.font = "100px ui-monospace, 'Cascadia Mono', 'DejaVu Sans Mono', 'Roboto Mono', 'Droid Sans Mono', monospace";
+  const mw = ctx.measureText("M").width / 100;
+  fontPx = Math.min(cw / mw, ch * 0.8);
+  fontYOff = ch * 0.5;
+  draw();
+}
+
+function color(c, fallback) { return c || fallback; }
+
+// box drawing: which arms a glyph has (1 light, 2 heavy, 3 double)  [up, right, down, left]
+const BOX = {
+  0x2500: [0,1,0,1], 0x2501: [0,2,0,2], 0x2502: [1,0,1,0], 0x2503: [2,0,2,0],
+  0x250C: [0,1,1,0], 0x250F: [0,2,2,0], 0x2510: [0,0,1,1], 0x2513: [0,0,2,2],
+  0x2514: [1,1,0,0], 0x2517: [2,2,0,0], 0x2518: [1,0,0,1], 0x251B: [2,0,0,2],
+  0x251C: [1,1,1,0], 0x2523: [2,2,2,0], 0x2524: [1,0,1,1], 0x252B: [2,0,2,2],
+  0x252C: [0,1,1,1], 0x2533: [0,2,2,2], 0x2534: [1,1,0,1], 0x253B: [2,2,0,2],
+  0x253C: [1,1,1,1], 0x254B: [2,2,2,2],
+  0x2550: [0,3,0,3], 0x2551: [3,0,3,0], 0x2554: [0,3,3,0], 0x2557: [0,0,3,3], 0x255A: [3,3,0,0], 0x255D: [3,0,0,3],
+  0x2560: [3,3,3,0], 0x2563: [3,0,3,3], 0x2566: [0,3,3,3], 0x2569: [3,3,0,3], 0x256C: [3,3,3,3],
+  0x2574: [0,0,0,1], 0x2575: [1,0,0,0], 0x2576: [0,1,0,0], 0x2577: [0,0,1,0],
+  0x2578: [0,0,0,2], 0x2579: [2,0,0,0], 0x257A: [0,2,0,0], 0x257B: [0,0,2,0],
+};
+const ROUND = { 0x256D: "dr", 0x256E: "dl", 0x2570: "ur", 0x256F: "ul" };   // ╭ ╮ ╰ ╯
+
+function drawBox(cp, x, y, fg) {
+  const lw = Math.max(1, Math.round(cw * 0.115));
+  const cx = x + cw / 2, cy = y + ch / 2;
+  ctx.fillStyle = fg; ctx.strokeStyle = fg;
+  if (ROUND[cp]) {
+    const r = Math.min(cw, ch) / 2, k = ROUND[cp];
+    ctx.lineWidth = lw; ctx.lineCap = "butt";
+    ctx.beginPath();
+    const vy = k[0] === "d" ? y + ch : y, hx = k[1] === "r" ? x + cw : x;
+    ctx.moveTo(cx, vy);
+    ctx.arcTo(cx, cy, hx, cy, r);
+    ctx.lineTo(hx, cy);
+    ctx.stroke();
+    return true;
+  }
+  const a = BOX[cp];
+  if (!a) return false;
+  const arm = (dir, w) => {
+    if (!w) return;
+    const t = w === 2 ? lw * 2 : lw;
+    if (w === 3) {          // double: two thin lines
+      const g = lw * 1.5;
+      if (dir === 0) { ctx.fillRect(cx - g - lw / 2, y, lw, ch / 2 + g); ctx.fillRect(cx + g - lw / 2, y, lw, ch / 2 + g); }
+      if (dir === 2) { ctx.fillRect(cx - g - lw / 2, cy - g, lw, ch / 2 + g); ctx.fillRect(cx + g - lw / 2, cy - g, lw, ch / 2 + g); }
+      if (dir === 1) { ctx.fillRect(cx - g, cy - g - lw / 2, cw / 2 + g, lw); ctx.fillRect(cx - g, cy + g - lw / 2, cw / 2 + g, lw); }
+      if (dir === 3) { ctx.fillRect(x, cy - g - lw / 2, cw / 2 + g, lw); ctx.fillRect(x, cy + g - lw / 2, cw / 2 + g, lw); }
+      return;
+    }
+    if (dir === 0) ctx.fillRect(cx - t / 2, y, t, ch / 2 + t / 2);
+    if (dir === 2) ctx.fillRect(cx - t / 2, cy - t / 2, t, ch / 2 + t / 2 + 0.5);
+    if (dir === 1) ctx.fillRect(cx - t / 2, cy - t / 2, cw / 2 + t / 2 + 0.5, t);
+    if (dir === 3) ctx.fillRect(x, cy - t / 2, cw / 2 + t / 2, t);
+  };
+  for (let d = 0; d < 4; d++) arm(d, a[d]);
+  return true;
+}
+
+function drawBlock(cp, x, y, fg) {
+  ctx.fillStyle = fg;
+  if (cp === 0x2588) { ctx.fillRect(x, y, cw + 0.5, ch + 0.5); return true; }
+  if (cp === 0x2580) { ctx.fillRect(x, y, cw + 0.5, ch / 2); return true; }
+  if (cp >= 0x2581 && cp <= 0x2587) { const h = ch * (cp - 0x2580) / 8; ctx.fillRect(x, y + ch - h, cw + 0.5, h + 0.5); return true; }
+  if (cp >= 0x2589 && cp <= 0x258F) { const w = cw * (0x2590 - cp) / 8; ctx.fillRect(x, y, w, ch + 0.5); return true; }
+  if (cp === 0x2590) { ctx.fillRect(x + cw / 2, y, cw / 2 + 0.5, ch + 0.5); return true; }
+  if (cp === 0x2594) { ctx.fillRect(x, y, cw + 0.5, ch / 8); return true; }
+  if (cp >= 0x2591 && cp <= 0x2593) {
+    ctx.globalAlpha = cp === 0x2591 ? 0.25 : cp === 0x2592 ? 0.5 : 0.75;
+    ctx.fillRect(x, y, cw + 0.5, ch + 0.5);
+    ctx.globalAlpha = 1;
+    return true;
+  }
+  return false;
+}
+
+// braille: the eight dots as round, thick dots on the cell's 2 x 4 grid
+function drawBraille(cp, x, y, fg) {
+  const bits = cp - 0x2800;
+  if (!bits) return;
+  const sx = cw / 2, sy = ch / 4;
+  const r = Math.min(sx, sy) * (dotSize === "thick" ? 0.40 : dotSize === "small" ? 0.25 : 0.32);
+  ctx.fillStyle = fg;
+  ctx.beginPath();
+  const order = [[0,0],[0,1],[0,2],[1,0],[1,1],[1,2],[0,3],[1,3]];   // dots 1-8
+  for (let b = 0; b < 8; b++) {
+    if (!(bits & (1 << b))) continue;
+    const px = x + sx * (order[b][0] + 0.5), py = y + sy * (order[b][1] + 0.5);
+    ctx.moveTo(px + r, py);
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+  }
+  ctx.fill();
+}
+
+function paintCells(cellRows, dimAll) {
+  for (let r = 0; r < cellRows.length && r < rows; r++) {
+    const line = cellRows[r];
+    for (let c = 0; c < line.length && c < cols; c++) {
+      const cell = line[c];
+      if (!cell) continue;
+      const x = ox + c * cw, y = oy + r * ch;
+      let fg = color(cell.fg, DEFAULT_FG()), bg = cell.bg;
+      if (cell.inv) { const t = bg || DEFAULT_BG; bg = fg; fg = t; }
+      const w = cell.wide ? cw * 2 : cw;
+      if (bg) { ctx.fillStyle = bg; ctx.fillRect(Math.floor(x), Math.floor(y), Math.ceil(w) + 1, Math.ceil(ch) + 1); }
+      const cp = cell.cp;
+      if (cp === 0x20 || cp === 0x2800 && !cell.ul) { if (cell.ul) underline(x, y, w, fg); continue; }
+      ctx.globalAlpha = (cell.dim ? 0.55 : 1) * (dimAll ? 0.35 : 1);
+      if (cp >= 0x2800 && cp <= 0x28FF) drawBraille(cp, x, y, fg);
+      else if (!((cp >= 0x2500 && cp <= 0x257F && drawBox(cp, x, y, fg)) || (cp >= 0x2580 && cp <= 0x259F && drawBlock(cp, x, y, fg)))) {
+        ctx.fillStyle = fg;
+        ctx.font = (cell.bold ? "bold " : "") + fontPx.toFixed(2) + "px ui-monospace, 'Cascadia Mono', 'DejaVu Sans Mono', 'Roboto Mono', 'Droid Sans Mono', monospace";
+        ctx.textBaseline = "middle";
+        ctx.textAlign = "center";
+        ctx.fillText(cell.ch, x + w / 2, y + fontYOff);
+      }
+      if (cell.ul) underline(x, y, w, fg);
+      ctx.globalAlpha = 1;
+    }
+  }
+}
+function underline(x, y, w, fg) { ctx.fillStyle = fg; ctx.fillRect(x, y + ch * 0.9, w, Math.max(1, ch * 0.06)); }
+
+function draw() {
+  ctx.fillStyle = DEFAULT_BG;
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  if (grid.length) paintCells(grid, !!overlay);
+  if (flash && !overlay) {
+    ctx.fillStyle = "rgba(255,255,255,0.22)";
+    ctx.fillRect(ox + flash.x * cw, oy + flash.y * ch, flash.w * cw, flash.h * ch);
+  }
+  if (overlay) paintCells(overlay.cells, false);
+}
+
+// ---- panels of this page (drawn with the same look) -----------------------------------------------------------------
+const C = { border: "\x1b[38;5;170m", bottom: "\x1b[38;5;104m", head: "\x1b[1;38;5;10m", legend: "\x1b[38;5;8m",
+            text: "\x1b[38;5;7m", field: "\x1b[38;5;15;48;5;238m", warn: "\x1b[38;5;203m", R: "\x1b[0m" };
+function plainWidth(s) { return parseLine(s).length; }
+// a centred panel: title + lines (each "text" or {t: text, cmd: "..."}); returns {cells, zones}
+function panel(title, items, wantW) {
+  const w = Math.min(cols - 2, wantW || 40), inner = w - 4;
+  const left = Math.floor((cols - w) / 2);
+  const h = items.length + 2, top = Math.max(0, Math.floor((rows - h) / 2));
+  const lines = [], zones = [];
+  const pad = n => " ".repeat(Math.max(0, n));
+  const t = " " + title + " ";
+  lines.push(C.border + "╭─" + C.R + C.head + t + C.R + C.border + "─".repeat(Math.max(0, w - 3 - plainWidth(t))) + "╮" + C.R);
+  items.forEach((it, i) => {
+    let txt = typeof it === "string" ? it : it.t;
+    while (plainWidth(txt) > inner) txt = txt.slice(0, -1);   // never past the frame
+    const vis = plainWidth(txt);
+    lines.push(C.border + "│" + C.R + " " + txt + C.R + pad(inner - vis) + " " + C.border + "│" + C.R);
+    if (typeof it !== "string" && it.cmd) zones.push({ x: left, y: top + 1 + i, w, h: 1, cmd: it.cmd });
+  });
+  lines.push(C.bottom + "╰" + "─".repeat(w - 2) + "╯" + C.R);
+  const cells = [];
+  for (let r = 0; r < rows; r++) cells.push([]);
+  lines.forEach((l, i) => {
+    const row = [];
+    for (let k = 0; k < left; k++) row.push(null);
+    // the panel covers what is under it: every cell gets the black background
+    cells[top + i] = row.concat(parseLine(l).map(c => c && (c.bg ? c : Object.assign(c, { bg: DEFAULT_BG }))));
+  });
+  return { cells, zones };
+}
+function center(s, w) { const v = plainWidth(s); const l = Math.max(0, Math.floor((w - v) / 2)); return " ".repeat(l) + s; }
+
+const typed = document.getElementById("type");
+let pinDraft = "";
+function showPin(message) {
+  pinDraft = "";
+  const make = () => {
+    const shown = pinDraft + "_".repeat(Math.max(0, 6 - pinDraft.length));
+    overlay = panel("MOUSIKI REMOTE", [
+      "",
+      C.text + "Enter the PIN of the remote app:",
+      C.legend + "(Mousiki shows it in Settings ->",
+      C.legend + " ON/OFF -> Remote App, and",
+      C.legend + " `mousiki --remote-info` prints it)",
+      "",
+      { t: center(C.field + "  " + shown + "  " + C.R, 36), cmd: "@type" },
+      "",
+      message ? C.warn + message : "",
+      { t: center(C.border + "[ CONNECT ]", 36), cmd: "@pin-ok" },
+      "",
+    ], 40);
+    draw();
+  };
+  overlay = { cells: [], zones: [], refresh: make };
+  make();
+  typed.value = "";
+  setTimeout(() => typed.focus(), 50);
+}
+typed.addEventListener("input", () => {
+  pinDraft = typed.value.replace(/\D/g, "").slice(0, 8);
+  typed.value = pinDraft;
+  if (overlay && overlay.refresh) overlay.refresh();
+});
+typed.addEventListener("keydown", e => { if (e.key === "Enter") act("@pin-ok"); });
+
+function showMenu() {
+  const items = [
+    "",
+    { t: C.text + "Colours 0-15:  " + C.head + PALETTE_LABEL[paletteName], cmd: "@palette" },
+    { t: C.text + "Braille dots:  " + C.head + dotSize, cmd: "@dots" },
+    { t: C.text + "Change the PIN", cmd: "@pin" },
+  ];
+  if (APP) items.push({ t: C.text + "Other computer / address", cmd: "@connect" });
+  items.push({ t: C.text + "Open the manual", cmd: "@manual" });
+  items.push("", { t: center(C.border + "[ CLOSE ]", 36), cmd: "@close" }, "");
+  overlay = panel("REMOTE SETTINGS", items, 40);
+  overlay.menu = true;
+  draw();
+}
+
+function showLost(text) {
+  if (overlay && !overlay.lost) return;
+  overlay = panel("NO CONNECTION", [
+    "",
+    C.text + text,
+    C.legend + "Is Mousiki running, with Remote App on,",
+    C.legend + "and the phone in the same network?",
+    "",
+    { t: center(C.border + "[ RETRY ]", 36), cmd: "@retry" },
+    APP ? { t: center(C.border + "[ OTHER COMPUTER ]", 36), cmd: "@connect" } : "",
+    "",
+  ], 40);
+  overlay.lost = true;
+  draw();
+}
+
+// ---- talking to Mousiki ----------------------------------------------------------------------------------------------
+let rev = -1, busy = false, failures = 0, timer = 0;
+async function poll() {
+  clearTimeout(timer);
+  if (busy) return;
+  if (!pin) { if (!overlay) showPin(""); timer = setTimeout(poll, 500); return; }
+  busy = true;
+  try {
+    const r = await fetch("/api/screen?pin=" + encodeURIComponent(pin) + "&cols=" + cols + "&rows=" + rows, { cache: "no-store" });
+    if (r.status === 403) { pin = ""; store.set("pin", ""); showPin("wrong PIN"); }
+    else if (r.status === 429) { showLost("too many wrong PINs: wait a minute"); }
+    else if (r.ok) {
+      const s = await r.json();
+      failures = 0;
+      if (overlay && overlay.lost) overlay = null;
+      if (s.rev !== rev) {
+        rev = s.rev;
+        screen = s;
+        const n = parseInt(s.text, 10);
+        textColor = n >= 1 && n <= 255 ? PAL[n] : "";
+        grid = s.lines.map(parseLine);
+        draw();
+      }
+    }
+  } catch (e) {
+    if (++failures >= 3) showLost("Mousiki does not answer.");
+  }
+  busy = false;
+  timer = setTimeout(poll, document.hidden ? 2000 : (failures ? 1000 : 80));
+}
+
+async function send(cmd, arg) {
+  try {
+    await fetch("/api/cmd?pin=" + encodeURIComponent(pin) + "&name=" + encodeURIComponent(cmd) + "&arg=" + encodeURIComponent(arg || ""), { cache: "no-store" });
+  } catch (e) {}
+  setTimeout(poll, 30);
+}
+
+function openManual() {
+  if (APP && APP.openUrl) APP.openUrl(MANUAL_URL);
+  else window.open(MANUAL_URL, "_blank");
+}
+
+function act(cmd, arg) {
+  switch (cmd) {
+    case "@manual": openManual(); return;
+    case "@menu": showMenu(); return;
+    case "@close": overlay = null; draw(); return;
+    case "@palette": {
+      const k = Object.keys(BASE16); paletteName = k[(k.indexOf(paletteName) + 1) % k.length];
+      store.set("palette", paletteName); buildPalette();
+      if (screen) grid = screen.lines.map(parseLine);
+      showMenu(); return;
+    }
+    case "@dots": {
+      const k = ["thick", "normal", "small"]; dotSize = k[(k.indexOf(dotSize) + 1) % k.length];
+      store.set("dots", dotSize); showMenu(); return;
+    }
+    case "@pin": showPin(""); return;
+    case "@type": typed.focus(); return;
+    case "@pin-ok":
+      if (pinDraft.length >= 4) { pin = pinDraft; store.set("pin", pin); overlay = null; typed.blur(); rev = -1; poll(); }
+      return;
+    case "@retry": overlay = null; failures = 0; draw(); poll(); return;
+    case "@connect": if (APP && APP.connectScreen) APP.connectScreen(); return;
+  }
+  send(cmd, arg);
+}
+
+// ---- taps --------------------------------------------------------------------------------------------------------------
+function zoneAt(px, py) {
+  const c = Math.floor((px * dpr - ox) / cw), r = Math.floor((py * dpr - oy) / ch);
+  const list = overlay ? overlay.zones : (screen ? screen.zones : []);
+  for (let i = list.length - 1; i >= 0; i--) {
+    const z = list[i];
+    if (c >= z.x && c < z.x + z.w && r >= z.y && r < z.y + z.h) return z;
+  }
+  return null;
+}
+cv.addEventListener("pointerup", e => {
+  const rect = cv.getBoundingClientRect();
+  const z = zoneAt(e.clientX - rect.left, e.clientY - rect.top);
+  if (!z) {
+    if (overlay && overlay.menu) { overlay = null; draw(); }
+    return;
+  }
+  if (APP && APP.haptic) APP.haptic(); else if (navigator.vibrate) navigator.vibrate(8);
+  if (!overlay && !z.cmd.startsWith("@")) {
+    flash = z; draw();
+    setTimeout(() => { flash = null; draw(); }, 140);
+  }
+  act(z.cmd, z.arg);
+});
+// long press anywhere: the remote's own settings
+let pressTimer = 0;
+cv.addEventListener("pointerdown", () => { clearTimeout(pressTimer); pressTimer = setTimeout(() => { if (!overlay) showMenu(); }, 700); });
+["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, () => clearTimeout(pressTimer)));
+
+document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
+window.addEventListener("resize", layout);
+window.addEventListener("orientationchange", () => setTimeout(layout, 200));
+// the Android app's back button: close a panel first
+window.mousikiBack = () => { if (overlay && !overlay.lost && pin) { overlay = null; typed.blur(); draw(); return true; } return false; };
+
+layout();
+poll();
+</script>
+</body>
+</html>

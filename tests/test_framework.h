@@ -17,7 +17,9 @@ std::vector<Case>& registry();
 struct Registrar { Registrar(const char* n, void (*f)()) { registry().push_back({n, f}); } };
 void fail(const char* file, int line, const std::string& what);
 
-// A throw-away HOME: settings, themes, remote-control files ... go to a fresh folder that is removed at the end.
+// A throw-away HOME: settings, themes, remote-control files ... go to a fresh folder that is removed at the end. It is
+// also the working directory meanwhile: a config.txt / radio_config.txt next to the test program (the build folder has
+// copies) would otherwise be read and written instead of the ones in HOME.
 class TempHome {
 public:
     TempHome();
@@ -25,7 +27,7 @@ public:
     const std::filesystem::path& path() const { return dir_; }
     std::filesystem::path config_dir() const { return dir_ / ".config" / "mousiki"; }
 private:
-    std::filesystem::path dir_;
+    std::filesystem::path dir_, old_cwd_;
     std::string old_home_;
     bool had_home_ = false;
 };

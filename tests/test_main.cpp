@@ -1,6 +1,7 @@
 #include "test_framework.h"
 
 #include <chrono>
+#include <clocale>
 #include <cstdio>
 #include <cstring>
 #include <random>
@@ -27,6 +28,9 @@ TempHome::TempHome() {
     std::mt19937_64 rng(static_cast<unsigned long long>(std::chrono::steady_clock::now().time_since_epoch().count()));
     dir_ = std::filesystem::temp_directory_path() / ("mousiki-test-" + std::to_string(rng()));
     std::filesystem::create_directories(dir_);
+    std::error_code ec;
+    old_cwd_ = std::filesystem::current_path(ec);
+    std::filesystem::current_path(dir_, ec);
 #if defined(_WIN32)
     _putenv_s("HOME", dir_.string().c_str());
 #else
@@ -41,12 +45,16 @@ TempHome::~TempHome() {
     if (had_home_) setenv("HOME", old_home_.c_str(), 1); else unsetenv("HOME");
 #endif
     std::error_code ec;
+    if (!old_cwd_.empty()) std::filesystem::current_path(old_cwd_, ec);
     std::filesystem::remove_all(dir_, ec);
 }
 
 } // namespace mt
 
 int main(int argc, char** argv) {
+    // like the program: UTF-8 text, so display widths of box and braille characters are counted as on screen
+    if (!std::setlocale(LC_ALL, "C.UTF-8")) std::setlocale(LC_ALL, "");
+    std::setlocale(LC_NUMERIC, "C");
     const std::string filter = argc > 1 ? argv[1] : "";
     int ran = 0, bad = 0;
     for (const mt::Case& c : mt::registry()) {

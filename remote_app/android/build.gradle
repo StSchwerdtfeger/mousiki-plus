@@ -1,0 +1,4 @@
+// Mousiki Remote -- the Android app of Mousiki's remote control (see README.md in this folder).
+plugins {
+    id 'com.android.application' version '8.7.3' apply false
+}

@@ -99,3 +99,13 @@ TEST(remote_command_names) {
     for (const char* n : {"play-pause", "next", "prev", "volume-up", "volume-down", "volume", "mute", "seek", "quit"})
         CHECK(std::find(names.begin(), names.end(), std::string(n)) != names.end());
 }
+
+TEST(remote_help_and_version_need_no_running_program) {
+    mt::TempHome home;
+    CHECK_EQ(client({"--cmd", "--help"}), 0);
+    CHECK_EQ(client({"--cmd", "help"}), 0);
+    CHECK_EQ(client({"--remote-help"}), 0);
+    CHECK_EQ(client({"--help"}), 0);
+    CHECK_EQ(client({"--version"}), 0);
+    CHECK_EQ(client({"--remote-info"}), 0);   // off: says how to switch it on
+}
