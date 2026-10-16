@@ -7,6 +7,7 @@
 ##-------------------------------------------
 
 # Colour numbers are numbers of the 256-colour terminal palette (1-255) in every field; 0 or empty = no colour (the terminal's own).
+# 16-255 look the same in every terminal; 1-15 are the terminal's 16 base colours and change with its colour scheme (10 is green in CMD, maybe yellow in yours).
 # (A file without the next line is an older one: its 30-37 / 90-97 / 40-47 / 100-107 are converted once.)
 ColorCodes=palette
 
@@ -26,51 +27,51 @@ ColorProgressBarPending=182
 
 # Section headers (the REFERENCE tab's category titles and the
 # LOCAL PATH / DOWNLOAD PATH / PLAYLIST PATH titles on the PATHS tab) -- 0 = no color, plain bold text
-ColorHeader=10
+ColorHeader=227
 
 # Key command legends (the grey hint lines such as "[ESC] close" in the Settings, the big
 # list / queue overlays, the playlist / meta editor and the history) -- 0 = terminal default
-ColorLegend=8
-ColorTabCurrent=8
-ColorTabOther=10
+ColorLegend=199
+ColorTabCurrent=199
+ColorTabOther=227
 
 # "This field is actively being typed into" (a PATHS row, a hex colour value, a
 # hotkey, a meta editor tag) -- 0 = terminal default
-ColorChangeFg=7
-ColorChangeBg=1
+ColorChangeFg=231
+ColorChangeBg=199
 
 # Pane focus indicator (the little triangle after the title of the pane that has the keys) -- 0 = plain bold
 ColorFocus=183
 
 # Search bar: typed query (highlighted behind the query text only) and the idle bar
 # (empty FG = same as List Inactive; empty BG = none)
-ColorSearchFg=7
-ColorSearchBg=1
-ColorSearchInactiveFg=
+ColorSearchFg=231
+ColorSearchBg=199
+ColorSearchInactiveFg=75
 ColorSearchInactiveBg=
 
 # List
-ColorListInactiveFg=
+ColorListInactiveFg=75
 ColorListInactiveBg=
 ColorListPlayingFg=16
 ColorListPlayingBg=182
-ColorListCursorFg=10
+ColorListCursorFg=227
 ColorListCursorBg=238
 
 # Queue
-ColorQueueInactiveFg=
+ColorQueueInactiveFg=75
 ColorQueueInactiveBg=
 ColorQueuePlayingFg=16
 ColorQueuePlayingBg=182
-ColorQueueCursorFg=
+ColorQueueCursorFg=75
 ColorQueueCursorBg=240
 
 # Lyrics
-ColorLyricsInactiveFg=
+ColorLyricsInactiveFg=75
 ColorLyricsInactiveBg=
 ColorLyricsActiveLineFg=182
 ColorLyricsActiveLineBg=
-ColorLyricsActiveWordFg=
+ColorLyricsActiveWordFg=75
 ColorLyricsActiveWordBg=
 
 ##-------------------------------------------
@@ -215,10 +216,17 @@ StartMode=player
 ## player , radio -- the mode Mousiki starts in (the * key switches while it runs; set in Settings -> ON/OFF -> MODES)
 BlackBackground=true
 ## true , false -- the terminal's background is black while Mousiki runs (given back on exit; player and radio)
+RemoteApp=false
+## true , false -- the remote app (Android app or phone browser) can control Mousiki over the home network (off by default; player and radio)
+RemoteAppPort=4747
+## 1024 - 65535 -- the network port of the remote app (default 4747)
+RemoteAppPin=
+## 4 - 8 digits -- the PIN the app needs; made when the remote app is switched on (mousiki --remote-info shows it)
 ShareProfiles=false
 ## true , false -- the radio uses the player's oscilloscope and spectrogram settings (its own are kept as a backup and come back when off)
 PlaybackMode=list
 ## list , loop , shuffle , stop , queue then stop (plays the queue once, then stops -- never falls through to the library)
+## shuffle never reorders the queue: n and the end of a track play its next title, only # picks a random one of it
 VisualizerDegradationSpeed=8
 ## 1 to 10
 VisualizerViscosity=3

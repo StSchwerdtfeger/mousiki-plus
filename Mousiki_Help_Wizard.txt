@@ -131,6 +131,12 @@ III RADIO PLAYER MODE[[Header]]
    12.1 Radio Settings: Colors, ON/OFF and ANIMA/VIZ
    12.2 Radio Settings: Paths, Keys and Files
 
+IV REMOTE CONTROL[[Header]]
+
+  13 Remote Control[[Header]]
+   13.1 Remote Control and Key Bindings
+   13.2 The Remote App (Phone)
+
 [[New Page]]
 
 OVERVIEW OF THE CAPABILITIES OF MOUSIKI PLUS: [[Header]]
@@ -366,6 +372,8 @@ indicates which playback mode is currently active. Use [m] to step through them.
 S[[Header]] ==[[Header]] SHUFFLE MODE[[Header]]
 Shuffles through tracks that are currently in the local audio files list (search filters apply!).
 Note that you can also actively shuffle to next song in the list via [#].
+The QUEUE is never shuffled: [n] and the end of a track play its next title in order; only [#]
+picks a random title of the queue.
 
 L[[Header]] ==[[Header]] LIST MODE[[Header]]
 Plays the next song in the list (filters apply!).
@@ -485,6 +493,8 @@ Apply [a] to a highlighted track in the LIBRARY PANE[[Header]] to add a track to
 the FETCH LIST PANE[[Header]]. For fetching data of all fetch listed tracks
 at once hit [ENTER].
 The command [DEL] or [d] deletes a track from the fetch list.
+[SHIFT+d] or [SHIFT+DEL] empties the whole fetch list (after a question); the pending edits,
+fetched tags included, stay until [CTRL+s] or [CTRL+SHIFT+x].
 All edited tracks will also be highlighted and filtered by the [r] command in the
 LIBRARY PANE [[Header]] of the EDIT TAB [[Header]].
 NOTE: Saving a high number of titles can take a few seconds![[Legend]] The process
@@ -932,8 +942,9 @@ built-in theme needs a new name. [ESC] with unsaved changes asks first, leaving 
 
 ON/OFF TAB: [[Header]] every row is changed with [<-/->]
 MODES: Playback (like [m]), Start Mode (player / radio: which of the two Mousiki opens with),
-Black Background (on: the terminal is black while Mousiki runs, its own color comes back on exit)
+Black Background (on: the terminal is black and plain text takes the list color while Mousiki runs; its own colors come back on exit)
 Share Profiles (on: the radio uses the player's oscilloscope/spectrogram settings; its own values are kept and come back when off)
+Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
 Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars, Stereo Sound,
 Normalize Volume, Replace Emoji, Marquee Scrolling
 VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
@@ -1233,15 +1244,41 @@ radio_history/     history_radio.txt and archive_radio.txt
 All of them live in the config folder: ~/.config/mousiki/ (Windows: %USERPROFILE%\.config\mousiki\).
 
 [[New Page]]
-8.4 REMOTE CONTROL AND KEY BINDINGS [[Header]]
+13.1 REMOTE CONTROL AND KEY BINDINGS [[Header]]
 
 A running player or radio can be controlled with the same program:
-  mousiki --cmd next | prev | play-pause | stop | shuffle | mute | live | switch-mode | quit
+  mousiki --cmd next | prev | play-pause | pause | stop | shuffle | mute | live | playback-mode | wizard | switch-mode | quit
   mousiki --cmd volume 60    mousiki --cmd volume-up    mousiki --cmd seek -30
   mousiki --status           what is playing now
+  mousiki --cmd --help       every command
 No media keys on your keyboard? Bind ANY key combination in your system to such a line:
 GNOME/KDE: custom shortcut with the command   mousiki --cmd next
 i3/sway:   bindsym Ctrl+Mod1+Right exec mousiki --cmd next
 Windows:   AutoHotkey   ^!Right::Run "mousiki.exe" --cmd next, , Hide
 macOS:     Shortcuts app (Run Shell Script) or skhd
 THEME PREVIEW: [[Header]] in the CHOOSE THEME list [SHIFT+p] shows a still copy of the main screen in the highlighted theme; any key goes back.
+
+[[New Page]]
+13.2 THE REMOTE APP (PHONE) [[Header]]
+
+Settings -> ON/OFF -> MODES -> Remote App -> [ENTER] opens the REMOTE APP overlay (player or radio):
+switch it ON, see the address and a QR code (scan it with the phone camera: the remote opens,
+logged in), change the PORT or the PIN ([n] a new one). [ESC] back, [s] saves the settings.
+Works with your own build as well as with an installed Mousiki. The phone must be in the same network.
+ANDROID APP: [[Header]] Mousiki Remote (remote_app/android): enter the address and the PIN once,
+or let it find Mousiki in the network.
+PHONE BROWSER: [[Header]] open the address and enter the PIN.
+The phone shows the disk, the meta data, the progress bar, the dummy buttons (working: seek,
+play/pause) and boxes for prev, random, next, volume, mute, playback mode, LISTS and manual --
+drawn by Mousiki in the colours of your theme. In the radio: the ON AIR sign, the station,
+prev/next station, pause, live, stop.
+LISTS (player): on top the local list (tap a title: it plays), below the saved playlists (tap one: its titles
+go into the queue, starts it when nothing plays). A tap on the other list gives it the focus; UP / DOWN
+move the list in focus a whole page. CLEAR QUEUE at the bottom: tap twice.
+STATIONS (radio): the whole station list, tap a station to tune it. UP / DOWN page, BACK returns.
+[RADIO]/[PLAYER] at the top switches the mode.
+Long press on the phone: its own settings (base colours, size of the braille dots, PIN).
+NO CONNECTION? [[Header]] same Wi-Fi? A VPN blocks the home network unless "local network access" is allowed in it.
+Windows: [f] in the overlay opens the port in the firewall. Test: http://127.0.0.1:4747 on the computer.
+SAFE: [[Header]] off by default, home network only, PIN for every command, 10 wrong PINs lock it
+for a minute. Windows asks once whether Mousiki may accept connections: allow private networks.
