@@ -1,19 +1,29 @@
-# Mousiki radio mode -- station list
-# Copy to ~/.config/mousiki/stations.txt (Windows: %USERPROFILE%\.config\mousiki\stations.txt)
-# or leave it next to the executable.
-#
-# name | genre | country | codec | bitrate kbps | url | [*] favorite | [dial MHz]
-#
-#  * a trailing "*" makes the station a DEFAULT preset (keys 1234567890ertdfg, in file order). Only used until
-#    ~/.config/mousiki/presets.txt exists -- after that the PRESETS menu (P) owns the presets
-#  * the dial MHz is only decoration (position on the frequency band); leave it out and
-#    one is derived from the name
-#  * url "lavfi:chords" / "lavfi:tone" / "lavfi:noise" are offline test signals made by ffmpeg
-#
-Radio Paradise         | Eclectic Rock    | US | AAC | 128 | https://stream.radioparadise.com/aac-128 | *
-SomaFM Groove Salad    | Ambient / Chill  | US | MP3 | 128 | https://ice1.somafm.com/groovesalad-128-mp3 | *
-SomaFM Indie Pop Rocks | Indie            | US | MP3 | 128 | https://ice1.somafm.com/indiepop-128-mp3
-Deutschlandfunk        | Info / Culture   | DE | MP3 | 128 | https://st01.sslstream.dlf.de/dlf/01/128/mp3/stream.mp3 | *
-TEST Stereo Chords     | Test signal      | -- | PCM |   0 | lavfi:chords | *
-TEST Sine 440 Hz       | Test signal      | -- | PCM |   0 | lavfi:tone
-TEST Pink Noise        | Test signal      | -- | PCM |   0 | lavfi:noise
+# Mousiki radio mode -- station list (written by the radio; see radio/stations.txt for the format)
+# name | genre | country | codec | kbps | url | [*] favorite
+Radio Paradise | Eclectic Rock | US | AAC | 128 | https://stream.radioparadise.com/aac-128 | *
+SomaFM Groove Salad | Ambient / Chill | US | MP3 | 128 | https://ice1.somafm.com/groovesalad-128-mp3 | *
+SomaFM Indie Pop Rocks | Indie | US | MP3 | 128 | https://ice1.somafm.com/indiepop-128-mp3
+TEST Stereo Chords | Test signal | -- | PCM | 0 | lavfi:chords | *
+TEST Sine 440 Hz | Test signal | -- | PCM | 0 | lavfi:tone
+TEST Pink Noise | Test signal | -- | PCM | 0 | lavfi:noise
+Vaporwave | vaporwave | JP | OGG | 64 | http://radio.plaza.one/ogg
+SomaFM Vaporwaves (128k MP3) | vaporwave | US | MP3 | 128 | https://ice2.somafm.com/vaporwaves-128-mp3
+SomaFM Secret Agent (128k MP3) | ambient / downtempo / jazz | US | MP3 | 128 | https://ice5.somafm.com/secretagent-128-mp3
+SomaFM Space Station Soma (128k AAC) | ambient / electronica / mid-tempo | US | AAC | 128 | https://ice5.somafm.com/spacestation-128-aac
+SomaFM Underground 80s (128k MP3) | 80s / new wave / uk synthpop | US | MP3 | 128 | https://ice5.somafm.com/u80s-128-mp3
+SomaFM PopTron (128k MP3) | electropop / indie / synthpop | US | MP3 | 128 | https://ice6.somafm.com/poptron-128-mp3
+SomaFM Drone Zone (128k MP3) | ambient / atmospheric / chillout | US | MP3 | 128 | https://ice5.somafm.com/dronezone-128-mp3
+SomaFM Deep Space One (128k MP3) | ambient / electronic / space | US | MP3 | 128 | https://ice6.somafm.com/deepspaceone-128-mp3
+SomaFM SF 10-33 (128k MP3) | ambient / experimental / fire scanner | US | MP3 | 128 | https://ice2.somafm.com/sf1033-128-mp3
+SomaFM DEF CON Radio (128k AAC) | ambient / chill / defcon | US | AAC | 128 | https://ice5.somafm.com/defcon-128-aac
+FIP | aac / music / public radio | FR | AAC | 192 | http://icecast.radiofrance.fr/fip-hifi.aac
+FIP Musiques du monde | aac / public radio / radio france | FR | AAC | 192 | http://icecast.radiofrance.fr/fipworld-hifi.aac
+FIP Sacré Français ! | fip / french / french chansons | FR | AAC | 107 | https://stream.radiofrance.fr/fipsacrefrancais/fipsacrefrancais.m3u8?id=radiofrance
+BBC Radio 3 (128k) | classical | GB | UNKNOWN | 0 | http://as-hls-ww-live.akamaized.net/pool_23461179/live/ww/bbc_radio_three/bbc_radio_three.isml/bbc_radio_three-audio%3d128000.norewind.m3u8
+shirley & spinoza | college radio / eclectic / experimental | CN | AAC | 192 | http://s2.radio.co/sec5fa6199/listen
+Radio Brennpunkt | ambient / community radio / experimental | US | MP3 | 320 | https://radio-brennpunkt.radiocult.fm/stream
+radio aporee | experimental / sound art | DE | MP3 | 128 | http://radio.aporee.org:8000/aporee
+WPRB 103.3 FM - Princeton, NJ | commercial / freeform / indie | US | AAC | 96 | http://wprb.streamguys1.com/live
+Black Sparrow Radio KBSR | country / dj sets / independent radio | US | MP3 | 192 | https://streams.radio.co/sb821fbb0a/listen
+Classic FM Movies | classical / film score / movies | GB | MP3 | 128 | https://media-ice.musicradio.com/ClassicFMMoviesMP3
+NTS Radio 1 | community radio / dj sets / eclectic | GB | MP3 | 256 | http://stream-relay-geo.ntslive.net/stream
