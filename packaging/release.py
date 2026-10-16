@@ -348,7 +348,7 @@ def detect_version(src, override):
     readme_ver = None
     rp = src / "README.md"
     if rp.is_file():
-        m = re.search(r"^#\s*\W*Mousiki\s+v?(\d+\.\d+\.\d+)", rp.read_text(encoding="utf-8", errors="replace"), re.M)
+        m = re.search(r"^#\s*\W*Mousiki(?:\s+Plus)?\s+v?(\d+\.\d+\.\d+)", rp.read_text(encoding="utf-8", errors="replace"), re.M)
         if m:
             readme_ver = m.group(1)
     version = (override or "").lstrip("v") or readme_ver or cmake_ver
