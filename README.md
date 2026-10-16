@@ -131,7 +131,7 @@ Mousiki comes with 32 colour themes, and you can make, edit, export and import y
 |:---:|:---:|
 | <img width="420" alt="SeriousMeowerShell(Default)" src="readme_images/theme_default.png" /><br>**SeriousMeowerShell (Default)** | <img width="420" alt="MeowerShell" src="readme_images/theme_meowershell.png" /><br>**MeowerShell** |
 | <img width="420" alt="Vaporwave" src="readme_images/theme_vaporwave.png" /><br>**Vaporwave** | <img width="420" alt="Lavender Haze" src="readme_images/theme_lavender_haze.png" /><br>**Lavender Haze** |
-| <img width="420" alt="Cyberpunk" src="readme_images/theme_cyberpunk.png" /><br>**Cyberpunk** (radio) | <img width="420" alt="Dracula" src="readme_images/theme_dracula.png" /><br>**Dracula** |
+| <img width="420" alt="Cyberpunk" src="readme_images/theme_cyberpunk.png" /><br>**Cyberpunk** (radio) | <img width="420" alt="Dracula" src="readme_images/theme_dracula_main.png" /><br>**Dracula** |
 
 <p align="center"><img width="850" alt="CHOOSE THEME: all built-in themes" src="readme_images/theme_picker.png" /></p>
 <p align="center"><img width="850" alt="CREATE THEME" src="readme_images/create_theme.png" /></p>
