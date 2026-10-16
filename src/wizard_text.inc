@@ -133,6 +133,12 @@ III RADIO PLAYER MODE[[Header]]
    12.1 Radio Settings: Colors, ON/OFF and ANIMA/VIZ
    12.2 Radio Settings: Paths, Keys and Files
 
+IV REMOTE CONTROL[[Header]]
+
+  13 Remote Control[[Header]]
+   13.1 Remote Control and Key Bindings
+   13.2 The Remote App (Phone)
+
 [[New Page]]
 
 OVERVIEW OF THE CAPABILITIES OF MOUSIKI PLUS: [[Header]]
@@ -211,10 +217,10 @@ changes the sorting of the local audio files.
 The command [f] filters the local list by folder, which means, when a highlighted track is
 e.g. in folder with other tracks from the same album, it will then only show the files in
 the associated folder. Use [c] or [ESC] to clear folder filter.
-[SHIFT+l] opens a BIG LIST OVERLAY[[HEADER]] for a better overview.
-[SHIFT+f] opens the BIG FOLDER OVERLAY[[Header]].
 )WIZ",
-R"WIZ([SHIFT+k] opens the BIG QUEUE OVERLAY[[Header]].
+R"WIZ([SHIFT+l] opens a BIG LIST OVERLAY[[HEADER]] for a better overview.
+[SHIFT+f] opens the BIG FOLDER OVERLAY[[Header]].
+[SHIFT+k] opens the BIG QUEUE OVERLAY[[Header]].
 
 QUEUE PANE: [[Header]]
 See BUILDING A QUEUE[[Header]] for details on how to e.g. adjust the queue order, how to
@@ -369,6 +375,8 @@ indicates which playback mode is currently active. Use [m] to step through them.
 S[[Header]] ==[[Header]] SHUFFLE MODE[[Header]]
 Shuffles through tracks that are currently in the local audio files list (search filters apply!).
 Note that you can also actively shuffle to next song in the list via [#].
+The QUEUE is never shuffled: [n] and the end of a track play its next title in order; only [#]
+picks a random title of the queue.
 
 L[[Header]] ==[[Header]] LIST MODE[[Header]]
 Plays the next song in the list (filters apply!).
@@ -397,7 +405,8 @@ GENERAL: [[Header]]
 With the LIST focused: [[Header]]
 [a]             add track to the TOP of the queue
 [e]             add track to the END of the queue
-
+)WIZ",
+R"WIZ(
 With QUEUE focused: [[Header]]
 [d]             remove from queue
 [4/5]           move UP / DOWN
@@ -405,8 +414,7 @@ With QUEUE focused: [[Header]]
 [a]             opens bulk-add panel: paste a YouTube playlist link to add
 
 QUEUE related commands, no matter the focus: [[Header]]
-)WIZ",
-R"WIZ([!]             lock / unlock (default is locked: move to queue end when played)
+[!]             lock / unlock (default is locked: move to queue end when played)
 [SHIFT+x]       clear it (asks first)
 [CTRL+SHIFT+z]  undo the last clear (one level)
 [CTRL+SHIFT+u]  save the queue as a playlist
@@ -489,6 +497,8 @@ Apply [a] to a highlighted track in the LIBRARY PANE[[Header]] to add a track to
 the FETCH LIST PANE[[Header]]. For fetching data of all fetch listed tracks
 at once hit [ENTER].
 The command [DEL] or [d] deletes a track from the fetch list.
+[SHIFT+d] or [SHIFT+DEL] empties the whole fetch list (after a question); the pending edits,
+fetched tags included, stay until [CTRL+s] or [CTRL+SHIFT+x].
 All edited tracks will also be highlighted and filtered by the [r] command in the
 LIBRARY PANE [[Header]] of the EDIT TAB [[Header]].
 NOTE: Saving a high number of titles can take a few seconds![[Legend]] The process
@@ -552,13 +562,13 @@ NOTE: Needs ffmpeg with libmp3lame and libopus; the installers provide it.[[Lege
 When the lyrics engine is on, Mousiki fetches the lyrics of the playing track and follows along
 line by line, and word by word where the source has word timings (depends on the structure of the 
 imported file). They are shown in the field right of the meta data (the VIZ/LYRICS FIELD[[Header]] of the main pane): the line that was sung and the following one are dimmed, the line being sung right now is highlighted. However, the coloring / highlighting behavior depends on chosen options in the SETTINGS[[Header]] in the tab COLORS[[Header]]. When no colors are applied, the text will just move on and may eventually be underlined, in
-case the fetched file allows for such behavior.
+)WIZ",
+R"WIZ(case the fetched file allows for such behavior.
 
 SWITCH THROUGH THE FIELD: [[Header]]
 [,/.]   cycles the field lyrics, sphere, oscilloscope, spectrogram back and forth; for more 
         details on those options see the chapter on VISUALIZATIONS
-)WIZ",
-R"WIZ([k]     opens the KARAOKE MODE[[Header]] (see respective chapter for details)
+[k]     opens the KARAOKE MODE[[Header]] (see respective chapter for details)
 
 LOOK OF THE LYRICS (ADJUSTABLE IN THE SETTINGS): [[Header]]
 Colors:[[Header]] settings tab COLORS, rows LYRICS (inactive line, active line, active word).
@@ -690,12 +700,12 @@ Image res/detail image style: drawn at full / half / third resolution; detail no
 Decay            the afterglow, higher = longer trails
 Tail / Glow      bright head with fading tail / line glow
 Z-Axis           beam brightness follows speed or level
-Color            the VIZ gradient or 8 palettes
+)WIZ",
+R"WIZ(Color            the VIZ gradient or 8 palettes
 Each style keeps its own values, so switching between braille and image never loses your tuning.
 [R] resets only the style in use.
 Starting points for braille: crisp scope = Decay 0.65, Dot threshold 0.35, Tail 0.60.
-)WIZ",
-R"WIZ(Dreamy glow = 0.90, 0.20, 0.25.
+Dreamy glow = 0.90, 0.20, 0.25.
 Oscilloscope music (e.g. Jerobeam Fenderson): Osci music mode on, Beam CRT, Decay about 0.10,
 Image resolution full, Image detail high -- close to osci-render. Lossless files work best.
 
@@ -852,10 +862,10 @@ Nothing you do in here changes your music.
 GOOD TO KNOW: [[Header]]
 A play counts for a playlist when it was queued from a saved playlist ([ENTER] or [a] on a playlist
 row). The history keeps the newest 1000 plays one by one and folds older ones into lifetime totals
-per title, including the day and the time of day of every play, so the period and time-of-day lists
-stay exact over years. It lives in history.json, in [s] Settings[[Header]] ->> PATHS[[Header]] ->> HISTORY PATH[[Header]].
 )WIZ",
-R"WIZ(
+R"WIZ(per title, including the day and the time of day of every play, so the period and time-of-day lists
+stay exact over years. It lives in history.json, in [s] Settings[[Header]] ->> PATHS[[Header]] ->> HISTORY PATH[[Header]].
+
 [[New Page]]
 7.2 SMART HISTORY LISTS [[Header]]
 
@@ -939,8 +949,9 @@ built-in theme needs a new name. [ESC] with unsaved changes asks first, leaving 
 
 ON/OFF TAB: [[Header]] every row is changed with [<-/->]
 MODES: Playback (like [m]), Start Mode (player / radio: which of the two Mousiki opens with),
-Black Background (on: the terminal is black while Mousiki runs, its own color comes back on exit)
+Black Background (on: the terminal is black and plain text takes the list color while Mousiki runs; its own colors come back on exit)
 Share Profiles (on: the radio uses the player's oscilloscope/spectrogram settings; its own values are kept and come back when off)
+Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
 Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars, Stereo Sound,
 Normalize Volume, Replace Emoji, Marquee Scrolling
 VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
@@ -1003,14 +1014,14 @@ Equalizer [SHIFT+e], oscilloscope [SHIFT+o] / [SHIFT+0], spectrogram [SHIFT+i] /
 spectrogram windows [)] / [(], loudness normalization [v] / [SHIFT+v], sleep timer [SHIFT+z], text fields,
 the cheat sheet [?] and this wizard [SHIFT+w] work with the same keys and overlays as described in
 chapters 5 to 8. Differences: the radio keeps its own equalizer curve, oscilloscope values and
-settings in radio_config.txt; the sleep timer stops the stream (no "Stop after current song"); the
+)WIZ",
+R"WIZ(settings in radio_config.txt; the sleep timer stops the stream (no "Stop after current song"); the
 visualization field is the scope block right of the station info and [,/.] cycles oscilloscope,
 sphere and spectrogram (there are no lyrics).
 
 LETTERS ARE MORE OFTEN CASE SENSITIVE IN THE RADIO: [[Header]]
 [r] recalls a preset slot, [R] reconnects the station.
-)WIZ",
-R"WIZ(
+
 [[New Page]]
 9.1 THE RADIO SCREEN AND ITS KEYS [[Header]]
 
@@ -1151,7 +1162,8 @@ A row says "only m:ss" when the buffer does not reach that far back and then sta
 
 [UP]/[DOWN] choose   [ENTER] or [y] start   [ESC] cancel   [y] again while it runs: stop
 While it runs the footer of the dial shows REC mm:ss.
-
+)WIZ",
+R"WIZ(
 WHAT YOU GET: [[Header]]
 The recording is written from the buffer as a WAV, which ffmpeg then converts in the background to
 YYYY-MM-DD_HH-MM-SS.mp3, named by the time the first recorded second was on air. It is taken before
@@ -1159,8 +1171,7 @@ volume, mute and the mono fold.
 
 WHERE IT GOES: [[Header]]
 Into the download folder of the radio ([s] Settings[[Header]] ->> PATHS[[Header]]), which by default is
-)WIZ",
-R"WIZ(the one of the music player. After a rescan ([SHIFT+r] in the player) the recordings are part of
+the one of the music player. After a rescan ([SHIFT+r] in the player) the recordings are part of
 your local library.
 
 
@@ -1242,17 +1253,43 @@ radio_history/     history_radio.txt and archive_radio.txt
 All of them live in the config folder: ~/.config/mousiki/ (Windows: %USERPROFILE%\.config\mousiki\).
 
 [[New Page]]
-8.4 REMOTE CONTROL AND KEY BINDINGS [[Header]]
+13.1 REMOTE CONTROL AND KEY BINDINGS [[Header]]
 
 A running player or radio can be controlled with the same program:
-  mousiki --cmd next | prev | play-pause | stop | shuffle | mute | live | switch-mode | quit
+  mousiki --cmd next | prev | play-pause | pause | stop | shuffle | mute | live | playback-mode | wizard | switch-mode | quit
   mousiki --cmd volume 60    mousiki --cmd volume-up    mousiki --cmd seek -30
   mousiki --status           what is playing now
+  mousiki --cmd --help       every command
 No media keys on your keyboard? Bind ANY key combination in your system to such a line:
 GNOME/KDE: custom shortcut with the command   mousiki --cmd next
 i3/sway:   bindsym Ctrl+Mod1+Right exec mousiki --cmd next
 Windows:   AutoHotkey   ^!Right::Run "mousiki.exe" --cmd next, , Hide
 macOS:     Shortcuts app (Run Shell Script) or skhd
 THEME PREVIEW: [[Header]] in the CHOOSE THEME list [SHIFT+p] shows a still copy of the main screen in the highlighted theme; any key goes back.
+
+[[New Page]]
+13.2 THE REMOTE APP (PHONE) [[Header]]
+
+Settings -> ON/OFF -> MODES -> Remote App -> [ENTER] opens the REMOTE APP overlay (player or radio):
+switch it ON, see the address and a QR code (scan it with the phone camera: the remote opens,
+logged in), change the PORT or the PIN ([n] a new one). [ESC] back, [s] saves the settings.
+Works with your own build as well as with an installed Mousiki. The phone must be in the same network.
+ANDROID APP: [[Header]] Mousiki Remote (remote_app/android): enter the address and the PIN once,
+or let it find Mousiki in the network.
+PHONE BROWSER: [[Header]] open the address and enter the PIN.
+The phone shows the disk, the meta data, the progress bar, the dummy buttons (working: seek,
+play/pause) and boxes for prev, random, next, volume, mute, playback mode, LISTS and manual --
+drawn by Mousiki in the colours of your theme. In the radio: the ON AIR sign, the station,
+prev/next station, pause, live, stop.
+LISTS (player): on top the local list (tap a title: it plays), below the saved playlists (tap one: its titles
+go into the queue, starts it when nothing plays). A tap on the other list gives it the focus; UP / DOWN
+move the list in focus a whole page. CLEAR QUEUE at the bottom: tap twice.
+STATIONS (radio): the whole station list, tap a station to tune it. UP / DOWN page, BACK returns.
+[RADIO]/[PLAYER] at the top switches the mode.
+Long press on the phone: its own settings (base colours, size of the braille dots, PIN).
+NO CONNECTION? [[Header]] same Wi-Fi? A VPN blocks the home network unless "local network access" is allowed in it.
+Windows: [f] in the overlay opens the port in the firewall. Test: http://127.0.0.1:4747 on the computer.
+SAFE: [[Header]] off by default, home network only, PIN for every command, 10 wrong PINs lock it
+for a minute. Windows asks once whether Mousiki may accept connections: allow private networks.
 )WIZ",
 nullptr };

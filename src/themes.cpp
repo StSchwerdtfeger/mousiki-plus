@@ -77,7 +77,11 @@ const Palette kPalettes[] = {
     {"Lavender Haze",       "183","147","219","141","147","225","183","239","189","219","60","183","103","183","103","232","183","103","225","219","","147"},
 };
 
-Theme expand(const Palette& p) {
+// `v8`: the theme as v4.1.0 first shipped it (some text colours empty = the terminal's own text colour, which differs
+// from terminal to terminal); without it every text colour is a fixed palette number, so the theme looks the same
+// in every terminal (Windows Terminal, CMD, GNOME, ... whatever their colour schemes say).
+Theme expand(const Palette& p, bool v8 = false) {
+    const char* text = v8 ? "" : p.lf;   // text that had no colour of its own: the theme's list text colour now
     Theme t;
     t.name = p.name;
     t.builtin = true;
@@ -91,18 +95,18 @@ Theme expand(const Palette& p) {
     a("ColorFocus", p.fc ? p.fc : p.hd);   // the pane focus indicator: the theme's header color unless the theme names its own
     a("Radio.ColorHeader", p.lg);         a("Radio.ColorLegend", p.hd);   // the radio draws them the other way round
     a("Radio.ColorFocus", p.lg);          // ... and its focus indicator follows ITS header colour
-    a("ColorSearchFg", "");               a("ColorSearchBg", "");
-    a("ColorSearchInactiveFg", "");       a("ColorSearchInactiveBg", "");
+    a("ColorSearchFg", text);             a("ColorSearchBg", "");
+    a("ColorSearchInactiveFg", text);     a("ColorSearchInactiveBg", "");
     a("ColorListInactiveFg", p.lf);       a("ColorListInactiveBg", "");
     a("ColorListPlayingFg", p.pf);        a("ColorListPlayingBg", "");
-    a("ColorListCursorFg", "");           a("ColorListCursorBg", p.cb);
+    a("ColorListCursorFg", text);         a("ColorListCursorBg", p.cb);
     // --- player only ---
     a("ColorDiskTop", p.d1);              a("ColorDiskBottom", p.d2);
     a("ColorProgressBarPlayed", p.pp);    a("ColorProgressBarPending", p.pn);
     a("ColorChangeFg", p.chf);            a("ColorChangeBg", p.chb);
     a("ColorQueueInactiveFg", p.lf);      a("ColorQueueInactiveBg", "");
     a("ColorQueuePlayingFg", p.pf);       a("ColorQueuePlayingBg", "");
-    a("ColorQueueCursorFg", "");          a("ColorQueueCursorBg", p.cb);
+    a("ColorQueueCursorFg", text);        a("ColorQueueCursorBg", p.cb);
     a("ColorLyricsInactiveFg", p.li);     a("ColorLyricsInactiveBg", "");
     a("ColorLyricsActiveLineFg", p.ll);   a("ColorLyricsActiveLineBg", "");
     a("ColorLyricsActiveWordFg", p.lw);   a("ColorLyricsActiveWordBg", p.wb);
@@ -120,15 +124,28 @@ Theme expand(const Palette& p) {
 // The two hand-made themes (not expressible as a Palette: they also colour the search bar, the playing row and so on).
 // "SeriousMeowerShell(Default)" is the music player's default and list index 0 (the base/fallback theme everywhere);
 // "MeowerShell" is the cyber-cat original, index 1.
-Theme hand_made(const char* name, const char* const (*kv)[2], size_t n) {
+// The two hand-made themes were made in a terminal whose own colour scheme turns some of the 16 base colours
+// into other colours (10 is yellow there, 8 and 1 pink) and whose default text colour is light blue. In another
+// terminal (CMD, a GNOME terminal ...) the same numbers look different: 10 is green, 8 grey, the default text grey.
+// Since v4.1.0 they only use the 240 fixed colours (16-255), which look the same in every terminal: the colours they
+// were made with. `v8` gives the old values (used to recognise a config.txt that still holds them).
+std::string universal_color(const std::string& key, const std::string& v) {
+    if (v == "10") return "227";   // yellow
+    if (v == "8" || v == "1") return "199";   // pink
+    if (v == "7") return "231";    // white
+    if (v.empty() && key.size() > 2 && key.compare(key.size() - 2, 2, "Fg") == 0) return "75";   // the light blue default text
+    return v;
+}
+
+Theme hand_made(const char* name, const char* const (*kv)[2], size_t n, bool v8) {
     Theme t;
     t.name = name;
     t.builtin = true;
-    for (size_t i = 0; i < n; ++i) t.kv.emplace_back(kv[i][0], kv[i][1]);
+    for (size_t i = 0; i < n; ++i) t.kv.emplace_back(kv[i][0], v8 ? std::string(kv[i][1]) : universal_color(kv[i][0], kv[i][1]));
     return t;
 }
 
-Theme serious_meowershell() {
+Theme serious_meowershell(bool v8 = false) {
     static const char* const kv[][2] = {
         {"ColorBorderTop","170"},{"ColorBorderBottom","104"},{"ColorMetadataKey","140"},{"ColorMetadataVal","182"},
         {"ColorVizLeft","170"},{"ColorVizRight","30"},{"ColorTabCurrent","8"},{"ColorTabOther","10"},{"ColorHeader","10"},
@@ -145,10 +162,10 @@ Theme serious_meowershell() {
         {"ColorFrequencyLine","170"},{"ColorFrequencyMHz","8"},{"ColorVolumeCurrent","170"},{"ColorVolumePossible","182"},
         {"ColorPresetInactiveFg","8"},{"ColorPresetInactiveBg",""},{"ColorPresetKeyFg","255"},
     };
-    return hand_made("SeriousMeowerShell(Default)", kv, sizeof kv / sizeof kv[0]);
+    return hand_made("SeriousMeowerShell(Default)", kv, sizeof kv / sizeof kv[0], v8);
 }
 
-Theme meowershell() {
+Theme meowershell(bool v8 = false) {
     static const char* const kv[][2] = {
         {"ColorBorderTop","170"},{"ColorBorderBottom","182"},{"ColorMetadataKey","170"},{"ColorMetadataVal","182"},
         {"ColorVizLeft","170"},{"ColorVizRight","30"},{"ColorTabCurrent","8"},{"ColorTabOther","10"},{"ColorHeader","10"},
@@ -165,7 +182,7 @@ Theme meowershell() {
         {"ColorFrequencyLine","170"},{"ColorFrequencyMHz","8"},{"ColorVolumeCurrent","170"},{"ColorVolumePossible","182"},
         {"ColorPresetInactiveFg","8"},{"ColorPresetInactiveBg",""},{"ColorPresetKeyFg","255"},
     };
-    return hand_made("MeowerShell", kv, sizeof kv / sizeof kv[0]);
+    return hand_made("MeowerShell", kv, sizeof kv / sizeof kv[0], v8);
 }
 
 std::string trim(const std::string& s) {
@@ -186,7 +203,7 @@ void write_theme(std::ostream& out, const Theme& t) {
 }
 
 const char* kHeader =
-    "# format: 8\n"
+    "# format: 9\n"
     "# Colours are numbers of the 256-colour terminal palette (1-255, 0 or empty = none).\n"
     "# Mousiki colour themes (shared by the player and the radio).\n"
     "# [Name] starts a theme; the lines below it use the key names of config.txt / radio_config.txt.\n"
@@ -321,7 +338,7 @@ std::vector<Theme> load_all() {
         std::ifstream in(path);
         std::string first;
         std::getline(in, first);
-        if (trim(first) != "# format: 8") {   // format 8 (v4.1.0): ten more built-in themes are written into the file
+        if (trim(first) != "# format: 9") {   // format 9 (v4.1.0): the built-ins use fixed colours only; format 8: ten more built-in themes
             const int old_format = file_format(path);
             std::vector<Theme> mine;
             for (Theme& ft : parse_file(path)) {
@@ -366,6 +383,41 @@ std::vector<Theme> load_all() {
     return all;
 }
 
+std::vector<std::pair<Theme, Theme>> renewed_builtins() {
+    std::vector<std::pair<Theme, Theme>> out;
+    out.emplace_back(serious_meowershell(true), serious_meowershell());
+    out.emplace_back(meowershell(true), meowershell());
+    for (const Palette& p : kPalettes) out.emplace_back(expand(p, true), expand(p));
+    return out;
+}
+
+bool file_holds(const fs::path& config, const Theme& th, bool radio) {
+    std::ifstream in(config);
+    if (!in) return false;
+    std::vector<std::pair<std::string, std::string>> raw;
+    std::string line;
+    while (std::getline(in, line)) {
+        line = trim(line);
+        if (line.empty() || line[0] == '#') continue;
+        const size_t eq = line.find('=');
+        if (eq == std::string::npos) continue;
+        raw.emplace_back(lower(trim(line.substr(0, eq))), trim(line.substr(eq + 1)));
+    }
+    int compared = 0;
+    for (const auto& kvp : th.kv) {
+        if (kvp.first.compare(0, 6, "Radio.") == 0) continue;
+        const std::string* want = th.get(kvp.first, radio);
+        const std::string k = lower(kvp.first);
+        for (const auto& [rk, rv] : raw) {
+            if (rk != k) continue;
+            if (rv != *want) return false;
+            ++compared;
+            break;
+        }
+    }
+    return compared >= 10;
+}
+
 std::filesystem::path exchange_dir() { return file_path().parent_path(); }
 
 std::string file_name_for(const std::string& theme_name) {
@@ -380,7 +432,7 @@ bool write_theme_file(const fs::path& file, const Theme& t, std::string& err) {
     if (file.has_parent_path()) fs::create_directories(file.parent_path(), ec);
     std::ofstream out(file, std::ios::trunc);
     if (!out) { err = "cannot write " + file.string(); return false; }
-    out << "# format: 8\n# A Mousiki colour theme. Import it with SHIFT+i on the Colors tab of the settings.\n\n";
+    out << "# format: 9\n# A Mousiki colour theme. Import it with SHIFT+i on the Colors tab of the settings.\n\n";
     write_theme(out, t);
     return true;
 }

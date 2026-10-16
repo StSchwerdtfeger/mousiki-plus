@@ -56,6 +56,12 @@ bool delete_theme(const std::string& name, std::string& err);
 std::string sanitize_name(const std::string& raw);
 
 // ---- export / import (SHIFT+e / SHIFT+i on the Colors tab) ----
+// Each built-in theme as an earlier version wrote it (first) and as it is now (second): a config.txt / radio_config.txt that
+// still holds exactly the old colours of a built-in theme is moved to the new ones when the program starts.
+std::vector<std::pair<Theme, Theme>> renewed_builtins();
+// Does the settings file `config` (config.txt, or radio_config.txt with `radio`) hold exactly the colours of `t`, as written
+// (an empty value counts as empty)? At least 10 of the theme's keys must be in the file.
+bool file_holds(const std::filesystem::path& config, const Theme& t, bool radio);
 std::filesystem::path exchange_dir();                       // default folder: ~/.config/mousiki
 // Writes `t` as a stand-alone theme file (same format as themes.txt). Folder is created when missing.
 bool write_theme_file(const std::filesystem::path& file, const Theme& t, std::string& err);
