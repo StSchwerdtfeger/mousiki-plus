@@ -1,4 +1,5 @@
 #include "radio_settings.h"
+#include "remote_server.h"
 #include "version.h"
 #include "about_text.h"
 #include <algorithm>
@@ -106,7 +107,7 @@ int theme_index(const RadioSettings& s, const std::vector<themes::Theme>& all) {
 
 namespace {
 enum RsId {
-    kRsPlayback, kRsStartMode, kRsBlackBg, kRsShareProfiles,
+    kRsPlayback, kRsStartMode, kRsBlackBg, kRsShareProfiles, kRsRemoteApp,
     kRsOnAir, kRsPulse, kRsDummy, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc,
     kRsScope, kRsOsciStyle,
@@ -117,7 +118,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
     // A header with an empty text is the blank line before the next header.
     static const std::vector<SettingsLine> on_off = {
         {true, -1, "MODES"},
-        {false, kRsPlayback, "Playback"}, {false, kRsStartMode, "Start Mode"}, {false, kRsBlackBg, "Black Background"}, {false, kRsShareProfiles, "Share Profiles"},
+        {false, kRsPlayback, "Playback"}, {false, kRsStartMode, "Start Mode"}, {false, kRsBlackBg, "Black Background"}, {false, kRsShareProfiles, "Share Profiles"}, {false, kRsRemoteApp, "Remote App"},
         {true, -1, ""},
         {true, -1, "ON/OFF"},
         {false, kRsOnAir, "On air ascii"}, {false, kRsPulse, "Pulse wave"}, {false, kRsDummy, "Dummy buttons"},
@@ -211,6 +212,7 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
     if (bool* f = flag_of(const_cast<RadioSettings&>(s), id)) return *f ? "true" : "false";
     switch (id) {
         case kRsShareProfiles: return s.share_profiles ? "true" : "false";
+        case kRsRemoteApp: return s.remote_app ? "on   [ENTER] settings" : "off  [ENTER] settings";   // opens the REMOTE APP overlay
         case kRsPlayback: return s.playback_shuffle ? "shuffle" : "list";
         case kRsStartMode: return s.start_mode == "radio" ? "radio" : "player";
         case kRsTimeshift: return std::to_string(timeshift_minutes(s)) + " min";
@@ -232,6 +234,10 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
     auto step = [&](int& v, int n) { v = dir == 0 ? (v + 1) % n : (v + (dir > 0 ? 1 : n - 1)) % n; };
     switch (id) {
         case kRsShareProfiles: radio_share_profiles(s, dir == 0 ? !s.share_profiles : dir > 0); break;
+        case kRsRemoteApp:
+            s.remote_app = dir == 0 ? !s.remote_app : dir > 0;
+            if (s.remote_app && s.remote_pin.empty()) s.remote_pin = muisc::remote::net::make_pin();
+            break;
         case kRsPlayback: s.playback_shuffle = !s.playback_shuffle; break;
         case kRsStartMode: s.start_mode = s.start_mode == "radio" ? "player" : "radio"; break;
         case kRsTimeshift: step(s.timeshift_idx, 5); break;
@@ -712,7 +718,15 @@ RadioSettings load_radio_settings(std::string* source_out) {
     RadioSettings s;
     const fs::path p = radio_config_path();
     std::ifstream in(p);
-    if (!in) { if (source_out) *source_out = "built-in defaults"; return s; }
+    if (!in) {   // no radio_config.txt yet: the defaults, plus what the player's config.txt holds for both modes
+        if (source_out) *source_out = "built-in defaults";
+        s.start_mode = player_start_mode();
+        s.black_background = player_black_background();
+        if (player_share_profiles()) radio_share_profiles(s, true);
+        const RemoteAppConfig rc = read_remote_app();
+        s.remote_app = rc.enabled; s.remote_port = rc.port; s.remote_pin = rc.pin;
+        return s;
+    }
     if (source_out) *source_out = p.string();
     std::map<std::string, std::string> kv;
     std::vector<std::string> eq_preset_lines;
@@ -840,6 +854,10 @@ RadioSettings load_radio_settings(std::string* source_out) {
     // Share Profiles: the radio's own values go to the backup (own_viz), the player's take their place
     s.share_profiles = false;
     if (player_share_profiles()) radio_share_profiles(s, true);
+    {   // Remote App: the player's config.txt holds it
+        const RemoteAppConfig rc = read_remote_app();
+        s.remote_app = rc.enabled; s.remote_port = rc.port; s.remote_pin = rc.pin;
+    }
     // A radio_config.txt from before "ColorCodes=palette": 30-37 / 90-97 (text) and 40-47 / 100-107 (background) were plain 16-colour
     // codes. They become the palette numbers that look the same; the file is written once so that it carries the marker from now on.
     const auto cc = kv.find("colorcodes");
@@ -868,6 +886,7 @@ std::string eq_presets_text(const RadioSettings& s) {
 static void write_radio_file(std::ostream& o, const RadioSettings& s) {
     auto num = [](float v) { std::ostringstream os; os.precision(2); os << std::fixed << v; return os.str(); };
     o << "# Mousiki radio mode -- settings (separate from the music player's config.txt)\n"
+      << config_stamp_line() << "  (the first save by a newer version keeps the previous file as radio_config.txt.bak)\n"
          "# Location (Windows): %USERPROFILE%\\.config\\mousiki\\radio_config.txt\n"
          "# Location (Linux/macOS): $HOME/.config/mousiki/radio_config.txt  (or ./radio_config.txt next to the program)\n"
          "# Written by the settings screen (press s in the radio); edit by hand if you like.\n"
@@ -1019,6 +1038,7 @@ std::string radio_settings_text(const RadioSettings& s) {
     std::ostringstream o;
     write_radio_settings(o, s);
     if (s.share_profiles) o << "# shared with the player:\n" << viz_text(s);   // so that a change of the shared values counts as a change
+    o << "# remote app: " << (s.remote_app ? "on " : "off ") << s.remote_port << " " << s.remote_pin << "\n";   // (lives in config.txt)
     return o.str();
 }
 
@@ -1028,11 +1048,19 @@ bool save_radio_settings(const RadioSettings& s, std::string* err) {
     const fs::path target = fs::exists(fs::path("radio_config.txt")) && !fs::exists(p) ? fs::path("radio_config.txt") : p;
     std::error_code ec;
     if (target.has_parent_path()) fs::create_directories(target.parent_path(), ec);
+    backup_config_if_older(target);   // the first save by a newer version keeps the old file as radio_config.txt.bak
     std::ofstream o(target, std::ios::trunc);
     if (!o) { if (err) *err = "cannot write " + target.string(); return false; }
     if (s.start_mode != player_start_mode()) set_player_start_mode(s.start_mode);   // the settings that live in the player's config.txt
     if (s.black_background != player_black_background()) set_player_black_background(s.black_background);
     if (s.share_profiles != player_share_profiles()) set_player_share_profiles(s.share_profiles);
+    {
+        const RemoteAppConfig now = read_remote_app();
+        if (now.enabled != s.remote_app || now.port != s.remote_port || now.pin != s.remote_pin) {
+            RemoteAppConfig rc{s.remote_app, s.remote_port, s.remote_pin};
+            write_remote_app(rc);
+        }
+    }
     write_radio_settings(o, s);
     if (!o) { if (err) *err = "cannot write " + target.string(); return false; }
     if (s.share_profiles) {   // the radio's edits of the shared settings go to the player's config.txt

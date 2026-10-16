@@ -30,6 +30,15 @@ namespace muisc {
 // (src/settings.cpp) the player's oscilloscope / spectrogram settings in config.txt, for Share Profiles
 bool read_player_viz(VizPrefs& out);
 bool write_player_viz(const VizPrefs& v);
+// (settings.cpp) the Remote App lines of config.txt, and the upgrade backup of the config files
+#ifndef MOUSIKI_REMOTE_APP_CONFIG
+#define MOUSIKI_REMOTE_APP_CONFIG
+struct RemoteAppConfig { bool enabled = false; int port = 4747; std::string pin; };
+#endif
+RemoteAppConfig read_remote_app();
+bool write_remote_app(RemoteAppConfig& rc);
+std::string config_stamp_line();
+bool backup_config_if_older(const std::filesystem::path& p);
 }
 
 namespace muisc::radio {
@@ -103,6 +112,11 @@ struct RadioSettings : VizPrefs {
     // radio_config.txt and come back when it is turned off). Colours / themes are never shared.
     bool share_profiles = false;
     VizPrefs own_viz;
+    // Remote App (ON/OFF -> MODES; RemoteApp= / RemoteAppPort= / RemoteAppPin= in the player's config.txt, one value for both):
+    // the web server of the phone remote (src/remote_server.h). Read when the radio starts, written by save_radio_settings().
+    bool remote_app = false;
+    int remote_port = 4747;
+    std::string remote_pin;
     bool use_osci = true;                       // ON/OFF "Use oscilloscope": false = never in the scope block / "." cycle
     bool use_spectro = true;                    // ON/OFF "Use spectrogram": the same for the spectrogram
     // The help wizard (SHIFT+w): false means it has never been shown here, so

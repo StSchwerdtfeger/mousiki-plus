@@ -288,6 +288,14 @@ int radio_main(int argc, char** argv) {
     const std::string mode = argc > 1 ? argv[1] : "";
     std::string cfg_source;
     RadioSettings cfg = load_radio_settings(&cfg_source);
+    // Still the colours of a built-in theme as an earlier version had them: the theme's fixed colours now (same in every terminal).
+    if (cfg_source != "built-in defaults")
+        for (const auto& [was, now] : themes::renewed_builtins()) {
+            if (!themes::file_holds(radio_config_path(), was, true)) continue;
+            theme_apply(cfg, now);
+            save_radio_settings(cfg, nullptr);
+            break;
+        }
     set_emoji_replacement(true);   // station names may carry emoji: always drawn as "?" so the frame cannot shift
 
     Ui ui;
@@ -728,8 +736,26 @@ int radio_main(int argc, char** argv) {
         else if (n == "toggle-mute") engine.set_muted(!rs.muted);
         else if (n == "seek") { if (tuned) engine.jump(muisc::remote::number(c.arg, 0)); }
         else if (n == "live") { if (tuned) engine.go_live(); }
+        else if (n == "playback-mode") { ui.model.shuffle = !ui.model.shuffle; cfg.playback_shuffle = ui.model.shuffle; ui.model.settings.dirty = true; }
         else if (n == "switch-mode") { switch_mode = true; running = false; }
         else if (n == "quit") running = false;
+        // the phone's STATIONS list: open / close it, page through it, tune the tapped station
+        else if (n == "remote-view") { ui.model.phone_view = c.arg == "1" ? 1 : 0; ui.model.phone_page = 0; ui.model.phone_note.clear(); }
+        else if (n == "remote-scroll") {
+            int pc = 0, pr = 0;
+            muisc::remote::net::screen_wanted(pc, pr);
+            const int per = muisc::remote::net::phone_list_rows(pr > 0 ? pr : 30);
+            const int count = ui.stations.empty() ? 0 : static_cast<int>(ui.stations.size());
+            const int pages = std::max(1, (count + per - 1) / per);
+            ui.model.phone_page = std::clamp(ui.model.phone_page + static_cast<int>(muisc::remote::number(c.arg, 1)), 0, pages - 1);
+        }
+        else if (n == "tune") {
+            const int k = static_cast<int>(muisc::remote::number(c.arg, 0)) - 1;
+            if (k >= 0 && k < static_cast<int>(ui.stations.size())) {
+                tune_to(k);
+                ui.model.phone_note = "tuned " + ui.stations[static_cast<size_t>(k)].name;
+            } else ui.model.phone_note = "no station " + c.arg;
+        }
     };
     auto set_search_focus = [&](bool on) {
         ui.model.search_focus = on;
@@ -882,7 +908,7 @@ int radio_main(int argc, char** argv) {
         }
         settings_snapshot_valid = false;
         key_undo.clear();
-        sm.open = false; sm.editing = false; sm.theme_ui = 0;
+        sm.open = false; sm.editing = false; sm.theme_ui = 0; sm.remote_ov = muisc::remote_ui::State{};
         set_text_entry(false);
     };
     // Has anything been changed since the settings screen opened? (the same text that [s] would write)
@@ -1149,7 +1175,24 @@ int radio_main(int argc, char** argv) {
     muisc::remote::start("radio");
     while (running) {
         muisc::remote::tick("radio");
-        for (const muisc::remote::Command& rc : muisc::remote::poll()) remote_apply(rc);
+        for (const muisc::remote::Command& rc : muisc::remote::poll()) {
+            if (rc.name != "wizard") { remote_apply(rc); continue; }
+            if (!ui.model.wizard_open) wizard_open_now();   // SHIFT+w from the remote: open / close the help wizard
+            else { ui.model.wizard_open = false; out_clear_next = true; wizard_seen_save(); }
+        }
+        // the remote app's web server follows the Remote App switch (cheap when nothing changed)
+        muisc::remote::net::configure({cfg.remote_app, cfg.remote_port, cfg.remote_pin});
+        {   // ... and its phone screen, when a phone asks for it (at most ~14 a second)
+            static std::chrono::steady_clock::time_point phone_built{};
+            int pc = 0, pr = 0;
+            const auto pnow = std::chrono::steady_clock::now();
+            if (muisc::remote::net::screen_wanted(pc, pr) && pnow - phone_built >= std::chrono::milliseconds(70)) {
+                phone_built = pnow;
+                std::vector<muisc::remote::net::Zone> zones;
+                const std::vector<std::string> lines = build_phone_screen(ui.model, engine.status(), cfg, pc, pr, zones);
+                muisc::remote::net::set_screen("radio", pc, pr, lines, zones, cfg.list_fg);
+            }
+        }
         {   // what `mousiki --status` prints
             const RadioStatus rs = engine.status();
             const char* st = rs.state == StreamState::Idle ? "stopped" : rs.state == StreamState::Failed ? "failed"
@@ -1284,6 +1327,18 @@ int radio_main(int argc, char** argv) {
             // ------------------------------------------------------------------ RADIO SETTINGS (s)
             if (ui.model.settings.open) {
                 SettingsModel& sm = ui.model.settings;
+                if (sm.remote_ov.open) {   // the REMOTE APP overlay has the keys
+                    if (k == 3 || k == kKeyCtrlC) { settings_close(false); running = false; continue; }
+                    muisc::remote_ui::Values v{cfg.remote_app, cfg.remote_port, cfg.remote_pin};
+                    bool close = false;
+                    if (muisc::remote_ui::key(sm.remote_ov, v, k, arrow, close)) {
+                        cfg.remote_app = v.enabled; cfg.remote_port = v.port; cfg.remote_pin = v.pin;
+                        muisc::remote::net::configure({cfg.remote_app, cfg.remote_port, cfg.remote_pin});
+                        sm.dirty = true;
+                    }
+                    if (close) { sm.remote_ov = muisc::remote_ui::State{}; sm.status = cfg.remote_app ? "remote app on (s saves)" : "remote app off (s saves)"; }
+                    continue;
+                }
                 if (sm.leave_prompt != 0 && !sm.editing) {
                     // the question on top: [s] / ENTER save, [d] discard, anything else (ESC) goes back to editing; "overwrite?" wants [y]
                     const int kind = sm.leave_prompt;
@@ -1548,6 +1603,11 @@ int radio_main(int argc, char** argv) {
                 const int nrows = sm.tab == 1 ? kOnOffRowCount : sm.tab == 2 ? kAnimRowCount : sm.tab == 3 ? kPathRowCount : sm.tab == 4 ? kKeyActionCount + 1 : sm.tab == 5 ? static_cast<int>(about_app_text().size()) : color_tab_row_count();   // + the THEME and SMOOTHNESS rows
                 auto fix_col = [&]() { if (sm.tab >= 1 || (sm.row != 0 && !color_field(cfg, color_row_of_tab(sm.row), sm.col))) sm.col = 0; };
                 auto toggle = [&](int dir) {   // ON/OFF and ANIMA/VIZ rows: left / right / ENTER
+                    if (sm.tab == 1 && std::string(rs_row_label(sm.tab, sm.row)) == "Remote App") {   // opens the REMOTE APP overlay
+                        sm.remote_ov = muisc::remote_ui::State{};
+                        sm.remote_ov.open = true;
+                        return;
+                    }
                     if (sm.tab == 3) {   // PATHS: only the bool row toggles; the text rows are edited with ENTER
                         if (!path_row_is_bool(sm.row)) {
                             if (dir == 0) {
@@ -2525,6 +2585,7 @@ int radio_main(int argc, char** argv) {
                 ui.model.gfx_due = (gfx_tick % every) == 0;
             }
             terminal_black_background(cfg.black_background);   // Settings -> ON/OFF -> MODES (only writes when it changes)
+            terminal_default_text(cfg.list_fg);                 // text without a colour of its own: the list text colour
             auto frame = render_radio_frame(ui.model, engine.status(), engine, cfg);
             // Lines are joined with "\r\n"; the LAST line gets no newline, so a frame that fills the
             // whole terminal can never scroll. No per-line "\x1b[K" either: a line that fills the last

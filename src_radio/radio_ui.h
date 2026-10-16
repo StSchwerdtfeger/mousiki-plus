@@ -23,6 +23,8 @@
 #include "terminal_gfx.h"
 #include "radio_history.h"
 #include "radio_yt.h"
+#include "remote_server.h"
+#include "remote_overlay.h"
 
 namespace muisc::radio {
 
@@ -167,6 +169,7 @@ struct SettingsModel {
     // --- colour themes (COLORS tab, last row: THEME | CREATE THEME) ---
     // theme_ui: 0 = the plain tab | 1 = pick a theme to apply | 2 = the CREATE THEME overlay | 3 = pick a template
     int theme_ui = 0;
+    muisc::remote_ui::State remote_ov;   // ON/OFF -> Remote App: the REMOTE APP overlay
     bool theme_peek = false;      // SHIFT+p in the picker: the main screen in the highlighted theme (any key closes it)
     std::vector<themes::Theme> theme_list;
     int theme_sel = 0;
@@ -290,6 +293,10 @@ struct UiModel {
     // player_wizard_palette()), so it looks identical in both modes. Drawn instead of the radio screen, like the cheat
     // sheet -- so every menu and overlay underneath stays exactly as it was and is there again after the wizard closes.
     bool wizard_open = false;
+    // the phone remote (src/remote_server.h): 0 its main screen, 1 its STATIONS list; the list's page and status line
+    int phone_view = 0;
+    int phone_page = 0;
+    std::string phone_note;
     mutable wizard::State wizard; // clamped while rendering (the renderer is const)
     double wizard_angle = 0.0;    // the first page's disk, turned at 0.10 by the main loop
     std::vector<int> visible;     // station indices that pass the search filter, in list order
@@ -322,6 +329,11 @@ void fill_spectro_window_config(const RadioSettings& cfg, const RadioStatus& st,
 
 std::vector<std::string> render_radio_frame(const UiModel& m, const RadioStatus& st,
                                             RadioEngine& engine, const RadioSettings& cfg);
+
+// The remote app's phone screen (src/remote_server.h): the ON AIR sign, the station, working dummy buttons and boxes with
+// the radio's main commands, in the radio's colours. `zones`: where a tap sends which command.
+std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus& st, const RadioSettings& cfg, int W, int H,
+                                            std::vector<muisc::remote::net::Zone>& zones);
 
 // Name of the active preset ("Default" when none is loaded).
 std::string active_preset_name(const UiModel& m);

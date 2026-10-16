@@ -2733,7 +2733,30 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
         tm.editing = sm.editing && sm.theme_row >= 0;
         return build_settings_impl(sm.theme_draft, tm, W, rows, &sm);
     }
-    return build_settings_impl(c, sm, W, rows, nullptr);
+    std::vector<std::string> out = build_settings_impl(c, sm, W, rows, nullptr);
+    if (sm.remote_ov.open) {   // ON/OFF -> Remote App: the REMOTE APP overlay, centred over the settings
+        muisc::remote_ui::Style st;
+        st.border = ansi_fg(c.border_top);
+        st.border_bottom = ansi_fg(c.border_bottom);
+        st.header = "\x1b[1m" + ansi_fg(c.header);   // captions, like the labels of the settings rows
+        st.legend = ansi_fg(c.legend);
+        st.text = ansi_fg(c.list_fg);
+        st.value = st.text;
+        st.change = "\x1b[41;37m";
+        st.cursor = "\x1b[7m";
+        st.ul = c.box_upper_left; st.ur = c.box_upper_right; st.ll = c.box_lower_left; st.lr = c.box_lower_right;
+        st.h = c.box_horizontal;  st.v = c.box_vertical;
+        if (c.border_smooth) st.border_at = [&c](float t) { return gradient_fg(c.border_top, c.border_bottom, t); };
+        const muisc::remote_ui::Values v{c.remote_app, c.remote_port, c.remote_pin};
+        int w = 0;
+        const int H = static_cast<int>(out.size());
+        const std::vector<std::string> panel = muisc::remote_ui::build(sm.remote_ov, v, st, W - 2, H, w);
+        const int x = std::max(0, (W - w) / 2);
+        const int y = std::clamp((H - static_cast<int>(panel.size())) / 2, 0, std::max(0, H - static_cast<int>(panel.size())));
+        for (size_t i = 0; i < panel.size() && y + static_cast<int>(i) < H; ++i)
+            out[static_cast<size_t>(y) + i] = splice_line(out[static_cast<size_t>(y) + i], x, panel[i], w);
+    }
+    return out;
 }
 
 // ===========================================================================================
@@ -3403,6 +3426,210 @@ void fill_spectro_window_config(const RadioSettings& cfg, const RadioStatus& st,
     ScopeWinConfig sc;   // the title as the scope window has it
     fill_scope_window_config(cfg, st, sc);
     std::memcpy(c.title, sc.title, sizeof c.title);
+}
+
+
+// ===========================================================================================
+// THE REMOTE APP'S PHONE SCREEN (src/remote_server.h): narrow and tall, built from the radio's own pieces.
+// ===========================================================================================
+std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus& st, const RadioSettings& cfg, int W, int H,
+                                            std::vector<muisc::remote::net::Zone>& zones) {
+    const Style s(cfg);
+    W = std::max(W, 40);
+    const int inner = W - 4;
+    auto vis = [](const std::string& x) {
+        std::string plain;
+        for (size_t k = 0; k < x.size(); ++k) {
+            if (x[k] == '\x1b' && k + 1 < x.size() && x[k + 1] == '[') {
+                k += 2;
+                while (k < x.size() && !(x[k] >= 0x40 && x[k] <= 0x7e)) ++k;
+                continue;
+            }
+            plain += x[k];
+        }
+        return display_width(plain);
+    };
+    const bool tuned = st.state != StreamState::Idle && st.state != StreamState::Failed;
+
+    int meta_rows = 5, gap = 1;
+    auto need = [&]() { return 1 + 1 + kPanelH + 1 + meta_rows + 1 + gap + 3 + 1 + gap + 9; };
+    while (need() > H && meta_rows > 3) --meta_rows;
+    if (need() > H) gap = 0;
+    while (need() > H && meta_rows > 1) --meta_rows;
+    while (need() < H && meta_rows < 8) ++meta_rows;
+    const int top_pad = std::max(0, H - need()) / 2;
+
+    std::vector<std::string> out;
+    auto row = [&](const std::string& content) {
+        out.push_back(box_line(s, content + spaces(inner - vis(content)) + kReset, s.border));
+    };
+    auto sep = [&](const std::string& label) {
+        const std::string head = "├" + s.c.box_horizontal + " " + label + " ";
+        out.push_back(s.border + head + s.border + repeat(s.c.box_horizontal, std::max(0, W - 1 - display_width(head))) + "┤" + kReset);
+    };
+    struct Btn { std::string key, label, cmd, arg; };
+    auto boxes = [&](const std::vector<Btn>& b) {
+        const int n = static_cast<int>(b.size());
+        const int bw = std::max(10, (W - 2) / n);
+        const int left = (W - bw * n) / 2;
+        std::string l0 = spaces(left), l1 = spaces(left), l2 = spaces(left);
+        const int y = static_cast<int>(out.size());
+        for (int i = 0; i < n; ++i) {
+            l0 += box_top(s, bw, b[i].key, s.border);
+            const std::string lab = truncate_str(b[i].label, bw - 4);
+            const int pad = bw - 4 - display_width(lab);
+            l1 += box_line(s, s.border + spaces(pad / 2) + lab + spaces(pad - pad / 2) + kReset, s.border);
+            l2 += box_bottom(s, bw, "", s.border_bottom);
+            if (!b[i].cmd.empty()) zones.push_back({left + i * bw, y, bw, 3, b[i].cmd, b[i].arg});
+        }
+        const std::string tail = spaces(W - left - bw * n);
+        out.push_back(l0 + tail);
+        out.push_back(l1 + tail);
+        out.push_back(l2 + tail);
+    };
+    auto gradient = [&](std::vector<std::string> v) {
+        if (!cfg.border_smooth) return v;
+        std::vector<std::string> glyphs = {"\u2502", "\u2500", "\u256d", "\u256e", "\u2570", "\u256f", "\u251c", "\u2524", "\u252c", "\u2534", "\u253c"};
+        for (const std::string* g : {&cfg.box_upper_left, &cfg.box_upper_right, &cfg.box_lower_left, &cfg.box_lower_right, &cfg.box_vertical, &cfg.box_horizontal})
+            if (!g->empty()) glyphs.push_back(*g);
+        return border_gradient::apply(v, ansi_fg(cfg.border_top), ansi_fg(cfg.border_bottom), glyphs,
+                                      [&](float t) { return gradient_fg(cfg.border_top, cfg.border_bottom, t); });
+    };
+
+    // ---- the STATIONS list (the box of the main screen opens it): tap a station and it is tuned ----
+    if (m.phone_view == 1) {
+        const std::vector<Station> none;
+        const std::vector<Station>& all = m.stations ? *m.stations : none;
+        const int n = static_cast<int>(all.size());
+        const int per = muisc::remote::net::phone_list_rows(H);
+        const int pages = std::max(1, (n + per - 1) / per);
+        const int page = std::clamp(m.phone_page, 0, pages - 1);
+        out.push_back(box_top(s, W, "STATIONS (" + std::to_string(n) + ")  page " + std::to_string(page + 1) + "/" + std::to_string(pages), s.border));
+        zones.push_back({0, 0, W, 1, "@menu", ""});
+        row(m.phone_note.empty() ? s.legend + "tap a station to tune it" + kReset : "\x1b[32m" + truncate_str(m.phone_note, inner) + kReset);
+        row("");
+        for (int i = 0; i < per; ++i) {
+            const int k = page * per + i;
+            if (k >= n) { row(""); row(""); continue; }
+            const Station& stn = all[static_cast<size_t>(k)];
+            const bool on = k == st.tuned_index && tuned;
+            const std::string name_col = on ? s.list_playing : s.val;
+            row(s.key + pad_right(std::to_string(k + 1), 4) + kReset + name_col + truncate_str((on ? "\u25b6 " : "") + stn.name, inner - 4) + kReset);
+            std::string info = stn.genre;
+            const std::string codec = (stn.bitrate_hint > 0 ? std::to_string(stn.bitrate_hint) + "k " : std::string()) + stn.codec_hint;
+            if (!codec.empty()) info += (info.empty() ? "" : "  |  ") + codec;
+            if (!stn.country.empty()) info += (info.empty() ? "" : "  |  ") + stn.country;
+            row(spaces(4) + s.legend + truncate_str(info, inner - 4) + kReset);
+            zones.push_back({0, static_cast<int>(out.size()) - 2, W, 2, "tune", std::to_string(k + 1)});
+        }
+        out.push_back(box_bottom(s, W, "", s.border_bottom));
+        while (static_cast<int>(out.size()) < H - 3) out.push_back(spaces(W));
+        boxes({{"", "\u25b2 UP", "remote-scroll", "-1"}, {"", "BACK", "remote-view", "0"}, {"", "DOWN \u25bc", "remote-scroll", "+1"}});
+        if (static_cast<int>(out.size()) > H) out.resize(static_cast<size_t>(H));
+        return gradient(out);
+    }
+
+    for (int i = 0; i < top_pad; ++i) out.push_back(spaces(W));
+
+    // title + mode tabs
+    out.push_back(box_top(s, W, "MOUSIKI PLUS", s.border));
+    zones.push_back({0, static_cast<int>(out.size()) - 1, W, 1, "@menu", ""});
+    {
+        const std::string tabs = ansi_fg(cfg.tab_current) + "[RADIO]" + kReset + "  " + ansi_fg(cfg.tab_other) + "PLAYER" + kReset;
+        const std::string hint = s.legend + "[*] switch" + kReset;
+        row(tabs + spaces(inner - vis(tabs) - vis(hint)) + hint);
+        zones.push_back({2 + 9, static_cast<int>(out.size()) - 1, 6, 1, "switch-mode", ""});
+        zones.push_back({2 + inner - vis(hint), static_cast<int>(out.size()) - 1, vis(hint), 1, "switch-mode", ""});
+    }
+
+    // the ON AIR / OFF AIR sign with its colour wave and pulse (the left block of the main screen)
+    {
+        const std::vector<std::string> sign = build_left(s, m, st);
+        const int left = std::max(0, (inner - kLeftW) / 2);
+        const int y0 = static_cast<int>(out.size());
+        for (const std::string& r : sign) row(spaces(left) + r);
+        zones.push_back({2 + left, y0, kLeftW, kPanelH, "play-pause", ""});   // the sign: pause / resume
+    }
+
+    // station info
+    sep("STATION");
+    {
+        std::vector<std::string> lines;
+        const int vw = std::max(4, inner - 12);
+        auto kv = [&](const char* label, const std::string& value) {
+            if (value.empty()) return;
+            lines.push_back(s.key + pad_right(label, 10) + kReset + ": " + s.val + truncate_str(value, vw) + kReset);
+        };
+        if (st.state != StreamState::Idle) {
+            const StreamInfo& in = st.info;
+            kv("Station", in.station);
+            kv("Title", in.title);
+            kv("Artist", in.artist);
+            kv("Genre", in.genre);
+            std::string bitrate = in.bitrate_kbps > 0 ? std::to_string(in.bitrate_kbps) + " kbps" + (in.codec.empty() ? "" : " " + in.codec) : in.codec;
+            kv("Bitrate", bitrate);
+            kv("Country", in.country);
+            kv("Stream", in.host);
+        }
+        const int mid = (meta_rows - 1) / 2;
+        for (int i = 0; i < meta_rows; ++i) {
+            if (st.state == StreamState::Idle) {
+                const std::string msg = "Currently No Station Tuned";
+                row(i == mid ? spaces((inner - display_width(msg)) / 2) + s.list + msg + kReset : std::string());
+            } else row(i < static_cast<int>(lines.size()) ? lines[static_cast<size_t>(i)] : std::string());
+        }
+    }
+    // bottom border: the state (live / paused / behind live), like the player's time stamps
+    {
+        std::string state;
+        switch (st.state) {
+            case StreamState::Live:         state = st.timeshift_paused ? "PAUSED" : st.timeshift_shifted ? "TIMESHIFT" : "LIVE"; break;
+            case StreamState::Connecting:   state = "CONNECTING"; break;
+            case StreamState::Buffering:    state = "BUFFERING"; break;
+            case StreamState::Reconnecting: state = "RECONNECTING"; break;
+            case StreamState::Failed:       state = "OFFLINE"; break;
+            default:                        state = "IDLE"; break;
+        }
+        std::vector<Seg> foot = {{s.border, "[ " + state + " ]"}};
+        if (st.timeshift_shifted && st.behind_sec >= 1.0) {
+            const int b = static_cast<int>(st.behind_sec);
+            char t[32];
+            std::snprintf(t, sizeof t, "[ -%d:%02d ]", b / 60, b % 60);
+            foot.push_back({"", s.c.box_horizontal});
+            foot.push_back({s.border, t});
+        }
+        if (st.muted) { foot.push_back({"", s.c.box_horizontal}); foot.push_back({s.border, "[ MUTED ]"}); }
+        out.push_back(box_edge(s, false, W, foot, s.border_bottom));
+    }
+
+    for (int i = 0; i < gap; ++i) out.push_back(spaces(W));
+    // the dummy buttons of the main screen, working: previous station, pause / resume (timeshift), next station
+    boxes({{"", "<<<", "prev", ""}, {"", !tuned ? "PLAY" : st.timeshift_paused ? "PLAY" : "PAUSE", "play-pause", ""}, {"", ">>>", "next", ""}});
+    {
+        const int bars = 20, hashes = std::clamp(st.volume * bars / 100, 0, bars);
+        const std::string v = s.border + "VOLUME BAR:[" + kReset + s.vol_current + std::string(static_cast<size_t>(hashes), '#') + kReset +
+                              s.vol_possible + std::string(static_cast<size_t>(bars - hashes), '-') + kReset + s.border + "]" + kReset + " " +
+                              (st.muted ? std::string("muted") : std::to_string(st.volume) + "%");
+        const int left = std::max(0, (W - vis(v)) / 2);
+        out.push_back(spaces(left) + v + spaces(W - left - vis(v)));
+        zones.push_back({left, static_cast<int>(out.size()) - 1, vis(v), 1, "toggle-mute", ""});
+    }
+    for (int i = 0; i < gap; ++i) out.push_back(spaces(W));
+    boxes({{"#", "RANDOM", "shuffle", ""}, {"p", st.muted ? "UNMUTE" : "MUTE", "toggle-mute", ""}, {"x", "STOP", "stop", ""}});
+    boxes({{"-", "VOL -", "volume-down", ""}, {"}", "LIVE", "live", ""}, {"+", "VOL +", "volume-up", ""}});
+    boxes({{"m", m.shuffle ? "MODE: S" : "MODE: L", "playback-mode", ""}, {"SHIFT+l", "STATIONS", "remote-view", "1"},
+           {"", "MANUAL", "@manual", ""}});
+
+    while (static_cast<int>(out.size()) < H) out.push_back(spaces(W));
+    if (static_cast<int>(out.size()) > H) out.resize(static_cast<size_t>(H));
+    // a screen too short for everything: what was cut off cannot be tapped either
+    zones.erase(std::remove_if(zones.begin(), zones.end(), [&](const muisc::remote::net::Zone& z) { return z.y + z.h > H || z.x + z.w > W; }), zones.end());
+    if (!cfg.border_smooth) return out;
+    std::vector<std::string> glyphs = {"│", "─", "╭", "╮", "╰", "╯", "├", "┤", "┬", "┴", "┼"};
+    for (const std::string* g : {&cfg.box_upper_left, &cfg.box_upper_right, &cfg.box_lower_left, &cfg.box_lower_right, &cfg.box_vertical, &cfg.box_horizontal})
+        if (!g->empty()) glyphs.push_back(*g);
+    return border_gradient::apply(out, ansi_fg(cfg.border_top), ansi_fg(cfg.border_bottom), glyphs,
+                                  [&](float t) { return gradient_fg(cfg.border_top, cfg.border_bottom, t); });
 }
 
 } // namespace muisc::radio
