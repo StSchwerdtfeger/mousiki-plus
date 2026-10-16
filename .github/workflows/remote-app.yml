@@ -11,14 +11,17 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      # The runner image already has the Android SDK; the setup-android action fails on it ("Failed to find package 'tools'").
+      # Accept the licences so Gradle may fetch the platform it needs.
+      - name: Accept the Android SDK licences
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
       - name: Build the APK
         working-directory: remote_app/android
         run: |
