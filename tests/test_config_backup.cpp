@@ -17,7 +17,7 @@ void write_all(const fs::path& p, const std::string& t) { fs::create_directories
 TEST(config_backup_of_an_older_file) {
     mt::TempHome home;
     const fs::path cfg = config_path();
-    write_all(cfg, "# Mousiki Configuration File\nBorderColor=99\n");   // no stamp: from before v4.1.0
+    write_all(cfg, "# Mousiki Configuration File\nBorderColor=99\n");   // no stamp: from before v4.2.0
     Settings s = load_settings();
     save_settings(s);
     CHECK(fs::exists(cfg.string() + ".bak"));

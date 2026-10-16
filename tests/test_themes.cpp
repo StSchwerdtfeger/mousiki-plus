@@ -104,7 +104,7 @@ TEST(themes_names_are_sanitized) {
     CHECK(!s.empty());
 }
 
-// Since v4.1.0 the built-in themes only use the 240 fixed colours (16-255) and give every text a colour: the 16 base
+// Since v4.2.0 the built-in themes only use the 240 fixed colours (16-255) and give every text a colour: the 16 base
 // colours and the "terminal's own" text colour change with the terminal's colour scheme (10 is green in CMD, yellow elsewhere).
 TEST(themes_built_ins_look_the_same_in_every_terminal) {
     mt::TempHome home;
@@ -129,7 +129,7 @@ TEST(themes_renewed_built_ins_pair_old_and_new) {
     const themes::Theme& def_old = pairs[0].first;
     const themes::Theme& def_new = pairs[0].second;
     CHECK_EQ(def_new.name, std::string("SeriousMeowerShell(Default)"));
-    CHECK_EQ(*def_old.get("ColorHeader", false), std::string("10"));      // what v4.1.0 first shipped
+    CHECK_EQ(*def_old.get("ColorHeader", false), std::string("10"));      // what v4.2.0 first shipped
     CHECK_EQ(*def_new.get("ColorHeader", false), std::string("227"));     // the yellow it was made with
     CHECK_EQ(*def_new.get("ColorLegend", false), std::string("199"));
     CHECK_EQ(*def_new.get("ColorListInactiveFg", false), std::string("75"));
