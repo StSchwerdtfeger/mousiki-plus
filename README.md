@@ -74,6 +74,7 @@ Everything below is in the current version (v4.2.0) and works the same on Window
 
 <p align="center"><img width="850" alt="Oscilloscope music in XY mode in the visualization field (theme Vaporwave)" src="readme_images/theme_vaporwave.png" /></p>
 <p align="center"><img width="850" alt="The big oscilloscope overlay: YT and XY at once (theme Dracula)" src="readme_images/theme_dracula.png" /></p>
+<p align="center"><img width="850" alt="The oscilloscope in image mode (Kitty / Sixel terminals): YT and XY with oscilloscope music (theme Outrun)" src="readme_images/osci_image.png" /></p>
 
 - **Oscilloscope** in braille or as a real picture (Kitty / Sixel terminals): XY, YT and both together, a CRT beam with afterglow for **oscilloscope music**, grid, metrics and many tuning rows (`SHIFT+o`); full screen (`=`) and its own window (`)`).
 - **Spectrogram** in the field, over the whole screen (`SHIFT+u`) and in its own window (`(`), with its own options (`SHIFT+i`).
@@ -81,6 +82,7 @@ Everything below is in the current version (v4.2.0) and works the same on Window
 
 <p align="center"><img width="850" alt="The spectrogram in the visualization field (theme Lavender Haze)" src="readme_images/theme_lavender_haze.png" /></p>
 <p align="center"><img width="850" alt="The spectrogram over the whole screen" src="readme_images/spectro_full.png" /></p>
+<p align="center"><img width="850" alt="The spectrogram in image mode over the whole screen, both channels (theme Tokyo Night)" src="readme_images/spectro_image.png" /></p>
 
 ### Lyrics and karaoke
 
