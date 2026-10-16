@@ -129,6 +129,10 @@ void terminal_release_alt_screen();
 // writes something when the state changes. Terminals that do not know OSC 11 simply ignore it.
 void terminal_black_background(bool on);
 void terminal_background_restore();
+// While the black background is on: the terminal's default text colour (OSC 10) becomes `palette` (16-255; "" or 0-15 = the
+// terminal's own). Text that has no colour of its own then looks the same in every terminal, whatever its colour scheme
+// says. Only writes when it changes; given back with the background on exit.
+void terminal_default_text(const std::string& palette);
 
 class TerminalIO {
 public:

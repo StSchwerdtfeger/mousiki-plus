@@ -16,7 +16,9 @@
 #define MOUSIKI_GETPID getpid
 #endif
 
+#include "remote_server.h"
 #include "settings.h"
+#include "version.h"
 
 namespace muisc::remote {
 
@@ -26,7 +28,8 @@ using Clock = std::chrono::steady_clock;
 namespace {
 
 const char* const kCommands[] = {"play-pause", "play", "pause", "stop", "next", "prev", "shuffle", "volume-up", "volume-down",
-                                 "volume", "mute", "unmute", "toggle-mute", "seek", "live", "switch-mode", "quit"};
+                                 "volume", "mute", "unmute", "toggle-mute", "seek", "live", "playback-mode", "wizard", "switch-mode", "quit",
+                                 "playlist", "tune", "remote-view", "remote-scroll", "remote-focus", "track", "clear-queue"};
 
 bool known(const std::string& n) {
     for (const char* c : kCommands) if (n == c) return true;
@@ -107,6 +110,7 @@ void tick(const char* mode) {
 std::vector<Command> poll() {
     std::vector<Command> out;
     if (!g_started) return out;
+    for (Command& c : net::take_commands()) out.push_back(std::move(c));   // the remote app (network), not throttled
     const auto now = Clock::now();
     if (now - g_last_poll < std::chrono::milliseconds(100)) return out;
     g_last_poll = now;
@@ -139,6 +143,8 @@ std::vector<Command> poll() {
 void publish_status(const std::vector<std::pair<std::string, std::string>>& kv) {
     if (!g_started) return;
     const auto now = Clock::now();
+    static Clock::time_point last_net{};
+    if (net::running() && now - last_net >= std::chrono::milliseconds(250)) { last_net = now; net::set_status(kv); }
     if (now - g_last_status < std::chrono::seconds(1)) return;
     g_last_status = now;
     std::string text;
@@ -155,7 +161,8 @@ void publish_status(const std::vector<std::pair<std::string, std::string>>& kv) 
 bool is_client_call(int argc, char** argv) {
     if (argc < 2) return false;
     const std::string a = argv[1];
-    return a == "--cmd" || a == "--status" || a == "--remote-help";
+    return a == "--cmd" || a == "--status" || a == "--remote-help" || a == "--remote-info" || a == "--help" || a == "-h" ||
+           a == "--version" || a == "-v";
 }
 
 namespace {
@@ -163,19 +170,53 @@ namespace {
 void usage(std::ostream& o) {
     o << "Mousiki remote control: send a command to the running player or radio.\n\n"
          "  mousiki --cmd <command> [value]     e.g.  mousiki --cmd next      mousiki --cmd volume 60      mousiki --cmd seek +10\n"
-         "  mousiki --status                    prints what is playing (state, title, artist, position, volume, mode ...)\n\n"
+         "  mousiki --cmd --help                this list (also: mousiki --cmd help, mousiki --remote-help)\n"
+         "  mousiki --status                    prints what is playing (state, title, artist, position, volume, mode ...)\n"
+         "  mousiki --remote-info               the address and PIN of the remote app (Settings -> ON/OFF -> MODES -> Remote App)\n\n"
          "Commands:\n"
-         "  play-pause  play  pause  stop       toggle / start / pause (radio: timeshift pause) / stop the radio station\n"
-         "  next  prev  shuffle                 next / previous track or station, a random one\n"
+         "  play-pause  play  pause  stop       toggle / start / pause (radio: timeshift pause) / stop\n"
+         "  next  prev  shuffle                 next / previous track or station, shuffle next (radio: a random station);\n"
+         "                                      with a queue: next = its next title, shuffle = a random title of it\n"
          "  volume-up  volume-down              +5 / -5 (or a number: volume-up 10)\n"
          "  volume <0-100>                      set the volume (volume +10 / volume -10 change it)\n"
          "  mute  unmute  toggle-mute\n"
          "  seek <seconds>                      jump forward / back (seek -30); radio: within the timeshift buffer\n"
          "  live                                radio: back to the live stream\n"
-         "  switch-mode                         player <-> radio\n"
+         "  playback-mode                       player: the next playback mode, like the m key (list, repeat, shuffle ...)\n"
+         "  wizard                              open / close the help wizard (SHIFT+w)\n"
+         "  playlist <n>                        player: the titles of saved playlist n (A-Z order) into the queue\n"
+         "  track <n>                           player: play title n of the local list (as sorted / filtered there)\n"
+         "  clear-queue                         player: clear the queue (CTRL+SHIFT+Z in Mousiki undoes it)\n"
+         "  tune <n>                            radio: tune station n of the station list\n"
+         "  switch-mode                         player <-> radio (the * key)\n"
          "  quit\n\n"
+         "Exit code: 0 sent, 1 Mousiki is not running, 2 unknown command or bad value.\n"
          "System-wide keys: bind the keys of your choice in the operating system to these commands, for example a media key or\n"
          "Ctrl+Alt+Right to `mousiki --cmd next` (window manager settings, AutoHotkey, a macOS Shortcut, ...). See the manual.\n";
+}
+
+void general_help(std::ostream& o) {
+    o << "Mousiki Plus v" << MOUSIKI_VERSION << " -- terminal music and radio player\n\n"
+         "  mousiki                    start (the player, or the radio when Start Mode is radio)\n"
+         "  mousiki --cmd <command>    control a running Mousiki (mousiki --cmd --help lists the commands)\n"
+         "  mousiki --status           what is playing in the running Mousiki\n"
+         "  mousiki --remote-info      address and PIN of the remote app (phone)\n"
+         "  mousiki --version          the version\n"
+         "  mousiki --help             this text\n\n"
+         "Inside the program: ? shows every key, SHIFT+w opens the help wizard. The manual: Mousiki_User_Manual/Mousiki_User_Guide.md\n";
+}
+
+// RemoteApp= / RemoteAppPort= / RemoteAppPin= from config.txt
+void remote_info(std::ostream& o) {
+    const RemoteAppConfig rc = read_remote_app();
+    if (!rc.enabled) {
+        o << "The remote app is off. Switch it on in Settings -> ON/OFF -> MODES -> Remote App (player or radio).\n";
+        return;
+    }
+    const std::string ip = net::lan_address();
+    o << "Remote app:  http://" << (ip.empty() ? std::string("<this computer's address>") : ip) << ":" << rc.port << "\n"
+      << "PIN:         " << rc.pin << "\n"
+      << "Open the address in the Mousiki Remote app (or in the phone's browser); the phone must be in the same network.\n";
 }
 
 } // namespace
@@ -183,6 +224,13 @@ void usage(std::ostream& o) {
 int client_main(int argc, char** argv) {
     const std::string a1 = argc > 1 ? argv[1] : "";
     if (a1 == "--remote-help") { usage(std::cout); return 0; }
+    if (a1 == "--help" || a1 == "-h") { general_help(std::cout); return 0; }
+    if (a1 == "--version" || a1 == "-v") { std::cout << "Mousiki Plus v" << MOUSIKI_VERSION << "\n"; return 0; }
+    if (a1 == "--remote-info") { remote_info(std::cout); return 0; }
+    if (a1 == "--cmd" && argc > 2) {
+        const std::string a2 = argv[2];
+        if (a2 == "--help" || a2 == "-h" || a2 == "help" || a2 == "--list" || a2 == "list") { usage(std::cout); return 0; }
+    }
 
     std::error_code ec;
     // is a program running? ("running" refreshed within the last 10 s)

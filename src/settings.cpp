@@ -6,9 +6,11 @@
 #include <array>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
@@ -730,6 +732,14 @@ static Settings load_from_config(const fs::path& path) {
             s.share_profiles = (v == "true" || v == "1" || v == "on" || v == "yes");
             continue;
         }
+        if (key == "RemoteApp") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.remote_app = (v == "true" || v == "1" || v == "on" || v == "yes");
+            continue;
+        }
+        if (key == "RemoteAppPort") { const int pt = std::atoi(trim(unquote(value)).c_str()); if (pt >= 1024 && pt <= 65535) s.remote_port = pt; continue; }
+        if (key == "RemoteAppPin") { s.remote_pin = trim(unquote(value)); continue; }
         if (key == "StartMode") {
             std::string v = trim(unquote(value));
             for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
@@ -1216,6 +1226,60 @@ bool read_black_background() {
     return true;
 }
 
+RemoteAppConfig read_remote_app() {
+    RemoteAppConfig rc;
+    std::ifstream in(config_path());
+    std::string line;
+    while (std::getline(in, line)) {
+        const size_t eq = line.find('=');
+        if (line.empty() || line[0] == '#' || eq == std::string::npos) continue;
+        const std::string k = trim(line.substr(0, eq));
+        std::string v = trim(unquote(line.substr(eq + 1)));
+        if (k == "RemoteApp") {
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            rc.enabled = v == "true" || v == "1" || v == "on" || v == "yes";
+        } else if (k == "RemoteAppPort") {
+            const int pt = std::atoi(v.c_str());
+            if (pt >= 1024 && pt <= 65535) rc.port = pt;
+        } else if (k == "RemoteAppPin") rc.pin = v;
+    }
+    return rc;
+}
+
+bool write_remote_app(RemoteAppConfig& rc) {
+    if (rc.enabled && rc.pin.empty()) {
+        std::random_device rd;
+        std::uniform_int_distribution<int> d(0, 999999);
+        char b[8];
+        std::snprintf(b, sizeof b, "%06d", d(rd));
+        rc.pin = b;
+    }
+    const fs::path p = config_path();
+    std::vector<std::string> lines;
+    {
+        std::ifstream in(p);
+        std::string line;
+        while (std::getline(in, line)) lines.push_back(line);
+    }
+    const std::pair<std::string, std::string> want[3] = {{"RemoteApp", rc.enabled ? "true" : "false"},
+                                                         {"RemoteAppPort", std::to_string(rc.port)},
+                                                         {"RemoteAppPin", rc.pin}};
+    for (const auto& [k, v] : want) {
+        bool done = false;
+        for (auto& l : lines) {
+            const size_t eq = l.find('=');
+            if (!done && !l.empty() && l[0] != '#' && eq != std::string::npos && trim(l.substr(0, eq)) == k) { l = k + "=" + v; done = true; }
+        }
+        if (!done) lines.push_back(k + "=" + v);
+    }
+    std::error_code ec;
+    fs::create_directories(p.parent_path(), ec);
+    std::ofstream out(p, std::ios::trunc);
+    if (!out.is_open()) return false;
+    for (const auto& l : lines) out << l << "\n";
+    return out.good();
+}
+
 bool read_share_profiles() {
     std::ifstream in(config_path());
     std::string line;
@@ -1339,6 +1403,7 @@ Settings load_settings() {
 
 static void write_settings(std::ostream& out, const Settings& s) {
     out << "# Mousiki Configuration File\n";
+    out << config_stamp_line() << "  (the first save by a newer version keeps the previous file as config.txt.bak)\n";
     out << "# Location: $HOME/.config/mousiki/config.txt\n";
     out << "\n";
 
@@ -1346,6 +1411,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "##              PANEL 1: COLORS\n";
     out << "##-------------------------------------------\n\n";
     out << "# Colour numbers are numbers of the 256-colour terminal palette (1-255) in every field; 0 or empty = no colour (the terminal's own).\n";
+    out << "# 16-255 look the same in every terminal; 1-15 are the terminal's 16 base colours and change with its colour scheme (10 is green in CMD, maybe yellow in yours).\n";
     out << "ColorCodes=palette\n\n";
     out << "# Frame & Controls\n";
     out << "ColorBorderTop=" << s.border_color << "\n";
@@ -1449,8 +1515,12 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "DiskRotationSpeed=" << s.disk_rotation_speed << "\n## 0.01x to 1.00x\n";
     out << "StartMode=" << (s.start_mode == "radio" ? "radio" : "player") << "\n## player , radio -- the mode Mousiki starts in (the * key switches while it runs; set in Settings -> ON/OFF -> MODES)\n";
     out << "BlackBackground=" << (s.black_background ? "true" : "false") << "\n## true , false -- the terminal's background is black while Mousiki runs (given back on exit; player and radio)\n";
+    out << "RemoteApp=" << (s.remote_app ? "true" : "false") << "\n## true , false -- the remote app (Android app or phone browser) can control Mousiki over the home network (off by default; player and radio)\n";
+    out << "RemoteAppPort=" << s.remote_port << "\n## 1024 - 65535 -- the network port of the remote app (default 4747)\n";
+    out << "RemoteAppPin=" << s.remote_pin << "\n## 4 - 8 digits -- the PIN the app needs; made when the remote app is switched on (mousiki --remote-info shows it)\n";
     out << "ShareProfiles=" << (s.share_profiles ? "true" : "false") << "\n## true , false -- the radio uses this file's oscilloscope and spectrogram settings instead of its own (its own come back when this is false; player and radio)\n";
-    out << "PlaybackMode=" << play_mode_name(s.play_mode) << "\n## list , loop , shuffle , stop , queue then stop\n";
+    out << "PlaybackMode=" << play_mode_name(s.play_mode) << "\n## list , loop , shuffle , stop , queue then stop\n"
+        << "## shuffle never reorders the queue: n and the end of a track play its next title, only # picks a random one of it\n";
     out << "VisualizerDegradationSpeed=" << s.visualizer_degradation_speed << "\n## 1 to 10\n";
     out << "VisualizerViscosity=" << s.visualizer_viscosity << "\n## 1 to 10\n";
     out << "LyricsAlignment=" << (s.lyrics_alignment == 1 ? "left" : s.lyrics_alignment == 2 ? "right" : "center") << "\n## center , left , right\n";
@@ -1638,10 +1708,37 @@ std::string settings_to_text(const Settings& s) {
     return out.str();
 }
 
+std::string config_stamp_line() { return std::string("# Written by Mousiki v") + MOUSIKI_VERSION; }
+
+std::string config_written_by(const fs::path& p) {
+    std::ifstream in(p);
+    std::string line;
+    const std::string tag = "# Written by Mousiki v";
+    for (int i = 0; i < 12 && std::getline(in, line); ++i) {
+        while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();
+        if (line.compare(0, tag.size(), tag) == 0) {
+            std::string v = line.substr(tag.size());
+            return v.substr(0, v.find_first_of(" \t"));   // the version, without the note behind it
+        }
+    }
+    return std::string();
+}
+
+bool backup_config_if_older(const fs::path& p) {
+    std::error_code ec;
+    if (!fs::exists(p, ec) || fs::file_size(p, ec) == 0) return false;
+    if (config_written_by(p) == MOUSIKI_VERSION) return false;      // written by this version already: nothing to keep
+    fs::path bak = p;
+    bak += ".bak";
+    fs::copy_file(p, bak, fs::copy_options::overwrite_existing, ec);
+    return !ec;
+}
+
 void save_settings(const Settings& s) {
     fs::path p = config_path();
     std::error_code ec;
     fs::create_directories(p.parent_path(), ec);
+    backup_config_if_older(p);   // the first save by a newer version keeps the old file as config.txt.bak
 
     std::ofstream out(p, std::ios::trunc);
     if (!out.is_open()) return;

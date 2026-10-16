@@ -134,9 +134,9 @@ struct Settings : VizPrefs {
 
     std::string active_line_color = "182";
     std::string active_line_bg_color;
-    std::string active_word_color;
+    std::string active_word_color = "75";
     std::string active_word_bg_color;
-    std::string inactive_line_color;
+    std::string inactive_line_color = "75";
     std::string inactive_line_bg_color;
 
     std::string progress_remaining_color = "182";
@@ -146,21 +146,21 @@ struct Settings : VizPrefs {
     // Search bar input (the "/" box, the meta editor's and the playlist
     // manager's "Search:" rows). Empty = follow LIST INACTIVE FG/BG, which is
     // what these bars always looked like; "0" = explicit terminal default.
-    std::string search_text_color = "7";           // typed query: FG / BG, drawn behind the query text only
-    std::string search_bg_color = "1";
-    std::string search_inactive_text_color;  // the rest of the bar (prefix, placeholder, empty field)
+    std::string search_text_color = "231";           // typed query: FG / BG, drawn behind the query text only
+    std::string search_bg_color = "199";
+    std::string search_inactive_text_color = "75";  // the rest of the bar (prefix, placeholder, empty field)
     std::string search_inactive_bg_color;
 
-    std::string list_color;
+    std::string list_color = "75";
     std::string list_inactive_bg_color;
     std::string list_playing_color = "16";
-    std::string list_cursor_color = "10";
+    std::string list_cursor_color = "227";
 
-    std::string queue_color;
+    std::string queue_color = "75";
     std::string queue_inactive_bg_color;
     std::string queue_playing_color = "16";
     std::string queue_playing_bg_color = "182";
-    std::string queue_cursor_color;     // the "hovering" row once you Tab into the queue
+    std::string queue_cursor_color = "75";     // the "hovering" row once you Tab into the queue
     std::string queue_cursor_bg_color = "240";     // "0" = no background; default matches list_cursor_bg_color so the hovering row is always visible
 
     // Row background colors. Value "0" (or empty) = no background color.
@@ -175,7 +175,7 @@ struct Settings : VizPrefs {
     // exactly the color the Reference tab headers have always been drawn
     // in -- changeable from the Colors tab's HEADER row, or ColorHeader=
     // in config.txt. "0"/empty = plain bold, no color.
-    std::string header_color = "10";
+    std::string header_color = "227";
 
     // Key command legends: the grey "[ESC] close | [ENTER] confirm" hint lines
     // of the Settings panel, the big list / queue overlays, the playlist
@@ -183,9 +183,9 @@ struct Settings : VizPrefs {
     // palette colour 8 (bright black), the grey they have always been
     // drawn in -- changeable from the Colors tab's LEGEND row, or ColorLegend=
     // in config.txt. "0"/empty = the terminal's own text color.
-    std::string legend_color = "8";
-    std::string tab_current_color = "8";   // settings / playlist / history tab strips: the current tab "[NAME]" and the "< \u2194 >" hint
-    std::string tab_other_color = "10";     // ... the other tab names
+    std::string legend_color = "199";
+    std::string tab_current_color = "199";   // settings / playlist / history tab strips: the current tab "[NAME]" and the "< \u2194 >" hint
+    std::string tab_other_color = "227";     // ... the other tab names
 
     // "This field is actively being typed into" -- every in-place text edit
     // across the Settings panel (a PATHS row, a hex colour value, a hotkey)
@@ -194,8 +194,8 @@ struct Settings : VizPrefs {
     // was always hardcoded as before it had a name of its own -- changeable
     // from the Colors tab's CHANGE row, or ColorChangeFg=/ColorChangeBg= in
     // config.txt. "0"/empty = the terminal's own text/background.
-    std::string change_text_color = "7";
-    std::string change_bg_color = "1";
+    std::string change_text_color = "231";
+    std::string change_bg_color = "199";
 
     // The pane focus indicator "\u25c0": the little triangle after a pane's
     // title that marks which pane has the keys (main screen: the search box,
@@ -241,6 +241,11 @@ struct Settings : VizPrefs {
     // this config.txt) instead of its own; its own values wait in radio_config.txt and come back when this is turned off.
     // One value for both programs (config.txt: ShareProfiles=true|false); the radio reads / writes that line. Colours are never shared.
     bool share_profiles = false;
+    // The remote app (phone): a small web server inside Mousiki, off by default. One value for both programs (config.txt:
+    // RemoteApp=, RemoteAppPort=, RemoteAppPin=); see remote_server.h.
+    bool remote_app = false;
+    int remote_port = 4747;
+    std::string remote_pin;      // made (6 random digits) the first time the remote app is switched on
     int play_mode = 0; // 0=list 1=loop(repeat) 2=shuffle 3=stop 4=queue then stop (play the queue through once, then stop)
 
     // --- console logging (config.txt: ConsoleVerbosity) -----------------
@@ -440,6 +445,14 @@ std::string read_start_mode();
 bool read_black_background();
 // The ShareProfiles= line of config.txt (false when there is none).
 bool read_share_profiles();
+// RemoteApp= / RemoteAppPort= / RemoteAppPin= of config.txt (defaults when missing), and writing them (one line each,
+// nothing else in the file changes). write_remote_app makes a PIN when it is switched on without one.
+#ifndef MOUSIKI_REMOTE_APP_CONFIG
+#define MOUSIKI_REMOTE_APP_CONFIG
+struct RemoteAppConfig { bool enabled = false; int port = 4747; std::string pin; };
+#endif
+RemoteAppConfig read_remote_app();
+bool write_remote_app(RemoteAppConfig& rc);
 // Share Profiles, the radio's side: the player's oscilloscope / spectrogram settings as they are in config.txt, and writing the
 // radio's changes back into config.txt (the rest of the file is kept). False when there is no config.txt (the player owns it).
 bool read_player_viz(VizPrefs& out);
@@ -447,6 +460,11 @@ bool write_player_viz(const VizPrefs& v);
 // Writes that one line into config.txt and leaves the rest of the file alone (the radio's settings screen uses it).
 bool write_start_mode(const std::string& mode);
 Settings load_settings();
+// Upgrade safety: config.txt / radio_config.txt carry "# Written by Mousiki v<version>". Before a version other than the
+// one that wrote the file rewrites it, the old file is copied to <name>.bak (one backup, replaced at the next upgrade).
+std::string config_stamp_line();
+std::string config_written_by(const std::filesystem::path& p);   // "" when the file has no stamp (older than v4.1.0)
+bool backup_config_if_older(const std::filesystem::path& p);     // true when a .bak was written
 void save_settings(const Settings& s);
 // The text save_settings() would write (used to tell whether the settings screen changed anything).
 std::string settings_to_text(const Settings& s);

@@ -6,6 +6,7 @@
 #include "mode_switch.h"
 #include "scope_window.h"
 #include "remote_control.h"
+#include "remote_server.h"
 
 #if defined(_WIN32)
 #include "win_compat.h"
@@ -105,6 +106,7 @@ int main(int argc, char** argv) {
             rc = 0;
         }
         if (app && app->suspended()) app->shutdown();   // quit from the radio: now the player really ends
+        muisc::remote::net::shutdown();         // the remote app's web server (if on)
         muisc::scope_window_close();            // the scope window (if open) closes with the program
         muisc::spectro_window_close();          // and the spectrogram window
         muisc::terminal_release_alt_screen();   // (only does something when a mode ended for a switch and the other one never started)

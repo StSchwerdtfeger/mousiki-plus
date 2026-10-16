@@ -15,6 +15,8 @@
 #include <vector>
 
 #include "disk_art.h"
+#include "remote_server.h"
+#include "remote_overlay.h"
 #include "fft_visualizer.h"
 #include "history.h"
 #include "local_source.h"
@@ -533,7 +535,7 @@ private:
     // Y/N confirmation currently covering the footer (in the menu) or the
     // status line (in Browse, for Shift+B), plus the exact paths it will act
     // on once confirmed. Every key is swallowed while one is up.
-    enum class MetaPrompt { None, Save, Discard, Fetch };
+    enum class MetaPrompt { None, Save, Discard, Fetch, ClearFetch };   // ClearFetch: SHIFT+d / SHIFT+DEL on the fetch list
     MetaPrompt meta_prompt_ = MetaPrompt::None;
     std::vector<std::string> meta_prompt_paths_;
     // AcoustID batch: runs on its own thread, publishes results under
@@ -1271,7 +1273,7 @@ private:
     // (auto-advance on finish) and the manual "n" key (explicit skip),
     // so both respect the queue exactly the same way. Caller must check
     // !queue_.empty() first.
-    void play_next_from_queue();
+    void play_next_from_queue(bool random = false);   // random: any item of the queue (#), otherwise its order
     // Single letter for the mode-indicator button after the search bar:
     // L=list, R=repeat, S=shuffle, Q=queue then stop, O=stop (play-and-stop
     // -- not "S", that's shuffle's letter already).
@@ -1521,8 +1523,25 @@ private:
     void act_mute(int how);          // -1 toggle, 0 unmute, 1 mute
     void act_next();
     void act_prev();
+    void act_cycle_play_mode();      // m: list -> repeat -> shuffle -> stop -> queue then stop
+    void act_wizard_toggle();        // SHIFT+w from the remote control: open / close the help wizard
     void sync_after_radio();         // adopt what the radio changed in config.txt meanwhile
     void remote_poll();              // commands from outside + the status file; called every frame
+    void remote_app_apply();         // starts / stops the remote app's web server to match settings_
+    // The remote app (src/remote_server.h, src/app_phone.cpp): the phone screen, built when a phone asks for it.
+    void phone_publish();
+    std::vector<std::string> build_phone_screen(int W, int H, std::vector<remote::net::Zone>& zones) const;
+    double phone_angle_ = 0.0;       // the phone's disk: its own turn at speed 0.10
+    remote_ui::State remote_ov_;     // Settings -> ON/OFF -> Remote App: the REMOTE APP overlay (address, QR code, port, PIN)
+    void remote_overlay_draw(std::ostringstream& frame, int W) const;
+    std::chrono::steady_clock::time_point phone_last_{}, phone_built_{};
+    int phone_view_ = 0;             // 0 the phone's main screen, 1 its LISTS screen
+    int phone_focus_ = 0;            // LISTS: the pane UP / DOWN page through (0 the local list, 1 the saved playlists)
+    int phone_page_ = 0;             // LISTS: the page of the local list ...
+    int phone_page2_ = 0;            // ... and of the playlists
+    std::string phone_note_;         // its status line ("queued 12 titles from ...")
+    std::chrono::steady_clock::time_point phone_clear_armed_{};   // CLEAR QUEUE tapped once: a second tap within 5 s clears
+    std::string queue_playlist(const std::string& name);   // every title of a saved playlist into the queue; the message
     void ensure_visible_row_meta();
     void recompute_waveform_for_current_track();
     std::string render_frame(TerminalIO& term);

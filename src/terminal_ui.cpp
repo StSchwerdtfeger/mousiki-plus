@@ -92,6 +92,7 @@ static void remove_fatal_signal_handlers() {
 // ---------------------------------------------------------------------------
 static bool g_bg_black = false;     // OSC 11 black is in force
 static bool g_bg_asked = false;     // the terminal's own background was asked for (only the first time)
+static std::string g_fg_set;          // the text colour set with OSC 10 ("" = the terminal's own)
 #if defined(_WIN32)
 static char g_bg_restore[128] = {};
 static size_t g_bg_restore_len = 0;
@@ -139,7 +140,7 @@ void terminal_black_background(bool on) {
         if (!g_bg_asked) {
             g_bg_asked = true;
             // the way back: OSC 111 (the terminal's configured default) and, when the terminal told us, its exact colour
-            std::string back = "\x1b]111\x1b\\";
+            std::string back = "\x1b]110\x1b\\\x1b]111\x1b\\";   // (OSC 110: the text colour too, see terminal_default_text())
             const std::string own = bg_query();
             if (!own.empty() && own != "rgb:0000/0000/0000") back += "\x1b]11;" + own + "\x1b\\";
             g_bg_restore_len = std::min(back.size(), sizeof g_bg_restore);
@@ -153,7 +154,34 @@ void terminal_black_background(bool on) {
         std::cout.write(g_bg_restore, static_cast<std::streamsize>(g_bg_restore_len));
         std::cout << std::flush;
         g_bg_black = false;
+        g_fg_set.clear();
     }
+}
+
+// The 256-colour palette as RGB, for 16-255 (the same in every terminal); "" for 0-15 / empty / anything else.
+static std::string palette_rgb(const std::string& v) {
+    if (v.empty() || v.size() > 3) return "";
+    for (char c : v) if (c < '0' || c > '9') return "";
+    const int n = std::atoi(v.c_str());
+    int r, g, b;
+    if (n >= 16 && n <= 231) {
+        static const int lv[6] = {0, 95, 135, 175, 215, 255};
+        r = lv[(n - 16) / 36]; g = lv[(n - 16) / 6 % 6]; b = lv[(n - 16) % 6];
+    } else if (n >= 232 && n <= 255) {
+        r = g = b = 8 + (n - 232) * 10;
+    } else return "";
+    char buf[32];
+    std::snprintf(buf, sizeof buf, "rgb:%02x/%02x/%02x", r, g, b);
+    return buf;
+}
+
+void terminal_default_text(const std::string& palette) {
+    const std::string want = g_bg_black ? palette_rgb(palette) : std::string();
+    if (want == g_fg_set) return;
+    if (want.empty()) std::cout << "\x1b]110\x1b\\";              // the terminal's own text colour again
+    else std::cout << "\x1b]10;" << want << "\x1b\\";
+    std::cout << std::flush;
+    g_fg_set = want;
 }
 void terminal_background_restore() { terminal_black_background(false); }
 
@@ -453,10 +481,20 @@ int TerminalIO::poll_key() {
                 case 'D': g_last_key_was_arrow = true; return 'D';
                 case 'H': g_last_key_was_arrow = false; return kKeyHome; // most xterm-likes send ESC [ H for Home
                 case 'F': g_last_key_was_arrow = false; return kKeyEnd;  // ...and ESC [ F for End
-                case '3': { // ESC [ 3 ~ -- Delete key
+                case '3': { // ESC [ 3 ~ -- Delete key; ESC [ 3 ; <mod> ~ -- with modifiers (Shift+Delete: mod 2)
                     unsigned char tail = 0;
-                    if (read(STDIN_FILENO, &tail, 1) == 1 && tail == '~') { g_last_key_was_arrow = false; return kKeyDelete; }
                     g_last_key_was_arrow = false;
+                    if (read(STDIN_FILENO, &tail, 1) != 1) return 27;
+                    if (tail == '~') return kKeyDelete;
+                    if (tail == ';') {
+                        int mod = 0;
+                        unsigned char c = 0;
+                        while (read(STDIN_FILENO, &c, 1) == 1 && c >= '0' && c <= '9') mod = mod * 10 + (c - '0');
+                        if (c == '~') {
+                            g_last_key_was_shifted = mod >= 2 && (((mod - 1) & 1) != 0);
+                            return kKeyDelete;
+                        }
+                    }
                     return 27;
                 }
             }

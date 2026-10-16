@@ -1,6 +1,7 @@
 #include "app.h"
 #include "text_edit.h"
 #include "overlay_common.h"
+#include "remote_server.h"
 #include "remote_control.h"
 #include "about_text.h"
 #include "border_gradient.h"
@@ -679,8 +680,20 @@ void export_fpcalc_to_scripts() {
 
 } // namespace
 
+namespace {   // (the colour themes' helpers, further down)
+void theme_apply(Settings& s, const themes::Theme& t);
+} // namespace
+
 App::App() {
     settings_ = load_settings();
+    // Still the colours of a built-in theme as an earlier version had them (with terminal-dependent colours 1-15 and empty
+    // text colours)? Then the theme's fixed colours, which look the same in every terminal (see themes::renewed_builtins()).
+    for (const auto& [was, now] : themes::renewed_builtins()) {
+        if (!themes::file_holds(config_path(), was, false)) continue;
+        theme_apply(settings_, now);
+        save_settings(settings_);
+        break;
+    }
     // Point yt-dlp at the configured folder (if any) before anything can
     // ask where a download would go. Empty config = default cache folder,
     // which is what set_download_dir() restores on its own.
@@ -1124,7 +1137,9 @@ void App::settings_close(bool save) {
     }
     settings_dirty_ = false;
     theme_ui_ = 0;
+    remote_ov_ = remote_ui::State{};
     mode_ = Mode::Browse;
+    remote_app_apply();   // a discarded Remote App switch is undone here
 }
 
 // Re-runs the local library scan over whatever settings_.local_music_paths
@@ -1952,7 +1967,9 @@ void App::queue_reset_lap() {
     for (auto& q : queue_) q.played = false;
 }
 
-void App::play_next_from_queue() {
+void App::play_next_from_queue(bool random) {
+    // The queue plays in its order, whatever the play mode: next (n) and the end of a track take its first item. Only the
+    // shuffle key (#, `random`) picks a random item of it.
     // Shuffle: pick a random queue item instead of strictly FIFO order.
     // What happens to the item once it is taken depends on the lock ("!"):
     //   * LOCKED (the default): it goes to the END of the queue, so the queue
@@ -1974,7 +1991,7 @@ void App::play_next_from_queue() {
         idx = static_cast<int>(first - queue_.begin());
     } else {
         queue_reset_lap(); // the flags only mean something in queue-then-stop on a locked queue
-        if (settings_.play_mode == 2 /*shuffle*/ && queue_.size() > 1) {
+        if (random && queue_.size() > 1) {
             static std::mt19937 rng(std::random_device{}());
             std::uniform_int_distribution<int> dist(0, static_cast<int>(queue_.size()) - 1);
             idx = dist(rng);
@@ -2136,21 +2153,22 @@ void App::queue_add_selected_impl(bool at_end) {
 // present on disk, skipping (and reporting) any that aren't.
 void App::playlist_add_selected_to_queue() {
     if (playlist_view_.empty() || selected_ < 0 || selected_ >= static_cast<int>(playlist_view_.size())) return;
-    const auto& summary = playlist_view_[selected_];
-    auto pl = load_playlist(summary.name);
-    if (!pl) { status_line_ = "could not load \"" + summary.name + "\""; return; }
+    status_line_ = queue_playlist(playlist_view_[selected_].name);
+}
 
+std::string App::queue_playlist(const std::string& name) {
+    auto pl = load_playlist(name);
+    if (!pl) return "could not load \"" + name + "\"";
     int added = 0, skipped = 0;
     for (auto& t : pl->tracks) {
         if (t.missing) { ++skipped; continue; }
-        queue_.push_back({true, t.title, t.artist, t.path, "", false, summary.name});
+        queue_.push_back({true, t.title, t.artist, t.path, "", false, name});
         ++added;
     }
     clamp_queue_selected();
     queue_reveal(static_cast<int>(queue_.size()) - 1);
-    status_line_ = "queued " + std::to_string(added) + " track" + (added == 1 ? "" : "s")
-                 + " from \"" + summary.name + "\""
-                 + (skipped > 0 ? " (" + std::to_string(skipped) + " missing, skipped)" : "");
+    return "queued " + std::to_string(added) + " track" + (added == 1 ? "" : "s") + " from \"" + name + "\""
+         + (skipped > 0 ? " (" + std::to_string(skipped) + " missing, skipped)" : "");
 }
 
 void App::queue_remove_last() {
@@ -2667,7 +2685,7 @@ enum SetId {
     kSidVizField, kSidDisk, kSidDummy, kSidQueue, kSidWave, kSidLyricsEngine, kSidLyricViz, kSidVisualizer, kSidNoLyricsViz,
     kSidStereo, kSidNormalize, kSidMetaOnly, kSidEmoji, kSidMarquee, kSidUseLyrics, kSidUseOsci, kSidUseSpectro, kSidUseSphere,
     kSidOrder1, kSidOrder2, kSidOrder3, kSidOrder4,
-    kSidPlayback, kSidStartMode, kSidBlackBg, kSidShareProfiles,
+    kSidPlayback, kSidStartMode, kSidBlackBg, kSidShareProfiles, kSidRemoteApp,
     kSidVisFluidity, kSidWaveStyle, kSidDiskSpeed, kSidVisDegr, kSidVisVisc, kSidLyrAlign, kSidLyrAnim,
 };
 struct SetLine { bool header; int id; const char* text; };   // a category header, or a row (id + label)
@@ -2675,6 +2693,7 @@ static const std::vector<SetLine>& settings_layout(int tab) {
     static const std::vector<SetLine> on_off = {
         {true, -1, "MODES"},
         {false, kSidPlayback, "Playback"}, {false, kSidStartMode, "Start Mode"}, {false, kSidBlackBg, "Black Background"}, {false, kSidShareProfiles, "Share Profiles"},
+        {false, kSidRemoteApp, "Remote App"},
         {true, -1, ""},
         {true, -1, "ON/OFF"},
         {false, kSidDisk, "Eliment Disk"}, {false, kSidDummy, "Dummy Buttons"}, {false, kSidQueue, "Queue Display"},
@@ -3321,6 +3340,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidStereo: v = settings_.stereo; break;
             case kSidBlackBg: v = settings_.black_background; break;
             case kSidShareProfiles: v = settings_.share_profiles; break;
+            case kSidRemoteApp: return settings_.remote_app ? "on   [ENTER] settings" : "off  [ENTER] settings";   // opens the REMOTE APP overlay
             case kSidNormalize: v = settings_.normalize; break;
             case kSidMetaOnly: v = settings_.meta_only; break;
             case kSidEmoji: v = settings_.replace_emoji; break;
@@ -3399,6 +3419,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidOrder1: case kSidOrder2: case kSidOrder3: case kSidOrder4: return {"sphere", "osci", "spectro", "lyrics"};
             case kSidPlayback: return {"list", "loop", "shuffle", "stop", "queue then stop"};
             case kSidStartMode: return {"player", "radio"};
+            case kSidRemoteApp: return {};   // not a switch: ENTER / LEFT / RIGHT open the REMOTE APP overlay
             case kSidVisFluidity: case kSidVisDegr: case kSidVisVisc: return {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
             case kSidWaveStyle: return {"raw", "smooth"};
             case kSidDiskSpeed: return {"0.01", "0.05", "0.10", "0.17", "0.25", "0.50", "0.75", "1.00"};
@@ -3523,6 +3544,11 @@ void App::settings_commit_edit_impl() {
             case kSidMarquee: settings_.marquee = is_true; break;
             case kSidBlackBg: settings_.black_background = is_true; break;   // the render loop applies it
             case kSidShareProfiles: settings_.share_profiles = is_true; break;   // the radio reads it when it starts
+            case kSidRemoteApp:
+                settings_.remote_app = is_true;
+                if (is_true && settings_.remote_pin.empty()) settings_.remote_pin = remote::net::make_pin();
+                remote_app_apply();   // starts / stops the web server right away
+                break;
             case kSidUseLyrics: settings_.use_lyrics = is_true; break;
             case kSidUseOsci: settings_.use_osci = is_true; break;
             case kSidUseSpectro: settings_.use_spectro = is_true; break;
@@ -3717,6 +3743,12 @@ void App::settings_cycle(int dir) {
                                                                      : "black background: off -- the terminal keeps its own background";
     if (id == kSidShareProfiles) status_line_ = settings_.share_profiles ? "share profiles: on -- the radio uses these oscilloscope / spectrogram settings (its own come back when this is off)"
                                                                          : "share profiles: off -- the radio keeps its own oscilloscope / spectrogram settings";
+    if (id == kSidRemoteApp) {
+        const std::string err = remote::net::last_error();
+        status_line_ = !settings_.remote_app ? "remote app: off"
+                     : !err.empty() ? "remote app: " + err
+                     : "remote app: " + remote::net::url() + "  PIN " + settings_.remote_pin + "  (Mousiki Remote app or the phone's browser, same network; s saves)";
+    }
     if (id == kSidStartMode) status_line_ = settings_.start_mode == "radio" ? "Mousiki starts in the radio (the music player is one SHIFT+* away)"
                                                                             : "Mousiki starts with the music player";
 }
@@ -3784,6 +3816,25 @@ void App::handle_settings_key(int key) {
         return;
     }
     if (theme_ui_ != 0 && mode_ != Mode::ColorEdit) { handle_theme_key(key); return; }
+    if (remote_ov_.open) {   // the REMOTE APP overlay has the keys
+        remote_ui::Values v{settings_.remote_app, settings_.remote_port, settings_.remote_pin};
+        bool close = false;
+        if (remote_ui::key(remote_ov_, v, key, last_key_was_arrow(), close)) {
+            settings_.remote_app = v.enabled; settings_.remote_port = v.port; settings_.remote_pin = v.pin;
+            remote_app_apply();
+            settings_update_dirty();
+        }
+        if (close) { remote_ov_ = remote_ui::State{}; status_line_ = settings_.remote_app ? "remote app on (s saves)" : "remote app off (s saves)"; }
+        force_redraw_ = true;
+        return;
+    }
+    if (mode_ == Mode::Settings && settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidRemoteApp &&
+        (key == '\r' || key == '\n' || ((key == 'C' || key == 'D') && last_key_was_arrow()))) {
+        remote_ov_ = remote_ui::State{};
+        remote_ov_.open = true;
+        force_redraw_ = true;
+        return;
+    }
     if (mode_ == Mode::ColorEdit) {
         // The caret can be stale by one keypress after the buffer was
         // replaced wholesale (an option cycle, a rejected hotkey) -- clamp
@@ -4058,6 +4109,52 @@ void App::sync_after_radio() {
     settings_.black_background = read_black_background();
     settings_.share_profiles = read_share_profiles();
     if (settings_.share_profiles) { VizPrefs v; if (read_player_viz(v)) settings_.take_shared_from(v); }
+    const RemoteAppConfig rc = read_remote_app();
+    settings_.remote_app = rc.enabled;
+    settings_.remote_port = rc.port;
+    settings_.remote_pin = rc.pin;
+}
+
+void App::remote_app_apply() {
+    remote::net::configure({settings_.remote_app, settings_.remote_port, settings_.remote_pin});
+}
+
+// The REMOTE APP overlay, centred on the Settings screen (absolute positions, like the screen itself).
+void App::remote_overlay_draw(std::ostringstream& frame, int W) const {
+    remote_ui::Style st;
+    st.border = ansi_for(settings_.border_color, false);
+    st.border_bottom = ansi_for(settings_.border_color_bottom, false);
+    st.header = ansi_for(settings_.header_color, true);
+    st.legend = ansi_for(settings_.legend_color, false);
+    st.text = ansi_for(settings_.list_color, false);
+    st.value = st.text;
+    st.change = ansi_for(settings_.change_text_color, false) + bg_ansi_for(settings_.change_bg_color);
+    st.cursor = "\x1b[7m";
+    st.ul = settings_.box_upper_left; st.ur = settings_.box_upper_right;
+    st.ll = settings_.box_lower_left; st.lr = settings_.box_lower_right;
+    st.h = settings_.box_horizontal;  st.v = settings_.box_vertical;
+    if (settings_.border_smooth)
+        st.border_at = [this](float t) { return gradient_ansi(settings_.border_color, settings_.border_color_bottom, t, false); };
+    const remote_ui::Values v{settings_.remote_app, settings_.remote_port, settings_.remote_pin};
+    const int rows = std::max(10, term_rows_ - 1);
+    int w = 0;
+    const std::vector<std::string> lines = remote_ui::build(remote_ov_, v, st, W - 2, rows, w);
+    const int x = std::max(1, (W - w) / 2 + 1), y = std::max(1, (rows - static_cast<int>(lines.size())) / 2 + 1);
+    for (size_t i = 0; i < lines.size(); ++i) frame << "\x1b[" << y + static_cast<int>(i) << ";" << x << "H" << lines[i];
+    frame << "\x1b[0m";
+}
+
+void App::act_cycle_play_mode() {
+    // list -> repeat -> shuffle -> stop -> queue then stop -> list
+    settings_.play_mode = (settings_.play_mode + 1) % 5;
+    queue_reset_lap();
+    static const char* mode_names[] = {"list", "repeat", "shuffle", "stop", "queue then stop"};
+    log_event(std::string("play mode: ") + mode_names[settings_.play_mode]);
+}
+
+void App::act_wizard_toggle() {
+    if (mode_ == Mode::Wizard) wizard_close();
+    else wizard_open();
 }
 
 // ---- actions shared by the hotkeys and the remote control ------------------------------------------------------------------
@@ -4085,8 +4182,8 @@ void App::act_mute(int how) {   // force volume to 0 without touching the pause 
 }
 
 void App::act_next() {
-    // The queue (if any) takes priority, same as auto-advance-on-finish does, and respects Shuffle/Queue-then-stop via
-    // play_next_from_queue() -- a manual skip still always actually skips, though: Repeat/Stop/Queue-then-stop only govern
+    // The queue (if any) takes priority, same as auto-advance-on-finish does: its next title in order (only # picks a random
+    // one), Queue-then-stop respected via play_next_from_queue() -- a manual skip still always actually skips, though: Repeat/Stop/Queue-then-stop only govern
     // *automatic* advance, not an explicit "next" press.
     if (!queue_.empty()) play_next_from_queue();
     else play_relative(1);
@@ -4108,7 +4205,7 @@ void App::remote_poll() {
         else if (n == "pause" || n == "stop") { if (has_track_ && !player_.is_paused()) player_.pause(); }
         else if (n == "next") act_next();
         else if (n == "prev") act_prev();
-        else if (n == "shuffle") play_relative_random();
+        else if (n == "shuffle") { if (!queue_.empty()) play_next_from_queue(true); else play_relative_random(); }
         else if (n == "volume-up") act_volume_change(static_cast<int>(remote::number(c.arg, 5)));
         else if (n == "volume-down") act_volume_change(-static_cast<int>(remote::number(c.arg, 5)));
         else if (n == "volume") {
@@ -4121,10 +4218,82 @@ void App::remote_poll() {
         else if (n == "unmute") act_mute(0);
         else if (n == "toggle-mute") act_mute(-1);
         else if (n == "seek") { if (has_track_) player_.seek_relative(remote::number(c.arg, 0.0)); }
+        else if (n == "playback-mode") act_cycle_play_mode();
+        else if (n == "wizard") act_wizard_toggle();
+        else if (n == "remote-view") {
+            phone_view_ = remote::number(c.arg, 0) > 0.5 ? 1 : 0;
+            phone_note_.clear();
+            phone_clear_armed_ = {};
+            if (phone_view_ == 1) {   // the local list opens on the page of the playing title
+                int cols = 44, rows = 44;
+                remote::net::screen_wanted(cols, rows);
+                int per = 0, per2 = 0;
+                remote::net::phone_lists_rows(rows, per, per2);
+                int at = -1;
+                if (has_track_ && current_is_local_)
+                    for (size_t i = 0; i < local_view_.size(); ++i) if (local_view_[i].path == current_path_) { at = static_cast<int>(i); break; }
+                phone_page_ = at >= 0 ? at / per : 0;
+                phone_page2_ = 0;
+                phone_focus_ = 0;
+            }
+        }
+        else if (n == "remote-focus") { phone_focus_ = remote::number(c.arg, 0) > 0.5 ? 1 : 0; }
+        else if (n == "remote-scroll") {   // a whole page of the pane in focus
+            int cols = 44, rows = 44;
+            remote::net::screen_wanted(cols, rows);
+            int per = 0, per2 = 0;
+            remote::net::phone_lists_rows(rows, per, per2);
+            const int step = static_cast<int>(remote::number(c.arg, 0));
+            if (phone_focus_ == 0) {
+                const int pages = std::max(1, (static_cast<int>(local_view_.size()) + per - 1) / per);
+                phone_page_ = std::clamp(phone_page_ + step, 0, pages - 1);
+            } else {
+                const int pages = std::max(1, (static_cast<int>(playlist_summaries().size()) + per2 - 1) / per2);
+                phone_page2_ = std::clamp(phone_page2_ + step, 0, pages - 1);
+            }
+        }
+        else if (n == "track") {   // the phone's local list: play that title (1 = the first title of the list)
+            const int k = static_cast<int>(remote::number(c.arg, 0)) - 1;
+            if (k >= 0 && k < static_cast<int>(local_view_.size())) {
+                const LocalTrack t = local_view_[static_cast<size_t>(k)];
+                if (list_source_ == ListSource::Local) {   // the main list follows
+                    selected_ = k;
+                    if (selected_ >= scroll_ + list_nav_rows()) scroll_ = selected_ - list_nav_rows() + 1;
+                    if (selected_ < scroll_) scroll_ = selected_;
+                }
+                start_local_track(t);
+                phone_note_ = "playing " + t.title;
+            }
+        }
+        else if (n == "clear-queue") {   // the phone taps twice (arg 0 arms, 1 clears); the command line clears at once
+            if (queue_.empty()) phone_note_ = "the queue is empty";
+            else if (c.arg == "0") {
+                phone_clear_armed_ = std::chrono::steady_clock::now();
+                phone_note_ = "tap again to clear " + std::to_string(queue_.size()) + (queue_.size() == 1 ? " title" : " titles");
+            } else {
+                const size_t was = queue_.size();
+                queue_clear();
+                phone_clear_armed_ = {};
+                phone_note_ = "queue cleared (" + std::to_string(was) + (was == 1 ? " title)" : " titles)");
+                status_line_ = phone_note_;
+            }
+        }
+        else if (n == "playlist") {   // the phone's PLAYLISTS list (1 = the first playlist in A-Z order)
+            const std::vector<PlaylistSummary> pls = playlist_summaries();
+            const int k = static_cast<int>(remote::number(c.arg, 0)) - 1;
+            if (k >= 0 && k < static_cast<int>(pls.size())) {
+                const bool idle = !has_track_;
+                phone_note_ = queue_playlist(pls[static_cast<size_t>(k)].name);
+                status_line_ = phone_note_;
+                if (idle && !queue_.empty()) { play_next_from_queue(); phone_note_ += " -- playing"; }
+            }
+        }
         else if (n == "switch-mode") { switch_mode_ = true; quit_ = true; }
         else if (n == "quit") quit_ = true;
         // "live" belongs to the radio: ignored here
+        force_redraw_ = true;
     }
+    phone_publish();   // the remote app's screen, when a phone asks for it
     const TrackMetadata md = has_track_ ? display_metadata() : TrackMetadata{};
     char pos[32], dur[32];
     std::snprintf(pos, sizeof pos, "%.1f", has_track_ ? player_.poll_elapsed() : 0.0);
@@ -4135,7 +4304,8 @@ void App::remote_poll() {
                             {"artist", has_track_ && md.artist != "-" ? md.artist : std::string()},
                             {"album", has_track_ && md.album != "-" ? md.album : std::string()},
                             {"position_sec", pos}, {"duration_sec", dur},
-                            {"volume", std::to_string(player_.volume())}, {"muted", muted_ ? "yes" : "no"}});
+                            {"volume", std::to_string(player_.volume())}, {"muted", muted_ ? "yes" : "no"},
+                            {"playback_mode", play_mode_name(settings_.play_mode)}});
 }
 
 void App::handle_key(int key) {
@@ -4901,12 +5071,10 @@ void App::handle_key(int key) {
         // Shuffle to a random next track in the current list -- a
         // manual one-off jump, independent of Play Mode
         // (settings_.play_mode). Reuses the same play_relative_random()
-        // the automatic Shuffle play mode already calls on auto-advance;
-        // unlike PlayNextSong, this does not consult the queue at all --
-        // shuffling picks from the browse list on purpose, since the
-        // queue is a deliberately ordered, user-built list and jumping
-        // it around at random would defeat the point of it.
-        play_relative_random();
+        // the automatic Shuffle play mode already calls on auto-advance.
+        // With a queue: a random title of the queue instead (it is what plays next anyway).
+        if (!queue_.empty()) play_next_from_queue(true);
+        else play_relative_random();
     } else if (action == "HKeyToggleLyrics" || action == "HKeyToggleLyricsBack") {   // "." forward, "," backward
         // Cycle the lyrics area without going through Settings > On/Off:
         // sphere -> oscilloscope -> spectrogram -> lyrics ... (the order is Settings -> ON/OFF -> "Viz Order 1..4"). The visuals are
@@ -4966,17 +5134,7 @@ void App::handle_key(int key) {
         queue_remove_hovering();
         log_event("removed from queue");
     } else if (action == "HKeyCyclePlayMode") {
-        // Cycle play mode: list -> repeat -> shuffle -> stop -> queue then
-        // stop -> list -- one key for all five instead of a separate
-        // toggle per mode.
-        settings_.play_mode = (settings_.play_mode + 1) % 5;
-        queue_reset_lap();
-        {
-            // Indexed 0=list,1=repeat,2=shuffle,3=stop,4=queue then stop,
-            // matching play_mode's own numbering (not cycle order).
-            static const char* mode_names[] = {"list", "repeat", "shuffle", "stop", "queue then stop"};
-            log_event(std::string("play mode: ") + mode_names[settings_.play_mode]);
-        }
+        act_cycle_play_mode();   // one key for all five play modes
     } else if (action == "HKeyKaraoke") {
         // The karaoke overlay: the lyrics of the playing track over the whole screen.
         mode_ = Mode::Karaoke;
@@ -8682,6 +8840,15 @@ bool App::handle_meta_prompt_key(int key) {
         } else if (p == MetaPrompt::Discard) {
             meta_prompt_paths_.clear();
             meta_discard_session();
+        } else if (p == MetaPrompt::ClearFetch) {
+            // only the list: pending edits (fetched tags included) stay until CTRL+s or CTRL+SHIFT+x
+            meta_prompt_paths_.clear();
+            const size_t n = meta_fetch_list_.size();
+            meta_fetch_list_.clear();
+            meta_fetch_ok_paths_.clear();
+            meta_fetch_selected_ = 0;
+            meta_persist();
+            say("fetch list emptied (" + std::to_string(n) + " title" + (n == 1 ? "" : "s") + "); pending edits are kept");
         } else {
             meta_start_fetch(); // clears meta_prompt_paths_ itself
         }
@@ -8819,6 +8986,13 @@ void App::handle_meta_key(int key) {
         }
         if (key == '\r' || key == '\n') { meta_prompt_list_fetch(); return; } // "fetch metadata" over the whole list
         if (key == 'P' && !arrow) { meta_play_hovering(); return; } // SHIFT+p: start the hovered track
+        // SHIFT+d / SHIFT+DEL: empty the whole list (asks first); DEL / d: only the hovered title
+        if ((key == kKeyDelete && last_key_was_shifted()) || (key == 'D' && !arrow)) {
+            if (meta_fetch_list_.empty()) { meta_status_ = "the fetch list is empty"; return; }
+            if (meta_fetch_running_.load()) { meta_status_ = "a fetch is running: stop it first with SHIFT+c"; return; }
+            meta_prompt_ = MetaPrompt::ClearFetch;
+            return;
+        }
         if (key == kKeyDelete || key == 127 || key == 'd') { meta_remove_hovering(); return; }
         return;
     }
@@ -9372,6 +9546,9 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
                                        + " still ha" + (open_choices == 1 ? "s" : "ve") + " several options -- the first one is saved." : std::string())
                  + "   [Y]es   [N]o   [ESC] cancel";
             colors = "\x1b[43;30m";
+        } else if (meta_prompt_ == MetaPrompt::ClearFetch) {
+            text = "Empty the fetch list (" + std::to_string(meta_fetch_list_.size()) + " titles)? Pending edits, fetched tags included, are kept.   [Y]es   [N]o   [ESC] cancel";
+            colors = "\x1b[43;30m";
         } else {
             text = "Want to discard changes? The files themselves were never touched.   [Y]es   [N]o   [ESC] cancel";
             colors = "\x1b[41;97m"; // red, same as its delete prompt
@@ -9418,7 +9595,7 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
         } else {
             hint_lines.push_back((meta_fetch_focus_ == 1 ? std::string("[\u2190\u2192] Option") : lr) + " | [TAB] Focus | "
                                  + (meta_fetch_focus_ == 1 ? std::string("[SPACE] Tick | ") : std::string())
-                                 + "[\u2191\u2193] Navi. | [SHIFT+p] Play | [DEL] Remove | [" + hotkey_text("HKeyRescan", "R") + "] Rescan");
+                                 + "[\u2191\u2193] Navi. | [SHIFT+p] Play | [DEL] Remove | [SHIFT+d] Empty list | [" + hotkey_text("HKeyRescan", "R") + "] Rescan");
             hint_lines.push_back("[ENTER] Fetch full list | [" + hotkey_text("HKeyFetchTags", "B") + "] Fetch missing tag | [SHIFT+n] Fetch all tags");
             hint_lines.push_back("[SHIFT+c] Cancel fetch | [CTRL+s] Save | [CTRL+SHIFT+x] Discard | " + esc);
         }
@@ -12293,8 +12470,9 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "#SHIFT+c", "Meta editor, Fetch List tab: cancel the running AcoustID fetch (what had arrived stays as pending edits, the rest stays on the list). Leaving the editor does not stop a fetch; quitting does"},
         {nullptr, "HKeyRescan", "Rescan the library (new files); also in the meta data editor (library pane / fetch list focused)"},
         {nullptr, "#DEL / d", "Remove hovering track from the fetch list"},
+        {nullptr, "#SHIFT+d / SHIFT+DEL", "Empty the whole fetch list (asks first); pending edits, fetched tags included, are kept"},
         {nullptr, "#CTRL+s", "Apply the meta editor's pending edits to the files (asks first)"},
-        {nullptr, "#CTRL+SHIFT+x", "Discard the meta editor's pending edits"},
+        {nullptr, "#CTRL+SHIFT+x", "Discard the meta editor's pending edits (fetched tags included) and empty the fetch list"},
         // --- Settings ---
         {"SETTINGS", "#TAB", "Next tab (not while a field is being edited)"},
         {nullptr, "#UP/DOWN  LEFT/RIGHT", "Previous / next row  |  cycle a switch or choice / pick the first or second colour cell"},
@@ -15188,6 +15366,7 @@ std::string App::render_frame(TerminalIO& term) {
         std::ostringstream frame;
         frame << "\x1b[2J\x1b[H\x1b[?25l";
         build_settings_screen(frame, W, overlay_budget(W));
+        if (remote_ov_.open) remote_overlay_draw(frame, W);
         return fullscreen_out(frame);
     }
 
@@ -15572,7 +15751,8 @@ int App::run() {
     const bool resuming = suspended_;
     suspended_ = false;
     remote::start("player");
-    if (resuming) sync_after_radio();   // the radio's settings may have changed some of ours meanwhile
+    if (resuming) sync_after_radio();
+    remote_app_apply();   // the remote app's web server (Settings -> ON/OFF -> MODES -> Remote App)   // the radio's settings may have changed some of ours meanwhile
     bool restored = false;
     if (!resuming) {
     ConsoleLog::instance().init(settings_.console_verbosity == 1 ? LogVerbosity::Verbose : LogVerbosity::Basic);
@@ -15750,6 +15930,7 @@ int App::run() {
         // frame will usually lay out fine), log it, and force a full repaint
         // once rendering works again.
         terminal_black_background(settings_.black_background);   // Settings -> ON/OFF -> MODES (only writes when it changes)
+        terminal_default_text(settings_.list_color);              // text without a colour of its own: the list text colour
         std::string frame_str;
         try {
             frame_str = render_frame(term);
