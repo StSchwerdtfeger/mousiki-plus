@@ -23,6 +23,7 @@ GNOME -- match your terminal's scheme), the size of the braille dots, the PIN, t
 
 ## Getting the APK
 
+* **Download apk.zip from above** Download mousiki-remote-1.0.0-apk.zip from above and install - might take a while to install (specially when scanned first by Google protect protocols). For me it worked after the second attempt...
 * **GitHub:** the workflow `.github/workflows/remote-app.yml` builds it on every change of `remote_app/android/` (or by
   hand: Actions -> "Remote app (Android)" -> Run workflow). The APK is under the run's *Artifacts* (`mousiki-remote-apk`).
 * **Android Studio:** open `remote_app/android`, then Build -> Build APK(s).
