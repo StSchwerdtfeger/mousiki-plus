@@ -196,29 +196,19 @@ cmake --build build --config Release --parallel
 
 The build copies `scripts\` (including the freshly built `fpcalc.exe`) next to `mousiki.exe`. Keep that `scripts\` folder next to the exe if you move it, otherwise lyrics, fast online search and the AcoustID fetch stop working.
 
-Run app e.g. via the command below (adjust username in the path before executing!!).
+Run app e.g. via the mentioned commands "mousiki" or "lala"
 Note that you have to add your local files path via the config file `C:\Users\YOURNAME\.config\mousiki\config.txt` or via Settings (`s`) inside the app (more details further below). The `config.txt` in the repo root is a documented template of that file.
-See the [user manual](Mousiki_User_Manual/Mousiki_User_Guide.md) or the original repo by itzender5820 for an introduction on how to use Mousiki.
+See the [user manual](Mousiki_User_Manual/Mousiki_User_Guide.md) on how to use Mousiki Plus.
+
+Start app via the following terminal commands:
 ```powershell
-& 'C:\Users\YOURNAME\mousiki\build\Release\mousiki.exe'
+mousiki
 ```
-Personally, I recommend writing a function in your PowerShell profile.ps1 in order to be able to run the app via a command (in my case I set the command to be "lala"):
-To do so, open your profile file via:
+or use
 
 ```powershell
-notepad $PROFILE
+lala
 ```
-
-Then add the following (as said, I called the function lala but you can choose whatever you want; there is certainly a bunch of already existing commands, such as e.g. python, but you should be safe for most of the cases). 
-Again, add your Username in the path!
-
-```powershell
-function lala {
-    & 'C:\Users\YOURNAME\mousiki\build\Release\mousiki.exe'
-}
-```
-Save your profile.ps1 via Ctrl + S and open a new terminal in order to be able to test your new function.
-Voilà, you can now open Mousiki from any folder you're at using the command "lala", or whatever you set as command respectively...
 
 ## Prerequisites (Windows)
 
