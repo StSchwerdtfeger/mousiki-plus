@@ -84,42 +84,46 @@ Everything below is in the current version (v4.2.0) and works the same on Window
 <p align="center"><img width="850" alt="The spectrogram over the whole screen" src="readme_images/spectro_full.png" /></p>
 <p align="center"><img width="850" alt="The spectrogram in image mode over the whole screen, both channels (theme Tokyo Night)" src="readme_images/spectro_image.png" /></p>
 
-### Lyrics and karaoke
+### Lyrics and Karaoke mode
+
+- **Synchronized lyrics** fetched for local and online tracks, word-by-word animations, a timing editor for the offset (`ALT+L`), several versions kept per song.
 
 <p align="center"><img width="850" alt="Synchronized lyrics on the main screen" src="readme_images/lyrics_main_ui.png" /></p>
 
-- **Synchronized lyrics** fetched for local and online tracks, word-by-word animations, a timing editor for the offset (`ALT+L`), several versions kept per song.
-- **READ LYRICS** with **translations** (`CTRL+L`) and a full-screen **karaoke mode** with big braille letters (also Japanese, Chinese and Korean).
+- **Read lyrics** with **translations** (`CTRL+L`) and a full-screen **karaoke mode** with big braille letters (also Japanese, Chinese and Korean).
 
+- **Karaoke mode** open via `k`.
+  
 <p align="center"><img width="850" alt="Karaoke mode" src="readme_images/karaoke_mode.png" /></p>
 
 ### Playlists, meta data, history, conversion
+- **Playlist editor** (`SHIFT+p`): create and edit playlists from local or downloaded tracks, import and export M3U / M3U8.
 
 <p align="center"><img width="850" alt="The playlist editor" src="readme_images/playlist_editor.png" /></p>
 
-- **Playlist editor** (`SHIFT+p`): create and edit playlists from local or downloaded tracks, import and export M3U / M3U8.
 - **Meta data editor** (`SHIFT+m`): edit tags, rename files, and **fetch missing tags by audio fingerprint** (AcoustID / MusicBrainz) for one title or a whole list.
-- **Listening history** (`SHIFT+h`): history, top tracks, top playlists and listening habits, plus **smart lists** to queue (top 25 of the week, by time of day ...).
-- **File conversion** between audio formats.
-
+  
 <p align="center"><img width="850" alt="The meta data editor, fetch list" src="readme_images/meta_editor.png" /></p>
 <p align="center"><img width="850" alt="Listening history, top tracks" src="readme_images/history_top_tracks.png" /></p>
 
-### Sound
+- **File conversion** between audio formats.
+- **Listening history** (`SHIFT+h`): history, top tracks, top playlists and listening habits, plus **smart lists** to queue (top 25 of the week, by time of day ...).
 
-<p align="center"><img width="850" alt="The 10-band equalizer" src="readme_images/equalizer.png" /></p>
+### Sound
 
 - **10-band equalizer** with 12 presets and your own presets, **loudness normalization**, stereo / mono, a **sleep timer**.
 
-### Radio player
+<p align="center"><img width="850" alt="The 10-band equalizer" src="readme_images/equalizer.png" /></p>
 
-<p align="center"><img width="850" alt="The radio player, tuned to a station (theme Cyberpunk)" src="readme_images/theme_cyberpunk.png" /></p>
+### Radio player
 
 The radio is part of the same program: `*` (`SHIFT` and `+` on a German keyboard, `SHIFT+8` on an English one) switches between music player and radio.
 
 - An **ON AIR / OFF AIR sign** with a colour wave, a tuning-dial frequency band, its own oscilloscope, spectrogram and equalizer.
 - **Radio Browser** search through tens of thousands of stations, **16 presets** in several preset lists, **station lists**, a big stations overlay.
 - **Timeshift** (pause, jump back, back to live), **recording** (also from the past buffer), its own **listening history**, and finding the current song on YouTube to download it.
+
+<p align="center"><img width="850" alt="The radio player, tuned to a station (theme Cyberpunk)" src="readme_images/theme_cyberpunk.png" /></p>
 
 <p align="center"><img width="850" alt="The radio's presets menu" src="readme_images/radio_presets.png" /></p>
 
@@ -144,20 +148,21 @@ Three themes are made for colour vision deficiencies: **Colorblind Deuteranopia*
 
 ### Help, settings and keys
 
+- A **help wizard** (`SHIFT+w`, opens by itself after the first install), a categorized **cheat sheet** (`?`, shows the keys you actually have bound), this **[manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** (also as [PDF](Mousiki_User_Manual/Mousiki_User_Guide.pdf)).
+
 <p align="center"><img width="850" alt="The help wizard" src="readme_images/help_wizard.png" /></p>
 
-- A **help wizard** (`SHIFT+w`, opens by itself after the first install), a categorized **cheat sheet** (`?`, shows the keys you actually have bound), this **[manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** (also as [PDF](Mousiki_User_Manual/Mousiki_User_Guide.pdf)).
 - **Settings** (`s`) for colours, switches, animations, paths and **every key** (most keys can be rebound; a key already in use is refused). German and English keyboard layouts are detected: see [Keyboard layouts](Mousiki_User_Manual/Mousiki_User_Guide.md#keyboard-layouts-german-and-english) in the manual.
 - **Black Background**, a re-fontable UI (`A={𝓐,𝓪}` lines in `config.txt`), emoji replacement, marquee scrolling, **Share Profiles** for the visual settings of player and radio, and a backup of your settings (`config.txt.bak`) when a new version first saves them.
 
 ### Remote control and phone app
 
+- **Phone remote** (Settings → ON/OFF → Remote App): switch it on, scan the QR code and the phone shows a Mousiki screen drawn by Mousiki itself in your theme -- the spinning disk, meta data, working buttons, volume, playback mode, the local list and your playlists (tap: play / into the queue), clear queue, the manual, and the radio with its sign, station and the whole station list (tap to tune). Any phone browser, or the Android app **Mousiki Remote** ([remote_app/](remote_app/)). PIN-protected, home network only, off by default.
+- **Command line remote:** `mousiki --cmd next`, `--cmd volume 60`, `--cmd seek -30`, `mousiki --status` ... (`mousiki --cmd --help` lists all). Bind them to any keys of your system to get global media keys, also on keyboards without them.
+
 | | | |
 |:---:|:---:|:---:|
 | <img width="260" alt="The phone remote, music player" src="readme_images/phone_player.png" /> | <img width="260" alt="The phone remote, radio" src="readme_images/phone_radio.png" /> | <img width="420" alt="The REMOTE APP settings with the QR code" src="readme_images/remote_overlay.png" /> |
-
-- **Phone remote** (Settings → ON/OFF → Remote App): switch it on, scan the QR code and the phone shows a Mousiki screen drawn by Mousiki itself in your theme -- the spinning disk, meta data, working buttons, volume, playback mode, the local list and your playlists (tap: play / into the queue), clear queue, the manual, and the radio with its sign, station and the whole station list (tap to tune). Any phone browser, or the Android app **Mousiki Remote** ([remote_app/](remote_app/)). PIN-protected, home network only, off by default.
-- **Command line remote:** `mousiki --cmd next`, `--cmd volume 60`, `--cmd seek -30`, `mousiki --status` ... (`mousiki --cmd --help` lists all). Bind them to any keys of your system to get global media keys, also on keyboards without them.
 
 ## Quick start: installers and portables for Windows / macOS / Linux 
 
