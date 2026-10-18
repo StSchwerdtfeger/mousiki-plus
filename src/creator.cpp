@@ -876,6 +876,12 @@ bool read_wav16(const std::string& path_utf8, Stereo& out) {
     std::ifstream f(path_from_utf8(path_utf8), std::ios::binary);
     if (!f) return false;
     auto rd32 = [&](uint32_t& v) { unsigned char b[4]; if (!f.read(reinterpret_cast<char*>(b), 4)) return false; v = b[0] | (b[1] << 8) | (b[2] << 16) | (static_cast<uint32_t>(b[3]) << 24); return true; };
+    // the chunk sizes come from the file: they are checked against what the file really holds before anything is allocated
+    f.seekg(0, std::ios::end);
+    const std::streamoff file_len = f.tellg();
+    f.seekg(0, std::ios::beg);
+    auto left = [&]() { const std::streamoff at = f.tellg(); return at < 0 || at > file_len ? static_cast<uint64_t>(0) : static_cast<uint64_t>(file_len - at); };
+    constexpr uint64_t kMaxData = 1ull << 30;   // 1 GiB of samples is far more than the creator makes (5 minutes of recording is ~50 MB)
     char tag[4];
     uint32_t size = 0;
     if (!f.read(tag, 4) || std::memcmp(tag, "RIFF", 4) != 0 || !rd32(size)) return false;
@@ -883,8 +889,9 @@ bool read_wav16(const std::string& path_utf8, Stereo& out) {
     int channels = 0, bits = 0, rate = 0, format = 0;
     while (f.read(tag, 4) && rd32(size)) {
         if (std::memcmp(tag, "fmt ", 4) == 0) {
+            if (size < 16 || size > 4096 || size > left()) return false;
             std::vector<unsigned char> b(size);
-            if (size < 16 || !f.read(reinterpret_cast<char*>(b.data()), size)) return false;
+            if (!f.read(reinterpret_cast<char*>(b.data()), size)) return false;
             format = b[0] | (b[1] << 8);
             channels = b[2] | (b[3] << 8);
             rate = b[4] | (b[5] << 8) | (b[6] << 16) | (b[7] << 24);
@@ -892,8 +899,10 @@ bool read_wav16(const std::string& path_utf8, Stereo& out) {
             if (size & 1) f.ignore(1);
         } else if (std::memcmp(tag, "data", 4) == 0) {
             if (format != 1 || bits != 16 || (channels != 1 && channels != 2) || rate < 8000 || rate > 192000) return false;
-            std::vector<unsigned char> b(size);
-            f.read(reinterpret_cast<char*>(b.data()), size);
+            const uint64_t take = std::min<uint64_t>({static_cast<uint64_t>(size), left(), kMaxData});   // a streamed file may say 0xFFFFFFFF
+            if (take == 0) return false;
+            std::vector<unsigned char> b(static_cast<size_t>(take));
+            f.read(reinterpret_cast<char*>(b.data()), static_cast<std::streamsize>(take));
             const size_t got = static_cast<size_t>(f.gcount());
             const size_t frame = static_cast<size_t>(channels) * 2;
             const size_t n = got / frame;
@@ -908,6 +917,7 @@ bool read_wav16(const std::string& path_utf8, Stereo& out) {
             }
             return n > 0;
         } else {
+            if (static_cast<uint64_t>(size) + (size & 1) > left()) return false;
             f.ignore(size + (size & 1));
         }
     }
