@@ -885,7 +885,7 @@ Jump to a tab with [1] - [4] or move with [<-/->].
 
 THE FOUR TABS: [[Header]]
 [1] HISTORY          the last 100 plays: when, what, how long, and PLAY / done / skip
-[2] TOP TRACKS       one row per title with its play count
+[2] TOP TRACKS       one row per title: Title | Artist, length, play count
 [3] TOP PLAYLISTS    the top 5 saved playlists of the week, month, quarter, year and overall
 [4] HABITS           sessions, time per day, tracks per session, skips, replays, completion
 
