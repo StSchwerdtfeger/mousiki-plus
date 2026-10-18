@@ -1,4 +1,4 @@
-# Mousiki User Guide v4.2.0 (Windows · Linux · macOS) – music player and radio
+# Mousiki User Guide v4.3.0 (Windows · Linux · macOS) – music player and radio
 
 ## Welcome: a quick tour
 
@@ -145,7 +145,7 @@ The key shown for each command is the **default binding**. Your own bindings may
 - **[14. Upgrades and your settings](#14-upgrades-and-your-settings)**
 - **[About this app](#about-this-app)**
   - [Original developer of v1.0](#original-developer-of-v10)
-  - [Windows port, incl. extensive modifications up to v4.2.0 (including the radio mode)](#windows-port-incl-extensive-modifications-up-to-v420-including-the-radio-mode)
+  - [Windows port, incl. extensive modifications up to v4.3.0 (including the radio mode)](#windows-port-incl-extensive-modifications-up-to-v430-including-the-radio-mode)
   - [Third-party software and licences](#third-party-software-and-licences)
   
 ---
@@ -2030,12 +2030,12 @@ Installing a new version never deletes your settings (`config.txt`, `radio_confi
 | **Email** | itz.ender5820@gmail.com | **Version** | original and final v1.0 |
 | | | **Licence** | Apache Licence 2.0 |
 
-### Windows port, incl. extensive modifications up to v4.2.0 (including the radio mode)
+### Windows port, incl. extensive modifications up to v4.3.0 (including the radio mode)
 
 | | | | |
 |---|---|---|---|
 | **Developer** | Steffen Schwerdtfeger | **GitHub** | [StSchwerdtfeger](https://github.com/StSchwerdtfeger) |
-| **Email** | fanti.blub@gmail.com | **Version** | current v4.2.0 |
+| **Email** | fanti.blub@gmail.com | **Version** | current v4.3.0 |
 | | | **Licence** | Apache Licence 2.0 |
 
 ### Third-party software and licences
