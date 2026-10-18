@@ -52,6 +52,31 @@ The new main UI of the radio mode looks like the below:
 
 
 
+## Table of contents
+
+- [Current Status of the Port and Modification (v4.3.0)](#current-status-of-the-port-and-modification-v430)
+- [Features at a glance](#features-at-a-glance)
+  - [Music player](#music-player)
+  - [Visualizations](#visualizations)
+  - [Lyrics and Karaoke mode](#lyrics-and-karaoke-mode)
+  - [Playlists, meta data, history, conversion](#playlists-meta-data-history-conversion)
+  - [Sound](#sound)
+  - [Radio player](#radio-player)
+  - [Themes and colours](#themes-and-colours)
+  - [Help, settings and keys](#help-settings-and-keys)
+  - [Remote control and phone app](#remote-control-and-phone-app)
+- [Quick start: installers and portables for Windows / macOS / Linux](#quick-start-installers-and-portables-for-windows--macos--linux)
+- [Quick start: build it yourself (Windows)](#quick-start-build-it-yourself-windows)
+- [Prerequisites (Windows)](#prerequisites-windows)
+- [Use Windows Terminal](#use-windows-terminal)
+- [Where your files go (Windows)](#where-your-files-go-windows)
+- [Quick start: build it yourself (Linux / macOS)](#quick-start-build-it-yourself-linux--macos)
+- [Where your files go (Linux/macOS)](#where-your-files-go-linuxmacos)
+- [Verifying downloads](#verifying-downloads)
+- [Dependencies and security](#dependencies-and-security)
+- [Changes compared to the original Mousiki](#changes-compared-to-the-original-mousiki)
+- [Images](#images)
+
 ## Current Status of the Port and Modification (v4.3.0)
 
 For now the Mousiki port works well and also includes everything I at least wanted and made sense to me for a music player, so there might be no further major releases that add new features, except of bug-fixes that might appear to me or others in the future (feel free to start discussions or report issues!!). I might adjust the code to be more polished / robust and might optimize the setup release (Win version results currently in ~250MB size, setup itself ~80MB, portable .zip ~100MB)... Since v2.5.0 my version of Mousiki also builds on macOS/Linux again (`setup.sh`), which is a first step towards making it potentially integratable into the main branch of the original project (which still seems way too hard after dozens of comments in the last two weeks, at least from my perspective). The Linux/macOS builds are less tested than the Windows one, so reports from users on those platforms would help finalize it more. 
