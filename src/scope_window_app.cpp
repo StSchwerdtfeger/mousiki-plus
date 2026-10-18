@@ -201,6 +201,17 @@ void write_ppm(const std::string& path, const std::vector<uint32_t>& px, int w, 
 constexpr float kMonoFull = 0.003f, kMonoNone = 0.020f;
 constexpr int kDeriv = 3;
 constexpr int kLz = 3;   // Lanczos-3: 6 samples per interpolated point
+// Beam of the scope window (the lines you see). Half width of the beam in pixels = the larger of kBeamMinHalfWidth and
+// kRelHalfWidth * window height, then widened by up to kBeamBigWidth (x 1 + that) in big windows. The brightness factor goes
+// from kBeamGainSmall (small window) to kBeamGainSmall + kBeamGainBig (1100 px and more). Bigger = thicker / brighter.
+constexpr float kBeamMinHalfWidth = 2.5f;
+constexpr float kBeamRelHalfWidth = 0.0020f;
+constexpr float kBeamBigWidth = 0.4f;
+constexpr float kBeamGainSmall = 2.0f;
+constexpr float kBeamGainBig = 1.0f;
+// Extra light: the finished picture is added to itself this many times (0 = off, 1 = twice as bright, 2 = three times ...).
+// Unlike the gain above it also lifts what a single pass of the beam cannot make brighter, so thin lines look bright, not wide.
+constexpr float kBeamAddLight = 2.6f;
 constexpr float kDwell = 1.0f;   // music mode: segments shorter than this many beam half widths get the full beam
 constexpr float kBlankSpeed = 20000.0f;   // music mode below 96 kHz: beam speed (full scale widths per second) of a jump
 
@@ -566,7 +577,10 @@ int scope_window_main() {
         const float side = static_cast<float>(std::min(gpu.w, gpu.h));
         const float cx = gpu.w * 0.5f, cy = gpu.h * 0.5f;
         const float amp = side * 0.5f * 0.94f;
-        const float hw = cfg.music ? std::max(0.9f, side * 0.0013f) : std::max(1.4f, side * 0.0026f);   // half width of the beam
+        // BEAM THICKNESS AND BRIGHTNESS of the scope window -- the numbers to adjust are the kBeam... constants above.
+        const float big = std::clamp((side - 500.0f) / 600.0f, 0.0f, 1.0f);   // 0 below a 500 px window, 1 from 1100 px up
+        const float beam_gain = kBeamGainSmall + kBeamGainBig * big;
+        const float hw = std::max(kBeamMinHalfWidth, side * kBeamRelHalfWidth) * (1.0f + kBeamBigWidth * big) * (cfg.music ? 1.0f : 1.5f);   // half width of the beam
         {
             const float want_cell = std::max(4.0f, 6.0f * hw);
             const int ngw = std::max(1, static_cast<int>(std::ceil(gpu.w / want_cell)));
@@ -649,7 +663,7 @@ int scope_window_main() {
                 a *= (1.0f - cfg.z_depth) + cfg.z_depth * zf;
             }
             splat(last_x, last_y, x, y, len, a);
-            a *= expo;
+            a *= expo * beam_gain;
             sdl::Vertex c0{}, c1{};
             colour(last_x, spd_t, a, c0);
             colour(x, spd_t, a, c1);
@@ -692,6 +706,15 @@ int scope_window_main() {
         A.SetRenderDrawColor(R, 0, 0, 0, 255);
         A.RenderClear(R);
         A.RenderCopy(R, gpu.accum, nullptr, nullptr);
+        if (kBeamAddLight > 0.0f) {
+            A.SetTextureBlendMode(gpu.accum, sdl::kBlendAdd);
+            for (float left = kBeamAddLight; left > 0.0f; left -= 1.0f) {
+                A.SetTextureAlphaMod(gpu.accum, static_cast<uint8_t>(std::lround(std::min(left, 1.0f) * 255.0f)));
+                A.RenderCopy(R, gpu.accum, nullptr, nullptr);
+            }
+            A.SetTextureAlphaMod(gpu.accum, 255);
+            A.SetTextureBlendMode(gpu.accum, sdl::kBlendNone);
+        }
         const float glow = std::clamp(cfg.glow, 0.0f, 1.0f);
         if (glow > 0.0f) {
             A.SetTextureBlendMode(gpu.quarter, sdl::kBlendAdd);

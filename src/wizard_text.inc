@@ -49,7 +49,7 @@ HELP WIZARD TABLE OF CONTENT: [[Legend]]
 Use [->] to move on to the table of content or press [t] from anywhere
 you currently are in the Wizard. Apart from the Help Wizard, you can
 also use [?] to open the CHEAT SHEET[[Header]] for a plain overview of commands 
-without detailed explanations. As a third option you can alsouse the 
+without detailed explanations. As a third option you can also use the 
 Mousiki Plus user manual to find your way around (includes images and 
 is even more detailed than the Help Wizard)
 
@@ -97,6 +97,7 @@ II MUSIC PLAYER MODE[[Header]]
    5.1 The Visualization Field
    5.2 Oscilloscope
    5.3 Spectrogram and Extra Windows
+   5.4 Creator
 
   6 Sound and Sleep Timer[[Header]]
    6.1 Equalizer
@@ -216,9 +217,9 @@ changes the sorting of the local audio files.
 
 The command [f] filters the local list by folder, which means, when a highlighted track is
 e.g. in folder with other tracks from the same album, it will then only show the files in
-the associated folder. Use [c] or [ESC] to clear folder filter.
 )WIZ",
-R"WIZ([SHIFT+l] opens a BIG LIST OVERLAY[[HEADER]] for a better overview.
+R"WIZ(the associated folder. Use [c] or [ESC] to clear folder filter.
+[SHIFT+l] opens a BIG LIST OVERLAY[[HEADER]] for a better overview.
 [SHIFT+f] opens the BIG FOLDER OVERLAY[[Header]].
 [SHIFT+k] opens the BIG QUEUE OVERLAY[[Header]].
 
@@ -404,9 +405,9 @@ GENERAL: [[Header]]
 
 With the LIST focused: [[Header]]
 [a]             add track to the TOP of the queue
-[e]             add track to the END of the queue
 )WIZ",
-R"WIZ(
+R"WIZ([e]             add track to the END of the queue
+
 With QUEUE focused: [[Header]]
 [d]             remove from queue
 [4/5]           move UP / DOWN
@@ -747,6 +748,47 @@ Position and size are remembered, and the windows stay open when you switch play
 
 NOTE: They need SDL2 (Windows packages include it; Linux: libsdl2-2.0-0, macOS: brew install sdl2).[[Legend]]
 
+[[New Page]]
+5.4 CREATOR [[Header]]
+
+OPEN:[[Header]] [^] (on a German keyboard: [^] then [SPACE]) opens the creator. The first row picks the
+mode: Text to sound, or Microphone.
+
+TEXT TO SOUND: [[Header]]
+Makes music out of a text, saves it as a WAV file, plays it and shows it in a full-screen preview.
+
+OSCILLOSCOPE (XY): [[Header]]
+Left = x, right = y: the beam draws the outlines of your text again and again, 30 - 120 times a second.
+
+SPECTROGRAM: [[Header]]
+The text is the spectrogram: time left to right, pitch bottom to top, brightness = loudness. Only the
+notes of a scale play (pentatonic minor by default), so it sounds like music.
+
+ROWS: [[Header]]
+Text ([|] = new line), Sound, Length (5 - 60 s), Invert, the options of the chosen sound, Scope grid
+(on/off), Create, save and preview, and Created files... (a list of the files made so far; [ENTER] opens one in the preview).
+
+[UP]/[DOWN] pick a row, [<-/->] or [ENTER] change it, [ESC] closes.
+[SPACE] does nothing here (it only types a space in the text), so nothing is created by accident.
+The files are saved in <music folder>/creator (else ~/Music/creator).
+They are not part of the library (not in the list, the search or the queue): play them only from
+Created files... in this overlay.
+In the preview [G] turns the scope grid on/off.
+
+MICROPHONE: [[Header]]
+Rows: Live view (Spectrogram = default, Oscilloscope XY, Oscilloscope YT), Scope grid, Start the microphone
+preview, Created files... In the big preview your microphone is shown live (a playing song stops and
+comes back afterwards): [ENTER] starts / stops a recording (mic_<date>_<time>.wav in the creator folder,
+max. 5 minutes), [V] changes the view, [G] the grid, [ESC] closes the preview (a running recording is saved) and returns to the overlay.
+A one-channel microphone gives the same signal left and right, so XY is a diagonal line: use YT or the
+spectrogram. If the microphone cannot be opened, the overlay says why (allow microphone access for your
+terminal on macOS / Windows).
+
+PREVIEW: [[Header]]
+The file plays in a loop and the XY scope (oscilloscope music) or the spectrogram shows it. It has its
+own settings and does not change your [SHIFT+o] / [SHIFT+i] settings.
+[ESC] closes the preview and returns to the overlay; the song that played before comes back (from its start). [SPACE] pauses.
+
 
 [[New Page]]
 6.1 EQUALIZER [[Header]]
@@ -808,7 +850,8 @@ LONG TRACKS NEED LITTLE MEMORY: [[Header]]
 A short track is decoded completely into memory. A long mix is only decoded in a 2-minute window
 around the position (90 s ahead, the last 30 s kept, so a short step back is instant).
 A 200 MB file takes about 50 MB instead of gigabytes. The audio is exactly the same: same rate,
-same 32-bit samples.
+)WIZ",
+R"WIZ(same 32-bit samples.
 
 THE ORDER THINGS HAPPEN IN: [[Header]]
 decoded audio  >  equalizer  >  normalization  >  limiter  >  volume
@@ -862,8 +905,7 @@ Nothing you do in here changes your music.
 GOOD TO KNOW: [[Header]]
 A play counts for a playlist when it was queued from a saved playlist ([ENTER] or [a] on a playlist
 row). The history keeps the newest 1000 plays one by one and folds older ones into lifetime totals
-)WIZ",
-R"WIZ(per title, including the day and the time of day of every play, so the period and time-of-day lists
+per title, including the day and the time of day of every play, so the period and time-of-day lists
 stay exact over years. It lives in history.json, in [s] Settings[[Header]] ->> PATHS[[Header]] ->> HISTORY PATH[[Header]].
 
 [[New Page]]
@@ -969,7 +1011,8 @@ PLAYLIST PATH          one folder for all playlists
 PLAYLIST EXPORT PATH   where [e] writes M3U8 / M3U
 HISTORY PATH           holds history.json
 CONVERSION EXPORT PATH where converted files go
-Changing LOCAL PATH rescans at once. Changing the playlist or history folder copies what is there;
+)WIZ",
+R"WIZ(Changing LOCAL PATH rescans at once. Changing the playlist or history folder copies what is there;
 nothing is moved or deleted. Changed folders only stick when you save with [s]. A warning will
 appear in case you unsaved changes are present. 
 
@@ -1014,8 +1057,7 @@ Equalizer [SHIFT+e], oscilloscope [SHIFT+o] / [SHIFT+0], spectrogram [SHIFT+i] /
 spectrogram windows [)] / [(], loudness normalization [v] / [SHIFT+v], sleep timer [SHIFT+z], text fields,
 the cheat sheet [?] and this wizard [SHIFT+w] work with the same keys and overlays as described in
 chapters 5 to 8. Differences: the radio keeps its own equalizer curve, oscilloscope values and
-)WIZ",
-R"WIZ(settings in radio_config.txt; the sleep timer stops the stream (no "Stop after current song"); the
+settings in radio_config.txt; the sleep timer stops the stream (no "Stop after current song"); the
 visualization field is the scope block right of the station info and [,/.] cycles oscilloscope,
 sphere and spectrogram (there are no lyrics).
 
@@ -1115,7 +1157,8 @@ KEYS IN THE STATION LISTS MENU: [[Header]]
 [SHIFT+t]       sort STATIONS: list order <-> name A-Z
 [CTRL+s]        save under the typed name and stay in the menu
 [ESC]           leave a text box; again: close (it asks about unsaved changes)
-A dot behind a station means it is already in the list being built.
+)WIZ",
+R"WIZ(A dot behind a station means it is already in the list being built.
 
 SAVED LISTS TAB: [[Header]]
 [ENTER] loads a list back into the first tab, [DEL] deletes it after a Yes/No question.
@@ -1162,8 +1205,7 @@ A row says "only m:ss" when the buffer does not reach that far back and then sta
 
 [UP]/[DOWN] choose   [ENTER] or [y] start   [ESC] cancel   [y] again while it runs: stop
 While it runs the footer of the dial shows REC mm:ss.
-)WIZ",
-R"WIZ(
+
 WHAT YOU GET: [[Header]]
 The recording is written from the buffer as a WAV, which ffmpeg then converts in the background to
 YYYY-MM-DD_HH-MM-SS.mp3, named by the time the first recorded second was on air. It is taken before
@@ -1263,7 +1305,8 @@ A running player or radio can be controlled with the same program:
 No media keys on your keyboard? Bind ANY key combination in your system to such a line:
 GNOME/KDE: custom shortcut with the command   mousiki --cmd next
 i3/sway:   bindsym Ctrl+Mod1+Right exec mousiki --cmd next
-Windows:   AutoHotkey   ^!Right::Run "mousiki.exe" --cmd next, , Hide
+)WIZ",
+R"WIZ(Windows:   AutoHotkey   ^!Right::Run "mousiki.exe" --cmd next, , Hide
 macOS:     Shortcuts app (Run Shell Script) or skhd
 THEME PREVIEW: [[Header]] in the CHOOSE THEME list [SHIFT+p] shows a still copy of the main screen in the highlighted theme; any key goes back.
 

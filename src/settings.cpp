@@ -397,6 +397,9 @@ void apply_default_hotkeys(Settings& s) {
             // other SHIFT+letter overlays. (Ctrl+Shift+Z is the separate "undo
             // clear queue" key and never reaches the hotkey table.)
             {"HKeySleepTimer",                  "Z"},
+            // ^: the creator overlay (text / picture -> oscilloscope music or spectrogram sound). On a German keyboard
+            // ^ is a dead key: press it, then SPACE.
+            {"HKeyCreator",                     "^"},
             // Queue additions. "e" = add the hovering track to the END of the
             // queue ("a" adds it as NEXT, see App::queue_add_selected()); "e"
             // used to be the never-wired HKeyResetPreference, which is migrated
