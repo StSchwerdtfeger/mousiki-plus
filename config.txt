@@ -469,6 +469,7 @@ HKeyToggleMute="x"
 HKeyToggleWaveform="w"
 HKeyEqualizer="E"
 HKeySleepTimer="Z"
+HKeyCreator="^"
 # Keys that used to be fixed and can be rebound now (Settings -> REFERENCE). The modifier combinations are written
 # as names: ALT+L (the OPTION key on a Mac), CTRL+L, CTRL+SHIFT+Z, CTRL+SHIFT+U. Empty = not bound.
 HKeyRescan="R"
