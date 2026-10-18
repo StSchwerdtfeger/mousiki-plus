@@ -1,0 +1,34 @@
+name: Tests
+
+# Builds Mousiki with the automated tests (tests/) and runs them on Linux, macOS and Windows.
+# Runs on every push and pull request; it can also be started by hand (Actions -> Tests -> Run workflow).
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: Linux,   os: ubuntu-24.04 }
+          - { name: macOS,   os: macos-latest }
+          - { name: Windows, os: windows-latest }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMOUSIKI_BUILD_TESTS=ON
+
+      - name: Build the tests
+        run: cmake --build build --config Release --target mousiki_tests --parallel 4
+
+      - name: Run the tests
+        run: ctest --test-dir build -C Release --output-on-failure
