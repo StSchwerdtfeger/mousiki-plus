@@ -1,6 +1,49 @@
 # Mousiki User Guide v4.2.0 (Windows · Linux · macOS) – music player and radio
 
+## Welcome: a quick tour
+
+Mousiki Plus is a music player and an internet radio that live **inside your terminal**. You control everything with the keyboard, you see your music as colours, braille pictures and an oscilloscope, and you can steer it from your phone. This page gives you the short version; the chapters after it explain every key.
+
+![The music player: meta data with the spinning disk, waveform, lyrics and the track list](images/Playback_Main_UI_lyrics.png)
+
+### What you can do with it
+
+- **Play your music:** add your music folders and Mousiki builds a fast library with **fuzzy search** over file names and tags (`/`). Plays MP3, FLAC, WAV, M4A, OGG, OPUS, tracker modules, console and C64 music and more.
+- **Play the web:** search, stream and download from **YouTube, SoundCloud and Bandcamp**, or add a whole YouTube playlist in one go.
+- **Listen to the radio:** press the `*` key and the program becomes an **online radio** with a tuning dial, tens of thousands of stations (Radio Browser), presets, timeshift (pause and rewind live radio) and recording.
+- **See your music:** an **oscilloscope** (made for oscilloscope music) and a **spectrogram**, as braille pictures or as real images in Kitty / Sixel terminals, in the main screen, full screen or in their own window.
+- **Sing along:** **synchronized lyrics** fetched for you, word by word, with translations and a big-letter **karaoke mode**.
+- **Organize:** a **queue**, saved **playlists**, a **tag editor** that finds missing titles by audio fingerprint, a **listening history** with top lists and smart lists, a 10-band **equalizer**, loudness normalization and a sleep timer.
+- **Make it yours:** 32 **colour themes** plus your own, and almost every key can be rebound.
+- **Control it from afar:** use your **phone as a remote** (scan a QR code), or bind global media keys with `mousiki --cmd`.
+
+![The oscilloscope in the big overlay](images/Playback_Main_UI_OSCI_BIG_OVERLAY.png)
+
+![The radio: ON AIR sign, tuning dial and the playing song](images_radio/radio_main_ui.png)
+
+### Your first five minutes
+
+1. **Start it.** Open a terminal (on Windows use **Windows Terminal**) and type **`mousiki`** or **`lala`**. The help wizard opens by itself on the first start (`ENTER` goes on, `ESC` closes it); `SHIFT+w` opens it again any time.
+2. **Add your music.** Press **`s`** (Settings), go to the paths tab and add your music folder. Press **`s`** again to save. Your titles appear in the list.
+3. **Play something.** Move with `↑` / `↓`, press **`ENTER`** to play the highlighted title, **`p`** to pause and resume, **`n`** / **`b`** for the next and previous title, `→` / `←` to jump 5 seconds, `+` / `-` for the volume.
+4. **Find things.** Press **`/`** and type a few letters of a title, artist or folder; typos are forgiven.
+5. **Try the extras.** **`k`** starts the karaoke mode, **`SHIFT+o`** opens the oscilloscope settings, **`SHIFT+p`** the playlist editor, **`SHIFT+h`** your listening history, **`SHIFT+e`** the equalizer.
+6. **Switch to the radio.** Press the key that types `*` (`SHIFT` and `+` on a German keyboard, `SHIFT+8` on an English one). Press it again to come back; your music waits where you left it.
+7. **Lost?** **`?`** shows the cheat sheet with every key you have bound, **`SHIFT+w`** the wizard, and **`q`** quits.
+
+![The in-app cheat sheet (?)](images/Cheat_sheet.png)
+
+### Use your phone as a remote
+
+Switch on **Settings → ON/OFF → MODES → Remote App**, scan the QR code that appears and your phone shows a small Mousiki screen: the spinning disk, meta data, play, next, volume, your lists and playlists, and the radio with its stations. It needs a PIN and works in your home network only; the details are in [chapter 12](#12-remote-control-and-key-bindings).
+
+![Mousiki on the phone](images/Remote_app_phone_player.png)
+
+### How this guide is organised
+
 Mousiki TUI player is two programs in one: a terminal **music player** (chapters 1 to 10) and an **online radio** (chapter 11), including visualizations such as an oscilloscope and a spectrogram, as well as a Karaoke mode, making use of its lyrics fetching capabilities, to just name some of the integrated features. Press `SHIFT` and `+` on a German keyboard (`SHIFT+8` on an English one: the key that types `*`) to switch between radio and music player mode (see [Two modes in one program](#two-modes-in-one-program) and [Keyboard layouts](#keyboard-layouts-german-and-english)).
+
+Chapter 12 describes the phone remote and the command-line remote, chapter 13 the automated tests and chapter 14 how upgrades treat your settings.
 
 The music player chapters walk through **every entry of the in-app cheat sheet** (`?`) and explain what each command does. Some settings that can only be changed in the config.txt are also discussed at the end of chapter 10. The radio chapter only describes what is new in the radio; everything both modes have in common (equalizer, oscilloscope, loudness normalization, sleep timer …) is explained once in the player chapters.
 The key shown for each command is the **default binding**. Your own bindings may differ if you changed them in `config.txt` or under **Settings → Reference**; the cheat sheet always shows the keys you actually have.
@@ -9,20 +52,101 @@ The key shown for each command is the **default binding**. Your own bindings may
 
 ## Contents
 
-  [Before you start](#before-you-start)  
-  [The Help Wizard (`SHIFT+w`)](#the-help-wizard-shiftw)  
-  [1. System (main UI)](#1-system-main-ui)  
-  [2. Playback (main UI)](#2-playback-main-ui)  
-  [3. Navigation & view, lyrics and visualizations (main UI)](#3-navigation--view-lyrics-and-visualizations-main-ui)  
-  [4. Search (main UI)](#4-search-main-ui)  
-  [5. Queue (main UI)](#5-queue-main-ui)  
-  [6. Playlists](#6-playlists)  
-  [7. Meta editor](#7-meta-editor)  
-  [8. History](#8-history)  
-  [9. Downloads](#9-downloads)   
-  [10. Settings (individual tabs)](#10-settings-individual-tabs)  
-  [11. Radio mode](#11-radio-mode)  
-  [About this App](#about-this-app)
+- **[Welcome: a quick tour](#welcome-a-quick-tour)**
+  - [What you can do with it](#what-you-can-do-with-it)
+  - [Your first five minutes](#your-first-five-minutes)
+  - [Use your phone as a remote](#use-your-phone-as-a-remote)
+  - [How this guide is organised](#how-this-guide-is-organised)
+- **[Before you start](#before-you-start)**
+  - [Starting Mousiki: `mousiki` or `lala`](#starting-mousiki-mousiki-or-lala)
+  - [Rebindable vs. fixed keys](#rebindable-vs-fixed-keys)
+  - [`ALT` on macOS (`Option`)](#alt-on-macos-option)
+  - [Uppercase letters](#uppercase-letters)
+  - [Keyboard layouts (German and English)](#keyboard-layouts-german-and-english)
+  - [Menus with tabs and text boxes](#menus-with-tabs-and-text-boxes)
+  - [Two modes in one program](#two-modes-in-one-program)
+  - [What can Mousiki play? Audio formats, tracker modules and chiptunes](#what-can-mousiki-play-audio-formats-tracker-modules-and-chiptunes)
+  - [The main screen](#the-main-screen)
+  - [Play mode letter](#play-mode-letter)
+- **[The Help Wizard (`SHIFT+w`)](#the-help-wizard-shiftw)**
+- **[1. System (main UI)](#1-system-main-ui)**
+- **[2. Playback (main UI)](#2-playback-main-ui)**
+  - [Sound quality: sample rate and resampling](#sound-quality-sample-rate-and-resampling)
+  - [Equalizer overlay (`SHIFT+e`)](#equalizer-overlay-shifte)
+  - [The five play modes (`m`)](#the-five-play-modes-m)
+- **[3. Navigation & view, lyrics and visualizations (main UI)](#3-navigation--view-lyrics-and-visualizations-main-ui)**
+  - [How the sort mode and `SHIFT+n` work together](#how-the-sort-mode-and-shiftn-work-together)
+  - [How the lyrics form (`l`) works](#how-the-lyrics-form-l-works)
+  - [Lyrics timing overlay (`ALT+L`)](#lyrics-timing-overlay-altl)
+  - [READ LYRICS overlay (`CTRL+L`)](#read-lyrics-overlay-ctrll)
+  - [The oscilloscope (lyric visual)](#the-oscilloscope-lyric-visual)
+  - [Oscilloscope tuning overlay (`SHIFT+o`)](#oscilloscope-tuning-overlay-shifto)
+  - [Oscilloscope full screen (`SHIFT+0`)](#oscilloscope-full-screen-shift0)
+  - [Scope window (`)`: German `SHIFT+9`, English `SHIFT+0`)](#scope-window--german-shift9-english-shift0)
+  - [Spectrogram window (`(`: German `SHIFT+8`, English `SHIFT+9`)](#spectrogram-window--german-shift8-english-shift9)
+  - [Spectrogram (`SHIFT+i`, `SHIFT+u`)](#spectrogram-shifti-shiftu)
+  - [Loudness normalization overlay (`SHIFT+v`)](#loudness-normalization-overlay-shiftv)
+  - [Karaoke overlay (`k`)](#karaoke-overlay-k)
+  - [Sleep timer overlay (`SHIFT+z`)](#sleep-timer-overlay-shiftz)
+  - [Creator overlay (`^`)](#creator-overlay-)
+- **[4. Search (main UI)](#4-search-main-ui)**
+  - [Big list overlay (`SHIFT+l`)](#big-list-overlay-shiftl)
+  - [Big folder overlay (`SHIFT+f`)](#big-folder-overlay-shiftf)
+  - [File conversion overlay (`SHIFT+c`)](#file-conversion-overlay-shiftc)
+- **[5. Queue (main UI)](#5-queue-main-ui)**
+  - [Big queue overlay (`SHIFT+k`)](#big-queue-overlay-shiftk)
+  - [Locked queue (`!`)](#locked-queue-)
+  - [Undo clear (`CTRL+SHIFT+z`)](#undo-clear-ctrlshiftz)
+  - [Queue to playlist (`CTRL+SHIFT+u`)](#queue-to-playlist-ctrlshiftu)
+  - [Clear queue prompt (`SHIFT+x`)](#clear-queue-prompt-shiftx)
+  - [Bulk add (`a` with the queue focused)](#bulk-add-a-with-the-queue-focused)
+- **[6. Playlists](#6-playlists)**
+  - [What `ENTER` does in the playlist editor](#what-enter-does-in-the-playlist-editor)
+  - [Exporting a playlist (M3U8 / M3U)](#exporting-a-playlist-m3u8--m3u)
+  - [Leaving](#leaving)
+- **[7. Meta editor](#7-meta-editor)**
+  - [What `ENTER` does in the meta editor](#what-enter-does-in-the-meta-editor)
+  - [Using the AcoustID lookup](#using-the-acoustid-lookup)
+  - [Choosing what is fetched: the fetch options](#choosing-what-is-fetched-the-fetch-options)
+  - [Album and year: MusicBrainz and the choice overlay](#album-and-year-musicbrainz-and-the-choice-overlay)
+- **[8. History](#8-history)**
+  - [The four tabs](#the-four-tabs)
+  - [ADD SMART HISTORY TO QUEUE](#add-smart-history-to-queue)
+- **[9. Downloads](#9-downloads)**
+- **[10. Settings (individual tabs)](#10-settings-individual-tabs)**
+  - [Moving around and editing (all tabs)](#moving-around-and-editing-all-tabs)
+  - [Tab 1: COLORS](#tab-1-colors)
+    - [Border gradient (SMOOTHNESS)](#border-gradient-smoothness)
+    - [Colour themes](#colour-themes)
+  - [Tab 2: ON/OFF](#tab-2-onoff)
+  - [Tab 3: ANIMA/VIZ](#tab-3-animaviz)
+  - [Tab 4: PATHS](#tab-4-paths)
+  - [Tab 5: REFERENCE](#tab-5-reference)
+  - [Tab 6: ABOUT APP](#tab-6-about-app)
+  - [Settings that exist (only) in `config.txt`](#settings-that-exist-only-in-configtxt)
+- **[11. Radio mode](#11-radio-mode)**
+  - [11.1 Switching between player and radio](#111-switching-between-player-and-radio)
+  - [11.2 The radio screen](#112-the-radio-screen)
+  - [11.3 Keys on the main screen](#113-keys-on-the-main-screen)
+  - [11.4 What the radio shares with the player](#114-what-the-radio-shares-with-the-player)
+  - [11.5 Searching: stations, station lists and `p:`](#115-searching-stations-station-lists-and-p)
+  - [11.6 PRESETS menu (`SHIFT+k`)](#116-presets-menu-shiftk)
+  - [11.7 RADIO BROWSER menu (`SHIFT+s`)](#117-radio-browser-menu-shifts)
+  - [11.8 STATION LISTS menu (`SHIFT+p`)](#118-station-lists-menu-shiftp)
+  - [11.9 Big STATIONS overlay (`SHIFT+l`)](#119-big-stations-overlay-shiftl)
+  - [11.10 Timeshift and recording (`SPACE`, `[`, `]`, `{`, `}`, `y`)](#1110-timeshift-and-recording-space-----y)
+  - [11.11 Listening history (`h`)](#1111-listening-history-h)
+  - [11.12 Radio settings](#1112-radio-settings)
+  - [11.13 The radio's files](#1113-the-radios-files)
+  - [11.14 Not done yet](#1114-not-done-yet)
+- **[12. Remote control and key bindings](#12-remote-control-and-key-bindings)**
+  - [12.1 The remote app (Android / phone browser)](#121-the-remote-app-android--phone-browser)
+- **[13. Automated tests](#13-automated-tests)**
+- **[14. Upgrades and your settings](#14-upgrades-and-your-settings)**
+- **[About this app](#about-this-app)**
+  - [Original developer of v1.0](#original-developer-of-v10)
+  - [Windows port, incl. extensive modifications up to v4.2.0 (including the radio mode)](#windows-port-incl-extensive-modifications-up-to-v420-including-the-radio-mode)
+  - [Third-party software and licences](#third-party-software-and-licences)
   
 ---
 
@@ -107,7 +231,7 @@ Besides MP3, FLAC, WAV, OGG, Opus, M4A and the other usual formats, the player p
 |---|---|---|
 | Tracker modules (Amiga / PC demoscene) | `.mod` `.xm` `.it` `.s3m` `.mptm` `.stm` `.669` `.mtm` `.med` `.okt` `.far` `.ult` `.ams` `.dbm` `.digi` `.dmf` `.dsm` `.gdm` `.imf` `.j2b` `.mdl` `.mt2` `.psm` `.ptm` `.umx` `.plm` | FFmpeg built with **libopenmpt** (most current builds are) |
 | Game console music | `.nsf` `.nsfe` (NES), `.spc` (SNES), `.gbs` (Game Boy), `.vgm` `.vgz` (Sega and others), `.ay`, `.hes`, `.kss`, `.sap`, `.gym` | FFmpeg built with **libgme** |
-| Commodore 64 SID tunes | `.sid` `.psid` `.rsid` | The **sidplayfp** program on the `PATH` (Linux: package `sidplayfp`; `setup.sh` / `setup.ps1` install it or add it to the `PATH`) |
+| Commodore 64 SID tunes | `.sid` `.psid` `.rsid` | The **sidplayfp** program on the `PATH` (Linux: package `sidplayfp`; Windows has no official build: the easiest source is MSYS2, `pacman -S mingw-w64-ucrt-x86_64-sidplayfp` in its UCRT64 shell, then copy `sidplayfp.exe` and its DLLs into one folder such as `C:\tools\sidplayfp` and run `setup.ps1` again; `setup.sh` / `setup.ps1` install it or add it to the `PATH`) |
 
 - The module's title (and for SID: name, author and year from the file header) is used as metadata; the TYPE column says *tracker module*, *game music* or *C64 SID (n tunes)*.
 - A SID tune has no end, so it is rendered once for `SidPlayLength` seconds (default 180, see [Settings that exist only in `config.txt`](#settings-that-exist-only-in-configtxt)) into `~/.cache/mousiki/sid/` and then played from there; the next time it starts at once. Only the first sub-tune is played.
@@ -135,7 +259,7 @@ The user guide you are reading is also **inside the program**. `SHIFT+w` opens t
 
 *The welcome page of the help wizard (`SHIFT+w`).*
 
-It **opens by itself the first time you start Mousiki after an install** with the first welcome page -- once per mode, and never again after that. Both welcome pages show the spinning disk (fixed speed 0.1) to the left of the text. (The flag is `WizardSeen=` in `config.txt` and in `radio_config.txt`; setting it back to `false`, or deleting the line, brings the welcome page back on the next start.) Opened with `SHIFT+w` it starts at the second welcome page the first time in a session and at the page you left it on after that.
+It starts with a **welcome page** (with the spinning disk) and a **table of content**; after that come the pages of the chapters. `SHIFT+w` opens it again at any time.
 
 | Key | What it does |
 |---|---|
@@ -213,6 +337,7 @@ The metadata panel lists **Name, Artist, Album, Year**, sampling, type, format, 
 | `v` | Toggle loudness normalization | Turns loudness normalization on or off, so you can compare a track with and without it. When turned on, the status line shows the track's measured loudness and the correction applied. The target and maximum boost are set with the `SHIFT+v` overlay (see *Loudness normalization overlay* below) or in `config.txt`. |
 | `E` (Shift+E) | Equalizer | Opens the **10-band equalizer** overlay with presets. The sound changes live while you adjust it. See *Equalizer overlay* below. |
 | `V` (Shift+V) | Normalization tuning | Opens a small overlay to switch loudness normalization on or off and to change its target level and maximum boost **live**. See *Loudness normalization overlay* in chapter 3. |
+| `^` | Creator | Turns a text into sound: oscilloscope music for the XY scope or a spectrogram sound, with a looping preview. See *Creator overlay* in chapter 3. (German keyboard: `^` is a dead key, press it and then `SPACE`.) |
 | `Z` (Shift+Z) | Sleep timer | Opens a small overlay to pause playback after 15, 30, 60, 90 or 120 minutes, or to stop after the current song. See *Sleep timer overlay* in chapter 3. |
 
 
@@ -681,6 +806,59 @@ A small overlay for falling asleep to music. Playback keeps running while it is 
 
 **In radio mode** the timer works the same way with the minute entries and the fade-out, but when it runs out the stream is **stopped** and there is no *Stop after current song* entry, because a radio has no song to wait for (see [11.4](#114-what-the-radio-shares-with-the-player)).
 
+
+### Creator overlay (`^`)
+
+The creator has two modes, chosen in the first row (**Creator mode**): **Text to sound** and **Microphone**.
+
+![Creator overlay](images/creator_overlay.png)
+
+#### Mode: Text to sound
+
+The creator **makes music out of a text**. It renders a WAV file, saves it, plays it and shows it in a full-screen preview. Two kinds of sound are possible:
+
+- **Oscilloscope (XY)** – *oscilloscope music*. The left channel is the horizontal and the right channel the vertical position of a beam; the outlines of your text are drawn again and again, 30 to 120 times a second (that is also the hum you hear). The preview shows it at once.
+- **Spectrogram** – the text **is** the spectrogram: time runs from left to right, pitch from bottom to top and brightness is loudness. To make this always sound pleasant, only the notes of a **musical scale** are played (pentatonic minor by default, so every combination sounds harmonious), at most 12 notes sound at once, notes glide softly into each other and a light reverb joins them. *Exact* plays every pitch instead (more like the text, less like music).
+
+| Row | What it does |
+| :--- | :--- |
+| **Text** | The field. Typing, caret, selection and clipboard work as everywhere. `\|` starts a new line. Text is drawn with Mousiki's pixel font (Latin letters) or an installed font (Japanese, Cyrillic …). `ENTER` moves on. The small braille picture under the rows shows what will be used. |
+| **Sound** | Oscilloscope (XY) or Spectrogram. |
+| **Length** | 5, 10, 20, 30 or 60 seconds. |
+| **Invert** | **Auto**, **On** or **Off**. *On* makes the background loud instead of the letters. |
+| Oscilloscope rows | **Frame rate** (30 / 60 / 90 / 120 per second), **Motion** (None, Spin, Tumble, Pulse – the text moves while it plays) and **Detail** (Low, Medium, High: how exactly the outline is followed). |
+| Spectrogram rows | **Scale** (pentatonic minor / major, major, minor, whole tone, chromatic, exact), **Octaves** (3 to 6, from the low C2 upwards) and **Reverb** (Off, Light, Hall). |
+| **Scope grid** | On / Off: the grid of the oscilloscope preview (only for *Oscilloscope*; `G` switches it in the preview too). |
+| **Create, save and preview** | Renders and saves the WAV, plays it and opens the preview. |
+| **Created files...** | Lists the files made so far (newest first). `ENTER` plays the picked file and opens its preview; `ESC` goes back. This is the only place where the created files can be played. |
+
+Keys: `↑` / `↓` or `TAB` pick a row, `←` / `→` or `ENTER` change a value, `ENTER` on *Create* creates, `ESC` closes (`^` again closes it too, except while you type in the text field). **`SPACE` does nothing in this overlay** (it only types a space inside the text field), so a stray space, e.g. from a dead key on a German keyboard, can never create a file.
+
+- **The preview:** after *Create* (or after opening a file from *Created files...*) a full-screen **preview** opens and the file plays in a loop. For *Oscilloscope* it shows the XY scope in oscilloscope-music mode (as a real picture on terminals with Kitty graphics / Sixel, else in braille); for *Spectrogram* it shows the spectrogram, with a line that sweeps across it. The preview has **its own settings**: it neither uses nor changes what you set with `SHIFT+o` and `SHIFT+i`. It loops until you stop it: `ESC` closes the preview and takes you back to the creator overlay (a second `ESC` closes that); the song that was playing before comes back (from its start; if nothing was playing, playback just stops), `SPACE` pauses.
+
+![Creator preview: text as oscilloscope music on the XY scope](images/text_to_osci.png)
+
+![Creator preview: text as spectrogram sound](images/text_to_spectro.png)
+
+- The file is saved as `<your first music folder>/creator/<name>_scope.wav` or `…_spectrogram.wav` (`~/Music/creator` when no music folder is set; an existing name gets a number). The folder is marked with a small file (`.mousiki-creator`), so **its files are not part of your library**: they do not show up in the file list, the search or the queue, and you listen to them only through *Created files...* in this overlay (they are ordinary WAV files, so you can still copy or share them from the folder).
+- **Tips for the scope:** short words, or several short lines with `|`, give big letters. Many small details make the beam slow, so the picture flickers; *Detail: Low* or a bigger frame rate helps.
+- **Tips for the spectrogram:** the text becomes a melody-like pattern; short words are most readable in the preview.
+- Rendering runs while the overlay waits and takes a moment for long clips (at most a few seconds).
+- In the radio the creator is not available; the player plays the files like any other file (they are in your library).
+- The key is `HKeyCreator` in `config.txt` (default `^`).
+
+#### Mode: Microphone
+
+Shows your **microphone live** in the big preview and records it on request (also the groundwork for a karaoke mode with singing scores).
+
+| Row | What it does |
+| :--- | :--- |
+| **Live view** | **Spectrogram** (default), **Oscilloscope (XY)** (left against right channel) or **Oscilloscope (YT)** (the wave over time). |
+| **Scope grid** | On / Off (both oscilloscope views). |
+| **Start the microphone preview** | Opens the big preview. A song that is playing stops (the microphone would hear it) and comes back when you close the preview. |
+| **Created files...** | As above; recordings are listed here, too. |
+
+In the preview: `ENTER` starts a **recording** (the title shows `REC m:ss`) and stops and saves it (`mic_YYYYMMDD_HHMMSS.wav` in the creator folder, at most 5 minutes); `V` changes the view, `G` the grid, `ESC` closes the preview and returns to the overlay (a running recording is saved). Recordings are played from *Created files...* like everything else the creator makes. A microphone with one channel shows the same signal left and right, so *XY* draws a diagonal line; *YT* and the spectrogram are the useful views then. If no microphone can be opened (or the system refuses access), the overlay says so; on macOS and Windows you may have to allow microphone access for your terminal.
 
 ## 4. Search (main UI)
 
@@ -1834,7 +2012,7 @@ The boxes are labelled with the keys of the computer (your own key bindings). Se
 
 ## 13. Automated tests
 
-`cmake -DMOUSIKI_BUILD_TESTS=ON ..` then `make mousiki_tests && ./mousiki_tests` (Windows: `cmake --build . --config Release --target mousiki_tests`, then `Release\mousiki_tests.exe`) runs the checks of the text editor and fuzzy search, themes, settings files and their upgrade backup, the shared oscilloscope settings, Share Profiles, the remote control, the remote app's server and phone screen, and the oscilloscope drawing. `./mousiki_tests remote` runs only the tests whose name contains "remote". The tests use a temporary config folder and never touch yours.
+`cmake -DMOUSIKI_BUILD_TESTS=ON ..` then `make mousiki_tests && ./mousiki_tests` (Windows: `cmake --build . --config Release --target mousiki_tests`, then `Release\mousiki_tests.exe`) runs the checks of the text editor and fuzzy search, themes, settings files and their upgrade backup, the shared oscilloscope settings, Share Profiles, the remote control, the remote app's server and phone screen, the oscilloscope drawing, the JSON reader, the lyrics text helpers, saved playlists, and the listening history of the player and of the radio (91 tests). On GitHub the workflow *Tests* builds and runs them on Linux, macOS and Windows with every push. `./mousiki_tests remote` runs only the tests whose name contains "remote". The tests use a temporary config folder and never touch yours.
 
 ## 14. Upgrades and your settings
 
