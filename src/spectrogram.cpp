@@ -920,7 +920,8 @@ std::string SpectroGfx::emit(int proto, const SpectroSettings& s, SpectroAnalyze
             if (ph <= 0 || pw <= 0) continue;
             part.resize(static_cast<size_t>(ph) * pw);
             for (int y = 0; y < ph; ++y)
-                std::copy_n(idx.begin() + static_cast<long>(p.r0 * cell_h + y) * tw + p.c0 * cell_w, pw, part.begin() + static_cast<long>(y) * pw);
+                std::copy_n(idx.begin() + (static_cast<std::ptrdiff_t>(p.r0 * cell_h + y) * tw + static_cast<std::ptrdiff_t>(p.c0) * cell_w), pw,
+                            part.begin() + static_cast<std::ptrdiff_t>(y) * pw);
             const int id = kKittyBase + t * kParts + (lay ? 1 + static_cast<int>(pi) : 0);
             if (proto == 1) o += kitty_tile(id, row + p.r0, col + c0 + p.c0, p.c1 - p.c0, p.r1 - p.r0, part, pw, ph, pal);
             else o += sixel_tile(row + p.r0, col + c0 + p.c0, part, pw, ph, pal);

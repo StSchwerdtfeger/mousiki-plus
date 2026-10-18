@@ -174,7 +174,7 @@ struct StreamingPcm {
         const size_t ch = static_cast<size_t>(channels);
         for (size_t i = 0; i < frames; ++i) {
             const float m = ch == 2 ? 0.5f * (samples[2 * i] + samples[2 * i + 1]) : samples[i];
-            env_acc_ += m * m;
+            env_acc_ += static_cast<double>(m) * m;
             if (++env_n_ == kEnvGran) { env_sumsq.push_back(static_cast<float>(env_acc_)); env_acc_ = 0; env_n_ = 0; }
         }
     }
