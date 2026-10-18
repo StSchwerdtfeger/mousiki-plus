@@ -9,6 +9,9 @@ on:
       - 'remote_app/android/**'
       - '.github/workflows/remote-app.yml'
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-24.04
