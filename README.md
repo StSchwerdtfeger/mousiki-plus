@@ -232,7 +232,7 @@ Note, I had a bunch of the below already installed, so I am not sure how smooth 
 | FFmpeg | decodes Opus (miniaudio can't), `ffprobe` supplies metadata, decodes audio for the AcoustID fingerprint and writes tags in the meta editor (`ffmpeg -c copy`) | `winget install Gyan.FFmpeg` |
 | curl | radio mode only: the Radio Browser station search (`SHIFT+s` in the radio) | **nothing to install** — ships with Windows 10+ |
 | yt-dlp | online search fallback, YouTube playlists (bulk add), streaming, downloads | `winget install yt-dlp.yt-dlp` |
-| Python 3 | runs the helper scripts in `scripts/`: fast online search (`fast_yt_search.py`), AcoustID fetch (`fetch_meta.py`) and lyrics (`fetch_lyrics.py`) — the first two use the standard library only | `winget install Python.Python.3.12` |
+| Python 3 | runs the helper scripts in `scripts/`: fast online search (`fast_yt_search.py`), AcoustID fetch (`fetch_meta.py`) and lyrics (`fetch_lyrics.py`) — the first two use the standard library only | `winget install Python.Python.3.13` |
 | Python package `requests` | lyrics only (`fetch_lyrics.py` / `lrc.py`) | `py -3 -m pip install requests` (done by `setup.ps1`) |
 | `fpcalc` (Chromaprint) | audio fingerprint for the AcoustID fetch | **nothing to install** — built by CMake from `third_party/chromaprint/` and copied to `scripts\` |
 | `SDL2.dll` (optional) | the scope and spectrogram windows (`)` / `(`: German `SHIFT+9` / `SHIFT+8`, English `SHIFT+0` / `SHIFT+9`); loaded at run time, so the build does not need it | **fetched by `setup.ps1`** next to `mousiki.exe` (or `SDL2.dll` from `SDL2-<version>-win32-x64.zip`, [SDL releases](https://github.com/libsdl-org/SDL/releases)) |
@@ -375,6 +375,29 @@ gh attestation verify <file> --repo StSchwerdtfeger/mousiki-plus
 ```
 
 Note: the files are not signed with a purchased code-signing certificate, so Windows SmartScreen and macOS Gatekeeper may still show a warning on first start.
+
+## Dependencies and security
+
+Mousiki uses a small number of third-party components. They are listed here with the version in this release and how they are checked (state: 2026-10-19). Licence texts are in [`THIRD_PARTY_LICENSES.txt`](THIRD_PARTY_LICENSES.txt), how to report a problem is in [`SECURITY.md`](SECURITY.md).
+
+| Component | Used for | Version here | Newest upstream (checked 2026-10-19) |
+|---|---|---|---|
+| miniaudio | audio playback and decoding | 0.11.25 | 0.11.25 |
+| miniz | compresses the oscilloscope pictures (Kitty graphics) | 3.1.2 | 3.1.2 |
+| Chromaprint | AcoustID fingerprint (`fpcalc`) | 1.6.1 | 1.6.1 |
+| KISS FFT | spectrum / spectrogram | vendored copy (no version marker; v131 line) | 131.2.0 (build-system changes only) |
+| stb_truetype | karaoke letters of Japanese / Chinese / Korean text | 1.26 | 1.26 |
+| SDL2 | the optional scope and spectrogram windows (Windows: bundled `SDL2.dll`) | 2.32.10 | 2.32.10 |
+| yt-dlp, FFmpeg | online sources, conversion (bundled in the Windows and Linux packages) | the newest at build time, fixed by hash in `packaging/pins.json` | - |
+| Python + `requests` stack | lyrics and meta data helper scripts (Windows package) | Python 3.13.14; `requests` 2.34.2, `urllib3` 2.8.0, `idna` 3.20, `certifi` 2026.10.18, `charset-normalizer` 3.5.2 | same |
+
+How this is kept in check:
+
+- **Fixed downloads.** The tools the release script bundles are pinned to one exact file each (`packaging/pins.json`; the Python packages with hashes in `packaging/pylib-requirements.txt`). A file that differs from its pin stops the build.
+- **Code scanning.** GitHub CodeQL scans Mousiki's own C++ code and the workflows (the vendored libraries in `third_party/` are not scanned: they are unchanged upstream code).
+- **Memory-error tests.** The automated tests also run with AddressSanitizer and UndefinedBehaviorSanitizer on every push.
+- **Updates.** Libraries are checked against their upstream releases before each release; the table above is updated then. Dependabot proposes newer versions of the GitHub Actions used for building.
+- **Third-party findings.** If one of these projects publishes a security fix, a new Mousiki release with the updated component follows. Reports are welcome ([`SECURITY.md`](SECURITY.md)).
 
 ## Changes compared to the original Mousiki
 
