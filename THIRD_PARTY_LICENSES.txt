@@ -11,7 +11,7 @@ are in third_party/ of the source repository.
 Compiled into mousiki
   - miniaudio 0.11.25 (David Reid) ............ public domain (Unlicense) or MIT-0
   - KISS FFT (Mark Borgerding) ................ BSD-3-Clause
-  - miniz 3.0.2 (Rich Geldreich, RAD Game Tools, Valve Software) ... MIT
+  - miniz 3.1.2 (Rich Geldreich, RAD Game Tools, Valve Software) ... MIT
   - Roseus colour map (dofuuz/roseus) ......... CC0 1.0 (spectrogram colours)
   - stb_truetype 1.26 (Sean Barrett) .......... public domain (Unlicense) or MIT (karaoke: glyphs of Japanese / Chinese / Korean text from an installed font)
 Compiled into fpcalc (the AcoustID fingerprint helper in scripts/)
