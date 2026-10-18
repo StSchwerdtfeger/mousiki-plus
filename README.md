@@ -81,6 +81,7 @@ Everything below is in the current version (v4.2.0) and works the same on Window
 - **Lyric sphere** and **spectrum bars**; the visualization field cycles with `.`.
 
 <p align="center"><img width="850" alt="The spectrogram in the visualization field (theme Lavender Haze)" src="readme_images/theme_lavender_haze.png" /></p>
+<p align="center"><img width="850" alt="The spectrogram in the visualization field (theme Lavender Haze)" src="readme_images/spectrogram_inapp.png" /></p>
 <p align="center"><img width="850" alt="The spectrogram over the whole screen" src="readme_images/spectro_full.png" /></p>
 <p align="center"><img width="850" alt="The spectrogram in image mode over the whole screen, both channels (theme Tokyo Night)" src="readme_images/spectro_image.png" /></p>
 
