@@ -375,3 +375,36 @@ TEST(mic_capture_without_a_device_fails_cleanly) {
     if (ok) { CHECK(mic.running()); CHECK(mic.rate() >= 8000); mic.stop(); CHECK(!mic.running()); }
     else CHECK(!err.empty());
 }
+
+TEST(wav_reader_rejects_chunk_sizes_larger_than_the_file) {
+    mt::TempHome home;
+    const std::string path = (home.path() / "evil.wav").string();
+    auto put32 = [](std::string& s, uint32_t v) { for (int i = 0; i < 4; ++i) s += static_cast<char>((v >> (8 * i)) & 255); };
+    auto put16 = [](std::string& s, uint32_t v) { s += static_cast<char>(v & 255); s += static_cast<char>((v >> 8) & 255); };
+    // a header that promises a 4 GB data chunk but holds only 4 samples must neither crash nor allocate 4 GB
+    std::string w = "RIFF";
+    put32(w, 0xFFFFFFFFu);
+    w += "WAVEfmt ";
+    put32(w, 16); put16(w, 1); put16(w, 1); put32(w, 44100); put32(w, 88200); put16(w, 2); put16(w, 16);
+    w += "data";
+    put32(w, 0xFFFFFFFFu);
+    for (int i = 0; i < 4; ++i) put16(w, 1000);
+    { std::ofstream(path, std::ios::binary) << w; }
+    muisc::creator::Stereo s;
+    CHECK(muisc::creator::read_wav16(path, s));
+    CHECK_EQ(s.l.size(), static_cast<size_t>(4));
+    // a fmt chunk bigger than the file is refused
+    std::string bad = "RIFF";
+    put32(bad, 100);
+    bad += "WAVEfmt ";
+    put32(bad, 0x7FFFFFFFu);
+    { std::ofstream(path, std::ios::binary) << bad; }
+    CHECK(!muisc::creator::read_wav16(path, s));
+    // an unknown chunk that claims more than the file holds ends the read
+    std::string skip = "RIFF";
+    put32(skip, 100);
+    skip += "WAVEJUNK";
+    put32(skip, 0xFFFFFFF0u);
+    { std::ofstream(path, std::ios::binary) << skip; }
+    CHECK(!muisc::creator::read_wav16(path, s));
+}
