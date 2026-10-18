@@ -1,0 +1,6 @@
+# CodeQL: do not report on the vendored libraries (miniaudio, miniz, Chromaprint, KISS FFT, stb_truetype).
+# They are copies of upstream code, kept as they are; their findings belong to those projects.
+name: Mousiki CodeQL configuration
+paths-ignore:
+  - third_party
+  - tests
