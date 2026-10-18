@@ -103,7 +103,7 @@ if (-not $SkipDeps) {
         }
         if (-not (Test-Command py) -and -not (Test-Command python3)) {
             Write-Step "Installing Python 3"
-            winget install --id Python.Python.3.12 --accept-source-agreements --accept-package-agreements --silent
+            winget install --id Python.Python.3.13 --accept-source-agreements --accept-package-agreements --silent
         }
     }
 
