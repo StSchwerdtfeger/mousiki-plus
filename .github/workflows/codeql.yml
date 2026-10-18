@@ -1,6 +1,9 @@
 # CodeQL code scanning for the C++ code (src/, src_radio/) and the workflows, without the vendored third_party/ libraries.
 # Results: Security tab -> Code scanning. Replaces GitHub's "default setup": switch that off first
 # (Settings -> Advanced Security -> CodeQL analysis -> ... -> Disable CodeQL), otherwise the two clash.
+#
+# CodeQL's own "paths-ignore" does not work for C/C++ (it is built by tracing the compiler), so the C++ results are filtered
+# afterwards: the SARIF file is stripped of everything in third_party/ and tests/ and only then uploaded.
 name: CodeQL
 
 on:
@@ -16,34 +19,63 @@ permissions:
   contents: read
 
 jobs:
-  analyze:
-    name: ${{ matrix.language }}
+  cpp:
+    name: c-cpp
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       security-events: write
       actions: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { language: c-cpp, build-mode: manual }
-          - { language: actions, build-mode: none }
     steps:
       - uses: actions/checkout@v4
 
       - uses: github/codeql-action/init@v3
         with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
-          config-file: ./.github/codeql/codeql-config.yml
+          languages: c-cpp
+          build-mode: manual
 
-      - name: Build (C++ only)
-        if: matrix.language == 'c-cpp'
+      - name: Build
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel 4
 
+      - name: Analyze (results are kept, not uploaded yet)
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:c-cpp"
+          upload: never
+          output: sarif-results
+
+      - name: Remove the vendored libraries and the tests from the results
+        uses: advanced-security/filter-sarif@v1
+        with:
+          patterns: |
+            -third_party/**
+            -tests/**
+          input: sarif-results/cpp.sarif
+          output: sarif-results/cpp.sarif
+
+      - name: Upload the filtered results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: sarif-results/cpp.sarif
+          category: "/language:c-cpp"
+
+  actions:
+    name: actions
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: actions
+          build-mode: none
+
       - uses: github/codeql-action/analyze@v3
         with:
-          category: "/language:${{ matrix.language }}"
+          category: "/language:actions"

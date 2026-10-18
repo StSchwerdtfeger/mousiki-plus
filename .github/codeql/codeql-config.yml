@@ -1,5 +1,5 @@
-# CodeQL: do not report on the vendored libraries (miniaudio, miniz, Chromaprint, KISS FFT, stb_truetype).
-# They are copies of upstream code, kept as they are; their findings belong to those projects.
+# Not used by .github/workflows/codeql.yml any more: CodeQL ignores "paths-ignore" for C/C++, so that workflow filters the
+# results of third_party/ and tests/ out of the SARIF file itself. Kept only as a note; safe to delete.
 name: Mousiki CodeQL configuration
 paths-ignore:
   - third_party
