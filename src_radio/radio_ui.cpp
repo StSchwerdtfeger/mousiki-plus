@@ -3192,7 +3192,9 @@ std::vector<std::string> build_scope_big(const Style& s, const UiModel& m, const
     if (!panel.empty()) {
         const int ph = static_cast<int>(panel.size());
         const int x = std::max(0, (W - panel_w) / 2);
-        const int y = std::clamp((static_cast<int>(out.size()) - ph) / 2, 0, std::max(0, static_cast<int>(out.size()) - ph));
+        // the oscilloscope options start on the second row and only grow downwards (braille / image style have different row counts)
+        const int y = m.overlay == 1 ? std::clamp(1, 0, std::max(0, static_cast<int>(out.size()) - ph))
+                                     : std::clamp((static_cast<int>(out.size()) - ph) / 2, 0, std::max(0, static_cast<int>(out.size()) - ph));
         for (int i = 0; i < ph && y + i < static_cast<int>(out.size()); ++i)
             out[static_cast<size_t>(y + i)] = splice_line(out[static_cast<size_t>(y + i)], x, panel[static_cast<size_t>(i)], panel_w);
         m.spectro_skip[0] = y; m.spectro_skip[1] = x; m.spectro_skip[2] = ph; m.spectro_skip[3] = panel_w;
@@ -3339,7 +3341,8 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
         const int pw = m.overlay == 6 ? kSpectroOverlayW : m.overlay == 5 ? kRecordOverlayW : m.overlay == 4 ? kEqOverlayW : m.overlay == 3 ? kSleepOverlayW : m.overlay == 1 ? kOsciOverlayW : kNormOverlayW;
         const int ph = static_cast<int>(panel.size());
         const int x = std::max(0, (W - pw) / 2);
-        const int y = std::clamp((rows - ph) / 2 - 2, 0, std::max(0, rows - ph));
+        const int y = m.overlay == 1 ? std::clamp(1, 0, std::max(0, rows - ph))   // oscilloscope options: second row, only grows downwards
+                                     : std::clamp((rows - ph) / 2 - 2, 0, std::max(0, rows - ph));
         for (int i = 0; i < ph; ++i)
             out[static_cast<size_t>(y + i)] = splice_line(out[static_cast<size_t>(y + i)], x, panel[static_cast<size_t>(i)], pw);
         m.spectro_skip[0] = y; m.spectro_skip[1] = x; m.spectro_skip[2] = ph; m.spectro_skip[3] = pw;
