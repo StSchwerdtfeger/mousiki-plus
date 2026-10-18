@@ -13915,11 +13915,12 @@ std::vector<std::string> App::panel_gradient(const std::vector<std::string>& lin
     });
 }
 
-void App::draw_floating_panel(std::ostringstream& frame, const std::vector<std::string>& lines_in, int panel_w, int W, int fixed_col, bool exact_center) const {
+void App::draw_floating_panel(std::ostringstream& frame, const std::vector<std::string>& lines_in, int panel_w, int W, int fixed_col, bool exact_center, int fixed_row) const {
     const std::vector<std::string> lines = panel_gradient(lines_in);
     int panel_h = static_cast<int>(lines.size());
     int start_col = fixed_col > 0 ? fixed_col : 1 + std::max(0, (W - panel_w) / 2);
     int start_row = 1 + std::max(0, (term_rows_ - panel_h) / 2 - (exact_center ? 0 : kFloatingPanelUpShift));
+    if (fixed_row > 0) start_row = fixed_row;
     start_row = std::clamp(start_row, 1, std::max(1, term_rows_ - panel_h));
     float_rect_[0] = start_col - 1; float_rect_[1] = start_row - 1; float_rect_[2] = panel_w; float_rect_[3] = panel_h;   // 0-based, for the scope image
     for (int i = 0; i < panel_h; ++i) {
@@ -15312,7 +15313,7 @@ std::string App::render_frame(TerminalIO& term) {
         frame_main_len_ = out.size();
         if (mode_ == Mode::OsciMenu) {
             std::ostringstream floating;
-            draw_floating_panel(floating, build_osci_menu_panel(), kOsciMenuPanelWidth, W);
+            draw_floating_panel(floating, build_osci_menu_panel(), kOsciMenuPanelWidth, W, 0, false, 2);   // starts on row 2 and only grows downwards (braille / image style have different row counts)
             out += floating.str();
         } else if (scope_big_color_edit_) {
             std::ostringstream floating;
@@ -15701,7 +15702,7 @@ std::string App::render_frame(TerminalIO& term) {
         draw_floating_panel(floating, build_clear_queue_panel(), kClearQueuePanelWidth, W);
     } else if (mode_ == Mode::OsciMenu) {
         // Centred like the other overlays; a scope image under it is cropped to the columns that stay free.
-        draw_floating_panel(floating, build_osci_menu_panel(), kOsciMenuPanelWidth, W);
+        draw_floating_panel(floating, build_osci_menu_panel(), kOsciMenuPanelWidth, W, 0, false, 2);   // starts on row 2 and only grows downwards (braille / image style have different row counts)
     } else if (mode_ == Mode::SpectroMenu) {
         draw_floating_panel(floating, build_spectro_menu_panel(), kSpectroMenuPanelWidth, W);
     } else if (mode_ == Mode::NormMenu) {

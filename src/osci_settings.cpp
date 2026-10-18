@@ -41,7 +41,7 @@ int osci_res_parse(const std::string& v, int def) {
 }
 
 std::vector<int> osci_visible_rows(const VizPrefs& s) {
-    std::vector<int> r = {kOrMode, kOrMusic};
+    std::vector<int> r = {kOrMode, kOrStyle, kOrFps, kOrMusic};   // the picture's own settings (style, frame rate) come right below the scope mode
     {   // the beam: CRT or classic in both modes; low-rate blanking only matters in music mode, rough mode only without it
         const OsciSet& o = s.osci();
         r.push_back(kOrCrt);
@@ -49,7 +49,6 @@ std::vector<int> osci_visible_rows(const VizPrefs& s) {
         if (o.crt && o.music) r.push_back(kOrLowRate);
         if (!o.music) r.push_back(kOrRough);
     }
-    for (int id : {kOrStyle, kOrFps}) r.push_back(id);   // no "Display" row: what is shown is the "." key's job
     if (s.osci_style == 1) { r.push_back(kOrProtocol); r.push_back(kOrRes); r.push_back(kOrDetail); }
     r.push_back(kOrDecay);
     if (s.osci_style != 1) r.push_back(kOrDot);

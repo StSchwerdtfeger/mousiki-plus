@@ -148,12 +148,15 @@ struct Gpu {
     sdl::Texture* quarter = nullptr;
     sdl::Texture* eighth = nullptr;
     sdl::Texture* beam = nullptr;       // 64 x 64 soft dot: the cross-section of the beam
+    sdl::Texture* pic = nullptr;        // the YT / combined modes in the image style: a finished picture made on the CPU
+    int pic_w = 0, pic_h = 0;
     int w = 0, h = 0;
 };
 
 void destroy(const sdl::Api& A, Gpu& g) {
-    for (sdl::Texture** t : {&g.accum, &g.half, &g.quarter, &g.eighth, &g.beam})
+    for (sdl::Texture** t : {&g.accum, &g.half, &g.quarter, &g.eighth, &g.beam, &g.pic})
         if (*t) { A.DestroyTexture(*t); *t = nullptr; }
+    g.pic_w = g.pic_h = 0;
 }
 
 bool create(const sdl::Api& A, sdl::Renderer* R, Gpu& g, int w, int h) {
@@ -274,6 +277,8 @@ int scope_window_main() {
     int lz_ups = 0;
     std::vector<sdl::Vertex> verts;
     std::vector<int> idx;
+    std::vector<uint8_t> img_level, img_hue;   // YT / combined modes, image style
+    std::vector<uint32_t> img_px;
     float mid_hist[2 * kDeriv] = {};
     double play = 0.0;
     uint64_t drawn = 0;
@@ -458,7 +463,7 @@ int scope_window_main() {
             const bool wide = cfg.mode != 0;
             const int rows = std::max(6, (wide ? gpu.h : side_px) / (pitch * 4));
             const int cols = wide ? std::max(12, gpu.w / (pitch * 2)) : rows * 2;
-            const auto cells = braille_scope.render(cols, rows, p);
+            const auto cells = cfg.braille ? braille_scope.render(cols, rows, p) : std::vector<std::vector<OscilloscopeVisualizer::Cell>>{};   // (image style: no dot grid, see below)
             const int ox = (gpu.w - cols * 2 * pitch) / 2, oy = (gpu.h - rows * 4 * pitch) / 2;
             const int dot = fine ? pitch : std::max(2, static_cast<int>(std::lround(pitch * 0.72)));
             const int pad = (pitch - dot) / 2;
@@ -466,6 +471,44 @@ int scope_window_main() {
             A.SetRenderDrawBlendMode(R, sdl::kBlendNone);
             A.SetRenderDrawColor(R, 0, 0, 0, 255);
             A.RenderClear(R);
+            if (!cfg.braille) {
+                // The image style: the same picture as the terminal's image mode, made at the window's own resolution (a real
+                // pixel picture, not a dot grid), then scaled to the window. Very large windows are rendered a little smaller.
+                constexpr long kMaxPixels = 2600000;
+                int iw = gpu.w, ih = gpu.h;
+                if (static_cast<long>(iw) * ih > kMaxPixels) {
+                    const double f = std::sqrt(static_cast<double>(kMaxPixels) / (static_cast<double>(iw) * ih));
+                    iw = std::max(16, static_cast<int>(iw * f));
+                    ih = std::max(16, static_cast<int>(ih * f));
+                }
+                braille_scope.render_image(iw, ih, p, img_level, img_hue);
+                if (!gpu.pic || gpu.pic_w != iw || gpu.pic_h != ih) {
+                    if (gpu.pic) A.DestroyTexture(gpu.pic);
+                    gpu.pic = A.CreateTexture(R, sdl::kFmtARGB8888, sdl::kTexStatic, iw, ih);
+                    gpu.pic_w = iw;
+                    gpu.pic_h = ih;
+                    if (gpu.pic) {
+                        A.SetTextureBlendMode(gpu.pic, sdl::kBlendNone);
+                        if (A.SetTextureScaleMode) A.SetTextureScaleMode(gpu.pic, sdl::kScaleLinear);
+                    }
+                }
+                if (gpu.pic) {
+                    img_px.resize(static_cast<size_t>(iw) * ih);
+                    for (int y = 0; y < ih; ++y) {
+                        for (int x = 0; x < iw; ++x) {
+                            const size_t at = static_cast<size_t>(y) * iw + x;
+                            const float lv = img_level[at] / 255.0f;
+                            if (lv <= 0.0f) { img_px[at] = 0xFF000000u; continue; }
+                            const int h = cfg.color_by_x ? static_cast<int>(std::lround(iw > 1 ? 255.0f * x / (iw - 1) : 0.0f)) : img_hue[at];
+                            const uint8_t* pc = cfg.pal[h];
+                            const auto ch = [&](int v) { return static_cast<uint32_t>(std::clamp(std::lround((v * 0.90f + 255 * 0.10f) * lv), 0l, 255l)); };
+                            img_px[at] = 0xFF000000u | (ch(pc[0]) << 16) | (ch(pc[1]) << 8) | ch(pc[2]);
+                        }
+                    }
+                    A.UpdateTexture(gpu.pic, nullptr, img_px.data(), iw * 4);
+                    A.RenderCopy(R, gpu.pic, nullptr, nullptr);
+                }
+            }
             for (int ty = 0; ty < rows && ty < static_cast<int>(cells.size()); ++ty) {
                 for (int tx = 0; tx < cols; ++tx) {
                     const OscilloscopeVisualizer::Cell& c = cells[static_cast<size_t>(ty)][static_cast<size_t>(tx)];

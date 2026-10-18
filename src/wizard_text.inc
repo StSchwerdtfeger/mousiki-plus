@@ -688,6 +688,7 @@ A nearly mono track fades over to a phase portrait instead of a flat line.
 TUNING OVERLAY:[[Header]] [SHIFT+o] opens it, the picture changes live while the music plays.
 Scope mode       XY, YT, XY + YT (overlap), XY + YT (row), XY + YT (column)
 Osci style       braille (works in any terminal) / image (pixels, needs Kitty graphics or Sixel)
+Frame rate       30 / 45 / 60 / 90 / 120 / 165 fps
 Osci music mode  for oscilloscope music: the unprocessed signal and a fixed scale
 Beam             CRT: every sample drawn once, light by the time the beam spends on a spot
                  (image default) / classic: the old look with a tail (braille default)
@@ -695,7 +696,6 @@ Dwell brightness CRT beam: slow strokes bright, jumps dark; off = every stroke e
 Low-rate blank.  music mode, CRT beam: files below 96 kHz get the jumps between shapes faded out
 Rough mode       not in music mode: loud beats clip along the edges of the square (edge clipping;
                  braille default on, image default off); not optimal, technically, but looks cool :D
-Frame rate       30 / 45 / 60 / 90 / 120 / 165 fps
 Image res/detail image style: drawn at full / half / third resolution; detail normal / high =
                  up to 560 / 1024 pixels wide (high: sharper thin lines, more data per frame)
 Decay            the afterglow, higher = longer trails
