@@ -2046,7 +2046,7 @@ Mousiki is licensed under the Apache Licence 2.0 (file `LICENSE`). It contains o
 |---|---|---|---|
 | miniaudio 0.11.25 | Audio output and decoding of MP3 / FLAC / WAV | Public domain (Unlicense) or MIT-0 | Compiled in |
 | KISS FFT | Spectrum visualizer, spectrogram | BSD-3-Clause | Compiled in |
-| miniz 3.0.2 | Compresses the image-style pictures (Kitty graphics) | MIT | Compiled in |
+| miniz 3.1.2 | Compresses the image-style pictures (Kitty graphics) | MIT | Compiled in |
 | Roseus colour map | Default spectrogram colours | CC0 1.0 | Compiled in |
 | Chromaprint 1.6.1 (with its own KISS FFT) | `fpcalc`, the AcoustID fingerprint helper | MIT (upstream treats the full project as LGPL-2.1 because of FFmpeg parts that are not included here) | Compiled into `fpcalc` |
 | SDL2 | Scope window and spectrogram window | zlib | Loaded at run time; `SDL2.dll` is included in the Windows packages |
