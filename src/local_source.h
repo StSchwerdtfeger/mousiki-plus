@@ -8,6 +8,10 @@ namespace muisc {
 
 namespace fs = std::filesystem;
 
+// A folder with a file of this name is the creator's folder (the ^ overlay): the library scan leaves its files out, they are
+// only reachable through the overlay's "Created files..." list.
+inline constexpr const char* kCreatorMarker = ".mousiki-creator";
+
 struct LocalTrack {
     std::string title;   // filename stem
     fs::path path;

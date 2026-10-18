@@ -1,4 +1,5 @@
 #include "local_source.h"
+#include <map>
 #include "chiptune.h"
 #include "path_utf8.h"
 #include "utf8_util.h"
@@ -80,6 +81,7 @@ std::vector<LocalTrack> LocalSource::scan(const std::vector<std::string>& custom
         }
 
         size_t before = tracks.size();
+        std::map<std::string, bool> creator_dirs;   // folder -> is it the creator's (see kCreatorMarker): its files are not part of the library
         for (const auto& entry : fs::recursive_directory_iterator(root, fs::directory_options::skip_permission_denied, ec)) {
             // is_regular_file() with no error_code argument throws on
             // anything the OS can't stat cleanly -- which, unlike a plain
@@ -94,6 +96,15 @@ std::vector<LocalTrack> LocalSource::scan(const std::vector<std::string>& custom
             bool is_file = entry.is_regular_file(fec);
             if (fec) continue; // couldn't stat it (cloud placeholder, permissions, ...) -- skip, don't crash
             if (is_file && is_audio_file(entry.path())) {
+                {   // the folder of the creator (^ overlay) holds files that are only listed in that overlay
+                    const std::string dir_key = path_str(entry.path().parent_path());
+                    auto it = creator_dirs.find(dir_key);
+                    if (it == creator_dirs.end()) {
+                        std::error_code mec;
+                        it = creator_dirs.emplace(dir_key, fs::exists(entry.path().parent_path() / kCreatorMarker, mec)).first;
+                    }
+                    if (it->second) continue;
+                }
                 std::error_code cec;
                 fs::path canon = fs::canonical(entry.path(), cec);
                 std::string key = cec ? path_str(entry.path()) : path_str(canon);

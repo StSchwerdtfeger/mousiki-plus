@@ -1,5 +1,7 @@
 #pragma once
 #include "wizard.h"
+#include "creator.h"
+#include "mic_capture.h"
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -43,7 +45,7 @@
 
 namespace muisc {
 
-enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics };
+enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator };
 enum class ListSource { Local, Online, Playlist, Folder };
 
 // One row of the main UI's "/f:" folder list: a folder that directly
@@ -1379,6 +1381,77 @@ private:
     void sleep_timer_cancel();
     void sleep_timer_tick();                            // once per frame
     std::string sleep_timer_label() const;              // "" when nothing is armed, else e.g. "SLEEP 24:10"
+    // ^ (HKeyCreator): the creator overlay (Mode::Creator). Turns a text or a picture into a WAV file -- either
+    // oscilloscope music (left = x, right = y, the XY scope draws the picture) or a spectrogram sound (the picture is
+    // the spectrogram, played as notes of a scale) -- saves it in <music folder>/creator and plays it. The work is
+    // done by creator.h; this is only the panel. The settings of the panel are kept until Mousiki is closed.
+    static constexpr int kCreatorPanelWidth = 62;
+    int creator_row_ = 0;                               // index into creator_rows()
+    int creator_mode_ = 0;                              // 0 text to sound, 1 microphone
+    bool creator_grid_ = true;                          // the grid of the scope previews (text to scope and microphone)
+    int creator_live_view_ = 0;                         // microphone view: 0 spectrogram (default), 1 oscilloscope XY, 2 oscilloscope YT
+    std::vector<int> creator_rows() const;              // the row ids on the screen for the current mode
+    bool creator_on_text_field() const;
+    std::string creator_text_ = "MOUSIKI";
+    bool creator_list_open_ = false;                    // the list of created files is shown instead of the rows
+    std::vector<fs::path> creator_files_;
+    int creator_list_sel_ = 0;
+    int creator_target_ = 0;                            // 0 oscilloscope (XY), 1 spectrogram
+    int creator_len_ = 1;                               // index into the length list
+    int creator_invert_ = 0;                            // 0 auto, 1 on, 2 off
+    int creator_fps_ = 1;                               // scope: frame rate list index
+    int creator_motion_ = 0;                            // scope: Motion
+    int creator_detail_ = 1;                            // scope: 0 low .. 2 high
+    int creator_scale_ = 0;                             // spectrogram: Scale
+    int creator_octaves_ = 5;                           // spectrogram: 3..6
+    int creator_reverb_ = 1;                            // spectrogram: 0 off, 1 light, 2 hall
+    std::string creator_status_;
+    std::vector<std::string> creator_preview_;          // braille lines of the current picture
+    std::string creator_loaded_key_;                    // what creator_preview_ / creator_gray_ were made from
+    std::shared_ptr<void> creator_gray_;                // a creator::Gray (kept opaque so app.h does not need creator.h)
+    std::vector<std::string> build_creator_panel() const;
+    // The preview that opens after "Create": a full-screen picture of what the file draws (the XY scope in music mode, or the
+    // spectrogram) that loops until ESC. It has its own scope / spectrogram and its own settings (creator_spectro_set_, the
+    // parameters in build_creator_preview()), so the SHIFT+o / SHIFT+i settings are neither used nor changed. The pictures
+    // are made from the samples of the file itself, in step with the player's position.
+    bool creator_show_ = false;
+    int creator_preview_kind_ = 0;                      // 0 = oscilloscope (XY), 1 = spectrogram, 2 = oscilloscope (YT, microphone only)
+    // The microphone preview: the same big overlay, but the pictures are made from the live microphone and ENTER records it.
+    bool creator_live_ = false;
+    std::unique_ptr<MicCapture> creator_mic_;
+    bool creator_rec_on_ = false;
+    std::vector<float> creator_rec_;                    // interleaved L/R of the running recording
+    int creator_rec_rate_ = 44100;
+    void creator_live_start();
+    void creator_live_tick();
+    void creator_record_toggle();
+    void creator_record_save();
+    std::shared_ptr<creator::Stereo> creator_audio_;
+    LocalTrack creator_track_;
+    size_t creator_fed_ = 0;                            // frames of creator_audio_ given to the scope / spectrogram
+    double creator_last_pos_ = 0.0;
+    mutable OscilloscopeVisualizer creator_scope_;
+    mutable SpectroAnalyzer creator_spectro_;
+    mutable SpectroGfx creator_spectro_gfx_;
+    SpectroSettings creator_spectro_set_;
+    void creator_preview_open();
+    bool creator_prev_valid_ = false;                   // a song was playing before the creator started its file: it comes back when the preview closes
+    LocalTrack creator_prev_;
+    bool creator_resume_ = false;
+    void creator_remember_previous();
+    void creator_resume_tick();                         // once per frame: restarts that song as soon as the player is free
+    void creator_preview_close();                       // stops the playback and the loop
+    void creator_preview_loop();                        // the file ended: play it again
+    void creator_preview_tick();                        // once per frame: feeds the pictures
+    void creator_preview_key(int key);
+    std::string build_creator_preview(int W, const char* clear_prefix) const;
+    void creator_key(int key);
+    bool creator_load();                                // (re)loads the picture when the source changed; false = nothing to work with
+    void creator_render_and_play();
+    fs::path creator_dir() const;                       // <first music folder>/creator
+    bool creator_dir_prepare();                         // creates it and marks it so the library scan skips it; true = it was not marked before
+    void creator_list_refresh();
+    void creator_open_file(const fs::path& wav);        // plays a created file and opens its preview
     // Alt+L (kKeyAltL, fixed key): the lyrics timing overlay (Mode::LyricsEdit),
     // a small floating panel over the live playback UI for tracks whose lyrics
     // run early or late. The offset ("delay", seconds, + = lyrics later) lives in
