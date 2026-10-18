@@ -15,12 +15,15 @@ and macOS from nothing but the Mousiki source .zip.  Pure standard library.
     (the workflow also signs every package with GPG and publishes build provenance attestations, see README)
     python release.py update-repo --zip ...                        copy a new source zip into the git repo + push
     python release.py checksums --gpg-key KEYID                    SHA256SUMS + detached GPG signatures
+    python release.py pin                                          fix yt-dlp / FFmpeg / Python / PyPI to exact versions + hashes (pins.json)
 
 Outputs land in ./dist :
     Mousiki-<ver>-windows-x64-setup.exe      + Mousiki-<ver>-windows-x64-portable.zip
     mousiki_<ver>_amd64.deb                  + Mousiki-<ver>-linux-amd64-portable.zip
     Mousiki-<ver>-macos-universal.pkg        + Mousiki-<ver>-macos-universal-portable.zip
     SHA256SUMS.txt
+Files of other versions found in ./dist are moved to ./dist/older/<version>/ when a build starts, so
+only the current version is left to upload.
 
 Re-running is the "update" workflow: the source zip is synced into a persistent
 work tree (only changed files are rewritten) so CMake recompiles only what
@@ -56,6 +59,9 @@ CLOUD_TAG = "mousiki-source"
 CLOUD_ASSET = "mousiki-source.zip"
 RELEASE_ARTIFACT = "mousiki-release"       # the workflow's final artifact: packages + signatures
 APPID_GUID = "{8F6B2C1E-3A4D-4B7E-9C15-6D2E0A7F5B38}"   # keep fixed: upgrades install over the old version
+# the wheels are chosen for this Python (the bundled embeddable one): with a bare "3" pip would only accept packages from before
+# they declared a minimum Python version, i.e. years-old requests / urllib3 / certifi
+PYLIB_PYTHON = ".".join(DEFAULT_PY_EMBED.split(".")[:2])
 PYLIB_PACKAGES = ["requests", "urllib3", "idna", "certifi", "charset-normalizer"]
 # SDL2 for the scope and spectrogram windows: Mousiki loads SDL2.dll at run time from the folder of mousiki.exe.
 # Pinned and checksummed (SDL publishes no checksum file). To update, change both lines together:
@@ -232,6 +238,38 @@ def verify_pinned_sha256(dest, want):
         dest.unlink()
         die("SHA-256 mismatch for %s (expected %s, got %s) - the download was deleted" % (dest.name, want, got))
     log("SHA-256 verified: " + dest.name)
+
+
+# ---- pinned downloads ---------------------------------------------------------
+# pins.json (next to this script) fixes every bundled tool to ONE exact file: {name: {"url": <versioned url>, "sha256": ...}}.
+# The checksum a publisher posts next to a download lives on the same server, so it only catches a damaged download, not
+# a replaced one. A pin made once (and reviewed by you) catches both. Create / update it with:  release.py pin
+# Tools without a pin are still downloaded the old way (latest + the publisher's checksum) with a warning.
+PINS_FILE = HERE / "pins.json"
+PYLIB_REQUIREMENTS = HERE / "pylib-requirements.txt"   # the PyPI wheels with hashes, written by `release.py pin`
+
+
+def load_pins():
+    try:
+        return json.loads(PINS_FILE.read_text(encoding="utf-8")).get("files", {})
+    except Exception:
+        return {}
+
+
+def fetch_pinned(name, dest, a):
+    """The file pinned under `name`, verified against its pinned SHA-256 (cache used when it matches);
+    None when there is no pin (the caller then downloads the unpinned way)."""
+    pin = load_pins().get(name)
+    if not pin:
+        warn("%s is not pinned - run 'release.py pin' to fix its version and checksum" % name)
+        return None
+    dest = Path(dest)
+    if dest.exists() and not a.refresh_tools and sha256_of(dest) == pin["sha256"].lower():
+        log("SHA-256 verified (pinned, cached): " + dest.name)
+        return dest
+    got = fetch(pin["url"], dest, True)
+    verify_pinned_sha256(got, pin["sha256"])
+    return got
 
 
 def make_zip(src_dir, dest_zip, root_name):
@@ -534,8 +572,15 @@ def build_pylib(dest, dl, refresh):
         rmtree(tmp)
         base = [sys.executable, "-m", "pip", "install", "--quiet", "--no-compile",
                 "--disable-pip-version-check", "--target", str(tmp)]
-        rc = run(base + ["--no-deps", "--only-binary=:all:", "--platform", "any", "--python-version", "3",
-                         "--implementation", "py", "--abi", "none"] + PYLIB_PACKAGES, check=False)
+        if PYLIB_REQUIREMENTS.is_file():   # exact versions + SHA-256 of every wheel (pip refuses anything else)
+            rc = run(base + ["--no-deps", "--only-binary=:all:", "--require-hashes", "-r", str(PYLIB_REQUIREMENTS)], check=False)
+            if rc != 0:
+                die("the hash-pinned PyPI packages (%s) could not be installed - a changed file or a network problem. "
+                    "To accept new versions run: release.py pin" % PYLIB_REQUIREMENTS.name)
+        else:
+            warn("the PyPI packages are not pinned - run 'release.py pin' to fix their versions and hashes")
+            rc = run(base + ["--no-deps", "--only-binary=:all:", "--platform", "any", "--python-version", PYLIB_PYTHON,
+                             "--implementation", "py", "--abi", "none"] + PYLIB_PACKAGES, check=False)
         if rc != 0:
             rmtree(tmp)
             rc = run(base + PYLIB_PACKAGES, check=False)
@@ -561,15 +606,19 @@ def bundle_windows_tools(stage, dl, a):
     bin_dir.mkdir(parents=True, exist_ok=True)
     notices = []
 
-    yt = fetch("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe",
-               dl / "yt-dlp.exe", a.refresh_tools, max_age_days=1)
-    verify_sha256(yt, "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS", "yt-dlp.exe")
+    yt = fetch_pinned("yt-dlp.exe", dl / "yt-dlp.exe", a)
+    if yt is None:
+        yt = fetch("https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe",
+                   dl / "yt-dlp.exe", a.refresh_tools, max_age_days=1)
+        verify_sha256(yt, "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS", "yt-dlp.exe")
     shutil.copy2(str(yt), str(bin_dir / "yt-dlp.exe"))
     notices.append("yt-dlp (Unlicense) - https://github.com/yt-dlp/yt-dlp")
 
-    ff = fetch("https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
-               dl / "ffmpeg-win-essentials.zip", a.refresh_tools)
-    verify_sha256(ff, "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip.sha256")
+    ff = fetch_pinned("ffmpeg-win-essentials.zip", dl / "ffmpeg-win-essentials.zip", a)
+    if ff is None:
+        ff = fetch("https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip",
+                   dl / "ffmpeg-win-essentials.zip", a.refresh_tools)
+        verify_sha256(ff, "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip.sha256")
     with zipfile.ZipFile(str(ff)) as zf:
         got = set()
         for n in zf.namelist():
@@ -586,8 +635,10 @@ def bundle_windows_tools(stage, dl, a):
     # embeddable Python (for lyrics + metadata scripts) -----------------------
     arch = python_arch_tag()
     pyver = a.python_embed_version
-    pz = fetch("https://www.python.org/ftp/python/%s/python-%s-embed-%s.zip" % (pyver, pyver, arch),
-               dl / ("python-%s-embed-%s.zip" % (pyver, arch)), a.refresh_tools)
+    pz = fetch_pinned("python-%s-embed-%s.zip" % (pyver, arch), dl / ("python-%s-embed-%s.zip" % (pyver, arch)), a)
+    if pz is None:
+        pz = fetch("https://www.python.org/ftp/python/%s/python-%s-embed-%s.zip" % (pyver, pyver, arch),
+                   dl / ("python-%s-embed-%s.zip" % (pyver, arch)), a.refresh_tools)
     py_dir = bin_dir / "python"
     with zipfile.ZipFile(str(pz)) as zf:
         zf.extractall(str(py_dir))
@@ -634,9 +685,11 @@ def bundle_ytdlp_unix(stage, dl, a, target):
         asset = "yt-dlp_macos"
     else:
         asset = "yt-dlp_linux_aarch64" if linux_arch() == "arm64" else "yt-dlp_linux"
-    yt = fetch("https://github.com/yt-dlp/yt-dlp/releases/latest/download/" + asset, dl / asset,
-               a.refresh_tools, max_age_days=1)
-    verify_sha256(yt, "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS", asset)
+    yt = fetch_pinned(asset, dl / asset, a)
+    if yt is None:
+        yt = fetch("https://github.com/yt-dlp/yt-dlp/releases/latest/download/" + asset, dl / asset,
+                   a.refresh_tools, max_age_days=1)
+        verify_sha256(yt, "https://github.com/yt-dlp/yt-dlp/releases/latest/download/SHA2-256SUMS", asset)
     shutil.copy2(str(yt), str(bin_dir / "yt-dlp"))
     make_exec(bin_dir / "yt-dlp")
     return "yt-dlp (Unlicense) - https://github.com/yt-dlp/yt-dlp"
@@ -654,7 +707,9 @@ def add_static_ffmpeg_linux(pstage, dl, a):
     url = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-%s-static.tar.xz" % arch
     source = "John Van Sickle (GPLv3; source: https://johnvansickle.com/ffmpeg/ and https://ffmpeg.org)"
     try:
-        tf = fetch(url, dl / ("ffmpeg-linux-%s-static.tar.xz" % arch), a.refresh_tools, tries=2)
+        tf = fetch_pinned("ffmpeg-linux-%s-static.tar.xz" % arch, dl / ("ffmpeg-linux-%s-static.tar.xz" % arch), a)
+        if tf is None:
+            tf = fetch(url, dl / ("ffmpeg-linux-%s-static.tar.xz" % arch), a.refresh_tools, tries=2)
     except SystemExit:
         # johnvansickle.com sometimes does not answer GitHub's runners: the GitHub-hosted BtbN builds (GPLv3) are the fallback
         warn("static ffmpeg from johnvansickle.com is not reachable - trying the BtbN builds on GitHub")
@@ -1261,6 +1316,31 @@ def build_macos(a, ctx):
 # --------------------------------------------------------------------------
 # commands
 # --------------------------------------------------------------------------
+def archive_old_dist(dist, version):
+    """Move release files of other versions out of dist (into dist/older/<version>/), so only the current version is
+    left to upload and SHA256SUMS.txt lists only it. Files without a version number (SHA256SUMS, the key) stay."""
+    moved = 0
+    for p in sorted(dist.iterdir()):
+        if not p.is_file():
+            continue
+        m = re.search(r"(?<![\d.])(\d+\.\d+\.\d+)(?![\d])", p.name)
+        if not m or m.group(1) == version:
+            continue
+        target = dist / "older" / m.group(1)
+        target.mkdir(parents=True, exist_ok=True)
+        dest = target / p.name
+        if dest.exists():
+            dest.unlink()
+        shutil.move(str(p), str(dest))
+        moved += 1
+    if moved:
+        log("Moved %d file(s) of other versions from %s to %s" % (moved, dist.name, (dist / "older").name + "/<version>"))
+        for stale in ("SHA256SUMS.txt", "SHA256SUMS.txt.asc"):   # they described the old file list
+            sp = dist / stale
+            if sp.is_file():
+                sp.unlink()
+
+
 def write_checksums(dist):
     pats = ("*.exe", "*.zip", "*.deb", "*.pkg")
     files = sorted({p for pat in pats for p in dist.glob(pat)})
@@ -1359,6 +1439,7 @@ def cmd_build(a):
     dl.mkdir(parents=True, exist_ok=True)
     src = sync_zip(source, ws / "src") if kind == "zip" else sync_dir(source, ws / "src")
     version, cmake_ver = detect_version(src, a.version)
+    archive_old_dist(dist, version)
     if a.sync_version:
         sync_version(src, version, cmake_ver)
     log("Building Mousiki %s for %s%s" % (version, target, "  (clean rebuild)" if a.clean or a.clean_all else "  (incremental)"))
@@ -1583,6 +1664,96 @@ def cmd_all(a):
         sys.exit("Not completed: " + ", ".join(failed))
 
 
+def cmd_pin(a):
+    """Fix every bundled tool to one exact, versioned file and write its SHA-256 to pins.json (and the PyPI wheels with hashes
+    to pylib-requirements.txt). Run it when you want newer tools, read the diff, then commit the two files."""
+    work = Path(a.work).expanduser().resolve() / "pin"
+    work.mkdir(parents=True, exist_ok=True)
+    old = load_pins()
+    files = {}
+
+    def put(name, url, path):
+        h = sha256_of(path)
+        files[name] = {"url": url, "sha256": h}
+        log("pinned %-40s %s" % (name, h[:16] + "..."))
+
+    def get(url, dest):
+        return fetch(url, dest, True)
+
+    # yt-dlp: the release tag of 'latest', and the publisher's own checksum list as a cross-check
+    try:
+        req = urllib.request.Request("https://github.com/yt-dlp/yt-dlp/releases/latest", headers={"User-Agent": "mousiki-release-toolkit"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            tag = r.geturl().rstrip("/").split("/")[-1]
+    except Exception as e:
+        warn("yt-dlp: could not find the latest release (%s) - keeping its old pins" % e)
+        tag = None
+    if tag:
+        base = "https://github.com/yt-dlp/yt-dlp/releases/download/%s/" % tag
+        for asset in ("yt-dlp.exe", "yt-dlp_linux", "yt-dlp_linux_aarch64", "yt-dlp_macos"):
+            f = get(base + asset, work / asset)
+            verify_sha256(f, base + "SHA2-256SUMS", asset)
+            put(asset, base + asset, f)
+    # FFmpeg for Windows (gyan.dev): the versioned file name is the folder inside the archive
+    try:
+        f = get("https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip", work / "ffmpeg-win.zip")
+        verify_sha256(f, "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip.sha256")
+        with zipfile.ZipFile(str(f)) as zf:
+            root = zf.namelist()[0].split("/")[0]
+        url = "https://www.gyan.dev/ffmpeg/builds/packages/%s.zip" % root
+        try:
+            f2 = get(url, work / "ffmpeg-win-versioned.zip")
+        except SystemExit:
+            warn("gyan.dev: %s is not available - pinning the current 'release' file (its URL changes with the next release)" % url)
+            url, f2 = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip", f
+        put("ffmpeg-win-essentials.zip", url, f2)
+    except SystemExit:
+        warn("FFmpeg for Windows: download failed - keeping the old pin")
+    # static FFmpeg for the Linux portable zip (John Van Sickle): old-releases keeps the versioned files
+    for arch in ("amd64", "arm64"):
+        try:
+            f = get("https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-%s-static.tar.xz" % arch, work / ("ffmpeg-linux-%s.tar.xz" % arch))
+            with tarfile.open(str(f), "r:xz") as tf:
+                root = tf.getnames()[0].split("/")[0]
+            url = "https://johnvansickle.com/ffmpeg/old-releases/%s.tar.xz" % root
+            try:
+                f2 = get(url, work / ("ffmpeg-linux-%s-versioned.tar.xz" % arch))
+            except SystemExit:
+                warn("johnvansickle.com: %s is not available - pinning the current 'release' file" % url)
+                url = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-%s-static.tar.xz" % arch
+                f2 = f
+            put("ffmpeg-linux-%s-static.tar.xz" % arch, url, f2)
+        except SystemExit:
+            warn("static FFmpeg (%s): download failed - keeping the old pin" % arch)
+    # Python embeddable: python.org versions never change; no checksum file is published, so this is the first pin you review
+    for arch in ("amd64", "arm64"):
+        name = "python-%s-embed-%s.zip" % (a.python_embed_version, arch)
+        url = "https://www.python.org/ftp/python/%s/%s" % (a.python_embed_version, name)
+        try:
+            put(name, url, get(url, work / name))
+        except SystemExit:
+            warn("%s: download failed - keeping the old pin" % name)
+    for k, v in old.items():           # whatever could not be refreshed this time stays as it was
+        files.setdefault(k, v)
+    write_text(PINS_FILE, json.dumps({"_note": "written by release.py pin - review the diff before committing", "files": files},
+                                     indent=2, sort_keys=True) + "\n")
+    # PyPI wheels with hashes: pip itself checks them with --require-hashes at build time
+    wd = work / "wheels"
+    rmtree(wd)
+    rc = run([sys.executable, "-m", "pip", "download", "--quiet", "--disable-pip-version-check", "--no-deps", "--only-binary=:all:",
+              "--platform", "any", "--python-version", PYLIB_PYTHON, "--implementation", "py", "--abi", "none", "-d", str(wd)] + PYLIB_PACKAGES, check=False)
+    if rc != 0:
+        warn("could not download the PyPI wheels - pylib-requirements.txt not changed")
+    else:
+        lines = []
+        for w in sorted(wd.glob("*.whl")):
+            name, ver = w.name.split("-")[0], w.name.split("-")[1]
+            lines.append("%s==%s --hash=sha256:%s" % (name.replace("_", "-"), ver, sha256_of(w)))
+        write_text(PYLIB_REQUIREMENTS, "# written by release.py pin - exact versions and SHA-256 of every wheel\n" + "\n".join(lines) + "\n")
+        log("pinned %d PyPI packages" % len(lines))
+    log("Wrote %s and %s - review the diff, then commit both." % (PINS_FILE.name, PYLIB_REQUIREMENTS.name))
+
+
 def cmd_doctor(a):
     host = host_target()
     print("Host: %s (%s, Python %s)\n" % (host, platform.machine(), platform.python_version()))
@@ -1650,11 +1821,12 @@ def main():
     sa.add_argument("--targets", default="windows,linux,macos")
     sa.add_argument("--no-wsl", action="store_true", help="build Linux in the cloud instead of WSL")
     sub.add_parser("doctor", parents=[common], help="check prerequisites")
+    sub.add_parser("pin", parents=[common], help="fix yt-dlp / FFmpeg / Python / PyPI packages to exact versions + SHA-256 (pins.json)")
     sub.add_parser("checksums", parents=[common], help="(re)write SHA256SUMS.txt; with --gpg-key also sign it")
     sub.add_parser("update-repo", parents=[common], help="copy the source zip into the git repo, commit and push")
     a = p.parse_args()
     {"build": cmd_build, "linux-wsl": cmd_linux_wsl, "cloud": cmd_cloud, "all": cmd_all, "doctor": cmd_doctor,
-     "checksums": cmd_checksums, "update-repo": cmd_update_repo}[a.cmd](a)
+     "checksums": cmd_checksums, "update-repo": cmd_update_repo, "pin": cmd_pin}[a.cmd](a)
 
 
 if __name__ == "__main__":
