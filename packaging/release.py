@@ -155,7 +155,7 @@ def write_text(path, text, newline="\n", executable=False):
         make_exec(path)
 
 
-def fetch(url, dest, refresh=False, max_age_days=None):
+def fetch(url, dest, refresh=False, max_age_days=None, tries=4):
     """Download url -> dest (cached).  Falls back to a stale cache when offline."""
     dest = Path(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
@@ -165,10 +165,22 @@ def fetch(url, dest, refresh=False, max_age_days=None):
     log("Downloading " + url)
     tmp = dest.with_name(dest.name + ".part")
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "mousiki-release-toolkit"})
-        with urllib.request.urlopen(req, timeout=120) as r, open(str(tmp), "wb") as f:
-            shutil.copyfileobj(r, f, 1 << 20)
-        tmp.replace(dest)
+        last = None
+        for attempt in range(1, tries + 1):   # servers like johnvansickle.com time out now and then
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "mousiki-release-toolkit"})
+                with urllib.request.urlopen(req, timeout=120) as r, open(str(tmp), "wb") as f:
+                    shutil.copyfileobj(r, f, 1 << 20)
+                tmp.replace(dest)
+                last = None
+                break
+            except Exception as e:
+                last = e
+                if attempt < tries:
+                    warn("download attempt %d failed (%s) - retrying in %d s" % (attempt, e, attempt * 10))
+                    time.sleep(attempt * 10)
+        if last is not None:
+            raise last
     except Exception as e:
         if tmp.exists():
             tmp.unlink()
@@ -640,7 +652,16 @@ def bundle_unix_tools(stage, dl, a, target):
 def add_static_ffmpeg_linux(pstage, dl, a):
     arch = linux_arch()
     url = "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-%s-static.tar.xz" % arch
-    tf = fetch(url, dl / ("ffmpeg-linux-%s-static.tar.xz" % arch), a.refresh_tools)
+    source = "John Van Sickle (GPLv3; source: https://johnvansickle.com/ffmpeg/ and https://ffmpeg.org)"
+    try:
+        tf = fetch(url, dl / ("ffmpeg-linux-%s-static.tar.xz" % arch), a.refresh_tools, tries=2)
+    except SystemExit:
+        # johnvansickle.com sometimes does not answer GitHub's runners: the GitHub-hosted BtbN builds (GPLv3) are the fallback
+        warn("static ffmpeg from johnvansickle.com is not reachable - trying the BtbN builds on GitHub")
+        flavor = "linux64" if arch == "amd64" else "linuxarm64"
+        url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-%s-gpl.tar.xz" % flavor
+        tf = fetch(url, dl / ("ffmpeg-linux-%s-btbn.tar.xz" % arch), a.refresh_tools)
+        source = "BtbN FFmpeg-Builds (GPLv3; source: https://github.com/BtbN/FFmpeg-Builds and https://ffmpeg.org)"
     bin_dir = pstage / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
     got = set()
@@ -657,7 +678,7 @@ def add_static_ffmpeg_linux(pstage, dl, a):
         warn("static ffmpeg/ffprobe not found in archive - portable zip will need a system ffmpeg")
         return
     with open(str(pstage / "THIRD-PARTY.txt"), "a", encoding="utf-8") as f:
-        f.write("- FFmpeg static build by John Van Sickle (GPLv3; source: https://johnvansickle.com/ffmpeg/ and https://ffmpeg.org)\n")
+        f.write("- FFmpeg static build by %s\n" % source)
 
 
 def write_notices(stage, lines):
