@@ -250,11 +250,11 @@ static std::string focus_sgr(const Settings& s) {
 // string in `border_ansi` (one colour for the whole row), so to make just the triangle read in the focus colour, the
 // title text itself switches colour for it and then back to `border_ansi` -- the same colour box_top() already has --
 // so the dashes that follow the title stay in the border colour.
-// The way back to the border colour is a marker (\x01) that box_top() resolves: it puts the border colour straight in front of
+// The way back to the border colour is a marker (\001) that box_top() resolves: it puts the border colour straight in front of
 // the first dash after the title, where the smooth border gradient (clamp_output_rows) finds it and gives it the colour of that
 // ROW -- a plain colour escape followed by the blank before the dashes would stay the top colour.
 static std::string focus_indicator(const Settings& s, const std::string&) {
-    return " " + focus_sgr(s) + "◀" + "\x1b[0m" + "\x01";
+    return " " + focus_sgr(s) + "◀" + "\x1b[0m" + "\001";
 }
 
 // The text of `s` without its CSI colour sequences (what is really drawn).
@@ -277,7 +277,7 @@ std::string App::box_top(const std::string& label_in, int total_width, const std
     // The text part is cut with "..." instead; a focus indicator at the end of the title (" " + colour + "◀") is kept.
     std::string label = label_in;
     bool back_to_border = false;   // the title ends with a focus indicator: the border colour comes back right before the dashes
-    for (size_t at = label.find('\x01'); at != std::string::npos; at = label.find('\x01')) { label.erase(at, 1); back_to_border = true; }
+    for (size_t at = label.find('\001'); at != std::string::npos; at = label.find('\001')) { label.erase(at, 1); back_to_border = true; }
     if (!label.empty()) {
         const int room = total_width - 1 - display_width(settings_.box_upper_left + settings_.box_horizontal) - 2;   // between "╭─ " and " ╮"
         if (display_width(strip_csi(label)) > room && room >= 6) {
@@ -2660,6 +2660,7 @@ static const RefHotkeyRow kRefRows[] = {
     {nullptr, "HKeyConsole", "Console / Logs"},
     {nullptr, "HKeyWizard", "Help Wizard"},
     {nullptr, "HKeyCheatsheet", "Cheatsheet"},
+    {nullptr, "HKeyMenus", "Menus / Overlays Index"},
     {nullptr, "HKeyQuit", "Quit Application"},
 };
 static constexpr int kRefRowCount = sizeof(kRefRows) / sizeof(kRefRows[0]);
@@ -2959,7 +2960,7 @@ static std::string* color_cell(Settings& s, int row, int col) {
         case 14: return col == 0 ? &s.active_line_color : &s.active_line_bg_color;
         case 15: return col == 0 ? &s.active_word_color : &s.active_word_bg_color;
         case 16: return col == 0 ? &s.header_color : nullptr; // HEADER: text color only, no background cell
-        case 17: return col == 0 ? &s.legend_color : nullptr; // LEGEND: text color only, no background cell
+        case 17: return col == 0 ? &s.legend_color : &s.legend_cmd_color; // LEGEND: KEY-CMD (the keys) | COMMAND (their descriptions), both text colors
         case 18: return col == 0 ? &s.tab_current_color : &s.tab_other_color; // TAB NAMES: current / other (both text colours)
         case 19: return col == 0 ? &s.change_text_color : &s.change_bg_color; // CHANGE: a field actively being typed into
         case 20: return col == 0 ? &s.focus_color : nullptr; // FOCUS: the pane focus indicator, text color only
@@ -2997,7 +2998,7 @@ const ThemeKey kThemeKeys[] = {
     {"ColorLyricsInactiveFg", &Settings::inactive_line_color}, {"ColorLyricsInactiveBg", &Settings::inactive_line_bg_color},
     {"ColorLyricsActiveLineFg", &Settings::active_line_color}, {"ColorLyricsActiveLineBg", &Settings::active_line_bg_color},
     {"ColorLyricsActiveWordFg", &Settings::active_word_color}, {"ColorLyricsActiveWordBg", &Settings::active_word_bg_color},
-    {"ColorHeader", &Settings::header_color},               {"ColorLegend", &Settings::legend_color},
+    {"ColorHeader", &Settings::header_color},               {"ColorLegend", &Settings::legend_color}, {"ColorLegendCommand", &Settings::legend_cmd_color},
     {"ColorTabCurrent", &Settings::tab_current_color},      {"ColorTabOther", &Settings::tab_other_color},
     {"ColorChangeFg", &Settings::change_text_color},        {"ColorChangeBg", &Settings::change_bg_color},
     {"ColorFocus", &Settings::focus_color},
@@ -4519,6 +4520,7 @@ void App::handle_key(int key) {
     }
 
     if (mode_ == Mode::Creator) { creator_key(key); return; }
+    if (mode_ == Mode::MenuIndex) { menu_index_key(key); return; }
 
     if (mode_ == Mode::SleepTimer) {
         // Sleep timer. Playback keeps running underneath; only this overlay takes
@@ -5192,6 +5194,9 @@ void App::handle_key(int key) {
         wizard_open();
     } else if (action == "HKeyCheatsheet") {
         mode_ = Mode::Cheatsheet;
+    } else if (action == "HKeyMenus") {   // "<": the list of all menus and overlays
+        menu_index_sel_ = std::clamp(menu_index_sel_, 0, 1000);
+        mode_ = Mode::MenuIndex;
     } else if (action == "HKeyFilterForFolder") {
         if (list_source_ == ListSource::Local && !local_view_.empty() &&
             selected_ >= 0 && selected_ < static_cast<int>(local_view_.size())) {
@@ -6729,6 +6734,8 @@ void App::playlist_load_into_editor(const std::string& name) {
 
 static std::string header_sgr(const Settings& s); // defined further down (Settings panel section)
 static std::string legend_sgr(const Settings& s); // likewise
+static std::string legend_colored(const Settings& s, const std::string& text);   // below
+static std::string paint_legend(const Settings& s, const std::vector<LegendRow>& rows, size_t i, const std::string& border, int pad_to, bool fade);   // below
 static std::string focus_indicator(const Settings& s, const std::string& border_ansi); // likewise
 
 // ---------------------------------------------------------------------
@@ -6849,7 +6856,7 @@ std::vector<std::string> App::build_playlist_export_panel(int panel_w) const {
     }
     {
         const std::string hint = truncate_str("[TAB/\u2191\u2193] Field | [\u2190\u2192] Cursor / format | [ENTER] Export | [ESC] Cancel", inner);
-        row(legend_sgr(settings_) + hint + R, display_width(hint));
+        row(legend_colored(settings_, hint), display_width(hint));
     }
     lines.push_back(box_bottom(panel_w, "", border));
     return lines;
@@ -7090,7 +7097,7 @@ std::vector<std::string> App::build_playlist_import_panel(int panel_w) const {
         const std::string hint = truncate_str(playlist_import_field_ == 0
             ? "[TAB] List | [↑↓] Select | [ENTER] Import | [ESC] Cancel"
             : "[TAB] Folder | [↑↓] Select | [SPACE] Mark | [a] All | [ENTER] Import | [ESC] Cancel", inner);
-        row(legend_sgr(settings_) + hint + R, display_width(hint));
+        row(legend_colored(settings_, hint), display_width(hint));
     }
     lines.push_back(box_bottom(panel_w, "", border));
     return lines;
@@ -7830,7 +7837,7 @@ void App::build_playlist_screen(std::ostringstream& frame, int W, int target_hei
     // "added ..." -- off every single frame. Keeping that sum exact is also
     // what stops the second legend row (the text-field keys) from pushing
     // the frame past term_rows_ - 1 and scrolling the terminal.
-    int panel_h = std::max(8, budget - fixed_rows - 5); // no upper cap: fills a maximised window
+    int panel_h = std::max(8, budget - fixed_rows - 5); // no upper cap: fills a maximised window (-5: 2 border rows + the 2-row legend + the status row)
     if (playlist_tab_ == 0) {
         // Stacked, full width: playlist box (above), LIBRARY, then TRACKS.
         // The two panes together take exactly the lines the old side-by-
@@ -7861,14 +7868,14 @@ void App::build_playlist_screen(std::ostringstream& frame, int W, int target_hei
         std::string prompt = "Save changes to \"" + (playlist_edit_name_.empty() ? std::string("(untitled)") : playlist_edit_name_)
                             + "\" before exiting?   [Y]es   [N]o   [ESC] cancel";
         frame << "\x1b[43;30m " << prompt << " \x1b[0m\n";
-        frame << "\n";
+        frame << "\n\n";   // the legend's two rows + the status row stay reserved (the prompt is the first of the three), so a prompt never changes the layout above it
     } else if (playlist_confirm_delete_) {
         std::string name = (playlist_manage_selected_ >= 0
                           && playlist_manage_selected_ < static_cast<int>(playlist_manage_view_.size()))
                           ? playlist_manage_view_[playlist_manage_selected_].name : std::string();
         std::string prompt = "Delete playlist \"" + name + "\"? This can't be undone.   [Y]es   [N]o   [ESC] cancel";
         frame << "\x1b[41;97m " << prompt << " \x1b[0m\n";
-        frame << "\n";
+        frame << "\n\n";
     } else {
         // Left/Right and ESC say what they do RIGHT NOW (see
         // handle_playlist_key()): in a text box that was typed into they move
@@ -7878,20 +7885,22 @@ void App::build_playlist_screen(std::ostringstream& frame, int W, int target_hei
                           : playlist_edit_focus_ == 0 ? "playlist-name"
                           : playlist_edit_focus_ == 1 ? "playlist-lib-search" : "";
         const bool in_text = *field && text_engaged(field);
-        std::string hint = std::string(in_text ? "[\u2190\u2192] Cursor" : "[\u2190\u2192] Switch Tab")
-                         + (playlist_tab_ == 1
-                            ? " | [TAB] Focus | [\u2191\u2193] Navi. | [ENTER] Load | [DEL] Delete | [e/i] Export/Import"
-                            : " | [TAB] Focus | [\u2191\u2193] Navi. | [ENTER] Add/Load | "
-                              "[DEL] Remove | [4/5] Move \u2191\u2193 | [CTRL+s] Save");
-        frame << legend_sgr(settings_) << hint << "\x1b[0m\n";
-        // Row 2: the text-field keys, plus Exit. Kept off row 1 so each row
-        // fits comfortably inside a 120-column terminal without wrapping
-        // (the meta editor splits its legend the same way) -- panel_h's
-        // budget above already accounts for exactly these two rows. [ESC]
-        // Exit used to sit at the end of row 1, but that pushed row 1 past
-        // the wrap width and cost a spurious third line; it lives here now.
-        frame << legend_sgr(settings_) << "[SHIFT+←→] Mark | [Ctrl+C/X/V] Copy/Cut/Paste | "
-              << (in_text ? "[ESC] Leave field" : "[ESC] Exit") << "\x1b[0m\n";
+        // The legend is a small tree table, like the meta editor's: two rows (Move / list keys)
+        // on both tabs, so the footer always has the same height and fits 120 x 30 (shorter labels on narrower terminals).
+        const std::string lr = in_text ? "[\u2190\u2192] Cursor" : "[\u2190\u2192] Switch Tab\001Tab";
+        const std::string esc = in_text ? "[ESC] Leave field" : "[ESC] Clear / Exit\001Exit";
+        std::vector<LegendGroup> groups;
+        if (playlist_tab_ == 1) {
+            groups.push_back({"Move", {lr, "[TAB] Focus", "[\u2191\u2193] Navi.", "[ENTER] Load", esc}});
+            groups.push_back({"Playlist", {"[DEL] Delete", "[e/i] Export/Import"}});
+        } else {
+            groups.push_back({"Move", {lr, "[TAB] Focus", "[\u2191\u2193] Navi.", "[ENTER] Add/Load", esc}});
+            groups.push_back({"Tracks", {"[DEL] Remove", "[4/5] Move \u2191\u2193", "[CTRL+s] Save"}});
+        }
+        {
+            const auto lrows = layout_legend_tree(groups, W - 1);
+            for (size_t i = 0; i < lrows.size(); ++i) frame << " " << paint_legend(settings_, lrows, i, border, 0, true) << "\n";
+        }
         if (!playlist_status_.empty()) frame << "\x1b[32m" << playlist_status_ << "\x1b[0m\n";
         else frame << "\n";
     }
@@ -7941,6 +7950,37 @@ static std::string header_sgr(const Settings& s) {
 // escape. Callers close the run with "\x1b[0m" themselves.
 static std::string legend_sgr(const Settings& s) {
     return ansi_for(s.legend_color, false);
+}
+
+// A one-line key legend ("[ESC] Close | [ENTER] OK"): the keys in [square brackets] in the LEGEND colour (KEY-CMD), everything else
+// (descriptions, separators) in the COMMAND colour. Each piece is closed with a reset, so the caller needs no trailing one.
+static std::string legend_colored(const Settings& s, const std::string& text) {
+    const std::string R = "\x1b[0m", key = legend_sgr(s), cmd = ansi_for(s.legend_cmd_color, false);
+    std::string out;
+    size_t i = 0;
+    while (i < text.size()) {
+        if (text[i] == '[') {
+            const size_t e = text.find(']', i);
+            const size_t stop = e == std::string::npos ? text.size() : e + 1;
+            out += key + text.substr(i, stop - i) + R;
+            i = stop;
+        } else {
+            size_t e = text.find('[', i);
+            if (e == std::string::npos) e = text.size();
+            out += cmd + text.substr(i, e - i) + R;
+            i = e;
+        }
+    }
+    return out;
+}
+
+// One row of a legend tree table (layout_legend_tree()) in the colours of the Colors tab: the row label ("Move", "Fetch" ...)
+// keeps the HEADER colour, the keys use the LEGEND colour (KEY-CMD) and their descriptions the COMMAND colour. The tree lines
+// and the bar are drawn in the border colour with their glyph right behind the escape, so the smooth border gradient (BorderGradient=smooth)
+// recolours them row by row with the frame they belong to. (`fade` is kept for the callers; it no longer changes anything.)
+static std::string paint_legend(const Settings& s, const std::vector<LegendRow>& rows, size_t i, const std::string& border, int pad_to, bool fade) {
+    (void)fade;
+    return paint_legend_row(rows[i], border, header_sgr(s), legend_sgr(s), pad_to, ansi_for(s.legend_cmd_color, false));
 }
 
 // SGR prefix for "this field is actively being typed into" -- every
@@ -9524,10 +9564,10 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
     // except on a short terminal, where the Browse view's metadata/progress/
     // search panels don't shrink and that value is several rows taller than
     // the screen. total = fixed_rows + (panel_h + 2) + 3 must fit the
-    // smaller of the two: 2 for the panel's own border rows, 4 for the
-    // footer (three legend rows + status -- see where it's written below).
+    // smaller of the two: 2 for the panel's own border rows, 5 for the
+    // footer (four legend rows + status -- see where it's written below).
     int budget = std::min(target_height, term_rows_ - 1);
-    int panel_h = std::max(6, budget - fixed_rows - 6); // no upper cap: fills a maximised window (6 = 2 border rows + the 4-row footer)
+    int panel_h = std::max(6, budget - fixed_rows - 7); // no upper cap: fills a maximised window (7 = 2 border rows + the 5-row footer)
     if (meta_tab_ == 0) {
         int left_w = W / 2;
         int right_w = W - left_w;
@@ -9568,10 +9608,10 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
             colors = "\x1b[41;97m"; // red, same as its delete prompt
         }
         auto lines = wrap_lines(text, std::max(10, W - 2), 2);
-        // Padded to the same three rows the legend footer always uses, so a
+        // Padded to the same five rows the legend footer always uses (four legend rows + the status row), so a
         // prompt appearing (or going away) can never change the height of
         // what sits above it.
-        while (lines.size() < 4) lines.push_back(std::string());
+        while (lines.size() < 5) lines.push_back(std::string());
         for (const auto& l : lines) {
             // The trailing row is reserved (so the footer never changes
             // height between a prompt and a hint/status), but a reserved
@@ -9592,28 +9632,36 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
             const MetaEditEntry* he = meta_entry(meta_hovering_path());
             if (he && meta_field_ >= 0 && he->needs_choice(meta_field_)) enter_hint = "[ENTER] Choose";
         }
-        // The legend is three rows of grouped commands, so it reads as an
-        // overview instead of one long line that gets cut at 120 columns:
-        //   row 1  moving around / working on the hovered title
-        //   row 2  fetching (the same three commands on both tabs)
-        //   row 3  the library view and the session (save / discard / leave)
-        // Every row is far below 120 columns in its widest variant, and the
-        // footer always has the same height -- 3 legend rows + the status row
-        // -- so switching tabs or a message appearing never moves the panels.
-        // (A fetch confirmation replaces all of it; see the prompt branch.)
-        std::vector<std::string> hint_lines;
+        // The legend is a small tree table: one row per group of commands (label | commands), joined by tree lines. Four rows
+        // on both tabs, so the footer always has the same height -- 4 legend rows + the status row -- and switching tabs or a
+        // message appearing never moves the panels. (A fetch confirmation replaces all of it; see the prompt branch.)
+        //   Move     moving around / working on the hovered title
+        //   Fetch    fetching tags (the same commands on both tabs)
+        //   View     the library view (EDIT tab) / the fetch list (FETCH LIST tab)
+        //   Session  save / discard / leave
+        // It adapts to the width: the commands of a row are spaced out while they fit and packed tighter, then the last ones
+        // are replaced by "..." when the terminal is narrow (the most important commands come first in every row).
+        std::vector<LegendGroup> groups;
+        const std::string rescan = "[" + hotkey_text("HKeyRescan", "R") + "] Rescan paths\001Rescan";
+        const std::string fetch_missing = "[" + hotkey_text("HKeyFetchTags", "B") + "] Fetch missing\001Missing";
         if (meta_tab_ == 0) {
-            hint_lines.push_back(lr + " | [TAB] Focus | [\u2191\u2193] Navi. | " + enter_hint + " | [SHIFT+p] Play | [" + hotkey_text("HKeyRescan", "R") + "] Rescan");
-            hint_lines.push_back("[a] To fetch list | [SHIFT+f] Add full list | [" + hotkey_text("HKeyFetchTags", "B") + "] Fetch missing tag | [SHIFT+n] Fetch all tags");
-            hint_lines.push_back("[r] Edited first | [x/T/A/L/Y] Missing meta | [CTRL+s] Save | [CTRL+SHIFT+x] Discard | " + esc);
+            groups.push_back({"Move", {lr, "[TAB] Focus", "[\u2191\u2193] Navi.", enter_hint, "[SHIFT+p] Play"}});
+            groups.push_back({"Fetch", {"[a] To list", "[SHIFT+f] All (filtered) to list\001All to list", fetch_missing, "[SHIFT+n] (Re-)fetch all\001(Re-)fetch all"}});
+            groups.push_back({"Filter", {"[r] Recently edited first\001Edited", "[x/T/A/L/Y] Specific missing tags\001Missing", rescan}});
         } else {
-            hint_lines.push_back((meta_fetch_focus_ == 1 ? std::string("[\u2190\u2192] Option") : lr) + " | [TAB] Focus | "
-                                 + (meta_fetch_focus_ == 1 ? std::string("[SPACE] Tick | ") : std::string())
-                                 + "[\u2191\u2193] Navi. | [SHIFT+p] Play | [DEL] Remove | [SHIFT+d] Empty list | [" + hotkey_text("HKeyRescan", "R") + "] Rescan");
-            hint_lines.push_back("[ENTER] Fetch full list | [" + hotkey_text("HKeyFetchTags", "B") + "] Fetch missing tag | [SHIFT+n] Fetch all tags");
-            hint_lines.push_back("[SHIFT+c] Cancel fetch | [CTRL+s] Save | [CTRL+SHIFT+x] Discard | " + esc);
+            LegendGroup mv{"Move", {meta_fetch_focus_ == 1 ? std::string("[\u2190\u2192] Option") : lr, "[TAB] Focus"}};
+            if (meta_fetch_focus_ == 1) mv.cmds.push_back("[SPACE] Tick");
+            mv.cmds.push_back("[\u2191\u2193] Navi.");
+            mv.cmds.push_back("[SHIFT+p] Play");
+            groups.push_back(mv);
+            groups.push_back({"Fetch", {"[ENTER] Fetch all\001Fetch all", "[SHIFT+c] Cancel fetch\001Cancel", "SINGLE TRACKS:", fetch_missing, "[SHIFT+n] Fetch all tags\001Fetch all"}});
+            groups.push_back({"List", {"[DEL] Remove", "[SHIFT+d] Empty list\001Empty", rescan}});
         }
-        for (const auto& l : hint_lines) frame << legend_sgr(settings_) << truncate_str(l, W) << "\x1b[0m\n";
+        groups.push_back({"Session", {"[CTRL+s] Save", "[CTRL+SHIFT+x] Discard", esc}});
+        {
+            const auto lrows = layout_legend_tree(groups, W - 1);
+            for (size_t i = 0; i < lrows.size(); ++i) frame << " " << paint_legend(settings_, lrows, i, border, 0, true) << "\n";
+        }
         if (!meta_status_.empty()) frame << "\x1b[32m" << truncate_str(meta_status_, W) << "\x1b[0m\n";
         else frame << "\n";
     }
@@ -10000,7 +10048,7 @@ void App::build_history_screen(std::ostringstream& frame, int W, int target_heig
         for (const auto& l : build_history_add_panel(W, add_body)) frame << l << "\n";
 
     for (const auto& l : hint_lines)
-        frame << legend_sgr(settings_) << truncate_str(l, W) << "\x1b[0m\n";
+        frame << legend_colored(settings_, truncate_str(l, W)) << "\n";
     if (status_rows) frame << "\x1b[32m" << truncate_str(history_status_, W) << "\x1b[0m\n";
 }
 
@@ -10072,8 +10120,12 @@ std::vector<std::string> App::build_history_panel(int total_width, int height) {
         }
     } else if (history_tab_ == 1) {
         const int len_w = 7, plays_w = 7;
-        const int title_w = std::max(8, inner - len_w - 2 - plays_w);
-        lines.push_back({T("TITLE", title_w) + L("LEN", len_w) + "  " + std::string(static_cast<size_t>(std::max(0, plays_w - 7)), ' ') + "PLAYS " + (history_most_first_ ? "\u25bc" : "\u25b2"), 1});
+        // Title | Artist (separated by " | " like the playlist editor's LIBRARY pane), then the length and the play count
+        const std::string tsep = " | ";
+        const int text_w = std::max(16, inner - len_w - 2 - plays_w - static_cast<int>(tsep.size()));
+        const int title_w = text_w * 3 / 5;
+        const int artist_w = text_w - title_w;
+        lines.push_back({T("TITLE", title_w) + tsep + T("ARTIST", artist_w) + L("LEN", len_w) + "  " + std::string(static_cast<size_t>(std::max(0, plays_w - 7)), ' ') + "PLAYS " + (history_most_first_ ? "\u25bc" : "\u25b2"), 1});
         { std::string rule; for (int i = 0; i < inner; ++i) rule += "\u2500"; lines.push_back({rule, 3}); }
         if (history_top_view_.empty()) {
             lines.push_back({"nothing played yet -- plays show up here as soon as music runs", 0});
@@ -10081,7 +10133,8 @@ std::vector<std::string> App::build_history_panel(int total_width, int height) {
             for (int i = 0; i < static_cast<int>(history_top_view_.size()); ++i) {
                 const HistoryTopRow& r = history_top_view_[static_cast<size_t>(i)];
                 std::string t = r.title.empty() ? r.id : r.title;
-                lines.push_back({T(t, title_w) + L(format_mmss(r.len_sec), len_w) + "  " +
+                const std::string a = (r.artist.empty() || r.artist == "-") ? std::string("-") : r.artist;
+                lines.push_back({T(t, title_w) + tsep + T(a, artist_w) + L(format_mmss(r.len_sec), len_w) + "  " +
                                  L(std::to_string(r.plays), plays_w), 0});
             }
             cursor = history_selected_ + 2; // +2 for the column header and the rule above the rows
@@ -10618,6 +10671,11 @@ void App::handle_readlyrics_key(int key) {
         else rd_confirm_del_ = true;
         return;
     }
+    if (arrow && last_key_was_shifted() && (key == 'A' || key == 'B')) {   // SHIFT+up / down: a page
+        const int page = std::max(1, term_rows_ - 14);
+        rd_scroll_ = key == 'A' ? std::max(0, rd_scroll_ - page) : rd_scroll_ + page;
+        return;
+    }
     if (arrow && key == 'A') { if (rd_scroll_ > 0) --rd_scroll_; return; }
     if (arrow && key == 'B') { ++rd_scroll_; return; }          // clamped against the real content while drawing
     if (key == ' ') { rd_scroll_ += std::max(1, term_rows_ - 14); return; }
@@ -10903,24 +10961,21 @@ void App::build_readlyrics_screen(std::ostringstream& frame, int W, int target_h
     }
 
     // --- footer first (the lyrics pane takes the rows it leaves) ---
-    std::string hint;
-    if (rd_confirm_del_ && rd_tsel_ >= 0 && rd_tsel_ < static_cast<int>(rd_tlist_.size()))
-        hint = "Delete the " + language_name(rd_tlist_[static_cast<size_t>(rd_tsel_)].to) + " translation?  [y] Yes | [any other key] No";
-    else   // the same legend in both panes (TAB only moves the focus indicator): the keys that act on the focused pane say so in one entry
-        hint = "[←→] Choose file/Translation | [TAB] Pane | [↑↓] Scroll | [SPACE/b] Page | [HOME/END] Top/Bottom | [d/DEL] Delete translation | [t] Translate | [SHIFT+t] Show/Hide translations | [CTRL+s] Search | [ESC] Close";
-    std::vector<std::string> hint_lines(1);
-    {
-        size_t pos = 0;
-        for (;;) {
-            size_t sep = hint.find(" | ", pos);
-            std::string entry = (sep == std::string::npos) ? hint.substr(pos) : hint.substr(pos, sep - pos);
-            std::string& cur = hint_lines.back();
-            std::string joined = cur.empty() ? entry : cur + " | " + entry;
-            if (cur.empty() || display_width(joined) <= W || hint_lines.size() >= 2) cur = joined;
-            else hint_lines.push_back(entry);
-            if (sep == std::string::npos) break;
-            pos = sep + 3;
-        }
+    // The legend is a small tree table (Move / Translate / Session), three rows whatever the width; the same in both panes
+    // (TAB only moves the focus indicator): the keys that act on the focused pane say so in one entry.
+    std::vector<std::string> hint_lines;
+    if (rd_confirm_del_ && rd_tsel_ >= 0 && rd_tsel_ < static_cast<int>(rd_tlist_.size())) {
+        hint_lines.push_back(legend_sgr(settings_) + truncate_str(" Delete the " + language_name(rd_tlist_[static_cast<size_t>(rd_tsel_)].to) + " translation?  [y] Yes | [any other key] No", W) + "\x1b[0m");
+        hint_lines.push_back(std::string());
+        hint_lines.push_back(std::string());
+    } else {
+        std::vector<LegendGroup> groups = {
+            {"Move", {"[\u2190\u2192] Choose file/Translation\001Choose", "[TAB] Focus", "[\u2191\u2193] Scroll", "[SHIFT+\u2191\u2193] Page up/down\001Page", "[HOME/END] Top/Bottom"}},
+            {"Translate", {"[t] Translate", "[SHIFT+t] Show/Hide translations\001Show/Hide", "[d/DEL] Delete translation\001Delete"}},
+            {"Session", {"[CTRL+s] Search", "[ESC] Close"}},
+        };
+        const auto lrows = layout_legend_tree(groups, W - 1);
+        for (size_t i = 0; i < lrows.size(); ++i) hint_lines.push_back(" " + paint_legend(settings_, lrows, i, border, 0, true));
     }
     const int legend_rows = static_cast<int>(hint_lines.size());
     const int status_rows = rd_status_.empty() ? 0 : 1;
@@ -10978,7 +11033,7 @@ void App::build_readlyrics_screen(std::ostringstream& frame, int W, int target_h
     }
     frame << box_bottom(W, info, border_bottom) << "\n";
 
-    for (const auto& l : hint_lines) frame << legend_sgr(settings_) << truncate_str(l, W) << "\x1b[0m\n";
+    for (const auto& l : hint_lines) frame << l << "\n";
     if (status_rows) frame << (rd_status_warn_ ? "\x1b[31m" : "\x1b[32m") << truncate_str(rd_status_, W) << "\x1b[0m\n";
 }
 
@@ -11051,9 +11106,9 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
             if (nf == 0) pos(6, 3, legend_sgr(settings_) + "no theme files (*.theme, *.txt) in this folder" + R);
         }
         bottom_border(MAX_Y);
-        pos(MAX_Y + 1, 1, legend_sgr(settings_) + (editing_io ? "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | [Ctrl+C/X/V] Copy/Cut/Paste"
+        pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(editing_io ? "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | [Ctrl+C/X/V] Copy/Cut/Paste"
             : theme_ui_ == 4 ? "[\u2191\u2193] Field | [ENTER] Edit | [s] Export | [ESC] Cancel"
-                             : "[\u2191\u2193] Select | [ENTER] Import the file (or edit the folder) | [a] Import all | [ESC] Cancel") + R);
+                             : "[\u2191\u2193] Select | [ENTER] Import the file (or edit the folder) | [a] Import all | [ESC] Cancel")) + R);
         if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
         if (editing_io && cursor_y > 0) frame << "\x1b[" << cursor_y << ";" << cursor_x << "H\x1b[?25h";
         return;
@@ -11107,9 +11162,9 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
         if (leave_prompt_ == 4 && theme_sel_ >= 0 && theme_sel_ < n)
             pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to delete theme \"" + truncate_str(theme_list_[static_cast<size_t>(theme_sel_)].name, themes::kMaxNameLen) + "\"? [y] Yes, delete | [n / ESC] No, keep it", W - 1) + R);
         else
-        pos(MAX_Y + 1, 1, legend_sgr(settings_) + (theme_ui_ == 1
+        pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(theme_ui_ == 1
             ? "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Apply | [SHIFT+d] Delete your own theme | [ESC] Back"
-            : "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Use as template | [ESC] Back") + R);
+            : "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Use as template | [ESC] Back")) + R);
         if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
         return;
     }
@@ -11119,9 +11174,9 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
                                   "SEARCH", "", "LIST", "", "", "QUEUE", "", "", "LYRICS", "", "", "HEADER", "LEGEND", "TAB_NAMES", "CHANGE", "FOCUS"};
     static const char* l1n[21] = {"TOP", "TOP", "KEY", "LEFT", "PLAYED", "FG", "INACTIVE  FG",
                                   "INACTIVE  FG", "PLAYING   FG", "CURSOR    FG", "INACTIVE  FG", "PLAYING   FG", "CURSOR    FG",
-                                  "INACTIVE  FG", "ACTIVE L  FG", "ACTIVE W  FG", "TEXT", "TEXT", "CURRENT", "TEXT", "TEXT"};
+                                  "INACTIVE  FG", "ACTIVE L  FG", "ACTIVE W  FG", "TEXT", "KEY-CMD", "CURRENT", "TEXT", "TEXT"};
     static const char* l2n[21] = {"BOTTOM", "BOTTOM", "VAL", "RIGHT", "PENDING", "BG", "BG", "BG", "BG", "BG", "BG", "BG", "BG", "BG", "BG", "BG",
-                                  "", "", "OTHER", "BG", ""};
+                                  "", "COMMAND", "OTHER", "BG", ""};
     top_border("CREATE THEME");
 
     const bool editing = (mode_ == Mode::ColorEdit);
@@ -11203,7 +11258,7 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
         else if (i == 4) rt = ansi_for(a0, false) + "[###########" + R + ansi_for(a1, false) + "----------]" + R;
         else if (i == 5 || i == 6 || (i >= 7 && i <= 15)) rt = bg_ansi_for(a1) + ansi_for(a0, false) + "THIS IS AN EXAMPLE TEXT" + R;
         else if (i == 16) { const std::string pr = sgr_params_for(a0); rt = (pr.empty() ? std::string("\x1b[1m") : "\x1b[1;" + pr + "m") + "SECTION HEADER" + R; }
-        else if (i == 17) rt = ansi_for(a0, false) + "[ESC] close | [ENTER] OK" + R;
+        else if (i == 17) rt = ansi_for(a0, false) + "[ESC]" + R + ansi_for(a1, false) + " Close" + R + "  " + ansi_for(a0, false) + "[ENTER]" + R + ansi_for(a1, false) + " OK" + R;
         else if (i == 18) rt = ansi_for(a0, false) + "[COLORS]" + R + "  " + ansi_for(a1, false) + "ON/OFF  ANIMA/VIZ" + R;
         else if (i == 19) rt = ansi_for(a0, false) + bg_ansi_for(a1) + "EDITING..." + R;
         else if (i == 20) { const std::string pr = sgr_params_for(a0); rt = ansi_for(settings_.list_color, false) + "LOCAL AUDIO FILES " + R + (pr.empty() ? std::string("\x1b[1m") : "\x1b[1;" + pr + "m") + "\u25c0" + R; }
@@ -11216,9 +11271,9 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
     else if (leave_prompt_ == 2)
         pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Unsaved theme! [s] Save it | [d] Discard it | [ESC] Keep editing", W - 1) + R);
     else
-    pos(MAX_Y + 1, 1, legend_sgr(settings_) + (editing
+    pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(editing
         ? "[ENTER] Apply | [ESC] Cancel | [←→] Cursor | [SHIFT+←→] Mark | [Ctrl+C/X/V] Copy/Cut/Paste"
-        : "[↑↓←→] Navigate | [ENTER] Edit/Open | [s] Save theme | [ESC] Discard") + R);
+        : "[↑↓←→] Navigate | [ENTER] Edit/Open | [s] Save theme | [ESC] Discard")) + R);
     if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
     if (editing && cursor_y > 0) frame << "\x1b[" << cursor_y << ";" << cursor_x << "H\x1b[?25h";
 }
@@ -11350,10 +11405,10 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
                                         "INACTIVE  FG", "PLAYING   FG", "CURSOR    FG",
                                         "INACTIVE  FG", "PLAYING   FG", "CURSOR    FG",
                                         "INACTIVE  FG", "ACTIVE L  FG", "ACTIVE W  FG",
-                                        "TEXT", "TEXT", "CURRENT", "TEXT", "TEXT"};
+                                        "TEXT", "KEY-CMD", "CURRENT", "TEXT", "TEXT"};
         static const char* l2n[21]  = {"BOTTOM", "BOTTOM", "VAL", "RIGHT", "PENDING",
                                         "BG", "BG", "BG", "BG", "BG", "BG", "BG", "BG", "BG", "BG", "BG",
-                                        "", "", "OTHER", "BG", ""}; // HEADER, LEGEND and FOCUS are foreground-only fields: no background cell at all
+                                        "", "COMMAND", "OTHER", "BG", ""}; // HEADER, LEGEND and FOCUS are foreground-only fields: no background cell at all
         // THEME | CREATE THEME (row 0): pick a ready-made colour scheme, or make one of your own.
         {
             pos(y, 1, B(y) + "\u2502" + R); pos(y, W, B(y) + "\u2502" + R);
@@ -11432,7 +11487,7 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
             } else if (i == 17) {
                 // Same prefix legend_sgr() gives the real hint lines, so the
                 // swatch shows the exact result (an unset color is plain text).
-                rt = ansi_for(valA, false) + "[ESC] close | [ENTER] OK" + R;
+                rt = ansi_for(valA, false) + "[ESC]" + R + ansi_for(valB, false) + " Close" + R + "  " + ansi_for(valA, false) + "[ENTER]" + R + ansi_for(valB, false) + " OK" + R;
             } else if (i == 18) {
                 rt = ansi_for(valA, false) + "[COLORS]" + R + "  " + ansi_for(valB, false) + "ON/OFF  ANIMA/VIZ" + R;
             } else if (i == 19) {
@@ -11733,12 +11788,12 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
     // LEFT/RIGHT move the caret, and only ENTER (apply) or ESC (cancel) leave.
     if (leave_prompt_ == 1) pos(y, 1, "\x1b[1;7m" + pad(" Unsaved changes! [s] Save and leave | [d] Discard and leave | [ESC] Keep editing", W - 1) + "\x1b[0m");
     else
-    pos(y, 1, legend_sgr(settings_) + (mode_ == Mode::ColorEdit
+    pos(y, 1, legend_colored(settings_, std::string(mode_ == Mode::ColorEdit
         ? "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | [SHIFT+\u2190\u2192] Mark | [HOME/END] Jump | [Ctrl+C/X/V] Copy/Cut/Paste"
         : settings_tab_ == 4
         ? "[TAB] Switch | [\u2191\u2193] Navigate | [ENTER] Change | [DEL] Default | [Ctrl+Shift+U] Undo | [s] Save | [ESC/q] Discard"
         : settings_tab_ == 0 ? "[TAB] Switch | [\u2191\u2193\u2190\u2192] Navigate | [ENTER] Edit | [e] Edit theme | [SHIFT+e/i] Export/Import | [s] Save | [ESC/q] Discard"
-        : "[TAB] Switch | [\u2191\u2193\u2190\u2192] Navigate/Cycle | [ENTER] Edit | [s] Save | [ESC/q] Discard") + "\x1b[0m");
+        : "[TAB] Switch | [\u2191\u2193\u2190\u2192] Navigate/Cycle | [ENTER] Edit | [s] Save | [ESC/q] Discard")) + "\x1b[0m");
     y++;
     // The log/status line lives here now -- render_frame() deliberately no
     // longer prints it under the Browse list (an untruncated message there
@@ -12065,7 +12120,7 @@ void App::build_karaoke_screen(std::ostringstream& frame, int W, int H) {
     const std::string bar = border + settings_.box_vertical + R;
     H = std::max(8, H);
     W = std::max(20, W);
-    const int body_h = H - 3;                       // top border, bottom border, legend
+    const int body_h = H - 4;                       // top border, bottom border, two legend rows
     const int inner = W - 4;
 
     // --- title: what is playing ---
@@ -12228,11 +12283,16 @@ void App::build_karaoke_screen(std::ostringstream& frame, int W, int H) {
     const std::string up = mode_switch_key_label();
     const std::string down = up == "*" ? "_" : up == "SHIFT and +" ? "SHIFT and -" : "SHIFT+-";
     const std::string size_keys = up == "SHIFT and +" ? "SHIFT and +/-" : up + " / " + down;   // "[SHIFT and +/-]" rather than "[SHIFT and + / SHIFT and -]"
-    const std::string legend = "[ESC/" + hotkey_text("HKeyKaraoke", "k") + "] Close | [" + size_keys + "] Lyrics size | ["
-        + hotkey_text("HKeyTogglePlayPause", "p") + "] Play/Pause | [" + hotkey_text("HKeyPlayNextSong", "n") + "/"
-        + hotkey_text("HKeyPlayPreviousSong", "b") + "] Next/Prev | [←→] Seek | [" + hotkey_text("HKeyIncreaseVolume", "+") + "/"
-        + hotkey_text("HKeyDecreaseVolume", "-") + "] Volume | [" + hotkey_text("HKeyToggleMute", "x") + "] Mute | [" + hotkey_text("HKeyLyricsTiming", "ALT+L") + "] Timing";
-    frame << legend_sgr(settings_) << truncate_str(legend, W) << R;
+    // The legend takes the last TWO terminal rows (no information line here): this overlay's own keys first, then
+    // what still works from the main player underneath.
+    std::vector<LegendGroup> groups = {
+        {"Overlay", {"[ESC/" + hotkey_text("HKeyKaraoke", "k") + "] Close", "[" + size_keys + "] Lyrics size\001Size", "[" + hotkey_text("HKeyLyricsTiming", "ALT+L") + "] Timing"}},
+        {"Player", {"[" + hotkey_text("HKeyTogglePlayPause", "p") + "] Play/Pause", "[" + hotkey_text("HKeyPlayNextSong", "n") + "/" + hotkey_text("HKeyPlayPreviousSong", "b") + "] Next/Prev",
+                    "[\u2190\u2192] Seek", "[" + hotkey_text("HKeyIncreaseVolume", "+") + "/" + hotkey_text("HKeyDecreaseVolume", "-") + "] Volume", "[" + hotkey_text("HKeyToggleMute", "x") + "] Mute"}},
+    };
+    const auto rows = layout_legend_tree(groups, W - 1, 2);
+    for (size_t i = 0; i < rows.size(); ++i)
+        frame << " " << paint_legend(settings_, rows, i, border, 0, true) << (i + 1 < rows.size() ? "\n" : "");
 }
 
 // ---------------------------------------------------------------------
@@ -12245,7 +12305,7 @@ bool App::wizard_allowed_over_mode() const {
     switch (mode_) {
         case Mode::Settings:    return theme_ui_ == 0 && leave_prompt_ == 0;   // not in the theme editor or a question
         case Mode::Console: case Mode::Cheatsheet: case Mode::History: case Mode::ReadLyrics:
-        case Mode::OsciMenu: case Mode::NormMenu: case Mode::SpectroMenu: case Mode::SleepTimer:
+        case Mode::OsciMenu: case Mode::NormMenu: case Mode::SpectroMenu: case Mode::SleepTimer: case Mode::MenuIndex:
         case Mode::LyricsEdit: case Mode::Karaoke:
             return true;
         case Mode::Equalizer:   return !eq_naming_;                            // the "Save as:" prompt takes typed text
@@ -12293,7 +12353,7 @@ void App::build_wizard_screen(std::ostringstream& frame, int W) {
     const std::string lead(static_cast<size_t>(v.left), ' ');
     const std::string trail(static_cast<size_t>(std::max(0, W - v.left - v.box_w)), ' ');
     // The title is drawn in the header colour; the border colour comes back right in front of the dashes.
-    frame << lead << box_top(header_sgr(settings_) + v.title + R + "\x01", v.box_w, border) << trail << "\n";
+    frame << lead << box_top(header_sgr(settings_) + v.title + R + "\001", v.box_w, border) << trail << "\n";
 
     for (const wizard::Row& row : v.rows) {
         frame << lead << bar;
@@ -12353,6 +12413,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "HKeyConsole", "Console / logs"},
         {nullptr, "HKeyWizard", "Help wizard: the user guide as tutorial pages (arrow keys turn them)"},
         {nullptr, "HKeyCheatsheet", "This cheatsheet"},
+        {nullptr, "HKeyMenus", "The MENUS index: every menu and overlay by category with its key (UP/DOWN/LEFT/RIGHT select, ENTER opens, ESC closes)"},
         {nullptr, "HKeyQuit", "Quit"},
         {nullptr, "#ESC", "Close setting / overlay / menu"},
         {nullptr, "#ENTER", "Confirm / select"},
@@ -12617,7 +12678,7 @@ bool App::list_overlay_active() const {
     if (!list_overlay_open_) return false;
     switch (mode_) {
         case Mode::Browse: case Mode::Search: case Mode::BulkAdd:
-        case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::Creator: case Mode::LyricsEdit: return true;
+        case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: return true;
         default: return false;
     }
 }
@@ -12682,21 +12743,20 @@ std::vector<std::string> App::list_overlay_legend(int panel_w) const {
     return pack_legend(items, std::max(0, panel_w), max_lines);
 }
 
-// Key legend of the big queue overlay; same scheme as list_overlay_legend().
-std::vector<std::string> App::queue_overlay_legend(int panel_w) const {
+// Key legend of the big queue overlay: a small tree table (Edit / Order / Other), see layout_legend_tree().
+std::vector<LegendRow> App::queue_overlay_legend(int panel_w) const {
     const int max_lines = std::clamp(term_rows_ - kQueueOverlayChromeRows - 5, 1, 3);
-    std::vector<std::string> items = {
-        "[" + hotkey_text("HKeyRemoveHoveringSongFromQueue", "d") + "] delete",
-        "[" + hotkey_text("HKeyClearQueue", "X") + "] clear all",
-        "[" + join_keys(hotkey_text("HKeyQueueMoveUp", "4"), hotkey_text("HKeyQueueMoveDown", "5")) + "] move up/down",
-        "[" + join_keys(hotkey_text("HKeyQueueMoveTop", "$"), hotkey_text("HKeyQueueMoveBottom", "%")) + "] move to top/bottom",
-        "[" + hotkey_text("HKeyQueueLock", "!") + "] " + (queue_locked_ ? "unlock" : "lock"),
-        "[" + hotkey_text("HKeyQueueToPlaylist", "CTRL+SHIFT+U") + "] queue to playlist",
-        "[" + hotkey_text("HKeyQueueUndoClear", "CTRL+SHIFT+Z") + "] undo clear",
-        "[SHIFT+UP/DOWN] page",
-        "[ESC] close",
+    std::vector<LegendGroup> groups = {
+        {"Edit", {"[" + hotkey_text("HKeyRemoveHoveringSongFromQueue", "d") + "] Delete",
+                  "[" + hotkey_text("HKeyClearQueue", "X") + "] Clear all",
+                  "[" + hotkey_text("HKeyQueueUndoClear", "CTRL+SHIFT+Z") + "] Undo clear"}},
+        {"Order", {"[" + join_keys(hotkey_text("HKeyQueueMoveUp", "4"), hotkey_text("HKeyQueueMoveDown", "5")) + "] Move up/down",
+                   "[" + join_keys(hotkey_text("HKeyQueueMoveTop", "$"), hotkey_text("HKeyQueueMoveBottom", "%")) + "] Move to top/bottom\001Top/Bottom",
+                   "[" + hotkey_text("HKeyQueueLock", "!") + "] " + (queue_locked_ ? "Unlock" : "Lock")}},
+        {"Other", {"[" + hotkey_text("HKeyQueueToPlaylist", "CTRL+SHIFT+U") + "] Queue to playlist\001To playlist",
+                   "[SHIFT+\u2191\u2193] Next/Prev. page\001Page", "[ESC] Close"}},
     };
-    return pack_legend(items, std::max(0, panel_w), max_lines);
+    return layout_legend_tree(groups, std::max(0, panel_w), max_lines);
 }
 
 namespace {
@@ -12706,6 +12766,12 @@ namespace {
 std::string legend_row(const std::string& text, int panel_w, const std::string& sgr) {
     const int pad = std::max(0, panel_w - display_width(text));
     return sgr + text + std::string(pad, ' ') + "\x1b[0m";
+}
+// A legend with several lines hangs under the frame in the border colour, centred on the main screen's bottom border line (see
+// overlay_legend_shift()); a single line keeps the key / command colours of the Colors tab.
+std::string overlay_legend_line(const Settings& s, const std::string& text, int panel_w, bool several) {
+    if (several) return legend_row(text, panel_w, ansi_for(s.border_color, false));
+    return legend_colored(s, text) + std::string(static_cast<size_t>(std::max(0, panel_w - display_width(text))), ' ');
 }
 } // namespace
 
@@ -12717,7 +12783,7 @@ void App::list_overlay_geometry(int W, int& panel_w, int& list_rows) const {
     // still ends on row term_rows_ - 1 and never clips (30-row terminals
     // included).
     const int legend = static_cast<int>(list_overlay_legend(panel_w).size());
-    list_rows = std::max(1, term_rows_ - 2 - kListOverlayChromeRows - legend);
+    list_rows = std::max(1, term_rows_ - 2 + overlay_legend_shift(legend) - kListOverlayChromeRows - legend);
 }
 
 // Keeps selected_ inside a window of `rows` rows and the window inside the
@@ -12797,7 +12863,10 @@ std::vector<std::string> App::build_list_overlay_panel(int panel_w, int list_row
         if (parts.empty()) footer.clear();
         list.back() = box_bottom(panel_w, footer, ansi_for(settings_.border_color_bottom, false));
         // Key legend: below the frame, outside it, in the legend color.
-        for (const auto& l : list_overlay_legend(panel_w)) list.push_back(legend_row(l, panel_w, legend_sgr(settings_)));
+        {
+            const auto lines = list_overlay_legend(panel_w);
+            for (const auto& l : lines) list.push_back(overlay_legend_line(settings_, l, panel_w, lines.size() > 1));
+        }
     }
     out.insert(out.end(), list.begin(), list.end());
     return out;
@@ -13112,7 +13181,7 @@ bool App::folder_overlay_key(int key) {
 void App::folder_overlay_geometry(int W, int& panel_w, int& rows) const {
     panel_w = std::min(W, std::max(40, std::min(W - 6, 160)));
     const int legend = static_cast<int>(folder_overlay_legend(panel_w).size());
-    rows = std::max(1, term_rows_ - 2 - kListOverlayChromeRows - legend);
+    rows = std::max(1, term_rows_ - 2 + overlay_legend_shift(legend) - kListOverlayChromeRows - legend);
 }
 
 std::vector<std::string> App::folder_overlay_legend(int panel_w) const {
@@ -13199,7 +13268,10 @@ std::vector<std::string> App::build_folder_overlay_panel(int panel_w, int list_r
         if (parts.empty()) footer.clear();
         out.push_back(box_bottom(panel_w, footer, border_ansi_bottom));
     }
-    for (const auto& l : folder_overlay_legend(panel_w)) out.push_back(legend_row(l, panel_w, legend_sgr(settings_)));
+    {
+        const auto lines = folder_overlay_legend(panel_w);
+        for (const auto& l : lines) out.push_back(overlay_legend_line(settings_, l, panel_w, lines.size() > 1));
+    }
     return out;
 }
 
@@ -13646,26 +13718,17 @@ bool App::convert_overlay_key(int key) {
 void App::convert_overlay_geometry(int W, int& panel_w, int& rows) const {
     panel_w = std::min(W, std::max(40, std::min(W - 6, 160)));
     const int legend = static_cast<int>(convert_overlay_legend(panel_w).size());
-    rows = std::max(1, term_rows_ - 2 - kListOverlayChromeRows - legend - 2);   // 2 rows of the box hold the filter and status lines
+    rows = std::max(1, term_rows_ - 2 + overlay_legend_shift(legend) - kListOverlayChromeRows - legend - 2);   // 2 rows of the box hold the filter and status lines
 }
 
-std::vector<std::string> App::convert_overlay_legend(int panel_w) const {
+std::vector<LegendRow> App::convert_overlay_legend(int panel_w) const {
     const int max_lines = std::clamp(term_rows_ - kListOverlayChromeRows - 5, 1, 3);
-    std::vector<std::string> items = {
-        "[SPACE] mark",
-        "[a] mark all",
-        "[ENTER] convert",
-        "[←→] target",
-        "[t] type",
-        "[r] min kbps",
-        "[h] hi-res",
-        "[/ , /p: , /f:] full or filtered path search",
-        "[CTRL+p] play",
-        "[c] cancel",
-        "[SHIFT+↑↓] page",
-        "[ESC] close",
+    std::vector<LegendGroup> groups = {
+        {"Convert", {"[SPACE] mark", "[a] mark all", "[ENTER] convert", "[c] cancel"}},
+        {"Options", {"[\u2190\u2192] target", "[t] type", "[r] min kbps", "[h] hi-res"}},
+        {"Other", {"[/ , /p: , /f:] full or filtered path search\001search", "[CTRL+p] play", "[SHIFT+\u2191\u2193] page", "[ESC] close"}},
     };
-    return pack_legend(items, std::max(0, panel_w), max_lines);
+    return layout_legend_tree(groups, std::max(0, panel_w), max_lines);
 }
 
 std::vector<std::string> App::build_convert_overlay_panel(int panel_w, int list_rows) const {
@@ -13798,7 +13861,10 @@ std::vector<std::string> App::build_convert_overlay_panel(int panel_w, int list_
         if (parts.empty()) footer.clear();
         out.push_back(box_bottom(panel_w, footer, border_ansi_bottom));
     }
-    for (const auto& l : convert_overlay_legend(panel_w)) out.push_back(legend_row(l, panel_w, legend_sgr(settings_)));
+    {
+        const auto lrows = convert_overlay_legend(panel_w);
+        for (size_t i = 0; i < lrows.size(); ++i) out.push_back(paint_legend(settings_, lrows, i, border_ansi, panel_w, false));
+    }
     return out;
 }
 
@@ -13812,7 +13878,7 @@ bool App::queue_overlay_active() const {
     if (!queue_overlay_open_) return false;
     switch (mode_) {
         case Mode::Browse: case Mode::Search: case Mode::BulkAdd:
-        case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::Creator: case Mode::LyricsEdit: return true;
+        case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: return true;
         default: return false;
     }
 }
@@ -13822,7 +13888,7 @@ void App::queue_overlay_geometry(int W, int& panel_w, int& queue_rows) const {
     // Rows 2 .. term_rows_-1 belong to the panel: queue box border (2) + the queue rows.
     // ...minus the key legend lines below the frame (see list_overlay_geometry()).
     const int legend = static_cast<int>(queue_overlay_legend(panel_w).size());
-    queue_rows = std::max(1, term_rows_ - 2 - kQueueOverlayChromeRows - legend);
+    queue_rows = std::max(1, term_rows_ - 2 + overlay_legend_shift(legend) - kQueueOverlayChromeRows - legend);
 }
 
 void App::queue_overlay_open() {
@@ -13890,7 +13956,10 @@ std::vector<std::string> App::build_queue_overlay_panel(int panel_w, int queue_r
         if (parts.empty()) footer.clear();
         out.back() = box_bottom(panel_w, footer, ansi_for(settings_.border_color_bottom, false));
         // Key legend: below the frame, outside it, in the legend color.
-        for (const auto& l : queue_overlay_legend(panel_w)) out.push_back(legend_row(l, panel_w, legend_sgr(settings_)));
+        {
+            const auto lrows = queue_overlay_legend(panel_w);
+            for (size_t i = 0; i < lrows.size(); ++i) out.push_back(paint_legend(settings_, lrows, i, ansi_for(settings_.border_color, false), panel_w, false));
+        }
     }
     return out;
 }
@@ -13904,7 +13973,7 @@ std::vector<std::string> App::build_queue_overlay_panel(int panel_w, int queue_r
 // clamp_output_rows()): its own border rows fade from the top to the bottom border colour, top row to bottom row.
 std::vector<std::string> App::panel_gradient(const std::vector<std::string>& lines) const {
     if (!settings_.border_smooth || lines.size() < 2) return lines;
-    static const std::vector<std::string> kGlyphs = {"\u2502", "\u2500", "\u256d", "\u256e", "\u2570", "\u256f", "\u251c", "\u2524", "\u252c", "\u2534", "\u253c"};
+    static const std::vector<std::string> kGlyphs = {"\u2502", "\u2500", "\u256d", "\u256e", "\u2570", "\u256f", "\u251c", "\u2524", "\u252c", "\u2534", "\u253c", "\u250c", "\u2514"};
     std::vector<std::string> glyphs = kGlyphs;
     for (const std::string* g : {&settings_.box_upper_left, &settings_.box_upper_right, &settings_.box_lower_left,
                                  &settings_.box_lower_right, &settings_.box_vertical, &settings_.box_horizontal})
@@ -14345,6 +14414,37 @@ void App::eq_delete_custom(bool confirmed) {
     save_settings(settings_);
 }
 
+namespace {
+// A bottom border with its text centred in it (the dashes are split evenly on both sides).
+std::string centred_bottom(const Settings& s, int W, const std::string& text, const std::string& colour) {
+    const std::string t = " " + truncate_str(text, W - 6) + " ";
+    const int dashes = std::max(0, W - 2 - display_width(t));
+    const int left = dashes / 2, right = dashes - left;
+    std::string out = s.box_lower_left;
+    for (int i = 0; i < left; ++i) out += s.box_horizontal;
+    out += t;
+    for (int i = 0; i < right; ++i) out += s.box_horizontal;
+    out += s.box_lower_right;
+    return colour.empty() ? out : colour + out + "\x1b[0m";
+}
+
+// The legend of a floating option panel, all rows in the bottom border colour. With several rows the middle one sits ON the bottom
+// border line (rows/2 rows inside the panel, the rest hanging below it), so the block is centred on that line. `inside(text)` makes
+// a framed row, `bottom(text)` the bottom border carrying a text.
+template <class Inside, class Bottom>
+void push_legend_block(std::vector<std::string>& lines, int W, const std::string& colour, const std::vector<std::string>& rows,
+                       Inside inside, Bottom bottom) {
+    const size_t before = rows.size() / 2;
+    for (size_t i = 0; i < before; ++i) lines.push_back(inside(rows[i]));
+    lines.push_back(bottom(rows[before]));
+    for (size_t i = before + 1; i < rows.size(); ++i) {
+        const std::string tx = truncate_str(rows[i], W - 4);
+        const int left = std::max(0, (W - display_width(tx)) / 2);
+        lines.push_back(colour + std::string(static_cast<size_t>(left), ' ') + tx + std::string(static_cast<size_t>(std::max(0, W - left - display_width(tx))), ' ') + "\x1b[0m");
+    }
+}
+} // namespace
+
 std::vector<std::string> App::build_eq_panel() const {
     const int W = kEqPanelWidth;
     const int inner = W - 4;               // 54: 4 axis columns + 10 bands x 5 columns
@@ -14464,13 +14564,9 @@ std::vector<std::string> App::build_eq_panel() const {
     }
 
     if (eq_naming_) {
-        lines.push_back(legend_row("Type a name (max " + std::to_string(kEqNameMaxBytes) + " characters)"));
-        lines.push_back(legend_row("An existing custom name is replaced"));
-        lines.push_back(legend_bottom("[ENTER] save  [ESC] cancel"));
+        push_legend_block(lines, W, border_bottom, {"Type a name (max " + std::to_string(kEqNameMaxBytes) + " characters)", "An existing custom name is replaced", "[ENTER] save  [ESC] cancel"}, legend_row, legend_bottom);
     } else {
-        lines.push_back(legend_row("[</>] band  [UP/DOWN] gain  [,/.] preset  [0] zero"));
-        lines.push_back(legend_row("[S] save preset  [DEL/X] delete preset"));
-        lines.push_back(legend_bottom("[SPACE] on/off  [R] flat  [" + hotkey_text("HKeyEqualizer", "E") + " / ESC] close"));
+        push_legend_block(lines, W, border_bottom, {"[</>] band  [UP/DOWN] gain  [,/.] preset  [0] zero", "[S] save preset  [DEL/X] delete preset", "[SPACE] on/off  [R] flat  [" + hotkey_text("HKeyEqualizer", "E") + " / ESC] close"}, legend_row, legend_bottom);
     }
     return lines;
 }
@@ -14510,8 +14606,13 @@ std::vector<std::string> App::build_osci_menu_panel() const {
         lines.push_back(row(plain, sel));
     }
     lines.push_back(row("", false));
-    lines.push_back(row("[UP/DOWN] select  [LEFT/RIGHT] change", false));
-    lines.push_back(box_bottom(W, "[R] reset  [" + hotkey_text("HKeyOscMenu", "O") + " / ESC] close", border_bottom));
+    auto leg_in = [&](const std::string& plain) {
+        const std::string tx = truncate_str(plain, inner);
+        const int left = std::max(0, (inner - display_width(tx)) / 2);
+        return bar + " " + border_bottom + std::string(static_cast<size_t>(left), ' ') + tx + std::string(static_cast<size_t>(std::max(0, inner - left - display_width(tx))), ' ') + "\x1b[0m" + " " + bar;
+    };
+    auto leg_bot = [&](const std::string& tx) { return centred_bottom(settings_, W, tx, border_bottom); };
+    push_legend_block(lines, W, border_bottom, {"[UP/DOWN] select  [LEFT/RIGHT] change", "[R] reset  [" + hotkey_text("HKeyOscMenu", "O") + " / ESC] close"}, leg_in, leg_bot);
     return lines;
 }
 
@@ -14613,8 +14714,13 @@ std::vector<std::string> App::build_norm_menu_panel() const {
         lines.push_back(row(plain, i == norm_menu_row_));
     }
     lines.push_back(dim_row(live));
-    lines.push_back(row("[UP/DOWN] select   [LEFT/RIGHT] change", false));
-    lines.push_back(box_bottom(W, "[SPACE] on/off  [R] reset  [" + hotkey_text("HKeyNormMenu", "V") + " / ESC] close", border_bottom));
+    auto leg_in = [&](const std::string& plain) {
+        const std::string tx = truncate_str(plain, inner);
+        const int left = std::max(0, (inner - display_width(tx)) / 2);
+        return bar + " " + border_bottom + std::string(static_cast<size_t>(left), ' ') + tx + std::string(static_cast<size_t>(std::max(0, inner - left - display_width(tx))), ' ') + "\x1b[0m" + " " + bar;
+    };
+    auto leg_bot = [&](const std::string& tx) { return centred_bottom(settings_, W, tx, border_bottom); };
+    push_legend_block(lines, W, border_bottom, {"[UP/DOWN] select   [LEFT/RIGHT] change", "[SPACE] on/off  [R] reset  [" + hotkey_text("HKeyNormMenu", "V") + " / ESC] close"}, leg_in, leg_bot);
     return lines;
 }
 
@@ -14688,9 +14794,13 @@ std::vector<std::string> App::build_lyrics_edit_panel() const {
     out.push_back(row("  " + text_at(active - 1), DIM));
     out.push_back(row("> " + text_at(active), HI));
     out.push_back(row("  " + text_at(active + 1), DIM));
-    out.push_back(row("[LEFT/RIGHT] -/+ 0.1 s   [DOWN/UP] -/+ 0.5 s", ""));
-    out.push_back(row("[SHIFT+LEFT/RIGHT] seek the track -/+ 5 s", ""));
-    out.push_back(box_bottom(W, "[R] reset  [ENTER] save  [ESC] cancel", border_bottom));
+    auto leg_in = [&](const std::string& plain) {
+        const std::string tx = truncate_str(plain, inner);
+        const int left = std::max(0, (inner - display_width(tx)) / 2);
+        return bar + " " + border_bottom + std::string(static_cast<size_t>(left), ' ') + tx + std::string(static_cast<size_t>(std::max(0, inner - left - display_width(tx))), ' ') + R + " " + bar;
+    };
+    auto leg_bot = [&](const std::string& tx) { return centred_bottom(settings_, W, tx, border_bottom); };
+    push_legend_block(out, W, border_bottom, {"[LEFT/RIGHT] -/+ 0.1 s   [DOWN/UP] -/+ 0.5 s", "[SHIFT+LEFT/RIGHT] seek the track -/+ 5 s", "[R] reset  [ENTER] save  [ESC] cancel"}, leg_in, leg_bot);
     return out;
 }
 
@@ -14816,8 +14926,137 @@ std::vector<std::string> App::build_sleep_timer_panel() const {
     lines.push_back(row(two(sleep_menu_row_ == 7, "Off", (!sleep_timer_active_ && !sleep_stop_after_track_) ? "(no timer)" : ""), sleep_menu_row_ == 7));
     lines.push_back(row(settings_.sleep_fade ? "Volume glides down over the last 10 % of" : "Playback is paused when the time is up.", false));
     lines.push_back(row(settings_.sleep_fade ? "the time (30 s - 10 min), then it pauses." : "Minute timers pause, they do not stop.", false));
-    lines.push_back(box_bottom(W, "[UP/DOWN] [ENTER] set  [ESC] close", border_bottom));
+    lines.push_back(centred_bottom(settings_, W, "[UP/DOWN] [ENTER] set  [ESC] close", border_bottom));
     return lines;
+}
+
+// ---------------------------------------------------------------------
+// MENUS index (HKeyMenus, "<"): every menu and overlay of the player by category, with its key. A floating panel in two
+// columns; ENTER closes it and presses the key of the highlighted entry (as bound now), so a rebinding is followed.
+// ---------------------------------------------------------------------
+namespace {
+struct MenuIdxEntry { const char* cat; const char* title; const char* action; const char* fallback; };
+const MenuIdxEntry kMenuIdx[] = {
+    {"LYRICS",           "Karaoke",                   "HKeyKaraoke",        "k"},
+    {"LYRICS",           "Read lyrics",               "HKeyReadLyrics",     "CTRL+L"},
+    {"LYRICS",           "Lyrics timing",             "HKeyLyricsTiming",   "ALT+L"},
+    {"LYRICS",           "Retry given lyrics",              "HKeyRetryLyrics",    "l"},
+    {"LISTS & LIBRARY",  "Big list overlay",          "HKeyListOverlay",    "L"},
+    {"LISTS & LIBRARY",  "Big queue overlay",         "HKeyQueueOverlay",   "K"},
+    {"LISTS & LIBRARY",  "Big folder overlay",        "HKeyFolderOverlay",  "F"},
+    {"LISTS & LIBRARY",  "File conversion",           "HKeyConvertOverlay", "C"},
+    {"LISTS & LIBRARY",  "Playlist editor",           "HKeyPlaylist",       "P"},
+    {"LISTS & LIBRARY",  "Meta data editor",          "HKeyMetaEditor",     "M"},
+    {"LISTS & LIBRARY",  "Listening history",         "HKeyHistory",        "H"},
+    {"SOUND",            "Equalizer",                 "HKeyEqualizer",      "E"},
+    {"SOUND",            "Normalization",             "HKeyNormMenu",       "V"},
+    {"SOUND",            "Sleep timer",               "HKeySleepTimer",     "Z"},
+    {"VISUALS",          "Oscilloscope options",      "HKeyOscMenu",        "O"},
+    {"VISUALS",          "Oscilloscope full screen",  "HKeyScopeBig",       "="},
+    {"VISUALS",          "Spectrogram options",       "HKeySpectroMenu",    "I"},
+    {"VISUALS",          "Spectrogram full screen",   "HKeySpectroFull",    "U"},
+    {"VISUALS",          "Scope window",              "HKeyScopeWindow",    ")"},
+    {"VISUALS",          "Spectrogram window",        "HKeySpectroWindow",  "("},
+    {"CREATE",           "Creator",                   "HKeyCreator",        "^"},
+    {"SYSTEM",           "Settings",                  "HKeySetting",        "s"},
+    {"SYSTEM",           "Console / logs",            "HKeyConsole",        "t"},
+    {"SYSTEM",           "Help wizard",               "HKeyWizard",         "W"},
+    {"SYSTEM",           "Cheat sheet",               "HKeyCheatsheet",     "?"},
+};
+constexpr int kMenuIdxCount = static_cast<int>(sizeof(kMenuIdx) / sizeof(kMenuIdx[0]));
+
+// Two columns of cells (entry index, or -1 for a header / blank line), split at the category boundary that balances them.
+struct MenuIdxCell { int entry = -1; const char* header = nullptr; };
+std::vector<std::vector<MenuIdxCell>> menu_idx_layout() {
+    std::vector<std::vector<MenuIdxCell>> cats;   // one cell list per category
+    for (int i = 0; i < kMenuIdxCount; ++i) {
+        if (i == 0 || std::string(kMenuIdx[i].cat) != kMenuIdx[i - 1].cat) cats.push_back({MenuIdxCell{-1, kMenuIdx[i].cat}});
+        cats.back().push_back(MenuIdxCell{i, nullptr});
+    }
+    int total = 0;
+    for (const auto& c : cats) total += static_cast<int>(c.size()) + 1;
+    int best = 1, best_diff = 1 << 20, acc = 0;
+    for (size_t k = 0; k + 1 < cats.size(); ++k) {
+        acc += static_cast<int>(cats[k].size()) + 1;
+        const int diff = std::abs(acc - (total - acc));
+        if (diff < best_diff) { best_diff = diff; best = static_cast<int>(k) + 1; }
+    }
+    std::vector<std::vector<MenuIdxCell>> cols(2);
+    for (size_t k = 0; k < cats.size(); ++k) {
+        auto& col = cols[static_cast<int>(k) < best ? 0 : 1];
+        if (!col.empty()) col.push_back(MenuIdxCell{});   // blank line between categories
+        col.insert(col.end(), cats[k].begin(), cats[k].end());
+    }
+    return cols;
+}
+} // namespace
+
+std::vector<std::string> App::build_menu_index_panel() const {
+    const int W = kMenuIndexPanelWidth;
+    const int inner = W - 4;
+    const int cw = (inner - 3) / 2, cw2 = inner - 3 - cw;   // the right column takes the odd column
+    const std::string border = ansi_for(settings_.border_color, false);
+    const std::string border_bottom = ansi_for(settings_.border_color_bottom, false);
+    const std::string R = "\x1b[0m", HI = "\x1b[7m";
+    const std::string bar = border + settings_.box_vertical + R;
+    const auto cols = menu_idx_layout();
+    const size_t rows = std::max(cols[0].size(), cols[1].size());
+    const int sel = std::clamp(menu_index_sel_, 0, kMenuIdxCount - 1);
+
+    auto cell = [&](const std::vector<MenuIdxCell>& col, size_t r, int cw) {
+        if (r >= col.size()) return std::string(static_cast<size_t>(cw), ' ');
+        const MenuIdxCell& c = col[r];
+        if (c.header) return header_sgr(settings_) + pad_right(c.header, cw) + R;
+        if (c.entry < 0) return std::string(static_cast<size_t>(cw), ' ');
+        const MenuIdxEntry& e = kMenuIdx[c.entry];
+        const std::string key = "[" + hotkey_text(e.action, e.fallback) + "]";
+        const std::string left = std::string(c.entry == sel ? "> " : "  ") + e.title;
+        const int gap = std::max(1, cw - display_width(left) - display_width(key));
+        const std::string plain = truncate_str(left + std::string(static_cast<size_t>(gap), ' ') + key, cw);
+        if (c.entry == sel) return HI + pad_right(plain, cw) + R;
+        const std::string lead = pad_right(left, cw - display_width(key));
+        return lead + legend_sgr(settings_) + key + R;
+    };
+
+    std::vector<std::string> lines;
+    lines.push_back(box_top("MENUS & OVERLAYS", W, border));
+    lines.push_back(bar + " " + pad_right("", inner) + " " + bar);
+    for (size_t r = 0; r < rows; ++r)
+        lines.push_back(bar + " " + cell(cols[0], r, cw) + " " + border + settings_.box_vertical + R + " " + cell(cols[1], r, cw2) + " " + bar);
+    lines.push_back(bar + " " + pad_right("", inner) + " " + bar);
+    lines.push_back(box_bottom(W, "[↑↓←→] Select  [ENTER] Open  [ESC / " + hotkey_text("HKeyMenus", "<") + "] Close", border_bottom));
+    return lines;
+}
+
+void App::menu_index_key(int key) {
+    const bool arrow = last_key_was_arrow();
+    if (!arrow && (key == 27 || key_is("HKeyMenus", key))) { mode_ = Mode::Browse; return; }
+    const auto cols = menu_idx_layout();
+    int col = 0; size_t row = 0;
+    for (int c = 0; c < 2; ++c)
+        for (size_t r = 0; r < cols[c].size(); ++r) if (cols[c][r].entry == menu_index_sel_) { col = c; row = r; }
+    auto entry_at = [&](int c, size_t r) { return r < cols[c].size() ? cols[c][r].entry : -1; };
+    if (arrow && (key == 'A' || key == 'B')) {   // up / down: the previous / next entry, wrapping
+        menu_index_sel_ = (menu_index_sel_ + (key == 'A' ? kMenuIdxCount - 1 : 1)) % kMenuIdxCount;
+        return;
+    }
+    if (arrow && (key == 'C' || key == 'D')) {   // right / left: the other column, the entry nearest to this row
+        const int oc = col == 0 ? 1 : 0;
+        for (size_t d = 0; d < std::max(cols[0].size(), cols[1].size()); ++d) {
+            if (row >= d && entry_at(oc, row - d) >= 0) { menu_index_sel_ = entry_at(oc, row - d); return; }
+            if (entry_at(oc, row + d) >= 0) { menu_index_sel_ = entry_at(oc, row + d); return; }
+        }
+        return;
+    }
+    if (!arrow && (key == '\r' || key == '\n')) {   // open it: close the index, then press the key the entry is bound to
+        const MenuIdxEntry& e = kMenuIdx[std::clamp(menu_index_sel_, 0, kMenuIdxCount - 1)];
+        const auto it = settings_.hotkeys.find(e.action);
+        mode_ = Mode::Browse;
+        if (it != settings_.hotkeys.end()) {
+            const int k = hotkey_string_to_key(it->second);
+            if (k > 0) handle_key(k);
+        }
+    }
 }
 
 // "Want to clear queue?" -- small Yes/No confirmation, stamped over the live
@@ -15271,7 +15510,7 @@ std::string App::render_frame(TerminalIO& term) {
         // opening and closing it would force a full clear and flicker.
         if (m == Mode::LyricsEdit && lyrics_edit_from_karaoke_) return 7;
         switch (m) {
-            case Mode::Browse: case Mode::Search: case Mode::BulkAdd: case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::Creator: case Mode::LyricsEdit: return 0;
+            case Mode::Browse: case Mode::Search: case Mode::BulkAdd: case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: return 0;
             case Mode::Settings: case Mode::ColorEdit: return 1;
             case Mode::Console: return 2;
             case Mode::Cheatsheet: return 3;
@@ -15284,7 +15523,10 @@ std::string App::render_frame(TerminalIO& term) {
         }
         return 0;
     };
-    bool hard_clear = (W != last_render_w_) || (term_rows_ != last_render_rows_) || (mode_family(mode_) != mode_family(last_render_mode_)) || force_redraw_;
+    const bool big_overlay_now = list_overlay_active() || convert_overlay_active() || folder_overlay_active() || queue_overlay_active();
+    const bool overlay_closed = last_big_overlay_ && !big_overlay_now;
+    last_big_overlay_ = big_overlay_now;
+    bool hard_clear = overlay_closed || (W != last_render_w_) || (term_rows_ != last_render_rows_) || (mode_family(mode_) != mode_family(last_render_mode_)) || force_redraw_;
     if (last_render_w_ != -1 && W != last_render_w_) {
         // Verbose-only: raw ioctl terminal size alongside the clamped
         // app-usable width, i.e. "what the OS actually told us" versus
@@ -15424,8 +15666,11 @@ std::string App::render_frame(TerminalIO& term) {
         karaoke_ensure_lyrics();   // the karaoke overlay always has the lyrics engine, whatever the main screen uses
         std::ostringstream frame;
         frame << "\x1b[2J\x1b[H\x1b[?25l";
-        build_karaoke_screen(frame, W, term_rows_ - 1);
-        std::string out = fullscreen_out(frame);
+        build_karaoke_screen(frame, W, term_rows_);
+        // The legend occupies the very last terminal row (it has no line break after it, so nothing scrolls): the clamp
+        // is told about one more row than usual so it does not cut that row off.
+        std::string out = clamp_output_rows(frame.str(), term_rows_ + 1);
+        if (!hard_clear) out = soften_fullscreen_frame(out, term_cols);
         if (mode_ == Mode::LyricsEdit) {
             std::ostringstream floating;
             draw_floating_panel(floating, build_lyrics_edit_panel(), kLyricsEditPanelWidth, W);
@@ -15662,7 +15907,7 @@ std::string App::render_frame(TerminalIO& term) {
         const int start_row = 2; // one background row stays visible above and below
         for (size_t i = 0; i < lines.size(); ++i) {
             const int row = start_row + static_cast<int>(i);
-            if (row > term_rows_ - 1) break;
+            if (row > term_rows_) break;   // the legend block may reach the last terminal row (see overlay_legend_shift())
             floating << "\x1b[" << row << ";" << start_col << "H" << lines[i];
         }
     } else if (convert_overlay_active()) {
@@ -15671,7 +15916,7 @@ std::string App::render_frame(TerminalIO& term) {
         const int start_row = 2;
         for (size_t i = 0; i < lines.size(); ++i) {
             const int row = start_row + static_cast<int>(i);
-            if (row > term_rows_ - 1) break;
+            if (row > term_rows_) break;   // the legend block may reach the last terminal row (see overlay_legend_shift())
             floating << "\x1b[" << row << ";" << start_col << "H" << lines[i];
         }
     } else if (folder_overlay_active()) {
@@ -15680,7 +15925,7 @@ std::string App::render_frame(TerminalIO& term) {
         const int start_row = 2;
         for (size_t i = 0; i < lines.size(); ++i) {
             const int row = start_row + static_cast<int>(i);
-            if (row > term_rows_ - 1) break;
+            if (row > term_rows_) break;   // the legend block may reach the last terminal row (see overlay_legend_shift())
             floating << "\x1b[" << row << ";" << start_col << "H" << lines[i];
         }
     } else if (queue_overlay_active()) {
@@ -15690,7 +15935,7 @@ std::string App::render_frame(TerminalIO& term) {
         const int start_row = 2;
         for (size_t i = 0; i < lines.size(); ++i) {
             const int row = start_row + static_cast<int>(i);
-            if (row > term_rows_ - 1) break;
+            if (row > term_rows_) break;   // the legend block may reach the last terminal row (see overlay_legend_shift())
             floating << "\x1b[" << row << ";" << start_col << "H" << lines[i];
         }
     }
@@ -15709,6 +15954,8 @@ std::string App::render_frame(TerminalIO& term) {
         draw_floating_panel(floating, build_norm_menu_panel(), kNormMenuPanelWidth, W);
     } else if (mode_ == Mode::LyricsEdit) {
         draw_floating_panel(floating, build_lyrics_edit_panel(), kLyricsEditPanelWidth, W);
+    } else if (mode_ == Mode::MenuIndex) {
+        draw_floating_panel(floating, build_menu_index_panel(), kMenuIndexPanelWidth, W, 0, true);
     } else if (mode_ == Mode::SleepTimer) {
         draw_floating_panel(floating, build_sleep_timer_panel(), kSleepTimerPanelWidth, W);
     } else if (mode_ == Mode::Creator) {
@@ -15757,7 +16004,7 @@ std::string App::clamp_output_rows(const std::string& frame, int term_rows) cons
     // BorderGradient=smooth: every frame leaves through here, so this is where the border lines get their row's colour
     // (the cursor-positioned Settings screens do their own gradient and have no line breaks).
     if (settings_.border_smooth && newlines_seen >= 2) {
-        static const std::vector<std::string> kGlyphs = {"\u2502", "\u2500", "\u256d", "\u256e", "\u2570", "\u256f", "\u251c", "\u2524", "\u252c", "\u2534", "\u253c"};
+        static const std::vector<std::string> kGlyphs = {"\u2502", "\u2500", "\u256d", "\u256e", "\u2570", "\u256f", "\u251c", "\u2524", "\u252c", "\u2534", "\u253c", "\u250c", "\u2514"};
         std::vector<std::string> glyphs = kGlyphs;
         for (const std::string* g : {&settings_.box_upper_left, &settings_.box_upper_right, &settings_.box_lower_left,
                                      &settings_.box_lower_right, &settings_.box_vertical, &settings_.box_horizontal})
@@ -16319,9 +16566,13 @@ std::vector<std::string> App::build_spectro_menu_panel() const {
         lines.push_back(row(std::string(sel ? "> " : "  ") + pad_right(spectro_row_label(r), 22) + pad_left(val, inner - 24), sel));
     }
     lines.push_back(row("", false));
-    lines.push_back(row("[UP/DOWN] select  [LEFT/RIGHT] change", false));
-    lines.push_back(row("[R] Audacity defaults  [" + hotkey_text("HKeySpectroFull", "U") + "] full screen", false));
-    lines.push_back(box_bottom(W, "[" + hotkey_text("HKeySpectroMenu", "I") + " / ESC] close", border_bottom));
+    auto leg_in = [&](const std::string& plain) {
+        const std::string tx = truncate_str(plain, inner);
+        const int left = std::max(0, (inner - display_width(tx)) / 2);
+        return bar + " " + border_bottom + std::string(static_cast<size_t>(left), ' ') + tx + std::string(static_cast<size_t>(std::max(0, inner - left - display_width(tx))), ' ') + "\x1b[0m" + " " + bar;
+    };
+    auto leg_bot = [&](const std::string& tx) { return centred_bottom(settings_, W, tx, border_bottom); };
+    push_legend_block(lines, W, border_bottom, {"[UP/DOWN] select  [LEFT/RIGHT] change", "[R] Audacity defaults  [" + hotkey_text("HKeySpectroFull", "U") + "] full screen", "[" + hotkey_text("HKeySpectroMenu", "I") + " / ESC] close"}, leg_in, leg_bot);
     return lines;
 }
 

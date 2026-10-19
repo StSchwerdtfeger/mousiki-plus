@@ -45,7 +45,7 @@
 
 namespace muisc {
 
-enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator };
+enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex };
 enum class ListSource { Local, Online, Playlist, Folder };
 
 // One row of the main UI's "/f:" folder list: a folder that directly
@@ -263,7 +263,7 @@ private:
     void convert_overlay_poll();              // once per frame: re-filter when probes arrived, report progress
     bool convert_overlay_key(int key);        // true = consumed
     void convert_overlay_geometry(int W, int& panel_w, int& rows) const;
-    std::vector<std::string> convert_overlay_legend(int panel_w) const;
+    std::vector<LegendRow> convert_overlay_legend(int panel_w) const;
     std::vector<std::string> build_convert_overlay_panel(int panel_w, int rows) const;
     std::string conversion_export_dir() const;
     AudioInfo cv_info_of(const std::string& path) const;
@@ -291,7 +291,15 @@ private:
     bool queue_overlay_prev_focus_ = false;       // queue_focus_ before the overlay opened
     int overlay_queue_rows_ = kListVisibleRows;   // queue rows the overlay fits; recomputed every frame
     static constexpr int kQueueOverlayChromeRows = 2; // queue box top/bottom border
-    std::vector<std::string> queue_overlay_legend(int panel_w) const; // see list_overlay_legend()
+    // The menus index (HKeyMenus, "<"): a floating panel listing every menu / overlay by category with its key; ENTER opens one.
+    static constexpr int kMenuIndexPanelWidth = 100;
+    int menu_index_sel_ = 0;                          // the highlighted entry (index into the table in app.cpp)
+    std::vector<std::string> build_menu_index_panel() const;
+    void menu_index_key(int key);
+    // The legend of a big overlay hangs below its frame. With more than one row the block is centred on the main screen's bottom
+    // border line (3 rows: the second row lies on it), so it reaches this many rows further down than a one-row legend would.
+    static constexpr int overlay_legend_shift(int rows) { return rows > 1 ? (rows - 1) - rows / 2 : 0; }
+    std::vector<LegendRow> queue_overlay_legend(int panel_w) const; // see list_overlay_legend()
     bool queue_overlay_active() const; // open AND in a mode that shows the main UI underneath it
     int queue_nav_rows() const { return queue_overlay_active() ? overlay_queue_rows_ : list_visible_rows_; }
     void queue_overlay_geometry(int W, int& panel_w, int& queue_rows) const;
@@ -761,6 +769,7 @@ private:
     int last_render_w_ = -1;
     int last_render_rows_ = -1; // terminal height of the previous frame: a height change needs a full repaint too
     Mode last_render_mode_ = Mode::Browse;
+    bool last_big_overlay_ = false;   // a big list / queue / convert / folder overlay was on the previous frame: closing it repaints everything (its legend can hang on the last terminal row, below the main frame)
 
     // --- mute (volume forced to 0 without touching pause state) --------
     bool muted_ = false;
