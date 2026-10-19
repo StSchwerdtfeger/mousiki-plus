@@ -2944,16 +2944,18 @@ std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const R
         const auto cols = menus_layout();
         const size_t nrows = std::max(cols[0].size(), cols[1].size());
         const int sel = std::clamp(m.overlay_row, 0, kMenusCount - 1);
-        auto cell = [&](const std::vector<MenusCell>& col, size_t r, int cw) {
-            if (r >= col.size() || (col[r].entry < 0 && !col[r].header)) return spaces(cw);
+        // every cell keeps two empty columns on its left and right (the highlight covers them too)
+        auto cell = [&](const std::vector<MenusCell>& col, size_t r, int cw_full) {
+            const int cw = cw_full - 4;
+            if (r >= col.size() || (col[r].entry < 0 && !col[r].header)) return spaces(cw_full);
             const MenusCell& cl = col[r];
-            if (cl.header) return "\x1b[1m" + s.header + pad_right(cl.header, cw) + kReset;
+            if (cl.header) return "  \x1b[1m" + s.header + pad_right(cl.header, cw) + kReset + "  ";
             const MenusEntry& e = kMenusEntries[cl.entry];
             const std::string key = "[" + menus_key_label(c, e.id) + "]";
             const std::string left = std::string(cl.entry == sel ? "> " : "  ") + e.title;
             const int gap = std::max(1, cw - display_width(left) - display_width(key));
-            if (cl.entry == sel) return "\x1b[7m" + pad_right(truncate_str(left + spaces(gap) + key, cw), cw) + kReset;
-            return pad_right(left, cw - display_width(key)) + s.legend + key + kReset;
+            if (cl.entry == sel) return "\x1b[7m  " + pad_right(truncate_str(left + spaces(gap) + key, cw), cw) + "  " + kReset;
+            return "  " + pad_right(left, cw - display_width(key)) + s.legend + key + kReset + "  ";
         };
         lines.push_back(box_top(s, W, "MENUS & OVERLAYS", s.border));
         lines.push_back(box_line(s, spaces(inner + 2), s.border));
