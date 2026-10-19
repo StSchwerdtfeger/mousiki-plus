@@ -128,7 +128,7 @@ Everything below is in the current version (v4.3.0) and works the same on Window
 ### Playlists, meta data, history, conversion
 - **Playlist editor** (`SHIFT+p`): create and edit playlists from local or downloaded tracks, import and export M3U / M3U8.
 
-<p align="center"><img width="850" alt="The playlist editor" src="readme_images/changes_9.png" /></p>
+<p align="center"><img width="850" alt="The playlist editor" src="readme_images/changes_09.png" /></p>
 
 - **Meta data editor** (`SHIFT+m`): edit tags, rename files, and **fetch missing tags by audio fingerprint** (AcoustID / MusicBrainz) for one title or a whole list.
   
