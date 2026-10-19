@@ -68,6 +68,8 @@ ColorHeader=246
 
 # Key command legends: the hint lines of the menus ([TAB] Switch pane | ...), their errors, the cheatsheet titles
 ColorLegend=141
+# ... and the descriptions behind those keys ("Close" in "[ESC] Close")
+ColorLegendCommand=213
 
 # Settings screen: the current tab name (and the < ↔ > hint) / the other tab names
 ColorTabCurrent=212

@@ -32,6 +32,8 @@ ColorHeader=227
 # Key command legends (the grey hint lines such as "[ESC] close" in the Settings, the big
 # list / queue overlays, the playlist / meta editor and the history) -- 0 = terminal default
 ColorLegend=199
+# ... and the descriptions behind those keys ("Close" in "[ESC] Close")
+ColorLegendCommand=213
 ColorTabCurrent=199
 ColorTabOther=227
 
@@ -444,6 +446,7 @@ HKeyToggleLyrics="."
 HKeyToggleLyricsBack=","
 HKeyWizard="W"
 HKeyCheatsheet="?"
+HKeyMenus="<"
 HKeyQueueMoveUp="4"
 HKeyPlaylist="P"
 HKeyQueueMoveDown="5"
