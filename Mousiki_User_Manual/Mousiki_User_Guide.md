@@ -29,7 +29,7 @@ Mousiki Plus is a music player and an internet radio that live **inside your ter
 4. **Find things.** Press **`/`** and type a few letters of a title, artist or folder; typos are forgiven.
 5. **Try the extras.** **`k`** starts the karaoke mode, **`SHIFT+o`** opens the oscilloscope settings, **`SHIFT+p`** the playlist editor, **`SHIFT+h`** your listening history, **`SHIFT+e`** the equalizer.
 6. **Switch to the radio.** Press the key that types `*` (`SHIFT` and `+` on a German keyboard, `SHIFT+8` on an English one). Press it again to come back; your music waits where you left it.
-7. **Lost?** **`?`** shows the cheat sheet with every key you have bound, **`SHIFT+w`** the wizard, and **`q`** quits.
+7. **Lost?** **`<`** (German keyboard; `SHIFT+,` on an English one) lists **every menu and overlay** by category with its key: pick one with the arrows and press `ENTER` to open it. **`?`** shows the cheat sheet with every key you have bound, **`SHIFT+w`** the wizard, and **`q`** quits.
 
 ![The in-app cheat sheet (?)](images/Cheat_sheet.png)
 
@@ -130,9 +130,9 @@ The key shown for each command is the **default binding**. Your own bindings may
   - [11.3 Keys on the main screen](#113-keys-on-the-main-screen)
   - [11.4 What the radio shares with the player](#114-what-the-radio-shares-with-the-player)
   - [11.5 Searching: stations, station lists and `p:`](#115-searching-stations-station-lists-and-p)
-  - [11.6 PRESETS menu (`SHIFT+k`)](#116-presets-menu-shiftk)
+  - [11.6 PRESETS menu (`SHIFT+p`)](#116-presets-menu-shiftp)
   - [11.7 RADIO BROWSER menu (`SHIFT+s`)](#117-radio-browser-menu-shifts)
-  - [11.8 STATION LISTS menu (`SHIFT+p`)](#118-station-lists-menu-shiftp)
+  - [11.8 STATION LISTS menu (`SHIFT+k`)](#118-station-lists-menu-shiftk)
   - [11.9 Big STATIONS overlay (`SHIFT+l`)](#119-big-stations-overlay-shiftl)
   - [11.10 Timeshift and recording (`SPACE`, `[`, `]`, `{`, `}`, `y`)](#1110-timeshift-and-recording-space-----y)
   - [11.11 Listening history (`h`)](#1111-listening-history-h)
@@ -189,6 +189,7 @@ Mousiki reacts to the **character** a key types, not to the key itself. Most com
 | `+` | Volume up | the `+` key | `SHIFT` and `=` |
 | `-` | Volume down | the `-` key | the `-` key (the radio also takes `_` as long as it is not rebound) |
 | `?` | Cheat sheet | `SHIFT` and `ß` | `SHIFT` and `/` |
+| `<` | Menus index (all menus and overlays) | the `<` key | `SHIFT+,` |
 | `/` | Search | `SHIFT+7` | the `/` key |
 | `:` | In the search prefixes (`/r:`, `/a:`, `/s:`, `/sc:`, `/b:`, `/p:`, `/f:`) | `SHIFT` and `.` | `SHIFT` and `;` |
 | `#` | Shuffle next / random channel | the `#` key | US: `SHIFT+3`; UK: the `#` key (`SHIFT+3` is `£`) |
@@ -201,7 +202,7 @@ Mousiki reacts to the **character** a key types, not to the key itself. Most com
 
 ### Menus with tabs and text boxes
 
-The **playlist editor** (`SHIFT+p`), the **meta editor** (`SHIFT+m`) and the radio's **STATION LISTS** menu (`SHIFT+p` in the radio) all follow the same rule:
+The **playlist editor** (`SHIFT+p`), the **meta editor** (`SHIFT+m`) and the radio's **STATION LISTS** menu (`SHIFT+k` in the radio) all follow the same rule:
 
 - `←` / `→` **switch the tab**. This also works while a text box (playlist name, search box) has the focus, as long as **nothing has been typed into it yet**.
 - As soon as you type or edit something in a text box (a character, `BACKSPACE`, `DEL`, `HOME` / `END`, `SHIFT+←/→`, `CTRL+V` …), the box is **in use**: `←` / `→` now move the caret inside it. The legend at the bottom changes from `[←→] Switch Tab` to `[←→] Cursor` and from `[ESC] Exit` to `[ESC] Leave field`, so you can always see which of the two is active.
@@ -243,7 +244,7 @@ Besides MP3, FLAC, WAV, OGG, Opus, M4A and the other usual formats, the player p
 
 The main screen has a **local/online/playlist list** on the left (titled `LOCAL AUDIO FILES`, `ONLINE RESULTS` or `SAVED PLAYLISTS`), a **Queue** panel, a metadata panel with lyrics or a visualizer, and a search box. Only one pane has **focus** at a time: the search box (while you type), the list or the queue. The focused pane is marked with a small **◀** after its title, in the **FOCUS** colour (Settings > COLORS). Focus decides where the arrow keys work (see `TAB` below).
 
-**Window size.** The list and queue panes use every row the terminal has left under the metadata panel, progress bar and search box, so a maximised window is filled down to its last line. Resize at any time, also while a menu is open: Settings, Console, the playlist and meta editors and the listening history take the same height as the main screen, and the cheat sheet (`?`) uses the full terminal height. The playlist and meta editors keep a few rows at the bottom for their legend and status messages. The cheat sheet and the listening history keep no empty rows. The history shows a status message in a row of its own only while there is one.
+**Window size.** The list and queue panes use every row the terminal has left under the metadata panel, progress bar and search box, so a maximised window is filled down to its last line. Resize at any time, also while a menu is open: Settings, Console, the playlist and meta editors and the listening history take the same height as the main screen, and the cheat sheet (`?`) uses the full terminal height. The playlist and meta editors keep a few rows at the bottom for their legend and status messages. The meta editor's legend is always four rows (plus the status row), at least 120 x 30 shows every key in full; on narrower terminals the labels get shorter (`Fetch missing tag` becomes `Missing`) and only below about 80 columns the last keys of a row are replaced by `…`. The same tree-table legend (`┌─ Label │ keys`, labels shortened on narrow terminals) is used by the playlist editor (Move / Tracks or Playlist), the CONVERT and big QUEUE overlays, the READ LYRICS overlay (Move / Translate / Session), the karaoke screen and, in the radio, the PRESETS menu, the station-list menu and the big stations overlay. The karaoke legend fills the last two terminal rows in two groups: *Overlay* (close, lyrics size, timing) and *Player* (play/pause, next/previous, seek, volume, mute). The cheat sheet and the listening history keep no empty rows. The history shows a status message in a row of its own only while there is one.
 
 ### Play mode letter
 
@@ -287,11 +288,14 @@ It starts with a **welcome page** (with the spinning disk) and a **table of cont
 | `t` | Console / logs | Opens a read-only log view showing what the app has been doing (sort changes, filter changes, queue messages, load timings and so on). Close it with `ESC`, `t` or `T`. |
 | `SHIFT+w` | Help wizard | Opens the [Help Wizard](#the-help-wizard-shiftw): this guide as tutorial pages. Arrow keys turn the pages, `t` shows the table of content, `ESC` closes. It opens by itself on the first start after an install. |
 | `?` | Cheat sheet | (German `SHIFT` and `ß`, English `SHIFT` and `/`.) Opens the command list. Use `↑`/`↓` to scroll (the list is longer than most terminal windows). Close with `?` or `ESC`. |
+| `<` | Menus index | (German: the `<` key, English: `SHIFT+,`.) Opens **MENUS & OVERLAYS**: a list of all menus and overlays, in categories (LYRICS, LISTS & LIBRARY, SOUND, VISUALS, CREATE, SYSTEM), each with its key next to the title. `↑`/`↓` select, `←`/`→` jump to the other column, `ENTER` opens the highlighted one, `ESC` or `<` closes. The keys shown are the ones you have bound (rebindable as *Menus / Overlays Index* in Settings → REFERENCE). |
 | `q` | Quit | Quits the application from the main screen. Only the lowercase `q` quits: `SHIFT+q` does nothing, so it cannot quit by accident when you aim for `SHIFT+w` (the help wizard). |
 | `ESC` | Close / back | Closes whatever is open (an overlay, a menu, a prompt; in Settings it discards the changes). On the **main screen** it returns to the *home view*: the full local library, with no search query and no folder filter, scrolled to the top. It does not change the sort mode. |
 | `ENTER` | Confirm / select | Confirms the highlighted choice or starts the highlighted item. What it does depends on where you are (play a track, queue a playlist, commit a search and so on). |
 | `ARROW KEYS` | Navigate | Move up and down through lists, left and right to seek or move a text caret. What they do depends on the current screen. |
 | `Y` / `N` | Confirm or cancel a prompt | Answers Yes/No prompts such as "Want to clear queue?" or "Fetching metadata via AcoustID … Continue?". |
+
+![The general overlay menu (`<`): every menu and overlay by category, with its key](images/general_overlay_menu.png)
 
 **Tips**
 
@@ -520,7 +524,7 @@ Reads the lyrics saved for the **playing** track (when nothing plays: the track 
 | `TAB` | Move the keys between the two top panes: **READ LYRICS** (the lyrics files) and **TRANSLATION** (the saved translations). The pane that has them carries a `◀` |
 | `←` / `→` | Choose in the pane that has the keys: the lyrics file, or the translation (the chosen translation is shown) |
 | `d` / `DEL` | In the TRANSLATION pane: **delete** the chosen translation (asks for `y`) |
-| `↑` / `↓` | Scroll one row. `SPACE` / `b`: one page down / up. `HOME` / `END`: top / bottom |
+| `↑` / `↓` | Scroll one row. `SHIFT+↑` / `SHIFT+↓` (or `SPACE` / `b`): one page up / down. `HOME` / `END`: top / bottom |
 | `t` | Opens the **translate overlay**: service, language to translate into, language of the lyrics. `ENTER` there **fetches** the translation, `ESC` closes it. This is the only place that fetches |
 | `SHIFT+t` | **Show / toggle / hide** the saved translations. It never fetches: hidden → first translation → next translation … → hidden |
 | `CTRL+s` | **Search the lyrics files** (see below): every lyrics file of the library by file name, as an alternative to the lyrics of the playing track |
@@ -1105,7 +1109,7 @@ In a text box you typed into, the first `ESC` only leaves the box (the text stay
 
 ![Meta editor, Edit tab](images/Meta_Data_Editor_EDIT_TAB.png)
 
-***Edit** tab (the search field sits on the second line of the tab strip, left of the tab names): the search field, the library on the left, and the five fields (FILE, ARTIST, TITLE, ALBUM, YEAR) of the highlighted file on the right. The footer lists every key.*
+***Edit** tab (the search field sits on the second line of the tab strip, left of the tab names): the search field, the library on the left, and the five fields (FILE, ARTIST, TITLE, ALBUM, YEAR) of the highlighted file on the right. The footer lists every key as a small tree table: one row per group (Move, Fetch, View, Session), the group name on the left, its keys on the right.*
 
 ![Meta editor, Fetch List tab](images/Meta_Data_Editor_FETCH_LIST_TAB.png)
 
@@ -1372,7 +1376,7 @@ Sets the colours of the interface. Each row has a name (drawn in the **header co
 | | ACTIVE L FG | BG | The active line. |
 | | ACTIVE W FG | BG | The active word. |
 | HEADER | TEXT | none | The section titles in Paths and Reference. Text colour only, no background. |
-| LEGEND | TEXT | none | The key command legends: the hint lines such as `[ESC] close` at the bottom of the Settings, the big list and queue overlays (`SHIFT+l` / `SHIFT+k`), the playlist editor, the meta editor and the listening history, plus the small `< ↔ >` and note hints inside the Settings. Text colour only, no background. Default `90` (the grey they have always had), `0` = the terminal's own text colour. Also available as `ColorLegend=` in `config.txt`. |
+| LEGEND | KEY-CMD | COMMAND | The key command legends: the hint lines such as `[ESC] close` at the bottom of the Settings, the big list and queue overlays (`SHIFT+l` / `SHIFT+k`), the playlist editor, the meta editor and the listening history, plus the small `< ↔ >` and note hints inside the Settings. **KEY-CMD** colours the keys in `[square brackets]` (default `199`), **COMMAND** the descriptions behind them (in both MeowerShell themes the TOP border colour, the list text colour in the others; KEY-CMD there is the BOTTOM border colour, "just the other way round"); the row labels of the tree-table legends (`Move`, `Fetch` ...) keep the HEADER colour, while the tree lines left of them fade from the HEADER colour in the first row to the KEY-CMD colour in the last. One-line legends use the same two colours. A legend of several lines under a big overlay (`SHIFT+l`, `SHIFT+f`, `SHIFT+k`, `SHIFT+c`) is centred on the main screen's bottom border line (with three rows the second one lies on it); the tree lines of those follow the border colour as a smooth gradient. The option overlays (oscilloscope `SHIFT+o`, spectrogram `SHIFT+i`, loudness `SHIFT+v`, equalizer `SHIFT+e`; in the radio too) draw their legend in the bottom border colour and centred on the panel's bottom border line the same way (two rows: one inside, one on the line; three rows: the second one on the line, the third below the panel). Text colours only, no background; `0` = the terminal's own text colour. Also available as `ColorLegend=` and `ColorLegendCommand=` in `config.txt` (the radio keeps its own values in `radio_config.txt`). |
 | SEARCH | FG | BG | The text the user typed into a search bar (the `/` box, the meta editor's, the playlist editor's SEARCH LIBRARY and `Search:` rows). Only highlighted behind the length of the query, and only once something was typed. Empty = same as LIST INACTIVE. Also `ColorSearchFg=` / `ColorSearchBg=` in `config.txt`. |
 | | INACTIVE FG | BG | The rest of the search bar (prefix, placeholder, empty field). Empty FG = same as LIST INACTIVE; empty BG = no background, so only the query is highlighted. Also `ColorSearchInactiveFg=` / `ColorSearchInactiveBg=`. |
 | TAB_NAMES | CURRENT | OTHER | The tab names of Settings and of the playlist, meta and history menus: the current tab (drawn as `[NAME]`) and the others. Text colour only. Also `ColorTabCurrent=` / `ColorTabOther=` in `config.txt`. |
@@ -1557,7 +1561,7 @@ The credits and versions of the original app and of this port, as text that scro
 | `KaraokeLyricsSize` | Lyrics size of the karaoke overlay, `1` (normal text, default) to `5`. Normally changed with `*` / `_` in the overlay (German `SHIFT` and `+` / `-`, English `SHIFT+8` / `SHIFT` and `-`). |
 | `ConversionExportPath` | The folder the file conversion overlay writes to (one folder; unset = `conversion-export` in the download folder). |
 | `PlaylistsPath`, `PlaylistExportPath`, `HistoryPath` | The playlist folder, the playlist export folder and the listening history folder (one each; a second `PlaylistsPath` line is ignored). Normally set under **Settings → PATHS**. |
-| `ColorHeader`, `ColorLegend`, `ColorTabCurrent`, `ColorTabOther`, `ColorFocus` | The header, legend, tab-name and pane focus indicator colours (also on the COLORS tab). Without `ColorFocus` the indicator follows `ColorHeader`. |
+| `ColorHeader`, `ColorLegend`, `ColorLegendCommand`, `ColorTabCurrent`, `ColorTabOther`, `ColorFocus` | The header, legend, tab-name and pane focus indicator colours (also on the COLORS tab). Without `ColorFocus` the indicator follows `ColorHeader`. |
 | `AutoSaveDelayInSec` | How often the session snapshot is saved (default 30 seconds). |
 | `UpperLeftCorner`, `Vertical`, `Horizontal`, `Seprator`, `ListSeparator` and the other border entries | The characters used to draw frames and the list column separator. |
 | `EqualizerEnabled`, `EqualizerBands` | Whether the equalizer is on, and its ten band gains in dB (−12 to 12) for 31, 62, 125, 250, 500 Hz, 1, 2, 4, 8 and 16 kHz, for example `EqualizerBands=0,3,-2,0,0,0,0,0,0,0`. Normally changed with the `SHIFT+e` overlay, which writes them here. Values outside the range are limited to it. A line with fewer or more than ten valid numbers is ignored. |
@@ -1629,12 +1633,13 @@ All of them are also in the radio's own cheat sheet (`?`, categorized and scroll
 | `[` / `]` | Jump back / forward 30 seconds in the timeshift buffer (German keyboard: `ALT GR+8` / `ALT GR+9`) |
 | `{` / `}` | Jump back 5 minutes / back to live (German keyboard: `ALT GR+7` / `ALT GR+0`; English: `SHIFT` and `[` / `]`) |
 | `y` | Record: opens the RECORD overlay, or stops a running recording (see 11.10) |
-| `SHIFT+k` / `SHIFT+s` / `SHIFT+p` | PRESETS menu / RADIO BROWSER / STATION LISTS |
+| `SHIFT+p` / `SHIFT+s` / `SHIFT+k` | PRESETS menu / RADIO BROWSER / STATION LISTS |
 | `SHIFT+l` | Big STATIONS overlay |
 | `h` | Listening history |
 | `s` | Settings |
 | `SHIFT+w` | [Help wizard](#the-help-wizard-shiftw): the same wizard, with the radio chapters (III) at its end |
 | `?` | Cheat sheet |
+| `<` (German; English `SHIFT+,`) | Menus index: every menu and overlay of the radio by category with its key (`↑↓←→` select, `ENTER` opens, `ESC` closes; rebindable as *Menus / Overlays Index*) |
 | `*` (German `SHIFT` and `+`, English `SHIFT+8`) | Switch to the music player |
 | `q` / `CTRL+c` | Quit |
 
@@ -1670,13 +1675,13 @@ The following features exist in both modes, with the same keys and the same over
 
 While a list is shown, the pane title reads `STATIONS (LIST: name - ESC: all)` and its rows are numbered by position in the list. **`n`, `b` and `#` surf only through the stations of that list**, in the list's order. `ESC` clears a search that is still in the box; the next `ESC` returns to all stations, and surfing covers every station again. The station list itself is not affected by the search.
 
-### 11.6 PRESETS menu (`SHIFT+k`)
+### 11.6 PRESETS menu (`SHIFT+p`)
 
 A **preset** is a named set of 16 station slots on the keys `1 2 3 4 5 6 7 8 9 0 e r t d f g`. You can keep as many presets as you like. The active one is shown in the title of the PRESETS pane (`PRESETS (Morning)`), and `SHIFT+←/→` switches to the previous / next one from the main screen.
 
 ![The PRESETS menu](images_radio/radio_presets.png)
 
-*The PRESETS menu (`SHIFT+k`): stations on the left, the slots of the selected preset on the right.*
+*The PRESETS menu (`SHIFT+p`): stations on the left, the slots of the selected preset on the right.*
 
 The full-screen menu is laid out like the player's playlist menu, from top to bottom: **SEARCH STATION / SEARCH PRESET** (`s:` filters stations, `p:` presets), **SELECT PRESET** (names in four columns) and **STATIONS** beside **PRESETS** (the 16 slots of the active preset). A small `◀` behind a pane's title shows which pane has the keyboard.
 
@@ -1727,7 +1732,7 @@ Searches the public station directory [radio-browser.info](https://www.radio-bro
 
 Every search sends "hide broken streams" and sorts by clicks (most clicked first), with at most 200 results. Empty panes are left out. Results whose last check failed are dimmed and hidden by default. The line under the results shows what is tuned in right now, including the track title if the stream sends one. Tuning a station counts one click at Radio Browser, as their API asks. If `a` finds no `stations.txt` yet, it creates one from the built-in list plus the new station.
 
-### 11.8 STATION LISTS menu (`SHIFT+p`)
+### 11.8 STATION LISTS menu (`SHIFT+k`)
 
 Named, ordered collections of stations (a "jazz" list, a "morning" list …), built and managed like the player's playlist editor. Use `p:` in the search box (see 11.5) to open one on the main screen.
 
