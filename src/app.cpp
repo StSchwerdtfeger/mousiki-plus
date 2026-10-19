@@ -10138,7 +10138,6 @@ std::vector<std::string> App::build_history_panel(int total_width, int height) {
         const int title_w = text_w * 3 / 5;
         const int artist_w = text_w - title_w;
         lines.push_back({T("TITLE", title_w) + tsep + T("ARTIST", artist_w) + L("LEN", len_w) + "  " + std::string(static_cast<size_t>(std::max(0, plays_w - 7)), ' ') + "PLAYS " + (history_most_first_ ? "\u25bc" : "\u25b2"), 1});
-        { std::string rule; for (int i = 0; i < inner; ++i) rule += "\u2500"; lines.push_back({rule, 3}); }
         if (history_top_view_.empty()) {
             lines.push_back({"nothing played yet -- plays show up here as soon as music runs", 0});
         } else {
@@ -10149,7 +10148,7 @@ std::vector<std::string> App::build_history_panel(int total_width, int height) {
                 lines.push_back({T(t, title_w) + tsep + T(a, artist_w) + L(format_mmss(r.len_sec), len_w) + "  " +
                                  L(std::to_string(r.plays), plays_w), 0});
             }
-            cursor = history_selected_ + 2; // +2 for the column header and the rule above the rows
+            cursor = history_selected_ + 1; // +1 for the column header above the rows
         }
     } else if (history_tab_ == kHistTabPlaylists) {
         history_playlists_lines(inner, lines);
