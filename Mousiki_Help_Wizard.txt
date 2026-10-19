@@ -24,6 +24,11 @@ without detailed explanations. As a third option you can also use the
 Mousiki Plus user manual to find your way around (includes images and 
 is even more detailed than the Help Wizard or cheat sheet).
 
+MENUS INDEX:[[Header]] 
+[<] (German keyboard) or [SHIFT+,] (English keyboard) opens a list 
+of all menus and overlays, sorted by category, with their keys. 
+Select one with the arrows and press [ENTER] to open it.
+
 ABOUT: [[Header]]
 Mousiki Plus (Win/Linux/macOS):
 StSchwerdtfeger — github.com/StSchwerdtfeger
@@ -50,6 +55,11 @@ also use [?] to open the CHEAT SHEET[[Header]] for a plain overview of commands
 without detailed explanations. As a third option you can also use the 
 Mousiki Plus user manual to find your way around (includes images and 
 is even more detailed than the Help Wizard)
+
+MENUS INDEX:[[Header]] 
+[<] (German keyboard) or [SHIFT+,] (English keyboard) opens a list of 
+all menus and overlays, sorted by category, with their keys. 
+Select one with the arrows and press [ENTER] to open it.
 
 ABOUT: [[Header]]
 Mousiki Plus (Win/Linux/macOS):
@@ -173,6 +183,9 @@ Version 1.0 — Apache 2.0 license
 
 MODE CHANGE:[[Header]] Use [SHIFT and +] (German keyboard) or [SHIFT+8] (English keyboard) to 
 switch between music and radio player.
+
+MENUS INDEX:[[Header]] [<] (German keyboard) or [SHIFT+,] (English keyboard) lists all menus
+and overlays with their keys; [ENTER] opens the selected one.
 
 The main screen consists of five panes, which are discussed below. The focuse between the
 SEARCH, LOCAL AUDIO FILES and QUEUE can be changed via [TAB], where the [◀] is an indicator
@@ -610,7 +623,7 @@ READING AND TRANSLATING LYRICS:[[Header]]
 [CTRL+L] opens READ LYRICS (playing track, else the hovered one). It shows the lyrics fetched 
 so far and the translations and the text itseld. [TAB] switches between the two top panes, 
 [<-/->] chooses the file or the translation, the scrolling commands are [UP]/[DOWN] for a line,
-[SPACE]/[b] for a page and [HOME] / [END] for top/bottom. 
+[SHIFT+↑/↓] (or [SPACE]/[b]) for a page and [HOME] / [END] for top/bottom. 
 [t] opens the translate overlay (service (Google / MyMemory), translate into, lyrics are in), 
 the command [ENTER] fetches.
 [SHIFT+t] shows / cycles / hides translations, [d] or [DEL] deletes a translation.
@@ -1075,8 +1088,8 @@ KEYS ON THE MAIN SCREEN: [[Header]]
 [n] / [b]    next / previous channel    [#]      a random channel
 [p]          mute / unmute              [x]      stop          [R]  reconnect
 [+] / [-]    volume                     [/]      search        [SHIFT+t]  sort list order <-> A-Z
-[SHIFT+k] presets   [SHIFT+s] radio browser   [SHIFT+p] station lists   [SHIFT+l] big stations overlay
-[h] history   [s] settings   [?] cheat sheet   [SHIFT+w] this wizard   [q] quit
+[SHIFT+p] presets   [SHIFT+s] radio browser   [SHIFT+k] station lists   [SHIFT+l] big stations overlay
+[h] history   [s] settings   [?] cheat sheet   [<] menus index   [SHIFT+w] this wizard   [q] quit
 
 THE BIG STATIONS OVERLAY: [[Header]]
 [SHIFT+l] shows the STATIONS pane over the whole screen plus a PRESET NAME column.
@@ -1091,7 +1104,7 @@ A preset is a named set of 16 station slots on the keys:
 Press one on the main screen to recall that slot. [SHIFT+<-/->] switch to the previous / next
 preset. The name of the active preset is in the pane title: e.g. PRESETS (Morning).
 
-THE PRESETS MENU:[[Header]] [SHIFT+k] opens it. A small [◀] behind a pane's title shows which pane is
+THE PRESETS MENU:[[Header]] [SHIFT+p] opens it. A small [◀] behind a pane's title shows which pane is
 focused, just as in the music palyer. Names are 1 to 24 characters and unique. Every change is written 
 to presets.txt at once.
 
@@ -1137,7 +1150,7 @@ Every search hides broken streams, sorts by clicks and returns at most 200 resul
 Named, ordered collections of stations (a "jazz" list, a "morning" list), built exactly like the
 playlist editor of the music player.
 
-OPEN AND CHANGE TABS: [[Header]] [SHIFT+p] opens the menu, [<-/->] switch the two tabs ([ALT+<-/->]
+OPEN AND CHANGE TABS: [[Header]] [SHIFT+k] opens the menu, [<-/->] switch the two tabs ([ALT+<-/->]
 from every pane, also while typing). Lists are stored in stationlists.txt.
 
 KEYS IN THE STATION LISTS MENU: [[Header]]
@@ -1307,19 +1320,24 @@ Settings -> ON/OFF -> MODES -> Remote App -> [ENTER] opens the REMOTE APP overla
 switch it ON, see the address and a QR code (scan it with the phone camera: the remote opens,
 logged in), change the PORT or the PIN ([n] a new one). [ESC] back, [s] saves the settings.
 Works with your own build as well as with an installed Mousiki. The phone must be in the same network.
+
 ANDROID APP: [[Header]] Mousiki Remote (remote_app/android): enter the address and the PIN once,
 or let it find Mousiki in the network.
+
 PHONE BROWSER: [[Header]] open the address and enter the PIN.
 The phone shows the disk, the meta data, the progress bar, the dummy buttons (working: seek,
 play/pause) and boxes for prev, random, next, volume, mute, playback mode, LISTS and manual --
 drawn by Mousiki in the colours of your theme. In the radio: the ON AIR sign, the station,
 prev/next station, pause, live, stop.
+
 LISTS (player): on top the local list (tap a title: it plays), below the saved playlists (tap one: its titles
 go into the queue, starts it when nothing plays). A tap on the other list gives it the focus; UP / DOWN
 move the list in focus a whole page. CLEAR QUEUE at the bottom: tap twice.
+
 STATIONS (radio): the whole station list, tap a station to tune it. UP / DOWN page, BACK returns.
 [RADIO]/[PLAYER] at the top switches the mode.
 Long press on the phone: its own settings (base colours, size of the braille dots, PIN).
+
 NO CONNECTION? [[Header]] same Wi-Fi? A VPN blocks the home network unless "local network access" is allowed in it.
 Windows: [f] in the overlay opens the port in the firewall. Test: http://127.0.0.1:4747 on the computer.
 SAFE: [[Header]] off by default, home network only, PIN for every command, 10 wrong PINs lock it
