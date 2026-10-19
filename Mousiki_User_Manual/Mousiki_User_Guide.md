@@ -1289,7 +1289,7 @@ Status messages:
 
 ## 10. Settings (individual tabs)
 
-Press `s` on the main screen to open **Settings**. It has six tabs: **COLORS**, **ON/OFF**, **ANIMA/VIZ**, **PATHS**, **REFERENCE** and **ABOUT APP**. Settings always open on the first tab. The footer shows `[TAB] Switch | [↑↓←→] Navigate/Cycle | [ENTER] Edit | [s] Save | [ESC/q] Discard`, and the line below it reports what just changed. While there are changes that are not saved yet, that line shows a green ``Unsaved changes! Save with `s` or discard with `ESC`.`` note. While a field is being edited the footer changes to `[ENTER] Apply | [ESC] Cancel | [←→] Cursor | [SHIFT+←→] Mark | [HOME/END] Jump | [Ctrl+C/X/V] Copy/Cut/Paste`.
+Press `s` on the main screen to open **Settings**. It has six tabs: **COLORS**, **ON/OFF**, **ANIMA/VIZ**, **PATHS**, **REFERENCE** and **ABOUT APP**. Settings always open on the first tab. The footer shows `[TAB] Switch | [ENTER] Edit | [s] Save settings | [ESC/q] Discard` (on the COLORS tab also `[e] Edit/Save theme | [SHIFT+e/i] Ex-/Import theme`), and the line below it reports what just changed. While there are changes that are not saved yet, that line shows a green ``Unsaved changes! Save with `s` or discard with `ESC`.`` note. While a field is being edited the footer changes to `[ENTER] Apply | [ESC] Cancel | [←→] Cursor | [SHIFT+←→] Mark | [HOME/END] Jump | [Ctrl+C/X/V] Copy/Cut/Paste`.
 
 ### Moving around and editing (all tabs)
 
