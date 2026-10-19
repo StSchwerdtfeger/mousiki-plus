@@ -10108,8 +10108,8 @@ std::vector<std::string> App::build_history_panel(int total_width, int height) {
         const auto& plays = history_.plays();
         const int total = static_cast<int>(std::min<size_t>(100, plays.size()));
         const int when_w = 11, len_w = 7, state_w = 5;
-        // WHEN, then TITLE | ARTIST (separated by " | " like the TOP TRACKS tab and the playlist editor), the length and the state
-        const std::string tsep = " | ";
+        // WHEN, then TITLE and ARTIST in their own columns (two blanks between them, the same on the TOP TRACKS tab), the length and the state
+        const std::string tsep = "  ";
         const int text_w = std::max(16, inner - when_w - 2 - len_w - 2 - state_w - static_cast<int>(tsep.size()));
         const int title_w = text_w * 3 / 5;
         const int artist_w = text_w - title_w;
@@ -10132,8 +10132,8 @@ std::vector<std::string> App::build_history_panel(int total_width, int height) {
         }
     } else if (history_tab_ == 1) {
         const int len_w = 7, plays_w = 7;
-        // Title | Artist (separated by " | " like the playlist editor's LIBRARY pane), then the length and the play count
-        const std::string tsep = " | ";
+        // Title and Artist in their own columns (two blanks between them, the same on the HISTORY tab), then the length and the play count
+        const std::string tsep = "  ";
         const int text_w = std::max(16, inner - len_w - 2 - plays_w - static_cast<int>(tsep.size()));
         const int title_w = text_w * 3 / 5;
         const int artist_w = text_w - title_w;
