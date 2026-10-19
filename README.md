@@ -22,7 +22,7 @@
 [![Windows](https://img.shields.io/badge/Windows-x64-0078D4.svg?logo=windows&logoColor=white)](https://github.com/StSchwerdtfeger/mousiki-plus/tree/main) [![Linux](https://img.shields.io/badge/Linux-x64-FCC624.svg?logo=linux&logoColor=black)](https://github.com/StSchwerdtfeger/mousiki-plus/tree/main) [![macOS](https://img.shields.io/badge/macOS-x64-000000.svg?logo=apple&logoColor=white)](https://github.com/StSchwerdtfeger/mousiki-plus/tree/main)
 </div>
 
-Mousiki is a terminal music player that was originally built for macOS/Linux by the amazing [itzender5820/mousiki, v1.0](https://github.com/itzender5820/mousiki) for people who prefer control, simplicity, and a keyboard (mousi-**key**). This Mousiki fork lets it also run natively on Windows (including quite a bunch of modifications and additions; design maintained for obvious reasons). All credits for the design, main feature set, and the vast majority of the code goes to the original author. Since v2.5.0 the same code base builds natively on **Linux and macOS** again (see [Quick start: build it yourself (Linux / macOS)](#quick-start-build-it-yourself-linux--macos) or use the [setup packages or portable versions for all three platforms in the latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest)). Windows remains the primary and most tested platform (only tested Linux via WSL and works fine so far, a few bugs were recently fixed; not tested for macOS and non-WSL Linux systems). Feel free to give feedback in the discussions and report issues you might experience using this modified port. 
+Mousiki is a terminal music player that was originally built for macOS/Linux by the amazing [itzender5820/mousiki, v1.0](https://github.com/itzender5820/mousiki) for people who prefer control, simplicity, and a keyboard (mousi-**key**). This Mousiki fork lets it also run natively on Windows (including quite a bunch of modifications and additions; design maintained for obvious reasons). All credits for the design, main feature set, and the vast majority of the code goes to the original author. Since v2.5.0 the same code base builds natively on **Linux and macOS** again (see [Build it yourself (Linux / macOS)](#build-it-yourself-linux--macos) or use the [setup packages or portable versions for all three platforms in the latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest)). Windows remains the primary and most tested platform (only tested Linux via WSL and works fine so far, a few bugs were recently fixed; not tested for macOS and non-WSL Linux systems). Feel free to give feedback in the discussions and report issues you might experience using this modified port. 
 
 Build yourself (see [prerequisites](#prerequisites-windows) below) **or use the installer/portable (x64) version** that is included in the latest release (since v2.1.0). A full **[user manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** (also as [PDF](Mousiki_User_Manual/Mousiki_User_Guide.pdf)) walks through every entry of the in-app cheat sheet, every settings tab and every overlay.
 
@@ -63,15 +63,17 @@ The new main UI of the radio mode looks like the below:
   - [Sound](#sound)
   - [Radio player](#radio-player)
   - [Themes and colours](#themes-and-colours)
+    - [Colour-blind friendly themes](#colour-blind-friendly-themes)
   - [Help, settings and keys](#help-settings-and-keys)
   - [Remote control and phone app](#remote-control-and-phone-app)
-- [Quick start: installers and portables for Windows / macOS / Linux](#quick-start-installers-and-portables-for-windows--macos--linux)
-- [Quick start: build it yourself (Windows)](#quick-start-build-it-yourself-windows)
-- [Prerequisites (Windows)](#prerequisites-windows)
-- [Use Windows Terminal](#use-windows-terminal)
-- [Where your files go (Windows)](#where-your-files-go-windows)
-- [Quick start: build it yourself (Linux / macOS)](#quick-start-build-it-yourself-linux--macos)
-- [Where your files go (Linux/macOS)](#where-your-files-go-linuxmacos)
+- [Quick start](#quick-start)
+  - [Installers and portables for Windows / macOS / Linux](#installers-and-portables-for-windows--macos--linux)
+  - [Build it yourself (Windows)](#build-it-yourself-windows)
+    - [Prerequisites (Windows)](#prerequisites-windows)
+    - [Use Windows Terminal](#use-windows-terminal)
+    - [Where your files go (Windows)](#where-your-files-go-windows)
+  - [Build it yourself (Linux / macOS)](#build-it-yourself-linux--macos)
+    - [Where your files go (Linux/macOS)](#where-your-files-go-linuxmacos)
 - [Verifying downloads](#verifying-downloads)
 - [Dependencies and security](#dependencies-and-security)
 - [Changes compared to the original Mousiki](#changes-compared-to-the-original-mousiki)
@@ -191,13 +193,15 @@ Three themes are made for colour vision deficiencies: **Colorblind Deuteranopia*
 |:---:|:---:|:---:|
 | <img width="260" alt="The phone remote, music player" src="readme_images/phone_player.png" /> | <img width="260" alt="The phone remote, radio" src="readme_images/phone_radio.png" /> | <img width="420" alt="The REMOTE APP settings with the QR code" src="readme_images/remote_overlay.png" /> |
 
-## Quick start: installers and portables for Windows / macOS / Linux 
+## Quick start
+
+### Installers and portables for Windows / macOS / Linux 
 
 Windows (installer, portable zip), Linux (`.deb`, portable) and macOS (`.pkg`, portable) from the [latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest), or build it yourself (below). Release files are signed (GPG) and come with build-provenance attestations; an installer upgrades an existing version and keeps your settings. Automated tests (91; run on Linux, macOS and Windows by a GitHub workflow): `cmake -DMOUSIKI_BUILD_TESTS=ON`.
 
-## Quick start: build it yourself (Windows)
+### Build it yourself (Windows)
 
-Setup/portable (x64) version is included in the latest release (since v2.1.0 and since v2.5.0 for all platforms) or build yourself via the commands below. **On Linux or macOS?** Jump to [Quick start: build it yourself (Linux / macOS)](#quick-start-build-it-yourself-linux--macos).
+Setup/portable (x64) version is included in the latest release (since v2.1.0 and since v2.5.0 for all platforms) or build yourself via the commands below. **On Linux or macOS?** Jump to [Build it yourself (Linux / macOS)](#build-it-yourself-linux--macos).
 
 However you install it, the app starts with either of two commands: **`mousiki`** or **`lala`**. The Windows installer puts both on the `PATH` (task *Add Mousiki to PATH*), the `.deb` installs `/usr/bin/mousiki` and `/usr/bin/lala`, the macOS `.pkg` `/usr/local/bin/mousiki` and `/usr/local/bin/lala`, the portable zips contain both launchers, and `setup.ps1` / `setup.sh` create both when you build yourself.
 
@@ -242,9 +246,9 @@ or use
 lala
 ```
 
-## Prerequisites (Windows)
+#### Prerequisites (Windows)
 
-*(This section describes the Windows setup; for Linux/macOS see [Quick start: build it yourself (Linux / macOS)](#quick-start-build-it-yourself-linux--macos) below.)*
+*(This section describes the Windows setup; for Linux/macOS see [Build it yourself (Linux / macOS)](#build-it-yourself-linux--macos) below.)*
 
 Note, I had a bunch of the below already installed, so I am not sure how smooth setup.ps1 runs installing the below for the first time using setup.ps1 (such as installing Visual Studio 2022 Build Tools...).
 
@@ -271,11 +275,11 @@ MinGW-w64 (MSYS2 UCRT64) also builds this — configure with `-G "MinGW Makefile
 
 **Licence compatibility (Apache 2.0).** Mousiki itself is Apache-2.0. Everything compiled into it is permissive and can be combined with Apache-2.0 code: miniaudio (Unlicense / MIT-0), KISS FFT (BSD-3-Clause), miniz (MIT), stb_truetype (Unlicense / MIT), the Roseus colour map (CC0) and Chromaprint's own sources (MIT; the LGPL parts of upstream are not in the vendored copy). SDL2 (zlib) is loaded at run time only. The **fonts** the karaoke overlay reads (Noto Sans CJK, Windows or macOS system fonts …) are neither bundled nor copied: Mousiki only opens a file that is already on the computer and draws dots, so their licences (SIL OFL, the operating system's) do not touch Mousiki's. The installers and portable zips also ship **separate programs**: FFmpeg (GPL-3.0 builds), yt-dlp (Unlicense), Python and its packages (PSF, Apache-2.0, MIT, BSD-3-Clause, MPL-2.0). They are started as their own processes and never linked, which is mere aggregation and leaves Mousiki's licence alone, but the GPL asks that whoever distributes the FFmpeg binaries also provides its licence text and the way to its source code: `THIRD_PARTY_LICENSES.txt` and the `bin/ffmpeg-*.txt` licence files in the packages do that. Optional programs that are not bundled (sidplayfp, libgme, libopenmpt, curl, ALSA / PulseAudio) are run or loaded from the system. Nothing in the tree is GPL or LGPL code that is linked into `mousiki`. This is a summary of the files in this repository, not legal advice.
 
-## Use Windows Terminal
+#### Use Windows Terminal
 
 The entire UI is ANSI escape sequences. `mousiki.exe` enables `ENABLE_VIRTUAL_TERMINAL_PROCESSING` at startup and exits with a clear message if that fails, rather than rendering garbage. Windows Terminal (`wt.exe`) works; the legacy conhost window on pre-1511 Windows builds does not.
 
-## Where your files go (Windows)
+#### Where your files go (Windows)
 
 `$HOME` doesn't exist on Windows, and the original codebase looks it up in seven different places to find its directories. Rather than rewrite all seven call sites to be platform-aware, this port points `HOME` at `%USERPROFILE%` for its own process at startup, so every one of those paths resolves exactly the way it does on Linux/macOS:
 
@@ -308,7 +312,7 @@ PlaylistsPath=C:\Users\YOUR NAME !!!!!!!\Music\playlists
 DownloadFolder=D:\Downloads\mousiki
 ```
 
-## Quick start: build it yourself (Linux / macOS)
+### Build it yourself (Linux / macOS)
 
 Since v2.5.0 the code builds again on Linux and macOS as well (same sources, platform selected at compile time by `CMakeLists.txt`; audio via PulseAudio/PipeWire-pulse or ALSA on Linux and CoreAudio on macOS). Portable and setup packages can be found under latest release (included since v2.5.0). Windows remains the primary, most tested platform. `setup.sh` is the counterpart of `setup.ps1`:
 
@@ -364,7 +368,7 @@ cmake --build build --parallel
 
 Keep the `scripts/` folder next to the binary if you move it, otherwise lyrics, fast online search and the AcoustID fetch stop working.
 
-## Where your files go (Linux/macOS)
+#### Where your files go (Linux/macOS)
 
 | | Path |
 |---|---|
