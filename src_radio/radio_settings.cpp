@@ -781,7 +781,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
             // stored there as if it were a choice -- treat it as the old default and use the new one (".").
             if (std::string(kKeyActions[i].id) == "ScopeToggle" && val == "o") continue;
             if (std::string(kKeyActions[i].id) == "ScopeWindow" && val == "W") continue;   // the old default (now SHIFT+9)
-            // v4.3.0: SHIFT+p opens the PRESETS menu and SHIFT+k the STATION LISTS (they were the other way round); the old defaults
+            // v4.4.0: SHIFT+p opens the PRESETS menu and SHIFT+k the STATION LISTS (they were the other way round); the old defaults
             // saved in a config are taken as defaults
             if (std::string(kKeyActions[i].id) == "Presets" && val == "K") continue;
             if (std::string(kKeyActions[i].id) == "Lists" && val == "P") continue;
