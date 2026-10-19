@@ -86,7 +86,7 @@ Concerning potential new features: the online-radio function is now included (se
 
 ## Features at a glance
 
-Everything below is in the current version (v4.3.0) and works the same on Windows, Linux and macOS but was only tested on Windows and WSL. The **[user manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** describes every key and every setting; inside the app `?` opens the cheat sheet and `SHIFT+w` the help wizard. All pictures of this README are in the folder **[readme_images/](readme_images/)**.
+Everything below is in the current version (v4.3.0) and works the same on Windows, Linux and macOS but was only tested on Windows and WSL. The **[user manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** describes every key and every setting; inside the app `?` opens the cheat sheet, `<` (German keyboard; `SHIFT+,` on an English one) a list of all menus and overlays to choose from, and `SHIFT+w` the help wizard. All pictures of this README are in the folder **[readme_images/](readme_images/)**.
 
 ### Music player
 
@@ -177,7 +177,7 @@ Three themes are made for colour vision deficiencies: **Colorblind Deuteranopia*
 
 ### Help, settings and keys
 
-- A **help wizard** (`SHIFT+w`, opens by itself after the first install), a categorized **cheat sheet** (`?`, shows the keys you actually have bound), this **[manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** (also as [PDF](Mousiki_User_Manual/Mousiki_User_Guide.pdf)).
+- A **help wizard** (`SHIFT+w`, opens by itself after the first install), a categorized **cheat sheet** (`?`, shows the keys you actually have bound), a **menus index** (`<`: every menu and overlay by category with its key, ENTER opens one), this **[manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** (also as [PDF](Mousiki_User_Manual/Mousiki_User_Guide.pdf)).
 
 <p align="center"><img width="850" alt="The help wizard" src="readme_images/help_wizard.png" /></p>
 
@@ -197,7 +197,7 @@ Three themes are made for colour vision deficiencies: **Colorblind Deuteranopia*
 
 ### Installers and portables for Windows / macOS / Linux 
 
-Windows (installer, portable zip), Linux (`.deb`, portable) and macOS (`.pkg`, portable) from the [latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest), or build it yourself (below). Release files are signed (GPG) and come with build-provenance attestations; an installer upgrades an existing version and keeps your settings. Automated tests (91; run on Linux, macOS and Windows by a GitHub workflow): `cmake -DMOUSIKI_BUILD_TESTS=ON`.
+Windows (installer, portable zip), Linux (`.deb`, portable) and macOS (`.pkg`, portable) from the [latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest), or build it yourself (below). Release files are signed (GPG) and come with build-provenance attestations; an installer upgrades an existing version and keeps your settings. Automated tests (110; run on Linux, macOS and Windows by a GitHub workflow): `cmake -DMOUSIKI_BUILD_TESTS=ON`.
 
 ### Build it yourself (Windows)
 
