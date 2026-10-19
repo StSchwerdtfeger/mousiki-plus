@@ -215,6 +215,10 @@ constexpr float kBeamGainBig = 1.0f;
 // Extra light: the finished picture is added to itself this many times (0 = off, 1 = twice as bright, 2 = three times ...).
 // Unlike the gain above it also lifts what a single pass of the beam cannot make brighter, so thin lines look bright, not wide.
 constexpr float kBeamAddLight = 2.6f;
+// The YT / overlap / row / col pictures (image style) are painted by the terminal scope's renderer, not by the GPU beam above, so
+// they get their own brightness lift: level -> (1 - e^(-level * g)) / (1 - e^-g). 0 = as the terminal draws it, 3 = clearly brighter
+// (faint parts most), 5 = very bright. The XY mode is not affected.
+constexpr float kImageBrightness = 3.0f;
 constexpr float kDwell = 1.0f;   // music mode: segments shorter than this many beam half widths get the full beam
 constexpr float kBlankSpeed = 20000.0f;   // music mode below 96 kHz: beam speed (full scale widths per second) of a jump
 
@@ -493,11 +497,16 @@ int scope_window_main() {
                     }
                 }
                 if (gpu.pic) {
+                    float lift[256];
+                    for (int i = 0; i < 256; ++i) {
+                        const float l = i / 255.0f;
+                        lift[i] = kImageBrightness > 0.0f ? (1.0f - std::exp(-l * kImageBrightness)) / (1.0f - std::exp(-kImageBrightness)) : l;
+                    }
                     img_px.resize(static_cast<size_t>(iw) * ih);
                     for (int y = 0; y < ih; ++y) {
                         for (int x = 0; x < iw; ++x) {
                             const size_t at = static_cast<size_t>(y) * iw + x;
-                            const float lv = img_level[at] / 255.0f;
+                            const float lv = lift[img_level[at]];
                             if (lv <= 0.0f) { img_px[at] = 0xFF000000u; continue; }
                             const int h = cfg.color_by_x ? static_cast<int>(std::lround(iw > 1 ? 255.0f * x / (iw - 1) : 0.0f)) : img_hue[at];
                             const uint8_t* pc = cfg.pal[h];

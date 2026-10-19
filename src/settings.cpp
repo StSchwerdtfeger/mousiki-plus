@@ -319,6 +319,7 @@ void apply_default_hotkeys(Settings& s) {
             {"HKeyConsole",                     "t"},
             {"HKeyToggleMute",                  "x"},
             {"HKeyCheatsheet",                  "?"},
+            {"HKeyMenus",                       "<"},   // the index of all menus and overlays
             // The help wizard. "W" (SHIFT+w) was free: it used to be the
             // scope window's key, which moved to ")" in v3.1.0 (see the
             // migration below), and plain "w" stays Toggle Waveform.
@@ -696,7 +697,7 @@ static Settings load_from_config(const fs::path& path) {
             {"ColorLyricsInactiveFg", "inactive_line_color"}, {"ColorLyricsInactiveBg", "inactive_line_bg_color"},
             {"ColorLyricsActiveLineFg", "active_line_color"}, {"ColorLyricsActiveLineBg", "active_line_bg_color"},
             {"ColorLyricsActiveWordFg", "active_word_color"}, {"ColorLyricsActiveWordBg", "active_word_bg_color"},
-            {"ColorHeader", "header_color"}, {"ColorLegend", "legend_color"}, {"ColorTabCurrent", "tab_current_color"}, {"ColorTabOther", "tab_other_color"},
+            {"ColorHeader", "header_color"}, {"ColorLegend", "legend_color"}, {"ColorLegendCommand", "legend_cmd_color"}, {"ColorTabCurrent", "tab_current_color"}, {"ColorTabOther", "tab_other_color"},
             {"ColorChangeFg", "change_text_color"}, {"ColorChangeBg", "change_bg_color"},
             {"ColorFocus", "focus_color"},
             {"MetaDataOnly", "meta_only"},
@@ -898,6 +899,7 @@ static Settings load_from_config(const fs::path& path) {
         if (key == "tab_current_color") { if (!value.empty()) s.tab_current_color = normalize_color_value(value); continue; }
         if (key == "tab_other_color") { if (!value.empty()) s.tab_other_color = normalize_color_value(value); continue; }
         if (key == "legend_color") { if (!value.empty()) s.legend_color = normalize_color_value(value); continue; }
+        if (key == "legend_cmd_color") { if (!value.empty()) s.legend_cmd_color = normalize_color_value(value); continue; }
         if (key == "focus_color") { if (!value.empty()) { s.focus_color = normalize_color_value(value); focus_color_set = true; } continue; }
         if (key == "change_text_color") { if (!value.empty()) s.change_text_color = normalize_color_value(value); continue; }
         if (key == "change_bg_color") { if (!value.empty()) s.change_bg_color = normalize_color_value(value); continue; }
@@ -1341,7 +1343,7 @@ static void migrate_legacy_colors(Settings& s) {
                            &s.progress_remaining_color, &s.progress_timestamp_color, &s.search_text_color, &s.search_inactive_text_color,
                            &s.list_color, &s.list_playing_color, &s.list_cursor_color, &s.queue_color, &s.queue_playing_color,
                            &s.queue_cursor_color, &s.inactive_line_color, &s.active_line_color, &s.active_word_color, &s.header_color,
-                           &s.legend_color, &s.tab_current_color, &s.tab_other_color, &s.change_text_color, &s.focus_color,
+                           &s.legend_color, &s.legend_cmd_color, &s.tab_current_color, &s.tab_other_color, &s.change_text_color, &s.focus_color,
                            &s.button_color, &s.status_color, &s.lyr_inactive_color, &s.lyr_active_line_color, &s.lyr_active_word_color})
         *f = themes::legacy_to_palette(*f, ColorRole::Text);
     for (std::string* f : {&s.search_bg_color, &s.search_inactive_bg_color, &s.list_inactive_bg_color, &s.list_playing_bg_color,
@@ -1435,6 +1437,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "\n# Key command legends (the grey hint lines such as \"[ESC] close\" in the Settings, the big\n";
     out << "# list / queue overlays, the playlist / meta editor and the history) -- 0 = terminal default\n";
     out << "ColorLegend=" << s.legend_color << "\n";
+    out << "# ... and the descriptions behind those keys (\"Close\" in \"[ESC] Close\")\nColorLegendCommand=" << s.legend_cmd_color << "\n";
     out << "ColorTabCurrent=" << s.tab_current_color << "\nColorTabOther=" << s.tab_other_color << "\n";
     out << "\n# \"This field is actively being typed into\" (a PATHS row, a hex colour value, a\n";
     out << "# hotkey, a meta editor tag) -- 0 = terminal default\n";

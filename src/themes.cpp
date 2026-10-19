@@ -94,6 +94,7 @@ Theme expand(const Palette& p, bool v8 = false) {
     a("ColorHeader", p.hd);               a("ColorLegend", p.lg);
     a("ColorFocus", p.fc ? p.fc : p.hd);   // the pane focus indicator: the theme's header color unless the theme names its own
     a("Radio.ColorHeader", p.lg);         a("Radio.ColorLegend", p.hd);   // the radio draws them the other way round
+    a("ColorLegendCommand", p.lf);        a("Radio.ColorLegendCommand", p.lf);   // the descriptions behind the legend keys: the theme's list text colour
     a("Radio.ColorFocus", p.lg);          // ... and its focus indicator follows ITS header colour
     a("ColorSearchFg", text);             a("ColorSearchBg", "");
     a("ColorSearchInactiveFg", text);     a("ColorSearchInactiveBg", "");
@@ -149,7 +150,7 @@ Theme serious_meowershell(bool v8 = false) {
     static const char* const kv[][2] = {
         {"ColorBorderTop","170"},{"ColorBorderBottom","104"},{"ColorMetadataKey","140"},{"ColorMetadataVal","182"},
         {"ColorVizLeft","170"},{"ColorVizRight","30"},{"ColorTabCurrent","8"},{"ColorTabOther","10"},{"ColorHeader","10"},
-        {"ColorFocus","183"},{"ColorLegend","8"},{"Radio.ColorHeader","8"},{"Radio.ColorLegend","10"},
+        {"ColorFocus","183"},{"ColorLegend","104"},{"ColorLegendCommand","170"},{"Radio.ColorLegendCommand","170"},{"Radio.ColorHeader","8"},{"Radio.ColorLegend","104"},
         {"Radio.ColorFocus","8"},{"ColorSearchFg","7"},{"ColorSearchBg","1"},{"ColorSearchInactiveFg",""},
         {"ColorSearchInactiveBg",""},{"ColorListInactiveFg",""},{"ColorListInactiveBg",""},{"ColorListPlayingFg","16"},
         {"ColorListPlayingBg","182"},{"ColorListCursorFg","10"},{"ColorListCursorBg","238"},{"ColorDiskTop","170"},
@@ -169,7 +170,7 @@ Theme meowershell(bool v8 = false) {
     static const char* const kv[][2] = {
         {"ColorBorderTop","170"},{"ColorBorderBottom","182"},{"ColorMetadataKey","170"},{"ColorMetadataVal","182"},
         {"ColorVizLeft","170"},{"ColorVizRight","30"},{"ColorTabCurrent","8"},{"ColorTabOther","10"},{"ColorHeader","10"},
-        {"ColorFocus","183"},{"ColorLegend","8"},{"Radio.ColorHeader","8"},{"Radio.ColorLegend","10"},
+        {"ColorFocus","183"},{"ColorLegend","182"},{"ColorLegendCommand","170"},{"Radio.ColorLegendCommand","170"},{"Radio.ColorHeader","8"},{"Radio.ColorLegend","182"},
         {"Radio.ColorFocus","8"},{"ColorSearchFg","7"},{"ColorSearchBg","1"},{"ColorSearchInactiveFg",""},
         {"ColorSearchInactiveBg",""},{"ColorListInactiveFg",""},{"ColorListInactiveBg",""},{"ColorListPlayingFg","16"},
         {"ColorListPlayingBg","182"},{"ColorListCursorFg","10"},{"ColorListCursorBg","238"},{"ColorDiskTop","170"},

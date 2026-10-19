@@ -22,6 +22,9 @@
 
 #include <io.h>
 #include <atomic>
+#include <chrono>
+#include <set>
+#include <vector>
 #include <cstdlib>
 #include <cstring>
 #include <cwchar>
@@ -188,6 +191,8 @@ std::atomic<bool> g_restored{false};
 // keystroke instead of raising CTRL_C_EVENT (see win_set_text_entry()).
 // Written only from the main thread, re-read on every win_raw_mode_enter().
 bool g_text_entry = false;
+// While a pasted text is being thrown away (see win_poll_key()): until when its remaining characters are dropped too.
+std::chrono::steady_clock::time_point g_paste_drop_until{};
 Utf8ConsoleStreambuf* g_cout_buf = nullptr;
 std::streambuf* g_cout_orig_buf = nullptr;
 
@@ -377,6 +382,32 @@ int win_poll_key() {
         return 0;
     }
 
+    // A paste (CTRL+V, SHIFT+INSERT or right click: Windows Terminal and conhost take them for themselves) reaches us as a burst of
+    // ordinary key presses. In a text field that is exactly right, anywhere else every pasted letter would run as a hotkey (a pasted
+    // "C:\..." opened the file conversion overlay). So outside a text field a burst of several different printable keys within one
+    // poll is thrown away; a held key (the same character repeating) and normal typing never look like that.
+    if (!g_text_entry && events >= 12) {
+        std::vector<INPUT_RECORD> buf(events < 1024 ? events : 1024);
+        DWORD n = 0;
+        if (PeekConsoleInputW(g_con.in, buf.data(), static_cast<DWORD>(buf.size()), &n) && n > 0) {
+            int chars = 0;
+            std::set<wchar_t> distinct;
+            for (DWORD i = 0; i < n; ++i) {
+                const INPUT_RECORD& r = buf[i];
+                if (r.EventType != KEY_EVENT || !r.Event.KeyEvent.bKeyDown) continue;
+                const wchar_t ch = r.Event.KeyEvent.uChar.UnicodeChar;
+                if (ch >= 32 || ch == L'\r') { ++chars; distinct.insert(ch); }
+            }
+            if (chars >= 6 && distinct.size() >= 4) {
+                DWORD got = 0;
+                ReadConsoleInputW(g_con.in, buf.data(), n, &got);
+                g_paste_drop_until = std::chrono::steady_clock::now() + std::chrono::milliseconds(150);
+                g_last_key_was_arrow = false;
+                return 0;
+            }
+        }
+    }
+
     INPUT_RECORD rec;
     DWORD got = 0;
     if (!ReadConsoleInputW(g_con.in, &rec, 1, &got) || got == 0) {
@@ -398,6 +429,12 @@ int win_poll_key() {
     }
 
     const KEY_EVENT_RECORD& k = rec.Event.KeyEvent;
+
+    // the tail of a pasted text that did not fit the batch above: still dropped (outside a text field)
+    if (!g_text_entry && std::chrono::steady_clock::now() < g_paste_drop_until && (k.uChar.UnicodeChar >= 32 || k.uChar.UnicodeChar == L'\r')) {
+        g_paste_drop_until = std::chrono::steady_clock::now() + std::chrono::milliseconds(150);
+        return win_poll_key();
+    }
 
     // Arrow keys, by virtual-key code rather than guessing a scan code off
     // a raw byte stream -- collapses to the same four letters the POSIX

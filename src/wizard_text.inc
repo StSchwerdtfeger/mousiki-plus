@@ -26,6 +26,11 @@ without detailed explanations. As a third option you can also use the
 Mousiki Plus user manual to find your way around (includes images and 
 is even more detailed than the Help Wizard or cheat sheet).
 
+MENUS INDEX:[[Header]] 
+[<] (German keyboard) or [SHIFT+,] (English keyboard) opens a list 
+of all menus and overlays, sorted by category, with their keys. 
+Select one with the arrows and press [ENTER] to open it.
+
 ABOUT: [[Header]]
 Mousiki Plus (Win/Linux/macOS):
 StSchwerdtfeger — github.com/StSchwerdtfeger
@@ -52,6 +57,11 @@ also use [?] to open the CHEAT SHEET[[Header]] for a plain overview of commands
 without detailed explanations. As a third option you can also use the 
 Mousiki Plus user manual to find your way around (includes images and 
 is even more detailed than the Help Wizard)
+
+MENUS INDEX:[[Header]] 
+[<] (German keyboard) or [SHIFT+,] (English keyboard) opens a list of 
+all menus and overlays, sorted by category, with their keys. 
+Select one with the arrows and press [ENTER] to open it.
 
 ABOUT: [[Header]]
 Mousiki Plus (Win/Linux/macOS):
@@ -176,6 +186,9 @@ Version 1.0 — Apache 2.0 license
 MODE CHANGE:[[Header]] Use [SHIFT and +] (German keyboard) or [SHIFT+8] (English keyboard) to 
 switch between music and radio player.
 
+MENUS INDEX:[[Header]] [<] (German keyboard) or [SHIFT+,] (English keyboard) lists all menus
+and overlays with their keys; [ENTER] opens the selected one.
+
 The main screen consists of five panes, which are discussed below. The focuse between the
 SEARCH, LOCAL AUDIO FILES and QUEUE can be changed via [TAB], where the [◀] is an indicator
 for the current focus. Commands that work no matter which pane is focused are [n] for next
@@ -206,7 +219,8 @@ can be specifically search for.
 LOCAL AUDIO FILES: [[Header]]
 When focused or using the search bar [UP]/[DOWN] can be used to hover through the track list.
 [ENTER] starts a song and hitting [ENTER] again locks the current search result, so that only
-the results are shown in the list. Hit [ESC] to clear a search result and the complete list
+)WIZ",
+R"WIZ(the results are shown in the list. Hit [ESC] to clear a search result and the complete list
 of local files will be shown again.
 
 Hitting [a] adds a song on the top of a queue. See chapter on  BUILDING A QUEUE[[Header]] 
@@ -217,8 +231,7 @@ changes the sorting of the local audio files.
 
 The command [f] filters the local list by folder, which means, when a highlighted track is
 e.g. in folder with other tracks from the same album, it will then only show the files in
-)WIZ",
-R"WIZ(the associated folder. Use [c] or [ESC] to clear folder filter.
+the associated folder. Use [c] or [ESC] to clear folder filter.
 [SHIFT+l] opens a BIG LIST OVERLAY[[HEADER]] for a better overview.
 [SHIFT+f] opens the BIG FOLDER OVERLAY[[Header]].
 [SHIFT+k] opens the BIG QUEUE OVERLAY[[Header]].
@@ -387,7 +400,8 @@ Repeats the current track again.
 
 O[[Header]] ==[[Header]] STOP MODE[[Header]]
 Plays the current song and then stops.
-
+)WIZ",
+R"WIZ(
 Q[[Header]] ==[[Header]] QUEUE THEN STOP MODE [[Header]]
 Plays through the tracks in the queue and then stops.
 
@@ -405,8 +419,7 @@ GENERAL: [[Header]]
 
 With the LIST focused: [[Header]]
 [a]             add track to the TOP of the queue
-)WIZ",
-R"WIZ([e]             add track to the END of the queue
+[e]             add track to the END of the queue
 
 With QUEUE focused: [[Header]]
 [d]             remove from queue
@@ -554,7 +567,8 @@ WHERE THE FILES GO: [[Header]]
 Into the CONVERSION EXPORT PATH ([s] Settings[[Header]] ->> PATHS[[Header]]), by default the 
 folder conversion-export inside the download folder, in the same sub folders as the originals.
 A file that already exists there is skipped. Tags and cover are copied (not to Opus).
-NOTE: Needs ffmpeg with libmp3lame and libopus; the installers provide it.[[Legend]]
+)WIZ",
+R"WIZ(NOTE: Needs ffmpeg with libmp3lame and libopus; the installers provide it.[[Legend]]
 
 
 [[New Page]]
@@ -563,8 +577,7 @@ NOTE: Needs ffmpeg with libmp3lame and libopus; the installers provide it.[[Lege
 When the lyrics engine is on, Mousiki fetches the lyrics of the playing track and follows along
 line by line, and word by word where the source has word timings (depends on the structure of the 
 imported file). They are shown in the field right of the meta data (the VIZ/LYRICS FIELD[[Header]] of the main pane): the line that was sung and the following one are dimmed, the line being sung right now is highlighted. However, the coloring / highlighting behavior depends on chosen options in the SETTINGS[[Header]] in the tab COLORS[[Header]]. When no colors are applied, the text will just move on and may eventually be underlined, in
-)WIZ",
-R"WIZ(case the fetched file allows for such behavior.
+case the fetched file allows for such behavior.
 
 SWITCH THROUGH THE FIELD: [[Header]]
 [,/.]   cycles the field lyrics, sphere, oscilloscope, spectrogram back and forth; for more 
@@ -615,7 +628,7 @@ READING AND TRANSLATING LYRICS:[[Header]]
 [CTRL+L] opens READ LYRICS (playing track, else the hovered one). It shows the lyrics fetched 
 so far and the translations and the text itseld. [TAB] switches between the two top panes, 
 [<-/->] chooses the file or the translation, the scrolling commands are [UP]/[DOWN] for a line,
-[SPACE]/[b] for a page and [HOME] / [END] for top/bottom. 
+[SHIFT+↑/↓] (or [SPACE]/[b]) for a page and [HOME] / [END] for top/bottom. 
 [t] opens the translate overlay (service (Google / MyMemory), translate into, lyrics are in), 
 the command [ENTER] fetches.
 [SHIFT+t] shows / cycles / hides translations, [d] or [DEL] deletes a translation.
@@ -692,7 +705,8 @@ Frame rate       30 / 45 / 60 / 90 / 120 / 165 fps
 Osci music mode  for oscilloscope music: the unprocessed signal and a fixed scale
 Beam             CRT: every sample drawn once, light by the time the beam spends on a spot
                  (image default) / classic: the old look with a tail (braille default)
-Dwell brightness CRT beam: slow strokes bright, jumps dark; off = every stroke equally bright
+)WIZ",
+R"WIZ(Dwell brightness CRT beam: slow strokes bright, jumps dark; off = every stroke equally bright
 Low-rate blank.  music mode, CRT beam: files below 96 kHz get the jumps between shapes faded out
 Rough mode       not in music mode: loud beats clip along the edges of the square (edge clipping;
                  braille default on, image default off); not optimal, technically, but looks cool :D
@@ -701,8 +715,7 @@ Image res/detail image style: drawn at full / half / third resolution; detail no
 Decay            the afterglow, higher = longer trails
 Tail / Glow      bright head with fading tail / line glow
 Z-Axis           beam brightness follows speed or level
-)WIZ",
-R"WIZ(Color            the VIZ gradient or 8 palettes
+Color            the VIZ gradient or 8 palettes
 Each style keeps its own values, so switching between braille and image never loses your tuning.
 [R] resets only the style in use.
 Starting points for braille: crisp scope = Decay 0.65, Dot threshold 0.35, Tail 0.60.
@@ -835,7 +848,8 @@ measured since you tuned in and the gain glides in over a second.
 STEREO OR MONO: [[Header]]
 Settings ->> ON/OFF ->> Stereo Sound. Off folds left and right together (and halves the memory a
 loaded track needs). Turning it off is immediate; turning it on applies from the next track.
-In the radio the footer of the dial then reads MONO.
+)WIZ",
+R"WIZ(In the radio the footer of the dial then reads MONO.
 
 
 [[New Page]]
@@ -850,8 +864,7 @@ LONG TRACKS NEED LITTLE MEMORY: [[Header]]
 A short track is decoded completely into memory. A long mix is only decoded in a 2-minute window
 around the position (90 s ahead, the last 30 s kept, so a short step back is instant).
 A 200 MB file takes about 50 MB instead of gigabytes. The audio is exactly the same: same rate,
-)WIZ",
-R"WIZ(same 32-bit samples.
+same 32-bit samples.
 
 THE ORDER THINGS HAPPEN IN: [[Header]]
 decoded audio  >  equalizer  >  normalization  >  limiter  >  volume
@@ -892,7 +905,7 @@ Jump to a tab with [1] - [4] or move with [<-/->].
 
 THE FOUR TABS: [[Header]]
 [1] HISTORY          the last 100 plays: when, what, how long, and PLAY / done / skip
-[2] TOP TRACKS       one row per title with its play count
+[2] TOP TRACKS       one row per title: Title | Artist, length, play count
 [3] TOP PLAYLISTS    the top 5 saved playlists of the week, month, quarter, year and overall
 [4] HABITS           sessions, time per day, tracks per session, skips, replays, completion
 
@@ -997,7 +1010,8 @@ Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the 
 Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars, Stereo Sound,
 Normalize Volume, Replace Emoji, Marquee Scrolling
 VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
-Use Lyrics Engine / Oscilloscope / Spectrogram / Sphere. False leaves that view out of the [,/.] cycle.
+)WIZ",
+R"WIZ(Use Lyrics Engine / Oscilloscope / Spectrogram / Sphere. False leaves that view out of the [,/.] cycle.
 
 ANIMA/VIZ TAB: [[Header]]
 Lyrics Alignment and Lyrics Animation, Disk Speed (0.01 .. 1.00), Bars Fluidity / Degradation /
@@ -1011,8 +1025,7 @@ PLAYLIST PATH          one folder for all playlists
 PLAYLIST EXPORT PATH   where [e] writes M3U8 / M3U
 HISTORY PATH           holds history.json
 CONVERSION EXPORT PATH where converted files go
-)WIZ",
-R"WIZ(Changing LOCAL PATH rescans at once. Changing the playlist or history folder copies what is there;
+Changing LOCAL PATH rescans at once. Changing the playlist or history folder copies what is there;
 nothing is moved or deleted. Changed folders only stick when you save with [s]. A warning will
 appear in case you unsaved changes are present. 
 
@@ -1083,8 +1096,8 @@ KEYS ON THE MAIN SCREEN: [[Header]]
 [n] / [b]    next / previous channel    [#]      a random channel
 [p]          mute / unmute              [x]      stop          [R]  reconnect
 [+] / [-]    volume                     [/]      search        [SHIFT+t]  sort list order <-> A-Z
-[SHIFT+k] presets   [SHIFT+s] radio browser   [SHIFT+p] station lists   [SHIFT+l] big stations overlay
-[h] history   [s] settings   [?] cheat sheet   [SHIFT+w] this wizard   [q] quit
+[SHIFT+p] presets   [SHIFT+s] radio browser   [SHIFT+k] station lists   [SHIFT+l] big stations overlay
+[h] history   [s] settings   [?] cheat sheet   [<] menus index   [SHIFT+w] this wizard   [q] quit
 
 THE BIG STATIONS OVERLAY: [[Header]]
 [SHIFT+l] shows the STATIONS pane over the whole screen plus a PRESET NAME column.
@@ -1099,7 +1112,7 @@ A preset is a named set of 16 station slots on the keys:
 Press one on the main screen to recall that slot. [SHIFT+<-/->] switch to the previous / next
 preset. The name of the active preset is in the pane title: e.g. PRESETS (Morning).
 
-THE PRESETS MENU:[[Header]] [SHIFT+k] opens it. A small [◀] behind a pane's title shows which pane is
+THE PRESETS MENU:[[Header]] [SHIFT+p] opens it. A small [◀] behind a pane's title shows which pane is
 focused, just as in the music palyer. Names are 1 to 24 characters and unique. Every change is written 
 to presets.txt at once.
 
@@ -1143,9 +1156,10 @@ Every search hides broken streams, sorts by clicks and returns at most 200 resul
 10.2 STATION LISTS [[Header]]
 
 Named, ordered collections of stations (a "jazz" list, a "morning" list), built exactly like the
-playlist editor of the music player.
+)WIZ",
+R"WIZ(playlist editor of the music player.
 
-OPEN AND CHANGE TABS: [[Header]] [SHIFT+p] opens the menu, [<-/->] switch the two tabs ([ALT+<-/->]
+OPEN AND CHANGE TABS: [[Header]] [SHIFT+k] opens the menu, [<-/->] switch the two tabs ([ALT+<-/->]
 from every pane, also while typing). Lists are stored in stationlists.txt.
 
 KEYS IN THE STATION LISTS MENU: [[Header]]
@@ -1157,8 +1171,7 @@ KEYS IN THE STATION LISTS MENU: [[Header]]
 [SHIFT+t]       sort STATIONS: list order <-> name A-Z
 [CTRL+s]        save under the typed name and stay in the menu
 [ESC]           leave a text box; again: close (it asks about unsaved changes)
-)WIZ",
-R"WIZ(A dot behind a station means it is already in the list being built.
+A dot behind a station means it is already in the list being built.
 
 SAVED LISTS TAB: [[Header]]
 [ENTER] loads a list back into the first tab, [DEL] deletes it after a Yes/No question.
@@ -1293,7 +1306,8 @@ stations.txt       your station list                    presets.txt       the pr
 stationlists.txt   the saved station lists              preset_names.txt  the short names of the PRESETS pane
 radio_history/     history_radio.txt and archive_radio.txt
 All of them live in the config folder: ~/.config/mousiki/ (Windows: %USERPROFILE%\.config\mousiki\).
-
+)WIZ",
+R"WIZ(
 [[New Page]]
 13.1 REMOTE CONTROL AND KEY BINDINGS [[Header]]
 
@@ -1305,8 +1319,7 @@ A running player or radio can be controlled with the same program:
 No media keys on your keyboard? Bind ANY key combination in your system to such a line:
 GNOME/KDE: custom shortcut with the command   mousiki --cmd next
 i3/sway:   bindsym Ctrl+Mod1+Right exec mousiki --cmd next
-)WIZ",
-R"WIZ(Windows:   AutoHotkey   ^!Right::Run "mousiki.exe" --cmd next, , Hide
+Windows:   AutoHotkey   ^!Right::Run "mousiki.exe" --cmd next, , Hide
 macOS:     Shortcuts app (Run Shell Script) or skhd
 THEME PREVIEW: [[Header]] in the CHOOSE THEME list [SHIFT+p] shows a still copy of the main screen in the highlighted theme; any key goes back.
 
@@ -1317,19 +1330,24 @@ Settings -> ON/OFF -> MODES -> Remote App -> [ENTER] opens the REMOTE APP overla
 switch it ON, see the address and a QR code (scan it with the phone camera: the remote opens,
 logged in), change the PORT or the PIN ([n] a new one). [ESC] back, [s] saves the settings.
 Works with your own build as well as with an installed Mousiki. The phone must be in the same network.
+
 ANDROID APP: [[Header]] Mousiki Remote (remote_app/android): enter the address and the PIN once,
 or let it find Mousiki in the network.
+
 PHONE BROWSER: [[Header]] open the address and enter the PIN.
 The phone shows the disk, the meta data, the progress bar, the dummy buttons (working: seek,
 play/pause) and boxes for prev, random, next, volume, mute, playback mode, LISTS and manual --
 drawn by Mousiki in the colours of your theme. In the radio: the ON AIR sign, the station,
 prev/next station, pause, live, stop.
+
 LISTS (player): on top the local list (tap a title: it plays), below the saved playlists (tap one: its titles
 go into the queue, starts it when nothing plays). A tap on the other list gives it the focus; UP / DOWN
 move the list in focus a whole page. CLEAR QUEUE at the bottom: tap twice.
+
 STATIONS (radio): the whole station list, tap a station to tune it. UP / DOWN page, BACK returns.
 [RADIO]/[PLAYER] at the top switches the mode.
 Long press on the phone: its own settings (base colours, size of the braille dots, PIN).
+
 NO CONNECTION? [[Header]] same Wi-Fi? A VPN blocks the home network unless "local network access" is allowed in it.
 Windows: [f] in the overlay opens the port in the firewall. Test: http://127.0.0.1:4747 on the computer.
 SAFE: [[Header]] off by default, home network only, PIN for every command, 10 wrong PINs lock it

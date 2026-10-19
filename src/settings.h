@@ -184,6 +184,9 @@ struct Settings : VizPrefs {
     // drawn in -- changeable from the Colors tab's LEGEND row, or ColorLegend=
     // in config.txt. "0"/empty = the terminal's own text color.
     std::string legend_color = "199";
+    // The descriptions behind the keys of those legends ("[ESC] Close": the keys use legend_color, "Close" this one);
+    // the Colors tab's LEGEND row, second cell (COMMAND), or ColorLegendCommand=.
+    std::string legend_cmd_color = "213";
     std::string tab_current_color = "199";   // settings / playlist / history tab strips: the current tab "[NAME]" and the "< \u2194 >" hint
     std::string tab_other_color = "227";     // ... the other tab names
 

@@ -240,6 +240,31 @@ std::string utf8_skip_take(const std::string& s, int skip_cols, int take_cols);
 // Computes terminal display width of a UTF-8 string based on wcwidth.
 int display_width(const std::string& s);
 
+// ---- key legends as a small tree table -------------------------------------------------------------------------------
+// One row per group of commands: a tree line, the group's name, a bar and the keys, e.g.
+//   ┌─ Move    │ [←→] Tab   [TAB] Focus   [↑↓] Navi.
+//   ├─ Fetch   │ [a] To fetch list   [SHIFT+f] Add full list
+//   └─ Session │ [CTRL+s] Save   [ESC] Exit
+// A command is "[key] Long label" or "[key] Long label\x01Short label": when a row does not fit the width, the keys are first
+// spaced tighter, then the short labels are used, and only then the last commands of the row are replaced by "…".
+struct LegendGroup {
+    std::string label;
+    std::vector<std::string> cmds;
+};
+struct LegendRow {
+    std::string tree;    // "┌─ ", "├─ " or "└─ " (three columns)
+    std::string label;   // padded to the widest label
+    std::string cmds;    // the keys, already fitted
+};
+// `width` = columns available for the whole row (tree + label + bar + keys). `max_rows` > 0: when there are more groups the
+// last ones are merged (their keys follow each other in one row) -- for terminals too short for the full legend.
+std::vector<LegendRow> layout_legend_tree(std::vector<LegendGroup> groups, int width, int max_rows = 0);
+// The row in colour: tree and bar in `border`, the label in `header`, the keys in `legend` (all complete SGR strings).
+// `pad_to` > 0 fills the row with spaces up to that many columns (to wipe what is underneath).
+// `legend` colours the keys (everything in [square brackets]); `cmd`, when given, colours their descriptions.
+std::string paint_legend_row(const LegendRow& row, const std::string& border, const std::string& header, const std::string& legend, int pad_to = 0,
+                             const std::string& cmd = std::string());
+
 // High frame rates: instead of the whole screen, only the lines that changed since the last frame. `body` is a frame
 // written top to bottom from row 1 with '\n' (or "\r\n") between the lines; each changed line is sent with its own
 // cursor position and a colour reset in front. `prev` holds the last frame's lines and is updated. Returns false when

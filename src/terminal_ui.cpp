@@ -980,4 +980,95 @@ std::vector<std::string> wrap_lines(const std::string& raw, int width, int max_l
     return out;
 }
 
+std::vector<LegendRow> layout_legend_tree(std::vector<LegendGroup> groups, int width, int max_rows) {
+    std::vector<LegendRow> rows;
+    if (groups.empty()) return rows;
+    while (max_rows > 0 && static_cast<int>(groups.size()) > max_rows && groups.size() > 1) {
+        LegendGroup last = std::move(groups.back());
+        groups.pop_back();
+        for (auto& c : last.cmds) groups.back().cmds.push_back(std::move(c));
+    }
+    int label_w = 1;
+    for (const auto& g : groups) label_w = std::max(label_w, display_width(g.label));
+    const int cmd_w = std::max(10, width - (6 + label_w));
+    // "[key] Long\x01Short" -> the long and the short form
+    const auto split_cmd = [](const std::string& c, std::string& lng, std::string& shrt) {
+        const size_t sep = c.find('\x01');
+        if (sep == std::string::npos) { lng = shrt = c; return; }
+        lng = c.substr(0, sep);
+        const size_t close = lng.find("] ");
+        shrt = (close == std::string::npos ? std::string() : lng.substr(0, close + 2)) + c.substr(sep + 1);
+    };
+    for (size_t gi = 0; gi < groups.size(); ++gi) {
+        std::vector<std::string> lng, shrt;
+        for (const auto& c : groups[gi].cmds) {
+            std::string l, s;
+            split_cmd(c, l, s);
+            lng.push_back(l);
+            shrt.push_back(s);
+        }
+        std::string cmds;
+        bool fitted = false;
+        for (const std::vector<std::string>* list : {&lng, &shrt}) {
+            for (int gap : {3, 2, 1}) {
+                std::string joined;
+                for (size_t ci = 0; ci < list->size(); ++ci) joined += (ci ? std::string(static_cast<size_t>(gap), ' ') : std::string()) + (*list)[ci];
+                if (display_width(joined) <= cmd_w) { cmds = joined; fitted = true; break; }
+            }
+            if (fitted) break;
+        }
+        if (!fitted) {
+            for (size_t ci = 0; ci < shrt.size(); ++ci) {
+                const std::string next = cmds + (ci ? " " : "") + shrt[ci];
+                if (display_width(next) + 2 > cmd_w) break;
+                cmds = next;
+            }
+            cmds += cmds.empty() ? "\u2026" : " \u2026";
+        }
+        LegendRow r;
+        r.tree = groups.size() == 1 ? "\u2500\u2500 " : (gi == 0 ? "\u250c\u2500 " : (gi + 1 == groups.size() ? "\u2514\u2500 " : "\u251c\u2500 "));
+        r.label = pad_right(groups[gi].label, label_w);
+        r.cmds = cmds;
+        rows.push_back(std::move(r));
+    }
+    return rows;
+}
+
+std::string paint_legend_row(const LegendRow& row, const std::string& border, const std::string& header, const std::string& legend, int pad_to,
+                             const std::string& cmd) {
+    const std::string R = "\x1b[0m";
+    std::string body;
+    if (cmd.empty()) {
+        body = legend + row.cmds + R;
+    } else {   // keys in [brackets] in the legend colour, the rest (descriptions, the closing "...") in the command colour
+        size_t i = 0;
+        while (i < row.cmds.size()) {
+            if (row.cmds[i] == '[') {
+                const size_t e = row.cmds.find(']', i);
+                const size_t stop = e == std::string::npos ? row.cmds.size() : e + 1;
+                body += legend + row.cmds.substr(i, stop - i) + R;
+                i = stop;
+            } else {
+                size_t e = row.cmds.find('[', i);
+                if (e == std::string::npos) e = row.cmds.size();
+                std::string seg = row.cmds.substr(i, e - i);
+                // a sub-heading in capitals ("SINGLE TRACKS:") stands out in the header colour
+                size_t sp = 0;
+                while (sp < seg.size() && seg[sp] == ' ') ++sp;
+                const size_t colon = seg.find(':', sp);
+                bool head = colon != std::string::npos && colon > sp;
+                for (size_t k = sp; head && k < colon; ++k) if (!((seg[k] >= 'A' && seg[k] <= 'Z') || seg[k] == ' ')) head = false;
+                if (head) body += seg.substr(0, sp) + header + seg.substr(sp, colon + 1 - sp) + R + cmd + seg.substr(colon + 1) + R;
+                else body += cmd + seg + R;
+                i = e;
+            }
+        }
+    }
+    // the tree glyph and the bar each follow their border-colour escape directly: that is what the smooth border gradient looks for
+    std::string out = border + row.tree + R + header + row.label + R + " " + border + "\u2502" + R + " " + body;
+    const int used = display_width(row.tree) + display_width(row.label) + 3 + display_width(row.cmds);
+    if (pad_to > used) out += std::string(static_cast<size_t>(pad_to - used), ' ');
+    return out;
+}
+
 } // namespace muisc
