@@ -89,7 +89,7 @@ std::string clean_preset_name(const std::string& raw);
 
 // ---- station lists --------------------------------------------------------------------------
 // A STATION LIST is a named, ordered collection of stations ("the order they were added"), built and
-// managed in the STATION LISTS menu (Shift+P). Unlike a preset it has no slots and no size limit.
+// managed in the STATION LISTS menu (Shift+K). Unlike a preset it has no slots and no size limit.
 // Items are indices into the station list in memory; on disk they are stored as `url | station name`.
 constexpr int kListNameMax = 25;
 

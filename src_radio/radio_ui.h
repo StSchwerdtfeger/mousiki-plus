@@ -3,7 +3,7 @@
 // snapshot, returns exactly `rows` lines of exactly `cols` visible columns each.
 // With UiModel::menu.open the whole frame is the PRESETS menu instead of the radio screen;
 // with UiModel::browse.open it is the RADIO BROWSER search menu (Shift+S);
-// with UiModel::lmenu.open it is the STATION LISTS menu (Shift+P);
+// with UiModel::lmenu.open it is the STATION LISTS menu (Shift+K);
 // with UiModel::cheat_open it is the CHEATSHEET (wins over both menus).
 // with UiModel::settings.open it is the RADIO SETTINGS screen (key `s`; tabs COLORS and ON/OFF).
 // Every colour comes from the radio's own radio_config.txt (RadioSettings, radio_settings.h) -- nothing is read from
@@ -112,7 +112,7 @@ struct BrowseModel {
     mutable double marquee_since = 0.0;
 };
 
-// ---- STATION LISTS menu (Shift+P) ---------------------------------------------------------------------
+// ---- STATION LISTS menu (Shift+K) ---------------------------------------------------------------------
 // Laid out like the player's playlist editor, two tabs (Left/Right -- see `typing` below -- or ALT+Left/Right):
 //   1: CREATE / EDIT      name field | SEARCH ALL STATIONS | STATIONS (library) beside LIST CONTENTS (what is being built)
 //   2: SAVED STATION LISTS  SEARCH STATION LISTS | STATION LISTS (ENTER loads the hovered one into tab 1)
@@ -260,7 +260,7 @@ struct UiModel {
     mutable int pmarquee_row = -1;       // the tuned preset entry whose name scrolls in the PRESETS pane (-1 = none)
     mutable double pmarquee_since = 0.0;
     // Small overlay over the main screen: 1 = oscilloscope tuning (SHIFT+o), 2 = loudness normalisation (SHIFT+v).
-    int overlay = 0;                // 3 = sleep timer (SHIFT+z), 4 = equaliser (SHIFT+e), 5 = record (y), 6 = spectrogram (SHIFT+i)
+    int overlay = 0;                // 3 = sleep timer (SHIFT+z), 4 = equaliser (SHIFT+e), 5 = record (y), 6 = spectrogram (SHIFT+i), 7 = the MENUS index (<)
     // Spectrogram: full screen (SHIFT+u); where this frame put its picture (row, col, cols, rows; row -1 = none), the
     // cell rectangle an overlay covers, and whether one was drawn at all (else the feed is switched off).
     bool spectro_full = false;
@@ -334,6 +334,14 @@ std::vector<std::string> render_radio_frame(const UiModel& m, const RadioStatus&
 // the radio's main commands, in the radio's colours. `zones`: where a tap sends which command.
 std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus& st, const RadioSettings& cfg, int W, int H,
                                             std::vector<muisc::remote::net::Zone>& zones);
+
+// The MENUS index overlay (key "<", UiModel::overlay == 7): every menu and overlay by category with its key.
+// `id` is the key action of the radio's REFERENCE table (kKeyActions), so a rebinding is followed.
+struct MenusEntry { const char* cat; const char* title; const char* id; };
+extern const MenusEntry kMenusEntries[];
+extern const int kMenusCount;
+// The entry to select after UP / DOWN / LEFT / RIGHT (dir 0 / 1 / 2 / 3) from entry `sel`.
+int menus_move(int sel, int dir);
 
 // Name of the active preset ("Default" when none is loaded).
 std::string active_preset_name(const UiModel& m);

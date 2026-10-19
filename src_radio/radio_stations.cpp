@@ -342,7 +342,7 @@ bool save_station_lists(const std::vector<Station>& stations, const std::vector<
     if (p.has_parent_path()) fs::create_directories(p.parent_path(), ec);
     std::ofstream o(p, std::ios::trunc);
     if (!o) return false;
-    o << "# Mousiki radio station lists -- written by the STATION LISTS menu (Shift+P). [list name] followed by: url | station name\n";
+    o << "# Mousiki radio station lists -- written by the STATION LISTS menu (Shift+K). [list name] followed by: url | station name\n";
     for (const auto& l : lists) {
         o << "\n[" << l.name << "]\n";
         for (int idx : l.items) {

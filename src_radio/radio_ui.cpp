@@ -28,6 +28,27 @@ constexpr const char* kReset = "\x1b[0m";
 
 struct Seg { std::string ansi; std::string text; };
 
+// A one-line key legend as segments: the keys in [square brackets] in `key` (the LEGEND colour, KEY-CMD), everything else in `cmd`
+// (the COMMAND colour).
+std::vector<Seg> legend_segs(const std::string& key, const std::string& cmd, const std::string& text) {
+    std::vector<Seg> out;
+    size_t i = 0;
+    while (i < text.size()) {
+        if (text[i] == '[') {
+            const size_t e = text.find(']', i);
+            const size_t stop = e == std::string::npos ? text.size() : e + 1;
+            out.push_back({key, text.substr(i, stop - i)});
+            i = stop;
+        } else {
+            size_t e = text.find('[', i);
+            if (e == std::string::npos) e = text.size();
+            out.push_back({cmd, text.substr(i, e - i)});
+            i = e;
+        }
+    }
+    return out;
+}
+
 // Colours + pads/truncates to exactly `width` visible columns. display_width()
 // is only ever called on plain text; the ANSI lives in Seg::ansi.
 std::string seg_line(const std::vector<Seg>& segs, int width) {
@@ -58,12 +79,13 @@ std::string repeat(const std::string& s, int n) {
 // legend = key command hints, error lines and cheatsheet titles (see radio_settings.h).
 struct Style {
     const RadioSettings& c;
-    std::string border, border_bottom, legend, header, focus, key, val, list, list_playing, list_cursor,
+    std::string border, border_bottom, legend, legend_cmd, header, focus, key, val, list, list_playing, list_cursor,
                 preset_inactive, preset_key, vol_current, vol_possible, freq_line, freq_mhz, search, search_idle;
     explicit Style(const RadioSettings& cfg) : c(cfg) {
         border = ansi_fg(c.border_top);
         border_bottom = ansi_fg(c.border_bottom);
         legend = ansi_fg(c.legend);
+        legend_cmd = ansi_fg(c.legend_cmd);
         header = ansi_fg(c.header);
         focus = ansi_fg(c.focus);
         key = c.meta_key.empty() ? ansi_fg(c.list_fg) : ansi_fg(c.meta_key);
@@ -865,7 +887,7 @@ std::vector<std::string> build_search(const Style& s, const UiModel& m, const Ra
     const std::string row = field_row(base, m.search_lists ? "/p: " : "/s: ", m.search, m.search_edit, m.search_focus, inner, hint, s.legend, false, s.search);
     std::vector<std::string> out(3);
     const std::string btn_top = box_top(s, 7, "", s.border);
-    std::string title = m.search_lists ? "SEARCH STATION LISTS" : "SEARCH STATIONS";
+    std::string title = m.search_lists ? "SEARCH LISTS OF STATIONS" : "SEARCH STATIONS";
     if (m.sleep_running > 0) {
         const long long t = std::max(0LL, static_cast<long long>(m.sleep_left));
         char b[40];
@@ -931,7 +953,7 @@ std::vector<std::string> build_lists(const Style& s, const UiModel& m, const Rad
         if (m.search_lists) {   // "p:" -- the STATIONS pane lists the saved station lists instead
             const int li = lfirst + r;
             if (li >= lvis_n) {
-                left.push_back(box_line(s, seg_line({{s.header, lvis_n == 0 && r == 0 ? (m.lists.empty() ? "no station lists yet - SHIFT+p creates one" : "no station list matches") : ""}}, inner), s.border));
+                left.push_back(box_line(s, seg_line({{s.header, lvis_n == 0 && r == 0 ? (m.lists.empty() ? "no station lists yet - SHIFT+k creates one" : "no station list matches") : ""}}, inner), s.border));
                 continue;
             }
             const StationList& l = m.lists[static_cast<size_t>(m.lvisible[static_cast<size_t>(li)])];
@@ -1129,6 +1151,17 @@ std::vector<std::string> build_name_overlay(const Style& s, const NameOverlay& n
     return lines;
 }
 
+// The key legends of the menus are small tree tables (see layout_legend_tree()): one row per group of keys, narrower terminals
+// get the short labels. The rows come out exactly W columns wide, like every other row of a screen.
+static void push_legend(std::vector<std::string>& out, const Style& s, const std::vector<LegendGroup>& groups, int W, int max_rows = 0) {
+    const auto rows = layout_legend_tree(groups, W - 1, max_rows);
+    for (size_t i = 0; i < rows.size(); ++i) {
+        // the tree lines and the bar are border-coloured (the smooth border gradient recolours them row by row); the label keeps the header
+        // colour, the keys use LEGEND (KEY-CMD), the descriptions COMMAND
+        out.push_back(" " + paint_legend_row(rows[i], s.border, "\x1b[1m" + s.header, s.legend, W - 1, s.legend_cmd));
+    }
+}
+
 std::vector<std::string> build_menu(const Style& s, const UiModel& m, const RadioStatus& st, int W, int rows) {
     const MenuModel& mn = m.menu;
     const std::vector<Station> none;
@@ -1237,9 +1270,11 @@ std::vector<std::string> build_menu(const Style& s, const UiModel& m, const Radi
     for (size_t i = 0; i < left.size(); ++i) out.push_back(left[i] + right[i]);
 
     // --- hints (same style as the playlist menu), status line, filler ---------------------------
-    out.push_back(seg_line({{s.legend, "[TAB] Switch pane | [\u2191\u2193\u2190\u2192] Navi. | [ENTER] Tune / Open Preset | [/] Search | [p:] Search presets | [ESC] Clear / Exit"}}, W));
-    out.push_back(seg_line({{s.legend, std::string("In STATIONS: Set preset via [") + kPresetKeys + "] | [DEL] Clear preset | same key again clears it"}}, W));
-    out.push_back(seg_line({{s.legend, "In SELECT PRESET: [SHIFT+n] New | [SHIFT+c] Rename | [SHIFT+d] Delete | Outside SEARCH: [SHIFT+\u2190/\u2192] Prev. / next preset"}}, W));
+    push_legend(out, s, {
+        {"Move", {"[TAB] Pane", "[\u2191\u2193\u2190\u2192] Navi.", "[ENTER] Tune / Open Preset\001Tune/Open", "[/] Search", "[p:] Search presets\001Presets", "[ESC] Clear / Exit\001Exit"}},
+        {"Stations", {std::string("[") + kPresetKeys + "] Set preset (same key again clears it)\001Set preset", "[DEL] Clear preset\001Clear"}},
+        {"Create/Edit", {"[SHIFT+n] New Preset\001New", "[SHIFT+c] Rename", "[SHIFT+d] Delete"}},
+    }, W, 3);
     out.push_back(seg_line({{s.header, mn.flash}}, W));
     while (static_cast<int>(out.size()) < rows) out.push_back(spaces(W));
     out.resize(static_cast<size_t>(rows));
@@ -1257,7 +1292,7 @@ std::vector<std::string> build_menu(const Style& s, const UiModel& m, const Radi
 }
 
 // ===========================================================================================
-// STATION LISTS menu (Shift+P) -- laid out like the player's playlist editor.
+// STATION LISTS menu (Shift+K) -- laid out like the player's playlist editor.
 //   tab 1  CREATE / EDIT:        STATION LISTS (tab strip + name) / SEARCH ALL STATIONS /
 //                                STATIONS (library) | LIST CONTENTS (the list being built)
 //   tab 2  SAVED STATION LISTS:  STATION LISTS (tab strip) / SEARCH STATION LISTS / STATION LISTS
@@ -1397,7 +1432,7 @@ std::vector<std::string> build_lists_menu(const Style& s, const UiModel& m, cons
     out.push_back(box_bottom(s, W, "", s.border_bottom));
     const int top_rows = static_cast<int>(out.size());
 
-    const int hint_rows = 3;                                  // two legend lines (or the prompt) + the status line
+    const int hint_rows = 3;                                  // two legend rows (or the prompt) + the status line
     if (lm.tab == 0) {
         // --- SEARCH ALL STATIONS ------------------------------------------------------------
         const int vis_n = static_cast<int>(lm.visible.size());
@@ -1431,7 +1466,7 @@ std::vector<std::string> build_lists_menu(const Style& s, const UiModel& m, cons
         const int vn = static_cast<int>(lm.mvisible.size());
         const bool sf = lm.mfocus == ListManageFocus::Search;
         const std::string counter = std::to_string(vn) + " / " + std::to_string(total);
-        out.push_back(box_top(s, W, pane_title(s, "SEARCH STATION LISTS", sf), s.border));
+        out.push_back(box_top(s, W, pane_title(s, "SEARCH LISTS OF STATIONS", sf), s.border));
         out.push_back(box_line(s, field_row(s.search_idle, "Search: ", lm.msearch, lm.msearch_edit, sf, inner, counter, s.header, true, s.search), s.border));
         out.push_back(box_bottom(s, W, "", s.border_bottom));
 
@@ -1487,10 +1522,11 @@ std::vector<std::string> build_lists_menu(const Style& s, const UiModel& m, cons
         const bool box = lm.tab == 0 ? (lm.focus == ListFocus::Name || lm.focus == ListFocus::Search)
                                      : lm.mfocus == ListManageFocus::Search;
         const bool in_text = box && lm.typing;
-        out.push_back(seg_line({{s.legend, std::string(in_text ? "[←→] Cursor" : "[←→] Switch Tab")
-                                           + " | [TAB] Focus | [↑↓] Navi. | [ENTER] Add/Load | [DEL] Remove | [4/5] Move ↑↓ | [CTRL+s] Save"}}, W));
-        out.push_back(seg_line({{s.legend, std::string("[SHIFT+t] Sort | [SHIFT+←→] Mark | [Ctrl+C/X/V] Copy/Cut/Paste | [/] Search | [?] Cheatsheet | ")
-                                           + (in_text ? "[ESC] Leave field" : "[ESC] Clear / Exit")}}, W));
+        push_legend(out, s, {
+            {"Move", {in_text ? "[\u2190\u2192] Cursor" : "[\u2190\u2192] Switch Tab\001Tab", "[TAB] Focus", "[\u2191\u2193] Navi.", "[ENTER] Add/Load\001Load", "[/] Search",
+                      in_text ? "[ESC] Leave field" : "[ESC] Clear / Exit\001Exit"}},
+            {"Stations", {"[DEL] Remove", "[4/5] Move \u2191\u2193", "[SHIFT+t] Sort", "[CTRL+s] Save"}},
+        }, W, 2);
     }
     out.push_back(seg_line({{s.header, lm.flash}}, W));
     while (static_cast<int>(out.size()) < rows) out.push_back(spaces(W));
@@ -1646,7 +1682,7 @@ std::vector<std::string> build_browse(const Style& s, const UiModel& m, const Ra
     for (size_t i = 0; i < left.size(); ++i) out.push_back(left[i] + right[i]);
 
     // --- hints (same style as the PRESETS menu), status line, filler -------------------------------
-    out.push_back(seg_line({{s.legend, "[TAB] Next pane | [ENTER] Search / Tune | [\u2191\u2193] Navi. | [/] Back to NAME | [ESC] Clear / Close | RESULTS: [a] Add to list"}}, W));
+    out.push_back(seg_line(legend_segs(s.legend, s.legend_cmd, "[TAB] Next pane | [ENTER] Search / Tune | [\u2191\u2193] Navi. | [/] Back to NAME | [ESC] Clear / Close | RESULTS: [a] Add to list"), W));
     std::string status = bm.flash;
     if (status.empty()) {
         if (bm.state == BrowseState::Searching) status = "searching ...";
@@ -1735,6 +1771,7 @@ const CheatRow kCheatRows[] = {
     // --- System ---
     {"SYSTEM (MAIN UI)", "@SWITCHKEY", "Switch to the MUSIC PLAYER (types the * character; the radio is closed completely first)"},
     {nullptr, "?", "This cheatsheet (toggle)"},
+    {nullptr, "<", "The MENUS index: every menu and overlay by category with its key (UP/DOWN/LEFT/RIGHT select, ENTER opens, ESC closes). SHIFT+, on an English keyboard"},
     {nullptr, "q / CTRL+C", "Quit (CTRL+C copies instead while you type in a text field)"},
     {nullptr, "ESC", "Close cheatsheet / overlay / menu; clear and leave the search box"},
     {nullptr, "ENTER", "Confirm / select (tunes the hovered station; on a station list or preset it opens it and tunes in)"},
@@ -1769,7 +1806,7 @@ const CheatRow kCheatRows[] = {
     {nullptr, "s", "Open the RADIO SETTINGS (colours, modes and switches, animation and visualizer, paths, keys, about; saved to radio_config.txt)"},
     {nullptr, "SHIFT+r", "Reconnect the tuned station"},
     {nullptr, "SHIFT+s", "Open the RADIO BROWSER menu: search stations worldwide (radio-browser.info)"},
-    {nullptr, "SHIFT+p", "Open the STATION LISTS menu: build, save and load named station lists"},
+    {nullptr, "SHIFT+k", "Open the STATION LISTS menu: build, save and load named station lists"},
     {nullptr, "+ / -", "Volume up / down (5 % steps)"},
     // --- Timeshift ---
     {"TIMESHIFT (MAIN UI, RADIO BUFFER 5-60 MIN)", "SPACE", "Pause / resume the station (the stream keeps buffering, you catch up later)"},
@@ -1783,7 +1820,7 @@ const CheatRow kCheatRows[] = {
     {"PRESETS (MAIN UI)", "1 2 3 4 5 6 7 8 9 0", "Tune slot 1-10 of the active preset"},
     {nullptr, "E R T D F G", "Tune slot 11-16 of the active preset (lowercase)"},
     {nullptr, "SHIFT+LEFT/RIGHT", "Previous / next preset (wraps; saved right away)"},
-    {nullptr, "SHIFT+k", "Open the PRESETS menu"},
+    {nullptr, "SHIFT+p", "Open the PRESETS menu"},
     // --- Search ---
     {"SEARCH (MAIN UI)", "/", "Search stations (matches name, genre and country)"},
     {nullptr, "TYPE", "Filter the list while you type; BACKSPACE deletes"},
@@ -1809,7 +1846,7 @@ const CheatRow kCheatRows[] = {
     {nullptr, "ESC", "Clear the search / close the menu"},
     {nullptr, "?", "This cheatsheet (not while typing in the search box)"},
     {nullptr, "CTRL+C", "Quit (in the search box it copies instead)"},
-    {"STATION LISTS MENU (SHIFT+p)", "LEFT/RIGHT", "Switch tab: CREATE / EDIT <-> SAVED STATION LISTS; in a name / search box after typing: move the caret"},
+    {"STATION LISTS MENU (SHIFT+k)", "LEFT/RIGHT", "Switch tab: CREATE / EDIT <-> SAVED STATION LISTS; in a name / search box after typing: move the caret"},
     {nullptr, MUISC_ALT_NAME_UC "+LEFT/RIGHT", "Switch tab from every pane, also while typing"},
     {nullptr, "TAB", "Cycle focus. Tab 1: name, search, STATIONS, LIST CONTENTS. Tab 2: search, list"},
     {nullptr, "ENTER", "Name: on to the search / search, STATIONS: add hovered station / LIST CONTENTS: tune it"},
@@ -1977,7 +2014,7 @@ std::vector<std::string> build_stations_overlay(const Style& s, const UiModel& m
     const std::vector<Station> none;
     const auto& stations = m.stations ? *m.stations : none;
     std::vector<std::string> out = build_search(s, m, st, W);                 // the same search box as the main screen
-    const int hint_rows = 3;                                                  // two legend lines + the status line
+    const int hint_rows = 4;                                                  // three legend rows + the status line
     const int body = std::max(3, rows - static_cast<int>(out.size()) - 2 - hint_rows);   // rows between the pane's borders
     const int inner = W - 4;
     const std::string sep = s.c.list_separator;
@@ -2002,7 +2039,7 @@ std::vector<std::string> build_stations_overlay(const Style& s, const UiModel& m
         for (int r = 0; r < body; ++r) {
             const int li = first + r;
             if (li >= total) {
-                out.push_back(box_line(s, seg_line({{s.header, total == 0 && r == 0 ? (m.lists.empty() ? "no station lists yet - SHIFT+p creates one" : "no station list matches") : ""}}, inner), s.border));
+                out.push_back(box_line(s, seg_line({{s.header, total == 0 && r == 0 ? (m.lists.empty() ? "no station lists yet - SHIFT+k creates one" : "no station list matches") : ""}}, inner), s.border));
                 continue;
             }
             const StationList& l = m.lists[static_cast<size_t>(m.lvisible[static_cast<size_t>(li)])];
@@ -2043,8 +2080,11 @@ std::vector<std::string> build_stations_overlay(const Style& s, const UiModel& m
         const int hidden = std::max(0, total - (first + rowsn));
         out.push_back(box_bottom(s, W, hidden > 0 ? "( " + std::to_string(hidden) + " more )" : "", s.border_bottom));
     }
-    out.push_back(seg_line({{s.legend, "[↑↓] Navi. | [ENTER] Tune / open list | [/] Search | [p:] Station lists | [a] Add by URL | [SHIFT+c] Preset name"}}, W));
-    out.push_back(seg_line({{s.legend, "[SHIFT+t] Sort | [n/b/#] Next / back / random | [p] Mute | [x] Stop | [+/-] Volume | [ESC] Clear / Back | [L] Close"}}, W));
+    push_legend(out, s, {
+        {"Move", {"[\u2191\u2193] Navi.", "[ENTER] Tune/Open", "[/] Search", "[p:] Lists", "[a] Add URL", "[SHIFT+c] Change name\001Name", "[ESC] Clear / Exit\001Exit"}},
+        {"Playback", {"[n/b/#] Next / back / random\001Next/Back", "[p] Mute", "[x] Stop", "[+/-] Volume"}},
+        {"View", {"[SHIFT+t] Sort", "[L] Close"}},
+    }, W, 3);
     out.push_back(seg_line({{s.header, utf8_take(so.flash, W)}}, W));
     while (static_cast<int>(out.size()) < rows) out.push_back(spaces(W));
     out.resize(static_cast<size_t>(rows));
@@ -2214,7 +2254,7 @@ std::vector<std::string> build_history_menu(const Style& s, const UiModel& m, in
     if (hm.tab == 0) hint = "[←→/TAB] Tab | [1/2/3] Tab | [↑↓] Move | [HOME/END] Ends | [y] Find on YouTube + download | [ESC] Exit";
     else if (hm.tab == 1) hint = "[←→/TAB] Tab | [1/2/3] Tab | [↑↓] Move | [r] Flip sort | [ESC] Exit";
     else hint = "[←→/TAB] Tab | [1/2/3] Tab | [↑↓] Scroll | [ESC] Exit";
-    out.push_back(seg_line({{s.legend, hint}}, W));
+    out.push_back(seg_line(legend_segs(s.legend, s.legend_cmd, hint), W));
     out.push_back(seg_line({{"\x1b[32m", utf8_take(hm.flash, W)}}, W));
     while (static_cast<int>(out.size()) < rows) out.push_back(spaces(W));
     out.resize(static_cast<size_t>(rows));
@@ -2335,8 +2375,8 @@ std::vector<std::string> build_theme_picker(const RadioSettings& c, const Settin
     if (sm.leave_prompt == 4 && sm.theme_sel >= 0 && sm.theme_sel < n)
         out.push_back(seg_line({{"\x1b[1;7m", " Do you want to delete theme \"" + truncate_str(sm.theme_list[static_cast<size_t>(sm.theme_sel)].name, themes::kMaxNameLen) + "\"? [y] Yes, delete | [n / ESC] No, keep it"}}, W));
     else
-    out.push_back(seg_line({{legend, sm.theme_ui == 1 ? "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Apply | [SHIFT+d] Delete your own theme | [ESC] Back"
-                                                      : "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Use as template | [ESC] Back"}}, W));
+    out.push_back(seg_line(legend_segs(legend, ansi_fg(c.legend_cmd), std::string(sm.theme_ui == 1 ? "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Apply | [SHIFT+d] Delete your own theme | [ESC] Back"
+                                                      : "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Use as template | [ESC] Back")), W));
     out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status, W)}}, W));
     return out;
 }
@@ -2395,9 +2435,9 @@ std::vector<std::string> build_theme_io(const RadioSettings& c, const SettingsMo
     }
     while (static_cast<int>(out.size()) < H - 3) row_of({});
     out.push_back(bar(H - 3) + "└" + repeat("─", std::max(0, W - 2)) + "┘" + kReset);
-    out.push_back(seg_line({{legend, sm.editing ? "[ENTER] Apply | [ESC] Cancel | [←→] Cursor | [Ctrl+C/X/V] Copy/Cut/Paste"
+    out.push_back(seg_line(legend_segs(legend, ansi_fg(c.legend_cmd), std::string(sm.editing ? "[ENTER] Apply | [ESC] Cancel | [←→] Cursor | [Ctrl+C/X/V] Copy/Cut/Paste"
                                    : exp ? "[↑↓] Field | [ENTER] Edit | [s] Export | [ESC] Cancel"
-                                         : "[↑↓] Select | [ENTER] Import the file (or edit the folder) | [a] Import all | [ESC] Cancel"}}, W));
+                                         : "[↑↓] Select | [ENTER] Import the file (or edit the folder) | [a] Import all | [ESC] Cancel")), W));
     out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status, W)}}, W));
     return out;
 }
@@ -2651,7 +2691,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
             if (is(&RadioSettings::preset_inactive_fg)) return {{styled(v1, v2, false), "5 -"}};
             if (is(&RadioSettings::preset_key_fg)) return {{ansi_fg(v1), "1"}, {ansi_fg(c.list_fg) + ansi_bg(c.list_bg), " Station name"}};
             if (is(&RadioSettings::header)) return {{ansi_fg(v1), "tuning ...  buffering 40%"}};
-            if (is(&RadioSettings::legend)) return {{ansi_fg(v1), "[TAB] Switch pane | [ENTER] Tune"}};
+            if (is(&RadioSettings::legend)) return {{ansi_fg(v1), "[TAB]"}, {ansi_fg(v2), " Pane  "}, {ansi_fg(v1), "[ENTER]"}, {ansi_fg(v2), " Tune"}};
             if (is(&RadioSettings::tab_current)) return {{ansi_fg(v1), "[COLORS]"}, {"", "  "}, {ansi_fg(v2), "ON/OFF  ANIMA/VIZ"}};
             if (is(&RadioSettings::focus)) return {{ansi_fg(c.list_fg), "STATIONS "}, {ansi_fg(v1), "\u25C0"}};
             return {};
@@ -2718,7 +2758,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
         hint = " Do you want to overwrite theme \"" + truncate_str(themes::sanitize_name(sm.theme_name), themes::kMaxNameLen) + "\"? [y] Yes, overwrite | [n / ESC] No, keep editing";
     else if (sm.leave_prompt == 2) hint = " Unsaved theme! [s] Save it | [d] Discard it | [ESC] Keep editing";
     else if (sm.leave_prompt == 1) hint = " Unsaved changes! [s] Save and leave | [d] Discard and leave | [ESC] Keep editing";
-    out.push_back(seg_line({{sm.leave_prompt ? std::string("\x1b[1;7m") : legend, hint}}, W));
+    out.push_back(seg_line(sm.leave_prompt ? std::vector<Seg>{{"\x1b[1;7m", hint}} : legend_segs(legend, ansi_fg(c.legend_cmd), hint), W));
     out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status.empty() && sm.dirty ? std::string("Unsaved changes! Save with `s` or discard with `ESC`.") : sm.status, W)}}, W));
     return out;
 }
@@ -2766,6 +2806,7 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
 constexpr int kOsciOverlayW = 50;
 constexpr int kNormOverlayW = 54;
 constexpr int kSleepOverlayW = 52;
+constexpr int kMenusOverlayW = 100;
 constexpr int kRecordOverlayW = 56;
 constexpr int kEqOverlayW = 58;
 constexpr int kSpectroOverlayW = 52;
@@ -2777,6 +2818,111 @@ std::string fmt_loudness(double v) {
     return buf;
 }
 
+} // namespace (reopened below)
+
+const MenusEntry kMenusEntries[] = {
+    {"STATIONS & PRESETS", "Presets menu",             "Presets"},
+    {"STATIONS & PRESETS", "Station lists",            "Lists"},
+    {"STATIONS & PRESETS", "Radio browser",            "Browser"},
+    {"STATIONS & PRESETS", "Big stations overlay",     "Stations"},
+    {"STATIONS & PRESETS", "Listening history",        "History"},
+    {"SOUND",              "Equalizer",                "EqMenu"},
+    {"SOUND",              "Normalization",            "NormMenu"},
+    {"SOUND",              "Sleep timer",              "SleepTimer"},
+    {"SOUND",              "Record",                   "Record"},
+    {"VISUALS",            "Oscilloscope options",     "OsciMenu"},
+    {"VISUALS",            "Oscilloscope full screen", "ScopeBig"},
+    {"VISUALS",            "Spectrogram options",      "SpectroMenu"},
+    {"VISUALS",            "Spectrogram full screen",  "SpectroFull"},
+    {"VISUALS",            "Scope window",             "ScopeWindow"},
+    {"VISUALS",            "Spectrogram window",       "SpectroWindow"},
+    {"SYSTEM",             "Settings",                 "Settings"},
+    {"SYSTEM",             "Help wizard",              "Wizard"},
+    {"SYSTEM",             "Cheat sheet",              "Cheatsheet"},
+};
+const int kMenusCount = static_cast<int>(sizeof(kMenusEntries) / sizeof(kMenusEntries[0]));
+
+namespace {
+struct MenusCell { int entry = -1; const char* header = nullptr; };
+
+// Two columns of cells (an entry, a header or a blank line), split at the category boundary that balances them.
+std::vector<std::vector<MenusCell>> menus_layout() {
+    std::vector<std::vector<MenusCell>> cats;
+    for (int i = 0; i < kMenusCount; ++i) {
+        if (i == 0 || std::string(kMenusEntries[i].cat) != kMenusEntries[i - 1].cat) cats.push_back({MenusCell{-1, kMenusEntries[i].cat}});
+        cats.back().push_back(MenusCell{i, nullptr});
+    }
+    int total = 0;
+    for (const auto& c : cats) total += static_cast<int>(c.size()) + 1;
+    int best = 1, best_diff = 1 << 20, acc = 0;
+    for (size_t k = 0; k + 1 < cats.size(); ++k) {
+        acc += static_cast<int>(cats[k].size()) + 1;
+        const int diff = std::abs(acc - (total - acc));
+        if (diff < best_diff) { best_diff = diff; best = static_cast<int>(k) + 1; }
+    }
+    std::vector<std::vector<MenusCell>> cols(2);
+    for (size_t k = 0; k < cats.size(); ++k) {
+        auto& col = cols[static_cast<int>(k) < best ? 0 : 1];
+        if (!col.empty()) col.push_back(MenusCell{});
+        col.insert(col.end(), cats[k].begin(), cats[k].end());
+    }
+    return cols;
+}
+
+// The bound key of an action as it reads on the keyboard: SHIFT+x for a capital, the symbol keys by layout.
+std::string menus_key_label(const RadioSettings& c, const char* id) {
+    const int code = key_of(c, id);
+    if (code >= 'A' && code <= 'Z') return std::string("SHIFT+") + static_cast<char>(code + 32);
+    if (code == ' ') return "SPACE";
+    if (code <= 0) return "-";
+    return muisc::symbol_key_label(std::string(1, static_cast<char>(code)));
+}
+} // namespace
+
+int menus_move(int sel, int dir) {
+    const auto cols = menus_layout();
+    sel = std::clamp(sel, 0, kMenusCount - 1);
+    if (dir == 0) return (sel + kMenusCount - 1) % kMenusCount;
+    if (dir == 1) return (sel + 1) % kMenusCount;
+    int col = 0; size_t row = 0;
+    for (int c = 0; c < 2; ++c)
+        for (size_t r = 0; r < cols[c].size(); ++r) if (cols[c][r].entry == sel) { col = c; row = r; }
+    const int oc = col == 0 ? 1 : 0;
+    auto at = [&](size_t r) { return r < cols[oc].size() ? cols[oc][r].entry : -1; };
+    for (size_t d = 0; d < std::max(cols[0].size(), cols[1].size()); ++d) {
+        if (row >= d && at(row - d) >= 0) return at(row - d);
+        if (at(row + d) >= 0) return at(row + d);
+    }
+    return sel;
+}
+
+namespace {
+
+// A bottom border with its text centred in it (the dashes are split evenly on both sides).
+std::string box_bottom_centred(const Style& s, int w, const std::string& text, const std::string& ansi) {
+    const std::string t = truncate_str(text, w - 8);
+    const int dashes = std::max(0, w - 2 - display_width(t) - 2);
+    const int left = dashes / 2, right = dashes - left;
+    return ansi + s.c.box_lower_left + repeat(s.c.box_horizontal, left) + " " + t + " " + ansi + repeat(s.c.box_horizontal, right) + s.c.box_lower_right + kReset;
+}
+
+// The legend of a floating option panel: all rows in the bottom border colour; with several rows the middle one sits ON the bottom
+// border line (rows/2 rows inside the panel, the rest hanging below it) so the block is centred on the border.
+void push_legend_block(const Style& s, std::vector<std::string>& lines, int W, const std::vector<std::string>& rows) {
+    const int inner = W - 4;
+    const size_t before = rows.size() / 2;
+    auto centred = [&](const std::string& plain) {
+        const std::string t = truncate_str(plain, inner);
+        const int left = std::max(0, (inner - display_width(t)) / 2);
+        return spaces(left) + t + spaces(std::max(0, inner - display_width(t) - left));
+    };
+    for (size_t i = 0; i < before; ++i)
+        lines.push_back(box_line(s, s.border_bottom + centred(rows[i]) + kReset, s.border));
+    lines.push_back(box_bottom_centred(s, W, rows[before], s.border_bottom));
+    for (size_t i = before + 1; i < rows.size(); ++i)
+        lines.push_back(" " + s.border_bottom + " " + centred(rows[i]) + " " + kReset + " ");
+}
+
 std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const RadioStatus& st) {
     const RadioSettings& c = s.c;
     const bool osci = m.overlay == 1;
@@ -2784,13 +2930,39 @@ std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const R
     const bool eqo = m.overlay == 4;
     const bool rec = m.overlay == 5;
     const bool spo = m.overlay == 6;
-    const int W = spo ? kSpectroOverlayW : rec ? kRecordOverlayW : eqo ? kEqOverlayW : sleep ? kSleepOverlayW : osci ? kOsciOverlayW : kNormOverlayW;
+    const bool menus = m.overlay == 7;
+    const int W = menus ? kMenusOverlayW : spo ? kSpectroOverlayW : rec ? kRecordOverlayW : eqo ? kEqOverlayW : sleep ? kSleepOverlayW : osci ? kOsciOverlayW : kNormOverlayW;
     const int inner = W - 4;
     auto row = [&](const std::string& plain, bool hi, const std::string& ansi = "") {
         const std::string body = pad_right(truncate_str(plain, inner), inner);
         return box_line(s, (hi ? "\x1b[7m" : ansi) + body + kReset, s.border);
     };
     std::vector<std::string> lines;
+    if (menus) {
+        // The MENUS index (<): two columns of categories, each entry with its key; ENTER opens it
+        const int cw = (inner - 3) / 2, cw2 = inner - 3 - cw;
+        const auto cols = menus_layout();
+        const size_t nrows = std::max(cols[0].size(), cols[1].size());
+        const int sel = std::clamp(m.overlay_row, 0, kMenusCount - 1);
+        auto cell = [&](const std::vector<MenusCell>& col, size_t r, int cw) {
+            if (r >= col.size() || (col[r].entry < 0 && !col[r].header)) return spaces(cw);
+            const MenusCell& cl = col[r];
+            if (cl.header) return "\x1b[1m" + s.header + pad_right(cl.header, cw) + kReset;
+            const MenusEntry& e = kMenusEntries[cl.entry];
+            const std::string key = "[" + menus_key_label(c, e.id) + "]";
+            const std::string left = std::string(cl.entry == sel ? "> " : "  ") + e.title;
+            const int gap = std::max(1, cw - display_width(left) - display_width(key));
+            if (cl.entry == sel) return "\x1b[7m" + pad_right(truncate_str(left + spaces(gap) + key, cw), cw) + kReset;
+            return pad_right(left, cw - display_width(key)) + s.legend + key + kReset;
+        };
+        lines.push_back(box_top(s, W, "MENUS & OVERLAYS", s.border));
+        lines.push_back(box_line(s, spaces(inner + 2), s.border));
+        for (size_t r = 0; r < nrows; ++r)
+            lines.push_back(box_line(s, cell(cols[0], r, cw) + " " + s.border + "\u2502" + kReset + " " + cell(cols[1], r, cw2), s.border));
+        lines.push_back(box_line(s, spaces(inner + 2), s.border));
+        lines.push_back(box_bottom(s, W, "[\u2191\u2193\u2190\u2192] Select  [ENTER] Open  [ESC / " + menus_key_label(c, "Menus") + "] Close", s.border_bottom));
+        return lines;
+    }
     if (spo) {
         // Spectrogram options (SHIFT+i): the same rows as the player's overlay
         lines.push_back(box_top(s, W, "Spectrogram", s.border));
@@ -2801,9 +2973,7 @@ std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const R
             lines.push_back(row(std::string(on ? "> " : "  ") + pad_right(spectro_row_label(r), 22) + pad_left(val, inner - 24), on));
         }
         lines.push_back(row("", false));
-        lines.push_back(row("[UP/DOWN] select  [LEFT/RIGHT] change", false));
-        lines.push_back(row("[R] Audacity defaults  [SHIFT+u] full screen", false));
-        lines.push_back(box_bottom(s, W, "[SHIFT+i / ESC] close", s.border_bottom));
+        push_legend_block(s, lines, W, {"[UP/DOWN] select  [LEFT/RIGHT] change", "[R] Audacity defaults  [SHIFT+u] full screen", "[SHIFT+i / ESC] close"});
         return lines;
     }
     if (rec) {
@@ -2842,12 +3012,6 @@ std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const R
         auto centre = [&](const std::string& t) {
             const int w = display_width(t);
             return pad_right(std::string(static_cast<size_t>(std::max(0, (kCell - w) / 2)), ' ') + t, kCell);
-        };
-        auto legend_row = [&](const std::string& plain) {
-            const std::string t = truncate_str(plain, inner);
-            const int tw = display_width(t);
-            const int left = std::max(0, (inner - tw) / 2);
-            return box_line(s, s.border_bottom + std::string(static_cast<size_t>(left), ' ') + t + std::string(static_cast<size_t>(std::max(0, inner - tw - left)), ' ') + R, s.border);
         };
         const EqGains& g = c.eq_gains;
         const bool on = c.eq_enabled;
@@ -2891,14 +3055,10 @@ std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const R
             const std::string prefix = "Save as: ";
             const EditPaint p = paint_edit_field(u.name, u.name_edit, std::max(1, inner - display_width(prefix) - 1), "", true);
             lines.push_back(framed(prefix + p.s + std::string(static_cast<size_t>(std::max(0, inner - display_width(prefix) - p.cols)), ' ')));
-            lines.push_back(legend_row("Type a name (max " + std::to_string(kEqNameMaxBytes) + " characters)"));
-            lines.push_back(legend_row("An existing custom name is replaced"));
-            lines.push_back(box_bottom(s, W, "[ENTER] save  [ESC] cancel", s.border_bottom));
+            push_legend_block(s, lines, W, {"Type a name (max " + std::to_string(kEqNameMaxBytes) + " characters)", "An existing custom name is replaced", "[ENTER] save  [ESC] cancel"});
         } else {
             lines.push_back(row(u.status, false));
-            lines.push_back(legend_row("[</>] band  [UP/DOWN] gain  [,/.] preset  [0] zero"));
-            lines.push_back(legend_row("[S] save preset  [DEL/X] delete preset"));
-            lines.push_back(box_bottom(s, W, "[SPACE] on/off  [R] flat  [SHIFT+e / ESC] close", s.border_bottom));
+            push_legend_block(s, lines, W, {"[</>] band  [UP/DOWN] gain  [,/.] preset  [0] zero", "[S] save preset  [DEL/X] delete preset", "[SPACE] on/off  [R] flat  [SHIFT+e / ESC] close"});
         }
     } else if (sleep) {
         auto clock = [](double sec) {
@@ -2923,7 +3083,7 @@ std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const R
         lines.push_back(row(two(m.overlay_row == 6, "Off", m.sleep_running == 0 ? "(no timer)" : ""), m.overlay_row == 6));
         lines.push_back(row(c.sleep_fade ? "The volume glides down to 0 over the last part," : "The stream stops when the time is up.", false, "\x1b[90m"));
         lines.push_back(row(c.sleep_fade ? "then the stream stops (fade = 10 % of the time)." : "", false, "\x1b[90m"));
-        lines.push_back(box_bottom(s, W, "[UP/DOWN] [ENTER] set  [ESC] close", s.border_bottom));
+        lines.push_back(box_bottom_centred(s, W, "[UP/DOWN] [ENTER] set  [ESC] close", s.border_bottom));
     } else if (osci) {
         lines.push_back(box_top(s, W, c.osci_style == 1 ? "Oscilloscope - image" : "Oscilloscope - braille", s.border));
         const std::vector<int> ids = osci_visible_rows(c);
@@ -2932,9 +3092,10 @@ std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const R
             lines.push_back(row(std::string(on ? "> " : "  ") + pad_right(osci_row_label(ids[static_cast<size_t>(i)]), 22)
                                 + pad_left(osci_row_value(c, ids[static_cast<size_t>(i)]), 18), on));
         }
-        lines.push_back(row(c.scope_mode == 2 ? "The scope is switched off (ON/OFF tab: Osci/sphere)"
-                                              : "[UP/DOWN] select   [LEFT/RIGHT] change", false, "\x1b[90m"));
-        lines.push_back(box_bottom(s, W, "[R] reset  [SHIFT+o / ESC] close", s.border_bottom));
+        if (c.scope_mode == 2) {
+            lines.push_back(row("The scope is switched off (ON/OFF tab: Osci/sphere)", false, "\x1b[90m"));
+            lines.push_back(box_bottom_centred(s, W, "[R] reset  [SHIFT+o / ESC] close", s.border_bottom));
+        } else push_legend_block(s, lines, W, {"[UP/DOWN] select   [LEFT/RIGHT] change", "[R] reset  [SHIFT+o / ESC] close"});
     } else {
         const std::string vals[3] = {c.normalize ? "on" : "off", fmt_loudness(c.normalize_target_lufs) + " LUFS",
                                      fmt_loudness(c.normalize_max_boost_db) + " dB"};
@@ -2950,8 +3111,7 @@ std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const R
             lines.push_back(row(std::string(on ? "> " : "  ") + pad_right(kNormKnobs[i].label, 18) + pad_left(vals[i], 12), on));
         }
         lines.push_back(row(live, false, "\x1b[90m"));
-        lines.push_back(row("[UP/DOWN] select   [LEFT/RIGHT] change", false));
-        lines.push_back(box_bottom(s, W, "[SPACE] on/off  [R] reset  [SHIFT+v / ESC] close", s.border_bottom));
+        push_legend_block(s, lines, W, {"[UP/DOWN] select   [LEFT/RIGHT] change", "[SPACE] on/off  [R] reset  [SHIFT+v / ESC] close"});
     }
     return lines;
 }
@@ -3338,11 +3498,11 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     }
     if (m.overlay != 0) {   // SHIFT+o / SHIFT+v overlay, centred over the finished screen
         const auto panel = build_overlay(s, m, st);
-        const int pw = m.overlay == 6 ? kSpectroOverlayW : m.overlay == 5 ? kRecordOverlayW : m.overlay == 4 ? kEqOverlayW : m.overlay == 3 ? kSleepOverlayW : m.overlay == 1 ? kOsciOverlayW : kNormOverlayW;
+        const int pw = m.overlay == 7 ? kMenusOverlayW : m.overlay == 6 ? kSpectroOverlayW : m.overlay == 5 ? kRecordOverlayW : m.overlay == 4 ? kEqOverlayW : m.overlay == 3 ? kSleepOverlayW : m.overlay == 1 ? kOsciOverlayW : kNormOverlayW;
         const int ph = static_cast<int>(panel.size());
         const int x = std::max(0, (W - pw) / 2);
         const int y = m.overlay == 1 ? std::clamp(1, 0, std::max(0, rows - ph))   // oscilloscope options: second row, only grows downwards
-                                     : std::clamp((rows - ph) / 2 - 2, 0, std::max(0, rows - ph));
+                                     : std::clamp((rows - ph) / 2 - (m.overlay == 7 ? 0 : 2), 0, std::max(0, rows - ph));
         for (int i = 0; i < ph; ++i)
             out[static_cast<size_t>(y + i)] = splice_line(out[static_cast<size_t>(y + i)], x, panel[static_cast<size_t>(i)], pw);
         m.spectro_skip[0] = y; m.spectro_skip[1] = x; m.spectro_skip[2] = ph; m.spectro_skip[3] = pw;
@@ -3376,7 +3536,7 @@ std::vector<std::string> render_radio_frame(const UiModel& m, const RadioStatus&
         return v;
     };
     if (!cfg.border_smooth || (m.settings.open && !peek)) return keep(std::move(out));   // the settings screen paints its own gradient
-    std::vector<std::string> glyphs = {"│", "─", "╭", "╮", "╰", "╯", "├", "┤", "┬", "┴", "┼"};
+    std::vector<std::string> glyphs = {"│", "─", "╭", "╮", "╰", "╯", "├", "┤", "┬", "┴", "┼", "┌", "└"};
     for (const std::string* g : {&cfg.box_upper_left, &cfg.box_upper_right, &cfg.box_lower_left, &cfg.box_lower_right, &cfg.box_vertical, &cfg.box_horizontal})
         if (!g->empty()) glyphs.push_back(*g);
     return keep(border_gradient::apply(out, ansi_fg(cfg.border_top), ansi_fg(cfg.border_bottom), glyphs,
@@ -3492,7 +3652,7 @@ std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus&
     };
     auto gradient = [&](std::vector<std::string> v) {
         if (!cfg.border_smooth) return v;
-        std::vector<std::string> glyphs = {"\u2502", "\u2500", "\u256d", "\u256e", "\u2570", "\u256f", "\u251c", "\u2524", "\u252c", "\u2534", "\u253c"};
+        std::vector<std::string> glyphs = {"\u2502", "\u2500", "\u256d", "\u256e", "\u2570", "\u256f", "\u251c", "\u2524", "\u252c", "\u2534", "\u253c", "\u250c", "\u2514"};
         for (const std::string* g : {&cfg.box_upper_left, &cfg.box_upper_right, &cfg.box_lower_left, &cfg.box_lower_right, &cfg.box_vertical, &cfg.box_horizontal})
             if (!g->empty()) glyphs.push_back(*g);
         return border_gradient::apply(v, ansi_fg(cfg.border_top), ansi_fg(cfg.border_bottom), glyphs,
@@ -3628,7 +3788,7 @@ std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus&
     // a screen too short for everything: what was cut off cannot be tapped either
     zones.erase(std::remove_if(zones.begin(), zones.end(), [&](const muisc::remote::net::Zone& z) { return z.y + z.h > H || z.x + z.w > W; }), zones.end());
     if (!cfg.border_smooth) return out;
-    std::vector<std::string> glyphs = {"│", "─", "╭", "╮", "╰", "╯", "├", "┤", "┬", "┴", "┼"};
+    std::vector<std::string> glyphs = {"│", "─", "╭", "╮", "╰", "╯", "├", "┤", "┬", "┴", "┼", "┌", "└"};
     for (const std::string* g : {&cfg.box_upper_left, &cfg.box_upper_right, &cfg.box_lower_left, &cfg.box_lower_right, &cfg.box_vertical, &cfg.box_horizontal})
         if (!g->empty()) glyphs.push_back(*g);
     return border_gradient::apply(out, ansi_fg(cfg.border_top), ansi_fg(cfg.border_bottom), glyphs,

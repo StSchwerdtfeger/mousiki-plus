@@ -92,6 +92,7 @@ struct RadioSettings : VizPrefs {
     std::string focus = "246";                    // FOCUS: the pane focus indicator "\u25c0" after a pane's title (default = header)
     std::string header = "246";                   // secondary text (see the top of this file)
     std::string legend = "141";                  // key command legends (see the top of this file)
+    std::string legend_cmd = "213";              // the descriptions behind the keys of those legends ("Close" in "[ESC] Close")
 
     // --- looks / tuning (config file only for now; the settings screen has the colours only) ----------
     // --- the ON/OFF tab ---------------------------------------------------------------------------

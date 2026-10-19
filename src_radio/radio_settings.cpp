@@ -34,7 +34,7 @@ const ColorRowSpec kColorRows[] = {
     {"PRESETS",      "INACTIVE  FG", &RadioSettings::preset_inactive_fg, "BG",             &RadioSettings::preset_inactive_bg},
     {"",             "KEY       FG", &RadioSettings::preset_key_fg,      nullptr,          nullptr},
     {"HEADER",       "TEXT",         &RadioSettings::header,             nullptr,          nullptr},
-    {"LEGEND",       "TEXT",         &RadioSettings::legend,             nullptr,          nullptr},
+    {"LEGEND",       "KEY-CMD",      &RadioSettings::legend,             "COMMAND",        &RadioSettings::legend_cmd},
     {"TAB_NAMES",    "CURRENT",      &RadioSettings::tab_current,        "OTHER",          &RadioSettings::tab_other},
     {"FOCUS",        "TEXT",         &RadioSettings::focus,              nullptr,          nullptr},
 };
@@ -58,7 +58,7 @@ const ThemeKey kThemeKeys[] = {
     {"ColorListCursorFg", &RadioSettings::list_cursor_fg}, {"ColorListCursorBg", &RadioSettings::list_cursor_bg},
     {"ColorPresetInactiveFg", &RadioSettings::preset_inactive_fg}, {"ColorPresetInactiveBg", &RadioSettings::preset_inactive_bg},
     {"ColorPresetKeyFg", &RadioSettings::preset_key_fg},
-    {"ColorHeader", &RadioSettings::header},              {"ColorLegend", &RadioSettings::legend},
+    {"ColorHeader", &RadioSettings::header},              {"ColorLegend", &RadioSettings::legend},            {"ColorLegendCommand", &RadioSettings::legend_cmd},
     {"ColorTabCurrent", &RadioSettings::tab_current},     {"ColorTabOther", &RadioSettings::tab_other},
     {"ColorFocus", &RadioSettings::focus},
 };
@@ -597,9 +597,9 @@ const KeyAction kKeyActions[] = {
     {nullptr, "SleepTimer", "Sleep Timer", "Z"},
     {"MENUS", "Search", "Search Stations", "/"},
     {nullptr, "Sort", "Toggle Sort A-Z", "T"},
-    {nullptr, "Presets", "Open Presets Menu", "K"},
+    {nullptr, "Presets", "Open Presets Menu", "P"},
     {nullptr, "Browser", "Open Radio Browser", "S"},
-    {nullptr, "Lists", "Open Station Lists", "P"},
+    {nullptr, "Lists", "Open Station Lists", "K"},
     {nullptr, "History", "Open History", "h"},
     {nullptr, "Stations", "Big Stations Overlay", "L"},
     {nullptr, "OsciMenu", "Oscilloscope Overlay", "O"},
@@ -619,6 +619,7 @@ const KeyAction kKeyActions[] = {
     {"SYSTEM", "Settings", "Open Settings", "s"},
     {nullptr, "Wizard", "Help Wizard", "W"},          // SHIFT+w, the same key the music player uses
     {nullptr, "Cheatsheet", "Cheatsheet", "?"},
+    {nullptr, "Menus", "Menus / Overlays Index", "<"},
     {nullptr, "Quit", "Quit Application", "q"},
 };
 const int kKeyActionCount = static_cast<int>(sizeof(kKeyActions) / sizeof(kKeyActions[0]));
@@ -758,7 +759,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     col("ColorListInactiveFg", s.list_fg);        col("ColorListInactiveBg", s.list_bg);
     col("ColorListPlayingFg", s.list_playing_fg); col("ColorListPlayingBg", s.list_playing_bg);
     col("ColorListCursorFg", s.list_cursor_fg);   col("ColorListCursorBg", s.list_cursor_bg);
-    col("ColorHeader", s.header);                 col("ColorLegend", s.legend);
+    col("ColorHeader", s.header);                 col("ColorLegend", s.legend);                 col("ColorLegendCommand", s.legend_cmd);
     col("ColorTabCurrent", s.tab_current);        col("ColorTabOther", s.tab_other);
     s.focus = s.header;                           // no ColorFocus= line: the indicator keeps following the header colour
     col("ColorFocus", s.focus);
@@ -780,6 +781,10 @@ RadioSettings load_radio_settings(std::string* source_out) {
             // stored there as if it were a choice -- treat it as the old default and use the new one (".").
             if (std::string(kKeyActions[i].id) == "ScopeToggle" && val == "o") continue;
             if (std::string(kKeyActions[i].id) == "ScopeWindow" && val == "W") continue;   // the old default (now SHIFT+9)
+            // v4.3.0: SHIFT+p opens the PRESETS menu and SHIFT+k the STATION LISTS (they were the other way round); the old defaults
+            // saved in a config are taken as defaults
+            if (std::string(kKeyActions[i].id) == "Presets" && val == "K") continue;
+            if (std::string(kKeyActions[i].id) == "Lists" && val == "P") continue;
             if (key_code(val) != 0 && val != kKeyActions[i].def) s.keys[kKeyActions[i].id] = val;
         }
     }
@@ -928,7 +933,9 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "# messages, status lines, dimmed entries\n"
          "ColorHeader=" << s.header << "\n\n"
          "# Key command legends: the hint lines of the menus ([TAB] Switch pane | ...), their errors, the cheatsheet titles\n"
-         "ColorLegend=" << s.legend << "\n\n"
+         "ColorLegend=" << s.legend << "\n"
+         "# ... and the descriptions behind those keys (\"Close\" in \"[ESC] Close\")\n"
+         "ColorLegendCommand=" << s.legend_cmd << "\n\n"
          "# Settings screen: the current tab name (and the < \u2194 > hint) / the other tab names\n"
          "ColorTabCurrent=" << s.tab_current << "\nColorTabOther=" << s.tab_other << "\n\n"
          "# Pane focus indicator: the little triangle after the title of the pane that has the keys\n"

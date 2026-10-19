@@ -995,7 +995,7 @@ int radio_main(int argc, char** argv) {
         ui.model.browse.flash = "Tuning \"" + st.name + "\"";
     };
 
-    // ---- STATION LISTS menu (Shift+P) -- behaves like the player's playlist editor ----------------------
+    // ---- STATION LISTS menu (Shift+K) -- behaves like the player's playlist editor ----------------------
     // Tab tells which text field (if any) owns the keyboard; the terminal's text-entry mode follows it.
     auto n_stations = [](size_t n) { return std::to_string(n) + (n == 1 ? " station" : " stations"); };
     auto lm_in_text = [&]() {
@@ -1283,7 +1283,8 @@ int radio_main(int argc, char** argv) {
             if (!ui.model.notice.empty() && ui.model.t_sec > notice_until) ui.model.notice.clear();
         }
         int k;
-        while ((k = term.poll_key()) != 0) {
+        int menus_inject = 0;   // the key of the entry chosen in the MENUS index: handled next, as if it had just been typed
+        while ((k = (menus_inject ? std::exchange(menus_inject, 0) : term.poll_key())) != 0) {
             const bool arrow = last_key_was_arrow();
             const int nvis = static_cast<int>(ui.model.visible.size());
             // ------------------------------------------------------------------ HELP WIZARD (SHIFT+w)
@@ -1794,6 +1795,22 @@ int radio_main(int argc, char** argv) {
                 if (k == 27) { ui.model.overlay = 0; continue; }
                 continue;
             }
+            if (ui.model.overlay == 7 && !ui.model.cheat_open) {                 // the MENUS index (<)
+                int& orow = ui.model.overlay_row;
+                if (k == 3 || k == kKeyCtrlC) { ui.model.overlay = 0; running = false; continue; }
+                if (arrow) {
+                    if (k == 'A' || k == 'B' || k == 'C' || k == 'D') orow = menus_move(orow, k == 'A' ? 0 : k == 'B' ? 1 : k == 'D' ? 2 : 3);
+                    continue;
+                }
+                if (k == 13 || k == 10) {   // open it: close the index, then handle the entry's key
+                    const int chosen = key_of(cfg, kMenusEntries[std::clamp(orow, 0, kMenusCount - 1)].id);
+                    ui.model.overlay = 0;
+                    if (chosen > 0) menus_inject = chosen;
+                    continue;
+                }
+                if (k == 27 || k == key_of(cfg, "Menus")) ui.model.overlay = 0;
+                continue;
+            }
             if (ui.model.overlay == 3 && !ui.model.cheat_open) {                 // the sleep timer overlay
                 int& orow = ui.model.overlay_row;
                 if (k == 3 || k == kKeyCtrlC) { ui.model.overlay = 0; settings_save(); running = false; continue; }
@@ -1983,7 +2000,7 @@ int radio_main(int argc, char** argv) {
                 if (k == 'a' && bm.cursor >= 0 && bm.cursor < nres) { browse_add((*bm.results)[static_cast<size_t>(bm.cursor)]); continue; }
                 continue;
             }
-            // ------------------------------------------------------------------ STATION LISTS menu (Shift+P)
+            // ------------------------------------------------------------------ STATION LISTS menu (Shift+K)
             if (ui.model.lmenu.open) {
                 ListMenuModel& lm = ui.model.lmenu;
                 const int nstat = static_cast<int>(lm.visible.size());
@@ -2532,13 +2549,14 @@ int radio_main(int argc, char** argv) {
                 case 'R': engine.reconnect(); break;                          // also for a Radio Browser station that is not in the list
                 case '/': set_search_focus(true); break;
                 case '?': ui.model.cheat_open = true; ui.model.cheat_scroll = 0; break;
+                case '<': ui.model.overlay = 7; break;   // the MENUS index: every menu and overlay with its key
                 case 'W':                         // Shift+W: the help wizard, as in the music player
                     wizard_open_now();
                     break;
                 case 'S': browse_open(); break;   // Shift+S: the RADIO BROWSER search menu
-                case 'P': lm_open(); break;       // Shift+P: the STATION LISTS menu
+                case 'K': lm_open(); break;       // Shift+K: the STATION LISTS menu
                 case 'T': ui.toggle_sort(); break; // Shift+T: STATIONS sort, list order <-> name A-Z (search results too)
-                case 'K': ui.model.menu.open = true; ui.model.menu.focus = MenuFocus::Search; ui.model.menu.target = SearchTarget::Stations;
+                case 'P': ui.model.menu.open = true; ui.model.menu.focus = MenuFocus::Search; ui.model.menu.target = SearchTarget::Stations;
                           ui.model.menu.flash.clear(); ui.model.menu.name = NameOverlay{};
                           ui.refilter_menu(); ui.refilter_presets(); ui.cursor_to_active_preset();
                           ui.model.menu.search_edit.to_end(ui.model.menu.search); ui.model.menu.psearch_edit.to_end(ui.model.menu.psearch);
