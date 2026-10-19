@@ -50,7 +50,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 APP_NAME = "Mousiki"
-DEFAULT_PY_EMBED = "3.12.8"
+DEFAULT_PY_EMBED = "3.13.14"
 SRC_EXCLUDE = {".git", ".github", "packaging", "build", "dist", "work", "__MACOSX"}   # never part of the product source
 SRC_SKIP_EXT = {".gif"}                                                                # README previews etc.: never needed to build or package
 REPO_KEEP = {".git", ".github", "packaging"}                                          # update-repo never touches these
