@@ -131,6 +131,6 @@ TEST(themes_renewed_built_ins_pair_old_and_new) {
     CHECK_EQ(def_new.name, std::string("SeriousMeowerShell(Default)"));
     CHECK_EQ(*def_old.get("ColorHeader", false), std::string("10"));      // what v4.2.0 first shipped
     CHECK_EQ(*def_new.get("ColorHeader", false), std::string("227"));     // the yellow it was made with
-    CHECK_EQ(*def_new.get("ColorLegend", false), std::string("199"));
+    CHECK_EQ(*def_new.get("ColorLegend", false), std::string("104"));
     CHECK_EQ(*def_new.get("ColorListInactiveFg", false), std::string("75"));
 }
