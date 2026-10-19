@@ -2744,16 +2744,16 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
     out.push_back(bar(H - 3) + "└" + repeat(Hz, std::max(0, W - 2)) + "┘" + kReset);
     std::string hint;
     if (sm.tab == 4 && sm.editing) hint = "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type one key (or SPACE / TAB / BACKSPACE)";
-    else if (sm.tab == 4) hint = "[TAB] Switch | [\u2191\u2193] Navigate | [ENTER] Change | [DEL] Default | [Ctrl+Shift+U] Undo | [s] Save | [ESC/q] Discard";
+    else if (sm.tab == 4) hint = "[TAB] Switch | [ENTER] Change | [DEL] Default | [Ctrl+Shift+U] Undo | [s] Save settings | [ESC/q] Discard";
     else if (sm.tab == 5) hint = "[TAB] Switch | [\u2191\u2193] Scroll | [ESC/q] Back";
     else if (sm.tab == 3 && sm.editing) hint = "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type or paste a folder (empty = default)";
-    else if (sm.tab == 3) hint = "[TAB] Switch | [↑↓] Navigate | [ENTER] Edit / toggle | [s] Save | [ESC/q] Discard";
-    else if (sm.tab >= 1) hint = "[TAB] Switch | [↑↓] Navigate | [←→/ENTER] Change | [s] Save | [ESC/q] Discard";
+    else if (sm.tab == 3) hint = "[TAB] Switch | [ENTER] Edit / toggle | [s] Save settings | [ESC/q] Discard";
+    else if (sm.tab >= 1) hint = "[TAB] Switch | [←→/ENTER] Change | [s] Save settings | [ESC/q] Discard";
     else if (cr && cr->editing) hint = cr->theme_row < 0 ? "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type the theme's name (25 characters at most)"
                                                        : "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type a palette number 0-255 (empty or 0 = terminal colour)";
-    else if (cr) hint = "[\u2191\u2193\u2190\u2192] Navigate | [ENTER] Edit/Open | [s] Save theme | [ESC] Discard";
+    else if (cr) hint = "[ENTER] Edit/Open | [s] Save theme | [ESC] Discard";
     else if (sm.editing) hint = "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type a palette number 0-255 (empty or 0 = terminal colour)";
-    else hint = "[TAB] Switch | [↑↓←→] Navigate | [ENTER] Edit | [e] Edit theme | [SHIFT+e/i] Export/Import | [s] Save | [ESC/q] Discard";
+    else hint = "[TAB] Switch | [ENTER] Edit | [e] Edit/Save theme | [SHIFT+e/i] Ex-/Import theme | [s] Save settings | [ESC/q] Discard";
     if (sm.leave_prompt == 3)
         hint = " Do you want to overwrite theme \"" + truncate_str(themes::sanitize_name(sm.theme_name), themes::kMaxNameLen) + "\"? [y] Yes, overwrite | [n / ESC] No, keep editing";
     else if (sm.leave_prompt == 2) hint = " Unsaved theme! [s] Save it | [d] Discard it | [ESC] Keep editing";

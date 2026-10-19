@@ -101,6 +101,8 @@ bool theme_matches(const RadioSettings& s, const themes::Theme& t) {
 }
 
 int theme_index(const RadioSettings& s, const std::vector<themes::Theme>& all) {
+    // a theme of your own wins over a built-in one with exactly the same colours (a renamed copy keeps its new name)
+    for (size_t i = 0; i < all.size(); ++i) if (!all[i].builtin && theme_matches(s, all[i])) return static_cast<int>(i);
     for (size_t i = 0; i < all.size(); ++i) if (theme_matches(s, all[i])) return static_cast<int>(i);
     return -1;
 }
