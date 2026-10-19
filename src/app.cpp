@@ -2000,6 +2000,13 @@ void App::play_next_from_queue(bool random) {
             idx = dist(rng);
         }
     }
+    play_queue_item(idx);
+}
+
+// Starts the queue item at `idx` (the head for the next key, a random one for shuffle, the highlighted one for ENTER in the queue pane).
+void App::play_queue_item(int idx) {
+    if (idx < 0 || idx >= static_cast<int>(queue_.size())) return;
+    const bool queue_once = settings_.play_mode == 4 && queue_locked_;
     QueueItem item = queue_[idx];
     queue_.erase(queue_.begin() + idx);
     if (queue_locked_) {                       // played track -> end of the list
@@ -5272,7 +5279,8 @@ void App::handle_key(int key) {
         refresh_local_view();
         log_event(std::string("sort: ") + sort_mode_name(local_sort_mode_, settings_.meta_only));
     } else if (action == "HKeyPlay") {
-        play_selected();
+        if (queue_focus_) { queue_next_run_ = 0; if (!queue_.empty()) play_queue_item(std::clamp(queue_selected_, 0, static_cast<int>(queue_.size()) - 1)); }   // ENTER in the queue pane (small or big): play the highlighted item
+        else play_selected();
     } else if (action == "HKeySearch") {
         if (queue_overlay_open_) queue_overlay_close(); // the search filters the list underneath, which the queue overlay covers
         mode_ = Mode::Search;
@@ -10100,18 +10108,22 @@ std::vector<std::string> App::build_history_panel(int total_width, int height) {
         const auto& plays = history_.plays();
         const int total = static_cast<int>(std::min<size_t>(100, plays.size()));
         const int when_w = 11, len_w = 7, state_w = 5;
-        const int title_w = std::max(8, inner - when_w - 2 - len_w - 2 - state_w);
-        lines.push_back({T("WHEN", when_w) + "  " + T("TITLE", title_w) + L("LEN", len_w) + "  " + T("STATE", state_w), 1});
+        // WHEN, then TITLE | ARTIST (separated by " | " like the TOP TRACKS tab and the playlist editor), the length and the state
+        const std::string tsep = " | ";
+        const int text_w = std::max(16, inner - when_w - 2 - len_w - 2 - state_w - static_cast<int>(tsep.size()));
+        const int title_w = text_w * 3 / 5;
+        const int artist_w = text_w - title_w;
+        lines.push_back({T("WHEN", when_w) + "  " + T("TITLE", title_w) + tsep + T("ARTIST", artist_w) + L("LEN", len_w) + "  " + T("STATE", state_w), 1});
         if (total == 0) {
             lines.push_back({"nothing played yet -- plays show up here as soon as music runs", 0});
         } else {
             for (int i = 0; i < total; ++i) {
                 const HistoryPlay& p = plays[i];
-                std::string t = (p.artist.empty() || p.artist == "-") ? p.title
-                                                                     : p.artist + " - " + p.title;
+                std::string t = p.title;
                 if (t.empty() || t == "-") t = p.id;
+                const std::string a = (p.artist.empty() || p.artist == "-") ? std::string("-") : p.artist;
                 const bool live = (i == 0 && history_.live());
-                lines.push_back({T(format_when(p.started_at), when_w) + "  " + T(t, title_w) +
+                lines.push_back({T(format_when(p.started_at), when_w) + "  " + T(t, title_w) + tsep + T(a, artist_w) +
                                  L(format_mmss(p.len_sec), len_w) + "  " +
                                  T(live ? "PLAY" : (p.finished ? "done" : "skip"), state_w),
                                  0});
@@ -15003,19 +15015,21 @@ std::vector<std::string> App::build_menu_index_panel() const {
     const size_t rows = std::max(cols[0].size(), cols[1].size());
     const int sel = std::clamp(menu_index_sel_, 0, kMenuIdxCount - 1);
 
-    auto cell = [&](const std::vector<MenuIdxCell>& col, size_t r, int cw) {
-        if (r >= col.size()) return std::string(static_cast<size_t>(cw), ' ');
+    // every cell keeps two empty columns on its left and right (the highlight covers them too)
+    auto cell = [&](const std::vector<MenuIdxCell>& col, size_t r, int cw_full) {
+        const int cw = cw_full - 4;
+        if (r >= col.size()) return std::string(static_cast<size_t>(cw_full), ' ');
         const MenuIdxCell& c = col[r];
-        if (c.header) return header_sgr(settings_) + pad_right(c.header, cw) + R;
-        if (c.entry < 0) return std::string(static_cast<size_t>(cw), ' ');
+        if (c.header) return "  " + header_sgr(settings_) + pad_right(c.header, cw) + R + "  ";
+        if (c.entry < 0) return std::string(static_cast<size_t>(cw_full), ' ');
         const MenuIdxEntry& e = kMenuIdx[c.entry];
         const std::string key = "[" + hotkey_text(e.action, e.fallback) + "]";
         const std::string left = std::string(c.entry == sel ? "> " : "  ") + e.title;
         const int gap = std::max(1, cw - display_width(left) - display_width(key));
         const std::string plain = truncate_str(left + std::string(static_cast<size_t>(gap), ' ') + key, cw);
-        if (c.entry == sel) return HI + pad_right(plain, cw) + R;
+        if (c.entry == sel) return HI + "  " + pad_right(plain, cw) + "  " + R;
         const std::string lead = pad_right(left, cw - display_width(key));
-        return lead + legend_sgr(settings_) + key + R;
+        return "  " + lead + legend_sgr(settings_) + key + R + "  ";
     };
 
     std::vector<std::string> lines;

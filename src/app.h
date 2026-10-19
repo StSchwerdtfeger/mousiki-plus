@@ -1285,6 +1285,7 @@ private:
     // so both respect the queue exactly the same way. Caller must check
     // !queue_.empty() first.
     void play_next_from_queue(bool random = false);   // random: any item of the queue (#), otherwise its order
+    void play_queue_item(int idx);   // start the queue item at idx (see play_next_from_queue)
     // Single letter for the mode-indicator button after the search bar:
     // L=list, R=repeat, S=shuffle, Q=queue then stop, O=stop (play-and-stop
     // -- not "S", that's shuffle's letter already).
