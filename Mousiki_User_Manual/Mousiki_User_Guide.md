@@ -327,7 +327,7 @@ The metadata panel lists **Name, Artist, Album, Year**, sampling, type, format, 
 
 | Key | Action | What it does |
 |---|---|---|
-| `ENTER` | Play the selected track | Starts the highlighted track. Pressing it again on the same track reloads it. On a **playlist row** it does not play. It queues every track in that playlist instead. |
+| `ENTER` | Play the selected track | Starts the highlighted track. Pressing it again on the same track reloads it. On a **playlist row** it does not play. It queues every track in that playlist instead. With the focus on the **queue** (`TAB`, small pane or big overlay) it plays the highlighted queue item. |
 | `p` | Play / pause | Pauses or resumes the current track. |
 | `n` | Next | Plays the next track. If the **queue** has items, the next queue item plays. Otherwise the next track in the list plays (relative to what is *playing*, not where your cursor is). A manual skip always skips, even in repeat or stop mode. |
 | `b` | Previous | Plays the previous track in the list. There is no queue equivalent, because a queue that has been consumed has no meaningful "previous". |
@@ -1225,7 +1225,7 @@ Album and year belong to one specific release, so a song often has several answe
 
 ![History tab](images/Listening_history_HISTORY_TAB.png)
 
-***History** tab: when each track was played, its title, its length and its state (`PLAY` = playing now, `done` = played to the end, `skip` = skipped).*
+***History** tab: when each track was played, its title and artist (in separate columns, laid out like on the Top Tracks tab), its length and its state (`PLAY` = playing now, `done` = played to the end, `skip` = skipped).*
 
 ![Top Tracks tab](images/Listening_history_TOP_TRACKS_TAB.png)
 
