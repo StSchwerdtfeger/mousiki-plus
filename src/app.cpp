@@ -3036,6 +3036,8 @@ bool theme_matches(const Settings& s, const themes::Theme& t) {
 } // namespace
 
 int App::theme_current_index() const {
+    // a theme of your own wins over a built-in one with exactly the same colours (a renamed copy keeps its new name)
+    for (size_t i = 0; i < theme_list_.size(); ++i) if (!theme_list_[i].builtin && theme_matches(settings_, theme_list_[i])) return static_cast<int>(i);
     for (size_t i = 0; i < theme_list_.size(); ++i) if (theme_matches(settings_, theme_list_[i])) return static_cast<int>(i);
     return -1;
 }
@@ -9654,7 +9656,7 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
         const std::string fetch_missing = "[" + hotkey_text("HKeyFetchTags", "B") + "] Fetch missing\001Missing";
         if (meta_tab_ == 0) {
             groups.push_back({"Move", {lr, "[TAB] Focus", "[\u2191\u2193] Navi.", enter_hint, "[SHIFT+p] Play"}});
-            groups.push_back({"Fetch", {"[a] To list", "[SHIFT+f] All (filtered) to list\001All to list", fetch_missing, "[SHIFT+n] (Re-)fetch all\001(Re-)fetch all"}});
+            groups.push_back({"Fetch", {"[a] To list", "[SHIFT+f] All searched to list\001All to list", fetch_missing, "[SHIFT+n] (Re-)fetch all\001(Re-)fetch all"}});
             groups.push_back({"Filter", {"[r] Recently edited first\001Edited", "[x/T/A/L/Y] Specific missing tags\001Missing", rescan}});
         } else {
             LegendGroup mv{"Move", {meta_fetch_focus_ == 1 ? std::string("[\u2190\u2192] Option") : lr, "[TAB] Focus"}};
@@ -11134,6 +11136,7 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
         int cur = -1;
         if (theme_ui_ == 1) cur = theme_current_index();
         else {
+            for (int k = 0; k < n && cur < 0; ++k) if (!theme_list_[static_cast<size_t>(k)].builtin && theme_matches(theme_draft_, theme_list_[static_cast<size_t>(k)])) cur = k;
             for (int k = 0; k < n && cur < 0; ++k) if (theme_matches(theme_draft_, theme_list_[static_cast<size_t>(k)])) cur = k;
             for (int k = 0; k < n && cur < 0; ++k) if (theme_list_[static_cast<size_t>(k)].name == theme_base_.name) cur = k;
         }
@@ -11284,7 +11287,7 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
     else
     pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(editing
         ? "[ENTER] Apply | [ESC] Cancel | [←→] Cursor | [SHIFT+←→] Mark | [Ctrl+C/X/V] Copy/Cut/Paste"
-        : "[↑↓←→] Navigate | [ENTER] Edit/Open | [s] Save theme | [ESC] Discard")) + R);
+        : "[ENTER] Edit/Open | [s] Save theme | [ESC] Discard")) + R);
     if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
     if (editing && cursor_y > 0) frame << "\x1b[" << cursor_y << ";" << cursor_x << "H\x1b[?25h";
 }
@@ -11802,9 +11805,9 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
     pos(y, 1, legend_colored(settings_, std::string(mode_ == Mode::ColorEdit
         ? "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | [SHIFT+\u2190\u2192] Mark | [HOME/END] Jump | [Ctrl+C/X/V] Copy/Cut/Paste"
         : settings_tab_ == 4
-        ? "[TAB] Switch | [\u2191\u2193] Navigate | [ENTER] Change | [DEL] Default | [Ctrl+Shift+U] Undo | [s] Save | [ESC/q] Discard"
-        : settings_tab_ == 0 ? "[TAB] Switch | [\u2191\u2193\u2190\u2192] Navigate | [ENTER] Edit | [e] Edit theme | [SHIFT+e/i] Export/Import | [s] Save | [ESC/q] Discard"
-        : "[TAB] Switch | [\u2191\u2193\u2190\u2192] Navigate/Cycle | [ENTER] Edit | [s] Save | [ESC/q] Discard")) + "\x1b[0m");
+        ? "[TAB] Switch | [ENTER] Change | [DEL] Default | [Ctrl+Shift+U] Undo | [s] Save settings | [ESC/q] Discard"
+        : settings_tab_ == 0 ? "[TAB] Switch | [ENTER] Edit | [e] Edit/Save theme | [SHIFT+e/i] Ex-/Import theme | [s] Save settings | [ESC/q] Discard"
+        : "[TAB] Switch | [ENTER] Edit | [s] Save settings | [ESC/q] Discard")) + "\x1b[0m");
     y++;
     // The log/status line lives here now -- render_frame() deliberately no
     // longer prints it under the Browse list (an untruncated message there
