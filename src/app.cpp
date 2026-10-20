@@ -10021,23 +10021,23 @@ void App::build_history_screen(std::ostringstream& frame, int W, int target_heig
     // of them empty on a normal terminal); while a message is up the list
     // simply gives up one row for it, the way Browse does for its prompt.
     const std::string hint = (history_tab_ == 1 && history_pane_ == 1)
-        ? "[\u2191\u2193\u2190\u2192] Pick a list | [ENTER] Add it to the queue | [TAB] Track list | [ESC] Leave the pane"
+        ? "[\u2191\u2193\u2190\u2192] Pick a list  [ENTER] Add it to the queue  [TAB] Track list  [ESC] Leave the pane"
         : (history_tab_ == 1)
-        ? "[\u2190\u2192] Switch Tab | [1-4] Tab | [TAB] Smart history pane | [\u2191\u2193] Move | [ENTER] Play | [r] Flip sort | [ESC] Exit"
+        ? "[\u2190\u2192] Switch Tab  [1-4] Tab  [TAB] Smart history pane  [\u2191\u2193] Move  [ENTER] Play  [r] Flip sort  [ESC] Exit"
         : (history_tab_ == kHistTabPlaylists || history_tab_ == kHistTabHabits)
-        ? "[\u2190\u2192] Switch Tab | [1-4] Tab | [\u2191\u2193] Scroll | [ESC] Exit"
-        : "[\u2190\u2192] Switch Tab | [1-4] Tab | [\u2191\u2193] Move | [ENTER] Play | [ESC] Exit";
+        ? "[\u2190\u2192] Switch Tab  [1-4] Tab  [\u2191\u2193] Scroll  [ESC] Exit"
+        : "[\u2190\u2192] Switch Tab  [1-4] Tab  [\u2191\u2193] Move  [ENTER] Play  [ESC] Exit";
     std::vector<std::string> hint_lines(1);
     size_t pos = 0;
     for (;;) {
-        size_t sep = hint.find(" | ", pos);
+        size_t sep = hint.find("  ", pos);
         std::string entry = (sep == std::string::npos) ? hint.substr(pos) : hint.substr(pos, sep - pos);
         std::string& cur = hint_lines.back();
-        std::string joined = cur.empty() ? entry : cur + " | " + entry;
+        std::string joined = cur.empty() ? entry : cur + "  " + entry;
         if (cur.empty() || display_width(joined) <= W || hint_lines.size() >= 2) cur = joined;
         else hint_lines.push_back(entry);
         if (sep == std::string::npos) break;
-        pos = sep + 3;
+        pos = sep + 2;   // entries are separated by two blanks
     }
     const int legend_rows = static_cast<int>(hint_lines.size());
     const int status_rows = history_status_.empty() ? 0 : 1;
