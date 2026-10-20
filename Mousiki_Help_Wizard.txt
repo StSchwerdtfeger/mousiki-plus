@@ -48,7 +48,7 @@ of the terminal. <3
 OPEN/CLOSE HELP WIZARD: [[Header]]
 To open/close use [SHIFT+w] and [ESC] for just closing it.
 
-HELP WIZARD TABLE OF CONTENT: [[Legend]]
+HELP WIZARD TABLE OF CONTENT:[[Header]]
 Use [->] to move on to the table of content or press [t] from anywhere
 you currently are in the Wizard. Apart from the Help Wizard, you can
 also use [?] to open the CHEAT SHEET[[Header]] for a plain overview of commands 
@@ -451,13 +451,18 @@ SORT LIBRARY AND ADD TRACK TO FETCH META DATA TAB:[[Header]]
 Several sort options are available for the LIBRARY PANE:
 
 [a]         Add a track to the fetch list
-[SHIFT+f]   Add full list to the fetch list
+[SHIFT+f]   Add all searched tracks to the fetch list (the result of the search 
+            in the library pane; the filtered overall list so to speak)
 [r]         Show edited tracks first (highlighted in the same color as headers)
 [x]         Show all tracks with NO META DATA
 [SHIFT+t]   Show all track with MISSING TITLE tag
 [SHIFT+a]   Show all tracks with MISSING ARTIST tag
 [SHIFT+y]   Show all tracks with MISSING YEAR tag
 [SHIFT+l]   Show all tracks with MISSING ALBUM tag
+
+FETCHING META DATA OF SINGLE TRACKS (POSSIBLE IN BOTH TABS)[[Header]]
+[SHIFT+b]   Fetch missing tags of a SINGLE TRACK
+[SHIFT+n]   Fetch all tags (again) of a SINGLE TRACK (overwrites existing tags)
 
 GENERAL BEHAVIOR OF META DATA EDITOR:[[Header]]
 Every change goes into a pending edit session, autosaved after each keystroke.
