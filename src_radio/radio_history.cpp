@@ -36,6 +36,25 @@ std::string day_key(long long unix_sec) {
     return buf;
 }
 
+// "YYYY-MM-DD" -> days since 1970-01-01 (proleptic Gregorian, H. Hinnant's days_from_civil). Pure date arithmetic, so
+// no time zone or DST can make two calendar days come out 23 or 25 hours apart.
+bool civil_day_number(const std::string& key, long long& out) {
+    int y = 0, m = 0, d = 0;
+    if (std::sscanf(key.c_str(), "%d-%d-%d", &y, &m, &d) != 3 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+    y -= m <= 2 ? 1 : 0;
+    const long long era = (y >= 0 ? y : y - 399) / 400;
+    const long long yoe = y - era * 400;
+    const long long doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    const long long doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    out = era * 146097 + doe - 719468;
+    return true;
+}
+
+// Weekday of a civil_day_number(), 0 = Monday (1970-01-01 was a Thursday).
+int monday_first_weekday(long long days) {
+    return static_cast<int>(((days % 7) + 7 + 3) % 7);
+}
+
 std::string clean(std::string s) {
     for (auto& c : s) if (c == '\t' || c == '\n' || c == '\r') c = ' ';
     return s;
@@ -273,8 +292,27 @@ HistoryStats RadioHistory::stats(long long now) const {
     double day_total = 0.0;
     for (const auto& kv : per_day) if (kv.second > 0.0) { ++s.days; day_total += kv.second; }
     s.avg_day_sec = s.days > 0 ? day_total / s.days : 0.0;
-    const auto it = per_day.find(day_key(now));
+    const std::string today = day_key(now);
+    const auto it = per_day.find(today);
     s.today_sec = it == per_day.end() ? 0.0 : it->second;
+    // Average per weekday: every weekday of the calendar from the first day with radio up to today counts, so a
+    // Monday without radio pulls the Monday average down (it is "an average Monday", not "an average Monday with radio").
+    {
+        const auto first_it = std::find_if(per_day.begin(), per_day.end(), [](const auto& kv) { return kv.second > 0.0; });
+        long long first = 0, last = 0;
+        if (first_it != per_day.end() && civil_day_number(first_it->first, first) &&
+            civil_day_number(std::max(today, per_day.rbegin()->first), last) && last >= first) {
+            const long long n = last - first + 1;
+            const int first_wd = monday_first_weekday(first);
+            for (int k = 0; k < 7; ++k) {
+                // the k-th weekday after the first day occurs ceil((n - k) / 7) times in the range
+                const long long cnt = n > k ? (n - k + 6) / 7 : 0;
+                s.weekday_count[static_cast<size_t>((first_wd + k) % 7)] = static_cast<int>(cnt);
+            }
+        }
+        for (size_t d = 0; d < 7; ++d)
+            s.weekday_avg[d] = s.weekday_count[d] > 0 ? s.weekdays[d] / s.weekday_count[d] : 0.0;
+    }
     const auto rows = top_channels(true);
     s.channels = static_cast<int>(rows.size());
     if (!rows.empty() && rows.front().listened > 0.0) s.top_channel = rows.front().channel;

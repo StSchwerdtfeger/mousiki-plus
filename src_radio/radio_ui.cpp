@@ -2221,13 +2221,20 @@ std::vector<std::string> build_history_menu(const Style& s, const UiModel& m, in
         }
         cat("LISTENING BY WEEKDAY");
         {
+            // The bar and the AVERAGE column show the average time on one such weekday (HistoryStats::weekday_avg), the
+            // CUMULATIVE column the lifetime total. Only the two value columns get a name, in the header colour.
             static const char* wd[7] = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
+            const int day_w = 11, avg_w = 10, cum_w = 10;   // "AVERAGE" / "CUMULATIVE" and values like "123h 45m"
+            const int bar_w = std::clamp(inner - (2 + day_w + 2 + avg_w + 2 + cum_w), 10, 40);
+            lines.push_back({spaces(2 + day_w + bar_w + 2) + T("AVERAGE", avg_w) + "  " + T("CUMULATIVE", cum_w), 2});
             double mx = 0;
-            for (double v : st.weekdays) mx = std::max(mx, v);
+            for (double v : st.weekday_avg) mx = std::max(mx, v);
             for (int d = 0; d < 7; ++d) {
-                const double v = st.weekdays[static_cast<size_t>(d)];
-                const int len = mx > 0 ? static_cast<int>(std::round(v / mx * 40.0)) : 0;
-                lines.push_back({"  " + pad_right(wd[d], 11) + repeat("█", len) + spaces(40 - len) + "  " + muisc::format_len(v), 0});
+                const double avg = st.weekday_avg[static_cast<size_t>(d)];
+                const double cum = st.weekdays[static_cast<size_t>(d)];
+                const int len = mx > 0 ? std::clamp(static_cast<int>(std::round(avg / mx * bar_w)), 0, bar_w) : 0;
+                lines.push_back({"  " + pad_right(wd[d], day_w) + repeat("█", len) + spaces(bar_w - len) + "  " +
+                                 T(muisc::format_len(avg), avg_w) + "  " + T(muisc::format_len(cum), cum_w), 0});
             }
         }
     }
@@ -2251,9 +2258,9 @@ std::vector<std::string> build_history_menu(const Style& s, const UiModel& m, in
     out.push_back(box_bottom(s, W, info, s.border_bottom));
 
     std::string hint;
-    if (hm.tab == 0) hint = "[←→/TAB] Tab | [1/2/3] Tab | [↑↓] Move | [HOME/END] Ends | [y] Find on YouTube + download | [ESC] Exit";
-    else if (hm.tab == 1) hint = "[←→/TAB] Tab | [1/2/3] Tab | [↑↓] Move | [r] Flip sort | [ESC] Exit";
-    else hint = "[←→/TAB] Tab | [1/2/3] Tab | [↑↓] Scroll | [ESC] Exit";
+    if (hm.tab == 0) hint = "[←→/TAB] Tab  [1/2/3] Tab  [↑↓] Move  [HOME/END] Ends  [y] Find on YouTube + download  [ESC] Exit";
+    else if (hm.tab == 1) hint = "[←→/TAB] Tab  [1/2/3] Tab  [↑↓] Move  [r] Flip sort  [ESC] Exit";
+    else hint = "[←→/TAB] Tab  [1/2/3] Tab  [↑↓] Scroll  [ESC] Exit";
     out.push_back(seg_line(legend_segs(s.legend, s.legend_cmd, hint), W));
     out.push_back(seg_line({{"\x1b[32m", utf8_take(hm.flash, W)}}, W));
     while (static_cast<int>(out.size()) < rows) out.push_back(spaces(W));
@@ -2373,10 +2380,10 @@ std::vector<std::string> build_theme_picker(const RadioSettings& c, const Settin
     }
     out.push_back(bar(H - 3) + "└" + repeat("─", std::max(0, W - 2)) + "┘" + kReset);
     if (sm.leave_prompt == 4 && sm.theme_sel >= 0 && sm.theme_sel < n)
-        out.push_back(seg_line({{"\x1b[1;7m", " Do you want to delete theme \"" + truncate_str(sm.theme_list[static_cast<size_t>(sm.theme_sel)].name, themes::kMaxNameLen) + "\"? [y] Yes, delete | [n / ESC] No, keep it"}}, W));
+        out.push_back(seg_line({{"\x1b[1;7m", " Do you want to delete theme \"" + truncate_str(sm.theme_list[static_cast<size_t>(sm.theme_sel)].name, themes::kMaxNameLen) + "\"? [y] Yes, delete  [n / ESC] No, keep it"}}, W));
     else
-    out.push_back(seg_line(legend_segs(legend, ansi_fg(c.legend_cmd), std::string(sm.theme_ui == 1 ? "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Apply | [SHIFT+d] Delete your own theme | [ESC] Back"
-                                                      : "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Use as template | [ESC] Back")), W));
+    out.push_back(seg_line(legend_segs(legend, ansi_fg(c.legend_cmd), std::string(sm.theme_ui == 1 ? "[↑↓] Select  [SHIFT+↑↓] Page  [SHIFT+p] Preview  [ENTER] Apply  [SHIFT+d] Delete your own theme  [ESC] Back"
+                                                      : "[↑↓] Select  [SHIFT+↑↓] Page  [SHIFT+p] Preview  [ENTER] Use as template  [ESC] Back")), W));
     out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status, W)}}, W));
     return out;
 }
@@ -2435,9 +2442,9 @@ std::vector<std::string> build_theme_io(const RadioSettings& c, const SettingsMo
     }
     while (static_cast<int>(out.size()) < H - 3) row_of({});
     out.push_back(bar(H - 3) + "└" + repeat("─", std::max(0, W - 2)) + "┘" + kReset);
-    out.push_back(seg_line(legend_segs(legend, ansi_fg(c.legend_cmd), std::string(sm.editing ? "[ENTER] Apply | [ESC] Cancel | [←→] Cursor | [Ctrl+C/X/V] Copy/Cut/Paste"
-                                   : exp ? "[↑↓] Field | [ENTER] Edit | [s] Export | [ESC] Cancel"
-                                         : "[↑↓] Select | [ENTER] Import the file (or edit the folder) | [a] Import all | [ESC] Cancel")), W));
+    out.push_back(seg_line(legend_segs(legend, ansi_fg(c.legend_cmd), std::string(sm.editing ? "[ENTER] Apply  [ESC] Cancel  [←→] Cursor  [Ctrl+C/X/V] Copy/Cut/Paste"
+                                   : exp ? "[↑↓] Field  [ENTER] Edit  [s] Export  [ESC] Cancel"
+                                         : "[↑↓] Select  [ENTER] Import the file (or edit the folder)  [a] Import all  [ESC] Cancel")), W));
     out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status, W)}}, W));
     return out;
 }
@@ -2743,21 +2750,21 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
     while (static_cast<int>(out.size()) < body_end) line({});
     out.push_back(bar(H - 3) + "└" + repeat(Hz, std::max(0, W - 2)) + "┘" + kReset);
     std::string hint;
-    if (sm.tab == 4 && sm.editing) hint = "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type one key (or SPACE / TAB / BACKSPACE)";
-    else if (sm.tab == 4) hint = "[TAB] Switch | [ENTER] Change | [DEL] Default | [Ctrl+Shift+U] Undo | [s] Save settings | [ESC/q] Discard";
-    else if (sm.tab == 5) hint = "[TAB] Switch | [\u2191\u2193] Scroll | [ESC/q] Back";
-    else if (sm.tab == 3 && sm.editing) hint = "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type or paste a folder (empty = default)";
-    else if (sm.tab == 3) hint = "[TAB] Switch | [ENTER] Edit / toggle | [s] Save settings | [ESC/q] Discard";
-    else if (sm.tab >= 1) hint = "[TAB] Switch | [←→/ENTER] Change | [s] Save settings | [ESC/q] Discard";
-    else if (cr && cr->editing) hint = cr->theme_row < 0 ? "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type the theme's name (25 characters at most)"
-                                                       : "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type a palette number 0-255 (empty or 0 = terminal colour)";
-    else if (cr) hint = "[ENTER] Edit/Open | [s] Save theme | [ESC] Discard";
-    else if (sm.editing) hint = "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | type a palette number 0-255 (empty or 0 = terminal colour)";
-    else hint = "[TAB] Switch | [ENTER] Edit | [e] Edit/Save theme | [SHIFT+e/i] Ex-/Import theme | [s] Save settings | [ESC/q] Discard";
+    if (sm.tab == 4 && sm.editing) hint = "[ENTER] Apply  [ESC] Cancel  [\u2190\u2192] Cursor  type one key (or SPACE / TAB / BACKSPACE)";
+    else if (sm.tab == 4) hint = "[TAB] Switch  [ENTER] Change  [DEL] Default  [Ctrl+Shift+U] Undo  [s] Save settings  [ESC/q] Discard";
+    else if (sm.tab == 5) hint = "[TAB] Switch  [\u2191\u2193] Scroll  [ESC/q] Back";
+    else if (sm.tab == 3 && sm.editing) hint = "[ENTER] Apply  [ESC] Cancel  [\u2190\u2192] Cursor  type or paste a folder (empty = default)";
+    else if (sm.tab == 3) hint = "[TAB] Switch  [ENTER] Edit / toggle  [s] Save settings  [ESC/q] Discard";
+    else if (sm.tab >= 1) hint = "[TAB] Switch  [←→/ENTER] Change  [s] Save settings  [ESC/q] Discard";
+    else if (cr && cr->editing) hint = cr->theme_row < 0 ? "[ENTER] Apply  [ESC] Cancel  [\u2190\u2192] Cursor  type the theme's name (25 characters at most)"
+                                                       : "[ENTER] Apply  [ESC] Cancel  [\u2190\u2192] Cursor  type a palette number 0-255 (empty or 0 = terminal colour)";
+    else if (cr) hint = "[ENTER] Edit/Open  [s] Save theme  [ESC] Discard";
+    else if (sm.editing) hint = "[ENTER] Apply  [ESC] Cancel  [\u2190\u2192] Cursor  type a palette number 0-255 (empty or 0 = terminal colour)";
+    else hint = "[TAB] Switch  [ENTER] Edit  [e] Edit/Save current state  [SHIFT+e/i] Ex-/Import theme  [s] Save settings  [ESC/q] Discard";
     if (sm.leave_prompt == 3)
-        hint = " Do you want to overwrite theme \"" + truncate_str(themes::sanitize_name(sm.theme_name), themes::kMaxNameLen) + "\"? [y] Yes, overwrite | [n / ESC] No, keep editing";
-    else if (sm.leave_prompt == 2) hint = " Unsaved theme! [s] Save it | [d] Discard it | [ESC] Keep editing";
-    else if (sm.leave_prompt == 1) hint = " Unsaved changes! [s] Save and leave | [d] Discard and leave | [ESC] Keep editing";
+        hint = " Do you want to overwrite theme \"" + truncate_str(themes::sanitize_name(sm.theme_name), themes::kMaxNameLen) + "\"? [y] Yes, overwrite  [n / ESC] No, keep editing";
+    else if (sm.leave_prompt == 2) hint = " Unsaved theme! [s] Save it  [d] Discard it  [ESC] Keep editing";
+    else if (sm.leave_prompt == 1) hint = " Unsaved changes! [s] Save and leave  [d] Discard and leave  [ESC] Keep editing";
     out.push_back(seg_line(sm.leave_prompt ? std::vector<Seg>{{"\x1b[1;7m", hint}} : legend_segs(legend, ansi_fg(c.legend_cmd), hint), W));
     out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status.empty() && sm.dirty ? std::string("Unsaved changes! Save with `s` or discard with `ESC`.") : sm.status, W)}}, W));
     return out;

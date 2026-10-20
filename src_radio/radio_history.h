@@ -60,7 +60,11 @@ struct HistoryStats {
     std::string top_channel;
     int busiest_hour = -1;       // -1 = no data
     std::array<double, 24> hours{};
-    std::array<double, 7> weekdays{};
+    std::array<double, 7> weekdays{};      // seconds per weekday, 0 = Monday (lifetime, cumulative)
+    // How often each weekday occurred in the calendar from the first day with radio up to today (both included), and
+    // weekdays[d] / that count: the average time listened on such a weekday -- days without radio count as 0.
+    std::array<int, 7> weekday_count{};
+    std::array<double, 7> weekday_avg{};
 };
 
 class RadioHistory {
