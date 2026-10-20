@@ -1136,7 +1136,7 @@ In a text box you typed into, the first `ESC` only leaves the box (the text stay
 | `SHIFT+y` | Filter the library to files missing a **year** (press again to clear) |
 | `SHIFT+p` | **Play** the hovering track (library pane and fetch list) |
 | `SHIFT+b` | **Fetch missing tag**: look up the highlighted title via AcoustID and fill in only its empty tags (asks first) |
-| `SHIFT+n` | **Fetch all tags**: the same, but all tags are fetched and overwrite the existing ones (library pane or fetch list focused; asks first) |
+| `SHIFT+n` | **(Re-)fetch all**: the same, but all tags are fetched and overwrite the existing ones (library pane or fetch list focused; asks first) |
 | `SHIFT+c` | **Cancel the running fetch** (Fetch List tab). The lookup stops at once. What had already arrived stays as pending edits; the titles that were not fetched yet (and the failed ones) stay on the fetch list, so you can start them again later |
 | `DEL` / `d` | Remove the highlighted title from the **fetch list**. It only takes a title off that list: it never deletes the file and does not touch pending edits. If the title is not on the fetch list, the status line says `not on the fetch list`. |
 | `CTRL+s` | Apply all pending edits to the files (asks first). Every file is rewritten through ffmpeg (the audio is copied, not re-encoded), so hundreds of edits take a while. The program stays alive: the status line counts `saving 37 / 412 ...`, and when it lasts longer than about a second a **Please wait, this may take a few seconds** panel with a progress bar appears. `ESC` stops after the current file; what is not saved yet stays pending, and so does a file that failed |
@@ -1217,7 +1217,7 @@ Album and year belong to one specific release, so a song often has several answe
 - **History**: the last 100 plays. `ENTER` plays the hovered one.
 - **Top Tracks**: one row per title with its artist (separated from the title by ` | `, as in the playlist editor), its length and play count, sorted by play count. `ENTER` plays the hovered title.
 - **Top Playlists**: the five most played saved playlists of the **week**, **month**, **quarter**, **year** and **overall**, all in one pane (two columns on a wide terminal), with the number of plays and the time listened, plus a small summary (playlists played, plays from playlists, share of all plays). A play counts for a playlist when the track was queued from it (`ENTER` or `a` on a playlist row in the main list, or a queue restored from the last session). Tracks you picked one by one count for no playlist, and plays from before this tab existed carry no playlist, so the lists fill up from now on. Week, month, quarter and year are the last 7, 30, 91 and 365 days, like the smart lists below.
-- **Habits**: listening statistics, including average session length, listening time per day, tracks per session, skips, replays and completion rates.
+- **Habits**: listening statistics, including average session length, listening time per day, tracks per session, skips, replays and completion rates. *Listening by weekday* shows, per weekday, the **AVERAGE** time (every such weekday since your first play counts, days without music as 0; the bar follows this value) and the **CUMULATIVE** lifetime total.
 
 ![Top Playlists tab](images/Listening_history_TOP_PLAYLISTS_TAB.png)
 
@@ -1289,7 +1289,7 @@ Status messages:
 
 ## 10. Settings (individual tabs)
 
-Press `s` on the main screen to open **Settings**. It has six tabs: **COLORS**, **ON/OFF**, **ANIMA/VIZ**, **PATHS**, **REFERENCE** and **ABOUT APP**. Settings always open on the first tab. The footer shows `[TAB] Switch | [ENTER] Edit | [s] Save settings | [ESC/q] Discard` (on the COLORS tab also `[e] Edit/Save theme | [SHIFT+e/i] Ex-/Import theme`), and the line below it reports what just changed. While there are changes that are not saved yet, that line shows a green ``Unsaved changes! Save with `s` or discard with `ESC`.`` note. While a field is being edited the footer changes to `[ENTER] Apply | [ESC] Cancel | [←→] Cursor | [SHIFT+←→] Mark | [HOME/END] Jump | [Ctrl+C/X/V] Copy/Cut/Paste`.
+Press `s` on the main screen to open **Settings**. It has six tabs: **COLORS**, **ON/OFF**, **ANIMA/VIZ**, **PATHS**, **REFERENCE** and **ABOUT APP**. Settings always open on the first tab. The footer shows `[TAB] Switch   [ENTER] Edit   [s] Save settings   [ESC/q] Discard` (on the COLORS tab also `[e] Edit/Save current state   [SHIFT+e/i] Ex-/Import theme`), and the line below it reports what just changed. While there are changes that are not saved yet, that line shows a green ``Unsaved changes! Save with `s` or discard with `ESC`.`` note. While a field is being edited the footer changes to `[ENTER] Apply   [ESC] Cancel   [←→] Cursor   [SHIFT+←→] Mark   [HOME/END] Jump   [Ctrl+C/X/V] Copy/Cut/Paste`.
 
 ### Moving around and editing (all tabs)
 
@@ -1825,7 +1825,7 @@ The radio keeps its own listening history, shaped like the player's (chapter 8) 
 - **HISTORY.** WHEN / CHANNEL / ARTIST / TITLE / HEARD. A new line starts whenever the channel, artist or title changes; lines heard for less than 3 seconds are dropped.
   Hover a line and press **`y`**: a small overlay searches YouTube for "artist title" (the player's own online search). `ENTER` downloads the hovered result (yt-dlp, opus) into the download folder; `[..]` means downloading, `[ok]` done, `[!!]` failed. `TAB` edits the search query, `ESC` closes the overlay.
 - **TOP CHANNELS.** Channels by time listened; `r` flips most / least first.
-- **HABITS.** Sessions (a gap of 30 minutes starts a new one), time per day, channels, and listening by hour of the day and by weekday.
+- **HABITS.** Sessions (a gap of 30 minutes starts a new one), time per day, channels, and listening by hour of the day and by weekday (AVERAGE time per weekday plus the CUMULATIVE total).
 
 ![Radio top channels tab](images_radio/radio_history_top_channels_tab.png)
 
