@@ -1039,7 +1039,9 @@ std::string paint_legend_row(const LegendRow& row, const std::string& border, co
     const std::string R = "\x1b[0m";
     std::string body;
     if (cmd.empty()) {
-        body = legend + row.cmds + R;
+        std::string plain = row.cmds;
+        plain.erase(std::remove_if(plain.begin(), plain.end(), [](char c) { return c == '\x02' || c == '\x03'; }), plain.end());
+        body = legend + plain + R;
     } else {   // keys in [brackets] in the legend colour, the rest (descriptions, the closing "...") in the command colour
         size_t i = 0;
         while (i < row.cmds.size()) {
@@ -1051,15 +1053,19 @@ std::string paint_legend_row(const LegendRow& row, const std::string& border, co
             } else {
                 size_t e = row.cmds.find('[', i);
                 if (e == std::string::npos) e = row.cmds.size();
-                std::string seg = row.cmds.substr(i, e - i);
-                // a sub-heading in capitals ("SINGLE TRACKS:") stands out in the header colour
-                size_t sp = 0;
-                while (sp < seg.size() && seg[sp] == ' ') ++sp;
-                const size_t colon = seg.find(':', sp);
-                bool head = colon != std::string::npos && colon > sp;
-                for (size_t k = sp; head && k < colon; ++k) if (!((seg[k] >= 'A' && seg[k] <= 'Z') || seg[k] == ' ')) head = false;
-                if (head) body += seg.substr(0, sp) + header + seg.substr(sp, colon + 1 - sp) + R + cmd + seg.substr(colon + 1) + R;
-                else body += cmd + seg + R;
+                const std::string seg = row.cmds.substr(i, e - i);
+                // a sub-heading wrapped in \002...\003 ("SINGLE TRACKS") stands out in the header colour; the markers
+                // themselves are not printed (a "…" cut can drop the closing one -- the heading then runs to the segment end)
+                size_t k = 0;
+                while (k < seg.size()) {
+                    const size_t open = seg.find('\x02', k);
+                    if (open == std::string::npos) { body += cmd + seg.substr(k) + R; break; }
+                    if (open > k) body += cmd + seg.substr(k, open - k) + R;
+                    size_t close = seg.find('\x03', open + 1);
+                    if (close == std::string::npos) close = seg.size();
+                    body += header + seg.substr(open + 1, close - open - 1) + R;
+                    k = close + 1;
+                }
                 i = e;
             }
         }

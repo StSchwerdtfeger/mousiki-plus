@@ -50,7 +50,7 @@ of the terminal. <3
 OPEN/CLOSE HELP WIZARD: [[Header]]
 To open/close use [SHIFT+w] and [ESC] for just closing it.
 
-HELP WIZARD TABLE OF CONTENT: [[Legend]]
+HELP WIZARD TABLE OF CONTENT:[[Header]]
 Use [->] to move on to the table of content or press [t] from anywhere
 you currently are in the Wizard. Apart from the Help Wizard, you can
 also use [?] to open the CHEAT SHEET[[Header]] for a plain overview of commands 
@@ -455,13 +455,18 @@ SORT LIBRARY AND ADD TRACK TO FETCH META DATA TAB:[[Header]]
 Several sort options are available for the LIBRARY PANE:
 
 [a]         Add a track to the fetch list
-[SHIFT+f]   Add full list to the fetch list
+[SHIFT+f]   Add all searched tracks to the fetch list (the result of the search 
+            in the library pane; the filtered overall list so to speak)
 [r]         Show edited tracks first (highlighted in the same color as headers)
 [x]         Show all tracks with NO META DATA
 [SHIFT+t]   Show all track with MISSING TITLE tag
 [SHIFT+a]   Show all tracks with MISSING ARTIST tag
 [SHIFT+y]   Show all tracks with MISSING YEAR tag
 [SHIFT+l]   Show all tracks with MISSING ALBUM tag
+
+FETCHING META DATA OF SINGLE TRACKS (POSSIBLE IN BOTH TABS)[[Header]]
+[SHIFT+b]   Fetch missing tags of a SINGLE TRACK
+[SHIFT+n]   Fetch all tags (again) of a SINGLE TRACK (overwrites existing tags)
 
 GENERAL BEHAVIOR OF META DATA EDITOR:[[Header]]
 Every change goes into a pending edit session, autosaved after each keystroke.
@@ -562,13 +567,13 @@ START: [[Header]]
 [ENTER] converts the marked files (the highlighted one when nothing is marked!), [c] cancels a
 running conversion, [CTRL+p] plays the highlighted file. [ESC] closes the overlay; a running
 conversion goes on in the background and reports on the status line.
-
+)WIZ",
+R"WIZ(
 WHERE THE FILES GO: [[Header]]
 Into the CONVERSION EXPORT PATH ([s] Settings[[Header]] ->> PATHS[[Header]]), by default the 
 folder conversion-export inside the download folder, in the same sub folders as the originals.
 A file that already exists there is skipped. Tags and cover are copied (not to Opus).
-)WIZ",
-R"WIZ(NOTE: Needs ffmpeg with libmp3lame and libopus; the installers provide it.[[Legend]]
+NOTE: Needs ffmpeg with libmp3lame and libopus; the installers provide it.[[Legend]]
 
 
 [[New Page]]
@@ -701,12 +706,12 @@ A nearly mono track fades over to a phase portrait instead of a flat line.
 TUNING OVERLAY:[[Header]] [SHIFT+o] opens it, the picture changes live while the music plays.
 Scope mode       XY, YT, XY + YT (overlap), XY + YT (row), XY + YT (column)
 Osci style       braille (works in any terminal) / image (pixels, needs Kitty graphics or Sixel)
-Frame rate       30 / 45 / 60 / 90 / 120 / 165 fps
+)WIZ",
+R"WIZ(Frame rate       30 / 45 / 60 / 90 / 120 / 165 fps
 Osci music mode  for oscilloscope music: the unprocessed signal and a fixed scale
 Beam             CRT: every sample drawn once, light by the time the beam spends on a spot
                  (image default) / classic: the old look with a tail (braille default)
-)WIZ",
-R"WIZ(Dwell brightness CRT beam: slow strokes bright, jumps dark; off = every stroke equally bright
+Dwell brightness CRT beam: slow strokes bright, jumps dark; off = every stroke equally bright
 Low-rate blank.  music mode, CRT beam: files below 96 kHz get the jumps between shapes faded out
 Rough mode       not in music mode: loud beats clip along the edges of the square (edge clipping;
                  braille default on, image default off); not optimal, technically, but looks cool :D
@@ -843,13 +848,13 @@ Max boost     0 .. 24 dB                    (default 9)
 -16 LUFS leaves headroom, -14 matches YouTube and Spotify. The grey live line under the rows shows
 the measured loudness of the playing track and the gain actually applied, so you can see at once
 when Max boost is holding a quiet track back. In the radio a stream has no end, so the loudness is
-measured since you tuned in and the gain glides in over a second.
+)WIZ",
+R"WIZ(measured since you tuned in and the gain glides in over a second.
 
 STEREO OR MONO: [[Header]]
 Settings ->> ON/OFF ->> Stereo Sound. Off folds left and right together (and halves the memory a
 loaded track needs). Turning it off is immediate; turning it on applies from the next track.
-)WIZ",
-R"WIZ(In the radio the footer of the dial then reads MONO.
+In the radio the footer of the dial then reads MONO.
 
 
 [[New Page]]
@@ -1006,12 +1011,12 @@ ON/OFF TAB: [[Header]] every row is changed with [<-/->]
 MODES: Playback (like [m]), Start Mode (player / radio: which of the two Mousiki opens with),
 Black Background (on: the terminal is black and plain text takes the list color while Mousiki runs; its own colors come back on exit)
 Share Profiles (on: the radio uses the player's oscilloscope/spectrogram settings; its own values are kept and come back when off)
-Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
+)WIZ",
+R"WIZ(Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
 Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars, Stereo Sound,
 Normalize Volume, Replace Emoji, Marquee Scrolling
 VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
-)WIZ",
-R"WIZ(Use Lyrics Engine / Oscilloscope / Spectrogram / Sphere. False leaves that view out of the [,/.] cycle.
+Use Lyrics Engine / Oscilloscope / Spectrogram / Sphere. False leaves that view out of the [,/.] cycle.
 
 ANIMA/VIZ TAB: [[Header]]
 Lyrics Alignment and Lyrics Animation, Disk Speed (0.01 .. 1.00), Bars Fluidity / Degradation /
@@ -1148,7 +1153,8 @@ Fields: NAME, TAGS (comma separated, every tag has to match), COUNTRY (name or t
 LANGUAGE, BITRATE (128 = at least 128, 64-192 = range, -192 = at most), then the RESULTS.
 [TAB]    NAME > TAGS > COUNTRY > STATE > LANGUAGE > BITRATE > RESULTS > NAME
 [ENTER]  in a field: search. In RESULTS: tune the station.
-[a]      in RESULTS: add it to your station list (a dot in front means you already have it)
+)WIZ",
+R"WIZ([a]      in RESULTS: add it to your station list (a dot in front means you already have it)
 [ESC]    clear a field; on an empty field or in RESULTS: close
 Every search hides broken streams, sorts by clicks and returns at most 200 results.
 
@@ -1156,8 +1162,7 @@ Every search hides broken streams, sorts by clicks and returns at most 200 resul
 10.2 STATION LISTS [[Header]]
 
 Named, ordered collections of stations (a "jazz" list, a "morning" list), built exactly like the
-)WIZ",
-R"WIZ(playlist editor of the music player.
+playlist editor of the music player.
 
 OPEN AND CHANGE TABS: [[Header]] [SHIFT+k] opens the menu, [<-/->] switch the two tabs ([ALT+<-/->]
 from every pane, also while typing). Lists are stored in stationlists.txt.
@@ -1301,13 +1306,13 @@ A key that is already in use is refused, and the fixed keys count too: the 16 pr
 e r t d f g) and the vi-style [j] / [k]. The cheat sheet [?] always lists the default keys.
 
 THE FILES OF THE RADIO: [[Header]]
-radio_config.txt   settings, colors, equalizer, oscilloscope (keys as HKey<Action>= lines)
+)WIZ",
+R"WIZ(radio_config.txt   settings, colors, equalizer, oscilloscope (keys as HKey<Action>= lines)
 stations.txt       your station list                    presets.txt       the presets and the active one
 stationlists.txt   the saved station lists              preset_names.txt  the short names of the PRESETS pane
 radio_history/     history_radio.txt and archive_radio.txt
 All of them live in the config folder: ~/.config/mousiki/ (Windows: %USERPROFILE%\.config\mousiki\).
-)WIZ",
-R"WIZ(
+
 [[New Page]]
 13.1 REMOTE CONTROL AND KEY BINDINGS [[Header]]
 
