@@ -11128,9 +11128,9 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
             if (nf == 0) pos(6, 3, legend_sgr(settings_) + "no theme files (*.theme, *.txt) in this folder" + R);
         }
         bottom_border(MAX_Y);
-        pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(editing_io ? "[ENTER] Apply   [ESC] Cancel   [\u2190\u2192] Cursor   [Ctrl+C/X/V] Copy/Cut/Paste"
-            : theme_ui_ == 4 ? "[\u2191\u2193] Field   [ENTER] Edit   [s] Export   [ESC] Cancel"
-                             : "[\u2191\u2193] Select   [ENTER] Import the file (or edit the folder)   [a] Import all   [ESC] Cancel")) + R);
+        pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(editing_io ? "[ENTER] Apply  [ESC] Cancel  [\u2190\u2192] Cursor  [Ctrl+C/X/V] Copy/Cut/Paste"
+            : theme_ui_ == 4 ? "[\u2191\u2193] Field  [ENTER] Edit  [s] Export  [ESC] Cancel"
+                             : "[\u2191\u2193] Select  [ENTER] Import the file (or edit the folder)  [a] Import all  [ESC] Cancel")) + R);
         if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
         if (editing_io && cursor_y > 0) frame << "\x1b[" << cursor_y << ";" << cursor_x << "H\x1b[?25h";
         return;
@@ -11183,11 +11183,11 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
         }
         bottom_border(MAX_Y);
         if (leave_prompt_ == 4 && theme_sel_ >= 0 && theme_sel_ < n)
-            pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to delete theme \"" + truncate_str(theme_list_[static_cast<size_t>(theme_sel_)].name, themes::kMaxNameLen) + "\"? [y] Yes, delete   [n / ESC] No, keep it", W - 1) + R);
+            pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to delete theme \"" + truncate_str(theme_list_[static_cast<size_t>(theme_sel_)].name, themes::kMaxNameLen) + "\"? [y] Yes, delete  [n / ESC] No, keep it", W - 1) + R);
         else
         pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(theme_ui_ == 1
-            ? "[↑↓] Select   [SHIFT+↑↓] Page   [SHIFT+p] Preview   [ENTER] Apply   [SHIFT+d] Delete your own theme   [ESC] Back"
-            : "[↑↓] Select   [SHIFT+↑↓] Page   [SHIFT+p] Preview   [ENTER] Use as template   [ESC] Back")) + R);
+            ? "[↑↓] Select  [SHIFT+↑↓] Page  [SHIFT+p] Preview  [ENTER] Apply  [SHIFT+d] Delete your own theme  [ESC] Back"
+            : "[↑↓] Select  [SHIFT+↑↓] Page  [SHIFT+p] Preview  [ENTER] Use as template  [ESC] Back")) + R);
         if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
         return;
     }
@@ -11290,13 +11290,13 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
     while (y < MAX_Y) { box_row(y); ++y; }
     bottom_border(MAX_Y);
     if (leave_prompt_ == 3)
-        pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to overwrite theme \"" + truncate_str(themes::sanitize_name(theme_name_), themes::kMaxNameLen) + "\"? [y] Yes, overwrite   [n / ESC] No, keep editing", W - 1) + R);
+        pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to overwrite theme \"" + truncate_str(themes::sanitize_name(theme_name_), themes::kMaxNameLen) + "\"? [y] Yes, overwrite  [n / ESC] No, keep editing", W - 1) + R);
     else if (leave_prompt_ == 2)
-        pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Unsaved theme! [s] Save it   [d] Discard it   [ESC] Keep editing", W - 1) + R);
+        pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Unsaved theme! [s] Save it  [d] Discard it  [ESC] Keep editing", W - 1) + R);
     else
     pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(editing
-        ? "[ENTER] Apply   [ESC] Cancel   [←→] Cursor   [SHIFT+←→] Mark   [Ctrl+C/X/V] Copy/Cut/Paste"
-        : "[ENTER] Edit/Open   [s] Save theme   [ESC] Discard")) + R);
+        ? "[ENTER] Apply  [ESC] Cancel  [←→] Cursor  [SHIFT+←→] Mark  [Ctrl+C/X/V] Copy/Cut/Paste"
+        : "[ENTER] Edit/Open  [s] Save theme  [ESC] Discard")) + R);
     if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
     if (editing && cursor_y > 0) frame << "\x1b[" << cursor_y << ";" << cursor_x << "H\x1b[?25h";
 }
@@ -11809,14 +11809,14 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
 
     // While a field is being edited (ENTER), TAB and the arrows stay in it:
     // LEFT/RIGHT move the caret, and only ENTER (apply) or ESC (cancel) leave.
-    if (leave_prompt_ == 1) pos(y, 1, "\x1b[1;7m" + pad(" Unsaved changes! [s] Save and leave   [d] Discard and leave   [ESC] Keep editing", W - 1) + "\x1b[0m");
+    if (leave_prompt_ == 1) pos(y, 1, "\x1b[1;7m" + pad(" Unsaved changes! [s] Save and leave  [d] Discard and leave  [ESC] Keep editing", W - 1) + "\x1b[0m");
     else
     pos(y, 1, legend_colored(settings_, truncate_str(mode_ == Mode::ColorEdit
-        ? "[ENTER] Apply   [ESC] Cancel   [\u2190\u2192] Cursor   [SHIFT+\u2190\u2192] Mark   [HOME/END] Jump   [Ctrl+C/X/V] Copy/Cut/Paste"
+        ? "[ENTER] Apply  [ESC] Cancel  [\u2190\u2192] Cursor  [SHIFT+\u2190\u2192] Mark  [HOME/END] Jump  [Ctrl+C/X/V] Copy/Cut/Paste"
         : settings_tab_ == 4
-        ? "[TAB] Switch   [ENTER] Change   [DEL] Default   [Ctrl+Shift+U] Undo   [s] Save settings   [ESC/q] Discard"
-        : settings_tab_ == 0 ? "[TAB] Switch   [ENTER] Edit   [e] Edit/Save current state   [SHIFT+e/i] Ex-/Import theme   [s] Save settings   [ESC/q] Discard"
-        : "[TAB] Switch   [ENTER] Edit   [s] Save settings   [ESC/q] Discard", std::max(1, W - 1))) + "\x1b[0m");
+        ? "[TAB] Switch  [ENTER] Change  [DEL] Default  [Ctrl+Shift+U] Undo  [s] Save settings  [ESC/q] Discard"
+        : settings_tab_ == 0 ? "[TAB] Switch  [ENTER] Edit  [e] Edit/Save current state  [SHIFT+e/i] Ex-/Import theme  [s] Save settings  [ESC/q] Discard"
+        : "[TAB] Switch  [ENTER] Edit  [s] Save settings  [ESC/q] Discard", std::max(1, W - 1))) + "\x1b[0m");
     y++;
     // The log/status line lives here now -- render_frame() deliberately no
     // longer prints it under the Browse list (an untruncated message there
