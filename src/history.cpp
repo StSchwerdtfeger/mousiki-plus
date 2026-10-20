@@ -85,6 +85,25 @@ std::string day_key(long long unix_sec) {
     return buf;
 }
 
+// "YYYY-MM-DD" -> days since 1970-01-01 (proleptic Gregorian, H. Hinnant's days_from_civil). Pure date arithmetic, so
+// no time zone or DST can make two calendar days come out 23 or 25 hours apart.
+bool civil_day_number(const std::string& key, long long& out) {
+    int y = 0, m = 0, d = 0;
+    if (std::sscanf(key.c_str(), "%d-%d-%d", &y, &m, &d) != 3 || m < 1 || m > 12 || d < 1 || d > 31) return false;
+    y -= m <= 2 ? 1 : 0;
+    const long long era = (y >= 0 ? y : y - 399) / 400;
+    const long long yoe = y - era * 400;
+    const long long doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    const long long doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    out = era * 146097 + doe - 719468;
+    return true;
+}
+
+// Weekday of a civil_day_number(), 0 = Monday (1970-01-01 was a Thursday).
+int monday_first_weekday(long long days) {
+    return static_cast<int>(((days % 7) + 7 + 3) % 7);
+}
+
 Value archive_to_json(const HistoryArchive& a) {
     Value v = Value::make_obj();
     v.set("plays", Value::make_num(static_cast<double>(a.plays)));
@@ -665,6 +684,25 @@ HistoryStats history_stats(const std::vector<HistoryPlay>& plays, const HistoryA
     s.days = static_cast<int>(per_day.size());
     s.avg_day_sec = s.days > 0 ? s.total_sec / s.days : 0.0;
     std::string today = day_key(static_cast<long long>(std::time(nullptr)));
+
+    // Average per weekday: every weekday of the calendar from the first day with music up to today counts, so a
+    // Monday without music pulls the Monday average down (it is "an average Monday", not "an average Monday with music").
+    if (!per_day.empty()) {
+        long long first = 0, last = 0;
+        const std::string& first_key = per_day.begin()->first;   // "YYYY-MM-DD" sorts chronologically
+        const std::string& last_key = std::max(today, per_day.rbegin()->first);
+        if (civil_day_number(first_key, first) && civil_day_number(last_key, last) && last >= first) {
+            const long long n = last - first + 1;
+            const int first_wd = monday_first_weekday(first);
+            for (int k = 0; k < 7; ++k) {
+                // the k-th weekday after the first day occurs ceil((n - k) / 7) times in the range
+                const long long cnt = n > k ? (n - k + 6) / 7 : 0;
+                s.weekday_count[static_cast<size_t>((first_wd + k) % 7)] = static_cast<int>(cnt);
+            }
+        }
+    }
+    for (size_t d = 0; d < 7; ++d)
+        s.weekday_avg[d] = s.weekday_count[d] > 0 ? s.weekdays[d] / s.weekday_count[d] : 0.0;
     auto it = per_day.find(today);
     if (it != per_day.end()) s.today_sec = it->second;
     return s;

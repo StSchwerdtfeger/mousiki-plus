@@ -56,7 +56,11 @@ struct HistoryStats {
     double total_sec = 0.0;
     int days = 0;               // distinct calendar days with music
     std::array<double, 24> hours{};     // seconds listened per hour of the day (lifetime)
-    std::array<double, 7> weekdays{};   // seconds listened per weekday, 0 = Monday (lifetime)
+    std::array<double, 7> weekdays{};   // seconds listened per weekday, 0 = Monday (lifetime, cumulative)
+    // How often each weekday occurred in the calendar from the first day with music up to today (both included), and
+    // weekdays[d] / that count: the average time listened on such a weekday -- days without music count as 0.
+    std::array<int, 7> weekday_count{};
+    std::array<double, 7> weekday_avg{};
     int busiest_hour = -1;
 };
 

@@ -9656,7 +9656,7 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
         const std::string fetch_missing = "[" + hotkey_text("HKeyFetchTags", "B") + "] Fetch missing\001Missing";
         if (meta_tab_ == 0) {
             groups.push_back({"Move", {lr, "[TAB] Focus", "[\u2191\u2193] Navi.", enter_hint, "[SHIFT+p] Play"}});
-            groups.push_back({"Fetch", {"[a] To list", "[SHIFT+f] All searched to list\001All to list", fetch_missing, "[SHIFT+n] (Re-)fetch all\001(Re-)fetch all"}});
+            groups.push_back({"Fetch", {"[a] To list", "[SHIFT+f] All searched to fetch list\001All to list", fetch_missing, "[SHIFT+n] (Re-)fetch all\001(Re-)fetch all"}});
             groups.push_back({"Filter", {"[r] Recently edited first\001Edited", "[x/T/A/L/Y] Specific missing tags\001Missing", rescan}});
         } else {
             LegendGroup mv{"Move", {meta_fetch_focus_ == 1 ? std::string("[\u2190\u2192] Option") : lr, "[TAB] Focus"}};
@@ -9664,7 +9664,8 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
             mv.cmds.push_back("[\u2191\u2193] Navi.");
             mv.cmds.push_back("[SHIFT+p] Play");
             groups.push_back(mv);
-            groups.push_back({"Fetch", {"[ENTER] Fetch all\001Fetch all", "[SHIFT+c] Cancel fetch\001Cancel", "SINGLE TRACKS:", fetch_missing, "[SHIFT+n] Fetch all tags\001Fetch all"}});
+            // \002...\003 marks a sub-heading: paint_legend_row() draws it in the header colour (the markers take no column)
+            groups.push_back({"Fetch", {"[ENTER] Fetch list\001Fetch list", "[SHIFT+c] Cancel fetch\001Cancel", "\002SINGLE TRACKS\003", fetch_missing, "[SHIFT+n] (Re-)fetch all\001(Re-)fetch all"}});
             groups.push_back({"List", {"[DEL] Remove", "[SHIFT+d] Empty list\001Empty", rescan}});
         }
         groups.push_back({"Session", {"[CTRL+s] Save", "[CTRL+SHIFT+x] Discard", esc}});
@@ -10198,15 +10199,23 @@ std::vector<std::string> App::build_history_panel(int total_width, int height) {
         }
         cat("LISTENING BY WEEKDAY");
         {
+            // The bar and the AVERAGE column show the average time on one such weekday (HistoryStats::weekday_avg), the
+            // CUMULATIVE column the lifetime total. Only the two value columns get a name, in the header colour.
             static const char* wd[7] = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
+            const int day_w = 11, avg_w = 10, cum_w = 10;   // "AVERAGE" / "CUMULATIVE" and values like "123h 45m"
+            const int bar_w = std::clamp(inner - (2 + day_w + 2 + avg_w + 2 + cum_w), 10, 40);
+            const std::string lead(static_cast<size_t>(2 + day_w + bar_w + 2), ' ');
+            lines.push_back({lead + T("AVERAGE", avg_w) + "  " + T("CUMULATIVE", cum_w), 1});
             double mx = 0;
-            for (double v : s.weekdays) mx = std::max(mx, v);
+            for (double v : s.weekday_avg) mx = std::max(mx, v);
             for (int d = 0; d < 7; ++d) {
-                const double v = s.weekdays[static_cast<size_t>(d)];
-                const int len = mx > 0 ? static_cast<int>(std::lround(v / mx * 40.0)) : 0;
-                std::string bar40;
-                for (int i = 0; i < len; ++i) bar40 += "\u2588";
-                lines.push_back({"  " + T(wd[d], 11) + bar40 + std::string(static_cast<size_t>(40 - len), ' ') + "  " + format_len(v), 0});
+                const double avg = s.weekday_avg[static_cast<size_t>(d)];
+                const double cum = s.weekdays[static_cast<size_t>(d)];
+                const int len = mx > 0 ? std::clamp(static_cast<int>(std::lround(avg / mx * bar_w)), 0, bar_w) : 0;
+                std::string bars;
+                for (int i = 0; i < len; ++i) bars += "\u2588";
+                lines.push_back({"  " + T(wd[d], day_w) + bars + std::string(static_cast<size_t>(bar_w - len), ' ') + "  " +
+                                 T(format_len(avg), avg_w) + "  " + T(format_len(cum), cum_w), 0});
             }
         }
         cursor = -1; // no cursor: this tab scrolls
@@ -11119,9 +11128,9 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
             if (nf == 0) pos(6, 3, legend_sgr(settings_) + "no theme files (*.theme, *.txt) in this folder" + R);
         }
         bottom_border(MAX_Y);
-        pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(editing_io ? "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | [Ctrl+C/X/V] Copy/Cut/Paste"
-            : theme_ui_ == 4 ? "[\u2191\u2193] Field | [ENTER] Edit | [s] Export | [ESC] Cancel"
-                             : "[\u2191\u2193] Select | [ENTER] Import the file (or edit the folder) | [a] Import all | [ESC] Cancel")) + R);
+        pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(editing_io ? "[ENTER] Apply   [ESC] Cancel   [\u2190\u2192] Cursor   [Ctrl+C/X/V] Copy/Cut/Paste"
+            : theme_ui_ == 4 ? "[\u2191\u2193] Field   [ENTER] Edit   [s] Export   [ESC] Cancel"
+                             : "[\u2191\u2193] Select   [ENTER] Import the file (or edit the folder)   [a] Import all   [ESC] Cancel")) + R);
         if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
         if (editing_io && cursor_y > 0) frame << "\x1b[" << cursor_y << ";" << cursor_x << "H\x1b[?25h";
         return;
@@ -11174,11 +11183,11 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
         }
         bottom_border(MAX_Y);
         if (leave_prompt_ == 4 && theme_sel_ >= 0 && theme_sel_ < n)
-            pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to delete theme \"" + truncate_str(theme_list_[static_cast<size_t>(theme_sel_)].name, themes::kMaxNameLen) + "\"? [y] Yes, delete | [n / ESC] No, keep it", W - 1) + R);
+            pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to delete theme \"" + truncate_str(theme_list_[static_cast<size_t>(theme_sel_)].name, themes::kMaxNameLen) + "\"? [y] Yes, delete   [n / ESC] No, keep it", W - 1) + R);
         else
         pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(theme_ui_ == 1
-            ? "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Apply | [SHIFT+d] Delete your own theme | [ESC] Back"
-            : "[↑↓] Select | [SHIFT+↑↓] Page | [SHIFT+p] Preview | [ENTER] Use as template | [ESC] Back")) + R);
+            ? "[↑↓] Select   [SHIFT+↑↓] Page   [SHIFT+p] Preview   [ENTER] Apply   [SHIFT+d] Delete your own theme   [ESC] Back"
+            : "[↑↓] Select   [SHIFT+↑↓] Page   [SHIFT+p] Preview   [ENTER] Use as template   [ESC] Back")) + R);
         if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
         return;
     }
@@ -11281,13 +11290,13 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
     while (y < MAX_Y) { box_row(y); ++y; }
     bottom_border(MAX_Y);
     if (leave_prompt_ == 3)
-        pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to overwrite theme \"" + truncate_str(themes::sanitize_name(theme_name_), themes::kMaxNameLen) + "\"? [y] Yes, overwrite | [n / ESC] No, keep editing", W - 1) + R);
+        pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Do you want to overwrite theme \"" + truncate_str(themes::sanitize_name(theme_name_), themes::kMaxNameLen) + "\"? [y] Yes, overwrite   [n / ESC] No, keep editing", W - 1) + R);
     else if (leave_prompt_ == 2)
-        pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Unsaved theme! [s] Save it | [d] Discard it | [ESC] Keep editing", W - 1) + R);
+        pos(MAX_Y + 1, 1, "\x1b[1;7m" + pad(" Unsaved theme! [s] Save it   [d] Discard it   [ESC] Keep editing", W - 1) + R);
     else
     pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(editing
-        ? "[ENTER] Apply | [ESC] Cancel | [←→] Cursor | [SHIFT+←→] Mark | [Ctrl+C/X/V] Copy/Cut/Paste"
-        : "[ENTER] Edit/Open | [s] Save theme | [ESC] Discard")) + R);
+        ? "[ENTER] Apply   [ESC] Cancel   [←→] Cursor   [SHIFT+←→] Mark   [Ctrl+C/X/V] Copy/Cut/Paste"
+        : "[ENTER] Edit/Open   [s] Save theme   [ESC] Discard")) + R);
     if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
     if (editing && cursor_y > 0) frame << "\x1b[" << cursor_y << ";" << cursor_x << "H\x1b[?25h";
 }
@@ -11800,14 +11809,14 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
 
     // While a field is being edited (ENTER), TAB and the arrows stay in it:
     // LEFT/RIGHT move the caret, and only ENTER (apply) or ESC (cancel) leave.
-    if (leave_prompt_ == 1) pos(y, 1, "\x1b[1;7m" + pad(" Unsaved changes! [s] Save and leave | [d] Discard and leave | [ESC] Keep editing", W - 1) + "\x1b[0m");
+    if (leave_prompt_ == 1) pos(y, 1, "\x1b[1;7m" + pad(" Unsaved changes! [s] Save and leave   [d] Discard and leave   [ESC] Keep editing", W - 1) + "\x1b[0m");
     else
-    pos(y, 1, legend_colored(settings_, std::string(mode_ == Mode::ColorEdit
-        ? "[ENTER] Apply | [ESC] Cancel | [\u2190\u2192] Cursor | [SHIFT+\u2190\u2192] Mark | [HOME/END] Jump | [Ctrl+C/X/V] Copy/Cut/Paste"
+    pos(y, 1, legend_colored(settings_, truncate_str(mode_ == Mode::ColorEdit
+        ? "[ENTER] Apply   [ESC] Cancel   [\u2190\u2192] Cursor   [SHIFT+\u2190\u2192] Mark   [HOME/END] Jump   [Ctrl+C/X/V] Copy/Cut/Paste"
         : settings_tab_ == 4
-        ? "[TAB] Switch | [ENTER] Change | [DEL] Default | [Ctrl+Shift+U] Undo | [s] Save settings | [ESC/q] Discard"
-        : settings_tab_ == 0 ? "[TAB] Switch | [ENTER] Edit | [e] Edit/Save theme | [SHIFT+e/i] Ex-/Import theme | [s] Save settings | [ESC/q] Discard"
-        : "[TAB] Switch | [ENTER] Edit | [s] Save settings | [ESC/q] Discard")) + "\x1b[0m");
+        ? "[TAB] Switch   [ENTER] Change   [DEL] Default   [Ctrl+Shift+U] Undo   [s] Save settings   [ESC/q] Discard"
+        : settings_tab_ == 0 ? "[TAB] Switch   [ENTER] Edit   [e] Edit/Save current state   [SHIFT+e/i] Ex-/Import theme   [s] Save settings   [ESC/q] Discard"
+        : "[TAB] Switch   [ENTER] Edit   [s] Save settings   [ESC/q] Discard", std::max(1, W - 1))) + "\x1b[0m");
     y++;
     // The log/status line lives here now -- render_frame() deliberately no
     // longer prints it under the Browse list (an untruncated message there
