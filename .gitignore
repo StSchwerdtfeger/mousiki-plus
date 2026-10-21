@@ -2,3 +2,6 @@ packaging/work/
 packaging/dist/
 packaging/input/*.zip
 __pycache__/
+.vscode/
+remote_app/android/.gradle/
+remote_app/android/build/
