@@ -266,6 +266,9 @@ std::string utf16_to_utf8(const uint8_t* p, size_t n, bool big_endian) {
                 i += 2;
             }
         }
+        // a surrogate left without its partner cannot be encoded as UTF-8 (it would come out as three invalid
+        // bytes, measured and drawn differently): it becomes one U+FFFD
+        if (cp >= 0xD800 && cp <= 0xDFFF) cp = 0xFFFD;
         if (cp < 0x80) out += static_cast<char>(cp);
         else if (cp < 0x800) {
             out += static_cast<char>(0xC0 | (cp >> 6));

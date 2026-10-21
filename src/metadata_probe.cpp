@@ -53,8 +53,8 @@ RowMeta probe_row_meta(const fs::path& file) {
     if (is_sid_file(file)) {   // ffprobe cannot read SID: the header has name / author / release year
         const SidInfo si = read_sid_header(file);
         if (si.ok) {
-            if (si.name != "<?>") rm.title = si.name;
-            if (si.author != "<?>") rm.artist = si.author;
+            if (si.name != "<?>") rm.title = clean_tag_text(si.name);
+            if (si.author != "<?>") rm.artist = clean_tag_text(si.author);
             if (si.released.size() >= 4 && std::isdigit(static_cast<unsigned char>(si.released[0]))) rm.year = si.released.substr(0, 4);
         }
         return rm;
@@ -70,6 +70,8 @@ RowMeta probe_row_meta(const fs::path& file) {
         std::string val = line.substr(eq + 1);
         if (!val.empty() && val.back() == '\r') val.pop_back();
         if (val.empty() || val == "N/A") continue;
+        val = clean_tag_text(val);   // malformed UTF-8 / control characters in a tag would be measured wider than drawn
+        if (val.empty()) continue;
 
         if (key == "duration") {
             try { rm.duration_sec = std::stod(val); } catch (...) {}
@@ -118,8 +120,8 @@ TrackMetadata probe_metadata(const fs::path& file, const std::string& fallback_n
     if (is_sid_file(file)) {
         const SidInfo si = read_sid_header(file);
         if (si.ok) {
-            if (!si.name.empty() && si.name != "<?>") md.name = si.name;
-            if (!si.author.empty() && si.author != "<?>") md.artist = si.author;
+            if (!si.name.empty() && si.name != "<?>") md.name = clean_tag_text(si.name);
+            if (!si.author.empty() && si.author != "<?>") md.artist = clean_tag_text(si.author);
             if (si.released.size() >= 4 && std::isdigit(static_cast<unsigned char>(si.released[0]))) md.year = si.released.substr(0, 4);
             md.format = si.rsid ? "RSID" : "PSID";
             md.type = "C64 SID" + std::string(si.songs > 1 ? " (" + std::to_string(si.songs) + " tunes)" : "");
@@ -148,6 +150,8 @@ TrackMetadata probe_metadata(const fs::path& file, const std::string& fallback_n
         std::string val = line.substr(eq + 1);
         if (!val.empty() && val.back() == '\r') val.pop_back();
         if (val.empty() || val == "N/A") continue;
+        val = clean_tag_text(val);   // malformed UTF-8 / control characters in a tag would be measured wider than drawn
+        if (val.empty()) continue;
         std::transform(key.begin(), key.end(), key.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
 
         if (key == "sample_rate") {

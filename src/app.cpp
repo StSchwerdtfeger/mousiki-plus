@@ -5345,10 +5345,12 @@ RowMeta try_native_row_meta(const fs::path& path) {
     else if (ext == ".m4a" || ext == ".mp4" || ext == ".aac") tags = probe_mp4_native(path);
 
     if (tags.resolved) {
-        rm.title = tags.title;
-        rm.artist = tags.artist;
-        rm.album = tags.album;
-        rm.year = tags.year; // TYER/TDRC (MP3), DATE (Vorbis), ©day (MP4)
+        // clean_tag_text(): a tag can hold malformed UTF-8 (cut in the middle of a character) or control characters,
+        // which the terminal does not draw the way they are measured -- the row would come out narrower than its pane
+        rm.title = clean_tag_text(tags.title);
+        rm.artist = clean_tag_text(tags.artist);
+        rm.album = clean_tag_text(tags.album);
+        rm.year = clean_tag_text(tags.year); // TYER/TDRC (MP3), DATE (Vorbis), ©day (MP4)
         rm.tags_resolved = true; // fully resolved without ffprobe
     }
     return rm;
