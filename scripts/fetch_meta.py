@@ -325,7 +325,7 @@ def mb_releases(mbid):
             if e.code == 404:
                 return [], ""
             raise LookupError("MUSICBRAINZ", "MusicBrainz HTTP %d" % e.code)
-        except (urllib.error.URLError, OSError) as e:
+        except (urllib.error.URLError, OSError):
             if attempt < 2:
                 time.sleep(2.0)
                 continue

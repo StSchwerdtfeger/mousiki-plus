@@ -15,6 +15,11 @@ on:
     - cron: "17 4 * * 1"
   workflow_dispatch:
 
+# A newer push to the same branch / pull request cancels the run that is still going: no red runs for half-finished uploads.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

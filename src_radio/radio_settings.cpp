@@ -62,8 +62,6 @@ const ThemeKey kThemeKeys[] = {
     {"ColorTabCurrent", &RadioSettings::tab_current},     {"ColorTabOther", &RadioSettings::tab_other},
     {"ColorFocus", &RadioSettings::focus},
 };
-// The radio draws header and legend the other way round from the player: its values are stored as "Radio.<key>".
-bool radio_only_key(const char* k) { return std::string(k) == "ColorHeader" || std::string(k) == "ColorLegend" || std::string(k) == "ColorFocus"; }
 } // namespace
 
 namespace {
@@ -436,10 +434,6 @@ bool as_bool(const std::string& v, bool def) {
 
 int as_int(const std::string& v, int def, int lo, int hi) {
     try { return std::clamp(std::stoi(v), lo, hi); } catch (...) { return def; }
-}
-
-float as_float(const std::string& v, float def, float lo, float hi) {
-    try { return std::clamp(std::stof(v), lo, hi); } catch (...) { return def; }
 }
 
 } // namespace
@@ -891,7 +885,6 @@ std::string eq_presets_text(const RadioSettings& s) {
 
 // The whole radio_config.txt as text (also how the settings screen sees whether anything changed).
 static void write_radio_file(std::ostream& o, const RadioSettings& s) {
-    auto num = [](float v) { std::ostringstream os; os.precision(2); os << std::fixed << v; return os.str(); };
     o << "# Mousiki radio mode -- settings (separate from the music player's config.txt)\n"
       << config_stamp_line() << "  (the first save by a newer version keeps the previous file as radio_config.txt.bak)\n"
          "# Location (Windows): %USERPROFILE%\\.config\\mousiki\\radio_config.txt\n"

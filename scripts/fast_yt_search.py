@@ -2,7 +2,6 @@
 import urllib.request
 import json
 import sys
-import re
 
 # See fetch_lyrics.py for why this matters on Windows: json.dumps() already
 # ASCII-escapes everything below, so nothing here can currently trigger the
@@ -47,7 +46,7 @@ def search(query, limit=5, min_duration_sec=90):
     try:
         with urllib.request.urlopen(req, timeout=5) as response:
             res = json.loads(response.read().decode())
-    except Exception as e:
+    except Exception:
         print("{}", file=sys.stderr)
         return
 

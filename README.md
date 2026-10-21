@@ -197,7 +197,7 @@ Three themes are made for colour vision deficiencies: **Colorblind Deuteranopia*
 
 ### Installers and portables for Windows / macOS / Linux 
 
-Windows (installer, portable zip), Linux (`.deb`, portable) and macOS (`.pkg`, portable) from the [latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest), or build it yourself (below). Release files are signed (GPG) and come with build-provenance attestations; an installer upgrades an existing version and keeps your settings. Automated tests (110; run on Linux, macOS and Windows by a GitHub workflow): `cmake -DMOUSIKI_BUILD_TESTS=ON`.
+Windows (installer, portable zip), Linux (`.deb`, portable) and macOS (`.pkg`, portable) from the [latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest), or build it yourself (below). Release files are signed (GPG) and come with build-provenance attestations; an installer upgrades an existing version and keeps your settings. Automated tests (117; run on Linux, macOS and Windows by a GitHub workflow): `cmake -DMOUSIKI_BUILD_TESTS=ON`.
 
 ### Build it yourself (Windows)
 

@@ -80,7 +80,7 @@ std::tm local_tm(long long unix_sec) {
 // "2026-09-27" -- the day bucket the per-day totals are summed into.
 std::string day_key(long long unix_sec) {
     std::tm tm = local_tm(unix_sec);
-    char buf[16];
+    char buf[48];   // room for any int, so the compiler can see the text always fits
     std::snprintf(buf, sizeof(buf), "%04d-%02d-%02d", tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday);
     return buf;
 }

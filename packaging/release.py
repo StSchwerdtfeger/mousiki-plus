@@ -19,7 +19,7 @@ and macOS from nothing but the Mousiki source .zip.  Pure standard library.
 
 Outputs land in ./dist :
     Mousiki-<ver>-windows-x64-setup.exe      + Mousiki-<ver>-windows-x64-portable.zip
-    mousiki_<ver>_amd64.deb                  + Mousiki-<ver>-linux-amd64-portable.zip
+    Mousiki-<ver>-linux-amd64.deb           + Mousiki-<ver>-linux-amd64-portable.zip
     Mousiki-<ver>-macos-universal.pkg        + Mousiki-<ver>-macos-universal-portable.zip
     SHA256SUMS.txt
 Files of other versions found in ./dist are moved to ./dist/older/<version>/ when a build starts, so
@@ -1150,7 +1150,7 @@ def build_deb(stage, ws, dist, version):
         shutil.copy2(str(stage / "LICENSE"), str(doc / "copyright"))
     if (stage / THIRD_PARTY_LICENSES).is_file():
         os.symlink("/opt/mousiki/" + THIRD_PARTY_LICENSES, str(doc / THIRD_PARTY_LICENSES))
-    for dp, dns, fns in os.walk(str(root)):
+    for dp, _dns, fns in os.walk(str(root)):
         os.chmod(dp, 0o755)
         for fn in fns:
             p = Path(dp) / fn
@@ -1176,7 +1176,7 @@ Description: Terminal music player and online radio (TUI)
 """ % (version, arch, size_kb)
     write_text(root / "DEBIAN" / "control", control)
     os.chmod(str(root / "DEBIAN"), 0o755)
-    out = dist / ("mousiki_%s_%s.deb" % (version, arch))
+    out = dist / ("Mousiki-%s-linux-%s.deb" % (version, arch))
     if out.exists():
         out.unlink()
     run(["dpkg-deb", "--root-owner-group", "--build", root, out])
