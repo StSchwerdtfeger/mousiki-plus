@@ -701,7 +701,7 @@ bool is_regional_indicator(uint32_t cp) { return cp >= 0x1F1E6 && cp <= 0x1F1FF;
 bool is_emoji_modifier(uint32_t cp)     { return cp >= 0x1F3FB && cp <= 0x1F3FF; } // skin tones
 bool is_emoji_tag(uint32_t cp)          { return cp >= 0xE0020 && cp <= 0xE007F; } // flag subdivisions
 
-std::string replace_emoji(const std::string& s) {
+std::string replace_emoji_valid(const std::string& s) {
     if (!g_replace_emoji) return s;
     // Fast path: every emoji, VS16, ZWJ and keycap is encoded with a lead byte
     // >= 0xE2, so nearly every ordinary title bails out here after one scan.
@@ -753,6 +753,14 @@ std::string replace_emoji(const std::string& s) {
         out += '?';
     }
     return out;
+}
+
+// The first step of every width helper below (display_width, utf8_take, pad_right, truncate_str, ...): malformed
+// UTF-8 is repaired first (utf8_repair(): each broken byte becomes one visible U+FFFD), so the text these helpers
+// measure is exactly the text they hand back to be drawn -- then the emoji replacement as before.
+std::string replace_emoji(const std::string& s) {
+    if (utf8_is_valid(s)) return replace_emoji_valid(s);
+    return replace_emoji_valid(utf8_repair(s));
 }
 
 } // namespace
@@ -879,15 +887,31 @@ std::string utf8_skip_take(const std::string& raw, int skip_cols, int take_cols)
         prev_cp = cp;
     }
     (void)prev_cp;
+    // Zero-width marks right after the skipped part belong to its last character (decomposed "ト" + U+3099 = "ド"):
+    // skip them too, or the window would start with a combining mark that has nothing to sit on.
+    if (skipped > 0) {
+        while (i < s.size()) {
+            size_t j = i;
+            const uint32_t cp = utf8_decode(s, j);
+            if (codepoint_width(cp) != 0 || cp < 0x300) break;   // only real combining marks, not control characters
+            i = j;
+        }
+    }
     int taken = 0;
+    bool cut = false;   // a double-width character did not fit at the right edge
     while (i < s.size() && taken < take_cols) {
         size_t start = i;
         uint32_t cp = utf8_decode(s, i);
         int w = codepoint_width(cp);
-        if (taken + w > take_cols) break;
+        if (taken + w > take_cols) { cut = true; break; }
         out += s.substr(start, i - start);
         taken += w;
     }
+    // A double-width character cut by either edge of the window is left out whole; its lost column is made up
+    // with a blank so the slice keeps exactly `take_cols` columns while there is text (a marquee frame that came
+    // out one column short moved everything right of it, the border included).
+    if (skipped > skip_cols && taken < take_cols) { out.insert(0, " "); ++taken; }
+    if (cut && taken < take_cols) out.append(static_cast<size_t>(take_cols - taken), ' ');
     return out;
 }
 
@@ -895,7 +919,13 @@ std::string pad_right(const std::string& raw, int width) {
     if (width <= 0) return "";
     const std::string s = replace_emoji(raw);
     int w = display_width(s);
-    if (w >= width) return utf8_take(s, width);
+    if (w >= width) {
+        // utf8_take() stops BEFORE a double-width character that would only half fit, so the cut can come out one
+        // column short (CJK titles like "「レモンドロップ」..."); fill that column, the result is always `width` wide.
+        std::string t = utf8_take(s, width);
+        const int tw = display_width(t);
+        return tw < width ? t + std::string(static_cast<size_t>(width - tw), ' ') : t;
+    }
     return s + std::string(width - w, ' ');
 }
 
@@ -903,7 +933,11 @@ std::string pad_left(const std::string& raw, int width) {
     if (width <= 0) return "";
     const std::string s = replace_emoji(raw);
     int w = display_width(s);
-    if (w >= width) return utf8_take(s, width);
+    if (w >= width) {
+        std::string t = utf8_take(s, width);   // may stop one column short before a double-width character, see pad_right()
+        const int tw = display_width(t);
+        return tw < width ? std::string(static_cast<size_t>(width - tw), ' ') + t : t;
+    }
     return std::string(width - w, ' ') + s;
 }
 
@@ -912,8 +946,12 @@ std::string truncate_str(const std::string& raw, int width) {
     const std::string s = replace_emoji(raw);
     int w = display_width(s);
     if (w <= width) return s;
-    if (width <= 3) return utf8_take(s, width);
-    return utf8_take(s, width - 3) + "...";
+    // A cut string is always exactly `width` columns: utf8_take() can stop one column short before a double-width
+    // character, and the blank that makes up for it goes in front of the "..." so the dots still end the column.
+    std::string t = utf8_take(s, width <= 3 ? width : width - 3);
+    const int miss = (width <= 3 ? width : width - 3) - display_width(t);
+    if (miss > 0) t.append(static_cast<size_t>(miss), ' ');
+    return width <= 3 ? t : t + "...";
 }
 
 std::vector<std::string> wrap_lines(const std::string& raw, int width, int max_lines) {
