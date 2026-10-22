@@ -300,6 +300,8 @@ bool last_key_was_arrow() { return g_last_key_was_arrow; }
 // poll_key() call, so it can only ever be true for the key just returned.
 static bool g_last_key_was_shifted = false;
 bool last_key_was_shifted() { return g_last_key_was_shifted; }
+static bool g_last_key_was_ctrl = false;
+bool last_key_was_ctrl() { return g_last_key_was_ctrl; }
 
 // ---------------------------------------------------------------------------
 // Text-entry mode + clipboard (see terminal_ui.h)
@@ -451,8 +453,10 @@ void clipboard_set(const std::string& utf8) {
 int TerminalIO::poll_key() {
     reassert_raw_mode();
     g_last_key_was_shifted = false;
+    g_last_key_was_ctrl = false;
 #if defined(_WIN32)
     int key = win_poll_key();
+    g_last_key_was_ctrl = win_last_key_was_ctrl();
     g_last_key_was_arrow = win_last_key_was_arrow();
     g_last_key_was_shifted = win_last_key_was_shifted();
     return key;
@@ -555,6 +559,9 @@ int TerminalIO::poll_key() {
                         // nothing that ignores the modifier changes), with the
                         // shift flag set for the list overlay's page jumps.
                         // Used to fall through as a bare Escape.
+                        if (((m - 1) & 4) != 0 && !shift && !alt && (tail == 'A' || tail == 'B')) {   // CTRL+Up / Down
+                            g_last_key_was_arrow = true; g_last_key_was_ctrl = true; return tail;
+                        }
                         if (shift && !alt && tail == 'A') { g_last_key_was_arrow = true; g_last_key_was_shifted = true; return 'A'; }
                         if (shift && !alt && tail == 'B') { g_last_key_was_arrow = true; g_last_key_was_shifted = true; return 'B'; }
                         if (shift && tail == 'D') { g_last_key_was_arrow = false; return kKeyShiftLeft; }
@@ -1048,7 +1055,7 @@ std::vector<LegendRow> layout_legend_tree(std::vector<LegendGroup> groups, int w
         std::string cmds;
         bool fitted = false;
         for (const std::vector<std::string>* list : {&lng, &shrt}) {
-            for (int gap : {3, 2, 1}) {
+            for (int gap : {1}) {   // one space between commands, everywhere (a long legend must fit a 120-column line)
                 std::string joined;
                 for (size_t ci = 0; ci < list->size(); ++ci) joined += (ci ? std::string(static_cast<size_t>(gap), ' ') : std::string()) + (*list)[ci];
                 if (display_width(joined) <= cmd_w) { cmds = joined; fitted = true; break; }

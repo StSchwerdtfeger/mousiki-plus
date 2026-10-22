@@ -55,6 +55,18 @@ inline std::vector<size_t> utf8_cuts(const std::string& s) {
         else if ((c & 0xF8) == 0xF0) n = 4;
         i += n;
         if (i > s.size()) i = s.size(); // truncated lead byte: treat the tail as one char
+        // Combining marks (a voiced-sound mark after Japanese は = ば, accents, variation selectors, ZWJ ...) have no width
+        // of their own: they stay with the character before them, so the caret, the block cursor and DEL treat the pair
+        // as one character instead of splitting it.
+        while (i < s.size()) {
+            const unsigned char d = static_cast<unsigned char>(s[i]);
+            size_t m = 1;
+            if ((d & 0xE0) == 0xC0) m = 2;
+            else if ((d & 0xF0) == 0xE0) m = 3;
+            else if ((d & 0xF8) == 0xF0) m = 4;
+            if (d < 0x80 || i + m > s.size() || display_width(s.substr(i, m)) != 0) break;
+            i += m;
+        }
         cuts.push_back(i);
     }
     return cuts;
@@ -274,7 +286,14 @@ inline EditPaint paint_edit_field(const std::string& s, size_t caret, size_t anc
     };
     for (size_t i = lo_i; i < hi_i; ++i) {
         const bool sel = (i >= anchor_i && i < caret_i);
-        if (block && i == caret_i) emit(cuts[i], cuts[i + 1], sel, "\u2588");
+        if (block && i == caret_i) {
+            // The block covers as many columns as the character it replaces: a double-width one (Japanese, Chinese,
+            // Korean, emoji) drawn as a single block made the row one column short and pushed the right border in.
+            const int cw = std::max(1, col[i + 1] - col[i]);
+            std::string blk;
+            for (int k = 0; k < cw; ++k) blk += "\u2588";
+            emit(cuts[i], cuts[i + 1], sel, blk.c_str());
+        }
         else emit(cuts[i], cuts[i + 1], sel, nullptr);
     }
     // Caret at (or beyond) the end of the window: there is no character to

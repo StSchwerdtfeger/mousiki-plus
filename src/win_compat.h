@@ -81,6 +81,7 @@ bool win_last_key_was_arrow();
 // True while the key win_poll_key() just returned was Up/Down with Shift
 // held (the value is still 'A'/'B'). See last_key_was_shifted().
 bool win_last_key_was_shifted();
+bool win_last_key_was_ctrl();   // Up / Down with CTRL held
 
 // Text-entry mode. While `on`, ENABLE_PROCESSED_INPUT is cleared from the
 // input handle, which is the one console setting that decides whether Ctrl+C

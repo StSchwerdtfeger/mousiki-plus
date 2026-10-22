@@ -417,6 +417,7 @@ private:
     std::string playlist_edit_lib_query_;
     std::vector<LocalTrack> playlist_edit_lib_view_;   // filter_and_rank_local(playlist_edit_lib_query_)
     int playlist_edit_lib_selected_ = 0;
+    std::vector<LocalTrack> filter_local_or_folders(const std::string& query) const;   // search, or "/f:" folder search
     int playlist_edit_sort_ = 0;   // LIBRARY sort (Shift+T): 0 folder order, 1 file names, 2 titles, 3 artists, 4 albums A-Z
     static const char* playlist_sort_name(int mode);
     int playlist_edit_track_selected_ = 0;
@@ -596,6 +597,9 @@ private:
     // (Shift+A), 4 = missing year (Shift+Y), 5 = missing album (Shift+L). Pressing the same key again
     // clears it -- see meta_toggle_filter().
     int meta_filter_ = 0;
+    mutable int meta_page_rows_ = 10;  // rows of a list pane (set while drawing): SHIFT+up / down move this far
+    // Up / Down in a meta editor list: plain = one row, SHIFT = a page, CTRL = first / last. Returns the new row.
+    int meta_nav(int selected, int total, bool up) const;
     void meta_toggle_filter(int filter);
     const char* meta_filter_label() const;
     void meta_persist();               // save (or delete) the autosave backup file

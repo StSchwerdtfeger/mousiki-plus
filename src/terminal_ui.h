@@ -178,6 +178,9 @@ bool last_key_was_arrow();
 // only the list overlay (SHIFT+l) asks this, to turn them into page jumps.
 // (SHIFT+Left/Right have their own sentinels, see kKeyShiftLeft/Right.)
 bool last_key_was_shifted();
+// True when the key just returned was Up / Down pressed with CTRL held (still reported as the plain arrow, like SHIFT+arrow):
+// the lists use it to jump to the first / last row.
+bool last_key_was_ctrl();
 
 // ---------------------------------------------------------------------------
 // Text-entry mode + clipboard

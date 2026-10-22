@@ -62,6 +62,31 @@ TEST(text_edit_paint_fits_the_width) {
     CHECK(sel.s.find("\x1b[7m") != std::string::npos);   // the marked text is in reverse video
 }
 
+TEST(text_edit_block_caret_on_a_wide_character_keeps_the_width) {
+    // The caret on a double-width character (Japanese ...) must not make the painted row narrower than it is counted.
+    const std::string s = "ab \xE3\x83\x91\xE3\x83\xBC\xE3\x83\xA9";   // "ab パーラ"
+    for (size_t caret : {size_t(0), size_t(3), size_t(6), size_t(9)}) {
+        const EditPaint p = paint_edit_field(s, caret, caret, 20, "", true);
+        CHECK_EQ(display_width(p.s), p.cols);
+    }
+}
+
+TEST(text_edit_combining_mark_stays_with_its_character) {
+    // は + U+3099 (a decomposed ば): one character for the caret, the block cursor and backspace.
+    const std::string s = "a\xE3\x81\xAF\xE3\x82\x99" "b";
+    CHECK_EQ(utf8_cuts(s).size(), static_cast<size_t>(4));   // 0, after a, after the pair, after b
+    for (size_t caret : {size_t(1), size_t(7)}) {
+        const EditPaint p = paint_edit_field(s, caret, caret, 20, "", true);
+        CHECK_EQ(display_width(p.s), p.cols);
+    }
+    Field f;
+    f.s = s;
+    f.caret = f.anchor = 8;
+    f.key(127);                                              // backspace removes the 'b'
+    f.key(127);                                              // ... then the whole pair, not just the mark
+    CHECK_EQ(f.s, std::string("a"));
+}
+
 TEST(fuzzy_exact_beats_typo) {
     const double exact = fuzzy_score("another love", "Tom Odell - Another Love");
     const double typo = fuzzy_score("anogher lobe", "Tom Odell - Another Love");

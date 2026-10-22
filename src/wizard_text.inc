@@ -451,6 +451,15 @@ achieved via [TAB] which changes the pane focus in general.
 EDIT META DATA IN THE EDIT PANE:[[Header]]
 Move the cursor to the row you want to change and hit [ENTER] to edit a meta data tag field.
 
+SEARCH PANE:[[Header]] [ESC] clears the search, a second [ESC] closes the editor. Start the search with /f:
+(e.g. /f:abbey) to list the tracks of matching folders.
+
+MOVING THROUGH LISTS:[[Header]]
+[SHIFT+up/down]  page up / down      [CTRL+up/down]  first / last row
+[ESC] in the LIBRARY PANE first removes an active filter (x/T/A/L/Y), the next [ESC] moves to the search field.
+
+TRACKER FILES (.mod .xm .s3m .it): only the TITLE can be saved (written into the module's header).
+
 SORT LIBRARY AND ADD TRACK TO FETCH META DATA TAB:[[Header]]
 Several sort options are available for the LIBRARY PANE:
 
@@ -557,7 +566,8 @@ NOTE:[[Header]] The original files are never changed/deleted in the conversion p
 
 CHOOSE WHAT TO CONVERT: [[Header]]
 [SPACE]          mark / unmark single highlighted files          
-[a]              mark all files shown in the (filtered) track list
+)WIZ",
+R"WIZ([a]              mark all files shown in the (filtered) track list
 [t] / [SHIFT+t]  pre-filter by type (all, lossless, FLAC, WAV, M4A, OGG, OPUS, AAC, MP3)
 [r] / [SHIFT+r]  pre-filter by minimum bitrate (any, 320, 500, 1000 kbps)
 [h]              hi-res only (more than 16 bit or more than 48 kHz)
@@ -565,8 +575,7 @@ CHOOSE WHAT TO CONVERT: [[Header]]
 
 CHOOSE THE TARGET: [[Header]]
 [<-/->]          MP3 320 kbps, MP3 V0 (variable), MP3 192 kbps, AAC 256 kbps (.m4a), Opus 128 kbps
-)WIZ",
-R"WIZ(
+
 START: [[Header]]
 [ENTER] converts the marked files (the highlighted one when nothing is marked!), [c] cancels a
 running conversion, [CTRL+p] plays the highlighted file. [ESC] closes the overlay; a running
@@ -692,7 +701,8 @@ SPHERE:[[Header]] an audio-reactive sphere (uses same FFT band data as te spectr
 the meta data field in the main UI. 
 OSCILLOSCOPE:[[Header]] Available are a XY and YT mode oscilloscope.
 SPECTROGRAM:[[Header]] time runs left to right, frequency upwards, the color is the strength.
-All of them analyze the decoded signal, so volume, equalizer and normalization never change
+)WIZ",
+R"WIZ(All of them analyze the decoded signal, so volume, equalizer and normalization never change
 the picture.
 
 TUNING AND EXTRA VIEWS: [[Header]]
@@ -705,8 +715,7 @@ TUNING AND EXTRA VIEWS: [[Header]]
 THE XY OSCILLOSCOPE: [[Header]]
 Like a real scope in X-Y mode. Wide stereo fills the area, a phase-shifted tone draws an ellipse.
 A nearly mono track fades over to a phase portrait instead of a flat line.
-)WIZ",
-R"WIZ(
+
 TUNING OVERLAY:[[Header]] [SHIFT+o] opens it, the picture changes live while the music plays.
 Scope mode       XY, YT, XY + YT (overlap), XY + YT (row), XY + YT (column)
 Osci style       braille (works in any terminal) / image (pixels, needs Kitty graphics or Sixel)
@@ -834,7 +843,8 @@ for Bass Boost). A strong boost is therefore slightly quieter: turn the volume u
 equalizer is off it is bypassed completely.
 
 NOTE:[[Header]] The radio keeps its own curve and its own presets (in radio_config.txt).
-
+)WIZ",
+R"WIZ(
 
 [[New Page]]
 6.2 LOUDNESS NORMALIZATION AND STEREO/MONO [[Header]]
@@ -847,8 +857,7 @@ Plays every track at the same perceived loudness, so a quiet album does not disa
 Normalize     off / on                      (default on)
 Target level  -40 .. 0 LUFS                 (default -16)
 Max boost     0 .. 24 dB                    (default 9)
-)WIZ",
-R"WIZ(
+
 -16 LUFS leaves headroom, -14 matches YouTube and Spotify. The grey live line under the rows shows
 the measured loudness of the playing track and the gain actually applied, so you can see at once
 when Max boost is holding a quiet track back. In the radio a stream has no end, so the loudness is
@@ -1002,7 +1011,8 @@ which the list shows after the built-in ones, named in the header color.
 [ENTER]        on CREATE THEME: the theme editor
 [e]            edit the theme in use in that editor
 [SHIFT+e / i]  export / import a theme as a .theme file
-In the editor type a name (25 characters at most), optionally pick a template, change any cell and
+)WIZ",
+R"WIZ(In the editor type a name (25 characters at most), optionally pick a template, change any cell and
 press [s] to save and apply it. A theme of your own can be overwritten (Mousiki asks first), a
 built-in theme needs a new name. [ESC] with unsaved changes asks first, leaving the settings does too.
 
@@ -1012,8 +1022,7 @@ built-in theme needs a new name. [ESC] with unsaved changes asks first, leaving 
 
 ON/OFF TAB: [[Header]] every row is changed with [<-/->]
 MODES: Playback (like [m]), Start Mode (player / radio: which of the two Mousiki opens with),
-)WIZ",
-R"WIZ(Black Background (on: the terminal is black and plain text takes the list color while Mousiki runs; its own colors come back on exit)
+Black Background (on: the terminal is black and plain text takes the list color while Mousiki runs; its own colors come back on exit)
 Share Profiles (on: the radio uses the player's oscilloscope/spectrogram settings; its own values are kept and come back when off)
 Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
 Update Notice (a quiet once-a-day look for a newer release; a small window, once per version: [ESC] close, [o] open the release page)
@@ -1143,15 +1152,15 @@ NOTE: A station sits in one slot only: putting it in another slot moves it inste
 
 SEARCHING YOUR OWN STATIONS: [[Header]]
 [/] opens the search box under the frequency band. The STATIONS pane filters live as you type; 
-[ENTER] tunes the highlighted station and [ESC] clears the search.
+)WIZ",
+R"WIZ([ENTER] tunes the highlighted station and [ESC] clears the search.
 (a name, genre or country)   filters your stations
 [s:]                         back to searching stations
 [p:]                         your saved STATION LISTS; [ENTER] fills the pane with that list and tunes
                              its first station
 While a list is shown the pane title reads STATIONS (LIST: name - ESC: all) and [n], [b] and [#] surf
 only inside that list. [ESC] clears a search still in the box; the next [ESC] returns to all stations.
-)WIZ",
-R"WIZ(The search is fuzzy and typo tolerant; the characters - _ . / count as spaces.
+The search is fuzzy and typo tolerant; the characters - _ . / count as spaces.
 
 FINDING NEW STATIONS: THE RADIO BROWSER: [[Header]]
 [SHIFT+s] searches the public directory radio-browser.info (needs curl).
@@ -1293,7 +1302,8 @@ Osci/sphere (osci / sphere / spectro / off) and Osci style (braille / image).
 
 [[New Page]]
 12.2 RADIO SETTINGS: PATHS, KEYS AND FILES [[Header]]
-
+)WIZ",
+R"WIZ(
 PATHS: [[Header]]
 Every path is a base folder; the radio makes its own sub folders below it:
 STATION LISTS PATH   stations/ and station_lists/          PRESETS PATH   presets/presets.txt
@@ -1303,8 +1313,7 @@ Changed folders are copied, never moved, and nothing is deleted. Playback stops 
 
 REFERENCE: REBINDING THE KEYS OF THE RADIO: [[Header]]
 The keys that are not hard coded, grouped like the player's: PLAYBACK, MENUS, TIMESHIFT and SYSTEM.
-)WIZ",
-R"WIZ([ENTER]  on a row, then type one character (case matters) or SPACE / TAB / BACKSPACE
+[ENTER]  on a row, then type one character (case matters) or SPACE / TAB / BACKSPACE
 [DEL]    restore the default of that key
 [CTRL+SHIFT+u]  undo the last five key changes
 The first row, Reset all keys to default, sits under the cheat sheet note at the top.

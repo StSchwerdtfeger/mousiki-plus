@@ -236,6 +236,7 @@ Besides MP3, FLAC, WAV, OGG, Opus, M4A and the other usual formats, the player p
 | Commodore 64 SID tunes | `.sid` `.psid` `.rsid` | The **sidplayfp** program on the `PATH` (Linux: package `sidplayfp`; Windows has no official build: the easiest source is MSYS2, `pacman -S mingw-w64-ucrt-x86_64-sidplayfp` in its UCRT64 shell, then copy `sidplayfp.exe` and its DLLs into one folder such as `C:\tools\sidplayfp` and run `setup.ps1` again; `setup.sh` / `setup.ps1` install it or add it to the `PATH`) |
 
 - The module's title (and for SID: name, author and year from the file header) is used as metadata; the TYPE column says *tracker module*, *game music* or *C64 SID (n tunes)*.
+- The **meta editor can change the title** of a MOD / XM / S3M / IT / MPTM file (it is written into the module's header, the rest of the file is untouched); artist, album and year do not exist in these formats and cannot be saved for them.
 - A SID tune has no end, so it is rendered once for `SidPlayLength` seconds (default 180, see [Settings that exist only in `config.txt`](#settings-that-exist-only-in-configtxt)) into `~/.cache/mousiki/sid/` and then played from there; the next time it starts at once. Only the first sub-tune is played.
 - `setup.sh` and `setup.ps1` take care of these tools: they upgrade an FFmpeg that is already installed (skip with `--no-upgrade` / `-NoUpgrade`), install or rebuild one with libopenmpt and libgme where the usual package lacks them, and install sidplayfp or put it on the `PATH`. On Windows the project publishes no sidplayfp build: unzip one anywhere and run `setup.ps1` again.
 - If the required tool is missing, the status line says which one, and the track is skipped.
@@ -1148,7 +1149,10 @@ In a text box you typed into, the first `ESC` only leaves the box (the text stay
 | `SHIFT+d` / `SHIFT+DEL` | **Empty the whole fetch list** (fetch list tab; asks first). Only the list: pending edits -- the tags already fetched included -- stay until `CTRL+s` saves or `CTRL+SHIFT+x` discards them. Not while a fetch runs (`SHIFT+c` stops it). |
 | `CTRL+SHIFT+x` | Discard all pending edits, fetched tags included, **and** empty the fetch list (asks first) |
 | `SHIFT+r` | Rescan the library (library pane or fetch list focused), e.g. after new files arrived |
-| `ESC` | In the field editor: back to the library. In a search field you typed into: leave the field. Otherwise: close the editor (the session is kept). |
+| `SHIFT+↑` / `SHIFT+↓` | Library pane, fetch list and fields: move one **page** up / down |
+| `CTRL+↑` / `CTRL+↓` | The same lists: jump to the **first / last** row (some desktops use `CTRL+↑↓` themselves, e.g. macOS Mission Control; then use `SHIFT+↑↓`) |
+| `ESC` | In the field editor: back to the library. In the library pane with a missing-tag filter (`x` / `SHIFT+t` / `a` / `y` / `l`) on: the **first `ESC` only removes the filter**, the next one moves to the search field. In the search field: the first `ESC` **clears the query**, the next one closes the editor (the session is kept). Otherwise: close the editor. |
+| `/f:` | In the search field: search **folders**, e.g. `/f:abbey` lists every track whose folder (or its parent folder) contains `abbey` (several words must all match). Same as in the playlist editor. |
 
 ### What `ENTER` does in the meta editor
 

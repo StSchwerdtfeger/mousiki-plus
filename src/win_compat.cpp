@@ -362,13 +362,16 @@ bool g_last_key_was_arrow = false;
 // the top of every win_poll_key() call (recursive ones included), then set
 // only by the VK_UP/VK_DOWN cases below.
 bool g_last_key_was_shifted = false;
+bool g_last_key_was_ctrl = false;   // Ctrl held on an Up/Down press
 } // namespace
 
 bool win_last_key_was_arrow() { return g_last_key_was_arrow; }
 bool win_last_key_was_shifted() { return g_last_key_was_shifted; }
+bool win_last_key_was_ctrl() { return g_last_key_was_ctrl; }
 
 int win_poll_key() {
     g_last_key_was_shifted = false;
+    g_last_key_was_ctrl = false;
     if (!g_pending_key_bytes.empty()) {
         unsigned char b = static_cast<unsigned char>(g_pending_key_bytes.front());
         g_pending_key_bytes.erase(g_pending_key_bytes.begin());
@@ -456,10 +459,11 @@ int win_poll_key() {
     // the only place a held modifier is visible on this event. Alt rather
     // than Ctrl because Windows Terminal (and others) claim Ctrl+Left/Right
     // for their own shortcuts and the console never sees the keystroke.
+    const bool ctrl_held = (k.dwControlKeyState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) != 0;
     const bool alt_held = (k.dwControlKeyState & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED)) != 0;
     switch (k.wVirtualKeyCode) {
-        case VK_UP:    g_last_key_was_arrow = true; g_last_key_was_shifted = shifted; return 'A';
-        case VK_DOWN:  g_last_key_was_arrow = true; g_last_key_was_shifted = shifted; return 'B';
+        case VK_UP:    g_last_key_was_arrow = true; g_last_key_was_shifted = shifted; g_last_key_was_ctrl = ctrl_held; return 'A';
+        case VK_DOWN:  g_last_key_was_arrow = true; g_last_key_was_shifted = shifted; g_last_key_was_ctrl = ctrl_held; return 'B';
         case VK_RIGHT: if (shifted) { g_last_key_was_arrow = false; return kKeyShiftRight; }
                        if (alt_held) { g_last_key_was_arrow = false; return kKeyAltRight; }
                        g_last_key_was_arrow = true; return 'C';

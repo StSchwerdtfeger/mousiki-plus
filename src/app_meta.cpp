@@ -53,6 +53,15 @@
 
 namespace muisc {
 
+int App::meta_nav(int selected, int total, bool up) const {
+    if (total <= 0) return 0;
+    int to = selected;
+    if (last_key_was_ctrl()) to = up ? 0 : total - 1;
+    else if (last_key_was_shifted()) to = selected + (up ? -1 : 1) * std::max(1, meta_page_rows_);
+    else to = selected + (up ? -1 : 1);
+    return std::clamp(to, 0, total - 1);
+}
+
 void App::handle_meta_key(int key) {
     if (handle_meta_prompt_key(key)) return;
     if (handle_meta_choice_key(key)) return;
@@ -81,8 +90,18 @@ void App::handle_meta_key(int key) {
         // rather than leaving the editor outright. A second ESC from there
         // (below, since the box isn't engaged any more) is what actually
         // exits now.
+        // With a missing-tag filter (x / T / A / L / Y) on, the first ESC only takes the filter off.
+        if (meta_tab_ == 0 && meta_focus_ == 1 && meta_filter_ != 0) { meta_toggle_filter(meta_filter_); return; }
         if (meta_tab_ == 0 && meta_focus_ == 1) { meta_focus_ = 0; return; }
-        if (meta_tab_ == 0 && meta_focus_ == 0 && text_engaged("meta-search")) { text_disengage(); return; }
+        if (meta_tab_ == 0 && meta_focus_ == 0 && !meta_query_.empty()) {   // the first ESC in the search field clears the query ...
+            meta_query_.clear();
+            edit_caret_ = edit_anchor_ = 0;
+            text_disengage();
+            meta_lib_selected_ = 0;
+            meta_refresh_lib_view();
+            return;
+        }
+        if (meta_tab_ == 0 && meta_focus_ == 0 && text_engaged("meta-search")) { text_disengage(); return; }   // ... the next one closes the editor
         mode_ = Mode::Browse;
         return;
     }
@@ -166,8 +185,7 @@ void App::handle_meta_key(int key) {
 
     if (meta_tab_ == 1) { // --- fetch list ---
         int total = static_cast<int>(meta_fetch_list_.size());
-        if (arrow && key == 'A') { if (meta_fetch_selected_ > 0) --meta_fetch_selected_; return; }
-        if (arrow && key == 'B') { if (total > 0 && meta_fetch_selected_ < total - 1) ++meta_fetch_selected_; return; }
+        if (arrow && (key == 'A' || key == 'B')) { meta_fetch_selected_ = meta_nav(meta_fetch_selected_, total, key == 'A'); return; }
         if (meta_fetch_focus_ == 1) {   // the option line: left / right move the cursor, SPACE ticks the box under it
             if (arrow && key == 'C') { meta_opt_cursor_ = (meta_opt_cursor_ + 1) % kMetaFetchOptCount; return; }
             if (arrow && key == 'D') { meta_opt_cursor_ = (meta_opt_cursor_ + kMetaFetchOptCount - 1) % kMetaFetchOptCount; return; }
@@ -191,8 +209,7 @@ void App::handle_meta_key(int key) {
         // convention as the main UI's "/" search); Left/Right are the caret
         // now, which is what makes marking -- and therefore copy/paste --
         // possible in here at all.
-        if (arrow && key == 'A') { if (meta_lib_selected_ > 0) --meta_lib_selected_; return; }
-        if (arrow && key == 'B') { if (meta_lib_selected_ + 1 < static_cast<int>(meta_lib_view_.size())) ++meta_lib_selected_; return; }
+        if (arrow && (key == 'A' || key == 'B')) { meta_lib_selected_ = meta_nav(meta_lib_selected_, static_cast<int>(meta_lib_view_.size()), key == 'A'); return; }
         if (key == '\r' || key == '\n') {
             // The hovered track (Up/Down already moved meta_lib_selected_
             // while this box had focus) goes straight to its fields --
@@ -213,8 +230,7 @@ void App::handle_meta_key(int key) {
 
     if (meta_focus_ == 1) { // --- library picker ---
         int total = static_cast<int>(meta_lib_view_.size());
-        if (arrow && key == 'A') { if (meta_lib_selected_ > 0) --meta_lib_selected_; return; }
-        if (arrow && key == 'B') { if (total > 0 && meta_lib_selected_ < total - 1) ++meta_lib_selected_; return; }
+        if (arrow && (key == 'A' || key == 'B')) { meta_lib_selected_ = meta_nav(meta_lib_selected_, total, key == 'A'); return; }
         if (key == '\r' || key == '\n') {
             if (total == 0) { meta_status_ = "no track selected"; return; }
             meta_focus_ = 2; // land on the hovered title's fields, highlighted
@@ -276,8 +292,7 @@ void App::handle_meta_key(int key) {
             // arms this one (caret starts at the end, same as a fresh
             // PATHS-row edit). Everything else is a no-op -- typing on a
             // merely-highlighted field would be surprising.
-            if (arrow && key == 'A') { if (meta_field_ > 0) --meta_field_; return; }
-            if (arrow && key == 'B') { if (meta_field_ < kMetaFieldCount - 1) ++meta_field_; return; }
+            if (arrow && (key == 'A' || key == 'B')) { meta_field_ = meta_nav(meta_field_, kMetaFieldCount, key == 'A'); return; }
             if (key == '\r' || key == '\n') {
                 if (e && e->needs_choice(meta_field_)) { meta_choice_open(); return; }   // several candidates: pick one first
                 meta_field_editing_ = true;
@@ -702,7 +717,8 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
     // smaller of the two: 2 for the panel's own border rows, 5 for the
     // footer (four legend rows + status -- see where it's written below).
     int budget = std::min(target_height, term_rows_ - 1);
-    int panel_h = std::max(6, budget - fixed_rows - 7); // no upper cap: fills a maximised window (7 = 2 border rows + the 5-row footer)
+    int panel_h = std::max(6, budget - fixed_rows - 7);
+    meta_page_rows_ = std::max(1, panel_h - 3); // no upper cap: fills a maximised window (7 = 2 border rows + the 5-row footer)
     if (meta_tab_ == 0) {
         int left_w = W / 2;
         int right_w = W - left_w;
@@ -761,7 +777,8 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
         // switch the tab / close the editor (see handle_meta_key()).
         const bool in_text = meta_tab_ == 0 && ((meta_focus_ == 2 && meta_field_editing_) || (meta_focus_ == 0 && text_engaged("meta-search")));
         const std::string lr = in_text ? "[\u2190\u2192] Cursor" : "[\u2190\u2192] Tab";
-        const std::string esc = in_text ? "[ESC] Leave field" : "[ESC] Exit";
+        const bool in_search = meta_tab_ == 0 && meta_focus_ == 0;
+        const std::string esc = in_search ? "[ESC] Clear/Exit\001Exit" : in_text ? "[ESC] Leave field" : "[ESC] Exit";
         std::string enter_hint = "[ENTER] Edit";
         if (meta_tab_ == 0 && meta_focus_ == 2) {
             const MetaEditEntry* he = meta_entry(meta_hovering_path());
@@ -780,17 +797,19 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
         const std::string rescan = "[" + hotkey_text("HKeyRescan", "R") + "] Rescan paths\001Rescan";
         const std::string fetch_missing = "[" + hotkey_text("HKeyFetchTags", "B") + "] Fetch missing\001Missing";
         if (meta_tab_ == 0) {
-            groups.push_back({"Move", {lr, "[TAB] Focus", "[\u2191\u2193] Navi.", enter_hint, "[SHIFT+p] Play"}});
-            groups.push_back({"Fetch", {"[a] To list", "[SHIFT+f] All searched to fetch list\001All to list", fetch_missing, "[SHIFT+n] (Re-)fetch all\001(Re-)fetch all"}});
+            groups.push_back({"Move", {lr, "[TAB] Focus", "[\u2191\u2193] Navi.", "[SHIFT+\u2191\u2193] Page\001Page", "[CTRL+\u2191\u2193] Top/bottom\001Top/bot.", enter_hint, "[SHIFT+p] Play"}});
+            groups.push_back({"Fetch", {"[a] To list", "[SHIFT+f] All searched to fetch list\001Searched to list", "\002Single track\003", fetch_missing, "[SHIFT+n] (Re-)fetch all\001(Re-)fetch all"}});
             groups.push_back({"Filter", {"[r] Recently edited first\001Edited", "[x/T/A/L/Y] Specific missing tags\001Missing", rescan}});
         } else {
             LegendGroup mv{"Move", {meta_fetch_focus_ == 1 ? std::string("[\u2190\u2192] Option") : lr, "[TAB] Focus"}};
             if (meta_fetch_focus_ == 1) mv.cmds.push_back("[SPACE] Tick");
             mv.cmds.push_back("[\u2191\u2193] Navi.");
+            mv.cmds.push_back("[SHIFT+\u2191\u2193] Page\001Page");
+            mv.cmds.push_back("[CTRL+\u2191\u2193] Top/bottom\001Top/bot.");
             mv.cmds.push_back("[SHIFT+p] Play");
             groups.push_back(mv);
             // \002...\003 marks a sub-heading: paint_legend_row() draws it in the header colour (the markers take no column)
-            groups.push_back({"Fetch", {"[ENTER] Fetch list\001Fetch list", "[SHIFT+c] Cancel fetch\001Cancel", "\002SINGLE TRACKS\003", fetch_missing, "[SHIFT+n] (Re-)fetch all\001(Re-)fetch all"}});
+            groups.push_back({"Fetch", {"[ENTER] Fetch list\001Fetch list", "[SHIFT+c] Cancel fetch\001Cancel", "\002Single track\003", fetch_missing, "[SHIFT+n] (Re-)fetch all\001(Re-)fetch all"}});
             groups.push_back({"List", {"[DEL] Remove", "[SHIFT+d] Empty list\001Empty", rescan}});
         }
         groups.push_back({"Session", {"[CTRL+s] Save", "[CTRL+SHIFT+x] Discard", esc}});

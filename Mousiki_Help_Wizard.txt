@@ -447,6 +447,15 @@ achieved via [TAB] which changes the pane focus in general.
 EDIT META DATA IN THE EDIT PANE:[[Header]]
 Move the cursor to the row you want to change and hit [ENTER] to edit a meta data tag field.
 
+SEARCH PANE:[[Header]] [ESC] clears the search, a second [ESC] closes the editor. Start the search with /f:
+(e.g. /f:abbey) to list the tracks of matching folders.
+
+MOVING THROUGH LISTS:[[Header]]
+[SHIFT+up/down]  page up / down      [CTRL+up/down]  first / last row
+[ESC] in the LIBRARY PANE first removes an active filter (x/T/A/L/Y), the next [ESC] moves to the search field.
+
+TRACKER FILES (.mod .xm .s3m .it): only the TITLE can be saved (written into the module's header).
+
 SORT LIBRARY AND ADD TRACK TO FETCH META DATA TAB:[[Header]]
 Several sort options are available for the LIBRARY PANE:
 

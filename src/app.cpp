@@ -5241,6 +5241,33 @@ std::vector<std::string> App::build_queue_panel(int total_width, int height) con
 // Playlist editor overlay (Mode::Playlist, HKeyPlaylist)
 // ---------------------------------------------------------------------
 
+// The library search of the playlist and meta editors: a normal search, or -- with "/f:" (or "f:") in front of the query --
+// every track whose folder matches: each word of the rest must appear in "<parent folder> <folder name>", as in the main
+// UI's "/f:" list. No sort here; the callers add their own.
+std::vector<LocalTrack> App::filter_local_or_folders(const std::string& raw) const {
+    std::string q = raw;
+    size_t i = 0;
+    while (i < q.size() && q[i] == ' ') ++i;
+    if (q.size() >= i + 3 && q[i] == '/') ++i;
+    const bool folders = q.size() >= i + 2 && (q[i] == 'f' || q[i] == 'F') && q[i + 1] == ':';
+    if (!folders) return filter_and_rank_local(raw);
+    std::vector<std::string> words;
+    std::string cur;
+    for (size_t k = i + 2; k <= q.size(); ++k) {
+        if (k == q.size() || q[k] == ' ') { if (!cur.empty()) words.push_back(cur); cur.clear(); }
+        else cur += q[k];
+    }
+    std::vector<LocalTrack> out;
+    for (const auto& t : all_local_tracks_) {
+        const fs::path dir = t.path.parent_path();
+        const std::string hay = path_utf8(dir.parent_path().filename()) + " " + path_utf8(dir.filename());
+        bool ok = true;
+        for (const auto& w : words) if (!contains_ci(hay, w)) { ok = false; break; }
+        if (ok) out.push_back(t);
+    }
+    return out;
+}
+
 const char* App::playlist_sort_name(int mode) {
     switch (mode) {
         case 1: return "Filenames A-Z";
@@ -5256,31 +5283,7 @@ const char* App::playlist_sort_name(int mode) {
 // then the sort of Shift+T. Unlike the main list the sort also applies to a search result, so a found set can be put in
 // order; sort 0 keeps the relevance ranking / folder order.
 void App::playlist_refresh_lib_view() {
-    {
-        std::string q = playlist_edit_lib_query_;
-        size_t i = 0;
-        while (i < q.size() && q[i] == ' ') ++i;
-        if (q.size() >= i + 3 && q[i] == '/') ++i;
-        const bool folders = q.size() >= i + 2 && (q[i] == 'f' || q[i] == 'F') && q[i + 1] == ':';
-        if (folders) {
-            std::vector<std::string> words;
-            std::string cur;
-            for (size_t k = i + 2; k <= q.size(); ++k) {
-                if (k == q.size() || q[k] == ' ') { if (!cur.empty()) words.push_back(cur); cur.clear(); }
-                else cur += q[k];
-            }
-            playlist_edit_lib_view_.clear();
-            for (const auto& t : all_local_tracks_) {
-                const fs::path dir = t.path.parent_path();
-                const std::string hay = path_utf8(dir.parent_path().filename()) + " " + path_utf8(dir.filename());
-                bool ok = true;
-                for (const auto& w : words) if (!contains_ci(hay, w)) { ok = false; break; }
-                if (ok) playlist_edit_lib_view_.push_back(t);
-            }
-        } else {
-            playlist_edit_lib_view_ = filter_and_rank_local(playlist_edit_lib_query_);
-        }
-    }
+    playlist_edit_lib_view_ = filter_local_or_folders(playlist_edit_lib_query_);
     if (playlist_edit_sort_ != 0) {
         struct Key { bool empty; std::string s; };
         std::vector<std::pair<Key, size_t>> keyed;
@@ -6706,7 +6709,7 @@ void App::meta_refresh_lib_view() {
     std::string keep;
     if (meta_resort_edited_ && !meta_lib_view_.empty()) keep = meta_hovering_path();
 
-    meta_lib_view_ = filter_and_rank_local(meta_query_);
+    meta_lib_view_ = filter_local_or_folders(meta_query_);
 
     // Missing-tag filter ('x' / Shift+T/A/Y). meta_row_meta() is a native,
     // in-process tag read cached in row_meta_cache_, so the first pass costs
