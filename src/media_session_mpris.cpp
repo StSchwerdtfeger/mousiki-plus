@@ -119,7 +119,13 @@ std::chrono::steady_clock::time_point g_info_at;   // when it arrived (the posit
 unsigned g_track_serial = 1;                   // changes with the title / artist / album
 std::vector<remote::Command> g_cmds;
 std::atomic<bool> g_stop{false};
-std::thread g_thread;
+// A std::thread that is still joinable when the program ends would call std::terminate(): this one is stopped and joined by
+// the destructor, so a program (or a test) that never called shutdown() still ends cleanly.
+struct ThreadHolder {
+    std::thread t;
+    ~ThreadHolder() { g_stop = true; if (t.joinable()) t.join(); }
+};
+ThreadHolder g_th;
 DBusConnection* g_conn = nullptr;
 
 double position_now_locked() {
@@ -416,14 +422,14 @@ bool backend_start() {
     if (!g_api.connection_register_object_path(c, kPath, &vt, nullptr)) { g_api.connection_close(c); g_api.connection_unref(c); return false; }
     g_conn = c;
     g_stop = false;
-    g_thread = std::thread(loop);
+    g_th.t = std::thread(loop);
     return true;
 }
 
 void backend_stop() {
     if (!g_conn) return;
     g_stop = true;
-    if (g_thread.joinable()) g_thread.join();
+    if (g_th.t.joinable()) g_th.t.join();
     g_api.connection_close(g_conn);
     g_api.connection_unref(g_conn);
     g_conn = nullptr;

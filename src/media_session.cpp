@@ -77,6 +77,7 @@ remote::Command command_for(const std::string& method, long long value, const In
 
 bool start() {
     if (g_on) return true;
+    if (const char* off = std::getenv("MOUSIKI_NO_MEDIA")) if (*off) return false;   // (the tests set it: no media session on the developer's desktop)
     if (!read_media_keys()) return false;
     g_on = detail::backend_start();
     return g_on;

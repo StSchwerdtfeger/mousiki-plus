@@ -57,7 +57,13 @@ Info g_info;
 bool g_dirty = false;
 std::vector<remote::Command> g_cmds;
 std::atomic<bool> g_stop{false};
-std::thread g_thread;
+// A std::thread that is still joinable when the program ends would call std::terminate(): this one is stopped and joined by
+// the destructor, so a program (or a test) that never called shutdown() still ends cleanly.
+struct ThreadHolder {
+    std::thread t;
+    ~ThreadHolder() { g_stop = true; if (t.joinable()) t.join(); }
+};
+ThreadHolder g_th;
 
 void push(const std::string& method, long long value = 0) {
     Info now;
@@ -185,10 +191,10 @@ bool backend_start() {
     std::promise<bool> p;
     std::future<bool> f = p.get_future();
     g_stop = false;
-    g_thread = std::thread(run, std::move(p));
+    g_th.t = std::thread(run, std::move(p));
     if (f.wait_for(std::chrono::seconds(3)) != std::future_status::ready || !f.get()) {
         g_stop = true;
-        if (g_thread.joinable()) g_thread.join();
+        if (g_th.t.joinable()) g_th.t.join();
         return false;
     }
     return true;
@@ -196,7 +202,7 @@ bool backend_start() {
 
 void backend_stop() {
     g_stop = true;
-    if (g_thread.joinable()) g_thread.join();
+    if (g_th.t.joinable()) g_th.t.join();
 }
 
 void backend_update(const Info& info) {

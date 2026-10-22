@@ -55,6 +55,12 @@ int main(int argc, char** argv) {
     // like the program: UTF-8 text, so display widths of box and braille characters are counted as on screen
     if (!std::setlocale(LC_ALL, "C.UTF-8")) std::setlocale(LC_ALL, "");
     std::setlocale(LC_NUMERIC, "C");
+    // the tests never register a media session on the developer's desktop or the CI machine's session bus
+#ifdef _WIN32
+    _putenv_s("MOUSIKI_NO_MEDIA", "1");
+#else
+    setenv("MOUSIKI_NO_MEDIA", "1", 1);
+#endif
     const std::string filter = argc > 1 ? argv[1] : "";
     int ran = 0, bad = 0;
     for (const mt::Case& c : mt::registry()) {
