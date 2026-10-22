@@ -14,8 +14,8 @@ namespace muisc::update_check {
 void start(const std::filesystem::path& script);
 
 struct Notice {
-    std::string latest;    // "v4.5.0"
-    std::string current;   // "4.4.0"
+    std::string latest;    // "v4.6.0"
+    std::string current;   // "4.5.0"
     std::string url;       // the release page (https://github.com/...)
 };
 // The notice to show, once: false when there is none (yet). Cheap; call it every frame. After it returned true, the version
@@ -27,7 +27,7 @@ std::string take_notice();
 std::string release_url(const Notice& n);
 
 // ---- helpers (exposed for the tests) ------------------------------------------------------------------------------------
-// True when `latest` ("v4.5.0", "4.5.0") is a higher version than `current` ("4.4.0"). Unreadable versions: false.
+// True when `latest` ("v4.6.0", "4.6.0") is a higher version than `current` ("4.5.0"). Unreadable versions: false.
 bool is_newer(const std::string& latest, const std::string& current);
 struct State { long long checked = 0; std::string latest, url, notified; };
 std::string state_to_text(const State& s);

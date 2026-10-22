@@ -1,4 +1,4 @@
-# Mousiki User Guide v4.4.0 (Windows · Linux · macOS) – music player and radio
+# Mousiki User Guide v4.5.0 (Windows · Linux · macOS) – music player and radio
 
 ## Welcome: a quick tour
 
@@ -146,7 +146,7 @@ The key shown for each command is the **default binding**. Your own bindings may
 - **[14. Upgrades and your settings](#14-upgrades-and-your-settings)**
 - **[About this app](#about-this-app)**
   - [Original developer of v1.0](#original-developer-of-v10)
-  - [Windows port, incl. extensive modifications up to v4.4.0 (including the radio mode)](#windows-port-incl-extensive-modifications-up-to-v440-including-the-radio-mode)
+  - [Windows port, incl. extensive modifications up to v4.5.0 (including the radio mode)](#windows-port-incl-extensive-modifications-up-to-v450-including-the-radio-mode)
   - [Third-party software and licences](#third-party-software-and-licences)
   
 ---
@@ -2046,7 +2046,7 @@ In the radio, a live station has no length, so the position slider is off; the s
 
 ## 14. Upgrades and your settings
 
-**New version notice.** With **Update Notice** on (Settings -> ON/OFF -> MODES, `UpdateCheck=true`, the default), Mousiki asks the project's releases page once a day, in the background, whether a newer version exists and tells you **once per version** with a small window (*Mousiki 4.5.0 is out. You are using 4.4.0.* and the address of the release; `ESC` Close, `o` Go to release). It appears as soon as the main screen is showing (not on top of a menu or the help wizard). It never installs anything -- how to update depends on how you installed Mousiki (`winget upgrade`, `scoop update`, `brew upgrade`, the installer or the `.deb`). The answer is kept in `update_check.txt` in the config folder.
+**New version notice.** With **Update Notice** on (Settings -> ON/OFF -> MODES, `UpdateCheck=true`, the default), Mousiki asks the project's releases page once a day, in the background, whether a newer version exists and tells you **once per version** with a small window (*Mousiki 4.6.0 is out. You are using 4.5.0.* and the address of the release; `ESC` Close, `o` Go to release). It appears as soon as the main screen is showing (not on top of a menu or the help wizard). It never installs anything -- how to update depends on how you installed Mousiki (`winget upgrade`, `scoop update`, `brew upgrade`, the installer or the `.deb`). The answer is kept in `update_check.txt` in the config folder.
 
 Installing a new version never deletes your settings (`config.txt`, `radio_config.txt` ... live in the config folder, not in the program folder). The first time a new version saves a settings file, the previous file is kept as **`config.txt.bak`** / **`radio_config.txt.bak`** next to it (one backup, replaced at the next upgrade), so you can go back if something looks wrong. The files carry a `# Written by Mousiki v...` line for that.
 
@@ -2062,12 +2062,12 @@ Installing a new version never deletes your settings (`config.txt`, `radio_confi
 | **Email** | itz.ender5820@gmail.com | **Version** | original and final v1.0 |
 | | | **Licence** | Apache Licence 2.0 |
 
-### Windows port, incl. extensive modifications up to v4.4.0 (including the radio mode)
+### Windows port, incl. extensive modifications up to v4.5.0 (including the radio mode)
 
 | | | | |
 |---|---|---|---|
 | **Developer** | Steffen Schwerdtfeger | **GitHub** | [StSchwerdtfeger](https://github.com/StSchwerdtfeger) |
-| **Email** | fanti.blub@gmail.com | **Version** | current v4.4.0 |
+| **Email** | fanti.blub@gmail.com | **Version** | current v4.5.0 |
 | | | **Licence** | Apache Licence 2.0 |
 
 ### Third-party software and licences
