@@ -126,7 +126,7 @@ Everything below is in the current version (v4.4.0) and works the same on Window
 <p align="center"><img width="850" alt="Karaoke mode" src="readme_images/karaoke_mode.png" /></p>
 
 ### Playlists, meta data, history, conversion
-- **Playlist editor** (`SHIFT+p`): create and edit playlists from local or downloaded tracks, import and export M3U / M3U8.
+- **Playlist editor** (`SHIFT+p`): create and edit playlists from local or downloaded tracks (library sortable with `SHIFT+t`, `/f:` searches folders), import and export M3U / M3U8.
 
 <p align="center"><img width="850" alt="The playlist editor" src="readme_images/changes_09.png" /></p>
 

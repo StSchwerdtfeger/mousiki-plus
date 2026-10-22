@@ -1008,7 +1008,9 @@ Brings back the queue that was cleared last with `SHIFT+x`. The restored tracks 
 
 ### Queue to playlist (`CTRL+SHIFT+u`)
 
-Opens the playlist editor (see [Playlists](#6-playlists)) with the queue's tracks already in the new playlist and the **name field focused**: type a name and press `CTRL+s` to save (the editor stays open, `ESC` leaves the name field, a second `ESC` leaves the editor). Playlists hold local files only, so **online (streamed) queue items are left out** and counted in the status line; duplicate files are added once. With an empty queue, or a queue with online tracks only, nothing opens and the status line says so.
+A small overlay asks first: **New playlist** or **Existing playlist** (`←` / `→` or `TAB` to choose, `ENTER` confirms, or press `n` / `e` directly; `ESC` closes it). With **Existing playlist** the overlay shows a search field and a list of the saved playlists (all of them while the search is empty); `↑` / `↓` choose, `ENTER` adds the queue's tracks to that playlist (ones it already holds are skipped), `ESC` goes back. Either way the playlist editor then opens on the Create/Edit tab and **the change still has to be saved with `CTRL+s`**.
+
+With **New playlist** the editor opens with the queue's tracks already in the new playlist and the **name field focused**: type a name and press `CTRL+s` to save (the editor stays open, `ESC` leaves the name field, a second `ESC` leaves the editor). Playlists hold local files only, so **online (streamed) queue items are left out** and counted in the status line; duplicate files are added once. With an empty queue, or a queue with online tracks only, nothing opens and the status line says so.
 
 ### Clear queue prompt (`SHIFT+x`)
 
@@ -1063,6 +1065,8 @@ Playlists are stored in **one** folder, set under **Settings → PATHS → PLAYL
 | `↑` / `↓` | Move through the focused list or picker |
 | `ENTER` | Depends on focus. See the table below. |
 | `4` / `5` | Move the highlighted track up or down in the playlist you are building |
+| `SHIFT+t` | Library picker: cycle the **sort** of the library list (and of a search result): folder order → *Filenames A-Z* → *Title A-Z* → *Artist A-Z* → *Album A-Z*. The current sort is shown in the LIBRARY title. Works as long as nothing was typed in the search box yet (a capital `T` typed into the box is a letter; press `ESC` to leave the box, or start with a small `t`). The key is the main list's *cycle sort* hotkey (`HKeyCycleSortMode`). |
+| `/f:` | In the search box: search **folders**. `/f:abbey` lists every track whose folder (or its parent folder) contains `abbey`; several words must all match. Combines with the sort. |
 | `D` / `DEL` / `BACKSPACE` | Remove the highlighted track (track list focused). On the Saved Playlists tab, `DEL` deletes the selected playlist after a Yes/No confirmation. |
 | `e` | On the Saved Playlists tab (list focused): **export** the selected playlist as an **M3U8** (default) or **M3U** file. See *Exporting a playlist* below. |
 | `i` | On the Saved Playlists tab (list focused): **import** `.m3u` / `.m3u8` files from a folder (default: the playlist export folder, else the playlist folder). `SPACE` marks a file, `a` marks all, `TAB` switches between folder field and list, `ENTER` imports the marked files (or the highlighted one), `ESC` cancels. Missing files and stream URLs are skipped and counted in the status line. |

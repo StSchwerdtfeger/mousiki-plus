@@ -2223,10 +2223,9 @@ void App::queue_move_to_edge(int dir) {
 // the name field focused so it only needs a name and HOME. Playlists are
 // local-files-only, so streamed (online) queue entries are left out and
 // counted in the status line.
-void App::queue_to_playlist() {
-    if (queue_.empty()) { status_line_ = "the queue is empty -- nothing to save as a playlist"; return; }
+std::vector<PlaylistTrack> App::queue_local_tracks(int& skipped) const {
     std::vector<PlaylistTrack> tracks;
-    int skipped = 0;
+    skipped = 0;
     for (const auto& q : queue_) {
         if (!q.is_local) { ++skipped; continue; }
         bool dup = false;
@@ -2239,16 +2238,60 @@ void App::queue_to_playlist() {
         pt.missing = false;
         tracks.push_back(std::move(pt));
     }
+    return tracks;
+}
+
+// The small overlay first (Mode::QueueToPlaylist); the work is queue_to_playlist_apply().
+void App::queue_to_playlist() {
+    if (queue_.empty()) { status_line_ = "the queue is empty -- nothing to save as a playlist"; return; }
+    int skipped = 0;
+    if (queue_local_tracks(skipped).empty()) { status_line_ = "no local tracks in the queue (playlists hold local files only)"; return; }
+    qtp_stage_ = 0;
+    qtp_choice_ = 0;
+    qtp_query_.clear();
+    qtp_selected_ = 0;
+    mode_ = Mode::QueueToPlaylist;
+    force_redraw_ = true;
+}
+
+void App::qtp_refresh() {
+    qtp_view_ = filter_playlists(qtp_query_);   // empty query = all of them
+    qtp_selected_ = std::clamp(qtp_selected_, 0, std::max(0, static_cast<int>(qtp_view_.size()) - 1));
+}
+
+void App::queue_to_playlist_apply(const std::string& existing) {
+    int skipped = 0;
+    std::vector<PlaylistTrack> tracks = queue_local_tracks(skipped);
     if (tracks.empty()) { status_line_ = "no local tracks in the queue (playlists hold local files only)"; return; }
     const int n = static_cast<int>(tracks.size());
+    const std::string skipped_note = skipped > 0 ? " (" + std::to_string(skipped) + " online skipped)" : std::string();
     playlist_open_editor();           // fresh editor, tab 0
-    playlist_edit_tracks_ = std::move(tracks);
-    playlist_edit_track_selected_ = 0;
-    playlist_edit_focus_ = 0;         // the name field
-    playlist_edit_dirty_ = true;
-    playlist_status_ = "queue -> playlist: " + std::to_string(n) + " track" + (n == 1 ? "" : "s")
-                     + (skipped > 0 ? " (" + std::to_string(skipped) + " online skipped)" : "")
-                     + " -- type a name, Ctrl+S saves";
+    if (existing.empty()) {
+        playlist_edit_tracks_ = std::move(tracks);
+        playlist_edit_track_selected_ = 0;
+        playlist_edit_focus_ = 0;         // the name field
+        playlist_edit_dirty_ = true;
+        playlist_status_ = "queue -> playlist: " + std::to_string(n) + " track" + (n == 1 ? "" : "s") + skipped_note
+                         + " -- type a name, Ctrl+S saves";
+        return;
+    }
+    playlist_load_into_editor(existing);
+    if (playlist_edit_name_ != existing) return;   // could not be loaded: the status line says so
+    const int first_new = static_cast<int>(playlist_edit_tracks_.size());
+    int added = 0;
+    for (auto& t : tracks) {
+        bool dup = false;
+        for (const auto& e : playlist_edit_tracks_) if (e.path == t.path) { dup = true; break; }
+        if (dup) continue;
+        playlist_edit_tracks_.push_back(std::move(t));
+        ++added;
+    }
+    playlist_edit_track_selected_ = std::min(first_new, std::max(0, static_cast<int>(playlist_edit_tracks_.size()) - 1));
+    playlist_edit_focus_ = 2;          // the track list, on the first added track
+    playlist_edit_dirty_ = added > 0;
+    playlist_status_ = "queue -> \"" + existing + "\": " + std::to_string(added) + " track" + (added == 1 ? "" : "s") + " added"
+                     + (n - added > 0 ? ", " + std::to_string(n - added) + " already in it" : std::string()) + skipped_note
+                     + (added > 0 ? " -- Ctrl+S saves" : "");
 }
 
 // ---------------------------------------------------------------------
@@ -2849,6 +2892,39 @@ void App::handle_key(int key) {
             mode_ = Mode::Browse;
         }
         force_redraw_ = true;
+        return;
+    }
+
+    if (mode_ == Mode::QueueToPlaylist) {
+        const bool arrow = last_key_was_arrow();
+        force_redraw_ = true;
+        if (qtp_stage_ == 0) {   // New playlist | Existing playlist
+            if (!arrow && key == 27) { mode_ = Mode::Browse; return; }
+            if ((arrow && (key == 'C' || key == 'D')) || (!arrow && key == 9)) { qtp_choice_ ^= 1; return; }
+            if (!arrow && (key == 'n' || key == 'N')) { qtp_choice_ = 0; key = '\r'; }
+            else if (!arrow && (key == 'e' || key == 'E')) { qtp_choice_ = 1; key = '\r'; }
+            if (!arrow && (key == '\r' || key == '\n')) {
+                if (qtp_choice_ == 0) { mode_ = Mode::Browse; queue_to_playlist_apply(""); }
+                else { qtp_stage_ = 1; qtp_query_.clear(); qtp_selected_ = 0; edit_owner_.clear(); qtp_refresh(); }
+            }
+            return;
+        }
+        // stage 1: the search field (typing filters) and the list of saved playlists
+        if (!arrow && key == 27) { qtp_stage_ = 0; return; }
+        const int total = static_cast<int>(qtp_view_.size());
+        if (arrow && key == 'A') { if (qtp_selected_ > 0) --qtp_selected_; return; }
+        if (arrow && key == 'B') { if (qtp_selected_ < total - 1) ++qtp_selected_; return; }
+        if (!arrow && (key == '\r' || key == '\n')) {
+            if (total > 0) {
+                const std::string name = qtp_view_[static_cast<size_t>(std::clamp(qtp_selected_, 0, total - 1))].name;
+                mode_ = Mode::Browse;
+                queue_to_playlist_apply(name);
+            }
+            return;
+        }
+        std::string st;
+        edit_focus("queue-to-playlist-search", qtp_query_);
+        if (edit_text_key(qtp_query_, edit_caret_, edit_anchor_, key, 80, &st)) qtp_refresh();
         return;
     }
 
@@ -5165,8 +5241,72 @@ std::vector<std::string> App::build_queue_panel(int total_width, int height) con
 // Playlist editor overlay (Mode::Playlist, HKeyPlaylist)
 // ---------------------------------------------------------------------
 
+const char* App::playlist_sort_name(int mode) {
+    switch (mode) {
+        case 1: return "Filenames A-Z";
+        case 2: return "Title A-Z";
+        case 3: return "Artist A-Z";
+        case 4: return "Album A-Z";
+        default: return "folder order";
+    }
+}
+
+// The LIBRARY list of the playlist editor: the search result (or, with "/f:" in front of the query, every track whose
+// folder matches -- each word of the rest must appear in "<parent folder> <folder name>", as in the main UI's "/f:" list),
+// then the sort of Shift+T. Unlike the main list the sort also applies to a search result, so a found set can be put in
+// order; sort 0 keeps the relevance ranking / folder order.
 void App::playlist_refresh_lib_view() {
-    playlist_edit_lib_view_ = filter_and_rank_local(playlist_edit_lib_query_);
+    {
+        std::string q = playlist_edit_lib_query_;
+        size_t i = 0;
+        while (i < q.size() && q[i] == ' ') ++i;
+        if (q.size() >= i + 3 && q[i] == '/') ++i;
+        const bool folders = q.size() >= i + 2 && (q[i] == 'f' || q[i] == 'F') && q[i + 1] == ':';
+        if (folders) {
+            std::vector<std::string> words;
+            std::string cur;
+            for (size_t k = i + 2; k <= q.size(); ++k) {
+                if (k == q.size() || q[k] == ' ') { if (!cur.empty()) words.push_back(cur); cur.clear(); }
+                else cur += q[k];
+            }
+            playlist_edit_lib_view_.clear();
+            for (const auto& t : all_local_tracks_) {
+                const fs::path dir = t.path.parent_path();
+                const std::string hay = path_utf8(dir.parent_path().filename()) + " " + path_utf8(dir.filename());
+                bool ok = true;
+                for (const auto& w : words) if (!contains_ci(hay, w)) { ok = false; break; }
+                if (ok) playlist_edit_lib_view_.push_back(t);
+            }
+        } else {
+            playlist_edit_lib_view_ = filter_and_rank_local(playlist_edit_lib_query_);
+        }
+    }
+    if (playlist_edit_sort_ != 0) {
+        struct Key { bool empty; std::string s; };
+        std::vector<std::pair<Key, size_t>> keyed;
+        keyed.reserve(playlist_edit_lib_view_.size());
+        {
+            std::lock_guard<std::mutex> lk(row_meta_mutex_);
+            for (size_t i = 0; i < playlist_edit_lib_view_.size(); ++i) {
+                const LocalTrack& t = playlist_edit_lib_view_[i];
+                auto it = row_meta_cache_.find(path_utf8(t.path));
+                std::string k;
+                if (playlist_edit_sort_ == 1) k = t.title;
+                else if (playlist_edit_sort_ == 2) k = (it != row_meta_cache_.end() && !it->second.title.empty()) ? it->second.title : t.title;
+                else if (playlist_edit_sort_ == 3) k = (it != row_meta_cache_.end() && !it->second.artist.empty()) ? it->second.artist : t.folder_artist;
+                else if (it != row_meta_cache_.end()) k = it->second.album;
+                keyed.push_back({{k.empty(), lower(k)}, i});   // no album / artist: after the others
+            }
+        }
+        std::stable_sort(keyed.begin(), keyed.end(), [](const auto& a, const auto& b) {
+            if (a.first.empty != b.first.empty) return !a.first.empty;
+            return a.first.s < b.first.s;
+        });
+        std::vector<LocalTrack> sorted;
+        sorted.reserve(keyed.size());
+        for (const auto& k : keyed) sorted.push_back(std::move(playlist_edit_lib_view_[k.second]));
+        playlist_edit_lib_view_ = std::move(sorted);
+    }
     playlist_edit_lib_selected_ = std::clamp(playlist_edit_lib_selected_, 0,
         std::max(0, static_cast<int>(playlist_edit_lib_view_.size()) - 1));
 }
@@ -5853,6 +5993,14 @@ void App::handle_playlist_key(int key) {
             return;
         }
         if (key == '\r' || key == '\n') { playlist_add_hovering_to_edit(); return; }
+        // Shift+T (HKeyCycleSortMode) sorts the list -- while the box has not been typed into yet (a capital T typed
+        // as text is a T, so start a search with a small letter, or leave the box with ESC first).
+        if (!text_engaged("playlist-lib-search") && resolve_hotkey_action(key) == "HKeyCycleSortMode") {
+            playlist_edit_sort_ = (playlist_edit_sort_ + 1) % 5;
+            playlist_refresh_lib_view();
+            playlist_status_ = std::string("sort: ") + playlist_sort_name(playlist_edit_sort_);
+            return;
+        }
         edit_focus("playlist-lib-search", playlist_edit_lib_query_);
         text_engage("playlist-lib-search");
         if (edit_text_key(playlist_edit_lib_query_, edit_caret_, edit_anchor_, key, 120, &playlist_status_))
@@ -5928,7 +6076,8 @@ std::vector<std::string> App::build_playlist_library_panel(int total_width, int 
     // The query has its own SEARCH LIBRARY pane above (build_playlist_search_panel());
     // typing still goes to it while this pane has focus, so the focus triangle
     // sits here, where Up/Down and ENTER act.
-    out.push_back(box_top(std::string("LIBRARY") + (playlist_edit_focus_ == 1 ? focus_indicator(settings_, border_ansi) : std::string()),
+    out.push_back(box_top(std::string("LIBRARY") + (playlist_edit_sort_ ? std::string(" (") + playlist_sort_name(playlist_edit_sort_) + ")" : std::string())
+                          + (playlist_edit_focus_ == 1 ? focus_indicator(settings_, border_ansi) : std::string()),
                           total_width, border_ansi));
 
     // Three equal columns -- Filename | Title | Artist -- separated by
@@ -6324,9 +6473,13 @@ void App::build_playlist_screen(std::ostringstream& frame, int W, int target_hei
         // leaves panel_h - 3 data rows to split roughly 1:3.
         // The SEARCH LIBRARY pane above them costs 3 more lines (top border,
         // input row, bottom border), which come out of the TRACKS pane.
+        // LIBRARY has two rows more and TRACKS two fewer than the plain 1:3 split, and the third legend row ("Sort")
+        // costs TRACKS one more, so the frame keeps its height.
         int data_rows = std::max(5, panel_h - 6);
         int lib_rows = std::max(2, data_rows / 4);
         int track_rows = data_rows - lib_rows;
+        lib_rows += 2;
+        track_rows = std::max(2, track_rows - 3);
         for (auto& l : build_playlist_search_panel(W)) frame << l << "\n";
         for (auto& l : build_playlist_library_panel(W, lib_rows)) frame << l << "\n";
         for (auto& l : build_playlist_tracks_panel(W, track_rows)) frame << l << "\n";
@@ -6373,6 +6526,7 @@ void App::build_playlist_screen(std::ostringstream& frame, int W, int target_hei
         } else {
             groups.push_back({"Move", {lr, "[TAB] Focus", "[\u2191\u2193] Navi.", "[ENTER] Add/Load", esc}});
             groups.push_back({"Tracks", {"[DEL] Remove", "[4/5] Move \u2191\u2193", "[CTRL+s] Save"}});
+            groups.push_back({"Sort", {"[SHIFT+t] Sorting searched titles", "[/f:] Search folders"}});
         }
         {
             const auto lrows = layout_legend_tree(groups, W - 1);
@@ -7432,7 +7586,7 @@ bool App::list_overlay_active() const {
     if (!list_overlay_open_) return false;
     switch (mode_) {
         case Mode::Browse: case Mode::Search: case Mode::BulkAdd:
-        case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: return true;
+        case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: return true;
         default: return false;
     }
 }
@@ -8632,7 +8786,7 @@ bool App::queue_overlay_active() const {
     if (!queue_overlay_open_) return false;
     switch (mode_) {
         case Mode::Browse: case Mode::Search: case Mode::BulkAdd:
-        case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: return true;
+        case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: return true;
         default: return false;
     }
 }
@@ -9858,6 +10012,63 @@ std::vector<std::string> App::build_clear_queue_panel() const {
     return lines;
 }
 
+// Ctrl+Shift+U: "New playlist / Existing playlist"; the second step has a search field and the list of saved playlists.
+std::vector<std::string> App::build_queue_to_playlist_panel() const {
+    const int W = kQtpPanelWidth;
+    const int inner = W - 4;
+    const std::string border = ansi_for(settings_.border_color, false);
+    const std::string border_bottom = ansi_for(settings_.border_color_bottom, false);
+    const std::string R = "\x1b[0m", HI = "\x1b[7m";
+    const std::string bar = border + settings_.box_vertical + R;
+    auto row = [&](const std::string& plain) {
+        const std::string t = truncate_str(plain, inner);
+        return bar + " " + t + std::string(static_cast<size_t>(std::max(0, inner - display_width(t))), ' ') + " " + bar;
+    };
+    int skipped = 0;
+    const int n = static_cast<int>(queue_local_tracks(skipped).size());
+    std::vector<std::string> lines;
+    if (qtp_stage_ == 0) {
+        auto centred = [&](const std::string& plain) {
+            const int fill = std::max(0, inner - display_width(plain));
+            return bar + " " + std::string(static_cast<size_t>(fill / 2), ' ') + plain + std::string(static_cast<size_t>(fill - fill / 2), ' ') + " " + bar;
+        };
+        const std::string a = "  New playlist  ", b = "  Existing playlist  ", gap = "    ";
+        const int btn_w = display_width(a) + display_width(gap) + display_width(b);
+        const int fill = std::max(0, inner - btn_w);
+        lines.push_back(box_top("Queue to playlist", W, border));
+        lines.push_back(centred(""));
+        lines.push_back(centred("Add the " + std::to_string(n) + " track" + (n == 1 ? "" : "s") + " of the queue to:"));
+        lines.push_back(centred(""));
+        lines.push_back(bar + " " + std::string(static_cast<size_t>(fill / 2), ' ') + (qtp_choice_ == 0 ? HI + a + R : a) + gap
+                        + (qtp_choice_ == 1 ? HI + b + R : b) + std::string(static_cast<size_t>(fill - fill / 2), ' ') + " " + bar);
+        lines.push_back(centred(""));
+        lines.push_back(box_bottom(W, "[n / e]  [ENTER] choose  [ESC] Close", border_bottom));
+        return lines;
+    }
+    lines.push_back(box_top("Existing playlist", W, border));
+    {
+        const std::string prefix = "Search: ";
+        const int field_w = std::max(1, inner - static_cast<int>(prefix.size()));
+        const bool typed = !qtp_query_.empty();
+        EditPaint p = paint_edit_field(qtp_query_, edit_caret_, edit_anchor_, field_w, typed ? search_sgr(settings_) : search_idle_sgr(settings_), true);
+        lines.push_back(box_line_field(prefix, search_run(settings_, p.s, typed), p.cols, W, border, search_idle_sgr(settings_)));
+    }
+    const int total = static_cast<int>(qtp_view_.size());
+    const int scroll = std::clamp(qtp_selected_ - kQtpListRows / 2, 0, std::max(0, total - kQtpListRows));
+    for (int r = 0; r < kQtpListRows; ++r) {
+        const int idx = scroll + r;
+        if (idx >= total) { lines.push_back(row(total == 0 && r == 0 ? "(no saved playlists match)" : "")); continue; }
+        const std::string cnt = std::to_string(qtp_view_[static_cast<size_t>(idx)].track_count) + " tracks";
+        const int name_w = std::max(1, inner - display_width(cnt) - 2);
+        std::string content = pad_right(truncate_str(qtp_view_[static_cast<size_t>(idx)].name, name_w), name_w) + "  " + cnt;
+        content = pad_right(truncate_str(content, inner), inner);
+        if (idx == qtp_selected_) lines.push_back(bar + " " + cursor_sgr(settings_.list_cursor_color, settings_.list_cursor_bg_color) + content + R + " " + bar);
+        else lines.push_back(bar + " " + content + " " + bar);
+    }
+    lines.push_back(box_bottom(W, total > kQtpListRows ? std::to_string(total) + " playlists  [\u2191\u2193] [ENTER] Add  [ESC] Back" : "[\u2191\u2193] [ENTER] Add  [ESC] Back", border_bottom));
+    return lines;
+}
+
 // "A newer version is out": version, the version in use and the address of the release page; [ESC] closes, [o] opens it.
 std::vector<std::string> App::build_update_panel() const {
     const int W = kUpdatePanelWidth;
@@ -10293,7 +10504,7 @@ std::string App::render_frame(TerminalIO& term) {
         // opening and closing it would force a full clear and flicker.
         if (m == Mode::LyricsEdit && lyrics_edit_from_karaoke_) return 7;
         switch (m) {
-            case Mode::Browse: case Mode::Search: case Mode::BulkAdd: case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: return 0;
+            case Mode::Browse: case Mode::Search: case Mode::BulkAdd: case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: return 0;
             case Mode::Settings: case Mode::ColorEdit: return 1;
             case Mode::Console: return 2;
             case Mode::Cheatsheet: return 3;
@@ -10728,6 +10939,8 @@ std::string App::render_frame(TerminalIO& term) {
         draw_floating_panel(floating, build_retry_lyrics_panel(), kRetryLyricsPanelWidth, W, 0, true);
     } else if (mode_ == Mode::ClearQueue) {
         draw_floating_panel(floating, build_clear_queue_panel(), kClearQueuePanelWidth, W);
+    } else if (mode_ == Mode::QueueToPlaylist) {
+        draw_floating_panel(floating, build_queue_to_playlist_panel(), kQtpPanelWidth, W);
     } else if (mode_ == Mode::UpdateNotice) {
         draw_floating_panel(floating, build_update_panel(), kUpdatePanelWidth, W);
     } else if (mode_ == Mode::OsciMenu) {

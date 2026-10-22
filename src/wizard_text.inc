@@ -431,7 +431,7 @@ QUEUE related commands, no matter the focus: [[Header]]
 [!]             lock / unlock (default is locked: move to queue end when played)
 [SHIFT+x]       clear it (asks first)
 [CTRL+SHIFT+z]  undo the last clear (one level)
-[CTRL+SHIFT+u]  save the queue as a playlist
+[CTRL+SHIFT+u]  queue to a new or an existing playlist (asks first)
 
 
 [[NEW PAGE]]
@@ -533,6 +533,9 @@ OPEN AND CHANGE TABS:[[Header]] Open via [SHIFT+p], change tabs via [<-/->]
 CREATE/EDIT TAB: [[Header]]
 NAME: Choose a name for a playlist.
 SEARCH AND ADD: Use the search function to search for titles and add via [ENTER]
+SEARCH FOLDERS: Start the search with /f: (e.g. /f:abbey) to list the tracks of the matching folders.
+SORT: [SHIFT+t] cycles the library sort: folder order, Filenames A-Z, Title A-Z, Artist A-Z,
+Album A-Z (also for search results). Use it before typing, or after leaving the box with [ESC].
 REMOVE: Move the focus to the track list, choose and delete a track via [DEL/d]
 SAVE/DISCARD: Save via [CTRL+s] and just choose [No] when exiting the playlist
 editor to discard your current playlist.
@@ -562,13 +565,13 @@ CHOOSE WHAT TO CONVERT: [[Header]]
 
 CHOOSE THE TARGET: [[Header]]
 [<-/->]          MP3 320 kbps, MP3 V0 (variable), MP3 192 kbps, AAC 256 kbps (.m4a), Opus 128 kbps
-
+)WIZ",
+R"WIZ(
 START: [[Header]]
 [ENTER] converts the marked files (the highlighted one when nothing is marked!), [c] cancels a
 running conversion, [CTRL+p] plays the highlighted file. [ESC] closes the overlay; a running
 conversion goes on in the background and reports on the status line.
-)WIZ",
-R"WIZ(
+
 WHERE THE FILES GO: [[Header]]
 Into the CONVERSION EXPORT PATH ([s] Settings[[Header]] ->> PATHS[[Header]]), by default the 
 folder conversion-export inside the download folder, in the same sub folders as the originals.
@@ -702,12 +705,12 @@ TUNING AND EXTRA VIEWS: [[Header]]
 THE XY OSCILLOSCOPE: [[Header]]
 Like a real scope in X-Y mode. Wide stereo fills the area, a phase-shifted tone draws an ellipse.
 A nearly mono track fades over to a phase portrait instead of a flat line.
-
+)WIZ",
+R"WIZ(
 TUNING OVERLAY:[[Header]] [SHIFT+o] opens it, the picture changes live while the music plays.
 Scope mode       XY, YT, XY + YT (overlap), XY + YT (row), XY + YT (column)
 Osci style       braille (works in any terminal) / image (pixels, needs Kitty graphics or Sixel)
-)WIZ",
-R"WIZ(Frame rate       30 / 45 / 60 / 90 / 120 / 165 fps
+Frame rate       30 / 45 / 60 / 90 / 120 / 165 fps
 Osci music mode  for oscilloscope music: the unprocessed signal and a fixed scale
 Beam             CRT: every sample drawn once, light by the time the beam spends on a spot
                  (image default) / classic: the old look with a tail (braille default)
@@ -844,12 +847,12 @@ Plays every track at the same perceived loudness, so a quiet album does not disa
 Normalize     off / on                      (default on)
 Target level  -40 .. 0 LUFS                 (default -16)
 Max boost     0 .. 24 dB                    (default 9)
-
+)WIZ",
+R"WIZ(
 -16 LUFS leaves headroom, -14 matches YouTube and Spotify. The grey live line under the rows shows
 the measured loudness of the playing track and the gain actually applied, so you can see at once
 when Max boost is holding a quiet track back. In the radio a stream has no end, so the loudness is
-)WIZ",
-R"WIZ(measured since you tuned in and the gain glides in over a second.
+measured since you tuned in and the gain glides in over a second.
 
 STEREO OR MONO: [[Header]]
 Settings ->> ON/OFF ->> Stereo Sound. Off folds left and right together (and halves the memory a
@@ -1009,10 +1012,10 @@ built-in theme needs a new name. [ESC] with unsaved changes asks first, leaving 
 
 ON/OFF TAB: [[Header]] every row is changed with [<-/->]
 MODES: Playback (like [m]), Start Mode (player / radio: which of the two Mousiki opens with),
-Black Background (on: the terminal is black and plain text takes the list color while Mousiki runs; its own colors come back on exit)
-Share Profiles (on: the radio uses the player's oscilloscope/spectrogram settings; its own values are kept and come back when off)
 )WIZ",
-R"WIZ(Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
+R"WIZ(Black Background (on: the terminal is black and plain text takes the list color while Mousiki runs; its own colors come back on exit)
+Share Profiles (on: the radio uses the player's oscilloscope/spectrogram settings; its own values are kept and come back when off)
+Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
 Update Notice (a quiet once-a-day look for a newer release; a small window, once per version: [ESC] close, [o] open the release page)
 Media Keys (Windows: media pop-up/keys; Linux: MPRIS widgets/playerctl; macOS: Now Playing; the system media keys control Mousiki)
 Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars, Stereo Sound,
@@ -1147,13 +1150,13 @@ SEARCHING YOUR OWN STATIONS: [[Header]]
                              its first station
 While a list is shown the pane title reads STATIONS (LIST: name - ESC: all) and [n], [b] and [#] surf
 only inside that list. [ESC] clears a search still in the box; the next [ESC] returns to all stations.
-The search is fuzzy and typo tolerant; the characters - _ . / count as spaces.
+)WIZ",
+R"WIZ(The search is fuzzy and typo tolerant; the characters - _ . / count as spaces.
 
 FINDING NEW STATIONS: THE RADIO BROWSER: [[Header]]
 [SHIFT+s] searches the public directory radio-browser.info (needs curl).
 Fields: NAME, TAGS (comma separated, every tag has to match), COUNTRY (name or two-letter code), STATE,
-)WIZ",
-R"WIZ(LANGUAGE, BITRATE (128 = at least 128, 64-192 = range, -192 = at most), then the RESULTS.
+LANGUAGE, BITRATE (128 = at least 128, 64-192 = range, -192 = at most), then the RESULTS.
 [TAB]    NAME > TAGS > COUNTRY > STATE > LANGUAGE > BITRATE > RESULTS > NAME
 [ENTER]  in a field: search. In RESULTS: tune the station.
 [a]      in RESULTS: add it to your station list (a dot in front means you already have it)
@@ -1300,12 +1303,12 @@ Changed folders are copied, never moved, and nothing is deleted. Playback stops 
 
 REFERENCE: REBINDING THE KEYS OF THE RADIO: [[Header]]
 The keys that are not hard coded, grouped like the player's: PLAYBACK, MENUS, TIMESHIFT and SYSTEM.
-[ENTER]  on a row, then type one character (case matters) or SPACE / TAB / BACKSPACE
+)WIZ",
+R"WIZ([ENTER]  on a row, then type one character (case matters) or SPACE / TAB / BACKSPACE
 [DEL]    restore the default of that key
 [CTRL+SHIFT+u]  undo the last five key changes
 The first row, Reset all keys to default, sits under the cheat sheet note at the top.
-)WIZ",
-R"WIZ(A key that is already in use is refused, and the fixed keys count too: the 16 preset keys (1..0 and
+A key that is already in use is refused, and the fixed keys count too: the 16 preset keys (1..0 and
 e r t d f g) and the vi-style [j] / [k]. The cheat sheet [?] always lists the default keys.
 
 THE FILES OF THE RADIO: [[Header]]

@@ -45,7 +45,7 @@
 
 namespace muisc {
 
-enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex, UpdateNotice };
+enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex, UpdateNotice, QueueToPlaylist };
 enum class ListSource { Local, Online, Playlist, Folder };
 
 // One row of the main UI's "/f:" folder list: a folder that directly
@@ -351,6 +351,19 @@ private:
     void queue_reset_lap(); // clears every item's "played in this pass" flag (queue-then-stop)
     void queue_after_move(int from, int to); // a manual move just ends the current "a" run
     void queue_undo_clear();             // Ctrl+Shift+Z
+    // Ctrl+Shift+U asks first: a NEW playlist (editor, name field) or an EXISTING one (search + list of the saved
+    // playlists); the queue's tracks are added to it and the editor opens, where the change still has to be saved.
+    std::vector<PlaylistTrack> queue_local_tracks(int& skipped) const;
+    void queue_to_playlist_apply(const std::string& existing);   // existing empty = a new playlist
+    void qtp_refresh();
+    int qtp_stage_ = 0;                  // 0 = new / existing, 1 = pick the existing playlist
+    int qtp_choice_ = 0;                 // 0 = New playlist, 1 = Existing playlist
+    std::string qtp_query_;
+    std::vector<PlaylistSummary> qtp_view_;
+    int qtp_selected_ = 0;
+    static constexpr int kQtpPanelWidth = 56;
+    static constexpr int kQtpListRows = 8;
+    std::vector<std::string> build_queue_to_playlist_panel() const;
     void queue_to_playlist();            // Ctrl+Shift+U: queue -> playlist editor (name field)
     std::string hotkey_text(const char* action, const char* fallback) const; // bound key, as shown in a legend
 
@@ -404,6 +417,8 @@ private:
     std::string playlist_edit_lib_query_;
     std::vector<LocalTrack> playlist_edit_lib_view_;   // filter_and_rank_local(playlist_edit_lib_query_)
     int playlist_edit_lib_selected_ = 0;
+    int playlist_edit_sort_ = 0;   // LIBRARY sort (Shift+T): 0 folder order, 1 file names, 2 titles, 3 artists, 4 albums A-Z
+    static const char* playlist_sort_name(int mode);
     int playlist_edit_track_selected_ = 0;
     bool playlist_edit_dirty_ = false;    // true once tab 0 has unsaved changes -- see ESC's confirm prompt below
     bool playlist_confirm_exit_ = false;  // "save before exiting?" Y/N prompt, shown in place of the hint line

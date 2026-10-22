@@ -427,7 +427,7 @@ QUEUE related commands, no matter the focus: [[Header]]
 [!]             lock / unlock (default is locked: move to queue end when played)
 [SHIFT+x]       clear it (asks first)
 [CTRL+SHIFT+z]  undo the last clear (one level)
-[CTRL+SHIFT+u]  save the queue as a playlist
+[CTRL+SHIFT+u]  queue to a new or an existing playlist (asks first)
 
 
 [[NEW PAGE]]
@@ -529,6 +529,9 @@ OPEN AND CHANGE TABS:[[Header]] Open via [SHIFT+p], change tabs via [<-/->]
 CREATE/EDIT TAB: [[Header]]
 NAME: Choose a name for a playlist.
 SEARCH AND ADD: Use the search function to search for titles and add via [ENTER]
+SEARCH FOLDERS: Start the search with /f: (e.g. /f:abbey) to list the tracks of the matching folders.
+SORT: [SHIFT+t] cycles the library sort: folder order, Filenames A-Z, Title A-Z, Artist A-Z,
+Album A-Z (also for search results). Use it before typing, or after leaving the box with [ESC].
 REMOVE: Move the focus to the track list, choose and delete a track via [DEL/d]
 SAVE/DISCARD: Save via [CTRL+s] and just choose [No] when exiting the playlist
 editor to discard your current playlist.
