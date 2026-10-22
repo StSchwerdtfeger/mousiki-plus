@@ -277,6 +277,7 @@ jobs:
             packaging/dist/*.zip
             packaging/dist/*.deb
             packaging/dist/*.pkg
+            packaging/dist/*.cdx.json
       - name: Keep the attestation bundle
         if: ${{ steps.attest.outputs.bundle-path != '' }}
         run: cp "${{ steps.attest.outputs.bundle-path }}" packaging/dist/mousiki-release.intoto.jsonl

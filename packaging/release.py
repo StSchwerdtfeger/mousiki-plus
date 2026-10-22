@@ -1322,7 +1322,7 @@ def gpg_key_of(a):
 
 def gpg_sign_release(dist, key):
     """Detached, ASCII-armoured signatures for SHA256SUMS.txt (covers every file) and for every package
-    (.exe / .zip / .deb / .pkg), plus the public key.
+    (.exe / .zip / .deb / .pkg) and the SBOM (.cdx.json), plus the public key.
     Verify with:  gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt   or   gpg --verify <package>.asc <package>"""
     gpg = gpg_binary()
     if not gpg:
@@ -1330,7 +1330,7 @@ def gpg_sign_release(dist, key):
     sums = dist / "SHA256SUMS.txt"
     if not sums.is_file():
         die("no SHA256SUMS.txt in %s - nothing to sign" % dist)
-    packages = sorted({p for pat in ("*.exe", "*.zip", "*.deb", "*.pkg") for p in dist.glob(pat)})
+    packages = sorted({p for pat in ("*.exe", "*.zip", "*.deb", "*.pkg", "*.cdx.json") for p in dist.glob(pat)})
     for t in [sums] + packages:
         asc = t.with_name(t.name + ".asc")
         if asc.exists():
@@ -1531,11 +1531,11 @@ def cmd_cloud(a):
     if tmp.is_dir():
         for p in tmp.rglob("*"):
             ext = p.suffix.lower()
-            if p.is_file() and ext in (".exe", ".zip", ".deb", ".pkg"):
+            if p.is_file() and (ext in (".exe", ".zip", ".deb", ".pkg") or p.name.endswith(".cdx.json")):   # packages + the SBOM
                 shutil.copy2(str(p), str(dist / p.name))
                 got.append(dist / p.name)
             elif p.is_file() and (p.name in ("mousiki-release-key.asc", "SHA256SUMS.txt", "SHA256SUMS.txt.asc")
-                                  or (ext == ".asc" and p.name[:-4].lower().endswith((".exe", ".zip", ".deb", ".pkg")))):
+                                  or (ext == ".asc" and p.name[:-4].lower().endswith((".exe", ".zip", ".deb", ".pkg", ".cdx.json")))):
                 shutil.copy2(str(p), str(dist / p.name))      # checksums + GPG signatures made in the workflow
             elif p.is_file() and p.name.endswith(".intoto.jsonl"):
                 shutil.copy2(str(p), str(dist / p.name))      # provenance bundle
