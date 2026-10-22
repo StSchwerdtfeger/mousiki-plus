@@ -458,7 +458,8 @@ MOVING THROUGH LISTS:[[Header]]
 [SHIFT+up/down]  page up / down      [CTRL+up/down]  first / last row
 [ESC] in the LIBRARY PANE first removes an active filter (x/T/A/L/Y), the next [ESC] moves to the search field.
 
-TRACKER FILES (.mod .xm .s3m .it): only the TITLE can be saved (written into the module's header).
+TRACKER FILES AND CHIPTUNES: what the file can hold is written into it (title of .mod .xm .s3m .it; title and
+artist of .sid). All other fields are saved in the folder "chip_tracker_meta data" next to the music.
 
 SORT LIBRARY AND ADD TRACK TO FETCH META DATA TAB:[[Header]]
 Several sort options are available for the LIBRARY PANE:
@@ -563,11 +564,11 @@ Turns high resolution files into lighter ones, e.g. 24 bit / 96 kHz FLAC into MP
 OPEN:[[Header]] [SHIFT+c] opens the FILES TO CONVERT list (the library with format, sample rate,
 bitrate, size and the estimated size after the conversion). 
 NOTE:[[Header]] The original files are never changed/deleted in the conversion process!
-
+)WIZ",
+R"WIZ(
 CHOOSE WHAT TO CONVERT: [[Header]]
 [SPACE]          mark / unmark single highlighted files          
-)WIZ",
-R"WIZ([a]              mark all files shown in the (filtered) track list
+[a]              mark all files shown in the (filtered) track list
 [t] / [SHIFT+t]  pre-filter by type (all, lossless, FLAC, WAV, M4A, OGG, OPUS, AAC, MP3)
 [r] / [SHIFT+r]  pre-filter by minimum bitrate (any, 320, 500, 1000 kbps)
 [h]              hi-res only (more than 16 bit or more than 48 kHz)
@@ -699,10 +700,10 @@ changes the visualizations while the program runs.
 WHAT THEY SHOW: [[Header]]
 SPHERE:[[Header]] an audio-reactive sphere (uses same FFT band data as te spectrum strip below
 the meta data field in the main UI. 
-OSCILLOSCOPE:[[Header]] Available are a XY and YT mode oscilloscope.
-SPECTROGRAM:[[Header]] time runs left to right, frequency upwards, the color is the strength.
 )WIZ",
-R"WIZ(All of them analyze the decoded signal, so volume, equalizer and normalization never change
+R"WIZ(OSCILLOSCOPE:[[Header]] Available are a XY and YT mode oscilloscope.
+SPECTROGRAM:[[Header]] time runs left to right, frequency upwards, the color is the strength.
+All of them analyze the decoded signal, so volume, equalizer and normalization never change
 the picture.
 
 TUNING AND EXTRA VIEWS: [[Header]]
@@ -840,11 +841,11 @@ Electronic, Hip-Hop, Acoustic, Loudness), then come your own.
 PREAMP: [[Header]]
 Boosting bands would clip, so the level is lowered by the height of your loudest point (e.g. -7.1 dB
 for Bass Boost). A strong boost is therefore slightly quieter: turn the volume up. When the
-equalizer is off it is bypassed completely.
+)WIZ",
+R"WIZ(equalizer is off it is bypassed completely.
 
 NOTE:[[Header]] The radio keeps its own curve and its own presets (in radio_config.txt).
-)WIZ",
-R"WIZ(
+
 
 [[New Page]]
 6.2 LOUDNESS NORMALIZATION AND STEREO/MONO [[Header]]
@@ -1008,11 +1009,11 @@ which the list shows after the built-in ones, named in the header color.
 [ENTER]        on the theme name: the list; [ENTER] applies a theme
 [↑↓ / SHIFT+↑↓] in that list: one theme / a page (a scrollbar on the right shows where you are)
 [SHIFT+d]      in that list: delete a theme of your own (asks first)
-[ENTER]        on CREATE THEME: the theme editor
+)WIZ",
+R"WIZ([ENTER]        on CREATE THEME: the theme editor
 [e]            edit the theme in use in that editor
 [SHIFT+e / i]  export / import a theme as a .theme file
-)WIZ",
-R"WIZ(In the editor type a name (25 characters at most), optionally pick a template, change any cell and
+In the editor type a name (25 characters at most), optionally pick a template, change any cell and
 press [s] to save and apply it. A theme of your own can be overwritten (Mousiki asks first), a
 built-in theme needs a new name. [ESC] with unsaved changes asks first, leaving the settings does too.
 
@@ -1149,11 +1150,11 @@ NOTE: A station sits in one slot only: putting it in another slot moves it inste
 
 [[New Page]]
 10.1 SEARCHING STATIONS AND THE RADIO BROWSER [[Header]]
-
+)WIZ",
+R"WIZ(
 SEARCHING YOUR OWN STATIONS: [[Header]]
 [/] opens the search box under the frequency band. The STATIONS pane filters live as you type; 
-)WIZ",
-R"WIZ([ENTER] tunes the highlighted station and [ESC] clears the search.
+[ENTER] tunes the highlighted station and [ESC] clears the search.
 (a name, genre or country)   filters your stations
 [s:]                         back to searching stations
 [p:]                         your saved STATION LISTS; [ENTER] fills the pane with that list and tunes
@@ -1298,12 +1299,12 @@ Use oscilloscope / Use spectrogram.
 
 ANIMA/VIZ: [[Header]]
 Gradient wave speed and Pulse wave speed (the ON AIR sign), Bars Fluidity / Degradation / Viscosity,
-Osci/sphere (osci / sphere / spectro / off) and Osci style (braille / image).
+)WIZ",
+R"WIZ(Osci/sphere (osci / sphere / spectro / off) and Osci style (braille / image).
 
 [[New Page]]
 12.2 RADIO SETTINGS: PATHS, KEYS AND FILES [[Header]]
-)WIZ",
-R"WIZ(
+
 PATHS: [[Header]]
 Every path is a base folder; the radio makes its own sub folders below it:
 STATION LISTS PATH   stations/ and station_lists/          PRESETS PATH   presets/presets.txt

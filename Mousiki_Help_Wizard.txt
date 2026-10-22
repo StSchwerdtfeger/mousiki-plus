@@ -454,7 +454,8 @@ MOVING THROUGH LISTS:[[Header]]
 [SHIFT+up/down]  page up / down      [CTRL+up/down]  first / last row
 [ESC] in the LIBRARY PANE first removes an active filter (x/T/A/L/Y), the next [ESC] moves to the search field.
 
-TRACKER FILES (.mod .xm .s3m .it): only the TITLE can be saved (written into the module's header).
+TRACKER FILES AND CHIPTUNES: what the file can hold is written into it (title of .mod .xm .s3m .it; title and
+artist of .sid). All other fields are saved in the folder "chip_tracker_meta data" next to the music.
 
 SORT LIBRARY AND ADD TRACK TO FETCH META DATA TAB:[[Header]]
 Several sort options are available for the LIBRARY PANE:

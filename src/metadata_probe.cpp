@@ -1,5 +1,6 @@
 #include "metadata_probe.h"
 #include "chiptune.h"
+#include "chip_meta.h"
 #include "process_util.h"
 #include "path_utf8.h"
 #include "utf8_util.h"
@@ -27,7 +28,7 @@ double probe_duration_seconds(const fs::path& file) {
     }
 }
 
-RowMeta probe_row_meta(const fs::path& file) {
+static RowMeta probe_row_meta_impl(const fs::path& file) {
     RowMeta rm;
     // Pulls title/album alongside artist now (still one ffprobe call, so
     // no extra subprocess cost) so the library-wide search can match
@@ -99,7 +100,7 @@ RowMeta probe_row_meta(const fs::path& file) {
     return rm;
 }
 
-TrackMetadata probe_metadata(const fs::path& file, const std::string& fallback_name,
+static TrackMetadata probe_metadata_impl(const fs::path& file, const std::string& fallback_name,
                               const std::string& fallback_artist, const std::string& location_label) {
     TrackMetadata md;
     md.name = fallback_name;
@@ -172,6 +173,27 @@ TrackMetadata probe_metadata(const fs::path& file, const std::string& fallback_n
     if (is_tracker_file(file) || is_gme_file(file)) {
         md.format = to_upper(path_utf8(file.extension()).substr(1));
         md.type = is_tracker_file(file) ? "tracker module" : "game music";
+    }
+    return md;
+}
+
+// Tracker modules and chiptunes: what the side file next to them holds is put over what the file itself reports.
+RowMeta probe_row_meta(const fs::path& file) {
+    RowMeta rm = probe_row_meta_impl(file);
+    chipmeta::overlay(file, rm.artist, rm.title, rm.album, rm.year);
+    return rm;
+}
+
+TrackMetadata probe_metadata(const fs::path& file, const std::string& fallback_name,
+                              const std::string& fallback_artist, const std::string& location_label) {
+    TrackMetadata md = probe_metadata_impl(file, fallback_name, fallback_artist, location_label);
+    if (chipmeta::applies(file)) {
+        std::string artist = md.artist == "-" ? std::string() : md.artist, title = md.name, album = md.album, year = md.year;
+        chipmeta::overlay(file, artist, title, album, year);
+        if (!artist.empty()) md.artist = artist;
+        md.name = title;
+        md.album = album;
+        md.year = year;
     }
     return md;
 }

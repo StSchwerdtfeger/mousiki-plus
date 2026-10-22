@@ -1,5 +1,5 @@
 #include "meta_editor.h"
-#include "chiptune.h"
+#include "chip_meta.h"
 #include "path_utf8.h"
 #include "process_util.h"
 #include "tiny_json.h"
@@ -304,50 +304,6 @@ std::string first_line(std::string s) {
 }
 
 
-// Tracker modules (MOD / XM / S3M / IT ...) cannot be re-muxed by ffmpeg (it has no writer for them), and they hold no
-// artist / album / year at all -- only the song name in the header, which is the title. It is overwritten in place: a fixed
-// length field at a fixed offset (MOD 20 bytes at 0, S3M 28 at 0, XM 20 at 17, IT / MPTM 26 at 4), padded with zeros. The
-// bytes are Latin-1 like the reader (chiptune.cpp) expects; anything outside it becomes '?'.
-bool write_tracker_title(const fs::path& file, const std::string& title, std::string& err) {
-    std::string ext = path_utf8(file.extension());
-    for (char& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    std::fstream f(file, std::ios::in | std::ios::out | std::ios::binary);
-    if (!f.is_open()) { err = "could not open the file for writing"; return false; }
-    char head[48] = {};
-    f.read(head, sizeof head);
-    const std::streamsize got = f.gcount();
-    f.clear();
-    long off = -1;
-    size_t len = 0;
-    if (got >= 4 && std::string(head, 4) == "IMPM") { off = 4; len = 26; }                                  // IT
-    else if (got >= 17 && std::string(head, 17) == "Extended Module: ") { off = 17; len = 20; }            // XM
-    else {
-        f.seekg(44);
-        char m[4] = {};
-        f.read(m, 4);
-        f.clear();
-        if (std::string(m, 4) == "SCRM") { off = 0; len = 28; }                                              // S3M
-        else if (ext == ".mod") { off = 0; len = 20; }                                                       // MOD
-    }
-    if (off < 0) { err = "this tracker format has no title field Mousiki can write"; return false; }
-
-    std::string bytes;   // UTF-8 -> Latin-1
-    for (size_t i = 0; i < title.size() && bytes.size() < len;) {
-        const unsigned char c = static_cast<unsigned char>(title[i]);
-        unsigned cp = c;
-        size_t n = 1;
-        if (c >= 0xF0) { n = 4; cp = c & 0x07; } else if (c >= 0xE0) { n = 3; cp = c & 0x0F; } else if (c >= 0xC0) { n = 2; cp = c & 0x1F; }
-        for (size_t k = 1; k < n && i + k < title.size(); ++k) cp = (cp << 6) | (static_cast<unsigned char>(title[i + k]) & 0x3F);
-        i += n;
-        bytes += cp < 256 && cp >= 32 ? static_cast<char>(cp) : '?';
-    }
-    bytes.resize(len, '\0');
-    f.seekp(off);
-    f.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
-    f.flush();
-    if (!f) { err = "writing the title failed"; return false; }
-    return true;
-}
 } // namespace
 
 bool apply_meta_entry(const MetaEditEntry& e, std::string* err, std::string* new_path) {
@@ -371,12 +327,11 @@ bool apply_meta_entry(const MetaEditEntry& e, std::string* err, std::string* new
                      e.edited[static_cast<int>(MetaField::Title)] ||
                      e.edited[static_cast<int>(MetaField::Album)] ||
                      e.edited[static_cast<int>(MetaField::Year)];
-    if (want_tags && is_tracker_file(old_path)) {
-        if (e.edited[static_cast<int>(MetaField::Artist)] || e.edited[static_cast<int>(MetaField::Album)] ||
-            e.edited[static_cast<int>(MetaField::Year)])
-            return fail("tracker modules only store a title (artist / album / year cannot be saved)");
+    if (want_tags && chipmeta::applies(old_path)) {
+        // Tracker modules and chiptunes: ffmpeg cannot write them. The fields the file can hold go into its header, the
+        // others into the side file next to it (see chip_meta.h).
         std::string werr;
-        if (!write_tracker_title(old_path, e.value[static_cast<int>(MetaField::Title)], werr)) return fail(werr);
+        if (!chipmeta::save_tags(old_path, e, &werr)) return fail(werr);
     } else if (want_tags) {
         fs::path tmp = old_path.parent_path() /
                        (path_utf8(old_path.stem()) + ".mousiki-tmp" + ext);
@@ -421,6 +376,7 @@ bool apply_meta_entry(const MetaEditEntry& e, std::string* err, std::string* new
             std::error_code rename_ec;
             fs::rename(old_path, new_path_file, rename_ec);
             if (rename_ec) return fail("rename failed: " + rename_ec.message());
+            if (chipmeta::applies(old_path)) chipmeta::rename_entry(old_path.parent_path(), path_utf8(old_path.filename()), target_name);
             final_path = new_path_file;
         }
     }

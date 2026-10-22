@@ -2,15 +2,15 @@
 
 ## Welcome: a quick tour
 
-Mousiki Plus is a music player and an internet radio that live **inside your terminal**. You control everything with the keyboard, you see your music as colours, braille pictures and an oscilloscope, and you can steer it from your phone. This page gives you the short version; the chapters after it explain every key.
+Mousiki Plus is a music player and an internet radio that runs inside your terminal. You control everything with the keyboard, you see your music as colours, braille pictures and an oscilloscope, and you can steer it from your phone. This page gives you the short version; the chapters after it explain every key.
 
 ![The music player: meta data with the spinning disk, waveform, lyrics and the track list](images/Playback_Main_UI_lyrics.png)
 
 ### What you can do with it
 
-- **Play your music:** add your music folders and Mousiki builds a fast library with **fuzzy search** over file names and tags (`/`). Plays MP3, FLAC, WAV, M4A, OGG, OPUS, tracker modules, console and C64 music and more.
+- **Play your music:** add your music folders and Mousiki builds a library with fuzzy search over file names and tags (`/`). Plays MP3, FLAC, WAV, M4A, OGG, OPUS, tracker modules, console and C64 music and more.
 - **Play the web:** search, stream and download from **YouTube, SoundCloud and Bandcamp**, or add a whole YouTube playlist in one go.
-- **Listen to the radio:** press the `*` key and the program becomes an **online radio** with a tuning dial, tens of thousands of stations (Radio Browser), presets, timeshift (pause and rewind live radio) and recording.
+- **Listen to the radio:** press the `*` key and the program becomes an online radio with a tuning dial, stations from Radio Browser, presets, timeshift (pause and rewind live radio) and recording.
 - **See your music:** an **oscilloscope** (made for oscilloscope music) and a **spectrogram**, as braille pictures or as real images in Kitty / Sixel terminals, in the main screen, full screen or in their own window.
 - **Sing along:** **synchronized lyrics** fetched for you, word by word, with translations and a big-letter **karaoke mode**.
 - **Organize:** a **queue**, saved **playlists**, a **tag editor** that finds missing titles by audio fingerprint, a **listening history** with top lists and smart lists, a 10-band **equalizer**, loudness normalization and a sleep timer.
@@ -41,7 +41,7 @@ Switch on **Settings → ON/OFF → MODES → Remote App**, scan the QR code tha
 
 ### How this guide is organised
 
-Mousiki TUI player is two programs in one: a terminal **music player** (chapters 1 to 10) and an **online radio** (chapter 11), including visualizations such as an oscilloscope and a spectrogram, as well as a Karaoke mode, making use of its lyrics fetching capabilities, to just name some of the integrated features. Press `SHIFT` and `+` on a German keyboard (`SHIFT+8` on an English one: the key that types `*`) to switch between radio and music player mode (see [Two modes in one program](#two-modes-in-one-program) and [Keyboard layouts](#keyboard-layouts-german-and-english)).
+Mousiki is two programs in one: a terminal music player (chapters 1 to 10) and an online radio (chapter 11). The player also has an oscilloscope, a spectrogram and a karaoke mode. Press `SHIFT` and `+` on a German keyboard (`SHIFT+8` on an English one: the key that types `*`) to switch between radio and music player mode (see [Two modes in one program](#two-modes-in-one-program) and [Keyboard layouts](#keyboard-layouts-german-and-english)).
 
 Chapter 12 describes the phone remote and the command-line remote, chapter 13 the automated tests and chapter 14 how upgrades treat your settings.
 
@@ -236,7 +236,7 @@ Besides MP3, FLAC, WAV, OGG, Opus, M4A and the other usual formats, the player p
 | Commodore 64 SID tunes | `.sid` `.psid` `.rsid` | The **sidplayfp** program on the `PATH` (Linux: package `sidplayfp`; Windows has no official build: the easiest source is MSYS2, `pacman -S mingw-w64-ucrt-x86_64-sidplayfp` in its UCRT64 shell, then copy `sidplayfp.exe` and its DLLs into one folder such as `C:\tools\sidplayfp` and run `setup.ps1` again; `setup.sh` / `setup.ps1` install it or add it to the `PATH`) |
 
 - The module's title (and for SID: name, author and year from the file header) is used as metadata; the TYPE column says *tracker module*, *game music* or *C64 SID (n tunes)*.
-- The **meta editor can change the title** of a MOD / XM / S3M / IT / MPTM file (it is written into the module's header, the rest of the file is untouched); artist, album and year do not exist in these formats and cannot be saved for them.
+- The **meta editor can edit the tags** of tracker modules and chiptunes, in two places. What the file can hold is written into the file itself: the **title** of a MOD / XM / S3M / IT / MPTM file (the module's song name; the rest of the file is untouched) and the **title and artist** of a SID tune (the PSID header). Everything else (artist, album and year of a tracker module; album and year of a SID tune; all tags of game music such as NSF / SPC / VGM) is saved in a small side file next to the music, in a folder called `chip_tracker_meta data` (file `metadata.json`). Mousiki shows these values in the lists, in the search and in the metadata block like normal tags. The side file follows a renamed file and is removed again when nothing is left in it; copy the folder along with the music if you move it. The music files themselves are not touched for those fields.
 - A SID tune has no end, so it is rendered once for `SidPlayLength` seconds (default 180, see [Settings that exist only in `config.txt`](#settings-that-exist-only-in-configtxt)) into `~/.cache/mousiki/sid/` and then played from there; the next time it starts at once. Only the first sub-tune is played.
 - `setup.sh` and `setup.ps1` take care of these tools: they upgrade an FFmpeg that is already installed (skip with `--no-upgrade` / `-NoUpgrade`), install or rebuild one with libopenmpt and libgme where the usual package lacks them, and install sidplayfp or put it on the `PATH`. On Windows the project publishes no sidplayfp build: unzip one anywhere and run `setup.ps1` again.
 - If the required tool is missing, the status line says which one, and the track is skipped.
@@ -2042,7 +2042,7 @@ In the radio, a live station has no length, so the position slider is off; the s
 
 ## 13. Automated tests
 
-`cmake -DMOUSIKI_BUILD_TESTS=ON ..` then `make mousiki_tests && ./mousiki_tests` (Windows: `cmake --build . --config Release --target mousiki_tests`, then `Release\mousiki_tests.exe`) runs the checks of the text editor and fuzzy search, themes, settings files and their upgrade backup, the shared oscilloscope settings, Share Profiles, the remote control, the remote app's server and phone screen, the oscilloscope drawing, the JSON reader, the lyrics text helpers, saved playlists, and the listening history of the player and of the radio (91 tests). On GitHub the workflow *Tests* builds and runs them on Linux, macOS and Windows with every push. `./mousiki_tests remote` runs only the tests whose name contains "remote". The tests use a temporary config folder and never touch yours.
+`cmake -DMOUSIKI_BUILD_TESTS=ON ..` then `make mousiki_tests && ./mousiki_tests` (Windows: `cmake --build . --config Release --target mousiki_tests`, then `Release\mousiki_tests.exe`) runs the checks of the text editor and fuzzy search, themes, settings files and their upgrade backup, the shared oscilloscope settings, Share Profiles, the remote control, the remote app's server and phone screen, the oscilloscope drawing, the JSON reader, the lyrics text helpers, saved playlists, and the listening history of the player and of the radio (137 tests). On GitHub the workflow *Tests* builds and runs them on Linux, macOS and Windows with every push. `./mousiki_tests remote` runs only the tests whose name contains "remote". The tests use a temporary config folder and never touch yours.
 
 ## 14. Upgrades and your settings
 
