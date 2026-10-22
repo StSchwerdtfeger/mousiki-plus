@@ -37,7 +37,7 @@ Mousiki Plus is a music player and an internet radio that live **inside your ter
 
 Switch on **Settings → ON/OFF → MODES → Remote App**, scan the QR code that appears and your phone shows a small Mousiki screen: the spinning disk, meta data, play, next, volume, your lists and playlists, and the radio with its stations. It needs a PIN and works in your home network only; the details are in [chapter 12](#12-remote-control-and-key-bindings).
 
-![Mousiki on the phone](images/Remote_app_phone_player.png)
+<p align="center"><img width="200" alt="Mousiki on the phone" src="images/Remote_app_phone_player.png" /></p>
 
 ### How this guide is organised
 
