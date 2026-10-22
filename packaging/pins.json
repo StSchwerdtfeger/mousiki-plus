@@ -1,0 +1,41 @@
+{
+  "_note": "written by release.py pin - review the diff before committing",
+  "files": {
+    "ffmpeg-linux-amd64-static.tar.xz": {
+      "sha256": "abda8d77ce8309141f83ab8edf0596834087c52467f6badf376a6a2a4c87cf67",
+      "url": "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+    },
+    "ffmpeg-linux-arm64-static.tar.xz": {
+      "sha256": "f4149bb2b0784e30e99bdda85471c9b5930d3402014e934a5098b41d0f7201b1",
+      "url": "https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-arm64-static.tar.xz"
+    },
+    "ffmpeg-win-essentials.zip": {
+      "sha256": "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba",
+      "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-9.0.2-essentials_build.zip"
+    },
+    "python-3.13.14-embed-amd64.zip": {
+      "sha256": "90b4e5b9898b72d744650524bff92377c367f44bd5fbd09e3148656c080ad907",
+      "url": "https://www.python.org/ftp/python/3.13.14/python-3.13.14-embed-amd64.zip"
+    },
+    "python-3.13.14-embed-arm64.zip": {
+      "sha256": "8b5bfc935a24b55c17410aa0b21016ebeee225c96addf008d1d3cd83ff52eb43",
+      "url": "https://www.python.org/ftp/python/3.13.14/python-3.13.14-embed-arm64.zip"
+    },
+    "yt-dlp.exe": {
+      "sha256": "33121d192d706e62f684a06f80918e3f3a8ba52ac3a65213b6951c39c7d9f555",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.21/yt-dlp.exe"
+    },
+    "yt-dlp_linux": {
+      "sha256": "d8bd33fca9d5b23bd5b9952b3fca36db5c46331933fda9f598a3da14ce2c243f",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.21/yt-dlp_linux"
+    },
+    "yt-dlp_linux_aarch64": {
+      "sha256": "e137c2171b0b8ef648e6136e86aa70c65923e93e434f01c93901d64744b190aa",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.21/yt-dlp_linux_aarch64"
+    },
+    "yt-dlp_macos": {
+      "sha256": "7a6fe71d7d680f1fb0ac18d4949873d77db2859e90017c0f44bd94b23be4ee40",
+      "url": "https://github.com/yt-dlp/yt-dlp/releases/download/2026.10.21/yt-dlp_macos"
+    }
+  }
+}
