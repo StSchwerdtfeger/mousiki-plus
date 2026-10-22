@@ -260,7 +260,7 @@ struct UiModel {
     mutable int pmarquee_row = -1;       // the tuned preset entry whose name scrolls in the PRESETS pane (-1 = none)
     mutable double pmarquee_since = 0.0;
     // Small overlay over the main screen: 1 = oscilloscope tuning (SHIFT+o), 2 = loudness normalisation (SHIFT+v).
-    int overlay = 0;                // 3 = sleep timer (SHIFT+z), 4 = equaliser (SHIFT+e), 5 = record (y), 6 = spectrogram (SHIFT+i), 7 = the MENUS index (<)
+    int overlay = 0;                // 8 = "a newer version is out" (update_check.h), 3 = sleep timer (SHIFT+z), 4 = equaliser (SHIFT+e), 5 = record (y), 6 = spectrogram (SHIFT+i), 7 = the MENUS index (<)
     // Spectrogram: full screen (SHIFT+u); where this frame put its picture (row, col, cols, rows; row -1 = none), the
     // cell rectangle an overlay covers, and whether one was drawn at all (else the feed is switched off).
     bool spectro_full = false;
@@ -283,6 +283,7 @@ struct UiModel {
     double sleep_left = 0.0;        // seconds until it stops
     double sleep_fade_sec = 0.0;    // length of the fade-out of the running / selected timer (0 = fade off)
     int overlay_row = 0;
+    std::string update_latest, update_current, update_url;   // overlay 8: the new version, the one in use, the release page
     bool sort_az = false;         // SHIFT+t: the main STATIONS pane (and its search results) sorted by name A-Z instead of list order
     bool shuffle = true;          // station-surf mode shown in the small box next to SEARCH: true = "S" (shuffle), false = "L" (list); toggled with M
     std::string notice;           // one status line in the SEARCH box's hint spot ("recording saved ..."); main clears it after a few seconds

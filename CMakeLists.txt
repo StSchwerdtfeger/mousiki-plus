@@ -52,6 +52,17 @@ endif()
 # ---------------------------------------------------------------------------
 # Sources
 # ---------------------------------------------------------------------------
+# Windows: the System Media Transport Controls (media pop-up, lock screen, media keys) use C++/WinRT from the Windows SDK
+# (src/media_session_win.cpp; MSVC only -- MinGW and an SDK without it build without it). Switch off if the build fails:
+#   cmake -DMOUSIKI_WINDOWS_SMTC=OFF ...
+option(MOUSIKI_WINDOWS_SMTC "Windows: media keys and the media pop-up (System Media Transport Controls, MSVC + Windows SDK)" ON)
+
+# macOS: the Now Playing / media key support is Objective-C++ (src/media_session_mac.mm), built with ARC.
+if(APPLE)
+  enable_language(OBJCXX)
+  set(MEDIA_MAC_SOURCE "${CMAKE_SOURCE_DIR}/src/media_session_mac.mm")
+  set_source_files_properties("${MEDIA_MAC_SOURCE}" PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+endif()
 file(GLOB_RECURSE MUISC_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.cpp")
 set(KISSFFT_SOURCES "${KISSFFT_DIR}/kiss_fft.c" "${KISSFFT_DIR}/kiss_fftr.c")
 set_source_files_properties(${KISSFFT_SOURCES} PROPERTIES LANGUAGE C)
@@ -141,7 +152,10 @@ if(ANDROID)
   target_link_libraries(mousiki PRIVATE OpenSLES log android)
 elseif(WIN32)
   target_compile_definitions(mousiki PRIVATE MUISC_PLATFORM_WINDOWS=1 MA_ENABLE_ONLY_SPECIFIC_BACKENDS=1 MA_ENABLE_WASAPI=1)
-  target_link_libraries(mousiki PRIVATE ole32 winmm ws2_32 iphlpapi shell32)   # ws2_32: the remote app's web server
+  target_link_libraries(mousiki PRIVATE ole32 winmm ws2_32 iphlpapi shell32)
+  if(NOT MOUSIKI_WINDOWS_SMTC)
+    target_compile_definitions(mousiki PRIVATE MOUSIKI_NO_SMTC=1)
+  endif()   # ws2_32: the remote app's web server
 
   target_compile_definitions(mousiki PRIVATE
       # <windows.h> otherwise defines min/max as macros, which collide with
@@ -168,7 +182,9 @@ elseif(WIN32)
   endif()
 elseif(APPLE)
   target_compile_definitions(mousiki PRIVATE MUISC_PLATFORM_MACOS=1 MA_ENABLE_ONLY_SPECIFIC_BACKENDS=1 MA_ENABLE_COREAUDIO=1)
-  target_link_libraries(mousiki PRIVATE "-framework CoreAudio" "-framework AudioToolbox" "-framework CoreFoundation" "-framework AudioUnit")
+  target_link_libraries(mousiki PRIVATE "-framework CoreAudio" "-framework AudioToolbox" "-framework CoreFoundation" "-framework AudioUnit"
+                        "-framework Foundation" "-framework MediaPlayer")
+  target_sources(mousiki PRIVATE "${MEDIA_MAC_SOURCE}")
 elseif(UNIX AND NOT APPLE)
   target_compile_definitions(mousiki PRIVATE MUISC_PLATFORM_LINUX=1 MA_ENABLE_ONLY_SPECIFIC_BACKENDS=1 MA_ENABLE_PULSEAUDIO=1 MA_ENABLE_ALSA=1)
   # Note: miniaudio talks to PipeWire through its PulseAudio *and* ALSA
@@ -230,11 +246,11 @@ if(MOUSIKI_BUILD_RADIO_STANDALONE)
       # shared with the player: the oscilloscope and the terminal picture output (Kitty / Sixel)
       src/oscilloscope_visualizer.cpp src/terminal_gfx.cpp src/remote_control.cpp src/remote_server.cpp src/remote_overlay.cpp src/qr_code.cpp
       # the player's settings code: Share Profiles, Remote App, the shared oscilloscope / spectrogram rows
-      src/settings.cpp src/osci_settings.cpp
+      src/settings.cpp src/osci_settings.cpp src/update_check.cpp src/open_url.cpp src/media_session.cpp src/media_session_mpris.cpp
       # the help wizard (SHIFT+w): its pages, and the disk its welcome page spins
       src/wizard.cpp src/disk_art.cpp)
   if(WIN32)
-    list(APPEND RADIO_SOURCES src/win_compat.cpp)
+    list(APPEND RADIO_SOURCES src/win_compat.cpp src/media_session_win.cpp)
   endif()
   add_executable(mousiki_radio ${RADIO_SOURCES} ${KISSFFT_SOURCES} ${MINIZ_SOURCES})
   target_include_directories(mousiki_radio PRIVATE "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/src_radio"
@@ -249,12 +265,17 @@ if(MOUSIKI_BUILD_RADIO_STANDALONE)
     target_compile_definitions(mousiki_radio PRIVATE MUISC_PLATFORM_WINDOWS=1 MA_ENABLE_ONLY_SPECIFIC_BACKENDS=1 MA_ENABLE_WASAPI=1 MA_ENABLE_NULL=1
                                NOMINMAX WIN32_LEAN_AND_MEAN _USE_MATH_DEFINES _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS)
     target_link_libraries(mousiki_radio PRIVATE ole32 winmm ws2_32 iphlpapi shell32)
+    if(NOT MOUSIKI_WINDOWS_SMTC)
+      target_compile_definitions(mousiki_radio PRIVATE MOUSIKI_NO_SMTC=1)
+    endif()
     if(MSVC)
       target_compile_options(mousiki_radio PRIVATE /utf-8 /EHsc /W3)
     endif()
   elseif(APPLE)
     target_compile_definitions(mousiki_radio PRIVATE MUISC_PLATFORM_MACOS=1 MA_ENABLE_ONLY_SPECIFIC_BACKENDS=1 MA_ENABLE_COREAUDIO=1 MA_ENABLE_NULL=1)
-    target_link_libraries(mousiki_radio PRIVATE "-framework CoreAudio" "-framework AudioToolbox" "-framework CoreFoundation" "-framework AudioUnit")
+    target_link_libraries(mousiki_radio PRIVATE "-framework CoreAudio" "-framework AudioToolbox" "-framework CoreFoundation" "-framework AudioUnit"
+                          "-framework Foundation" "-framework MediaPlayer")
+    target_sources(mousiki_radio PRIVATE "${MEDIA_MAC_SOURCE}")
   else()
     target_compile_definitions(mousiki_radio PRIVATE MUISC_PLATFORM_LINUX=1 MA_ENABLE_ONLY_SPECIFIC_BACKENDS=1 MA_ENABLE_PULSEAUDIO=1 MA_ENABLE_ALSA=1 MA_ENABLE_NULL=1)
     target_link_libraries(mousiki_radio PRIVATE dl m)

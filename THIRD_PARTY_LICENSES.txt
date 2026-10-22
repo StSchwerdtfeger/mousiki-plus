@@ -248,6 +248,8 @@ Optional programs and libraries Mousiki can use (not bundled)
   - libgme (game console music) ............. LGPL-2.1-or-later, used through FFmpeg
   - curl (radio station search) ............. curl licence (MIT-style), run as a program
   - ALSA / PulseAudio (Linux audio) ......... LGPL-2.1-or-later, loaded at run time by miniaudio
+  - libdbus-1 (Linux media keys / MPRIS) .... AFL-2.1 or GPL-2.0-or-later, loaded at run time (dlopen); not linked
+  - MediaPlayer framework (macOS) ........... part of macOS, used for Now Playing and the media keys
 
 ==============================================================================
 Online services
@@ -255,4 +257,5 @@ Online services
 
 Mousiki talks to these services; their own terms of use apply to what they return:
 YouTube, SoundCloud and Bandcamp (through yt-dlp), LRCLIB and lyrics-api.boidu.dev
-(lyrics), AcoustID (fingerprint lookup) and Radio Browser (radio station directory).
+(lyrics), AcoustID (fingerprint lookup), Radio Browser (radio station directory) and GitHub
+(the public releases page, for the once-a-day new-version notice; UpdateCheck=false switches it off).

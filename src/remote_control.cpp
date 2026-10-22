@@ -16,6 +16,7 @@
 #define MOUSIKI_GETPID getpid
 #endif
 
+#include "media_session.h"
 #include "remote_server.h"
 #include "settings.h"
 #include "version.h"
@@ -93,6 +94,7 @@ void start(const char* mode) {
     write_running(mode);
     g_last_poll = g_last_status = Clock::time_point{};
     g_started = true;
+    media::start();   // the system's media controls (no-op when off / unavailable; stays up across a mode switch)
 }
 
 void stop() {
@@ -111,6 +113,7 @@ std::vector<Command> poll() {
     std::vector<Command> out;
     if (!g_started) return out;
     for (Command& c : net::take_commands()) out.push_back(std::move(c));   // the remote app (network), not throttled
+    for (Command& c : media::poll()) out.push_back(std::move(c));          // media keys / desktop widgets, not throttled
     const auto now = Clock::now();
     if (now - g_last_poll < std::chrono::milliseconds(100)) return out;
     g_last_poll = now;
@@ -142,6 +145,7 @@ std::vector<Command> poll() {
 
 void publish_status(const std::vector<std::pair<std::string, std::string>>& kv) {
     if (!g_started) return;
+    if (media::active()) media::update(media::info_from_status(kv));
     const auto now = Clock::now();
     static Clock::time_point last_net{};
     if (net::running() && now - last_net >= std::chrono::milliseconds(250)) { last_net = now; net::set_status(kv); }

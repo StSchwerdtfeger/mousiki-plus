@@ -1005,6 +1005,8 @@ MODES: Playback (like [m]), Start Mode (player / radio: which of the two Mousiki
 Black Background (on: the terminal is black and plain text takes the list color while Mousiki runs; its own colors come back on exit)
 Share Profiles (on: the radio uses the player's oscilloscope/spectrogram settings; its own values are kept and come back when off)
 Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
+Update Notice (a quiet once-a-day look for a newer release; a small window, once per version: [ESC] close, [o] open the release page)
+Media Keys (Windows: media pop-up/keys; Linux: MPRIS widgets/playerctl; macOS: Now Playing; the system media keys control Mousiki)
 Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars, Stereo Sound,
 Normalize Volume, Replace Emoji, Marquee Scrolling
 VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
@@ -1311,6 +1313,7 @@ A running player or radio can be controlled with the same program:
   mousiki --cmd volume 60    mousiki --cmd volume-up    mousiki --cmd seek -30
   mousiki --status           what is playing now
   mousiki --cmd --help       every command
+Windows, Linux (MPRIS) and macOS (Now Playing): the system media keys and widgets already control Mousiki.
 No media keys on your keyboard? Bind ANY key combination in your system to such a line:
 GNOME/KDE: custom shortcut with the command   mousiki --cmd next
 i3/sway:   bindsym Ctrl+Mod1+Right exec mousiki --cmd next

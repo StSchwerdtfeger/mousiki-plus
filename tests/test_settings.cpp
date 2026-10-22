@@ -121,3 +121,20 @@ TEST(settings_take_shared_keeps_the_grid_colour) {
     CHECK_EQ(a.osci_style, 1);
     CHECK_EQ(a.spectro.span, 45);
 }
+
+TEST(settings_update_check_and_media_keys_default_on_and_round_trip) {
+    mt::TempHome home;
+    Settings s = load_settings();
+    CHECK(s.update_check);
+    CHECK(s.media_keys);
+    CHECK(read_update_check());   // no config.txt line yet: on
+    CHECK(read_media_keys());
+    s.update_check = false;
+    s.media_keys = false;
+    save_settings(s);
+    const Settings back = load_settings();
+    CHECK(!back.update_check);
+    CHECK(!back.media_keys);
+    CHECK(!read_update_check());
+    CHECK(!read_media_keys());
+}

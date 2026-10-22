@@ -45,7 +45,7 @@
 
 namespace muisc {
 
-enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex };
+enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex, UpdateNotice };
 enum class ListSource { Local, Online, Playlist, Folder };
 
 // One row of the main UI's "/f:" folder list: a folder that directly
@@ -1301,6 +1301,13 @@ private:
     int clear_queue_choice_ = 1;       // 0 = Yes, 1 = No
     static constexpr int kClearQueuePanelWidth = 40;
     std::vector<std::string> build_clear_queue_panel() const;
+
+    // "A newer version is out" (update_check.h): a small floating panel (Mode::UpdateNotice) shortly after the start,
+    // [ESC] closes it, [o] opens the release page. It waits (update_pending_) until the main screen is showing.
+    bool update_pending_ = false;
+    std::string update_latest_, update_current_, update_url_;
+    static constexpr int kUpdatePanelWidth = 56;
+    std::vector<std::string> build_update_panel() const;
 
     // Shift+O (HKeyOscMenu): small overlay (Mode::OsciMenu) to tune the
     // oscilloscope's afterglow / dot threshold / tail brightness live. It is

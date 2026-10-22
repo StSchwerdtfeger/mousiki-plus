@@ -2814,6 +2814,7 @@ constexpr int kOsciOverlayW = 50;
 constexpr int kNormOverlayW = 54;
 constexpr int kSleepOverlayW = 52;
 constexpr int kMenusOverlayW = 100;
+constexpr int kUpdateOverlayW = 56;
 constexpr int kRecordOverlayW = 56;
 constexpr int kEqOverlayW = 58;
 constexpr int kSpectroOverlayW = 52;
@@ -2930,7 +2931,32 @@ void push_legend_block(const Style& s, std::vector<std::string>& lines, int W, c
         lines.push_back(" " + s.border_bottom + " " + centred(rows[i]) + " " + kReset + " ");
 }
 
+// overlay 8: "a newer version is out" -- [ESC] closes it, [o] opens the release page (radio_main.cpp)
+std::vector<std::string> build_update_overlay(const Style& s, const UiModel& m) {
+    const int W = kUpdateOverlayW, inner = W - 4;
+    const std::string bar = s.border + s.c.box_vertical + kReset;
+    auto row = [&](const std::string& plain) {
+        const std::string x = truncate_str(plain, inner);
+        return bar + " " + x + spaces(inner - display_width(x)) + " " + bar;
+    };
+    std::string ver = m.update_latest;
+    while (!ver.empty() && (ver[0] == 'v' || ver[0] == 'V')) ver.erase(0, 1);
+    std::string url = m.update_url;
+    if (url.compare(0, 8, "https://") == 0) url.erase(0, 8);
+    std::vector<std::string> lines;
+    lines.push_back(box_top(s, W, "New version", s.border));
+    lines.push_back(row(""));
+    lines.push_back(row("Mousiki " + ver + " is out."));
+    lines.push_back(row("You are using " + m.update_current + "."));
+    lines.push_back(row(""));
+    lines.push_back(row(url));
+    lines.push_back(row(""));
+    lines.push_back(box_bottom(s, W, "[ESC] Close  [o] Go to release", s.border_bottom));
+    return lines;
+}
+
 std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const RadioStatus& st) {
+    if (m.overlay == 8) return build_update_overlay(s, m);
     const RadioSettings& c = s.c;
     const bool osci = m.overlay == 1;
     const bool sleep = m.overlay == 3;
@@ -3507,7 +3533,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     }
     if (m.overlay != 0) {   // SHIFT+o / SHIFT+v overlay, centred over the finished screen
         const auto panel = build_overlay(s, m, st);
-        const int pw = m.overlay == 7 ? kMenusOverlayW : m.overlay == 6 ? kSpectroOverlayW : m.overlay == 5 ? kRecordOverlayW : m.overlay == 4 ? kEqOverlayW : m.overlay == 3 ? kSleepOverlayW : m.overlay == 1 ? kOsciOverlayW : kNormOverlayW;
+        const int pw = m.overlay == 8 ? kUpdateOverlayW : m.overlay == 7 ? kMenusOverlayW : m.overlay == 6 ? kSpectroOverlayW : m.overlay == 5 ? kRecordOverlayW : m.overlay == 4 ? kEqOverlayW : m.overlay == 3 ? kSleepOverlayW : m.overlay == 1 ? kOsciOverlayW : kNormOverlayW;
         const int ph = static_cast<int>(panel.size());
         const int x = std::max(0, (W - pw) / 2);
         const int y = m.overlay == 1 ? std::clamp(1, 0, std::max(0, rows - ph))   // oscilloscope options: second row, only grows downwards

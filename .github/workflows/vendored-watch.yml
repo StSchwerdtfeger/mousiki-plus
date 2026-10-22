@@ -1,0 +1,45 @@
+# Once a week: compares the libraries shipped as source in third_party/ (list and versions: third_party/VENDORED.json) with
+# the newest upstream releases. When one is behind, ONE issue "Vendored libraries: updates available" is opened (or updated);
+# when everything is current again it is closed. After updating a library, change its `version` in VENDORED.json.
+name: vendored-watch
+
+on:
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  watch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Compare with upstream
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python tools/check_vendored.py --out report.md
+      - name: Show the report in the run summary
+        run: cat report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OUTDATED: ${{ steps.check.outputs.outdated }}
+        run: |
+          TITLE="Vendored libraries: updates available"
+          NUM=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number,title --jq ".[] | select(.title==\"$TITLE\") | .number" | head -n1)
+          if [ "${OUTDATED:-0}" != "0" ]; then
+            if [ -n "$NUM" ]; then
+              gh issue edit "$NUM" --body-file report.md
+            else
+              gh issue create --title "$TITLE" --body-file report.md
+            fi
+          elif [ -n "$NUM" ]; then
+            gh issue close "$NUM" --comment "Everything in third_party/ is current again."
+          fi

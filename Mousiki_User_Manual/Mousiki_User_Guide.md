@@ -15,7 +15,7 @@ Mousiki Plus is a music player and an internet radio that live **inside your ter
 - **Sing along:** **synchronized lyrics** fetched for you, word by word, with translations and a big-letter **karaoke mode**.
 - **Organize:** a **queue**, saved **playlists**, a **tag editor** that finds missing titles by audio fingerprint, a **listening history** with top lists and smart lists, a 10-band **equalizer**, loudness normalization and a sleep timer.
 - **Make it yours:** 32 **colour themes** plus your own, and almost every key can be rebound.
-- **Control it from afar:** use your **phone as a remote** (scan a QR code), or bind global media keys with `mousiki --cmd`.
+- **Control it from afar:** use your **phone as a remote** (scan a QR code), or use the system's media keys and now-playing widget (Windows, Linux, macOS), or bind global keys with `mousiki --cmd`.
 
 ![The oscilloscope in the big overlay](images/Playback_Main_UI_OSCI_BIG_OVERLAY.png)
 
@@ -141,6 +141,7 @@ The key shown for each command is the **default binding**. Your own bindings may
   - [11.14 Not done yet](#1114-not-done-yet)
 - **[12. Remote control and key bindings](#12-remote-control-and-key-bindings)**
   - [12.1 The remote app (Android / phone browser)](#121-the-remote-app-android--phone-browser)
+  - [12.2 System media controls: media keys and now playing (Windows, Linux, macOS)](#122-system-media-controls-media-keys-and-now-playing-windows-linux-macos)
 - **[13. Automated tests](#13-automated-tests)**
 - **[14. Upgrades and your settings](#14-upgrades-and-your-settings)**
 - **[About this app](#about-this-app)**
@@ -1402,6 +1403,8 @@ The tab has two categories (in the header colour); change a row with `←`/`→`
 | Black Background | true, false | Default **true**: while Mousiki runs, the terminal's background is **black** and text without a colour of its own takes the theme's LIST INACTIVE colour (Mousiki sets the terminal's default background with the standard OSC 11 sequence). On exit -- quitting, `Ctrl+C`, closing by a signal -- the terminal gets its own background back: Mousiki asks the terminal for its colour the first time (Linux / macOS) and resets it (OSC 111). One value for the player and the radio (`BlackBackground=` in the player's `config.txt`; the radio's row writes that line). Most terminals support it (Kitty, WezTerm, foot, Alacritty, xterm, GNOME Terminal, iTerm2, Windows Terminal); one that does not simply keeps its colour. `false` leaves the terminal's background alone. |
 | Share Profiles | true, false | Default **false**. **true**: the radio uses the player's oscilloscope and spectrogram settings (the `SHIFT+i` / `SHIFT+o` screens) instead of its own, so both modes look the same. The radio's own values are **not lost**: they are kept as a backup in `radio_config.txt` (lines starting with `## own `) and come back unchanged when you turn the switch off. While it is on, the radio's visual settings are shown but changes there change the player's values. Stored as `ShareProfiles=` in the player's `config.txt`; the row exists in both modes' Settings. The colours and themes are **never** shared by this switch. |
 | Remote App | `[ENTER] settings` | Opens the **REMOTE APP** overlay (12.1): on / off (default **off**), port, PIN, the address and a QR code for the phone. One value for the player and the radio (`RemoteApp=`, `RemoteAppPort=`, `RemoteAppPin=` in the player's `config.txt`). |
+| Update Notice | true, false | Default **true**. At start-up Mousiki looks, in the background and at most **once a day**, whether a newer release exists on the project's GitHub page and shows a small **New version** window (player and radio) with the new version and the address of the release -- **once per version**. `ESC` closes it, `o` opens the release page in your browser. Nothing is installed or downloaded, nothing about you or your music is sent (only the public releases page is asked, by the small script `scripts/check_update.py`, which needs Python 3 like the lyrics). Without Python or a network nothing happens. Read at the next start. (`UpdateCheck=`) |
+| Media Keys | true, false | Default **true**. **Windows:** the media pop-up of the volume flyout / lock screen and the media keys. **Linux:** Mousiki appears in the desktop's media widgets (MPRIS: the volume pop-up, a panel applet, the lock screen, `playerctl`) and its media keys, headphone buttons and sliders control it. **macOS:** Now Playing and the media keys. See 12.2. Read at the next start; player and radio. (`MediaKeys=`) |
 
 **ON/OFF** -- switches, most of them true/false. (The folder settings are on the PATHS tab; **Lyrics/Viz Default**, **No-Lyrics Viz** and the **Viz Order** rows are on ANIMA/VIZ.)
 
@@ -2015,11 +2018,27 @@ The phone shows a narrow version of the main screen, **drawn by Mousiki itself**
 
 The boxes are labelled with the keys of the computer (your own key bindings). Settings rows `RemoteApp=`, `RemoteAppPort=` (default 4747) and `RemoteAppPin=` are in `config.txt`. **Security:** off by default; only the home network can reach it (nothing is forwarded to the internet unless you set that up in your router); every command needs the PIN, and after 10 wrong PINs it answers nothing for a minute; only the fixed remote commands exist. On Windows the firewall asks once whether Mousiki may accept connections: allow *private networks*.
 
+### 12.2 System media controls: media keys and now playing (Windows, Linux, macOS)
+
+Mousiki (player **and** radio) shows what is playing to the operating system and answers its media controls, so the keys of your keyboard and headset, the volume pop-up and the lock screen work without any set-up:
+
+| System | What you get |
+|---|---|
+| **Linux** | **MPRIS**, the desktop standard: Mousiki is listed as *Mousiki Plus* in the media widgets of GNOME, KDE, Cinnamon, XFCE panels and in tools such as `playerctl` (`playerctl -p mousiki next`, `playerctl metadata`). Play / pause, next, previous, stop, seeking (the position slider) and the volume slider work; the title, artist, album and length are shown. Needs a desktop session with D-Bus (a normal Linux desktop); on a server or over SSH the feature stays off by itself. The D-Bus library (`libdbus-1`) is loaded when needed, nothing has to be installed for Mousiki. |
+| **macOS** | **Now Playing** (the widget in the menu bar / Control Center) shows the title, artist, album and position, and the media keys (play/pause, next, previous) and the headphone buttons control Mousiki. |
+| **Windows** | The **System Media Transport Controls**: Mousiki appears in the media pop-up of the volume flyout and on the lock screen with title, artist, album and a position bar, and the media keys (play/pause, next, previous, stop) and headset buttons control it. If your keyboard has none, bind keys to `mousiki --cmd ...` (see above). |
+
+In the radio, a live station has no length, so the position slider is off; the song is the title and the station is shown as album (or as the title when the station sends no song name). Switch the feature off with Settings -> ON/OFF -> MODES -> **Media Keys** or `MediaKeys=false` in `config.txt` (read at the next start). If another Mousiki is already running, the second one registers under its own name (`org.mpris.MediaPlayer2.mousiki.instance<pid>`).
+
+*Good to know (macOS):* the system sends the media keys to the app it considers "the" Now Playing app. A program started from a terminal is not always picked for that; when the keys still go to Music, start playback in Mousiki first (so it becomes the last app that played), or use the `mousiki --cmd` bindings above.
+
 ## 13. Automated tests
 
 `cmake -DMOUSIKI_BUILD_TESTS=ON ..` then `make mousiki_tests && ./mousiki_tests` (Windows: `cmake --build . --config Release --target mousiki_tests`, then `Release\mousiki_tests.exe`) runs the checks of the text editor and fuzzy search, themes, settings files and their upgrade backup, the shared oscilloscope settings, Share Profiles, the remote control, the remote app's server and phone screen, the oscilloscope drawing, the JSON reader, the lyrics text helpers, saved playlists, and the listening history of the player and of the radio (91 tests). On GitHub the workflow *Tests* builds and runs them on Linux, macOS and Windows with every push. `./mousiki_tests remote` runs only the tests whose name contains "remote". The tests use a temporary config folder and never touch yours.
 
 ## 14. Upgrades and your settings
+
+**New version notice.** With **Update Notice** on (Settings -> ON/OFF -> MODES, `UpdateCheck=true`, the default), Mousiki asks the project's releases page once a day, in the background, whether a newer version exists and tells you **once per version** with a small window (*Mousiki 4.5.0 is out. You are using 4.4.0.* and the address of the release; `ESC` Close, `o` Go to release). It appears as soon as the main screen is showing (not on top of a menu or the help wizard). It never installs anything -- how to update depends on how you installed Mousiki (`winget upgrade`, `scoop update`, `brew upgrade`, the installer or the `.deb`). The answer is kept in `update_check.txt` in the config folder.
 
 Installing a new version never deletes your settings (`config.txt`, `radio_config.txt` ... live in the config folder, not in the program folder). The first time a new version saves a settings file, the previous file is kept as **`config.txt.bak`** / **`radio_config.txt.bak`** next to it (one backup, replaced at the next upgrade), so you can go back if something looks wrong. The files carry a `# Written by Mousiki v...` line for that.
 

@@ -25,6 +25,7 @@ Areas where a flaw would be serious:
   or the lockout, or reaches files or commands through it.
 - **Starting other programs:** `ffmpeg`, `ffprobe`, `yt-dlp`, `fpcalc` and Python scripts are started with quoted arguments;
   any way to inject extra arguments or commands through a file name, a tag or a URL counts.
+- **Supply chain:** each release has an SBOM (`Mousiki-<version>-sbom.cdx.json`) listing the vendored libraries and the bundled tools; the weekly workflow `vendored-watch` opens an issue when a library in `third_party/` is behind upstream.
 - **The release files:** a mismatch between a package and `SHA256SUMS.txt`, or a bundled tool that is not what the build
   script pinned.
 

@@ -35,6 +35,8 @@
 #include "radio_engine.h"
 #include "terminal_gfx.h"
 #include "remote_control.h"
+#include "update_check.h"
+#include "open_url.h"
 #include "radio_stations.h"
 #include "radio_ui.h"
 #include "scope_window.h"
@@ -580,6 +582,7 @@ int radio_main(int argc, char** argv) {
     RadioBrowser browser;
     bool yt_jump = false;                 // after a YouTube search from the overlay: move to the results when they arrive
     double notice_until = 0.0;
+    bool update_pending = false;   // a newer version was found: the overlay opens when the main screen is showing
     bool scope_win_was = scope_window_running();
     std::vector<std::string> prev_lines;               // the screen's lines as last sent (diff_frame_lines)
     bool out_clear_next = false;                       // the next frame clears the screen (full-screen spectrogram on / off)
@@ -1193,6 +1196,18 @@ int radio_main(int argc, char** argv) {
                 muisc::remote::net::set_screen("radio", pc, pr, lines, zones, cfg.list_fg);
             }
         }
+        {   // "a newer version is out": once, as a small overlay once the main screen is showing
+            muisc::update_check::Notice n;
+            if (!update_pending && muisc::update_check::take(n)) {
+                ui.model.update_latest = n.latest; ui.model.update_current = n.current;
+                ui.model.update_url = muisc::update_check::release_url(n);
+                update_pending = true;
+            }
+            const UiModel& um = ui.model;
+            const bool main_screen = um.overlay == 0 && !um.cheat_open && !um.wizard_open && !um.scope_big && !um.spectro_full &&
+                                     !um.menu.open && !um.browse.open && !um.settings.open && !um.lmenu.open && !um.hmenu.open && !um.stov.open;
+            if (update_pending && main_screen) { update_pending = false; ui.model.overlay = 8; }
+        }
         {   // what `mousiki --status` prints
             const RadioStatus rs = engine.status();
             const char* st = rs.state == StreamState::Idle ? "stopped" : rs.state == StreamState::Failed ? "failed"
@@ -1771,6 +1786,16 @@ int radio_main(int argc, char** argv) {
                 if (k == 9 || (arrow && (k == 'A' || k == 'B'))) { so.add_field ^= 1; (so.add_field ? so.add_edit[1] : so.add_edit[0]).to_end(so.add_field ? so.add_name : so.add_url); continue; }
                 std::string& buf = so.add_field ? so.add_name : so.add_url;
                 if (edit_text_key(buf, so.add_edit[so.add_field], k, 500, nullptr)) so.add_error.clear();
+                continue;
+            }
+            if (ui.model.overlay == 8 && !ui.model.cheat_open) {                 // "a newer version is out"
+                if (k == 3 || k == kKeyCtrlC) { ui.model.overlay = 0; running = false; continue; }
+                if (!arrow && (k == 'o' || k == 'O')) {
+                    if (!muisc::open_url(ui.model.update_url)) { ui.model.notice = "could not open the browser: " + ui.model.update_url; notice_until = ui.model.t_sec + 6; }
+                    ui.model.overlay = 0;
+                } else if (!arrow && k == 27) {
+                    ui.model.overlay = 0;
+                }
                 continue;
             }
             if (ui.model.overlay == 5 && !ui.model.cheat_open) {                 // the record overlay (y)

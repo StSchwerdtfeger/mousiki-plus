@@ -1,0 +1,99 @@
+{
+  "_note": "The libraries shipped as source in third_party/. The version of each is READ FROM ITS FILES ('detect'), so after replacing a library nothing has to be edited here. Only a library without a readable version number (kissfft) has a 'version' written down by hand. Used by tools/check_vendored.py (weekly workflow 'vendored-watch') and tools/make_sbom.py (SBOM of each release). See third_party/README.md. 'readme_*' and 'readme_extra_rows' feed the table in the root README.md (python tools/check_vendored.py --update-readme); the extra rows (not vendored) are written by hand.",
+  "libraries": [
+    {
+      "name": "miniaudio",
+      "upstream": "mackron/miniaudio",
+      "license": "Unlicense OR MIT-0",
+      "path": "third_party/miniaudio.h",
+      "use": "audio output and decoding",
+      "detect": {
+        "file": "third_party/miniaudio.h",
+        "regexes": [
+          "miniaudio - v([0-9]+\\.[0-9]+\\.[0-9]+)"
+        ]
+      },
+      "readme_name": "miniaudio",
+      "readme_use": "audio playback and decoding"
+    },
+    {
+      "name": "kissfft",
+      "upstream": "mborgerding/kissfft",
+      "license": "BSD-3-Clause",
+      "path": "third_party/kissfft",
+      "use": "spectrum analysis",
+      "version": "unknown",
+      "readme_name": "KISS FFT",
+      "readme_use": "spectrum / spectrogram"
+    },
+    {
+      "name": "chromaprint",
+      "upstream": "acoustid/chromaprint",
+      "license": "MIT",
+      "path": "third_party/chromaprint",
+      "use": "audio fingerprint (AcoustID, fpcalc)",
+      "detect": {
+        "file": "third_party/chromaprint/chromaprint.h",
+        "regexes": [
+          "CHROMAPRINT_VERSION_MAJOR\\s+(\\d+)",
+          "CHROMAPRINT_VERSION_MINOR\\s+(\\d+)",
+          "CHROMAPRINT_VERSION_PATCH\\s+(\\d+)"
+        ]
+      },
+      "readme_name": "Chromaprint",
+      "readme_use": "AcoustID fingerprint (`fpcalc`)"
+    },
+    {
+      "name": "miniz",
+      "upstream": "richgel999/miniz",
+      "license": "MIT",
+      "path": "third_party/miniz",
+      "use": "deflate for the oscilloscope picture",
+      "detect": {
+        "file": "third_party/miniz/miniz.h",
+        "regexes": [
+          "miniz\\.c ([0-9]+\\.[0-9]+\\.[0-9]+)"
+        ]
+      },
+      "readme_name": "miniz",
+      "readme_use": "compresses the oscilloscope pictures (Kitty graphics)"
+    },
+    {
+      "name": "stb_truetype",
+      "upstream": "nothings/stb",
+      "license": "Unlicense OR MIT",
+      "path": "third_party/stb_truetype.h",
+      "use": "karaoke letters from an installed font",
+      "check": "stb_header",
+      "stb_file": "stb_truetype.h",
+      "detect": {
+        "file": "third_party/stb_truetype.h",
+        "regexes": [
+          "stb_truetype\\.h - v([0-9]+\\.[0-9]+)"
+        ]
+      },
+      "readme_name": "stb_truetype",
+      "readme_use": "karaoke letters of Japanese / Chinese / Korean text"
+    }
+  ],
+  "readme_extra_rows": [
+    [
+      "SDL2",
+      "the optional scope and spectrogram windows (Windows: bundled `SDL2.dll`)",
+      "2.32.10",
+      "2.32.10"
+    ],
+    [
+      "yt-dlp, FFmpeg",
+      "online sources, conversion (bundled in the Windows and Linux packages)",
+      "the newest at build time, fixed by hash in `packaging/pins.json`",
+      "-"
+    ],
+    [
+      "Python",
+      "lyrics and meta data helper scripts (Windows package; standard library only)",
+      "3.13.14",
+      "same"
+    ]
+  ]
+}

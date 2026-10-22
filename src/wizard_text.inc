@@ -1013,6 +1013,8 @@ Black Background (on: the terminal is black and plain text takes the list color 
 Share Profiles (on: the radio uses the player's oscilloscope/spectrogram settings; its own values are kept and come back when off)
 )WIZ",
 R"WIZ(Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
+Update Notice (a quiet once-a-day look for a newer release; a small window, once per version: [ESC] close, [o] open the release page)
+Media Keys (Windows: media pop-up/keys; Linux: MPRIS widgets/playerctl; macOS: Now Playing; the system media keys control Mousiki)
 Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars, Stereo Sound,
 Normalize Volume, Replace Emoji, Marquee Scrolling
 VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
@@ -1150,11 +1152,11 @@ The search is fuzzy and typo tolerant; the characters - _ . / count as spaces.
 FINDING NEW STATIONS: THE RADIO BROWSER: [[Header]]
 [SHIFT+s] searches the public directory radio-browser.info (needs curl).
 Fields: NAME, TAGS (comma separated, every tag has to match), COUNTRY (name or two-letter code), STATE,
-LANGUAGE, BITRATE (128 = at least 128, 64-192 = range, -192 = at most), then the RESULTS.
+)WIZ",
+R"WIZ(LANGUAGE, BITRATE (128 = at least 128, 64-192 = range, -192 = at most), then the RESULTS.
 [TAB]    NAME > TAGS > COUNTRY > STATE > LANGUAGE > BITRATE > RESULTS > NAME
 [ENTER]  in a field: search. In RESULTS: tune the station.
-)WIZ",
-R"WIZ([a]      in RESULTS: add it to your station list (a dot in front means you already have it)
+[a]      in RESULTS: add it to your station list (a dot in front means you already have it)
 [ESC]    clear a field; on an empty field or in RESULTS: close
 Every search hides broken streams, sorts by clicks and returns at most 200 results.
 
@@ -1302,12 +1304,12 @@ The keys that are not hard coded, grouped like the player's: PLAYBACK, MENUS, TI
 [DEL]    restore the default of that key
 [CTRL+SHIFT+u]  undo the last five key changes
 The first row, Reset all keys to default, sits under the cheat sheet note at the top.
-A key that is already in use is refused, and the fixed keys count too: the 16 preset keys (1..0 and
+)WIZ",
+R"WIZ(A key that is already in use is refused, and the fixed keys count too: the 16 preset keys (1..0 and
 e r t d f g) and the vi-style [j] / [k]. The cheat sheet [?] always lists the default keys.
 
 THE FILES OF THE RADIO: [[Header]]
-)WIZ",
-R"WIZ(radio_config.txt   settings, colors, equalizer, oscilloscope (keys as HKey<Action>= lines)
+radio_config.txt   settings, colors, equalizer, oscilloscope (keys as HKey<Action>= lines)
 stations.txt       your station list                    presets.txt       the presets and the active one
 stationlists.txt   the saved station lists              preset_names.txt  the short names of the PRESETS pane
 radio_history/     history_radio.txt and archive_radio.txt
@@ -1321,6 +1323,7 @@ A running player or radio can be controlled with the same program:
   mousiki --cmd volume 60    mousiki --cmd volume-up    mousiki --cmd seek -30
   mousiki --status           what is playing now
   mousiki --cmd --help       every command
+Windows, Linux (MPRIS) and macOS (Now Playing): the system media keys and widgets already control Mousiki.
 No media keys on your keyboard? Bind ANY key combination in your system to such a line:
 GNOME/KDE: custom shortcut with the command   mousiki --cmd next
 i3/sway:   bindsym Ctrl+Mod1+Right exec mousiki --cmd next

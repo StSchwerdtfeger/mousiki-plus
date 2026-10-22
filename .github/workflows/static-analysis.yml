@@ -1,0 +1,75 @@
+# cppcheck and clang-tidy over the project's own code (src/, src_radio/, tools/; not third_party/). NON-BLOCKING: the jobs
+# never turn the run red because of findings; read the reports (run summary, and the artifact "static-analysis"), fix what
+# matters. They find what the sanitizers cannot: problems in code paths the tests never run.
+name: static-analysis
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 5 * * 1"
+  pull_request:
+    paths:
+      - "src/**"
+      - "src_radio/**"
+      - ".github/workflows/static-analysis.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyse:
+    runs-on: ubuntu-24.04
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install the tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cppcheck clang-tidy cmake
+      - name: Configure (compile_commands.json for clang-tidy)
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: cppcheck
+        continue-on-error: true
+        run: |
+          cppcheck --std=c++17 --enable=warning,performance,portability --inline-suppr --quiet \
+            --suppress=missingIncludeSystem --suppress=unusedFunction \
+            -i third_party -I src -I src_radio \
+            --template='{file}:{line}: [{severity}] {id}: {message}' \
+            src src_radio 2> cppcheck.txt || true
+          echo "cppcheck findings: $(grep -c '^src' cppcheck.txt || true)"
+      - name: clang-tidy
+        continue-on-error: true
+        run: |
+          # bugprone/performance/clang-analyzer checks only: a short list of real problems instead of style noise
+          FILES=$(ls src/*.cpp src_radio/*.cpp | grep -v -e 'miniaudio_impl' )
+          clang-tidy -p build --quiet \
+            --checks='-*,bugprone-*,-bugprone-easily-swappable-parameters,-bugprone-narrowing-conversions,performance-*,clang-analyzer-*,-clang-analyzer-optin.performance.Padding,-performance-enum-size,-bugprone-empty-catch,-bugprone-switch-missing-default-case' \
+            --header-filter='^.*/(src|src_radio)/.*$' $FILES > clang-tidy.txt 2>&1 || true
+          echo "clang-tidy warnings: $(grep -c 'warning:' clang-tidy.txt || true)"
+      - name: Summary
+        run: |
+          {
+            echo "## Static analysis (non-blocking)"
+            echo "- cppcheck: $(grep -c '^src' cppcheck.txt || true) findings"
+            echo "- clang-tidy: $(grep -c 'warning:' clang-tidy.txt || true) warnings"
+            echo
+            echo "### cppcheck (first 40)"
+            echo '```'
+            head -n 40 cppcheck.txt
+            echo '```'
+            echo "### clang-tidy (first 40 warnings)"
+            echo '```'
+            grep 'warning:' clang-tidy.txt | head -n 40 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: static-analysis
+          path: |
+            cppcheck.txt
+            clang-tidy.txt
+          if-no-files-found: ignore

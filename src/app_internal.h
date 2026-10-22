@@ -2,12 +2,14 @@
 // Helpers that app.cpp and the files split out of it (app_meta.cpp, app_history.cpp, app_readlyrics.cpp) both use.
 // Only for those files: nothing here is part of the program's interface. The functions are defined in app.cpp
 // (n_files_label in app_history.cpp).
+#include <filesystem>
 #include <string>
 #include <utility>
 #include <vector>
 #include "console_log.h"
 #include "lyrics_fetcher.h"
 #include "settings.h"
+#include "themes.h"
 #include "terminal_ui.h"
 
 namespace muisc {
@@ -65,5 +67,14 @@ std::string pretty_key(const std::string& k);
 std::vector<std::string> wrap_words(const std::string& text, int width);
 // "12 files" / "1 file" (defined in app_history.cpp)
 std::string n_files_label(size_t n);
+
+// scripts/<filename> next to the program (the same search as for the lyrics helper)
+std::filesystem::path locate_script(const std::string& filename);
+
+void theme_apply(Settings& s, const themes::Theme& t);   // sets the colours of a theme (app_settings.cpp)
+
+// Hotkey strings (defined in app.cpp, used by the Settings screen)
+std::string combo_key_name(int key);                  // "" when `key` is not a bindable combination
+std::string normalize_hotkey_string(std::string s);   // what was typed into a key field, cleaned up
 
 } // namespace muisc

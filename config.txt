@@ -226,6 +226,10 @@ RemoteAppPin=
 ## 4 - 8 digits -- the PIN the app needs; made when the remote app is switched on (mousiki --remote-info shows it)
 ShareProfiles=false
 ## true , false -- the radio uses the player's oscilloscope and spectrogram settings (its own are kept as a backup and come back when off)
+UpdateCheck=true
+## true , false -- at start-up Mousiki looks (at most once a day, in the background) whether a newer release exists and tells you once per version; nothing is installed and nothing about you is sent (needs Python 3)
+MediaKeys=true
+## true , false -- the system's media controls: Linux shows Mousiki in the desktop's media widgets (MPRIS; playerctl works) and its media keys work, macOS shows Now Playing and handles the media keys (read at the next start; player and radio)
 PlaybackMode=list
 ## list , loop , shuffle , stop , queue then stop (plays the queue once, then stops -- never falls through to the library)
 ## shuffle never reorders the queue: n and the end of a track play its next title, only # picks a random one of it

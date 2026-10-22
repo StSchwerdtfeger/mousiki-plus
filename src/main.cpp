@@ -7,6 +7,9 @@
 #include "scope_window.h"
 #include "remote_control.h"
 #include "remote_server.h"
+#include "update_check.h"
+#include "media_session.h"
+#include "app_internal.h"
 
 #if defined(_WIN32)
 #include "win_compat.h"
@@ -90,6 +93,7 @@ int main(int argc, char** argv) {
     int rc = 0;
     std::unique_ptr<muisc::App> app;   // lives while the radio runs (suspended, playback paused); the radio itself is destroyed on every switch
     try {
+        muisc::update_check::start(muisc::locate_script("check_update.py"));   // a quiet look for a newer release (once a day, in the background)
         bool radio = (muisc::read_start_mode() == "radio");   // Settings -> ON/OFF -> Start Mode
         for (;;) {
             if (!radio) {
@@ -106,6 +110,7 @@ int main(int argc, char** argv) {
             rc = 0;
         }
         if (app && app->suspended()) app->shutdown();   // quit from the radio: now the player really ends
+        muisc::media::shutdown();               // the system media controls (MPRIS / Now Playing), if on
         muisc::remote::net::shutdown();         // the remote app's web server (if on)
         muisc::scope_window_close();            // the scope window (if open) closes with the program
         muisc::spectro_window_close();          // and the spectrogram window

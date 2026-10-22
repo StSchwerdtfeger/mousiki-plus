@@ -217,6 +217,7 @@ jobs:
           name: dist-macos
           path: |
             packaging/dist/*.pkg
+            packaging/dist/*.cdx.json
             packaging/dist/*.zip
           if-no-files-found: error
 
@@ -244,6 +245,10 @@ jobs:
           mkdir -p packaging/dist
           cp collected/* packaging/dist/
           ls -l packaging/dist
+      - name: SBOM (software bill of materials)
+        run: |
+          VER=$(grep -oP 'project\(mousiki VERSION \K[0-9.]+' CMakeLists.txt)
+          python3 tools/make_sbom.py --version "$VER" --out "packaging/dist/Mousiki-${VER}-sbom.cdx.json"
       - name: Checksums
         run: python3 packaging/release.py checksums --dist packaging/dist
       - name: GPG signatures

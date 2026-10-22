@@ -1296,7 +1296,7 @@ def archive_old_dist(dist, version):
 
 
 def write_checksums(dist):
-    pats = ("*.exe", "*.zip", "*.deb", "*.pkg")
+    pats = ("*.exe", "*.zip", "*.deb", "*.pkg", "*.cdx.json")
     files = sorted({p for pat in pats for p in dist.glob(pat)})
     if not files:
         return

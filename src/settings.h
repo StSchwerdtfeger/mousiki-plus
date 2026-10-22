@@ -244,6 +244,10 @@ struct Settings : VizPrefs {
     // this config.txt) instead of its own; its own values wait in radio_config.txt and come back when this is turned off.
     // One value for both programs (config.txt: ShareProfiles=true|false); the radio reads / writes that line. Colours are never shared.
     bool share_profiles = false;
+    // A quiet check for a newer release at start-up (once a day, shown once per version); config.txt: UpdateCheck=true|false.
+    bool update_check = true;
+    // The desktop's media controls (Linux: MPRIS; macOS: Now Playing + media keys); config.txt: MediaKeys=true|false.
+    bool media_keys = true;
     // The remote app (phone): a small web server inside Mousiki, off by default. One value for both programs (config.txt:
     // RemoteApp=, RemoteAppPort=, RemoteAppPin=); see remote_server.h.
     bool remote_app = false;
@@ -448,6 +452,10 @@ std::string read_start_mode();
 bool read_black_background();
 // The ShareProfiles= line of config.txt (false when there is none).
 bool read_share_profiles();
+// The UpdateCheck= line of config.txt (true when there is none).
+bool read_update_check();
+// The MediaKeys= line of config.txt (true when there is none).
+bool read_media_keys();
 // RemoteApp= / RemoteAppPort= / RemoteAppPin= of config.txt (defaults when missing), and writing them (one line each,
 // nothing else in the file changes). write_remote_app makes a PIN when it is switched on without one.
 #ifndef MOUSIKI_REMOTE_APP_CONFIG

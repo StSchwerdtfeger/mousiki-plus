@@ -736,6 +736,18 @@ static Settings load_from_config(const fs::path& path) {
             s.share_profiles = (v == "true" || v == "1" || v == "on" || v == "yes");
             continue;
         }
+        if (key == "UpdateCheck") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.update_check = !(v == "false" || v == "0" || v == "off" || v == "no");
+            continue;
+        }
+        if (key == "MediaKeys") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.media_keys = !(v == "false" || v == "0" || v == "off" || v == "no");
+            continue;
+        }
         if (key == "RemoteApp") {
             std::string v = trim(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
@@ -1297,6 +1309,30 @@ bool read_share_profiles() {
     return false;
 }
 
+bool read_update_check() {
+    std::ifstream in(config_path());
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.compare(0, 12, "UpdateCheck=") != 0) continue;
+        std::string v = trim(unquote(line.substr(12)));
+        for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        return !(v == "false" || v == "0" || v == "off" || v == "no");
+    }
+    return true;
+}
+
+bool read_media_keys() {
+    std::ifstream in(config_path());
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.compare(0, 10, "MediaKeys=") != 0) continue;
+        std::string v = trim(unquote(line.substr(10)));
+        for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        return !(v == "false" || v == "0" || v == "off" || v == "no");
+    }
+    return true;
+}
+
 bool read_player_viz(VizPrefs& out) {
     std::error_code ec;
     if (!fs::exists(config_path(), ec)) return false;
@@ -1525,6 +1561,8 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "RemoteAppPort=" << s.remote_port << "\n## 1024 - 65535 -- the network port of the remote app (default 4747)\n";
     out << "RemoteAppPin=" << s.remote_pin << "\n## 4 - 8 digits -- the PIN the app needs; made when the remote app is switched on (mousiki --remote-info shows it)\n";
     out << "ShareProfiles=" << (s.share_profiles ? "true" : "false") << "\n## true , false -- the radio uses this file's oscilloscope and spectrogram settings instead of its own (its own come back when this is false; player and radio)\n";
+    out << "UpdateCheck=" << (s.update_check ? "true" : "false") << "\n## true , false -- at start-up Mousiki looks (at most once a day, in the background) whether a newer release exists and tells you once per version; nothing is installed and nothing about you is sent (needs Python 3)\n";
+    out << "MediaKeys=" << (s.media_keys ? "true" : "false") << "\n## true , false -- the system's media controls: Windows shows Mousiki in the media pop-up and its media keys work, Linux shows it in the desktop's media widgets (MPRIS; playerctl works), macOS shows Now Playing and handles the media keys (read at the next start; player and radio)\n";
     out << "PlaybackMode=" << play_mode_name(s.play_mode) << "\n## list , loop , shuffle , stop , queue then stop\n"
         << "## shuffle never reorders the queue: n and the end of a track play its next title, only # picks a random one of it\n";
     out << "VisualizerDegradationSpeed=" << s.visualizer_degradation_speed << "\n## 1 to 10\n";
