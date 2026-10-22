@@ -1048,6 +1048,8 @@ Paste a YouTube playlist link to queue tracks from it.
 
 Playlists are stored in **one** folder, set under **Settings → PATHS → PLAYLIST PATH**. Without it, the first local path plus `/playlists` is used. Changing the playlist path **copies** the existing playlists to the new folder; nothing is moved or deleted.
 
+When the meta editor **renames** a file, every saved playlist that contains it is updated, so the track does not turn up as `[missing]`. A track whose file is no longer at the stored path (moved to another folder, or a folder renamed) is looked up by file name in your library, i.e. in the folders added under **Settings → PATHS**, and is used from its new place; the playlist file is rewritten when you save the playlist and also whenever the library is rescanned (the rescan updates all saved playlists and the titles already in the queue, and re-reads their tags). Only a file moved outside those folders stays `[missing]`. The title and artist columns of the Create/Edit tab are read from the files' tags in the background, also for files outside your library (for example a download folder); until a file has been read the columns show `-` and the folder name.
+
 ![Playlist editor, Create / Edit tab](images/Playlist_menu_CREATE_EDIT_TAB.png)
 
 ***Create / Edit** tab: the name field, the library picker with its search (`/`), and the tracks of the playlist being built.*
@@ -2046,7 +2048,7 @@ In the radio, a live station has no length, so the position slider is off; the s
 
 ## 14. Upgrades and your settings
 
-**New version notice.** With **Update Notice** on (Settings -> ON/OFF -> MODES, `UpdateCheck=true`, the default), Mousiki asks the project's releases page once a day, in the background, whether a newer version exists and tells you **once per version** with a small window (*Mousiki 4.6.0 is out. You are using 4.5.0.* and the address of the release; `ESC` Close, `o` Go to release). It appears as soon as the main screen is showing (not on top of a menu or the help wizard). It never installs anything -- how to update depends on how you installed Mousiki (`winget upgrade`, `scoop update`, `brew upgrade`, the installer or the `.deb`). The answer is kept in `update_check.txt` in the config folder.
+**New version notice.** With **Update Notice** on (Settings -> ON/OFF -> MODES, `UpdateCheck=true`, the default), Mousiki asks the project's releases page once a day, in the background, whether a newer version exists and tells you **once per version** with a small window (*Mousiki 4.6.0 is out. You are using 4.5.0.* and the address of the release, plus the note that configs and everything else is not overwritten when updating; `ESC` Close, `o` Go to release). It appears as soon as the main screen is showing (not on top of a menu or the help wizard). It never installs anything -- how to update depends on how you installed Mousiki (`winget upgrade`, `scoop update`, `brew upgrade`, the installer or the `.deb`). The answer is kept in `update_check.txt` in the config folder.
 
 Installing a new version never deletes your settings (`config.txt`, `radio_config.txt` ... live in the config folder, not in the program folder). The first time a new version saves a settings file, the previous file is kept as **`config.txt.bak`** / **`radio_config.txt.bak`** next to it (one backup, replaced at the next upgrade), so you can go back if something looks wrong. The files carry a `# Written by Mousiki v...` line for that.
 

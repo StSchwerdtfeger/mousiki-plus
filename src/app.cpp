@@ -38,6 +38,7 @@
 #include <random>
 #include <sstream>
 #include <thread>
+#include <unordered_map>
 #include <unordered_set>
 #include <sys/types.h>
 #include <sys/stat.h>   // file_added_time(): stat() / _wstat64()
@@ -1089,6 +1090,70 @@ void App::resort_local_view_keep_selection() {
 // there's no live rescan", and editing a local path from Settings now IS
 // a live rescan (it still needs [S]/quit for the change to be written to
 // config.txt, of course).
+// After a rescan the saved playlists are brought up to date as well, not only
+// when they are saved again: tracks whose file moved are pointed at the new
+// path (and the playlist file is rewritten), and the cached tags of every
+// playlist track are dropped so they are read from the files again.
+void App::refresh_playlists_after_rescan() {
+    int rewritten = 0;
+    std::vector<std::string> keys;
+    for (const fs::path& dir : playlist_dirs()) {
+        for (const auto& summary : PlaylistManager::list(dir)) {
+            auto pl = PlaylistManager::load(dir, summary.name);
+            if (!pl) continue;
+            Playlist moved = *pl;
+            relocate_missing_tracks(moved);
+            bool changed = false;
+            for (size_t i = 0; i < moved.tracks.size(); ++i) {
+                if (moved.tracks[i].path != pl->tracks[i].path) changed = true;
+                keys.push_back(path_utf8(moved.tracks[i].path));
+            }
+            std::string err;
+            if (changed && PlaylistManager::save(dir, moved, &err)) ++rewritten;
+        }
+    }
+    {
+        // Titles already in the queue: files moved since they were queued are found again,
+        // and their tags are read anew (the queue shows the artist from the tags).
+        Playlist q;
+        std::vector<size_t> at;
+        for (size_t i = 0; i < queue_.size(); ++i) {
+            if (!queue_[i].is_local) continue;
+            PlaylistTrack t;
+            t.path = queue_[i].local_path;
+            std::error_code ec;
+            t.missing = !fs::exists(t.path, ec);
+            q.tracks.push_back(std::move(t));
+            at.push_back(i);
+        }
+        relocate_missing_tracks(q);
+        for (size_t k = 0; k < at.size(); ++k) {
+            QueueItem& it = queue_[at[k]];
+            if (q.tracks[k].path != it.local_path) {
+                if (has_track_ && current_path_ == it.local_path) current_path_ = q.tracks[k].path;
+                it.local_path = q.tracks[k].path;
+                it.title = path_utf8(it.local_path.stem());
+                it.artist = path_utf8(it.local_path.parent_path().filename());
+            }
+            keys.push_back(path_utf8(it.local_path));
+        }
+    }
+    if (!playlist_edit_tracks_.empty()) {
+        Playlist open;
+        open.tracks = playlist_edit_tracks_;
+        relocate_missing_tracks(open);
+        playlist_edit_tracks_ = open.tracks;   // not marked as changed: the saved file was already updated above
+        for (const auto& t : playlist_edit_tracks_) keys.push_back(path_utf8(t.path));
+    }
+    {
+        std::lock_guard<std::mutex> lk(row_meta_mutex_);
+        for (const auto& k : keys) row_meta_cache_.erase(k);
+    }
+    search_idx_.clear();
+    resolve_playlist_tracks_async();
+    if (rewritten > 0) log_event("playlists updated after the rescan: " + std::to_string(rewritten));
+}
+
 void App::rescan_library() {
     // Keep the streamed-track cache folder in the list even if the edit
     // happened to drop it, for the same reason the constructor injects it
@@ -1117,6 +1182,8 @@ void App::rescan_library() {
     search_idx_.clear();
     refresh_local_view(); // applies the active query/sort/filter to the new set
     for (const auto& line : diagnostics) ConsoleLog::instance().log_basic(line);
+
+    refresh_playlists_after_rescan();
 
     // Newly added files need their tags resolved too -- for search and for
     // metadata-only rows. Re-arm the background sweep, which skips every
@@ -1214,6 +1281,7 @@ void App::submit_search() {
         while (!query.empty() && query.front() == ' ') query.erase(query.begin());
         last_playlist_query_ = query;
         list_source_ = ListSource::Playlist;
+        queue_focus_ = false;   // the saved playlists pane takes the focus, also when the queue had it before
         playlist_view_ = filter_playlists(query);
         selected_ = 0;
         scroll_ = 0;
@@ -1373,9 +1441,40 @@ std::vector<PlaylistSummary> App::playlist_summaries() const {
 // holds that name (anymore).
 std::optional<Playlist> App::load_playlist(const std::string& name) const {
     for (const fs::path& dir : playlist_dirs()) {
-        if (auto pl = PlaylistManager::load(dir, name)) return pl;
+        if (auto pl = PlaylistManager::load(dir, name)) {
+            relocate_missing_tracks(*pl);
+            return pl;
+        }
     }
     return std::nullopt;
+}
+
+// A playlist stores paths. When a file is gone from its stored path (moved to
+// another folder, or a folder renamed), look for the same file name in the
+// library (every folder added in the settings) and use that path. One match
+// is taken; with several, the one whose parent folder name matches wins, else
+// the first. The playlist file itself is rewritten only when it is saved.
+void App::relocate_missing_tracks(Playlist& pl) const {
+    bool any = false;
+    for (const auto& t : pl.tracks) if (t.missing) { any = true; break; }
+    if (!any) return;
+    std::unordered_multimap<std::string, const LocalTrack*> by_name;
+    for (const auto& lt : all_local_tracks_) by_name.emplace(ascii_lower_str(path_utf8(lt.path.filename())), &lt);
+    for (auto& t : pl.tracks) {
+        if (!t.missing) continue;
+        auto range = by_name.equal_range(ascii_lower_str(path_utf8(t.path.filename())));
+        const LocalTrack* pick = nullptr;
+        const std::string old_dir = ascii_lower_str(path_utf8(t.path.parent_path().filename()));
+        for (auto it = range.first; it != range.second; ++it) {
+            if (!pick) pick = it->second;
+            if (ascii_lower_str(path_utf8(it->second->path.parent_path().filename())) == old_dir) { pick = it->second; break; }
+        }
+        if (!pick) continue;
+        t.path = pick->path;
+        t.title = path_utf8(t.path.stem());
+        t.artist = path_utf8(t.path.parent_path().filename());
+        t.missing = false;
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -2268,6 +2367,7 @@ void App::queue_to_playlist_apply(const std::string& existing) {
     playlist_open_editor();           // fresh editor, tab 0
     if (existing.empty()) {
         playlist_edit_tracks_ = std::move(tracks);
+        resolve_playlist_tracks_async();
         playlist_edit_track_selected_ = 0;
         playlist_edit_focus_ = 0;         // the name field
         playlist_edit_dirty_ = true;
@@ -3993,6 +4093,44 @@ void App::recompute_waveform_for_current_track() {
     }); }).detach();
 }
 
+void App::resolve_playlist_tracks_async() {
+    auto paths = std::make_shared<std::vector<fs::path>>();
+    {
+        std::lock_guard<std::mutex> lk(row_meta_mutex_);
+        for (const auto& t : playlist_edit_tracks_) {
+            if (t.missing) continue;
+            auto it = row_meta_cache_.find(path_utf8(t.path));
+            if (it == row_meta_cache_.end() || !it->second.tags_resolved) paths->push_back(t.path);
+        }
+    }
+    for (const auto& q : queue_) {
+        if (!q.is_local) continue;
+        std::lock_guard<std::mutex> lk(row_meta_mutex_);
+        auto it = row_meta_cache_.find(path_utf8(q.local_path));
+        if (it == row_meta_cache_.end() || !it->second.tags_resolved) paths->push_back(q.local_path);
+    }
+    if (paths->empty()) return;
+    std::thread([this, paths]() { run_guarded("playlist metadata", [&] {
+        for (const fs::path& p : *paths) {
+            std::string key = path_utf8(p);
+            RowMeta rm = try_native_row_meta(p);
+            if (!rm.tags_resolved) {
+                RowMeta ff = probe_row_meta(p);
+                if (rm.duration_sec <= 0) rm.duration_sec = ff.duration_sec;
+                rm.title = ff.title;
+                rm.artist = ff.artist;
+                rm.album = ff.album;
+                rm.tags_resolved = ff.tags_resolved;
+            }
+            {
+                std::lock_guard<std::mutex> lk(row_meta_mutex_);
+                row_meta_cache_[key] = rm;
+            }
+            row_meta_tags_version_.fetch_add(1, std::memory_order_relaxed);
+        }
+    }); }).detach();
+}
+
 void App::launch_row_meta_resolver() {
     // One sweep per session -- except that rescan_library() clears the
     // flag when the configured path set changes, which is the one
@@ -5352,6 +5490,7 @@ void App::playlist_load_into_editor(const std::string& name) {
     if (!pl) { playlist_status_ = "could not load \"" + name + "\""; return; }
     playlist_edit_name_ = pl->name;
     playlist_edit_tracks_ = pl->tracks;
+    resolve_playlist_tracks_async();
     playlist_edit_track_selected_ = 0;
     playlist_tab_ = 0;
     playlist_edit_focus_ = 1;
@@ -7415,6 +7554,14 @@ void App::poll_meta_save() {
                     if (q.is_local && path_utf8(q.local_path) == e.path) q.local_path = path_from_utf8(new_path);
                 }
                 for (auto& p : meta_fetch_list_) if (p == e.path) p = new_path;
+                for (auto& t : playlist_edit_tracks_) {
+                    if (path_utf8(t.path) == e.path) {
+                        t.path = path_from_utf8(new_path);
+                        t.title = path_utf8(t.path.stem());
+                        t.missing = false;
+                    }
+                }
+                job.renamed.emplace_back(e.path, new_path);   // saved playlists follow in meta_save_finish()
             }
         } else {
             if (job.first_error.empty()) job.first_error = err;
@@ -7439,6 +7586,10 @@ void App::meta_save_finish() {
     const int failed = static_cast<int>(job.failed.size());
     const int not_done = static_cast<int>(job.todo.size() - job.next);
     meta_persist();
+    if (!job.renamed.empty()) {
+        // Saved playlists hold file paths: let them follow the renamed files.
+        for (const fs::path& dir : playlist_dirs()) PlaylistManager::rename_paths(dir, job.renamed);
+    }
     if (job.ok > 0) {
         // Names and tags changed -- rebuild the lists. rescan_library() only
         // refreshes the app's own views, so the meta menu's LIBRARY panel has
@@ -7448,6 +7599,7 @@ void App::meta_save_finish() {
         // under a file that no longer exists.
         rescan_library();
         meta_refresh_lib_view();
+        resolve_playlist_tracks_async();   // an open playlist editor shows the new tags
     }
     std::string msg;
     if (failed == 0) {
@@ -10094,6 +10246,9 @@ std::vector<std::string> App::build_update_panel() const {
     lines.push_back(row("You are using " + update_current_ + "."));
     lines.push_back(row(""));
     lines.push_back(row(shown_url));
+    lines.push_back(row(""));
+    for (const std::string& l : wrap_lines("Configs and everything else is not overwritten when updating/installing a newer version.", inner, 3))
+        lines.push_back(row(l));
     lines.push_back(row(""));
     lines.push_back(box_bottom(W, "[ESC] Close  [o] Go to release", border_bottom));
     return lines;

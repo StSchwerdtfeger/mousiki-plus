@@ -312,6 +312,9 @@ private:
     std::unordered_map<std::string, RowMeta> row_meta_cache_;
     std::atomic<bool> row_meta_resolver_started_{false};
     void launch_row_meta_resolver();
+    // Reads the tags of the playlist editor's tracks that are not cached yet
+    // (files outside the library sweep, e.g. a download folder) in the background.
+    void resolve_playlist_tracks_async();
     // Bumped by launch_row_meta_resolver()'s background thread every time it
     // resolves a new file's real tags (artist/title/album), so a search view
     // computed BEFORE that file's tags arrived can be told "something
@@ -400,6 +403,8 @@ private:
     // Loads a playlist by name from whichever playlist_dirs() folder has
     // it; std::nullopt if none does.
     std::optional<Playlist> load_playlist(const std::string& name) const;
+    void relocate_missing_tracks(Playlist& pl) const;
+    void refresh_playlists_after_rescan();
     void playlist_add_selected_to_queue();
 
     // --- playlist editor overlay (Mode::Playlist, HKeyPlaylist) ----------
@@ -546,6 +551,7 @@ private:
         size_t next = 0;                    // first entry not processed yet
         std::vector<MetaEditEntry> failed;  // processed, could not be written (stay pending)
         int ok = 0;
+        std::vector<std::pair<std::string, std::string>> renamed;   // old -> new path of files the save renamed
         std::string first_error;
         bool cancel = false;
         std::chrono::steady_clock::time_point started;

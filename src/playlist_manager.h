@@ -21,6 +21,7 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace muisc {
@@ -55,6 +56,13 @@ struct PlaylistSummary {
 
 class PlaylistManager {
 public:
+    // Rewrites every line of every playlist .txt under `dir` that equals an
+    // old path in `renames` (old -> new, both UTF-8) to the new path. Used
+    // after the meta editor renamed files, so saved playlists keep pointing
+    // at them. Files without a match are left untouched. Returns how many
+    // playlists were changed.
+    static int rename_paths(const fs::path& dir, const std::vector<std::pair<std::string, std::string>>& renames);
+
     // Lists saved playlists under `dir` (the playlists folder itself, e.g.
     // from App::playlists_dir() -- NOT its parent), sorted alphabetically,
     // case-insensitively. Empty if the folder doesn't exist yet.

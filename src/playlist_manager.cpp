@@ -67,6 +67,46 @@ std::vector<PlaylistSummary> PlaylistManager::list(const fs::path& dir) {
     return out;
 }
 
+int PlaylistManager::rename_paths(const fs::path& dir,
+                                  const std::vector<std::pair<std::string, std::string>>& renames) {
+    if (renames.empty()) return 0;
+    std::error_code ec;
+    if (!fs::is_directory(dir, ec)) return 0;
+    int changed = 0;
+    for (auto& entry : fs::directory_iterator(dir, ec)) {
+        if (ec) break;
+        std::error_code fec;
+        if (!entry.is_regular_file(fec) || fec) continue;
+        fs::path p = entry.path();
+        if (ascii_lower(path_utf8(p.extension())) != ".txt") continue;
+        std::vector<std::string> lines;
+        bool touched = false;
+        {
+            std::ifstream in(p);
+            std::string line;
+            while (std::getline(in, line)) {
+                strip_eol(line);
+                for (const auto& r : renames) {
+                    if (line == r.first) { line = r.second; touched = true; break; }
+                }
+                lines.push_back(std::move(line));
+            }
+        }
+        if (!touched) continue;
+        fs::path tmp = p;
+        tmp += ".tmp";
+        {
+            std::ofstream out(tmp, std::ios::trunc);
+            if (!out.is_open()) continue;
+            for (const auto& l : lines) out << l << "\n";
+        }
+        fs::rename(tmp, p, ec);
+        if (ec) { fs::remove(tmp, ec); continue; }
+        ++changed;
+    }
+    return changed;
+}
+
 std::optional<Playlist> PlaylistManager::load(const fs::path& dir, const std::string& name) {
     fs::path file = dir / path_from_utf8(sanitize_name(name) + ".txt");
     std::ifstream in(file);

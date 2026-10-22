@@ -5,6 +5,7 @@
 #include "history.h"
 #include "lyrics_fetcher.h"
 #include "playlist_manager.h"
+#include "path_utf8.h"
 #include "test_framework.h"
 #include "TextSanitizer.h"
 #include "tiny_json.h"
@@ -373,4 +374,27 @@ TEST(history_old_plays_fold_into_the_archive_without_losing_counts) {
 TEST(history_time_of_day_buckets) {
     CHECK_EQ(history_tod_bucket(0), -1);                           // unknown start time
     CHECK_EQ(history_tod_bucket(-5), -1);
+}
+
+TEST(playlist_paths_follow_renamed_files) {
+    const fs::path dir = fs::temp_directory_path() / "mousiki_pl_rename";
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    Playlist pl;
+    pl.name = "mix";
+    for (const char* f : {"/music/a.mp3", "/music/b.mp3"}) {
+        PlaylistTrack t;
+        t.path = f;
+        pl.tracks.push_back(t);
+    }
+    std::string err;
+    CHECK(PlaylistManager::save(dir, pl, &err));
+    CHECK_EQ(PlaylistManager::rename_paths(dir, {{"/music/b.mp3", "/music/Better.mp3"}}), 1);
+    auto back = PlaylistManager::load(dir, "mix");
+    CHECK(back.has_value());
+    CHECK_EQ(back->tracks.size(), static_cast<size_t>(2));
+    CHECK_EQ(path_utf8(back->tracks[0].path), std::string("/music/a.mp3"));
+    CHECK_EQ(path_utf8(back->tracks[1].path), std::string("/music/Better.mp3"));
+    CHECK_EQ(PlaylistManager::rename_paths(dir, {{"/nowhere", "/x"}}), 0);   // no match: nothing rewritten
+    fs::remove_all(dir);
 }
