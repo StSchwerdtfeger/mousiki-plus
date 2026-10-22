@@ -150,11 +150,8 @@ puts its folder on your PATH. Dropping sidplayfp.exe into $env:LOCALAPPDATA\Mous
         }
     }
 
-    $python = if (Test-Command py) { 'py -3' } elseif (Test-Command python3) { 'python3' } else { $null }
-    if ($python) {
-        Write-Step "Installing the requests package (used by scripts/lrc.py)"
-        Invoke-Expression "$python -m pip install --quiet --upgrade requests"
-    } else {
+    # The Python scripts (lyrics, AcoustID fetch, fast search) use only the standard library: no pip package is needed.
+    if (-not ((Test-Command py) -or (Test-Command python3))) {
         Write-Warning "No Python 3 found. Lyrics will be unavailable; everything else still works."
     }
 }

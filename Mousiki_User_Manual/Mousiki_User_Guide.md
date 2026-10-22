@@ -2057,7 +2057,7 @@ Mousiki is licensed under the Apache Licence 2.0 (file `LICENSE`). It contains o
 | SDL2 | Scope window and spectrogram window | zlib | Loaded at run time; `SDL2.dll` is included in the Windows packages |
 | FFmpeg (`ffmpeg`, `ffprobe`) | Decoding, metadata, tag writing, radio streams, recordings | GPL-3.0 (bundled builds) | Separate program; bundled on Windows and in the Linux portable zip |
 | yt-dlp | YouTube / SoundCloud / Bandcamp streams and downloads | Unlicense | Separate program; bundled in the packages |
-| Python (embeddable, Windows) and `requests`, `urllib3`, `idna`, `certifi`, `charset-normalizer` | Lyrics, fast search, AcoustID and Bandcamp scripts | PSF / Apache-2.0 / MIT / BSD-3-Clause / MPL-2.0 | Bundled in the packages |
+| Python (embeddable, Windows) | Lyrics, fast search, AcoustID and Bandcamp scripts (standard library only, no PyPI packages) | PSF | Bundled in the Windows package |
 | sidplayfp, libopenmpt, libgme | C64 SID tunes, tracker modules, game music | GPL-2.0+ / BSD-3-Clause / LGPL-2.1+ | Optional, not bundled (sidplayfp runs as a program, the others through FFmpeg) |
 | curl | The radio's Radio Browser search | curl licence | Separate program (part of Windows 10+, macOS and most Linux systems) |
 

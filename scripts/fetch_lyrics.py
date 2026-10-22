@@ -44,95 +44,14 @@ def emit(obj):
     sys.exit(0)
 
 
-def _find_pipx_site_packages(package_name):
-    """Best-effort: if `package_name` was installed into an isolated pipx
-    venv rather than a normal pip/pip3 environment, find that venv's
-    site-packages directory so it can be spliced onto sys.path.
-
-    This mirrors what setup.sh's own pipx detection does at install time
-    -- but doesn't rely on anything setup.sh sets, since setup.sh only
-    ever copies the built binary to somewhere on PATH (no wrapper script,
-    no persistent env export), so there is no path by which an env var
-    it sets could ever reach this script when the running `mousiki`
-    binary later spawns it as a subprocess. This discovers the venv
-    fresh, every call, using whatever `pipx` (or MOUSIKI_PIPX_PATH, kept
-    as an override for any future wrapper that does choose to set it)
-    is available in *this* process's environment/PATH.
-    """
-    import glob
-    import shutil
-    import subprocess as sp
-
-    pipx_bin = os.environ.get("MOUSIKI_PIPX_PATH") or shutil.which("pipx")
-    if not pipx_bin:
-        return None
-
-    try:
-        pipx_home = sp.check_output(
-            [pipx_bin, "environment", "--value", "PIPX_HOME"],
-            stderr=sp.DEVNULL, text=True,
-        ).strip()
-
-        # Don't hardcode $PIPX_HOME/venvs/<package> -- that's a pipx
-        # layout assumption. Instead, look for any directory whose name
-        # starts with the package name under the venvs dir, and ask its
-        # venv Python for the real site-packages path.
-        venvs_dir = os.path.join(pipx_home, "venvs")
-        candidates = sorted(glob.glob(os.path.join(venvs_dir, package_name + "*")))
-
-        for venv_dir in candidates:
-            # Windows pipx venvs put the interpreter in Scripts\, not
-            # bin/ -- this previously only ever checked the POSIX layout,
-            # so a Windows pipx install of `requests` was silently never
-            # found here (it would still work if `requests` was on the
-            # normal import path some other way, which is why this was
-            # easy to miss rather than an outright failure).
-            venv_python = os.path.join(venv_dir, "bin", "python")
-            if not os.path.isfile(venv_python):
-                venv_python = os.path.join(venv_dir, "Scripts", "python.exe")
-            if not os.path.isfile(venv_python):
-                continue
-
-            site_packages = sp.check_output(
-                [venv_python, "-c", "import site; print(site.getsitepackages()[0])"],
-                stderr=sp.DEVNULL, text=True,
-            ).strip()
-
-            if site_packages and os.path.isdir(site_packages):
-                return site_packages
-
-    except (OSError, sp.SubprocessError):
-        pass
-
-    return None
-
-
 def load_lrc_module():
-    # First: normal Python environment -- pip/pip3 install (regular or
-    # --user), a system package, or `requests` already importable for any
-    # other reason. lrc.py itself does `import requests` at module load
-    # time, so this fails with ImportError exactly when requests isn't
-    # reachable, same as trying to import requests directly would.
+    """lrc.py (same directory) uses only Python's standard library -- no pip package is needed any more. None only
+    when lrc.py itself cannot be loaded (a damaged installation)."""
     try:
         import lrc
         return lrc
     except ImportError:
-        pass
-
-    # Second: requests might be sitting in an isolated pipx venv (e.g.
-    # `pipx install requests`, which setup.sh offers as one of its three
-    # install options) rather than on the normal import path. Find it and
-    # splice its site-packages onto sys.path, then retry the import.
-    site_packages = _find_pipx_site_packages("requests")
-    if site_packages:
-        sys.path.insert(0, site_packages)
-        try:
-            import lrc
-            return lrc
-        except ImportError:
-            pass
-
-    return None
+        return None
 
 
 def has_word_timestamps(lrc_text):
@@ -174,7 +93,7 @@ def main():
         emit({
             "ok": False,
             "error": "MODULE_MISSING",
-            "detail": "the 'requests' package is not available (pip install requests)"
+            "detail": "scripts/lrc.py could not be loaded -- reinstall Mousiki"
         })
 
     # Hard 35-second alarm: two sources (Better Lyrics, then LRCLIB), each

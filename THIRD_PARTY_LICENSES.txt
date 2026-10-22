@@ -237,12 +237,7 @@ packages are built and listed again in THIRD-PARTY.txt inside each package:
       text is included as bin/ffmpeg-LICENSE.txt or bin/ffmpeg-GPLv3.txt
   - yt-dlp .......................... Unlicense - https://github.com/yt-dlp/yt-dlp
   - Python (embeddable, Windows) .... PSF License - https://www.python.org
-  - requests ........................ Apache-2.0
-  - urllib3 ......................... MIT
-  - idna ............................ BSD-3-Clause
-  - certifi ......................... MPL-2.0
-  - charset-normalizer .............. MIT
-    (the Python packages are in pylib/, each with its licence file)
+    (the Python scripts use only Python's standard library: no PyPI packages are bundled)
 
 ==============================================================================
 Optional programs and libraries Mousiki can use (not bundled)

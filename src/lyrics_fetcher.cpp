@@ -586,7 +586,7 @@ LyricsResult fetch_synced_lyrics(const std::string& title, const std::string& ar
 
         if (err == "MODULE_MISSING") {
             result.status = LyricsStatus::ModuleMissing;
-            result.message = "run: pip install requests";
+            result.message = "the lyrics helper (scripts/lrc.py) could not be loaded -- reinstall Mousiki";
         } else if (err == "NOT_FOUND") {
             result.status = LyricsStatus::NotFound;
             result.message = "no lyrics found for \"" + title + "\"";

@@ -59,10 +59,6 @@ CLOUD_TAG = "mousiki-source"
 CLOUD_ASSET = "mousiki-source.zip"
 RELEASE_ARTIFACT = "mousiki-release"       # the workflow's final artifact: packages + signatures
 APPID_GUID = "{8F6B2C1E-3A4D-4B7E-9C15-6D2E0A7F5B38}"   # keep fixed: upgrades install over the old version
-# the wheels are chosen for this Python (the bundled embeddable one): with a bare "3" pip would only accept packages from before
-# they declared a minimum Python version, i.e. years-old requests / urllib3 / certifi
-PYLIB_PYTHON = ".".join(DEFAULT_PY_EMBED.split(".")[:2])
-PYLIB_PACKAGES = ["requests", "urllib3", "idna", "certifi", "charset-normalizer"]
 # SDL2 for the scope and spectrogram windows: Mousiki loads SDL2.dll at run time from the folder of mousiki.exe.
 # Pinned and checksummed (SDL publishes no checksum file). To update, change both lines together:
 # the SHA-256 of SDL2-<version>-win32-x64.zip from https://github.com/libsdl-org/SDL/releases
@@ -246,7 +242,6 @@ def verify_pinned_sha256(dest, want):
 # a replaced one. A pin made once (and reviewed by you) catches both. Create / update it with:  release.py pin
 # Tools without a pin are still downloaded the old way (latest + the publisher's checksum) with a warning.
 PINS_FILE = HERE / "pins.json"
-PYLIB_REQUIREMENTS = HERE / "pylib-requirements.txt"   # the PyPI wheels with hashes, written by `release.py pin`
 
 
 def load_pins():
@@ -498,7 +493,6 @@ setlocal
 set "MOUSIKI_HOME=%~dp0"
 set "MOUSIKI_SCRIPTS_DIR=%MOUSIKI_HOME%scripts"
 set "PATH=%MOUSIKI_HOME%bin;%MOUSIKI_HOME%bin\python;%PATH%"
-set "PYTHONPATH=%MOUSIKI_HOME%pylib;%PYTHONPATH%"
 if exist "%MOUSIKI_HOME%portable.txt" if not exist "%MOUSIKI_HOME%data" mkdir "%MOUSIKI_HOME%data"
 if exist "%MOUSIKI_HOME%portable.txt" set "HOME=%MOUSIKI_HOME%data"
 "%MOUSIKI_HOME%app\mousiki.exe" %*
@@ -528,8 +522,6 @@ APP_HOME="$(cd "$(dirname "$SELF")" && pwd)"
 export MOUSIKI_SCRIPTS_DIR="$APP_HOME/scripts"
 PATH="$APP_HOME/bin:$PATH"@@EXTRA_PATH@@
 export PATH
-PYTHONPATH="$APP_HOME/pylib${PYTHONPATH:+:$PYTHONPATH}"
-export PYTHONPATH
 if [ -f "$APP_HOME/portable.txt" ]; then
     mkdir -p "$APP_HOME/data"
     HOME="$APP_HOME/data"
@@ -563,40 +555,6 @@ def write_launchers(stage, target):
 
 
 # ---- bundled third-party tools ----------------------------------------------
-def build_pylib(dest, dl, refresh):
-    """Pure-python 'requests' stack for scripts/lrc.py, so no pip install is needed on the user's PC."""
-    cache = dl / "pylib"
-    if not cache.is_dir() or refresh:
-        rmtree(cache)
-        tmp = dl / "pylib.tmp"
-        rmtree(tmp)
-        base = [sys.executable, "-m", "pip", "install", "--quiet", "--no-compile",
-                "--disable-pip-version-check", "--target", str(tmp)]
-        if PYLIB_REQUIREMENTS.is_file():   # exact versions + SHA-256 of every wheel (pip refuses anything else)
-            rc = run(base + ["--no-deps", "--only-binary=:all:", "--require-hashes", "-r", str(PYLIB_REQUIREMENTS)], check=False)
-            if rc != 0:
-                die("the hash-pinned PyPI packages (%s) could not be installed - a changed file or a network problem. "
-                    "To accept new versions run: release.py pin" % PYLIB_REQUIREMENTS.name)
-        else:
-            warn("the PyPI packages are not pinned - run 'release.py pin' to fix their versions and hashes")
-            rc = run(base + ["--no-deps", "--only-binary=:all:", "--platform", "any", "--python-version", PYLIB_PYTHON,
-                             "--implementation", "py", "--abi", "none"] + PYLIB_PACKAGES, check=False)
-        if rc != 0:
-            rmtree(tmp)
-            rc = run(base + PYLIB_PACKAGES, check=False)
-        if rc != 0:
-            rmtree(tmp)
-            warn("could not build the bundled 'requests' package (pip/network problem). "
-                 "Lyrics will need 'requests' installed on the target machine.")
-            return False
-        for p in list(tmp.rglob("__pycache__")) + list(tmp.glob("bin")):
-            rmtree(p)
-        rmtree(cache)
-        tmp.rename(cache)
-    shutil.copytree(str(cache), str(dest))
-    return True
-
-
 def python_arch_tag():
     return "arm64" if platform.machine().lower() in ("arm64", "aarch64") else "amd64"
 
@@ -647,7 +605,7 @@ def bundle_windows_tools(stage, dl, a):
     if pth:   # embeddable Python ignores PYTHONPATH when a ._pth exists, so list the dirs explicitly
         lines = pth.read_text(encoding="utf-8").splitlines()
         lines = [l for l in lines if l.strip() not in ("../../pylib", "../../scripts")]
-        lines += ["../../pylib", "../../scripts"]
+        lines += ["../../scripts"]
         pth.write_text("\n".join(lines) + "\n", encoding="utf-8")
     notices.append("Python %s embeddable (PSF licence) - https://www.python.org" % pyver)
 
@@ -669,8 +627,6 @@ def bundle_windows_tools(stage, dl, a):
     else:
         warn("no SDL2 build for this architecture is bundled - the scope / spectrogram windows need SDL2.dll next to mousiki.exe")
 
-    if build_pylib(stage / "pylib", dl, a.refresh_tools):
-        notices.append("requests, urllib3, idna, certifi, charset-normalizer (Apache-2.0 / MIT / MPL-2.0 / BSD) - https://pypi.org")
     write_notices(stage, notices)
 
 
@@ -697,8 +653,6 @@ def bundle_ytdlp_unix(stage, dl, a, target):
 
 def bundle_unix_tools(stage, dl, a, target):
     notices = [bundle_ytdlp_unix(stage, dl, a, target)]
-    if build_pylib(stage / "pylib", dl, a.refresh_tools):
-        notices.append("requests, urllib3, idna, certifi, charset-normalizer (Apache-2.0 / MIT / MPL-2.0 / BSD) - https://pypi.org")
     write_notices(stage, notices)
 
 
@@ -1166,7 +1120,7 @@ Architecture: %s
 Installed-Size: %d
 Maintainer: Mousiki release toolkit <noreply@localhost>
 Depends: libc6, libstdc++6, python3, ffmpeg, curl, libasound2 | libasound2t64, libpulse0
-Recommends: pulseaudio-utils | pipewire-pulse, xclip | wl-clipboard, python3-requests, xdg-utils, libsdl2-2.0-0
+Recommends: pulseaudio-utils | pipewire-pulse, xclip | wl-clipboard, xdg-utils, libsdl2-2.0-0
 Homepage: https://github.com/StSchwerdtfeger/mousiki-plus
 Description: Terminal music player and online radio (TUI)
  Mousiki plays local files and online sources (via the bundled yt-dlp) in the
@@ -1665,8 +1619,8 @@ def cmd_all(a):
 
 
 def cmd_pin(a):
-    """Fix every bundled tool to one exact, versioned file and write its SHA-256 to pins.json (and the PyPI wheels with hashes
-    to pylib-requirements.txt). Run it when you want newer tools, read the diff, then commit the two files."""
+    """Fix every bundled tool to one exact, versioned file and write its SHA-256 to pins.json. Run it when you want newer
+    tools, read the diff, then commit the file. (The Python scripts use only the standard library: no PyPI packages.)"""
     work = Path(a.work).expanduser().resolve() / "pin"
     work.mkdir(parents=True, exist_ok=True)
     old = load_pins()
@@ -1737,21 +1691,7 @@ def cmd_pin(a):
         files.setdefault(k, v)
     write_text(PINS_FILE, json.dumps({"_note": "written by release.py pin - review the diff before committing", "files": files},
                                      indent=2, sort_keys=True) + "\n")
-    # PyPI wheels with hashes: pip itself checks them with --require-hashes at build time
-    wd = work / "wheels"
-    rmtree(wd)
-    rc = run([sys.executable, "-m", "pip", "download", "--quiet", "--disable-pip-version-check", "--no-deps", "--only-binary=:all:",
-              "--platform", "any", "--python-version", PYLIB_PYTHON, "--implementation", "py", "--abi", "none", "-d", str(wd)] + PYLIB_PACKAGES, check=False)
-    if rc != 0:
-        warn("could not download the PyPI wheels - pylib-requirements.txt not changed")
-    else:
-        lines = []
-        for w in sorted(wd.glob("*.whl")):
-            name, ver = w.name.split("-")[0], w.name.split("-")[1]
-            lines.append("%s==%s --hash=sha256:%s" % (name.replace("_", "-"), ver, sha256_of(w)))
-        write_text(PYLIB_REQUIREMENTS, "# written by release.py pin - exact versions and SHA-256 of every wheel\n" + "\n".join(lines) + "\n")
-        log("pinned %d PyPI packages" % len(lines))
-    log("Wrote %s and %s - review the diff, then commit both." % (PINS_FILE.name, PYLIB_REQUIREMENTS.name))
+    log("Wrote %s - review the diff, then commit it." % PINS_FILE.name)
 
 
 def cmd_doctor(a):
@@ -1761,7 +1701,6 @@ def cmd_doctor(a):
     def row(name, ok, hint=""):
         print("  [%s] %-22s %s" % ("ok" if ok else "--", name, "" if ok else hint))
     row("cmake", bool(which("cmake")), "winget install Kitware.CMake | apt install cmake | brew install cmake")
-    row("pip", capture([sys.executable, "-m", "pip", "--version"]) != "", "needed to bundle 'requests' for the lyrics script")
     if host == "windows":
         row("C++ build tools", have_msvc() or bool(which("g++")), "winget install Microsoft.VisualStudio.2022.BuildTools (C++ workload)")
         row("Inno Setup", bool(find_iscc()), "winget install JRSoftware.InnoSetup")
@@ -1787,7 +1726,7 @@ def main():
     common.add_argument("--version", help="override the detected version (default: README title, else CMakeLists)")
     common.add_argument("--clean", action="store_true", help="wipe this platform's build tree first (from-scratch rebuild)")
     common.add_argument("--clean-all", action="store_true", help="--clean plus the download cache")
-    common.add_argument("--refresh-tools", action="store_true", help="re-download ffmpeg / yt-dlp / Python / requests")
+    common.add_argument("--refresh-tools", action="store_true", help="re-download ffmpeg / yt-dlp / Python")
     common.add_argument("--no-bundle-tools", action="store_true", help="do not bundle ffmpeg/yt-dlp/Python (much smaller, relies on PATH)")
     common.add_argument("--install-deps", action="store_true", help="install missing build tools (winget / apt / brew)")
     common.add_argument("--sync-version", action="store_true", help="patch the CMakeLists.txt version (and so the About screens) in the build copy")

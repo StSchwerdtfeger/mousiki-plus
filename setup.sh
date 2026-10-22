@@ -11,8 +11,8 @@
 #             track metadata, and decodes the audio that fpcalc fingerprints
 #             for the AcoustID fetch.
 #   yt-dlp  - online search, playlist listing and streaming.
-#   python3 - runs scripts/fetch_lyrics.py (synced lyrics, needs the `requests`
-#             package) and scripts/fetch_meta.py (AcoustID metadata fetch,
+#   python3 - runs scripts/fetch_lyrics.py (synced lyrics; standard library
+#             only, no pip package) and scripts/fetch_meta.py (AcoustID metadata fetch,
 #             which drives fpcalc -- built by CMake from third_party/chromaprint/).
 #
 # and, for the radio mode only:
@@ -160,17 +160,6 @@ pkg_install_optional() {
 # Python helpers
 # ---------------------------------------------------------------------------
 # mousiki calls plain "python3" on Linux/macOS, so that is what has to work.
-python_has_requests() { have python3 && python3 -c 'import requests' >/dev/null 2>&1; }
-
-pip_install_requests() {
-    have python3 || return 1
-    python3 -m pip --version >/dev/null 2>&1 || return 1
-    # Modern distros mark the system Python as "externally managed" (PEP 668)
-    # and refuse a plain pip install; --user is tried first, then the override.
-    python3 -m pip install --quiet --user --upgrade requests 2>/dev/null && return 0
-    python3 -m pip install --quiet --user --break-system-packages --upgrade requests
-}
-
 # SDL2 (optional): the scope and spectrogram windows. Mousiki dlopen()s it at run time.
 have_sdl2() {
     if [ "$PLATFORM" = "macos" ]; then
@@ -444,19 +433,8 @@ install_deps() {
         esac || warn "Python installation failed -- lyrics, fast online search and AcoustID will be unavailable"
     fi
 
-    # --- python `requests` (lyrics only) ---------------------------------------
-    if have python3 && ! python_has_requests; then
-        step "Installing the Python 'requests' package (used by scripts/lrc.py)"
-        # Prefer the distro package: it plays nicely with PEP 668.
-        case "$PM" in
-            apt|dnf|zypper) pkg_install python3-requests >/dev/null 2>&1 ;;
-            pacman)         pkg_install python-requests  >/dev/null 2>&1 ;;
-            apk)            pkg_install py3-requests     >/dev/null 2>&1 ;;
-            *)              false ;;
-        esac
-        python_has_requests || pip_install_requests ||
-            warn "could not install 'requests'. Lyrics will be unavailable; everything else still works."
-    elif ! have python3; then
+    # (the Python scripts use only the standard library: no pip package is needed)
+    if ! have python3; then
         warn "no Python 3 found. Lyrics, fast online search and AcoustID will be unavailable; everything else still works."
     fi
 

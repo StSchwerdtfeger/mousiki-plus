@@ -18,7 +18,7 @@ struct LyricLine {
 
 enum class LyricsStatus {
     Ok,
-    ModuleMissing,   // Python 'requests' package not installed -> show pip-install hint
+    ModuleMissing,   // scripts/lrc.py could not be loaded (damaged installation) -> show a reinstall hint
     PythonMissing,   // python3 not found on PATH
     NotFound,        // ran fine, no lyrics available for this track
     Error,

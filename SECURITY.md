@@ -37,6 +37,5 @@ installer is not code-signed, so Windows SmartScreen will warn; the checksum is 
 ## Third-party components
 
 The bundled tools (FFmpeg, yt-dlp, Python, SDL2) and the vendored libraries (miniaudio, miniz, KISS FFT, stb_truetype,
-Chromaprint) are listed in `THIRD_PARTY_LICENSES.txt`. Their versions are fixed by hash in `packaging/pins.json` and
-`packaging/pylib-requirements.txt`. A problem in one of them is best reported to that project; tell me too, so a new
+Chromaprint) are listed in `THIRD_PARTY_LICENSES.txt`. Their versions are fixed by hash in `packaging/pins.json`. A problem in one of them is best reported to that project; tell me too, so a new
 version can be bundled.

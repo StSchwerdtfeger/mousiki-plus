@@ -252,7 +252,7 @@ lala
 
 Note, I had a bunch of the below already installed, so I am not sure how smooth setup.ps1 runs installing the below for the first time using setup.ps1 (such as installing Visual Studio 2022 Build Tools...).
 
-`setup.ps1` (PowerShell 7+) installs these via winget (and pip for `requests`), except the compiler "VS 2022 Build tools":
+`setup.ps1` (PowerShell 7+) installs these via winget, except the compiler "VS 2022 Build tools":
 
 | Tool | Why | Install |
 |---|---|---|
@@ -262,7 +262,6 @@ Note, I had a bunch of the below already installed, so I am not sure how smooth 
 | curl | radio mode only: the Radio Browser station search (`SHIFT+s` in the radio) | **nothing to install** — ships with Windows 10+ |
 | yt-dlp | online search fallback, YouTube playlists (bulk add), streaming, downloads | `winget install yt-dlp.yt-dlp` |
 | Python 3 | runs the helper scripts in `scripts/`: fast online search (`fast_yt_search.py`), AcoustID fetch (`fetch_meta.py`) and lyrics (`fetch_lyrics.py`) — the first two use the standard library only | `winget install Python.Python.3.13` |
-| Python package `requests` | lyrics only (`fetch_lyrics.py` / `lrc.py`) | `py -3 -m pip install requests` (done by `setup.ps1`) |
 | `fpcalc` (Chromaprint) | audio fingerprint for the AcoustID fetch | **nothing to install** — built by CMake from `third_party/chromaprint/` and copied to `scripts\` |
 | `SDL2.dll` (optional) | the scope and spectrogram windows (`)` / `(`: German `SHIFT+9` / `SHIFT+8`, English `SHIFT+0` / `SHIFT+9`); loaded at run time, so the build does not need it | **fetched by `setup.ps1`** next to `mousiki.exe` (or `SDL2.dll` from `SDL2-<version>-win32-x64.zip`, [SDL releases](https://github.com/libsdl-org/SDL/releases)) |
 | `sidplayfp` (optional) | Commodore 64 SID tunes (`.sid`); tracker modules (`.mod/.xm/.it/.s3m`…) and console music (`.nsf/.spc/.vgm`…) only need an FFmpeg built with libopenmpt / libgme (the Gyan.FFmpeg build `setup.ps1` installs has both; an installed FFmpeg is upgraded with `winget upgrade`, or replaced by that build if it lacks them; `-NoUpgrade` skips this) | the project publishes no Windows build. Easiest way: install [MSYS2](https://www.msys2.org), open its **UCRT64** shell and run `pacman -S mingw-w64-ucrt-x86_64-sidplayfp`; copy `sidplayfp.exe` from `C:\msys64\ucrt64\bin` plus the DLLs it needs (`ldd /ucrt64/bin/sidplayfp.exe \| grep ucrt64` lists them) into one folder such as `C:\tools\sidplayfp`, then run `setup.ps1` again: it finds `sidplayfp.exe` and adds its folder to your user `PATH` (any other win64 build of sidplayfp works as well) |
@@ -353,7 +352,7 @@ The config file is created at `~/.config/mousiki/config.txt` (the `config.txt` i
 | ALSA + PulseAudio libraries (Linux) | audio output (miniaudio loads them at runtime; PipeWire works through `pipewire-pulse` / `pipewire-alsa`) | `libasound2-dev libpulse-dev` (apt), `alsa-lib-devel pulseaudio-libs-devel` (dnf), … |
 | FFmpeg (incl. `ffprobe`) | Opus decoding, metadata, AcoustID decoding, tag writing; radio streams (needed) and MP3 recordings (`libmp3lame`; `setup.sh` warns if it is missing) | `ffmpeg` (on Fedora from RPM Fusion; `setup.sh` falls back to `ffmpeg-free` and prints a hint) |
 | yt-dlp | online search fallback, playlists, streaming, downloads | `yt-dlp` from the package manager, otherwise `pip install --user yt-dlp` (then `~/.local/bin` has to be on your `PATH`) |
-| Python 3 + `requests` | lyrics, fast online search, AcoustID fetch (`requests` is only needed for lyrics) | `python3`, `python3-requests` (or `pip install --user requests`) |
+| Python 3 | lyrics, fast online search, AcoustID fetch (standard library only, no pip packages) | `python3` |
 | `xclip` / `wl-clipboard` (Linux, optional) | pasting into the search field; macOS uses the built-in `pbpaste` | `xclip` on X11, `wl-clipboard` on Wayland |
 | `fpcalc` (Chromaprint) | audio fingerprint for the AcoustID fetch | **nothing to install** — built by CMake from `third_party/chromaprint/` and copied to `scripts\` |
 | SDL2 (optional) | the scope and spectrogram windows (`)` / `(`: German `SHIFT+9` / `SHIFT+8`, English `SHIFT+0` / `SHIFT+9`); loaded at run time, so the build does not need it | `libsdl2-2.0-0` (apt), `SDL2` (dnf), `sdl2` (pacman / apk), `brew install sdl2` |
@@ -418,11 +417,11 @@ Mousiki uses a small number of third-party components. They are listed here with
 | stb_truetype | karaoke letters of Japanese / Chinese / Korean text | 1.26 | 1.26 |
 | SDL2 | the optional scope and spectrogram windows (Windows: bundled `SDL2.dll`) | 2.32.10 | 2.32.10 |
 | yt-dlp, FFmpeg | online sources, conversion (bundled in the Windows and Linux packages) | the newest at build time, fixed by hash in `packaging/pins.json` | - |
-| Python + `requests` stack | lyrics and meta data helper scripts (Windows package) | Python 3.13.14; `requests` 2.34.2, `urllib3` 2.8.0, `idna` 3.20, `certifi` 2026.10.18, `charset-normalizer` 3.5.2 | same |
+| Python | lyrics and meta data helper scripts (Windows package; standard library only) | 3.13.14 | same |
 
 How this is kept in check:
 
-- **Fixed downloads.** The tools the release script bundles are pinned to one exact file each (`packaging/pins.json`; the Python packages with hashes in `packaging/pylib-requirements.txt`). A file that differs from its pin stops the build.
+- **Fixed downloads.** The tools the release script bundles are pinned to one exact file each (`packaging/pins.json`). A file that differs from its pin stops the build.
 - **Code scanning.** GitHub CodeQL scans Mousiki's own C++ code and the workflows (the vendored libraries in `third_party/` are not scanned: they are unchanged upstream code).
 - **Memory-error tests.** The automated tests also run with AddressSanitizer and UndefinedBehaviorSanitizer on every push.
 - **Updates.** Libraries are checked against their upstream releases before each release; the table above is updated then. Dependabot proposes newer versions of the GitHub Actions used for building.
