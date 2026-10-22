@@ -27,7 +27,7 @@ jobs:
           - { name: macOS,   os: macos-latest }
           - { name: Windows, os: windows-latest }
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMOUSIKI_BUILD_TESTS=ON
@@ -44,7 +44,7 @@ jobs:
     name: Linux (ASan + UBSan)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Configure
         run: >
