@@ -58,7 +58,7 @@ constexpr int kWelcomeLeft = 8;  // columns in front of the disk of a welcome pa
                                  // column 45, whatever the split: 8 + 30 disk + 7 gap)
 constexpr int kWelcomeTextWidth = 72;   // the text of a welcome page is at most this wide (a longer line is wrapped)
 
-enum class Role { Text, Header, Legend, Cursor, Disk, Scroll };   // Scroll: the scrollbar (t = 0..1 down the frame, drawn in the disk gradient)
+enum class Role { Text, Header, Legend, Cursor, Disk, Scroll, Match };   // Scroll: the scrollbar (t = 0..1 down the frame, drawn in the disk gradient)
 
 // A piece of a row in one colour. `t` is 0..1 from the top of the disk to its bottom (Role::Disk only).
 struct Span {
@@ -68,7 +68,7 @@ struct Span {
 };
 using Row = std::vector<Span>;
 
-enum class Key { None, Left, Right, Up, Down, PageUp, PageDown, Enter, Back, Contents, Close };
+enum class Key { None, Left, Right, Up, Down, PageUp, PageDown, Enter, Back, Contents, Close, Search };
 
 struct State {
     int page = 0;
@@ -79,6 +79,16 @@ struct State {
     int min_page = 0;         // 1 once the first-start greeting has been left: it is not reachable again
     bool started = false;     // opened at least once by this process
     double angle = 0.0;       // the disk on the first page
+    // SHIFT+s: search the whole text (Key::Search). While `searching`, the frontends hand every key to search_key().
+    bool searching = false;
+    std::string query;
+    size_t qcaret = 0, qanchor = 0;      // the caret and the other end of the marked range in `query` (byte offsets)
+    int sel = 0;                         // the selected result
+    int first = 0;                       // the first result shown
+    int jump_line = -1;                  // set when a result is opened: the next frame scrolls this line of the page into view
+    // the results of `cache_query`, best first: the page and the line of its best fragment (filled by render())
+    std::string cache_query;
+    std::vector<std::pair<int, int>> results;
 };
 
 // What the frontend has to draw for one frame.
@@ -92,6 +102,7 @@ struct View {
     bool scrollable = false;  // the page is taller than the frame (a scrollbar is drawn in the last column of every row)
     bool can_back = false, can_next = false;
     bool toc_page = false;
+    bool search = false;      // the search view is shown: the bottom border should list the search keys
 };
 
 // Opens the wizard. `first_launch` (the first start after an installation) shows the greeting with the disk;
@@ -104,6 +115,11 @@ bool shows_disk(int page);
 
 // Handles one key. Returns true when the wizard should close.
 bool handle_key(State& st, Key key);
+
+// While State::searching: one raw key of the search view (typing into the query, UP / DOWN choose a result, SHIFT+UP / DOWN
+// jump five, ENTER opens the chapter of the result at the matching line, ESC clears the query and then leaves the search).
+// `arrow`: the key is an arrow key (it arrives as the letters A-D); `shifted`: SHIFT was held with it.
+void search_key(State& st, int key, bool arrow, bool shifted);
 
 // The frame for a terminal of `cols` columns and `body_rows` rows between the top and the bottom border.
 // `disk` is the current frame of the disk (muisc::DiskArt::frame), may be empty. Clamps st.scroll and sets st.max_scroll.

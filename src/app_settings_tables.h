@@ -66,6 +66,8 @@ inline const RefHotkeyRow kRefRows[] = {
     {nullptr, "HKeyQueueMoveBottom", "Queue Move To Bottom"},
     {nullptr, "HKeyQueueUndoClear", "Undo Clear Queue"},
     {nullptr, "HKeyQueueToPlaylist", "Save Queue As Playlist"},
+    {nullptr, "HKeyBulkAdd", "Bulk Add (Playlist Link)"},
+    {nullptr, "HKeyAddToPlaylist", "Add Track To Playlist"},
     // --- Playlists ---
     {"PLAYLISTS", "HKeyPlaylist", "Open Playlist Editor"}, // opens the playlist create/manage screen
     // --- Meta editor ---

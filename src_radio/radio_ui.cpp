@@ -5,6 +5,8 @@
 #include "scope_big.h"
 #include "scope_window.h"
 #include "keyboard_layout.h"
+#include "help_search.h"
+#include "text_edit.h"
 #include <algorithm>
 #include <cstring>
 #include <cctype>
@@ -1947,6 +1949,7 @@ std::vector<std::string> build_wizard(const Style& s, const UiModel& m, int W, i
                 case wizard::Role::Header: line += header + sp.text + kReset; break;
                 case wizard::Role::Legend: line += legend + sp.text + kReset; break;
                 case wizard::Role::Cursor: line += cursor + sp.text + kReset; break;
+                case wizard::Role::Match:  line += header + "\x1b[4m" + sp.text + kReset; break;
                 case wizard::Role::Disk:
                 case wizard::Role::Scroll: line += gradient_fg(p.disk_top, p.disk_bottom, sp.t) + sp.text + kReset; break;
                 default:                   line += base + sp.text + kReset; break;
@@ -1956,7 +1959,12 @@ std::vector<std::string> build_wizard(const Style& s, const UiModel& m, int W, i
     }
 
     std::string bottom = "[SHIFT+w / ESC] close";
-    bottom += "  [t] TOC";
+    if (v.search) {
+        bottom = "[ESC] clear / back  [ENTER] open the chapter  [\xE2\x86\x91\xE2\x86\x93] choose  [SHIFT+\xE2\x86\x91\xE2\x86\x93] jump 5";
+        out.push_back(lead + box_bottom(s, v.box_w, bottom, wbb) + trail);
+        return out;
+    }
+    bottom += "  [t] TOC  [SHIFT+s] search";
     if (v.can_back) bottom += "  [<-] back";
     if (v.can_next) bottom += "  [->] next";
     if (v.toc_page) bottom += "  [\xE2\x86\x91\xE2\x86\x93] select  [SHIFT+\xE2\x86\x91\xE2\x86\x93] jump  [ENTER] open";
@@ -1982,7 +1990,13 @@ std::vector<std::string> build_cheatsheet(const Style& s, const UiModel& m, int 
     const std::string header_bold = "\x1b[1m" + s.legend;   // bold + Header colour, like the player's header_sgr()
     struct DLine { std::string plain, ansi; };
     std::vector<DLine> dl;
+    std::vector<int> row_dline;
+    std::vector<std::string> row_category;
+    std::string category;
     for (const auto& r : kCheatRows) {
+        row_dline.push_back(static_cast<int>(dl.size()) + (r.header ? 1 : 0));
+        if (r.header) category = r.header;
+        row_category.push_back(category);
         if (r.header) { dl.push_back({"", ""}); dl.push_back({r.header, header_bold}); }
         const std::string key = pretty_key(r.key);
         const auto parts = wrap_words(r.desc, desc_w);
@@ -1991,13 +2005,130 @@ std::vector<std::string> build_cheatsheet(const Style& s, const UiModel& m, int 
     }
     const int total = static_cast<int>(dl.size());
     const int max_scroll = std::max(0, total - visible);
+    if (m.cheat_jump_row >= 0 && m.cheat_jump_row < static_cast<int>(row_dline.size()))
+        m.cheat_scroll = std::max(0, row_dline[static_cast<size_t>(m.cheat_jump_row)] - 2);   // the category title above stays in view
+    m.cheat_jump_row = -1;
     m.cheat_scroll = std::clamp(m.cheat_scroll, 0, max_scroll);
+
+    if (m.cheat_searching) {
+        // ----- SHIFT+s: the search view replaces the table -----
+        const std::string mark = header_bold + "\x1b[4m";
+        const std::vector<std::string> words = muisc::helpsearch::split_words(m.cheat_query);
+        struct Res { int row; muisc::helpsearch::Hit hit; std::string doc; };
+        std::vector<Res> res;
+        if (!words.empty()) {
+            size_t i = 0;
+            for (const auto& r : kCheatRows) {
+                // the key is padded to the table's key column, so the descriptions line up as in the table
+                std::string doc = pad_right(truncate_str(pretty_key(r.key), key_w), desc_col) + r.desc + "  [" + row_category[i] + "]";
+                muisc::helpsearch::Hit h = muisc::helpsearch::match(words, doc);
+                if (muisc::helpsearch::worth_showing(h)) res.push_back({static_cast<int>(i), std::move(h), std::move(doc)});
+                ++i;
+            }
+            std::stable_sort(res.begin(), res.end(), [](const Res& a, const Res& b) { return muisc::helpsearch::better(a.hit, b.hit); });
+            if (res.size() > 300) res.resize(300);
+        }
+        m.cheat_result_rows.clear();
+        for (const Res& r : res) m.cheat_result_rows.push_back(r.row);
+        m.cheat_sel = std::clamp(m.cheat_sel, 0, std::max(0, static_cast<int>(res.size()) - 1));
+
+        int used = 0;
+        {   // the query: caret / marked range in reverse video
+            std::string q = m.cheat_query;
+            const size_t caret = std::min(m.cheat_qcaret, q.size()), anchor = std::min(m.cheat_qanchor, q.size());
+            const size_t a = std::min(caret, anchor), b = std::max(caret, anchor);
+            std::vector<Seg> segs = {{header_bold, "Search: "}};
+            if (a != b) {
+                segs.push_back({"", q.substr(0, a)});
+                segs.push_back({"\x1b[7m", q.substr(a, b - a)});
+                segs.push_back({"", q.substr(b)});
+            } else {
+                size_t n = 0;
+                if (caret < q.size()) { n = 1; while (caret + n < q.size() && (static_cast<unsigned char>(q[caret + n]) & 0xC0) == 0x80) ++n; }
+                segs.push_back({"", q.substr(0, caret)});
+                segs.push_back({"\x1b[7m", n ? q.substr(caret, n) : std::string(" ")});
+                segs.push_back({"", q.substr(caret + n)});
+            }
+            out.push_back(box_line(s, seg_line(segs, inner), s.border));
+            ++used;
+        }
+        {
+            int full = 0;
+            for (const Res& r : res) if (r.hit.full()) ++full;
+            std::string info;
+            if (words.empty()) info = "Type what you look for: words in any order, typos and related words are found too.";
+            else if (res.empty()) info = "Nothing found. Try fewer or other words.";
+            else info = std::to_string(res.size()) + (res.size() == 1 ? " command" : " commands") + (full < static_cast<int>(res.size()) ? " (" + std::to_string(full) + " with all words, the rest with some)" : "");
+            out.push_back(box_line(s, seg_line({{s.legend, info}}, inner), s.border));
+            out.push_back(box_line(s, spaces(inner), s.border));
+            used += 2;
+        }
+        const int text_w = std::max(10, inner - 2);
+        auto wrap_offsets = [&](const std::string& str, int width, int cont_width, size_t max_lines) {
+            std::vector<std::pair<size_t, size_t>> lines;
+            size_t i = 0, line_start = std::string::npos, line_end = 0;
+            int line_w = 0;
+            while (i < str.size()) {
+                const size_t gap_from = i;
+                while (i < str.size() && str[i] == ' ') ++i;
+                if (i >= str.size()) break;
+                size_t j = i;
+                while (j < str.size() && str[j] != ' ') ++j;
+                const int ww = display_width(str.substr(i, j - i));
+                const int gap = static_cast<int>(i - gap_from);
+                if (line_start != std::string::npos && line_w + gap + ww > (lines.empty() ? width : cont_width)) {
+                    lines.emplace_back(line_start, line_end);
+                    line_start = std::string::npos;
+                    if (lines.size() >= max_lines) return lines;
+                }
+                if (line_start == std::string::npos) { line_start = i; line_w = ww; }
+                else line_w += gap + ww;
+                line_end = j;
+                i = j;
+            }
+            if (line_start != std::string::npos && lines.size() < max_lines) lines.emplace_back(line_start, line_end);
+            return lines;
+        };
+        std::vector<std::vector<std::pair<size_t, size_t>>> blocks;
+        for (const Res& r : res) blocks.push_back(wrap_offsets(r.doc, text_w, std::max(10, text_w - desc_col), 3));
+        const int room = std::max(1, visible - used);
+        m.cheat_first = std::clamp(m.cheat_first, 0, std::max(0, static_cast<int>(res.size()) - 1));
+        if (m.cheat_sel < m.cheat_first) m.cheat_first = m.cheat_sel;
+        for (;;) {
+            int h = 0;
+            for (int i = m.cheat_first; i <= m.cheat_sel && i < static_cast<int>(res.size()); ++i) h += static_cast<int>(blocks[static_cast<size_t>(i)].size());
+            if (h <= room || m.cheat_first >= m.cheat_sel) break;
+            ++m.cheat_first;
+        }
+        int rows_left = room;
+        for (int i = m.cheat_first; i < static_cast<int>(res.size()) && rows_left > 0; ++i) {
+            const auto& bl = blocks[static_cast<size_t>(i)];
+            const Res& r = res[static_cast<size_t>(i)];
+            for (size_t k = 0; k < bl.size() && rows_left > 0; ++k, --rows_left) {
+                std::vector<Seg> segs = {{(k == 0 && i == m.cheat_sel) ? "\x1b[7m" : "", (k == 0 && i == m.cheat_sel) ? "\xE2\x96\xB6 " : "  "}};
+                if (k > 0) segs.push_back({"", spaces(desc_col)});   // wrapped lines continue under the description column
+                size_t pos = bl[k].first;
+                for (const auto& rg : r.hit.ranges) {
+                    if (rg.to <= bl[k].first || rg.from >= bl[k].second) continue;
+                    const size_t a = std::max(rg.from, bl[k].first), b = std::min(rg.to, bl[k].second);
+                    if (a > pos) segs.push_back({"", r.doc.substr(pos, a - pos)});
+                    segs.push_back({mark, r.doc.substr(a, b - a)});
+                    pos = b;
+                }
+                if (pos < bl[k].second) segs.push_back({"", r.doc.substr(pos, bl[k].second - pos)});
+                out.push_back(box_line(s, seg_line(segs, inner), s.border));
+            }
+        }
+        while (rows_left-- > 0) out.push_back(box_line(s, spaces(inner), s.border));
+        out.push_back(box_bottom(s, W, "[ESC] clear / back  [ENTER] show in the table  [\xE2\x86\x91\xE2\x86\x93] choose", s.border_bottom));
+        return out;
+    }
     int shown = 0;
     for (int i = m.cheat_scroll; i < total && shown < visible; ++i, ++shown)
         out.push_back(box_line(s, seg_line({{dl[static_cast<size_t>(i)].ansi, dl[static_cast<size_t>(i)].plain}}, inner), s.border));
     while (shown < visible) { out.push_back(box_line(s, spaces(inner), s.border)); ++shown; }
 
-    std::string bottom = "[? / ESC] close";
+    std::string bottom = "[? / ESC] close  [SHIFT+s] search";
     if (max_scroll > 0) bottom += "  [\u2191\u2193] scroll " + std::to_string(m.cheat_scroll + 1) + "/" + std::to_string(total);
     out.push_back(box_bottom(s, W, bottom, s.border_bottom));
     return out;

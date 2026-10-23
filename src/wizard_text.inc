@@ -9,6 +9,8 @@ of the terminal. <3
 
 OPEN/CLOSE HELP WIZARD: [[Header]]
 To open/close use [SHIFT+w] and [ESC] for just closing it.
+[SHIFT+s] searches the whole wizard (typos are forgiven,
+matches are marked), also in the cheat sheet [?].
 
 RECOMMENDATIONS FOR FIRST TIME USERS: [[Header]]
 The first thing you might want to do is setting your custom folder paths
@@ -49,6 +51,8 @@ of the terminal. <3
 
 OPEN/CLOSE HELP WIZARD: [[Header]]
 To open/close use [SHIFT+w] and [ESC] for just closing it.
+[SHIFT+s] searches the whole wizard (typos are forgiven,
+matches are marked), also in the cheat sheet [?].
 
 HELP WIZARD TABLE OF CONTENT:[[Header]]
 Use [->] to move on to the table of content or press [t] from anywhere
@@ -214,13 +218,13 @@ details see PLAYBACK MODES[[Header]].
 
 SEARCH BAR: [[Header]]
 Type in a search query. See SEARCH[[HEADER]] and DOWNLOAD[[Header]] for details on what
-can be specifically search for.
+)WIZ",
+R"WIZ(can be specifically search for.
 
 LOCAL AUDIO FILES: [[Header]]
 When focused or using the search bar [UP]/[DOWN] can be used to hover through the track list.
 [ENTER] starts a song and hitting [ENTER] again locks the current search result, so that only
-)WIZ",
-R"WIZ(the results are shown in the list. Hit [ESC] to clear a search result and the complete list
+the results are shown in the list. Hit [ESC] to clear a search result and the complete list
 of local files will be shown again.
 
 Hitting [a] adds a song on the top of a queue. See chapter on  BUILDING A QUEUE[[Header]] 
@@ -391,7 +395,8 @@ Shuffles through tracks that are currently in the local audio files list (search
 Note that you can also actively shuffle to next song in the list via [#].
 The QUEUE is never shuffled: [n] and the end of a track play its next title in order; only [#]
 picks a random title of the queue.
-
+)WIZ",
+R"WIZ(
 L[[Header]] ==[[Header]] LIST MODE[[Header]]
 Plays the next song in the list (filters apply!).
 
@@ -400,8 +405,7 @@ Repeats the current track again.
 
 O[[Header]] ==[[Header]] STOP MODE[[Header]]
 Plays the current song and then stops.
-)WIZ",
-R"WIZ(
+
 Q[[Header]] ==[[Header]] QUEUE THEN STOP MODE [[Header]]
 Plays through the tracks in the queue and then stops.
 
@@ -425,13 +429,17 @@ With QUEUE focused: [[Header]]
 [d]             remove from queue
 [4/5]           move UP / DOWN
 [$/%]           move to TOP / END
-[a]             opens bulk-add panel: paste a YouTube playlist link to add
+[a]             does nothing here (it only adds a track from the LIST pane)
 
 QUEUE related commands, no matter the focus: [[Header]]
 [!]             lock / unlock (default is locked: move to queue end when played)
 [SHIFT+x]       clear it (asks first)
 [CTRL+SHIFT+z]  undo the last clear (one level)
 [CTRL+SHIFT+u]  queue to a new or an existing playlist (asks first)
+[SHIFT+a]       with the LIST focused: add the highlighted track to a new or an existing
+                playlist (saved at once, no editor; online tracks are downloaded first)
+[SHIFT+g]       bulk add from any pane: paste a YouTube playlist link, queue its tracks
+                (a normal text box: caret, marking, copy/paste)
 
 
 [[NEW PAGE]]
@@ -550,6 +558,12 @@ REMOVE: Move the focus to the track list, choose and delete a track via [DEL/d]
 SAVE/DISCARD: Save via [CTRL+s] and just choose [No] when exiting the playlist
 editor to discard your current playlist.
 
+ADD A TRACK DIRECTLY: [[Header]]
+In the track list press [SHIFT+a], choose a new or an existing playlist and hit [ENTER]:
+)WIZ",
+R"WIZ(the track is added and the playlist saved without opening this editor. YouTube/SoundCloud/
+Bandcamp tracks are downloaded into the download folder first.
+
 PLAYLISTS TAB: [[Header]]
 SEARCH AND ADD TO QUEUE: Search and choose a playlist and hit [ENTER] to add to queue.
 EXPORT/IMPORT: Use [e/i] to import or export playlists in the M3U/M3U8 format. Playlists
@@ -564,8 +578,7 @@ Turns high resolution files into lighter ones, e.g. 24 bit / 96 kHz FLAC into MP
 OPEN:[[Header]] [SHIFT+c] opens the FILES TO CONVERT list (the library with format, sample rate,
 bitrate, size and the estimated size after the conversion). 
 NOTE:[[Header]] The original files are never changed/deleted in the conversion process!
-)WIZ",
-R"WIZ(
+
 CHOOSE WHAT TO CONVERT: [[Header]]
 [SPACE]          mark / unmark single highlighted files          
 [a]              mark all files shown in the (filtered) track list
@@ -622,11 +635,14 @@ lyrics: sphere, oscilloscope, spectrogram or nothing.
 WRONG MATCH? RETRY:[[Header]]
 In case the lyrics don't fit, e.g. given a different version of a song witch alternative
 verses (not the timing!), lyrics can be refetched under a different query. This can be done
-via the command [l], which opens the retry form (the lyrics engine must be on!).
-Fields:[[Header]] TITLE and ARTIST, plus ticks that help with edits whose timing differ by 
+via the command [l], which opens the retry form (also with the lyrics engine off: the lyrics
+are then kept for karaoke and reading).
+Fields:[[Header]] TITLE and ARTIST, FT (opt) = featured artist(s), added to the search as "ft. ...",
+plus ticks that help with edits whose timing differ by 
 concept from the original: slowed, ultra-slowed, sped up (these three exclude each other), 
 reverb, remix, other. [TAB]/[DOWN] next field, [UP] previous field, [SPACE] tick/untick, 
-[ENTER] fetch, [ESC] cancel. Fetching lyrics again does not replace older version, as long 
+[ENTER] fetch, [ESC] cancel. The text fields are normal text boxes (caret, [SHIFT+<-/->] marking,
+[CTRL+c/x/v]). Fetching lyrics again does not replace older version, as long 
 there had been timing adjustments or the lyrics differ. Lyrics can be deleted in the re-fetch
 form or in the read/translate lyrics overlay which can be accessed via [Ctrl+l] (see further
 below for details).    
@@ -679,7 +695,8 @@ may have different sizing options.
 
 KEYS THAT KEEP WORKING IN KARAOKE: [[Header]]
 [p] play/pause   [n] / [b] next / previous   [#] shuffle   [<-/->] seek   [+/-] volume
-[x] mute   [m] mode   [v] normalization
+)WIZ",
+R"WIZ([x] mute   [m] mode   [v] normalization
 [ALT+L] the lyrics timing overlay, right here over the big lyrics: the easiest place to judge an offset
 
 
@@ -700,8 +717,7 @@ changes the visualizations while the program runs.
 WHAT THEY SHOW: [[Header]]
 SPHERE:[[Header]] an audio-reactive sphere (uses same FFT band data as te spectrum strip below
 the meta data field in the main UI. 
-)WIZ",
-R"WIZ(OSCILLOSCOPE:[[Header]] Available are a XY and YT mode oscilloscope.
+OSCILLOSCOPE:[[Header]] Available are a XY and YT mode oscilloscope.
 SPECTROGRAM:[[Header]] time runs left to right, frequency upwards, the color is the strength.
 All of them analyze the decoded signal, so volume, equalizer and normalization never change
 the picture.
@@ -818,7 +834,8 @@ terminal on macOS / Windows).
 PREVIEW: [[Header]]
 The file plays in a loop and the XY scope (oscilloscope music) or the spectrogram shows it. It has its
 own settings and does not change your [SHIFT+o] / [SHIFT+i] settings.
-[ESC] closes the preview and returns to the overlay; the song that played before comes back (from its start). [SPACE] pauses.
+)WIZ",
+R"WIZ([ESC] closes the preview and returns to the overlay; the song that played before comes back (from its start). [SPACE] pauses.
 
 
 [[New Page]]
@@ -841,8 +858,7 @@ Electronic, Hip-Hop, Acoustic, Loudness), then come your own.
 PREAMP: [[Header]]
 Boosting bands would clip, so the level is lowered by the height of your loudest point (e.g. -7.1 dB
 for Bass Boost). A strong boost is therefore slightly quieter: turn the volume up. When the
-)WIZ",
-R"WIZ(equalizer is off it is bypassed completely.
+equalizer is off it is bypassed completely.
 
 NOTE:[[Header]] The radio keeps its own curve and its own presets (in radio_config.txt).
 
@@ -995,7 +1011,8 @@ TEXT EDITING, IN EVERY FIELD: [[Header]]
 
 THE COLORS TAB: [[Header]]
 A THEME row and the color rows, each with one or two value cells, a swatch and a live preview.
-Colors are numbers of the 256-color terminal palette (1-255) in every field, text or background;
+)WIZ",
+R"WIZ(Colors are numbers of the 256-color terminal palette (1-255) in every field, text or background;
 0 or empty means "no color" (the terminal's own). Black is 16.
 BORDER_COLOR, DISK, METADATA, VIZ, PROGRESS_BAR, LIST, QUEUE, LYRICS, HEADER, LEGEND, TAB_NAMES,
 CHANGE (a field you type in) and FOCUS (the [◀] behind the title of an active pane).
@@ -1009,8 +1026,7 @@ which the list shows after the built-in ones, named in the header color.
 [ENTER]        on the theme name: the list; [ENTER] applies a theme
 [↑↓ / SHIFT+↑↓] in that list: one theme / a page (a scrollbar on the right shows where you are)
 [SHIFT+d]      in that list: delete a theme of your own (asks first)
-)WIZ",
-R"WIZ([ENTER]        on CREATE THEME: the theme editor
+[ENTER]        on CREATE THEME: the theme editor
 [e]            edit the theme in use in that editor
 [SHIFT+e / i]  export / import a theme as a .theme file
 In the editor type a name (25 characters at most), optionally pick a template, change any cell and
@@ -1130,7 +1146,8 @@ THE BIG STATIONS OVERLAY: [[Header]]
 A preset is a named set of 16 station slots on the keys:
 1  2  3  4  5  6  7  8  9  0  e  r  t  d  f  g
 Press one on the main screen to recall that slot. [SHIFT+<-/->] switch to the previous / next
-preset. The name of the active preset is in the pane title: e.g. PRESETS (Morning).
+)WIZ",
+R"WIZ(preset. The name of the active preset is in the pane title: e.g. PRESETS (Morning).
 
 THE PRESETS MENU:[[Header]] [SHIFT+p] opens it. A small [◀] behind a pane's title shows which pane is
 focused, just as in the music palyer. Names are 1 to 24 characters and unique. Every change is written 
@@ -1150,8 +1167,7 @@ NOTE: A station sits in one slot only: putting it in another slot moves it inste
 
 [[New Page]]
 10.1 SEARCHING STATIONS AND THE RADIO BROWSER [[Header]]
-)WIZ",
-R"WIZ(
+
 SEARCHING YOUR OWN STATIONS: [[Header]]
 [/] opens the search box under the frequency band. The STATIONS pane filters live as you type; 
 [ENTER] tunes the highlighted station and [ESC] clears the search.
@@ -1281,7 +1297,8 @@ OPEN:[[Header]] [s] opens the radio settings. Same frame, tab strip and editing 
 [ESC] / [q] discards (asks first when something changed).
 They are stored in radio_config.txt, separate from the config.txt of the player. Colors are not
 carried over between the two modes: the radio has its own palette and its own theme choice.
-
+)WIZ",
+R"WIZ(
 COLORS (ONLY THE RADIO HAS): [[Header]]
 ON_AIR            the diagonal gradient of the ON AIR sign, the needle, the lamp and LIVE
 OSCI              left / right color of the oscilloscope
@@ -1299,8 +1316,7 @@ Use oscilloscope / Use spectrogram.
 
 ANIMA/VIZ: [[Header]]
 Gradient wave speed and Pulse wave speed (the ON AIR sign), Bars Fluidity / Degradation / Viscosity,
-)WIZ",
-R"WIZ(Osci/sphere (osci / sphere / spectro / off) and Osci style (braille / image).
+Osci/sphere (osci / sphere / spectro / off) and Osci style (braille / image).
 
 [[New Page]]
 12.2 RADIO SETTINGS: PATHS, KEYS AND FILES [[Header]]

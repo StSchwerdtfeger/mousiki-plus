@@ -420,6 +420,8 @@ void apply_default_hotkeys(Settings& s) {
             {"HKeyReadLyrics",                  "CTRL+L"},        // READ LYRICS overlay
             {"HKeyQueueUndoClear",              "CTRL+SHIFT+Z"},  // bring back the queue that was just cleared
             {"HKeyQueueToPlaylist",             "CTRL+SHIFT+U"},  // save the queue as a playlist
+            {"HKeyAddToPlaylist",               "A"},             // SHIFT+a: the highlighted library track -> a playlist
+            {"HKeyBulkAdd",                     "G"},             // SHIFT+g: bulk add (a playlist link into the queue), from any pane
         };
         // HKeyResetPreference was defined but nothing ever read it; configs
         // written by older builds still carry it (as "e", which would now
@@ -490,7 +492,7 @@ void apply_default_hotkeys(Settings& s) {
         // The same goes for the keys that became rebindable later (their old fixed key may have been given to another
         // action in the meantime, which could never fire: the fixed key was caught first).
         for (const char* name : {"HKeyWizard", "HKeyRescan", "HKeyFetchTags", "HKeyLyricsTiming", "HKeyReadLyrics",
-                                 "HKeyQueueUndoClear", "HKeyQueueToPlaylist"}) {
+                                 "HKeyQueueUndoClear", "HKeyQueueToPlaylist", "HKeyBulkAdd", "HKeyAddToPlaylist"}) {
             auto wiz = s.hotkeys.find(name);
             if (wiz != s.hotkeys.end() && !wiz->second.empty()) {
                 for (const auto& [action, key] : s.hotkeys) {

@@ -7,6 +7,8 @@
 #include <sstream>
 #include <utility>
 
+#include "help_search.h"
+#include "text_edit.h"
 #include "version.h"
 
 // The text of the wizard, compiled in: `static const char* const kWizardTextChunks[] = { R"WIZ(...)WIZ", ..., nullptr };`
@@ -486,6 +488,7 @@ std::vector<std::vector<Cell>> wrap_cells(std::vector<Cell> cells, int width, in
 }
 
 struct Laid {
+    std::vector<int> line_row;      // the first row of each text line of the page (a normal page; used to scroll to a search hit)
     std::vector<Row> rows;          // without margins
     int selected_row = -1;          // the cursor row of a contents page
     int wrapped = 0;
@@ -559,6 +562,7 @@ Laid layout(const Page& p, int inner, int margin, const State& st, const std::ve
     const int block_w = std::min(cw, toc_w);
     const int off = p.toc ? std::max(0, (cw - block_w) / 2) : 0;       // a contents page is centred as a block
     for (size_t li = 0; li < p.lines.size(); ++li) {
+        out.line_row.push_back(static_cast<int>(out.rows.size()));
         const bool selected = p.toc && p.line_entry[li] >= 0 && p.line_entry[li] == st.toc;
         if (selected) {
             std::string text;
@@ -592,6 +596,225 @@ std::pair<int, int> chapter_range(int page) {
     return {a, b};
 }
 
+
+// ---------------------------------------------------------------------------------------------------
+// search (SHIFT+s)
+// ---------------------------------------------------------------------------------------------------
+
+struct PageText {
+    int page = 0;
+    std::string title;                  // the first line of the page ("3.1 MUSIC FILE PATHS")
+    std::vector<std::string> lines;     // plain text of each line (the markers removed); blank lines stay, so the index is the page line
+};
+
+const std::vector<PageText>& search_index() {
+    static const std::vector<PageText> idx = [] {
+        std::vector<PageText> v;
+        const Doc& d = doc();
+        for (size_t i = 0; i < d.pages.size(); ++i) {
+            const Page& p = d.pages[i];
+            if (p.toc || p.welcome) continue;     // the greeting and the contents lead nowhere new
+            PageText t;
+            t.page = static_cast<int>(i);
+            for (const std::string& r : p.raw) t.lines.push_back(plain_text(r));
+            t.title = t.lines.empty() ? std::string() : t.lines[0];
+            v.push_back(std::move(t));
+        }
+        return v;
+    }();
+    return idx;
+}
+
+int popcount32(unsigned v) { int n = 0; for (; v; v >>= 1) n += static_cast<int>(v & 1u); return n; }
+
+std::vector<std::string> query_words(const State& st) {
+    std::vector<std::string> w = muisc::helpsearch::split_words(st.query);
+    if (w.size() > 8) w.resize(8);
+    return w;
+}
+
+// The lines of a page that matched, best first.
+struct LineHit { int line = 0; muisc::helpsearch::Hit hit; };
+std::vector<LineHit> matching_lines(const PageText& pt, const std::vector<std::string>& words) {
+    std::vector<LineHit> out;
+    for (size_t li = 1; li < pt.lines.size(); ++li) {      // line 0 is the title, shown on its own
+        if (pt.lines[li].empty()) continue;
+        muisc::helpsearch::Hit h = muisc::helpsearch::match(words, pt.lines[li]);
+        if (h.matched > 0) out.push_back({static_cast<int>(li), std::move(h)});
+    }
+    std::stable_sort(out.begin(), out.end(), [](const LineHit& a, const LineHit& b) {
+        if (a.hit.matched != b.hit.matched) return a.hit.matched > b.hit.matched;
+        return a.hit.score > b.hit.score;
+    });
+    return out;
+}
+
+// Ranks the pages for the current query (cached until the query changes).
+void compute_results(State& st) {
+    if (st.cache_query == st.query) return;
+    st.cache_query = st.query;
+    st.results.clear();
+    const std::vector<std::string> words = query_words(st);
+    if (words.empty()) return;
+    struct R { int page, line; bool full; int matched, score; };
+    std::vector<R> rs;
+    const unsigned all = (words.size() >= 31) ? ~0u : ((1u << words.size()) - 1u);
+    for (const PageText& pt : search_index()) {
+        unsigned mask = 0;
+        int score = 0;
+        const muisc::helpsearch::Hit th = muisc::helpsearch::match(words, pt.title);
+        mask |= th.mask;
+        score += th.score * 2;
+        const std::vector<LineHit> lh = matching_lines(pt, words);
+        for (const LineHit& l : lh) mask |= l.hit.mask;
+        for (size_t i = 0; i < lh.size() && i < 3; ++i) score += lh[i].hit.score;
+        if (!lh.empty()) score += lh[0].hit.matched * 25;      // several words in one line: a better fragment
+        const int matched = popcount32(mask);
+        if (matched == 0 || matched * 2 < static_cast<int>(words.size())) continue;
+        rs.push_back({pt.page, lh.empty() ? 0 : lh[0].line, mask == all, matched, score});
+    }
+    std::stable_sort(rs.begin(), rs.end(), [](const R& a, const R& b) {
+        if (a.full != b.full) return a.full;
+        if (a.matched != b.matched) return a.matched > b.matched;
+        return a.score > b.score;
+    });
+    if (rs.size() > 100) rs.resize(100);
+    for (const R& r : rs) st.results.emplace_back(r.page, r.line);
+}
+
+// Byte offset after `n` code points from `pos`.
+size_t cp_advance(const std::string& s, size_t pos, int n) {
+    while (pos < s.size() && n > 0) {
+        ++pos;
+        while (pos < s.size() && (static_cast<unsigned char>(s[pos]) & 0xC0) == 0x80) ++pos;
+        --n;
+    }
+    return pos;
+}
+
+// One line of a result as spans: the part around the first match, the matches in Role::Match, cut with ... at both ends.
+void excerpt(const std::string& line, const std::vector<muisc::helpsearch::Range>& rg, int width, Row& out) {
+    const std::string ell = "\xE2\x80\xA6";
+    size_t start = 0;
+    if (!rg.empty() && cp_len(line.substr(0, rg.front().from)) > width / 2) {
+        // begin a little before the first match, at a word start
+        int back = width / 4;
+        size_t p = rg.front().from;
+        while (p > 0 && back > 0) {
+            --p;
+            while (p > 0 && (static_cast<unsigned char>(line[p]) & 0xC0) == 0x80) --p;
+            --back;
+        }
+        while (p < rg.front().from && line[p] != ' ') ++p;
+        while (p < rg.front().from && line[p] == ' ') ++p;
+        start = p;
+    }
+    int budget = width - (start > 0 ? 1 : 0);
+    size_t end = cp_advance(line, start, budget);
+    const bool cut = end < line.size();
+    if (cut) end = cp_advance(line, start, budget - 1);
+    if (start > 0) out.push_back({Role::Text, ell, 0.0f});
+    size_t pos = start;
+    for (const auto& r : rg) {
+        if (r.to <= start || r.from >= end) continue;
+        const size_t a = std::max(r.from, start), b = std::min(r.to, end);
+        if (a > pos) out.push_back({Role::Text, line.substr(pos, a - pos), 0.0f});
+        out.push_back({Role::Match, line.substr(a, b - a), 0.0f});
+        pos = b;
+    }
+    if (pos < end) out.push_back({Role::Text, line.substr(pos, end - pos), 0.0f});
+    if (cut) out.push_back({Role::Text, ell, 0.0f});
+}
+
+// The rows of the search view (without the margin the frame adds).
+std::vector<Row> search_rows(State& st, int cw, int body_rows) {
+    std::vector<Row> rows;
+    rows.push_back(Row());
+    {   // the query, with the caret (or the marked range) in the cursor colour
+        Row r;
+        r.push_back({Role::Header, "Search: ", 0.0f});
+        std::string q = st.query;
+        size_t caret = std::min(st.qcaret, q.size()), anchor = std::min(st.qanchor, q.size());
+        const int room = std::max(8, cw - 8 - 1);
+        while (cp_len(q) > room && caret > 0) {      // a very long query: the front is cut off
+            const size_t n = cp_advance(q, 0, 1);
+            q.erase(0, n);
+            caret = caret >= n ? caret - n : 0;
+            anchor = anchor >= n ? anchor - n : 0;
+        }
+        const size_t a = std::min(caret, anchor), b = std::max(caret, anchor);
+        if (a != b) {
+            if (a > 0) r.push_back({Role::Text, q.substr(0, a), 0.0f});
+            r.push_back({Role::Cursor, q.substr(a, b - a), 0.0f});
+            if (b < q.size()) r.push_back({Role::Text, q.substr(b), 0.0f});
+        } else {
+            if (caret > 0) r.push_back({Role::Text, q.substr(0, caret), 0.0f});
+            const size_t n = caret < q.size() ? cp_advance(q, caret, 1) - caret : 0;
+            r.push_back({Role::Cursor, n > 0 ? q.substr(caret, n) : std::string(" "), 0.0f});
+            if (caret + n < q.size()) r.push_back({Role::Text, q.substr(caret + n), 0.0f});
+        }
+        rows.push_back(std::move(r));
+    }
+    const std::vector<std::string> words = query_words(st);
+    {
+        std::string info;
+        if (words.empty()) info = "Type what you look for: words in any order. Typos and related words (delete = remove) are found too.";
+        else if (st.results.empty()) info = "Nothing found. Try fewer or other words.";
+        else info = std::to_string(st.results.size()) + (st.results.size() == 1 ? " chapter" : " chapters") + " found, the best first";
+        Row r;
+        r.push_back({Role::Legend, info, 0.0f});
+        rows.push_back(std::move(r));
+        rows.push_back(Row());
+    }
+    const int n = static_cast<int>(st.results.size());
+    st.sel = std::clamp(st.sel, 0, std::max(0, n - 1));
+    st.first = std::clamp(st.first, 0, std::max(0, n - 1));
+    const int room = std::max(1, body_rows - static_cast<int>(rows.size()));
+    auto fragments_of = [&](int res) {
+        std::vector<LineHit> lh;
+        for (const PageText& pt : search_index()) {
+            if (pt.page != st.results[static_cast<size_t>(res)].first) continue;
+            lh = matching_lines(pt, words);
+            if (lh.size() > 2) lh.resize(2);
+            std::sort(lh.begin(), lh.end(), [](const LineHit& a, const LineHit& b) { return a.line < b.line; });
+            break;
+        }
+        return lh;
+    };
+    auto block_height = [&](int res) { return 1 + static_cast<int>(std::max<size_t>(1, fragments_of(res).size())) + 1; };
+    if (st.sel < st.first) st.first = st.sel;
+    for (;;) {   // scroll until the selected result is fully in view
+        int h = 0;
+        for (int i = st.first; i <= st.sel && i < n; ++i) h += block_height(i);
+        if (h <= room || st.first >= st.sel) break;
+        ++st.first;
+    }
+    for (int i = st.first; i < n && static_cast<int>(rows.size()) < body_rows; ++i) {
+        const int pg = st.results[static_cast<size_t>(i)].first;
+        const PageText* pt = nullptr;
+        for (const PageText& x : search_index()) if (x.page == pg) { pt = &x; break; }
+        if (!pt) continue;
+        Row head;
+        head.push_back({i == st.sel ? Role::Cursor : Role::Text, i == st.sel ? "\xE2\x96\xB6 " : "  ", 0.0f});
+        const muisc::helpsearch::Hit th = muisc::helpsearch::match(words, pt->title);
+        Row titlespans;
+        excerpt(pt->title, th.ranges, std::max(10, cw - 4), titlespans);
+        for (Span sp : titlespans) { if (sp.role == Role::Text) sp.role = Role::Header; head.push_back(sp); }
+        rows.push_back(std::move(head));
+        const auto lh = fragments_of(i);
+        for (const LineHit& l : lh) {
+            if (static_cast<int>(rows.size()) >= body_rows) break;
+            Row r;
+            r.push_back({Role::Text, "    ", 0.0f});
+            excerpt(pt->lines[static_cast<size_t>(l.line)], l.hit.ranges, std::max(10, cw - 6), r);
+            rows.push_back(std::move(r));
+        }
+        if (lh.empty()) rows.push_back(Row());
+        rows.push_back(Row());
+    }
+    return rows;
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------------------------------
@@ -605,6 +828,7 @@ bool shows_disk(int page) {
 
 void open(State& st, bool first_launch) {
     const Doc& d = doc();
+    st.searching = false;
     if (first_launch && !st.started) {
         st.page = 0;
         st.min_page = 0;
@@ -684,9 +908,44 @@ bool handle_key(State& st, Key key) {
             st.scroll = 0;
             break;
         }
+        case Key::Search: {
+            st.searching = true;
+            st.query.clear();
+            st.qcaret = st.qanchor = 0;
+            st.sel = st.first = 0;
+            st.cache_query = "\x01";      // not a query: forces the first computation
+            st.results.clear();
+            break;
+        }
         case Key::None: break;
     }
     return false;
+}
+
+void search_key(State& st, int key, bool arrow, bool shifted) {
+    if (!st.searching) return;
+    compute_results(st);
+    const int n = static_cast<int>(st.results.size());
+    if (!arrow && key == 27) {          // ESC: first the query goes, then the search view
+        if (!st.query.empty()) { st.query.clear(); st.qcaret = st.qanchor = 0; st.sel = st.first = 0; }
+        else st.searching = false;
+        return;
+    }
+    if (arrow && (key == 'A' || key == 'B')) {
+        const int step = shifted ? 5 : 1;
+        st.sel = std::clamp(st.sel + (key == 'B' ? step : -step), 0, std::max(0, n - 1));
+        return;
+    }
+    if (!arrow && (key == '\r' || key == '\n')) {
+        if (n > 0) {
+            const auto r = st.results[static_cast<size_t>(std::clamp(st.sel, 0, n - 1))];
+            st.searching = false;
+            go_to_page(st, r.first);
+            st.jump_line = r.second;
+        }
+        return;
+    }
+    if (muisc::edit_text_key(st.query, st.qcaret, st.qanchor, key, 80, nullptr)) { st.sel = 0; st.first = 0; }
 }
 
 View render(State& st, int cols, int body_rows, const std::vector<std::string>& disk) {
@@ -699,6 +958,30 @@ View render(State& st, int cols, int body_rows, const std::vector<std::string>& 
     if (st.page > last_page()) st.page = last_page();
     if (st.page < st.min_page) st.page = st.min_page;
     const Page& p = d.pages[static_cast<size_t>(st.page)];
+
+    if (st.searching) {     // SHIFT+s: the search view replaces the page
+        compute_results(st);
+        v.title = "MOUSIKI PLUS HELP WIZARD \xE2\x94\x80 SEARCH";
+        const std::vector<Row> body = search_rows(st, inner - 2 * margin - 1, body_rows);
+        const std::string lead = spaces(margin);
+        for (int line = 0; line < body_rows; ++line) {
+            Row out;
+            out.push_back({Role::Text, lead, 0.0f});
+            int w = margin;
+            if (line < static_cast<int>(body.size())) {
+                for (const Span& sp : body[static_cast<size_t>(line)]) out.push_back(sp);
+                w += row_width(body[static_cast<size_t>(line)]);
+            }
+            if (w < inner) out.push_back({Role::Text, spaces(inner - w), 0.0f});
+            v.rows.push_back(std::move(out));
+        }
+        st.view_rows = std::max(1, body_rows);
+        st.max_scroll = 0;
+        v.page_no = st.page - st.min_page + 1;
+        v.page_total = last_page() - st.min_page + 1;
+        v.search = true;
+        return v;
+    }
 
     // top border title
     {
@@ -732,6 +1015,11 @@ View render(State& st, int cols, int body_rows, const std::vector<std::string>& 
     laid.rows.insert(laid.rows.begin(), Row());
     laid.rows.push_back(Row());
     if (laid.selected_row >= 0) ++laid.selected_row;
+    if (st.jump_line >= 0) {          // a search result was opened: show its line, with one line of context above
+        if (!p.toc && st.jump_line < static_cast<int>(laid.line_row.size()))
+            st.scroll = std::max(0, laid.line_row[static_cast<size_t>(st.jump_line)] + 1 - 2);
+        st.jump_line = -1;
+    }
     const int total = static_cast<int>(laid.rows.size());
     const int avail = std::max(1, body_rows);
     st.view_rows = avail;

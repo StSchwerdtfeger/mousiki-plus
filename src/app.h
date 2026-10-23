@@ -368,6 +368,23 @@ private:
     static constexpr int kQtpListRows = 8;
     std::vector<std::string> build_queue_to_playlist_panel() const;
     void queue_to_playlist();            // Ctrl+Shift+U: queue -> playlist editor (name field)
+    // SHIFT+a: the highlighted track of the library pane -> a playlist, with the same overlay (qtp_track_ = true). A
+    // new playlist asks for its name (stage 2); the playlist is saved at once, the playlist editor does not open. An
+    // online track (YouTube / SoundCloud / Bandcamp) is downloaded into the download folder first, in the background,
+    // and then added as the local file it has become.
+    void track_to_playlist();
+    void track_to_playlist_apply(const std::string& playlist);   // the chosen / typed playlist name
+    void atp_add_file(const std::string& playlist, const std::string& title, const std::string& artist, const fs::path& file);
+    void poll_pending_atp();
+    bool qtp_track_ = false;
+    std::string qtp_new_name_;           // stage 2: the name of a new playlist
+    struct AtpTrack { std::string title, artist, video_id; fs::path path; bool is_local = true; };
+    AtpTrack atp_track_;                 // the track chosen with SHIFT+a
+    struct AtpJob { bool ok = false; std::string error, playlist, title, artist; fs::path file; };
+    std::mutex atp_mutex_;
+    AtpJob atp_done_;
+    std::atomic<bool> atp_busy_{false};  // a download for a playlist is running
+    std::atomic<bool> atp_ready_{false}; // ... and has finished (atp_done_ holds the result)
     std::string hotkey_text(const char* action, const char* fallback) const; // bound key, as shown in a legend
 
     // --- playlists (local-files-only; see playlist_manager.h) -----------
@@ -843,6 +860,14 @@ private:
     // because build_cheatsheet_screen() is const and clamps it against the
     // rows that actually fit as it draws.
     mutable int cheatsheet_scroll_ = 0;
+    // SHIFT+s inside the cheat sheet: search the commands (help_search.h). The result list is rebuilt by every frame
+    // (it is const), so the key handler only reads which table row the selected result stands for.
+    bool cheat_searching_ = false;
+    std::string cheat_query_;
+    mutable int cheat_sel_ = 0;
+    mutable std::vector<int> cheat_result_rows_;   // the table row of each result, best first
+    mutable int cheat_first_ = 0;                  // the first result shown (the list scrolls to keep the selected one in view)
+    mutable int cheat_jump_row_ = -1;              // set by ENTER: the next frame scrolls the table to this row
     // Karaoke overlay (Mode::Karaoke, HKeyKaraoke = "k"): the lyrics of the
     // playing track filling the screen, the active line highlighted word by
     // word, with the karaoke braille art on the left (disk colours, a moving
@@ -926,6 +951,7 @@ private:
     std::atomic<bool> bulk_add_in_progress_{false};
     std::atomic<bool> bulk_add_ready_{false};
     BulkAddResult pending_bulk_add_;
+    void bulk_add_open();   // the bulk add panel (HKeyBulkAdd)
     void launch_bulk_add_async(const std::string& url);
     void poll_pending_bulk_add();
     void commit_bulk_add(bool all); // all=true -> every fetched track; all=false -> only starred ones
@@ -970,7 +996,8 @@ private:
     void rl_open_from_current_track();     // pre-fill + reset state, called when 'l' opens the panel
     void rl_submit();                       // builds the override query and launches the fetch
     bool* rl_bool_ptr(RLField f);           // nullptr for non-checkbox fields
-    std::string* rl_text_ptr(RLField f);    // nullptr for checkbox fields
+    std::string* rl_text_ptr(RLField f);
+    static std::string rl_owner(RLField f) { return "rl-" + std::to_string(static_cast<int>(f)); }   // edit_focus() owner of one field    // nullptr for checkbox fields
     std::vector<std::string> build_retry_lyrics_panel() const; // fixed-width, fixed-height lines for draw_floating_panel()
 
     // --- async track loading ---

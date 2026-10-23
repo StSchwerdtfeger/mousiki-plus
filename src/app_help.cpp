@@ -2,6 +2,7 @@
 // Member functions of App (declared in app.h); the helpers shared with app.cpp are in app_internal.h.
 #include "app.h"
 #include "text_edit.h"
+#include "help_search.h"
 #include "overlay_common.h"
 #include "remote_server.h"
 #include "remote_control.h"
@@ -56,7 +57,8 @@ namespace muisc {
 bool App::wizard_allowed_over_mode() const {
     switch (mode_) {
         case Mode::Settings:    return theme_ui_ == 0 && leave_prompt_ == 0;   // not in the theme editor or a question
-        case Mode::Console: case Mode::Cheatsheet: case Mode::History: case Mode::ReadLyrics:
+        case Mode::Cheatsheet:  return !cheat_searching_;                      // the search field takes typed text
+        case Mode::Console: case Mode::History: case Mode::ReadLyrics:
         case Mode::OsciMenu: case Mode::NormMenu: case Mode::SpectroMenu: case Mode::SleepTimer: case Mode::MenuIndex:
         case Mode::LyricsEdit: case Mode::Karaoke:
             return true;
@@ -113,6 +115,7 @@ void App::build_wizard_screen(std::ostringstream& frame, int W) {
             switch (s.role) {
                 case wizard::Role::Header: frame << header_sgr(settings_) << s.text << R; break;
                 case wizard::Role::Legend: frame << legend_sgr(settings_) << s.text << R; break;
+                case wizard::Role::Match: frame << header_sgr(settings_) << "\x1b[4m" << s.text << R; break;
                 case wizard::Role::Cursor:
                     frame << ansi_for(settings_.list_cursor_color, false) << bg_ansi_for(settings_.list_cursor_bg_color) << s.text << R;
                     break;
@@ -127,7 +130,12 @@ void App::build_wizard_screen(std::ostringstream& frame, int W) {
     }
 
     std::string bottom = "[" + hotkey_text("HKeyWizard", "SHIFT+w") + " / ESC] close";
-    bottom += "  [t] TOC";
+    if (v.search) {
+        bottom = "[ESC] clear / back  [ENTER] open the chapter  [\xE2\x86\x91\xE2\x86\x93] choose  [SHIFT+\xE2\x86\x91\xE2\x86\x93] jump 5";
+        frame << lead << box_bottom(v.box_w, bottom, border_bottom) << trail << "\n";
+        return;
+    }
+    bottom += "  [t] TOC  [SHIFT+s] search";
     if (v.can_back) bottom += "  [<-] back";
     if (v.can_next) bottom += "  [->] next";
     if (v.toc_page) bottom += "  [\xE2\x86\x91\xE2\x86\x93] select  [SHIFT+\xE2\x86\x91\xE2\x86\x93] jump  [ENTER] open";
@@ -249,7 +257,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "#/sc:", "Search SoundCloud (type it in the search box; ENTER plays, the download key saves it)"},
         {nullptr, "#/b:", "Search Bandcamp (tracks; ENTER plays the free stream, the download key saves it)"},
         // --- Queue ---
-        {"QUEUE (MAIN UI)", "HKeyAddHoveringSongToQueue", "Add hovering track as NEXT (repeated presses keep their order)"},
+        {"QUEUE (MAIN UI)", "HKeyAddHoveringSongToQueue", "Add hovering track of the library pane as NEXT (repeated presses keep their order; does nothing while the queue pane is focused)"},
         {nullptr, "HKeyQueueAddEnd", "Add hovering track to the END of the queue"},
         {nullptr, "HKeyRemoveHoveringSongFromQueue", "Remove hovering track from queue"},
         {nullptr, "HKeyQueueMoveUp", "Move hovering queue item up"},
@@ -260,10 +268,12 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "HKeyClearQueue", "Clear the whole queue (asks Yes / No first)"},
         {nullptr, "HKeyQueueUndoClear", "Undo the last queue clear"},
         {nullptr, "HKeyQueueToPlaylist", "Save the queue as a playlist (opens the playlist editor)"},
+        {nullptr, "HKeyBulkAdd", "BULK ADD: paste a YouTube playlist link and queue its tracks (from any pane)"},
         // --- Playlists -- HKeyPlaylist opens the overlay; every other row
         // is the playlist editor's own fixed legend (build_playlist_screen()'s
         // footer), none of which is a rebindable hotkey.
         {"PLAYLISTS", "HKeyPlaylist", "Open Playlists (create / manage)"},
+        {nullptr, "HKeyAddToPlaylist", "Add the hovering track of the library pane to a new or an existing playlist (saved at once, the playlist editor stays closed; a YouTube / SoundCloud / Bandcamp track is downloaded into the download folder first)"},
         {nullptr, "#LEFT/RIGHT", "Switch tab (Create/Edit vs Saved Playlists); inside a name / search field after typing: move the caret"},
         {nullptr, "#ESC", "Leave the field you typed in (LEFT/RIGHT switch tabs again); outside a field: close (asks to save unsaved changes)"},
         {nullptr, "#" MUISC_ALT_NAME_UC "+LEFT/RIGHT", "Switch tab from anywhere, also while typing"},
@@ -362,7 +372,13 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
     const int desc_w = std::max(10, inner - desc_col);
     struct DLine { std::string plain, sgr; };
     std::vector<DLine> dlines;
+    std::vector<int> row_dline;   // the first display line of each table row
+    std::string category;
+    std::vector<std::string> row_category;
     for (const auto& r : rows) {
+        row_dline.push_back(static_cast<int>(dlines.size()) + (r.header ? 1 : 0));
+        if (r.header) category = r.header;
+        row_category.push_back(category);
         if (r.header) {
             dlines.push_back({std::string(), ""});                       // blank spacer row...
             dlines.push_back({r.header, header_sgr(settings_)});         // ...then the title, Header colour + bold
@@ -374,7 +390,129 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
     }
     const int total = static_cast<int>(dlines.size());
     const int max_scroll = std::max(0, total - visible);
+    if (cheat_jump_row_ >= 0 && cheat_jump_row_ < static_cast<int>(row_dline.size())) {
+        cheatsheet_scroll_ = std::max(0, row_dline[static_cast<size_t>(cheat_jump_row_)] - 2);   // the category title above stays in view
+    }
+    cheat_jump_row_ = -1;
     cheatsheet_scroll_ = std::clamp(cheatsheet_scroll_, 0, max_scroll);
+
+    if (cheat_searching_) {
+        // ----- SHIFT+s: the search view replaces the table -----
+        const std::string R = "\x1b[0m";
+        const std::string bar = border + settings_.box_vertical + R;
+        const std::string mark_sgr = header_sgr(settings_) + "\x1b[4m";
+        const std::string cursor_sgr_ = ansi_for(settings_.list_cursor_color, false) + bg_ansi_for(settings_.list_cursor_bg_color);
+        const std::vector<std::string> words = helpsearch::split_words(cheat_query_);
+        struct Res { int row; helpsearch::Hit hit; std::string doc; };
+        std::vector<Res> res;
+        if (!words.empty()) {
+            for (size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); ++i) {
+                // the key is padded to the width of the table's key column, so the descriptions line up as in the table
+                std::string doc = pad_right(truncate_str(key_of(rows[i]), key_w), desc_col) + rows[i].desc + "  [" + row_category[i] + "]";
+                helpsearch::Hit h = helpsearch::match(words, doc);
+                if (helpsearch::worth_showing(h)) res.push_back({static_cast<int>(i), std::move(h), std::move(doc)});
+            }
+            std::stable_sort(res.begin(), res.end(), [](const Res& a, const Res& b) { return helpsearch::better(a.hit, b.hit); });
+            if (res.size() > 300) res.resize(300);
+        }
+        cheat_result_rows_.clear();
+        for (const Res& r : res) cheat_result_rows_.push_back(r.row);
+        cheat_sel_ = std::clamp(cheat_sel_, 0, std::max(0, static_cast<int>(res.size()) - 1));
+
+        auto row_out = [&](const std::string& painted, int cols) {
+            frame << bar << " " << painted << std::string(static_cast<size_t>(std::max(0, inner - cols)), ' ') << " " << bar << "\n";
+        };
+        int used = 0;
+        {   // the query field
+            const std::string label = "Search: ";
+            const bool mine = edit_owner_ == "cheat-search";
+            const size_t cc = mine ? std::min(edit_caret_, cheat_query_.size()) : cheat_query_.size();
+            const size_t aa = mine ? std::min(edit_anchor_, cheat_query_.size()) : cheat_query_.size();
+            const EditPaint p = paint_edit_field(cheat_query_, cc, aa, std::max(4, inner - display_width(label) - 1), "", true);
+            row_out(header_sgr(settings_) + label + R + p.s, display_width(label) + p.cols);
+            ++used;
+        }
+        {   // the count
+            int full = 0;
+            for (const Res& r : res) if (r.hit.full()) ++full;
+            std::string info;
+            if (words.empty()) info = "Type what you look for: words in any order, typos and related words are found too.";
+            else if (res.empty()) info = "Nothing found. Try fewer or other words.";
+            else info = std::to_string(res.size()) + (res.size() == 1 ? " command" : " commands") + (full < static_cast<int>(res.size()) ? " (" + std::to_string(full) + " with all words, the rest with some)" : "");
+            row_out(legend_sgr(settings_) + truncate_str(info, inner) + R, display_width(truncate_str(info, inner)));
+            row_out("", 0);
+            used += 2;
+        }
+        // The results: each one is the key and its description (and its category in brackets) wrapped to at most 3 lines, the
+        // matching words marked. The selected one starts with a cursor mark.
+        auto wrap_offsets = [&](const std::string& s, int width, int cont_width, size_t max_lines) {
+            std::vector<std::pair<size_t, size_t>> lines;
+            size_t i = 0, line_start = std::string::npos, line_end = 0;
+            int line_w = 0;
+            while (i < s.size()) {
+                const size_t gap_from = i;
+                while (i < s.size() && s[i] == ' ') ++i;
+                if (i >= s.size()) break;
+                size_t j = i;
+                while (j < s.size() && s[j] != ' ') ++j;
+                const int ww = display_width(s.substr(i, j - i));
+                const int gap = static_cast<int>(i - gap_from);   // the real spaces in front of the word (the key and the text are 2 apart)
+                if (line_start != std::string::npos && line_w + gap + ww > (lines.empty() ? width : cont_width)) {
+                    lines.emplace_back(line_start, line_end);
+                    line_start = std::string::npos;
+                    if (lines.size() >= max_lines) return lines;
+                }
+                if (line_start == std::string::npos) { line_start = i; line_w = ww; }
+                else line_w += gap + ww;
+                line_end = j;
+                i = j;
+            }
+            if (line_start != std::string::npos && lines.size() < max_lines) lines.emplace_back(line_start, line_end);
+            return lines;
+        };
+        auto paint = [&](const std::string& doc, size_t from, size_t to, const std::vector<helpsearch::Range>& rg, int& cols) {
+            std::string out;
+            size_t pos = from;
+            for (const auto& r : rg) {
+                if (r.to <= from || r.from >= to) continue;
+                const size_t a = std::max(r.from, from), b = std::min(r.to, to);
+                if (a > pos) out += doc.substr(pos, a - pos);
+                out += mark_sgr + doc.substr(a, b - a) + R;
+                pos = b;
+            }
+            if (pos < to) out += doc.substr(pos, to - pos);
+            cols = display_width(doc.substr(from, to - from));
+            return out;
+        };
+        const int text_w = std::max(10, inner - 2);
+        std::vector<std::vector<std::pair<size_t, size_t>>> blocks;
+        for (const Res& r : res) blocks.push_back(wrap_offsets(r.doc, text_w, std::max(10, text_w - desc_col), 3));
+        const int room = std::max(1, visible - used);
+        cheat_first_ = std::clamp(cheat_first_, 0, std::max(0, static_cast<int>(res.size()) - 1));
+        if (cheat_sel_ < cheat_first_) cheat_first_ = cheat_sel_;
+        for (;;) {   // scroll down until the selected result fits
+            int h = 0;
+            for (int i = cheat_first_; i <= cheat_sel_ && i < static_cast<int>(res.size()); ++i) h += static_cast<int>(blocks[static_cast<size_t>(i)].size());
+            if (h <= room || cheat_first_ >= cheat_sel_) break;
+            ++cheat_first_;
+        }
+        int rows_left = room;
+        for (int i = cheat_first_; i < static_cast<int>(res.size()) && rows_left > 0; ++i) {
+            const auto& bl = blocks[static_cast<size_t>(i)];
+            for (size_t k = 0; k < bl.size() && rows_left > 0; ++k, --rows_left) {
+                int cols = 0;
+                const std::string body = paint(res[static_cast<size_t>(i)].doc, bl[k].first, bl[k].second, res[static_cast<size_t>(i)].hit.ranges, cols);
+                const bool sel = i == cheat_sel_;
+                const std::string lead = (k == 0) ? (sel ? cursor_sgr_ + "\u25b6 " + R : std::string("  ")) : std::string("  ");
+                const int indent = k == 0 ? 0 : desc_col;   // wrapped lines continue under the description column
+                row_out(lead + std::string(static_cast<size_t>(indent), ' ') + body, 2 + indent + cols);
+                used++;
+            }
+        }
+        while (rows_left-- > 0) row_out("", 0);
+        frame << box_bottom(W, "[ESC] clear / back  [ENTER] show in the table  [\u2191\u2193] choose", border) << "\n";
+        return;
+    }
 
     // A coloured line can't go through box_line(): that pads by counting bytes, so it would treat the escape codes
     // as columns. Pad the plain text first, then wrap the padded result.
@@ -391,7 +529,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
     }
     while (shown < visible) { frame << box_line("", W, border) << "\n"; ++shown; }
 
-    std::string bottom = "[" + hotkey_text("HKeyCheatsheet", "?") + " / ESC] close";
+    std::string bottom = "[" + hotkey_text("HKeyCheatsheet", "?") + " / ESC] close  [SHIFT+s] search";
     if (max_scroll > 0) bottom += "  [\u2191\u2193] scroll " + std::to_string(cheatsheet_scroll_ + 1) + "/"
                                 + std::to_string(total);
     frame << box_bottom(W, bottom, border) << "\n";

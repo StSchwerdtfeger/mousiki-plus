@@ -1306,6 +1306,11 @@ int radio_main(int argc, char** argv) {
             if (ui.model.wizard_open) {
                 // The page / part / contents state and what a key does live in src/wizard.cpp, the same for both modes.
                 wizard::Key wk = wizard::Key::None;
+                if (ui.model.wizard.searching) {      // SHIFT+s: the query has the keyboard (CTRL+C copies there)
+                    wizard::search_key(ui.model.wizard, k, arrow, arrow && last_key_was_shifted());
+                    set_text_entry(ui.model.wizard.searching);
+                    continue;
+                }
                 if (k == 3 || k == kKeyCtrlC) running = false;
                 else if (arrow) {
                     const bool shifted = last_key_was_shifted();
@@ -1317,7 +1322,10 @@ int radio_main(int argc, char** argv) {
                 else if (k == 13 || k == 10) wk = wizard::Key::Enter;
                 else if (k == 8 || k == 127) wk = wizard::Key::Back;                 // BACKSPACE and [t]: the table of content
                 else if (k == 't' || k == 'T') wk = wizard::Key::Contents;
+                else if (k == 'S') wk = wizard::Key::Search;                         // SHIFT+s: search the whole text
+                if (wk == wizard::Key::Search) set_text_entry(true);
                 if (wizard::handle_key(ui.model.wizard, wk)) {
+                    set_text_entry(false);
                     ui.model.wizard_open = false;
                     out_clear_next = true;
                     wizard_seen_save();
@@ -1331,6 +1339,25 @@ int radio_main(int argc, char** argv) {
             }
             // ------------------------------------------------------------------ CHEATSHEET (?)
             if (ui.model.cheat_open) {
+                UiModel& um = ui.model;
+                if (um.cheat_searching) {   // SHIFT+s: the search field has the keyboard (CTRL+C copies there)
+                    const int n = static_cast<int>(um.cheat_result_rows.size());
+                    if (!arrow && k == 27) {
+                        if (!um.cheat_query.empty()) { um.cheat_query.clear(); um.cheat_qcaret = um.cheat_qanchor = 0; um.cheat_sel = um.cheat_first = 0; }
+                        else um.cheat_searching = false;
+                    } else if (arrow && (k == 'A' || k == 'B')) {
+                        const int step = last_key_was_shifted() ? 5 : 1;
+                        um.cheat_sel = std::clamp(um.cheat_sel + (k == 'B' ? step : -step), 0, std::max(0, n - 1));
+                    } else if (!arrow && (k == 13 || k == 10)) {
+                        if (n > 0) um.cheat_jump_row = um.cheat_result_rows[static_cast<size_t>(std::clamp(um.cheat_sel, 0, n - 1))];
+                        um.cheat_searching = false;
+                    } else if (muisc::edit_text_key(um.cheat_query, um.cheat_qcaret, um.cheat_qanchor, k, 80, nullptr)) {
+                        um.cheat_sel = um.cheat_first = 0;
+                    }
+                    set_text_entry(um.cheat_searching);
+                    continue;
+                }
+                if (!arrow && k == 'S') { set_text_entry(true); um.cheat_searching = true; um.cheat_query.clear(); um.cheat_qcaret = um.cheat_qanchor = 0; um.cheat_sel = um.cheat_first = 0; continue; }
                 if (k == 3 || k == kKeyCtrlC) running = false;
                 else if (arrow) {
                     if (k == 'A') --ui.model.cheat_scroll;        // up; the renderer clamps both ends

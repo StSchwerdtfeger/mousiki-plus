@@ -7,6 +7,8 @@ of the terminal. <3
 
 OPEN/CLOSE HELP WIZARD: [[Header]]
 To open/close use [SHIFT+w] and [ESC] for just closing it.
+[SHIFT+s] searches the whole wizard (typos are forgiven,
+matches are marked), also in the cheat sheet [?].
 
 RECOMMENDATIONS FOR FIRST TIME USERS: [[Header]]
 The first thing you might want to do is setting your custom folder paths
@@ -47,6 +49,8 @@ of the terminal. <3
 
 OPEN/CLOSE HELP WIZARD: [[Header]]
 To open/close use [SHIFT+w] and [ESC] for just closing it.
+[SHIFT+s] searches the whole wizard (typos are forgiven,
+matches are marked), also in the cheat sheet [?].
 
 HELP WIZARD TABLE OF CONTENT:[[Header]]
 Use [->] to move on to the table of content or press [t] from anywhere
@@ -421,13 +425,17 @@ With QUEUE focused: [[Header]]
 [d]             remove from queue
 [4/5]           move UP / DOWN
 [$/%]           move to TOP / END
-[a]             opens bulk-add panel: paste a YouTube playlist link to add
+[a]             does nothing here (it only adds a track from the LIST pane)
 
 QUEUE related commands, no matter the focus: [[Header]]
 [!]             lock / unlock (default is locked: move to queue end when played)
 [SHIFT+x]       clear it (asks first)
 [CTRL+SHIFT+z]  undo the last clear (one level)
 [CTRL+SHIFT+u]  queue to a new or an existing playlist (asks first)
+[SHIFT+a]       with the LIST focused: add the highlighted track to a new or an existing
+                playlist (saved at once, no editor; online tracks are downloaded first)
+[SHIFT+g]       bulk add from any pane: paste a YouTube playlist link, queue its tracks
+                (a normal text box: caret, marking, copy/paste)
 
 
 [[NEW PAGE]]
@@ -546,6 +554,11 @@ REMOVE: Move the focus to the track list, choose and delete a track via [DEL/d]
 SAVE/DISCARD: Save via [CTRL+s] and just choose [No] when exiting the playlist
 editor to discard your current playlist.
 
+ADD A TRACK DIRECTLY: [[Header]]
+In the track list press [SHIFT+a], choose a new or an existing playlist and hit [ENTER]:
+the track is added and the playlist saved without opening this editor. YouTube/SoundCloud/
+Bandcamp tracks are downloaded into the download folder first.
+
 PLAYLISTS TAB: [[Header]]
 SEARCH AND ADD TO QUEUE: Search and choose a playlist and hit [ENTER] to add to queue.
 EXPORT/IMPORT: Use [e/i] to import or export playlists in the M3U/M3U8 format. Playlists
@@ -617,11 +630,14 @@ lyrics: sphere, oscilloscope, spectrogram or nothing.
 WRONG MATCH? RETRY:[[Header]]
 In case the lyrics don't fit, e.g. given a different version of a song witch alternative
 verses (not the timing!), lyrics can be refetched under a different query. This can be done
-via the command [l], which opens the retry form (the lyrics engine must be on!).
-Fields:[[Header]] TITLE and ARTIST, plus ticks that help with edits whose timing differ by 
+via the command [l], which opens the retry form (also with the lyrics engine off: the lyrics
+are then kept for karaoke and reading).
+Fields:[[Header]] TITLE and ARTIST, FT (opt) = featured artist(s), added to the search as "ft. ...",
+plus ticks that help with edits whose timing differ by 
 concept from the original: slowed, ultra-slowed, sped up (these three exclude each other), 
 reverb, remix, other. [TAB]/[DOWN] next field, [UP] previous field, [SPACE] tick/untick, 
-[ENTER] fetch, [ESC] cancel. Fetching lyrics again does not replace older version, as long 
+[ENTER] fetch, [ESC] cancel. The text fields are normal text boxes (caret, [SHIFT+<-/->] marking,
+[CTRL+c/x/v]). Fetching lyrics again does not replace older version, as long 
 there had been timing adjustments or the lyrics differ. Lyrics can be deleted in the re-fetch
 form or in the read/translate lyrics overlay which can be accessed via [Ctrl+l] (see further
 below for details).    

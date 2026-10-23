@@ -289,6 +289,13 @@ struct UiModel {
     std::string notice;           // one status line in the SEARCH box's hint spot ("recording saved ..."); main clears it after a few seconds
     bool cheat_open = false;      // the full-screen CHEATSHEET ('?'); drawn instead of the radio screen / menu
     mutable int cheat_scroll = 0; // in display lines; clamped while rendering (the renderer is const)
+    // SHIFT+s in the cheat sheet: search the commands (src/help_search.h), as in the music player.
+    bool cheat_searching = false;
+    std::string cheat_query;
+    size_t cheat_qcaret = 0, cheat_qanchor = 0;
+    mutable int cheat_sel = 0, cheat_first = 0;
+    mutable std::vector<int> cheat_result_rows;   // the table row of each result, best first (rebuilt by every frame)
+    mutable int cheat_jump_row = -1;              // set by ENTER: the next frame scrolls the table to this row
     // The help wizard (SHIFT+w), the same one the music player has: the text, the layout, the page / part / contents
     // state and the key handling come from src/wizard.h, the colours from the PLAYER's config.txt (see
     // player_wizard_palette()), so it looks identical in both modes. Drawn instead of the radio screen, like the cheat

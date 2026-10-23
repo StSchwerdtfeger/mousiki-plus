@@ -99,8 +99,9 @@ The key shown for each command is the **default binding**. Your own bindings may
   - [Undo clear (`CTRL+SHIFT+z`)](#undo-clear-ctrlshiftz)
   - [Queue to playlist (`CTRL+SHIFT+u`)](#queue-to-playlist-ctrlshiftu)
   - [Clear queue prompt (`SHIFT+x`)](#clear-queue-prompt-shiftx)
-  - [Bulk add (`a` with the queue focused)](#bulk-add-a-with-the-queue-focused)
+  - [Bulk add (`SHIFT+g`)](#bulk-add-shiftg)
 - **[6. Playlists](#6-playlists)**
+  - [Add a track straight to a playlist (`SHIFT+a`)](#add-a-track-straight-to-a-playlist-shifta)
   - [What `ENTER` does in the playlist editor](#what-enter-does-in-the-playlist-editor)
   - [Exporting a playlist (M3U8 / M3U)](#exporting-a-playlist-m3u8--m3u)
   - [Leaving](#leaving)
@@ -272,11 +273,14 @@ It starts with a **welcome page** (with the spinning disk) and a **table of cont
 | `↑` / `↓` | On the table of content: pick an entry (the page scrolls with it). On any other page that is taller than the terminal: scroll it one row; a scrollbar in the disk's gradient colours at the right edge shows that the page scrolls. |
 | `SHIFT+↑` / `SHIFT+↓` | A whole page up / down (on the table of content: jump five entries) |
 | `ENTER` | On the welcome page: to the table of content. On the table of content: open the highlighted entry. |
+| `SHIFT+s` | **Search the whole wizard** (see below) |
 
 - The **top border** names the chapter: `MOUSIKI PLUS HELP WIZARD ─ II MUSIC PLAYER MODE ─ 3 CURATING YOUR FILES`; the bottom border lists the keys that work on the current page. Every page starts and ends with an empty line. The table of content is centred in the frame.
 - Colours: headings use the **header colour**, everything in `[square brackets]` (the keys) the **legend colour**, the rest the list colour. The wizard is drawn in the **music player's colours in both modes** (`config.txt`), so it looks the same whichever mode you open it from.
 - The keys the wizard names are the **shipped defaults**, like the cheat sheet's. A key you rebound yourself is shown under **Settings → REFERENCE**.
 - Playback keeps running while it is open. The wizard takes every key until you close it, like the cheat sheet (`?`), which stays the quick, scrollable list of every key command.
+
+**Searching (`SHIFT+s`).** In the wizard and in the cheat sheet (`?`), in both modes, `SHIFT+s` opens a search field. Type a few words, in any order: the results appear while you type, the best first. The search forgives typos (`plalyist`), finds parts of words (`queu`) and related words (`delete` also finds `remove`), and it marks what matched. In the **cheat sheet** each result is a command line (key, description and category); `ENTER` closes the search and scrolls the table to that line. In the **wizard** each result is a chapter with the title and up to two text fragments around the matches; `ENTER` opens the chapter at the matching line. `↑` / `↓` choose a result (`SHIFT+↑` / `SHIFT+↓` five at a time). The field is a normal text box (caret, marking, `CTRL+c` / `x` / `v`). `ESC` clears the query first and leaves the search when it is already empty.
 
 **The text is a plain file**, `Mousiki_Help_Wizard.txt` in the repository: a page starts with a line `[[New Page]]`, `[[Header]]` colours the capitalised words in front of it, `[[Header_line]]` anywhere in a line colours the whole line, `[KEY]` is drawn in the legend colour, `{VERSION}` is the running version and lines starting with `=>>>` are notes to the author (see the top of the file). It is compiled into the program by `python3 tools/wizard_to_inc.py` (writes `src/wizard_text.inc`). To try an edit without rebuilding, start Mousiki with `MOUSIKI_WIZARD_FILE=/path/to/Mousiki_Help_Wizard.txt`.
 
@@ -289,7 +293,7 @@ It starts with a **welcome page** (with the spinning disk) and a **table of cont
 | `SHIFT+r` | Rescan library | Rescans the music folders, e.g. after files were copied or downloaded in the meantime or after coming back from the radio. Also works in the meta editor while the library pane or the fetch list has the focus. Fixed key. |
 | `t` | Console / logs | Opens a read-only log view showing what the app has been doing (sort changes, filter changes, queue messages, load timings and so on). Close it with `ESC`, `t` or `T`. |
 | `SHIFT+w` | Help wizard | Opens the [Help Wizard](#the-help-wizard-shiftw): this guide as tutorial pages. Arrow keys turn the pages, `t` shows the table of content, `ESC` closes. It opens by itself on the first start after an install. |
-| `?` | Cheat sheet | (German `SHIFT` and `ß`, English `SHIFT` and `/`.) Opens the command list. Use `↑`/`↓` to scroll (the list is longer than most terminal windows). Close with `?` or `ESC`. |
+| `?` | Cheat sheet | (German `SHIFT` and `ß`, English `SHIFT` and `/`.) Opens the command list. Use `↑`/`↓` to scroll (the list is longer than most terminal windows). `SHIFT+s` searches the commands (typos are forgiven, matches are marked, `ENTER` jumps to the line). Close with `?` or `ESC`. |
 | `<` | Menus index | (German: the `<` key, English: `SHIFT+,`.) Opens **MENUS & OVERLAYS**: a list of all menus and overlays, in categories (LYRICS, LISTS & LIBRARY, SOUND, VISUALS, CREATE, SYSTEM), each with its key next to the title. `↑`/`↓` select, `←`/`→` jump to the other column, `ENTER` opens the highlighted one, `ESC` or `<` closes. The keys shown are the ones you have bound (rebindable as *Menus / Overlays Index* in Settings → REFERENCE). |
 | `q` | Quit | Quits the application from the main screen. Only the lowercase `q` quits: `SHIFT+q` does nothing, so it cannot quit by accident when you aim for `SHIFT+w` (the help wizard). |
 | `ESC` | Close / back | Closes whatever is open (an overlay, a menu, a prompt; in Settings it discards the changes). On the **main screen** it returns to the *home view*: the full local library, with no search query and no folder filter, scrolled to the top. It does not change the sort mode. |
@@ -450,7 +454,7 @@ The cheat sheet splits these keys into groups: **NAVIGATION & VIEW** (the lists 
 | Key | Action | What it does |
 |---|---|---|
 | `.` / `,` | Cycle lyrics area forward / backward | Cycles the lyrics area through four views: **sphere → oscilloscope → spectrogram → lyrics → sphere …** by default (`,` walks the same order backwards); the order is set with **Viz Order 1..4** on Settings → ON/OFF, and views switched off there with **Use Lyrics / Use Oscilloscope / Use Spectrogram / Use Sphere** are skipped. The three visuals are the lyrics engine's *off* states: no lyrics are fetched from the network while one of them is shown, and the view stays until you change it again (the view Mousiki starts with is **Lyrics/Viz Default**). Coming back to the lyrics fetches them for the current track right away. (Up to v3.0.0 this was `+`, which is volume up now.) |
-| `l` | LYRICS REFETCH AND VERSION CONTROL | Opens the lyrics overlay. The upper part fetches lyrics again with a **manual title and artist**; `ENTER` (**Refetch**) keeps the lyrics in use as an older version (`lyrics/<name>.v<date>.<source>.lrc`, max 10), so timing you saved is never overwritten. The lower part, **LYRICS IN USE**, lists the lyrics embedded in the file, the fetched copy and older copies (three rows, scrolls with `↑`/`↓`; reach it with `↓` or `TAB` from the form); `SPACE` switches to the highlighted one, `d` deletes a saved copy after you confirm with `y` (lyrics embedded in the file cannot be deleted). Lyrics embedded in a file are used before anything is fetched. |
+| `l` | LYRICS REFETCH AND VERSION CONTROL | Opens the lyrics overlay. The upper part fetches lyrics again with a **manual title and artist**; `ENTER` (**Refetch**) keeps the lyrics in use as an older version (`lyrics/<name>.v<date>.<source>.lrc`, max 10), so timing you saved is never overwritten. The lower part, **LYRICS IN USE**, lists the lyrics embedded in the file, the fetched copy and older copies (three rows, scrolls with `↑`/`↓`; reach it with `↓` or `TAB` from the form); `SPACE` switches to the highlighted one, `d` deletes a saved copy after you confirm with `y` (lyrics embedded in the file cannot be deleted). Lyrics embedded in a file are used before anything is fetched. The form works with the lyrics engine off too (the fetched lyrics are then kept for the karaoke mode and READ LYRICS). Its fields: **SONG TITLE**, **ARTIST NAME** and **FT ( opt )**, the optional featured artist(s) ("feat." / "ft."), which are added to the search as `ft. <name>`; a `feat.` part of the title is moved there when the form opens. |
 | `ALT+l` | Adjust lyrics | Opens a small overlay menu for live adjustment of the lyrics timing. |
 | `k` | Karaoke overlay | Shows the lyrics of the playing track over the whole screen, karaoke style. It fetches the lyrics itself when the lyrics engine is off on the main screen (that setting is left alone). See *Karaoke overlay* below. |
 
@@ -488,11 +492,11 @@ A **search** always ranks by match quality, so while a query is active the sort 
 | `TAB` / `↓` | Next field |
 | `↑` | Previous field |
 | `SPACE` | Tick or untick a checkbox (slowed, ultra-slowed, sped up, reverb, remix, other). Slowed, ultra-slowed and sped up are mutually exclusive. |
-| Typing | Fills the text fields |
+| Typing | Fills the text fields: `←` / `→` move the caret, `SHIFT+←` / `SHIFT+→` mark, `HOME` / `END`, `DEL`, `CTRL+c` / `CTRL+x` / `CTRL+v` work as in every text box. A capital `A` or `B` is typed like any letter; only the arrow keys change the field. |
 | `ENTER` | Fetch lyrics with these settings (works from any field) |
 | `ESC` | Cancel |
 
-`l` only works while the lyrics engine is on (`.`).
+`l` also works with the lyrics engine off: the lyrics are fetched and kept for the karaoke mode and READ LYRICS, and show in the lyrics field once the engine is switched on.
 
 ![Better lyric form](images/Playback_Main_UI_lyrics_better.png)
 
@@ -959,7 +963,7 @@ The queue is a list of tracks that play **before** the normal list continues. Pr
 
 | Key | Action | What it does |
 |---|---|---|
-| `a` | Add hovering track as **next** | With the **list** focused, puts the highlighted track at the **front** of the queue, so it plays next. Pressing `a` on several tracks in a row keeps their order: A, B, C play as A, B, C. On a playlist row it queues all of the playlist's tracks at the end instead. With the **queue** focused, `a` opens the **bulk-add** panel (see below). |
+| `a` | Add hovering track as **next** | With the **list** focused, puts the highlighted track at the **front** of the queue, so it plays next. Pressing `a` on several tracks in a row keeps their order: A, B, C play as A, B, C. On a playlist row it queues all of the playlist's tracks at the end instead. With the **queue** focused, `a` does nothing (the **bulk-add** panel is `SHIFT+g`, see below). |
 | `e` | Add hovering track to the **end** | With the **list** focused, adds the highlighted track to the end of the queue. On a playlist row it queues the whole playlist at the end. With the queue focused it only reminds you to focus the list first. |
 | `d` | Remove hovering track from queue | Removes the highlighted queue item. Focus the queue with `TAB` first. |
 | `4` | Move hovering queue item up | Moves the highlighted queue item one place up. Focus the queue first. |
@@ -970,6 +974,8 @@ The queue is a list of tracks that play **before** the normal list continues. Pr
 | `X` (Shift+X) | Clear the whole queue | Asks "Want to clear queue?" first. See below. |
 | `CTRL+SHIFT+z` | Undo the last queue clear | Brings back the queue that `SHIFT+x` cleared. See *Undo clear* below. |
 | `CTRL+SHIFT+u` | Queue to playlist | Saves the queue's local tracks as a playlist. See *Queue to playlist* below. |
+| `SHIFT+a` | Add the highlighted library track to a playlist | Opens a small overlay (new / existing playlist) and saves the track into it at once. See *Add a track straight to a playlist* in the Playlists chapter. |
+| `SHIFT+g` | Bulk add | Opens the bulk-add panel (paste a YouTube playlist link) from any pane, not only with the queue focused. See *Bulk add* below. Rebindable (Settings → REFERENCE: *Bulk Add*). |
 | `K` (Shift+K) | Big queue overlay | Floats a larger version of the QUEUE pane over the main UI. See below. |
 
 
@@ -985,7 +991,7 @@ The same idea as the big list overlay, for the queue: a large window that shows 
 | `SHIFT+4` / `SHIFT+5` (default) | Move the hovered track to the top / bottom of the queue |
 | `!` (default) | Lock / unlock the queue |
 | `d` | Remove the hovered track from the queue |
-| `a` | Open the bulk-add panel (paste a playlist link), as with the queue focused |
+| `a` | Does nothing while the queue is focused: it only adds a track from the library pane. Use `SHIFT+g` (rebindable: **Bulk Add**) to open the bulk-add panel from any pane |
 | `SHIFT+x` | Clear the whole queue (asks first) |
 | `CTRL+SHIFT+z` | Undo the last queue clear |
 | `CTRL+SHIFT+u` | Save the queue as a playlist (opens the playlist editor) |
@@ -1028,11 +1034,11 @@ The prompt starts on **No**, so an accidental `ENTER` never wipes the queue.
 
 If the queue is already empty, the status line just says so. A cleared queue can be brought back with `CTRL+SHIFT+z` (see above).
 
-### Bulk add (`a` with the queue focused)
+### Bulk add (`SHIFT+g`)
 
 Paste a YouTube playlist link to queue tracks from it.
 
-1. **Type or paste the link** and press `ENTER` to fetch it (`ESC` cancels).
+1. **Type or paste the link** and press `ENTER` to fetch it (`ESC` cancels). The link field is a normal text box: `←` / `→` move the caret, `SHIFT+←` / `SHIFT+→` mark, `HOME` / `END`, `DEL`, `CTRL+c` / `CTRL+x` / `CTRL+v`.
 2. Once the results appear: `↑`/`↓` move, `SPACE` stars or unstars a row, `a` queues **all** of them, and `ENTER` queues **only the starred** ones.
 3. `ESC` throws everything away.
 
@@ -1076,6 +1082,12 @@ When the meta editor **renames** a file, every saved playlist that contains it i
 | `CTRL+s` | Save the playlist (from every pane of the Create/Edit tab, also while typing) |
 | `SHIFT+←` / `SHIFT+→`, `HOME` / `END` | Mark text / jump to the start or end in the name and search fields |
 | `CTRL+C` / `CTRL+X` / `CTRL+V` | Copy, cut and paste text in those fields |
+
+### Add a track straight to a playlist (`SHIFT+a`)
+
+With the **library pane** focused, `SHIFT+a` (rebindable: **Add Track To Playlist**) adds the highlighted track to a playlist without opening the playlist editor. It uses the same small overlay as *Queue to playlist*: **New playlist** or **Existing playlist** (`←` / `→` or `TAB`, `ENTER`, or `n` / `e`). With **Existing playlist** you search and pick from the saved playlists; with **New playlist** you type a name. `ENTER` adds the track and **saves the playlist at once**; the status line reports it. A track that is already in the playlist is not added twice.
+
+Only tracks can be added, not playlist rows or folder rows (the status line says so). A track from **YouTube, SoundCloud or Bandcamp** is **downloaded automatically** into the download folder first (in the background, the status line says `downloading ...`) and is then added as the local file it has become, so it also shows up in your library. With the queue pane focused the key only reminds you to focus the library pane.
 
 ### What `ENTER` does in the playlist editor
 

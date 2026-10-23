@@ -2345,12 +2345,122 @@ void App::queue_to_playlist() {
     if (queue_.empty()) { status_line_ = "the queue is empty -- nothing to save as a playlist"; return; }
     int skipped = 0;
     if (queue_local_tracks(skipped).empty()) { status_line_ = "no local tracks in the queue (playlists hold local files only)"; return; }
+    qtp_track_ = false;
     qtp_stage_ = 0;
     qtp_choice_ = 0;
     qtp_query_.clear();
     qtp_selected_ = 0;
     mode_ = Mode::QueueToPlaylist;
     force_redraw_ = true;
+}
+
+// ---------------------------------------------------------------------
+// SHIFT+a: the highlighted library track -> a playlist (saved at once)
+// ---------------------------------------------------------------------
+
+void App::track_to_playlist() {
+    if (queue_focus_) { status_line_ = "focus the library pane first (TAB), then press this key on a track"; return; }
+    if (list_source_ == ListSource::Playlist) { status_line_ = "a playlist can't be added to a playlist -- pick a track"; return; }
+    if (list_source_ == ListSource::Folder) { status_line_ = "a folder can't be added to a playlist -- open it and pick a track"; return; }
+    const size_t len = (list_source_ == ListSource::Local) ? local_view_.size() : online_view_.size();
+    if (len == 0 || selected_ < 0 || selected_ >= static_cast<int>(len)) { status_line_ = "no track highlighted"; return; }
+    if (atp_busy_.load()) { status_line_ = "still downloading the last track for a playlist -- wait for it"; return; }
+    AtpTrack t;
+    if (list_source_ == ListSource::Local) {
+        const auto& r = local_view_[static_cast<size_t>(selected_)];
+        t.title = r.title; t.artist = r.folder_artist; t.path = r.path; t.is_local = true;
+    } else {
+        const auto& r = online_view_[static_cast<size_t>(selected_)];
+        t.title = r.title; t.artist = r.uploader; t.video_id = r.video_id; t.is_local = false;
+    }
+    atp_track_ = std::move(t);
+    qtp_track_ = true;
+    qtp_stage_ = 0;
+    qtp_choice_ = 0;
+    qtp_query_.clear();
+    qtp_new_name_.clear();
+    qtp_selected_ = 0;
+    mode_ = Mode::QueueToPlaylist;
+    force_redraw_ = true;
+}
+
+// Adds one local file to a playlist (a new one when it does not exist yet) and saves it; no editor.
+void App::atp_add_file(const std::string& playlist, const std::string& title, const std::string& artist, const fs::path& file) {
+    Playlist pl;
+    bool existed = false;
+    if (auto loaded = PlaylistManager::load(playlists_dir(), playlist)) { pl = std::move(*loaded); existed = true; }
+    else pl.name = playlist;
+    const std::string p = path_utf8(file);
+    for (const auto& t : pl.tracks) {
+        if (t.path == p) { status_line_ = "\"" + title + "\" is already in \"" + playlist + "\""; return; }
+    }
+    PlaylistTrack pt;
+    pt.title = title; pt.artist = artist; pt.path = p; pt.missing = false;
+    pl.tracks.push_back(std::move(pt));
+    std::string err;
+    if (!PlaylistManager::save(playlists_dir(), pl, &err)) { status_line_ = "could not save \"" + playlist + "\": " + err; return; }
+    status_line_ = "added \"" + title + "\" to " + std::string(existed ? "" : "the new playlist ") + "\"" + playlist + "\" (" + std::to_string(pl.tracks.size()) + " tracks, saved)";
+    if (list_source_ == ListSource::Playlist) playlist_view_ = filter_playlists(last_playlist_query_);   // a shown /p: list gets the new count
+}
+
+void App::track_to_playlist_apply(const std::string& playlist) {
+    mode_ = Mode::Browse;
+    qtp_track_ = false;
+    if (atp_track_.is_local) { atp_add_file(playlist, atp_track_.title, atp_track_.artist, atp_track_.path); return; }
+    // An online track: download it into the download folder in the background, then add the file it became.
+    status_line_ = "downloading \"" + atp_track_.title + "\" for \"" + playlist + "\" ...";
+    atp_busy_ = true;
+    AtpTrack t = atp_track_;
+    std::thread([this, t, playlist]() { run_guarded("playlist download", [&] {
+        AtpJob job;
+        job.playlist = playlist; job.title = t.title; job.artist = t.artist;
+        std::string err;
+        auto got = youtube_.resolve_by_id(t.video_id, t.title, t.artist, &err);
+        if (!got) {
+            job.error = "download failed: " + err;
+        } else {
+            std::error_code ec;
+            const fs::path dest_dir = cache_.download_dir();
+            fs::create_directories(dest_dir, ec);
+            std::string safe_name = got->title.empty() ? t.title : got->title;
+            std::string safe_artist = got->artist.empty() ? t.artist : got->artist;
+            for (char& c : safe_name) if (c == '/' || c == '\\') c = '_';
+            for (char& c : safe_artist) if (c == '/' || c == '\\') c = '_';
+            const std::string stem = safe_artist.empty() ? safe_name : safe_name + " - " + safe_artist;
+            const fs::path dest = dest_dir / path_from_utf8(stem + path_utf8(got->cached_path.extension()));
+            if (fs::exists(dest, ec)) {
+                job.ok = true; job.file = dest;           // downloaded before: use that file
+            } else {
+                fs::copy_file(got->cached_path, dest, fs::copy_options::overwrite_existing, ec);
+                if (ec) job.error = "could not save the download: " + ec.message();
+                else { job.ok = true; job.file = dest; }
+            }
+            // the cache copy goes (the file lives in the download folder now) unless it is the track being played
+            if (job.ok) {
+                std::error_code ec2;
+                if (!(has_track_ && current_path_ == got->cached_path)) fs::remove(got->cached_path, ec2);
+            }
+        }
+        std::lock_guard<std::mutex> lk(atp_mutex_);
+        atp_done_ = std::move(job);
+        atp_ready_ = true;
+    }); }).detach();
+}
+
+void App::poll_pending_atp() {
+    if (!atp_ready_.load()) return;
+    AtpJob job;
+    {
+        std::lock_guard<std::mutex> lk(atp_mutex_);
+        if (!atp_ready_.load()) return;
+        job = std::move(atp_done_);
+        atp_done_ = AtpJob{};
+        atp_ready_ = false;
+    }
+    atp_busy_ = false;
+    if (!job.ok) { status_line_ = job.error.empty() ? "download failed" : job.error; return; }
+    refresh_local_view();   // the new file is part of the library now
+    atp_add_file(job.playlist, job.title, job.artist, job.file);
 }
 
 void App::qtp_refresh() {
@@ -2514,6 +2624,18 @@ std::string App::autosave_indicator_glyph() const {
 }
 
 // ---------------------------------------------------------------------
+void App::bulk_add_open() {
+    mode_ = Mode::BulkAdd;
+    bulk_add_buffer_.clear();
+    bulk_add_results_ready_ = false;
+    pending_bulk_add_ = BulkAddResult{};
+    bulk_add_selected_.clear();
+    bulk_add_cursor_ = 0;
+    bulk_add_scroll_ = 0;
+    edit_owner_.clear();   // a fresh field: the caret starts at its end
+    status_line_.clear();
+}
+
 // Bulk add (paste a YouTube playlist link while Queue is focused)
 // ---------------------------------------------------------------------
 
@@ -2999,14 +3121,30 @@ void App::handle_key(int key) {
         const bool arrow = last_key_was_arrow();
         force_redraw_ = true;
         if (qtp_stage_ == 0) {   // New playlist | Existing playlist
-            if (!arrow && key == 27) { mode_ = Mode::Browse; return; }
+            if (!arrow && key == 27) { mode_ = Mode::Browse; qtp_track_ = false; return; }
             if ((arrow && (key == 'C' || key == 'D')) || (!arrow && key == 9)) { qtp_choice_ ^= 1; return; }
             if (!arrow && (key == 'n' || key == 'N')) { qtp_choice_ = 0; key = '\r'; }
             else if (!arrow && (key == 'e' || key == 'E')) { qtp_choice_ = 1; key = '\r'; }
             if (!arrow && (key == '\r' || key == '\n')) {
-                if (qtp_choice_ == 0) { mode_ = Mode::Browse; queue_to_playlist_apply(""); }
+                if (qtp_choice_ == 0 && qtp_track_) { qtp_stage_ = 2; qtp_new_name_.clear(); edit_owner_.clear(); }
+                else if (qtp_choice_ == 0) { mode_ = Mode::Browse; queue_to_playlist_apply(""); }
                 else { qtp_stage_ = 1; qtp_query_.clear(); qtp_selected_ = 0; edit_owner_.clear(); qtp_refresh(); }
             }
+            return;
+        }
+        if (qtp_stage_ == 2) {   // SHIFT+a, new playlist: its name
+            if (!arrow && key == 27) { qtp_stage_ = 0; return; }
+            if (!arrow && (key == '\r' || key == '\n')) {
+                std::string name = qtp_new_name_;
+                while (!name.empty() && name.front() == ' ') name.erase(name.begin());
+                while (!name.empty() && name.back() == ' ') name.pop_back();
+                if (name.empty()) { status_line_ = "type a name first"; return; }
+                track_to_playlist_apply(name);
+                return;
+            }
+            std::string st;
+            edit_focus("track-to-playlist-name", qtp_new_name_);
+            edit_text_key(qtp_new_name_, edit_caret_, edit_anchor_, key, 80, &st);
             return;
         }
         // stage 1: the search field (typing filters) and the list of saved playlists
@@ -3017,8 +3155,8 @@ void App::handle_key(int key) {
         if (!arrow && (key == '\r' || key == '\n')) {
             if (total > 0) {
                 const std::string name = qtp_view_[static_cast<size_t>(std::clamp(qtp_selected_, 0, total - 1))].name;
-                mode_ = Mode::Browse;
-                queue_to_playlist_apply(name);
+                if (qtp_track_) track_to_playlist_apply(name);
+                else { mode_ = Mode::Browse; queue_to_playlist_apply(name); }
             }
             return;
         }
@@ -3321,7 +3459,26 @@ void App::handle_key(int key) {
     }
 
     if (mode_ == Mode::Cheatsheet) {
-        if (key == 27 || key_is("HKeyCheatsheet", key)) mode_ = Mode::Browse;
+        const bool arrow = last_key_was_arrow();
+        if (cheat_searching_) {   // SHIFT+s: the search field has the keyboard
+            const int n = static_cast<int>(cheat_result_rows_.size());
+            if (!arrow && key == 27) {   // ESC clears the query first, then leaves the search
+                if (!cheat_query_.empty()) { cheat_query_.clear(); cheat_sel_ = 0; cheat_first_ = 0; edit_owner_.clear(); }
+                else cheat_searching_ = false;
+            } else if (arrow && (key == 'A' || key == 'B')) {
+                const int step = last_key_was_shifted() ? 5 : 1;
+                cheat_sel_ = std::clamp(cheat_sel_ + (key == 'B' ? step : -step), 0, std::max(0, n - 1));
+            } else if (!arrow && (key == '\r' || key == '\n')) {
+                if (n > 0) cheat_jump_row_ = cheat_result_rows_[static_cast<size_t>(std::clamp(cheat_sel_, 0, n - 1))];
+                cheat_searching_ = false;
+            } else {
+                edit_focus("cheat-search", cheat_query_);
+                if (edit_text_key(cheat_query_, edit_caret_, edit_anchor_, key, 80, nullptr)) { cheat_sel_ = 0; cheat_first_ = 0; }
+            }
+            return;
+        }
+        if (!arrow && key == 'S') { cheat_searching_ = true; cheat_query_.clear(); cheat_sel_ = 0; cheat_first_ = 0; edit_owner_.clear(); }
+        else if (key == 27 || key_is("HKeyCheatsheet", key)) mode_ = Mode::Browse;
         else if (key == 'A') --cheatsheet_scroll_; // up -- the table is longer than the screen
         else if (key == 'B') ++cheatsheet_scroll_; // down (clamped while rendering)
         return;
@@ -3332,6 +3489,7 @@ void App::handle_key(int key) {
         // Nothing reaches the player underneath: the wizard is a full-screen view like the cheat sheet, and playback
         // simply keeps running.
         const bool arrow = last_key_was_arrow();
+        if (wizard_st_.searching) { wizard::search_key(wizard_st_, key, arrow, arrow && last_key_was_shifted()); return; }   // SHIFT+s: the query has the keyboard
         wizard::Key wk = wizard::Key::None;
         if (arrow) {
             const bool shifted = last_key_was_shifted();
@@ -3343,6 +3501,7 @@ void App::handle_key(int key) {
         else if (key == '\r' || key == '\n') wk = wizard::Key::Enter;
         else if (key == '\b' || key == 127) wk = wizard::Key::Back;           // BACKSPACE and [t]: the table of content
         else if (key == 't' || key == 'T') wk = wizard::Key::Contents;
+        else if (key == 'S') wk = wizard::Key::Search;                          // SHIFT+s: search the whole text
         else if (key_is("HKeyWizard", key)) wk = wizard::Key::Close;
         if (wizard::handle_key(wizard_st_, wk)) wizard_close();
         return;
@@ -3391,12 +3550,10 @@ void App::handle_key(int key) {
             }
             return; // stays open -- poll_pending_bulk_add() moves to phase 2 once the fetch resolves
         }
-        if (key == 127 || key == 8) { pop_utf8_char(bulk_add_buffer_); return; }
-        // Same bug as Mode::Search below: arrow keys collapse to 'A'-'D',
-        // which sit inside 32-126 and would otherwise get typed as literal
-        // letters into the link being entered.
-        if ((key == 'A' || key == 'B' || key == 'C' || key == 'D')) return;
-        if (is_text_key(key) && bulk_add_buffer_.size() < 200) bulk_add_buffer_ += static_cast<char>(key);
+        // The shared single-line editor: caret, SHIFT+arrows marking, HOME / END, DEL, CTRL+C / X / V. It also tells
+        // a typed A-D from an arrow key (arrows collapse to those letters).
+        edit_focus("bulk-add", bulk_add_buffer_);
+        edit_text_key(bulk_add_buffer_, edit_caret_, edit_anchor_, key, 200, &status_line_);
         return;
     }
 
@@ -3427,13 +3584,13 @@ void App::handle_key(int key) {
                 return;
             }
         }
-        if (key == 9 || key == 'B') { // Tab / down -- next field
+        if (key == 9 || (key == 'B' && last_key_was_arrow())) { // Tab / down -- next field (a typed capital B goes into the text)
             idx = (idx + 1) % static_cast<int>(fields.size());
             rl_focus_ = fields[idx];
             if (rl_focus_ == RLField::Source) { rl_src_sel_ = 0; rl_fix_scroll(); }
             return;
         }
-        if (key == 'A') { // up -- previous field
+        if (key == 'A' && last_key_was_arrow()) { // up -- previous field
             idx = (idx - 1 + static_cast<int>(fields.size())) % static_cast<int>(fields.size());
             rl_focus_ = fields[idx];
             if (rl_focus_ == RLField::Source) { rl_src_sel_ = std::max(0, nver - 1); rl_fix_scroll(); }   // arrived from below: the last row
@@ -3464,14 +3621,9 @@ void App::handle_key(int key) {
         }
 
         if (std::string* t = rl_text_ptr(rl_focus_)) {
-            if (key == 127 || key == 8) { pop_utf8_char(*t); return; }
-            // 'A'/'B' (up/down) are already intercepted above for field
-            // navigation, but 'C'/'D' (right/left) fall through to here
-            // uncaught -- same bug as Mode::Search below, where an arrow
-            // code inside the printable range gets typed as a literal
-            // letter instead of being recognized as an arrow key.
-            if (key == 'C' || key == 'D') return;
-            if (is_text_key(key) && t->size() < 200) *t += static_cast<char>(key);
+            // Caret, SHIFT+arrows marking, HOME / END, DEL, CTRL+C / X / V as in every other text box.
+            edit_focus(rl_owner(rl_focus_), *t);
+            edit_text_key(*t, edit_caret_, edit_anchor_, key, 200, &status_line_);
             return;
         }
         return;
@@ -3625,6 +3777,10 @@ void App::handle_key(int key) {
         lyrics_edit_open();
     } else if (action == "HKeyReadLyrics") {     // READ LYRICS
         readlyrics_open();
+    } else if (action == "HKeyBulkAdd") {           // paste a playlist link, from any pane
+        bulk_add_open();
+    } else if (action == "HKeyAddToPlaylist") {     // the highlighted library track -> a playlist, saved at once
+        track_to_playlist();
     } else if (action == "HKeyQueueToPlaylist") {   // the queue -> the playlist editor
         queue_to_playlist();
     } else if (action == "HKeyQueueUndoClear") {    // bring back the queue that was just cleared
@@ -3782,20 +3938,9 @@ void App::handle_key(int key) {
             status_line_ = std::string("lyrics area: ") + view_names[next];
         }
     } else if (action == "HKeyAddHoveringSongToQueue") {
-        // Add hovering song to queue (List focus) -- or, when the Queue
-        // panel itself is focused, there's nothing hovering-in-the-list
-        // to add, so it opens the bulk-add panel instead (paste a
-        // YouTube playlist link, queue everything in it).
-        if (queue_focus_) {
-            mode_ = Mode::BulkAdd;
-            bulk_add_buffer_.clear();
-            bulk_add_results_ready_ = false;
-            pending_bulk_add_ = BulkAddResult{};
-            bulk_add_selected_.clear();
-            bulk_add_cursor_ = 0;
-            bulk_add_scroll_ = 0;
-            status_line_.clear();
-        } else {
+        // Add hovering song to queue. Only for the library pane: with the Queue pane itself focused there is
+        // nothing hovering in the list to add, so the key does nothing there (bulk add has its own key).
+        if (!queue_focus_) {
             queue_add_selected();
             log_event("added to queue");
         }
@@ -3854,6 +3999,7 @@ void App::handle_key(int key) {
         wizard_open();
     } else if (action == "HKeyCheatsheet") {
         mode_ = Mode::Cheatsheet;
+        cheat_searching_ = false;
     } else if (action == "HKeyMenus") {   // "<": the list of all menus and overlays
         menu_index_sel_ = std::clamp(menu_index_sel_, 0, 1000);
         mode_ = Mode::MenuIndex;
@@ -3875,9 +4021,7 @@ void App::handle_key(int key) {
             log_event("filter cleared");
         }
     } else if (action == "HKeyRetryLyrics") { // opens the manual title/artist override form
-        if (!settings_.lyrics_on()) {
-            status_line_ = "lyrics are turned off (Settings > ON/OFF > Use Lyrics Engine / Viz/Lyrics Field)";
-        } else if (has_track_) {
+        if (has_track_) {   // also with the lyrics engine off: the fetched lyrics are kept for karaoke / READ LYRICS
             rl_open_from_current_track();
             mode_ = Mode::RetryLyrics;
         }
@@ -9072,10 +9216,15 @@ std::vector<std::string> App::build_bulk_add_panel() const {
 
     // --- input box (nested) ---
     lines.push_back(wrap(box_top("", inner_w, border)));
-    std::string cursor_line = bulk_add_buffer_.empty()
-        ? "//:paste yt playlist link here"
-        : bulk_add_buffer_ + "\u2588"; // block cursor once typing starts, matches the Search bar's style
-    lines.push_back(wrap(box_line(cursor_line, inner_w, border)));
+    if (bulk_add_buffer_.empty() && !bulk_add_results_ready_) {
+        lines.push_back(wrap(box_line("//:paste yt playlist link here", inner_w, border)));
+    } else {
+        const bool mine = edit_owner_ == "bulk-add";
+        const size_t cc = mine ? std::min(edit_caret_, bulk_add_buffer_.size()) : bulk_add_buffer_.size();
+        const size_t aa = mine ? std::min(edit_anchor_, bulk_add_buffer_.size()) : bulk_add_buffer_.size();
+        const EditPaint p = paint_edit_field(bulk_add_buffer_, cc, aa, std::max(4, inner_w - 4), "", !bulk_add_results_ready_);
+        lines.push_back(wrap(box_line_field("", p.s, p.cols, inner_w, border)));
+    }
     lines.push_back(wrap(box_bottom(inner_w, "", border)));
 
     // --- results box (nested) -- always present at a fixed row count so
@@ -9202,6 +9351,7 @@ std::string* App::rl_text_ptr(RLField f) {
 // previous override (or a previous cancel) never leaks stale values
 // from last time.
 void App::rl_open_from_current_track() {
+    edit_owner_.clear();   // fresh fields: the caret starts at the end of the one in focus
     rl_title_ = metadata_.name;
     rl_artist_ = (metadata_.artist == "-") ? "" : metadata_.artist;
     rl_ft_.clear();
@@ -10180,8 +10330,24 @@ std::vector<std::string> App::build_queue_to_playlist_panel() const {
         return bar + " " + t + std::string(static_cast<size_t>(std::max(0, inner - display_width(t))), ' ') + " " + bar;
     };
     int skipped = 0;
-    const int n = static_cast<int>(queue_local_tracks(skipped).size());
+    const int n = qtp_track_ ? 1 : static_cast<int>(queue_local_tracks(skipped).size());
     std::vector<std::string> lines;
+    if (qtp_stage_ == 2) {   // SHIFT+a, a new playlist: its name
+        lines.push_back(box_top("New playlist", W, border));
+        lines.push_back(row(""));
+        lines.push_back(row("Add \"" + atp_track_.title + "\" to a new playlist."));
+        lines.push_back(row(""));
+        {
+            const std::string prefix = "Name: ";
+            const int field_w = std::max(1, inner - static_cast<int>(prefix.size()));
+            const bool typed = !qtp_new_name_.empty();
+            EditPaint p = paint_edit_field(qtp_new_name_, edit_caret_, edit_anchor_, field_w, typed ? search_sgr(settings_) : search_idle_sgr(settings_), true);
+            lines.push_back(box_line_field(prefix, search_run(settings_, p.s, typed), p.cols, W, border, search_idle_sgr(settings_)));
+        }
+        lines.push_back(row(""));
+        lines.push_back(box_bottom(W, "[ENTER] Add + save  [ESC] Back", border_bottom));
+        return lines;
+    }
     if (qtp_stage_ == 0) {
         auto centred = [&](const std::string& plain) {
             const int fill = std::max(0, inner - display_width(plain));
@@ -10190,9 +10356,10 @@ std::vector<std::string> App::build_queue_to_playlist_panel() const {
         const std::string a = "  New playlist  ", b = "  Existing playlist  ", gap = "    ";
         const int btn_w = display_width(a) + display_width(gap) + display_width(b);
         const int fill = std::max(0, inner - btn_w);
-        lines.push_back(box_top("Queue to playlist", W, border));
+        lines.push_back(box_top(qtp_track_ ? "Track to playlist" : "Queue to playlist", W, border));
         lines.push_back(centred(""));
-        lines.push_back(centred("Add the " + std::to_string(n) + " track" + (n == 1 ? "" : "s") + " of the queue to:"));
+        lines.push_back(centred(qtp_track_ ? truncate_str("Add \"" + atp_track_.title + "\" to:", inner)
+                                           : "Add the " + std::to_string(n) + " track" + (n == 1 ? "" : "s") + " of the queue to:"));
         lines.push_back(centred(""));
         lines.push_back(bar + " " + std::string(static_cast<size_t>(fill / 2), ' ') + (qtp_choice_ == 0 ? HI + a + R : a) + gap
                         + (qtp_choice_ == 1 ? HI + b + R : b) + std::string(static_cast<size_t>(fill - fill / 2), ' ') + " " + bar);
@@ -10275,9 +10442,15 @@ std::vector<std::string> App::build_retry_lyrics_panel() const {
                            const std::string& placeholder, std::vector<std::string>& out) {
         out.push_back(wrap(blank_label(), box_top("", box_w, border)));
         bool focused = (rl_focus_ == f);
-        std::string shown = (value.empty() && !focused) ? placeholder : value;
-        if (focused) shown += "\u2588"; // block cursor, same convention as Search/Bulk Add
-        out.push_back(wrap(label(lbl), box_line(shown, box_w, border)));
+        if (focused) {   // caret, marked range and block cursor from the shared single-line editor
+            const bool mine = edit_owner_ == rl_owner(f);
+            const size_t cc = mine ? std::min(edit_caret_, value.size()) : value.size();
+            const size_t aa = mine ? std::min(edit_anchor_, value.size()) : value.size();
+            const EditPaint p = paint_edit_field(value, cc, aa, std::max(4, box_w - 4), "", true);
+            out.push_back(wrap(label(lbl), box_line_field("", p.s, p.cols, box_w, border)));
+        } else {
+            out.push_back(wrap(label(lbl), box_line((value.empty() ? placeholder : value), box_w, border)));
+        }
         out.push_back(wrap(blank_label(), box_bottom(box_w, "", border)));
     };
 
@@ -10351,7 +10524,8 @@ std::vector<std::string> App::build_retry_lyrics_panel() const {
         } else {
             const std::string leg = legend_sgr(settings_);
             lines.push_back(note_row(leg, "[ENTER] fetches again; the lyrics in use are kept as an"));
-            lines.push_back(note_row(leg, "older version, so saved timing is never overwritten."));
+            lines.push_back(note_row(leg, settings_.lyrics_on() ? "older version, so saved timing is never overwritten."
+                                                               : "older version. Lyrics engine is off: see karaoke / READ LYRICS."));
         }
     }
 
@@ -11291,6 +11465,11 @@ int App::run() {
                (playlist_tab_ == 1 && playlist_manage_focus_ == 0))));
         set_text_entry(mode_ == Mode::Search ||
                        mode_ == Mode::ColorEdit ||
+                       (mode_ == Mode::BulkAdd && !bulk_add_results_ready_) ||
+                       (mode_ == Mode::QueueToPlaylist && qtp_stage_ >= 1) ||
+                       (mode_ == Mode::RetryLyrics && rl_text_ptr(rl_focus_) != nullptr) ||
+                       (mode_ == Mode::Cheatsheet && cheat_searching_) ||
+                       (mode_ == Mode::Wizard && wizard_st_.searching) ||
                        (mode_ == Mode::MetaEdit && meta_tab_ == 0 &&
                         (meta_focus_ == 0 || meta_focus_ == 2)) ||
                        playlist_text_field);
@@ -11306,6 +11485,7 @@ int App::run() {
         poll_pending_load();
         poll_pending_waveform();
         poll_pending_bulk_add();
+        poll_pending_atp();
         poll_pending_row_meta_tags();
         poll_pending_meta_fetch(); // AcoustID results -> pending edits
         poll_meta_save();          // the next slice of a running save
