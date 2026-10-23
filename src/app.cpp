@@ -5190,7 +5190,18 @@ std::vector<std::string> App::build_progress_panel(int total_width) const {
     // the volume bar visually reads as the same kind of fill. The
     // "VOLUME BAR:[...]" label and brackets use the border color, same
     // as the buttons above.
-    std::string vol_bar_colored = color_played + std::string(vol_hashes, '#') + "\x1b[0m"
+    // The filled part is drawn with the Volume Indicator of the ON/OFF tab ("#", "⠶", "⣿" or the "⡾⣽" row); every
+    // position is one column wide whatever the look, so the width math below is the same for all of them.
+    // angle_: the disk's angle, so "disk" follows it
+    std::string vol_fill_colored;
+    if (settings_.volume_gradient) {   // "gradient": every position takes its colour from the VIZ gradient, left to right, as the oscilloscope does
+        const auto cells = volume_bar_cells(settings_.volume_indicator, vol_hashes, angle_);
+        for (size_t i = 0; i < cells.size(); ++i)
+            vol_fill_colored += gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, static_cast<float>(i) / (kVolBarCells - 1)) + cells[i];
+    } else {
+        vol_fill_colored = color_played + volume_bar_fill(settings_.volume_indicator, vol_hashes, angle_);
+    }
+    std::string vol_bar_colored = vol_fill_colored + "\x1b[0m"
                                  + color_unplayed + std::string(20 - vol_hashes, '-') + "\x1b[0m";
     std::string vol_bar_text = std::string(vol_hashes, '#') + std::string(20 - vol_hashes, '-'); // plain, for width math only
     std::string vol_tail = border_ansi + "VOLUME BAR:[" + "\x1b[0m" + vol_bar_colored
@@ -5554,7 +5565,11 @@ std::vector<std::string> App::build_queue_panel(int total_width, int height) con
         }
     }
 
-    out.push_back(box_bottom(total_width, "", border_ansi_bottom));
+    // Like the LOCAL AUDIO pane: how many titles are below the visible rows.
+    std::string footer;
+    const int remaining = static_cast<int>(queue_.size()) - (queue_scroll_ + height);
+    if (remaining > 0) footer = "( " + std::to_string(remaining) + " more )";
+    out.push_back(box_bottom(total_width, footer, border_ansi_bottom));
     return out;
 }
 

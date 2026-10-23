@@ -246,6 +246,7 @@ The three big overlays switch directly: with one open, press the key of another
 QUEUE PANE: [[Header]]
 See BUILDING A QUEUE[[Header]] for details on how to e.g. adjust the queue order, how to
 save a queue to a list and more...
+The bottom border shows how many titles are below the visible rows: ( 5 more ).
 
 
 [[NEW PAGE]]
@@ -394,9 +395,9 @@ There are five different playback modes. In the main UI the small box to the rig
 indicates which playback mode is currently active. Use [m] to step through them.
 
 S[[Header]] ==[[Header]] SHUFFLE MODE[[Header]]
-Shuffles through tracks that are currently in the local audio files list (search filters apply!).
 )WIZ",
-R"WIZ(Note that you can also actively shuffle to next song in the list via [#].
+R"WIZ(Shuffles through tracks that are currently in the local audio files list (search filters apply!).
+Note that you can also actively shuffle to next song in the list via [#].
 The QUEUE is never shuffled: [n] and the end of a track play its next title in order; only [#]
 picks a random title of the queue.
 
@@ -442,7 +443,8 @@ QUEUE related commands, no matter the focus: [[Header]]
 [SHIFT+a]       with the LIST focused: add the highlighted track to a new or an existing
                 playlist (saved at once, no editor; online tracks are downloaded first)
 [SHIFT+g]       bulk add from any pane: paste a YouTube playlist link, queue its tracks
-                (a normal text box: caret, marking, copy/paste)
+                (a normal text box: caret, marking, copy/paste). It only queues them:
+                nothing is downloaded when adding
 
 
 [[NEW PAGE]]
@@ -553,14 +555,14 @@ quitting a process.
 
 
 [[NEW PAGE]]
-3.4 PLAYLIST EDITOR/CREATOR [[Header]]
+)WIZ",
+R"WIZ(3.4 PLAYLIST EDITOR/CREATOR [[Header]]
 
 OPEN AND CHANGE TABS:[[Header]] Open via [SHIFT+p], change tabs via [<-/->]
 
 CREATE/EDIT TAB: [[Header]]
 NAME: Choose a name for a playlist.
-)WIZ",
-R"WIZ(SEARCH AND ADD: Use the search function to search for titles and add via [ENTER]
+SEARCH AND ADD: Use the search function to search for titles and add via [ENTER]
 SEARCH FOLDERS: Start the search with /f: (e.g. /f:abbey) to list the tracks of the matching folders.
 SORT: [SHIFT+t] cycles the library sort: folder order, Filenames A-Z, Title A-Z, Artist A-Z,
 Album A-Z, Recently added (also for search results). Use it before typing, or after leaving the box with [ESC].
@@ -690,11 +692,11 @@ The lyrics are shown over the whole screen. The coloring behavior again matches 
 applied in the SETTING COLORS TAB[[Header]]. Lines are centered, with an empty row between them. On both sides a ASCII-Braille image saying "Karaoke" in Japanese is drawn in your disk colors, 
 with a wave running across it. On a narrow terminals the images are left out and the lyrics 
 take the whole width...
-
-NOTE:[[Header]] The overlay always uses the lyrics engine, also when it is switched off on the main screen.
-It fetches the lyrics itself then (and again after a track change) without changing that setting.
 )WIZ",
 R"WIZ(
+NOTE:[[Header]] The overlay always uses the lyrics engine, also when it is switched off on the main screen.
+It fetches the lyrics itself then (and again after a track change) without changing that setting.
+
 MAKE THE LYRICS BIGGER: [[Header]]
 [*] / [_]   size 1 to 5      German keyboard: [SHIFT and +] / [SHIFT and -]
                              English keyboard: [SHIFT+8] / [SHIFT and -]
@@ -830,10 +832,10 @@ Text ([|] = new line), Sound, Length (5 - 60 s), Invert, the options of the chos
 
 [UP]/[DOWN] pick a row, [<-/->] or [ENTER] change it, [ESC] closes.
 [SPACE] does nothing here (it only types a space in the text), so nothing is created by accident.
-The files are saved in <music folder>/creator (else ~/Music/creator).
-They are not part of the library (not in the list, the search or the queue): play them only from
 )WIZ",
-R"WIZ(Created files... in this overlay.
+R"WIZ(The files are saved in <music folder>/creator (else ~/Music/creator).
+They are not part of the library (not in the list, the search or the queue): play them only from
+Created files... in this overlay.
 In the preview [G] turns the scope grid on/off.
 
 MICROPHONE: [[Header]]
@@ -998,12 +1000,12 @@ Files that moved or were deleted are skipped, and the status line says how many 
 
 [[New Page]]
 8.1 SETTINGS BASICS [[Header]]
-
+)WIZ",
+R"WIZ(
 OPEN:[[Header]] [s] opens the settings, always on the first tab. Six tabs:
 COLORS; ON/OFF; ANIMA/VIZ; PATHS; REFERENCE; ABOUT APP ([TAB] steps through them)
 
-)WIZ",
-R"WIZ(MOVING AND EDITING: [[Header]]
+MOVING AND EDITING: [[Header]]
 [UP]/[DOWN]  previous / next row         [<-/->]  step through the values of a row, applied at once
 [ENTER]      edit the value as free text
 
@@ -1062,6 +1064,11 @@ Track Buffer (MB) (default 256: a track whose decoded audio is smaller is held w
   [->] then [ENTER] on [ Set back to default ] restores 256; applies to the next track)
 Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars, Stereo Sound,
 Normalize Volume, Replace Emoji, Marquee Scrolling
+Volume Indicator: what the VOLUME BAR is drawn with: # or ⠶ or ⣿ or ⡾⣽ (a fixed row of braille
+characters that does not repeat) or two moving braille blocks = the braille effect of the disk:
+the bar follows the disk animation, with the centre of the circle two cells in from the left.
+Right of it: gradient / no gradient (gradient = the VIZ colours from left to right, like the
+oscilloscope). [<-] [->] switch between the two values of the row, [ENTER] changes the lit one
 VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
 Use Lyrics Engine / Oscilloscope / Spectrogram / Sphere. False leaves that view out of the [,/.] cycle.
 
@@ -1128,7 +1135,8 @@ sphere and spectrogram (there are no lyrics).
 
 LETTERS ARE MORE OFTEN CASE SENSITIVE IN THE RADIO: [[Header]]
 [r] recalls a preset slot, [R] reconnects the station.
-
+)WIZ",
+R"WIZ(
 [[New Page]]
 9.1 THE RADIO SCREEN AND ITS KEYS [[Header]]
 
@@ -1139,8 +1147,7 @@ sphere or spectrogram on the right.
 FREQUENCY BAND (MHz):[[Header]] a tuning dial. The needle shows the tuned station, dots mark the other
 stations of your list. Below it: signal strength, STEREO or MONO, LIVE and the time since you tuned in
 (PAUSED -m:ss while paused, TIMESHIFT -m:ss while you listen behind live) and REC mm:ss while recording.
-)WIZ",
-R"WIZ(SEARCH STATIONS:[[Header]] with the play mode letter on its right (S shuffle / L list, [m] toggles; it
+SEARCH STATIONS:[[Header]] with the play mode letter on its right (S shuffle / L list, [m] toggles; it
 only affects [b]).
 STATIONS and PRESETS:[[Header]] your station list and the 16 slots of the active preset side by side.
 
@@ -1278,7 +1285,8 @@ volume, mute and the mono fold.
 
 WHERE IT GOES: [[Header]]
 Into the download folder of the radio ([s] Settings[[Header]] ->> PATHS[[Header]]), which by default is
-the one of the music player. After a rescan ([SHIFT+r] in the player) the recordings are part of
+)WIZ",
+R"WIZ(the one of the music player. After a rescan ([SHIFT+r] in the player) the recordings are part of
 your local library.
 
 
@@ -1292,8 +1300,7 @@ move, [HOME]/[END] jump to the ends.
 [2] TOP CHANNELS   channels by time listened ([r] flips the order)
 [3] HABITS         sessions, time per day, channels, and listening by hour and by weekday
 A new HISTORY line starts whenever the channel, the artist or the title changes. Lines heard for less
-)WIZ",
-R"WIZ(than 3 seconds are dropped. A session ends after a gap of 30 minutes. The newest 10 000 lines are
+than 3 seconds are dropped. A session ends after a gap of 30 minutes. The newest 10 000 lines are
 kept one by one; older ones are folded into lifetime totals, so TOP CHANNELS and HABITS stay lifetime
 figures.
 
@@ -1326,7 +1333,8 @@ THEME row, [e], [SHIFT+d] and the unsaved-changes questions.
 
 ON/OFF: [[Header]]
 Playback (shuffle / list, like [m]), Start Mode (player / radio), Black Background, On air ascii,
-Pulse wave, Dummy buttons, Spectrum Bars, Stereo sound, Normalize volume, Tuning noise (static while
+Pulse wave, Dummy buttons, Volume indicator (the look of the VOLUME BAR, like in the player),
+Spectrum Bars, Stereo sound, Normalize volume, Tuning noise (static while
 tuning, off by default and never recorded), Timeshift buffer (5 / 15 / 30 / 45 / 60 minutes),
 Use oscilloscope / Use spectrogram.
 

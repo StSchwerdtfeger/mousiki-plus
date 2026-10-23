@@ -19,6 +19,7 @@
 //   legend        key command legends: the "[TAB] Switch pane | ..." hint lines, hint tails, error lines, cheatsheet titles
 #include "scope_metrics.h"
 #include "viz_prefs.h"
+#include "volume_bar.h"
 #include "spectrogram.h"
 #include <filesystem>
 #include "equalizer.h"
@@ -99,6 +100,8 @@ struct RadioSettings : VizPrefs {
     bool on_air_ascii = true;                   // the ON AIR sign (with its colour wave)
     bool pulse_wave = true;                     // the faint circle burst behind the sign
     bool dummy_buttons = true;                  // the <<< MUTE >>> boxes next to the frequency band
+    bool volume_gradient = false;               // "gradient" right of the Volume indicator: the filled bar takes the oscilloscope colours (osci_left -> osci_right)
+    int volume_indicator = 0;                   // what the VOLUME BAR is drawn with: 0 "#", 1 "⠶", 2 "⣿", 3 "⡾⣽", 4 "disk" (volume_bar.h)
     int scope_mode = 0;                         // right of the station info: 0 = oscilloscope, 1 = sphere, 2 = off, 3 = spectrogram; default: the oscilloscope
     bool element_visualizer = true;             // the FFT spectrum under the station info
     bool stereo = true;                         // false = fold left + right to mono

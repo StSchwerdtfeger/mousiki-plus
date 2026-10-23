@@ -9,6 +9,7 @@
 #include "scope_metrics.h"
 #include "spectrogram.h"
 #include "viz_prefs.h"
+#include "volume_bar.h"   // the looks of the VOLUME BAR (kVolIndicatorNames, volume_bar_fill)
 
 namespace muisc {
 
@@ -26,6 +27,13 @@ struct Settings : VizPrefs {
     bool element_dummy_buttons = true;
     bool element_queue = true;           // replaces the old queue_visible
     bool element_waveform = true;
+    // "Volume Indicator" (ON/OFF tab): what the VOLUME BAR is drawn with. 0 = "#", 1 = "⠶", 2 = "⣿", 3 = "⡾⣽" (a fixed row of
+    // braille characters that is not repeating), 4 = "disk" (the dots of the disk animation, see volume_bar.h).
+    // config.txt: VolumeIndicator=
+    int volume_indicator = 0;
+    // "gradient" (true) / "no gradient" (false), right of the Volume Indicator: the filled part of the bar takes the colours
+    // of the VIZ gradient from left to right, like the oscilloscope does. config.txt: VolumeGradient=
+    bool volume_gradient = false;
     // "Viz/Lyrics Field" (ON/OFF tab): the field right of the meta data, where the lyrics and the sphere / oscilloscope /
     // spectrogram are shown. false: no field at all, the meta data (and the spectrum bars) take its width, no lyrics are
     // fetched for it. config.txt: VizLyricsField.

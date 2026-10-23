@@ -243,6 +243,7 @@ The three big overlays switch directly: with one open, press the key of another
 QUEUE PANE: [[Header]]
 See BUILDING A QUEUE[[Header]] for details on how to e.g. adjust the queue order, how to
 save a queue to a list and more...
+The bottom border shows how many titles are below the visible rows: ( 5 more ).
 
 
 [[NEW PAGE]]
@@ -438,7 +439,8 @@ QUEUE related commands, no matter the focus: [[Header]]
 [SHIFT+a]       with the LIST focused: add the highlighted track to a new or an existing
                 playlist (saved at once, no editor; online tracks are downloaded first)
 [SHIFT+g]       bulk add from any pane: paste a YouTube playlist link, queue its tracks
-                (a normal text box: caret, marking, copy/paste)
+                (a normal text box: caret, marking, copy/paste). It only queues them:
+                nothing is downloaded when adding
 
 
 [[NEW PAGE]]
@@ -1054,6 +1056,11 @@ Track Buffer (MB) (default 256: a track whose decoded audio is smaller is held w
   [->] then [ENTER] on [ Set back to default ] restores 256; applies to the next track)
 Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars, Stereo Sound,
 Normalize Volume, Replace Emoji, Marquee Scrolling
+Volume Indicator: what the VOLUME BAR is drawn with: # or ⠶ or ⣿ or ⡾⣽ (a fixed row of braille
+characters that does not repeat) or two moving braille blocks = the braille effect of the disk:
+the bar follows the disk animation, with the centre of the circle two cells in from the left.
+Right of it: gradient / no gradient (gradient = the VIZ colours from left to right, like the
+oscilloscope). [<-] [->] switch between the two values of the row, [ENTER] changes the lit one
 VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
 Use Lyrics Engine / Oscilloscope / Spectrogram / Sphere. False leaves that view out of the [,/.] cycle.
 
@@ -1316,7 +1323,8 @@ THEME row, [e], [SHIFT+d] and the unsaved-changes questions.
 
 ON/OFF: [[Header]]
 Playback (shuffle / list, like [m]), Start Mode (player / radio), Black Background, On air ascii,
-Pulse wave, Dummy buttons, Spectrum Bars, Stereo sound, Normalize volume, Tuning noise (static while
+Pulse wave, Dummy buttons, Volume indicator (the look of the VOLUME BAR, like in the player),
+Spectrum Bars, Stereo sound, Normalize volume, Tuning noise (static while
 tuning, off by default and never recorded), Timeshift buffer (5 / 15 / 30 / 45 / 60 minutes),
 Use oscilloscope / Use spectrogram.
 

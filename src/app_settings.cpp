@@ -716,6 +716,7 @@ std::string App::settings_get_value(int row, int col) const {
                 return names[std::clamp(settings_.play_mode, 0, 4)];
             }
             case kSidStartMode: return settings_.start_mode == "radio" ? "radio" : "player";
+            case kSidVolIndicator: return kVolIndicatorNames[std::clamp(settings_.volume_indicator, 0, kVolStyleCount - 1)];
             case kSidVisFluidity: return std::to_string(settings_.visualizer_fluidity);
             case kSidWaveStyle: return settings_.waveform_smooth ? "smooth" : "raw";
             case kSidDiskSpeed: return std::to_string(settings_.disk_rotation_speed).substr(0, 4);
@@ -780,6 +781,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidOrder1: case kSidOrder2: case kSidOrder3: case kSidOrder4: return {"sphere", "osci", "spectro", "lyrics"};
             case kSidPlayback: return {"list", "loop", "shuffle", "stop", "queue then stop"};
             case kSidStartMode: return {"player", "radio"};
+            case kSidVolIndicator: return {kVolIndicatorNames[0], kVolIndicatorNames[1], kVolIndicatorNames[2], kVolIndicatorNames[3], kVolIndicatorNames[4]};
             case kSidTrackBuffer: return {};   // a number (ENTER types it) and a "Set back to default" button (RIGHT, then ENTER)
             case kSidRemoteApp: return {};   // not a switch: ENTER / LEFT / RIGHT open the REMOTE APP overlay
             case kSidVisFluidity: case kSidVisDegr: case kSidVisVisc: return {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
@@ -862,6 +864,9 @@ void App::settings_commit_edit_impl() {
                 queue_reset_lap();
                 return;
             case kSidStartMode: settings_.start_mode = (v == "radio") ? "radio" : "player"; return;
+            case kSidVolIndicator:
+                settings_.volume_indicator = std::max(0, volume_style_from_name(v));
+                return;
             case kSidVisFluidity: try { settings_.visualizer_fluidity = std::stoi(buf); } catch (...) {} return;
             case kSidWaveStyle: settings_.waveform_smooth = (v == "smooth"); return;
             case kSidDiskSpeed: try { settings_.disk_rotation_speed = std::stod(buf); } catch (...) {} return;
@@ -1419,6 +1424,15 @@ void App::handle_settings_key(int key) {
             status_line_ = "track buffer: back to the default, " + std::to_string(Settings::kTrackBufferDefaultMB) + " MB -- applies to the next track that is loaded";
             return;
         }
+        if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidVolIndicator) {   // ENTER changes the value that is lit
+            if (settings_col_ == 1) {
+                settings_.volume_gradient = !settings_.volume_gradient;
+                status_line_ = settings_.volume_gradient ? "volume bar: gradient (the VIZ colours from left to right)" : "volume bar: no gradient (one colour)";
+            } else {
+                settings_cycle(1);
+            }
+            return;
+        }
         if (settings_tab_ == 0 && settings_row_ == 2) { settings_.border_smooth = !settings_.border_smooth; return; }   // SMOOTHNESS
         if (settings_tab_ == 0 && settings_row_ == 0) { // THEME | CREATE THEME
             if (settings_col_ == 0) theme_open_picker(); else theme_open_creator();
@@ -1432,6 +1446,11 @@ void App::handle_settings_key(int key) {
     }
     if (key == 'A') { if (settings_row_ > 0) --settings_row_; if (settings_tab_ != 0) settings_col_ = 0; return; }
     if (key == 'B') { if (settings_row_ < settings_max_row()) ++settings_row_; if (settings_tab_ != 0) settings_col_ = 0; return; }
+    if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidVolIndicator && (key == 'C' || key == 'D')) {
+        settings_col_ = key == 'C' ? 1 : 0;   // the look | gradient / no gradient
+        status_line_ = "[ENTER] changes the value that is lit; [<-] [->] switch between the look and the gradient";
+        return;
+    }
     if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTrackBuffer && (key == 'C' || key == 'D')) {
         settings_col_ = key == 'C' ? 1 : 0;   // the number | the "Set back to default" button
         return;
@@ -1672,7 +1691,7 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
         const std::string a1 = c1p ? *c1p : std::string();
         if (i == 0 || i == 1 || i == 3) rt = gradient_preview_bar(a0, a1, 23);
         else if (i == 2) rt = ansi_for(a0, false) + "NAME : " + R + ansi_for(a1, false) + "SONG.MP3" + R;
-        else if (i == 4) rt = ansi_for(a0, false) + "[###########" + R + ansi_for(a1, false) + "----------]" + R;
+        else if (i == 4) rt = ansi_for(a0, false) + "[" + volume_bar_fill(settings_.volume_indicator, 11, volume_clock_angle()) + R + ansi_for(a1, false) + "----------]" + R;
         else if (i == 5 || i == 6 || (i >= 7 && i <= 15)) rt = bg_ansi_for(a1) + ansi_for(a0, false) + "THIS IS AN EXAMPLE TEXT" + R;
         else if (i == 16) { const std::string pr = sgr_params_for(a0); rt = (pr.empty() ? std::string("\x1b[1m") : "\x1b[1;" + pr + "m") + "SECTION HEADER" + R; }
         else if (i == 17) rt = ansi_for(a0, false) + "[ESC]" + R + ansi_for(a1, false) + " Close" + R + "  " + ansi_for(a0, false) + "[ENTER]" + R + ansi_for(a1, false) + " OK" + R;
@@ -1897,7 +1916,7 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
             else if (i == 1) rt = gradient_preview_bar(valA, valB, 23);
             else if (i == 2) rt = ansi_for(valA, false) + "NAME : " + R + ansi_for(valB, false) + "SONG.MP3" + R;
             else if (i == 3) rt = gradient_preview_bar(valA, valB, 23);
-            else if (i == 4) rt = ansi_for(valA, false) + "[###########" + R + ansi_for(valB, false) + "----------]" + R;
+            else if (i == 4) rt = ansi_for(valA, false) + "[" + volume_bar_fill(settings_.volume_indicator, 11, volume_clock_angle()) + R + ansi_for(valB, false) + "----------]" + R;
             else if (i == 5) rt = search_idle_sgr(settings_) + "/l:" + R + search_sgr(settings_) + "QUERY" + R;
             else if (i == 6) rt = bg_ansi_for(valB) + ansi_for(valA, false) + "/l:" + std::string(15, ' ') + R;
             else if (i >= 7 && i <= 14) rt = bg_ansi_for(valB) + ansi_for(valA, false) + "THIS IS AN EXAMPLE TEXT" + R;
@@ -1952,8 +1971,17 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
                 const bool ed = (r == settings_row_ && mode_ == Mode::ColorEdit);
                 pos(y, 6, pad(L.text, 25)); pos(y, 32, ":");
                 const bool buf_row = settings_tab_ == 1 && settings_item_id(1, r) == kSidTrackBuffer;
-                std::string v = ed ? edit_paint(edit_field_width()).s : pad(settings_get_value(r, 0), 20);
-                pos(y, 35, ((sel && !(buf_row && settings_col_ == 1)) ? HI : "") + (ed ? change_sgr(settings_) : "") + v + R);
+                const bool vol_row = settings_tab_ == 1 && settings_item_id(1, r) == kSidVolIndicator;   // two values: the look | gradient or not
+                std::string shown = settings_get_value(r, 0);
+                // the "disk" look of the Volume Indicator is shown as two braille blocks of the animation itself
+                if (settings_tab_ == 1 && settings_item_id(1, r) == kSidVolIndicator && settings_.volume_indicator == kVolStyleDisk)
+                    shown = volume_disk_snippet(volume_clock_angle());
+                std::string v = ed ? edit_paint(edit_field_width()).s : pad(shown, 20);
+                pos(y, 35, ((sel && !(buf_row && settings_col_ == 1) && !(vol_row && settings_col_ == 1)) ? HI : "") + (ed ? change_sgr(settings_) : "") + (vol_row ? pad(shown, 9) : v) + R);
+                if (vol_row) {   // right of the look: "gradient" / "no gradient" (LEFT / RIGHT switch between the two, ENTER changes the one that is lit)
+                    pos(y, 45, ((sel && settings_col_ == 1) ? HI : "") + (settings_.volume_gradient ? "gradient   " : "no gradient") + R);
+                    if (sel) pos(y, 59, ansi_for(settings_.tab_current_color, false) + "[ENTER] change\x1b[0m");
+                } else
                 if (buf_row) {   // the button to the right of the number
                     pos(y, 57, ((sel && settings_col_ == 1) ? HI : legend_sgr(settings_)) + "[ Set back to default ]" + R);
                 } else

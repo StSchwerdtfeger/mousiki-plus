@@ -85,6 +85,10 @@ ColorTabOther=246
 OnAirAscii=true
 PulseWave=true
 DummyButtons=true
+# what the VOLUME BAR is drawn with: # | ⠶ | ⣿ | ⡾⣽ (a fixed row, not repeating) | disk (the braille effect of the disk)
+VolumeIndicator=#
+# true: the filled part of the VOLUME BAR takes the oscilloscope colours from left to right, false: one colour
+VolumeGradient=false
 # right of the station info: osci | sphere | off | spectro
 OsciSphere=osci
 Visualizer=true

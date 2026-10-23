@@ -961,7 +961,7 @@ The files are read with `ffprobe` in the background right after the overlay open
 
 ## 5. Queue (main UI)
 
-The queue is a list of tracks that play **before** the normal list continues. Press `TAB` to move focus into the queue panel when you want the arrow keys or `d`, `4`, `5`, `SHIFT+4`, `SHIFT+5` to work on it.
+The queue is a list of tracks that play **before** the normal list continues. The bottom border of the pane shows how many titles are below the visible rows (`( 5 more )`), like the list pane. Press `TAB` to move focus into the queue panel when you want the arrow keys or `d`, `4`, `5`, `SHIFT+4`, `SHIFT+5` to work on it.
 
 | Key | Action | What it does |
 |---|---|---|
@@ -1038,7 +1038,7 @@ If the queue is already empty, the status line just says so. A cleared queue can
 
 ### Bulk add (`SHIFT+g`)
 
-Paste a YouTube playlist link to queue tracks from it.
+Paste a YouTube playlist link to queue tracks from it. Bulk add only puts the titles into the queue: **nothing is downloaded when adding**; each track is fetched when it is played.
 
 1. **Type or paste the link** and press `ENTER` to fetch it (`ESC` cancels). The link field is a normal text box: `←` / `→` move the caret, `SHIFT+←` / `SHIFT+→` mark, `HOME` / `END`, `DEL`, `CTRL+c` / `CTRL+x` / `CTRL+v`.
 2. Once the results appear: `↑`/`↓` move, `SPACE` stars or unstars a row, `a` queues **all** of them, and `ENTER` queues **only the starred** ones.
@@ -1440,6 +1440,7 @@ The tab has two categories (in the header colour); change a row with `←`/`→`
 | Dummy Buttons | Shows or hides the three decorative buttons next to the progress bar. |
 | Queue Display | Shows or hides the Queue panel. |
 | Progress Waveform | Shows or hides the braille **waveform inside the progress bar** (the whole track as a wave). With it off, a plain `[####----]` bar is drawn instead. (`ElimentWaveForm=`) |
+| Volume Indicator | What the **VOLUME BAR** is drawn with: `#`, `⠶`, `⣿`, `⡾⣽` or the **disk** look (shown as two moving braille blocks). The first three repeat one character; `⡾⣽` is a fixed, not repeating row of braille characters, so 100% reads `[⣾⣳⢯⡿⣷⣟⡾⣽⢯⣟⡾⣟⡾⣽⢯⣟⡾⣽⣳⣻]`. The **disk** look follows the braille effect of the disk animation: the bar is a strip of solid dots that is turned around a centre two cells in from the left, so close to that centre all dots are there and further out (also towards the left end) dots come and go as the disk turns (it stands still while the disk does). Right of the look sits **gradient / no gradient**: with *gradient* the filled part takes the colours of the VIZ gradient from left to right, like the oscilloscope (`VolumeGradient=`). `←` / `→` switch between the two values of the row, `ENTER` changes the one that is lit. The Colors tab previews follow the look but never show the gradient; the empty rest of the bar (`-`) stays as it is. Also set in the radio (**Volume indicator** on its ON/OFF tab). (`VolumeIndicator=`) |
 | Spectrum Bars | Shows or hides the **spectrum bars below the meta data** (the live frequency bars; before: *Visualizer*). With it off the meta data get the two rows. Their motion is set on ANIMA/VIZ → SPECTRUM BARS. (`Visualizer=`) |
 | Stereo Sound | On plays in stereo (about twice the memory per loaded track), off folds left and right into mono. Turning it **off** is immediate. Turning it **on** applies from the next track. |
 | Normalize Volume | Loudness normalization on or off. Same as the `v` key. Target and boost are set with the `SHIFT+v` overlay. |
@@ -1903,6 +1904,7 @@ BORDER_COLOR, METADATA, VIZ, LIST, HEADER, LEGEND and TAB_NAMES work as in the p
 | On air ascii | The ON AIR sign and its colour wave |
 | Pulse wave | The faint circle burst behind the sign |
 | Dummy buttons | The `<<< MUTE >>>` boxes next to the dial (the volume bar stays) |
+| Volume indicator | What the volume bar is drawn with: `#`, `⠶`, `⣿`, `⡾⣽` or the braille effect of the disk (two moving braille blocks); same two values as in the player (the gradient there uses the oscilloscope colours). In the radio the disk look turns with the clock (`VolumeIndicator=` in the radio config) |
 | Spectrum Bars | The spectrum under the station info (config key `Visualizer=`) |
 | Stereo sound | Off folds left and right into mono (the dial's footer then says MONO) |
 | Normalize volume | Loudness normalization, as `v` |

@@ -1644,7 +1644,12 @@ int radio_main(int argc, char** argv) {
                     continue;
                 }
                 const int nrows = sm.tab == 1 ? kOnOffRowCount : sm.tab == 2 ? kAnimRowCount : sm.tab == 3 ? kPathRowCount : sm.tab == 4 ? kKeyActionCount + 1 : sm.tab == 5 ? static_cast<int>(about_app_text().size()) : color_tab_row_count();   // + the THEME and SMOOTHNESS rows
-                auto fix_col = [&]() { if (sm.tab >= 1 || (sm.row != 0 && !color_field(cfg, color_row_of_tab(sm.row), sm.col))) sm.col = 0; };
+                // the Volume indicator row has two values (the look | gradient or not): the only row of the other tabs that keeps its column
+                const bool vol_row = sm.tab == 1 && std::string(rs_row_label(sm.tab, sm.row)) == "Volume indicator";
+                auto fix_col = [&]() {
+                    const bool vol_now = sm.tab == 1 && std::string(rs_row_label(sm.tab, sm.row)) == "Volume indicator";
+                    if ((sm.tab >= 1 && !vol_now) || (sm.tab == 0 && sm.row != 0 && !color_field(cfg, color_row_of_tab(sm.row), sm.col))) sm.col = 0;
+                };
                 auto toggle = [&](int dir) {   // ON/OFF and ANIMA/VIZ rows: left / right / ENTER
                     if (sm.tab == 1 && std::string(rs_row_label(sm.tab, sm.row)) == "Remote App") {   // opens the REMOTE APP overlay
                         sm.remote_ov = muisc::remote_ui::State{};
@@ -1661,6 +1666,13 @@ int radio_main(int argc, char** argv) {
                         }
                         cfg.download_same_as_player = !cfg.download_same_as_player;
                         sm.dirty = true; sm.status.clear(); storage_changed();
+                        return;
+                    }
+                    if (vol_row) {   // LEFT / RIGHT (and h / l) switch between the look and the gradient, ENTER changes the one that is lit
+                        if (dir != 0) { sm.col = dir > 0 ? 1 : 0; sm.status = "[ENTER] changes the value that is lit; [<-] [->] switch between the look and the gradient"; return; }
+                        if (sm.col == 1) cfg.volume_gradient = !cfg.volume_gradient;
+                        else rs_row_change(cfg, sm.tab, sm.row, 0);
+                        sm.dirty = true;
                         return;
                     }
                     rs_row_change(cfg, sm.tab, sm.row, dir);

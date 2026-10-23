@@ -733,6 +733,12 @@ static Settings load_from_config(const fs::path& path) {
         // These two don't map onto an existing key 1:1 (string enum ->
         // bool / int), so they're handled directly instead of aliased.
         if (key == "ColorCodes") { s.colors_palette = trim(unquote(value)) == "palette"; continue; }   // the marker: colour numbers are palette numbers
+        if (key == "VolumeGradient") { s.volume_gradient = parse_bool(value); continue; }
+        if (key == "VolumeIndicator") {   // "#", "⠶", "⣿" or "⡾⣽"; anything else keeps the default
+            const int st = volume_style_from_name(trim(unquote(value)));
+            if (st >= 0) s.volume_indicator = st;
+            continue;
+        }
         if (key == "WaveformStyle") { s.waveform_smooth = (value == "smooth"); continue; }
         if (key == "BlackBackground") {
             std::string v = trim(unquote(value));
@@ -1528,6 +1534,8 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "ElimentDummyButtons=" << tf(s.element_dummy_buttons) << "\n";
     out << "ElimentQueue=" << tf(s.element_queue) << "\n";
     out << "ElimentWaveForm=" << tf(s.element_waveform) << "\n";
+    out << "VolumeIndicator=" << kVolIndicatorNames[std::clamp(s.volume_indicator, 0, kVolStyleCount - 1)] << "\n## # , \xE2\xA0\xB6 , \xE2\xA3\xBF , \xE2\xA1\xBE\xE2\xA3\xBD , disk -- what the VOLUME BAR is drawn with (\xE2\xA1\xBE\xE2\xA3\xBD is a fixed row that does not repeat; disk follows the braille effect of the disk)\n";
+    out << "VolumeGradient=" << tf(s.volume_gradient) << "\n## true = the filled part of the VOLUME BAR is coloured with the VIZ gradient from left to right (like the oscilloscope), false = one colour\n";
     out << "VizLyricsField=" << tf(s.element_vizfield) << "\n";
     out << "## false = no Viz/Lyrics field right of the meta data at all (the meta data take its width; no lyrics are fetched for it)\n";
     out << "ElimentLyrics=" << tf(s.element_lyrics) << "\n";

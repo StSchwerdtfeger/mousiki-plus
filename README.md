@@ -124,6 +124,7 @@ Everything below is in the current version (v4.5.0) and works the same on Window
 - **Karaoke mode** open via `k`.
   
 <p align="center"><img width="850" alt="Karaoke mode" src="readme_images/karaoke_mode.png" /></p>
+<p align="center"><img width="850" alt="Karaoke mode" src="readme_images/changes_19_2.png" /></p>
 
 ### Playlists, meta data, history, conversion
 - **Playlist editor** (`SHIFT+p`): create and edit playlists from local or downloaded tracks (library sortable with `SHIFT+t`, `/f:` searches folders), import and export M3U / M3U8.

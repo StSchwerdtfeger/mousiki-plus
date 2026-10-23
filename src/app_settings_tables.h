@@ -117,6 +117,7 @@ enum SetId {
     kSidOrder1, kSidOrder2, kSidOrder3, kSidOrder4,
     kSidPlayback, kSidStartMode, kSidBlackBg, kSidShareProfiles, kSidRemoteApp, kSidUpdateCheck, kSidMediaKeys, kSidTrackBuffer,
     kSidVisFluidity, kSidWaveStyle, kSidDiskSpeed, kSidVisDegr, kSidVisVisc, kSidLyrAlign, kSidLyrAnim,
+    kSidVolIndicator,
 };
 struct SetLine { bool header; int id; const char* text; };   // a category header, or a row (id + label)
 inline const std::vector<SetLine>& settings_layout(int tab) {
@@ -128,7 +129,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {true, -1, ""},
         {true, -1, "ON/OFF"},
         {false, kSidDisk, "Eliment Disk"}, {false, kSidDummy, "Dummy Buttons"}, {false, kSidQueue, "Queue Display"},
-        {false, kSidWave, "Progress Waveform"}, {false, kSidVisualizer, "Spectrum Bars"},   // the braille waveform in the progress bar / the bars under the meta data
+        {false, kSidWave, "Progress Waveform"}, {false, kSidVolIndicator, "Volume Indicator"}, {false, kSidVisualizer, "Spectrum Bars"},   // the braille waveform in the progress bar / the bars under the meta data
         {false, kSidStereo, "Stereo Sound"}, {false, kSidNormalize, "Normalize Volume"},
         {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},
         {true, -1, ""},

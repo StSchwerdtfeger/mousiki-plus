@@ -108,7 +108,7 @@ int theme_index(const RadioSettings& s, const std::vector<themes::Theme>& all) {
 namespace {
 enum RsId {
     kRsPlayback, kRsStartMode, kRsBlackBg, kRsShareProfiles, kRsRemoteApp,
-    kRsOnAir, kRsPulse, kRsDummy, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
+    kRsOnAir, kRsPulse, kRsDummy, kRsVolIndicator, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc,
     kRsScope, kRsOsciStyle,
 };
@@ -121,7 +121,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {false, kRsPlayback, "Playback"}, {false, kRsStartMode, "Start Mode"}, {false, kRsBlackBg, "Black Background"}, {false, kRsShareProfiles, "Share Profiles"}, {false, kRsRemoteApp, "Remote App"},
         {true, -1, ""},
         {true, -1, "ON/OFF"},
-        {false, kRsOnAir, "On air ascii"}, {false, kRsPulse, "Pulse wave"}, {false, kRsDummy, "Dummy buttons"},
+        {false, kRsOnAir, "On air ascii"}, {false, kRsPulse, "Pulse wave"}, {false, kRsDummy, "Dummy buttons"}, {false, kRsVolIndicator, "Volume indicator"},
         {false, kRsVisualizer, "Spectrum Bars"}, {false, kRsStereo, "Stereo sound"}, {false, kRsNormalize, "Normalize volume"},
         {false, kRsTuneNoise, "Tuning noise"}, {false, kRsMarquee, "Marquee scrolling"}, {false, kRsTimeshift, "Timeshift buffer"},
         {false, kRsUseOsci, "Use oscilloscope"}, {false, kRsUseSpectro, "Use spectrogram"},   // false: not in the "." cycle (the window still works)
@@ -215,6 +215,7 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsRemoteApp: return s.remote_app ? "on   [ENTER] settings" : "off  [ENTER] settings";   // opens the REMOTE APP overlay
         case kRsPlayback: return s.playback_shuffle ? "shuffle" : "list";
         case kRsStartMode: return s.start_mode == "radio" ? "radio" : "player";
+        case kRsVolIndicator: return muisc::kVolIndicatorNames[std::clamp(s.volume_indicator, 0, muisc::kVolStyleCount - 1)];
         case kRsTimeshift: return std::to_string(timeshift_minutes(s)) + " min";
         case kRsGradSpeed: return fmt_speed(kSpeedSteps[nearest_step(s.gradient_wave_speed)]);
         case kRsPulseSpeed: return fmt_speed(kSpeedSteps[nearest_step(s.pulse_wave_speed)]);
@@ -240,6 +241,7 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
             break;
         case kRsPlayback: s.playback_shuffle = !s.playback_shuffle; break;
         case kRsStartMode: s.start_mode = s.start_mode == "radio" ? "player" : "radio"; break;
+        case kRsVolIndicator: step(s.volume_indicator, muisc::kVolStyleCount); break;
         case kRsTimeshift: step(s.timeshift_idx, 5); break;
         case kRsGradSpeed: cycle_speed(s.gradient_wave_speed, dir); break;
         case kRsPulseSpeed: cycle_speed(s.pulse_wave_speed, dir); break;
@@ -790,6 +792,8 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("WizardSeen")) s.wizard_seen = as_bool(*v, s.wizard_seen);
     if (auto v = get("PulseWave")) s.pulse_wave = as_bool(*v, s.pulse_wave);
     if (auto v = get("DummyButtons")) s.dummy_buttons = as_bool(*v, s.dummy_buttons);
+    if (auto v = get("VolumeGradient")) s.volume_gradient = as_bool(*v, s.volume_gradient);
+    if (auto v = get("VolumeIndicator")) { const int st = muisc::volume_style_from_name(*v); if (st >= 0) s.volume_indicator = st; }
     if (auto v = get("OsciSphere")) { const std::string l = lower(*v); s.scope_mode = l == "sphere" ? 1 : l == "off" ? 2 : (l == "spectro" || l == "spectrogram") ? 3 : 0; }
     for (const auto& [k, v] : kv) spectro_config_key(s.spectro, k, v);
     if (auto v = get("TuneNoise")) s.tune_noise = as_bool(*v, s.tune_noise);
@@ -941,6 +945,9 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "OnAirAscii=" << (s.on_air_ascii ? "true" : "false") << "\n"
          "PulseWave=" << (s.pulse_wave ? "true" : "false") << "\n"
          "DummyButtons=" << (s.dummy_buttons ? "true" : "false") << "\n"
+         "# what the VOLUME BAR is drawn with: # | \xE2\xA0\xB6 | \xE2\xA3\xBF | \xE2\xA1\xBE\xE2\xA3\xBD (a fixed row, not repeating) | disk (the braille effect of the disk)\n"
+         "VolumeGradient=" << (s.volume_gradient ? "true" : "false") << "\n"
+         "VolumeIndicator=" << muisc::kVolIndicatorNames[std::clamp(s.volume_indicator, 0, muisc::kVolStyleCount - 1)] << "\n"
          "# right of the station info: osci | sphere | off | spectro\n"
          "OsciSphere=" << scope_mode_name(s) << "\n"
          "Visualizer=" << (s.element_visualizer ? "true" : "false") << "\n"

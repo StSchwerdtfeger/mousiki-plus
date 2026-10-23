@@ -85,6 +85,10 @@ ElimentDummyButtons=true
 ElimentQueue=true
 ## Progress Waveform = the braille waveform in the progress bar (off: a plain bar)
 ElimentWaveForm=true
+## VolumeIndicator = what the VOLUME BAR is drawn with: # , ⠶ , ⣿ , ⡾⣽ or disk. ⡾⣽ is a fixed, not repeating row of braille characters; disk uses the braille effect of the disk animation (a strip of dots that is turned, the centre of the circle is two cells in from the left). Settings -> ON/OFF -> Volume Indicator
+VolumeIndicator=#
+## VolumeGradient = true: the filled part of the VOLUME BAR is coloured with the VIZ gradient (the VIZ colours of the Colors tab) from left to right, like the oscilloscope; false: one colour
+VolumeGradient=false
 ## VizLyricsField = the field right of the meta data (lyrics, sphere, oscilloscope, spectrogram). false: no field, the meta data take its place and no lyrics are fetched for it.
 VizLyricsField=true
 ## ElimentLyrics = the field shows the lyrics now (true) or the visual of LyricViz (false); "." switches it. Needs UseLyrics=true.

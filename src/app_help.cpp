@@ -268,7 +268,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "HKeyClearQueue", "Clear the whole queue (asks Yes / No first)"},
         {nullptr, "HKeyQueueUndoClear", "Undo the last queue clear"},
         {nullptr, "HKeyQueueToPlaylist", "Save the queue as a playlist (opens the playlist editor)"},
-        {nullptr, "HKeyBulkAdd", "BULK ADD: paste a YouTube playlist link and queue its tracks (from any pane)"},
+        {nullptr, "HKeyBulkAdd", "BULK ADD: paste a YouTube playlist link and queue its tracks (from any pane). Only queues them: nothing is downloaded when adding"},
         // --- Playlists -- HKeyPlaylist opens the overlay; every other row
         // is the playlist editor's own fixed legend (build_playlist_screen()'s
         // footer), none of which is a rebindable hotkey.

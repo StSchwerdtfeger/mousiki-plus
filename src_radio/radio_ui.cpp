@@ -115,6 +115,19 @@ struct Style {
     std::string osci_at(float t) const { return gradient_fg(c.osci_left, c.osci_right, t); }
 };
 
+// The filled part of the VOLUME BAR as segments: one segment in the VOLUME CURRENT colour, or (Volume indicator -> gradient) one
+// per position in the colours of the oscilloscope gradient from left to right.
+std::vector<Seg> volume_fill_segs(const Style& s, int hashes) {
+    const double angle = muisc::volume_clock_angle();
+    if (!s.c.volume_gradient) return {{s.vol_current, muisc::volume_bar_fill(s.c.volume_indicator, hashes, angle)}};
+    std::vector<Seg> out;
+    const auto cells = muisc::volume_bar_cells(s.c.volume_indicator, hashes, angle);
+    for (size_t i = 0; i < cells.size(); ++i)
+        out.push_back({s.osci_at(static_cast<float>(i) / (muisc::kVolBarCells - 1)), cells[i]});
+    return out;
+}
+
+
 // --- boxes (same construction as App::box_top / box_bottom / box_line) -------------------------
 std::string box_edge(const Style& s, bool top, int w, const std::vector<Seg>& label, const std::string& ansi) {
     const std::string& l = top ? s.c.box_upper_left : s.c.box_lower_left;
@@ -867,9 +880,12 @@ std::vector<std::string> build_side(const Style& s, const RadioStatus& st) {
         out[0] = out[1] = out[2] = spaces(kSideW);
     }
     const int hashes = (st.volume * kVolBar) / 100;
-    out[3] = seg_line({{s.border, "VOLUME BAR:["}, {s.vol_current, std::string(static_cast<size_t>(hashes), '#')},
-                       {s.vol_possible, std::string(static_cast<size_t>(kVolBar - hashes), '-')}, {s.border, "]"},
-                       {"", " " + std::to_string(st.volume) + "%"}}, kSideW);
+    std::vector<Seg> vol_segs = {{s.border, "VOLUME BAR:["}};
+    for (const Seg& g : volume_fill_segs(s, hashes)) vol_segs.push_back(g);   // the look and the gradient of the Volume indicator
+    vol_segs.push_back({s.vol_possible, std::string(static_cast<size_t>(kVolBar - hashes), '-')});
+    vol_segs.push_back({s.border, "]"});
+    vol_segs.push_back({"", " " + std::to_string(st.volume) + "%"});
+    out[3] = seg_line(vol_segs, kSideW);
     out[4] = spaces(kSideW);
     return out;
 }
@@ -2662,8 +2678,16 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
                 continue;
             }
             const bool sel = rr == sm.row;
-            const std::string v = rs_row_value(c, sm.tab, rr);
+            std::string v = rs_row_value(c, sm.tab, rr);
+            // the "disk" look of the Volume indicator is shown as two braille blocks of the animation itself
+            if (sm.tab == 1 && v == muisc::kVolIndicatorNames[muisc::kVolStyleDisk]) v = muisc::volume_disk_snippet(muisc::volume_clock_angle());
             std::vector<Seg> segs = {{"", "   " + pad_right(l.text, 26) + ":  "}, {sel ? "\x1b[7m" : "", v}};
+            if (sm.tab == 1 && std::string(l.text) == "Volume indicator") {   // two values: the look | gradient or not (LEFT / RIGHT switch, ENTER changes)
+                segs = {{"", "   " + pad_right(l.text, 26) + ":  "}, {sel && sm.col == 0 ? "\x1b[7m" : "", v},
+                        {"", spaces(std::max(0, 10 - display_width(v)))},
+                        {sel && sm.col == 1 ? "\x1b[7m" : "", c.volume_gradient ? "gradient   " : "no gradient"}};
+                if (sel) segs.push_back({tab_cur, "   [ENTER] change"});
+            } else
             if (sel) segs.push_back({tab_cur, spaces(std::max(0, 20 - display_width(v))) + "< \u2194 >"});
             dl.push_back({segs, rr});
             ++rr;
@@ -2812,7 +2836,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
             if (is(&RadioSettings::freq_line))
                 return {{ansi_fg(v1), "──╦──┬──╦── "}, {ansi_fg(v2), "92  ·  96"}};
             if (is(&RadioSettings::volume_current))
-                return {{"", "VOLUME BAR:["}, {ansi_fg(v1), "#########"}, {ansi_fg(v2), "-----------"}, {"", "]"}};
+                return {{"", "VOLUME BAR:["}, {ansi_fg(v1), muisc::volume_bar_fill(c.volume_indicator, 9, muisc::volume_clock_angle())}, {ansi_fg(v2), "-----------"}, {"", "]"}};
             auto styled = [&](const std::string& fg, const std::string& bg, bool cursor) {
                 std::string a = ansi_fg(fg) + ansi_bg(bg);
                 if (cursor && a.empty()) a = "\x1b[7m";
@@ -3936,7 +3960,9 @@ std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus&
     boxes({{"", "<<<", "prev", ""}, {"", !tuned ? "PLAY" : st.timeshift_paused ? "PLAY" : "PAUSE", "play-pause", ""}, {"", ">>>", "next", ""}});
     {
         const int bars = 20, hashes = std::clamp(st.volume * bars / 100, 0, bars);
-        const std::string v = s.border + "VOLUME BAR:[" + kReset + s.vol_current + std::string(static_cast<size_t>(hashes), '#') + kReset +
+        std::string fill;
+        for (const Seg& g : volume_fill_segs(s, hashes)) fill += g.ansi + g.text + kReset;
+        const std::string v = s.border + "VOLUME BAR:[" + kReset + fill +
                               s.vol_possible + std::string(static_cast<size_t>(bars - hashes), '-') + kReset + s.border + "]" + kReset + " " +
                               (st.muted ? std::string("muted") : std::to_string(st.volume) + "%");
         const int left = std::max(0, (W - vis(v)) / 2);
