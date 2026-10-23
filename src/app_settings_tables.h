@@ -125,15 +125,14 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {true, -1, "MODES"},
         {false, kSidPlayback, "Playback"}, {false, kSidStartMode, "Start Mode"}, {false, kSidBlackBg, "Black Background"}, {false, kSidShareProfiles, "Share Profiles"},
         {false, kSidRemoteApp, "Remote App"}, {false, kSidUpdateCheck, "Update Notice"}, {false, kSidMediaKeys, "Media Keys"},
-        {false, kSidTrackBuffer, "Track Buffer (MB)"},
         {true, -1, ""},
-        {true, -1, "ON/OFF"},
+        {true, -1, "MAIN UI / AUDIO"},
         {false, kSidDisk, "Eliment Disk"}, {false, kSidDummy, "Dummy Buttons"}, {false, kSidQueue, "Queue Display"},
         {false, kSidWave, "Progress Waveform"}, {false, kSidVolIndicator, "Volume Indicator"}, {false, kSidVisualizer, "Spectrum Bars"},   // the braille waveform in the progress bar / the bars under the meta data
-        {false, kSidStereo, "Stereo Sound"}, {false, kSidNormalize, "Normalize Volume"},
+        {false, kSidStereo, "Stereo Sound"}, {false, kSidNormalize, "Normalize Volume"}, {false, kSidTrackBuffer, "Track Buffer (MB)"},
         {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},
         {true, -1, ""},
-        {true, -1, "VIZ/LYRICS FIELD"},   // the field right of the meta data
+        {true, -1, "MAIN UI VIZ/LYRICS FIELD"},   // the field right of the meta data
         {false, kSidVizField, "Viz/Lyrics Field"}, {false, kSidUseLyrics, "Use Lyrics Engine"},
         {false, kSidUseOsci, "Use Oscilloscope"},                                            // false: left out entirely
         {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"},    // (not in the "." cycle)

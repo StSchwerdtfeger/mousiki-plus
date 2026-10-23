@@ -1051,17 +1051,17 @@ Share Profiles (on: the radio uses the player's oscilloscope/spectrogram setting
 Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
 Update Notice (a quiet once-a-day look for a newer release; a small window, once per version: [ESC] close, [o] open the release page)
 Media Keys (Windows: media pop-up/keys; Linux: MPRIS widgets/playerctl; macOS: Now Playing; the system media keys control Mousiki)
+MAIN UI / AUDIO: Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars,
+Stereo Sound, Normalize Volume, Replace Emoji, Marquee Scrolling
 Track Buffer (MB) (default 256: a track whose decoded audio is smaller is held whole in RAM,
   so seeking is instant; a bigger one uses a moving 2-minute window. [ENTER] types a number,
   [->] then [ENTER] on [ Set back to default ] restores 256; applies to the next track)
-Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars, Stereo Sound,
-Normalize Volume, Replace Emoji, Marquee Scrolling
 Volume Indicator: what the VOLUME BAR is drawn with: # or ⠶ or ⣿ or ⡾⣽ (a fixed row of braille
 characters that does not repeat) or two moving braille blocks = the braille effect of the disk:
 the bar follows the disk animation, with the centre of the circle two cells in from the left.
 Right of it: gradient / no gradient (gradient = the VIZ colours from left to right, like the
 oscilloscope). [<-] [->] switch between the two values of the row, [ENTER] changes the lit one
-VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
+MAIN UI VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
 Use Lyrics Engine / Oscilloscope / Spectrogram / Sphere. False leaves that view out of the [,/.] cycle.
 
 ANIMA/VIZ TAB: [[Header]]

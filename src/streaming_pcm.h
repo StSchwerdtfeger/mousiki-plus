@@ -71,7 +71,7 @@ struct StreamingPcm {
     //
     // Positions stay ABSOLUTE frame numbers in both modes; in windowed mode frame f lives at ring slot f % ring_frames
     // and only [start, available) is held.
-    static constexpr double kWindowBytes = 256.0 * 1024 * 1024;   // the default; Settings -> ON/OFF -> MODES -> Track Buffer (config.txt: TrackBufferMB)
+    static constexpr double kWindowBytes = 256.0 * 1024 * 1024;   // the default; Settings -> ON/OFF -> MAIN UI / AUDIO -> Track Buffer (config.txt: TrackBufferMB)
     static constexpr double kWindowSeconds = 120.0;
     bool windowed = false;
     size_t ring_frames = 0;
