@@ -619,6 +619,7 @@ private:
     void meta_ensure_session_loaded(); // restores the autosaved session, once
     void meta_refresh_lib_view();
     void meta_toggle_resort();         // 'r', edited files to the top of the pane
+    std::string meta_filter_note() const;   // "  NOTE: [MISSING TITLE] filter active, ..." while a missing-tag filter is on
     void meta_toggle_sort_added();     // 'n', recently added files first
     // Missing-tag filters over the library pane: 0 = off, 1 = files with no
     // metadata at all ('x'), 2 = missing title (Shift+T), 3 = missing artist

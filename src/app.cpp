@@ -7134,10 +7134,17 @@ void App::meta_toggle_resort() {
         int n = 0;
         for (const auto& e : meta_session_) if (e.any_edited()) ++n;
         meta_status_ = "library resorted: " + std::to_string(n) + " edited file"
-                     + (n == 1 ? "" : "s") + " on top";
+                     + (n == 1 ? "" : "s") + " on top" + meta_filter_note();
     } else {
-        meta_status_ = "library order: alphabetical again";
+        meta_status_ = "library order: alphabetical again" + meta_filter_note();
     }
+}
+
+// The reminder added to the status line of 'r' / 'n': a missing-tag filter (x / T / A / L / Y) that is still on hides every file
+// that is not missing that tag, which looks like "the resort found nothing".
+std::string App::meta_filter_note() const {
+    if (meta_filter_ == 0) return "";
+    return std::string("  NOTE: [") + meta_filter_label() + "] filter active, hit [ESC] to clear filter";
 }
 
 // 'n': flip the library pane between its normal order and "the files that arrived last first" (see added_time_of()).
@@ -7145,7 +7152,7 @@ void App::meta_toggle_sort_added() {
     meta_sort_added_ = !meta_sort_added_;
     if (meta_sort_added_) { std::lock_guard<std::mutex> lk(added_time_mutex_); added_time_cache_.clear(); }   // fresh times
     meta_refresh_lib_view();
-    meta_status_ = meta_sort_added_ ? "library order: recently added first" : "library order: alphabetical again";
+    meta_status_ = std::string(meta_sort_added_ ? "library order: recently added first" : "library order: alphabetical again") + meta_filter_note();
 }
 
 const char* App::meta_filter_label() const {
@@ -7170,7 +7177,7 @@ void App::meta_toggle_filter(int filter) {
     meta_refresh_lib_view();
     const std::string shown = std::to_string(meta_lib_view_.size());
     if (meta_filter_ == 0) meta_status_ = "filter cleared - " + shown + " files";
-    else meta_status_ = std::string("filter: ") + meta_filter_label() + " - " + shown + " files (press again to clear)";
+    else meta_status_ = std::string("filter: ") + meta_filter_label() + " - " + shown + " files (press the key again or [ESC] to clear)";
 }
 
 // The autosave: save whenever there is something to restore, remove the file

@@ -90,8 +90,16 @@ void App::handle_meta_key(int key) {
         // rather than leaving the editor outright. A second ESC from there
         // (below, since the box isn't engaged any more) is what actually
         // exits now.
-        // With a missing-tag filter (x / T / A / L / Y) on, the first ESC only takes the filter off.
+        // With a missing-tag filter (x / T / A / L / Y) on, the first ESC only takes the filter off ...
         if (meta_tab_ == 0 && meta_focus_ == 1 && meta_filter_ != 0) { meta_toggle_filter(meta_filter_); return; }
+        // ... the next ESC takes the sorts off ('r' edited first, 'n' added first), one step per ESC like the filter.
+        if (meta_tab_ == 0 && meta_focus_ == 1 && (meta_resort_edited_ || meta_sort_added_)) {
+            meta_resort_edited_ = false;
+            meta_sort_added_ = false;
+            meta_refresh_lib_view();
+            meta_status_ = "library order: alphabetical again";
+            return;
+        }
         if (meta_tab_ == 0 && meta_focus_ == 1) { meta_focus_ = 0; return; }
         if (meta_tab_ == 0 && meta_focus_ == 0 && !meta_query_.empty()) {   // the first ESC in the search field clears the query ...
             meta_query_.clear();
@@ -376,7 +384,14 @@ std::vector<std::string> App::build_meta_library_panel(int total_width, int heig
     // narrowed by 'x' or Shift+T/A/Y is never mistaken for the whole
     // library (the status line repeats it with a count).
     std::string lib_label = "LIBRARY";
-    if (meta_filter_ != 0) lib_label += std::string(" [") + meta_filter_label() + "]";
+    {   // what is active: the sorts ('r' edited first, 'n' added first) and the filter, joined with " + "
+        std::string active;
+        auto add = [&](const std::string& part) { active += (active.empty() ? "" : " + ") + part; };
+        if (meta_resort_edited_) add("EDITED FIRST");
+        if (meta_sort_added_) add("ADDED FIRST");
+        if (meta_filter_ != 0) add(meta_filter_label());
+        if (!active.empty()) lib_label += truncate_str(" [" + active + "]", std::max(8, total_width - 14));
+    }
     if (meta_focus_ == 1) lib_label += focus_indicator(settings_, border_ansi);
     out.push_back(box_top(lib_label, total_width, border_ansi));
 

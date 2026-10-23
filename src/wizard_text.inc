@@ -480,11 +480,16 @@ Several sort options are available for the LIBRARY PANE:
             in the library pane; the filtered overall list so to speak)
 [r]         Show edited tracks first (highlighted in the same color as headers)
 [n]         Show recently added tracks first (newest files on top)
+            The pane title shows what is active, e.g. [EDITED FIRST + MISSING TITLE].
+            [ESC] removes it step by step: first the filter, then [r]/[n], then leaves the pane.
 [x]         Show all tracks with NO META DATA
 [SHIFT+t]   Show all track with MISSING TITLE tag
 [SHIFT+a]   Show all tracks with MISSING ARTIST tag
 [SHIFT+y]   Show all tracks with MISSING YEAR tag
 [SHIFT+l]   Show all tracks with MISSING ALBUM tag
+NOTE: If [r] or [n] shows no titles, one of these filters may still be active - it
+hides all tracks that are not missing that tag. The bottom row then says
+"NOTE: [MISSING TITLE] filter active, hit [ESC] to clear filter". [ESC] clears it.
 
 FETCHING META DATA OF SINGLE TRACKS (POSSIBLE IN BOTH TABS)[[Header]]
 [SHIFT+b]   Fetch missing tags of a SINGLE TRACK
@@ -554,13 +559,13 @@ OPEN AND CHANGE TABS:[[Header]] Open via [SHIFT+p], change tabs via [<-/->]
 
 CREATE/EDIT TAB: [[Header]]
 NAME: Choose a name for a playlist.
-SEARCH AND ADD: Use the search function to search for titles and add via [ENTER]
+)WIZ",
+R"WIZ(SEARCH AND ADD: Use the search function to search for titles and add via [ENTER]
 SEARCH FOLDERS: Start the search with /f: (e.g. /f:abbey) to list the tracks of the matching folders.
 SORT: [SHIFT+t] cycles the library sort: folder order, Filenames A-Z, Title A-Z, Artist A-Z,
 Album A-Z, Recently added (also for search results). Use it before typing, or after leaving the box with [ESC].
 REMOVE: Move the focus to the track list, choose and delete a track via [DEL/d]
-)WIZ",
-R"WIZ(SAVE/DISCARD: Save via [CTRL+s] and just choose [No] when exiting the playlist
+SAVE/DISCARD: Save via [CTRL+s] and just choose [No] when exiting the playlist
 editor to discard your current playlist.
 
 ADD A TRACK DIRECTLY: [[Header]]
@@ -688,15 +693,15 @@ take the whole width...
 
 NOTE:[[Header]] The overlay always uses the lyrics engine, also when it is switched off on the main screen.
 It fetches the lyrics itself then (and again after a track change) without changing that setting.
-
+)WIZ",
+R"WIZ(
 MAKE THE LYRICS BIGGER: [[Header]]
 [*] / [_]   size 1 to 5      German keyboard: [SHIFT and +] / [SHIFT and -]
                              English keyboard: [SHIFT+8] / [SHIFT and -]
 Size 1 is normal terminal text. Sizes 2 to 5 use Mousiki's own pixel font drawn in braille dots
 (3 x 2, 6 x 4, 9 x 6 and 12 x 8 cells per letter). Only the lyrics change size, long lines wrap
 between words. The bottom border shows the size for a moment, and it is saved when you close.
-)WIZ",
-R"WIZ(The basic font covers Latin letters, digits, punctuation, umlauts and common accented letters.
+The basic font covers Latin letters, digits, punctuation, umlauts and common accented letters.
 Another font for Japanese, Chinese, Korean, Cyrillic and Greek letters is also available but
 may have different sizing options.
 
@@ -827,7 +832,8 @@ Text ([|] = new line), Sound, Length (5 - 60 s), Invert, the options of the chos
 [SPACE] does nothing here (it only types a space in the text), so nothing is created by accident.
 The files are saved in <music folder>/creator (else ~/Music/creator).
 They are not part of the library (not in the list, the search or the queue): play them only from
-Created files... in this overlay.
+)WIZ",
+R"WIZ(Created files... in this overlay.
 In the preview [G] turns the scope grid on/off.
 
 MICROPHONE: [[Header]]
@@ -835,8 +841,7 @@ Rows: Live view (Spectrogram = default, Oscilloscope XY, Oscilloscope YT), Scope
 preview, Created files... In the big preview your microphone is shown live (a playing song stops and
 comes back afterwards): [ENTER] starts / stops a recording (mic_<date>_<time>.wav in the creator folder,
 max. 5 minutes), [V] changes the view, [G] the grid, [ESC] closes the preview (a running recording is saved) and returns to the overlay.
-)WIZ",
-R"WIZ(A one-channel microphone gives the same signal left and right, so XY is a diagonal line: use YT or the
+A one-channel microphone gives the same signal left and right, so XY is a diagonal line: use YT or the
 spectrogram. If the microphone cannot be opened, the overlay says why (allow microphone access for your
 terminal on macOS / Windows).
 
@@ -997,7 +1002,8 @@ Files that moved or were deleted are skipped, and the status line says how many 
 OPEN:[[Header]] [s] opens the settings, always on the first tab. Six tabs:
 COLORS; ON/OFF; ANIMA/VIZ; PATHS; REFERENCE; ABOUT APP ([TAB] steps through them)
 
-MOVING AND EDITING: [[Header]]
+)WIZ",
+R"WIZ(MOVING AND EDITING: [[Header]]
 [UP]/[DOWN]  previous / next row         [<-/->]  step through the values of a row, applied at once
 [ENTER]      edit the value as free text
 
@@ -1006,8 +1012,7 @@ Every change is live: you see and hear it while you are still in the settings. B
 it to config.txt and closes. [ESC] or [q] discards. With unsaved changes the settings ask first:
 [s] save, [d] discard, [ESC] keep editing. Discarding puts every row back the way it was when you
 opened the settings, paths included. While there are unsaved changes a note says so.
-)WIZ",
-R"WIZ(
+
 TEXT EDITING, IN EVERY FIELD: [[Header]]
 [<-/->] caret            [SHIFT+<-/->] mark          [HOME] [END] jump
 [DEL] [BACKSPACE] delete [CTRL+c] [CTRL+x] [CTRL+v]  copy, cut, paste
@@ -1134,7 +1139,8 @@ sphere or spectrogram on the right.
 FREQUENCY BAND (MHz):[[Header]] a tuning dial. The needle shows the tuned station, dots mark the other
 stations of your list. Below it: signal strength, STEREO or MONO, LIVE and the time since you tuned in
 (PAUSED -m:ss while paused, TIMESHIFT -m:ss while you listen behind live) and REC mm:ss while recording.
-SEARCH STATIONS:[[Header]] with the play mode letter on its right (S shuffle / L list, [m] toggles; it
+)WIZ",
+R"WIZ(SEARCH STATIONS:[[Header]] with the play mode letter on its right (S shuffle / L list, [m] toggles; it
 only affects [b]).
 STATIONS and PRESETS:[[Header]] your station list and the 16 slots of the active preset side by side.
 
@@ -1143,8 +1149,7 @@ KEYS ON THE MAIN SCREEN: [[Header]]
 [n] / [b]    next / previous channel    [#]      a random channel
 [p]          mute / unmute              [x]      stop          [R]  reconnect
 [+] / [-]    volume                     [/]      search        [SHIFT+t]  sort list order <-> A-Z
-)WIZ",
-R"WIZ([SHIFT+p] presets   [SHIFT+s] radio browser   [SHIFT+k] station lists   [SHIFT+l] big stations overlay
+[SHIFT+p] presets   [SHIFT+s] radio browser   [SHIFT+k] station lists   [SHIFT+l] big stations overlay
 [h] history   [s] settings   [?] cheat sheet   [<] menus index   [SHIFT+w] this wizard   [q] quit
 
 THE BIG STATIONS OVERLAY: [[Header]]
@@ -1287,7 +1292,8 @@ move, [HOME]/[END] jump to the ends.
 [2] TOP CHANNELS   channels by time listened ([r] flips the order)
 [3] HABITS         sessions, time per day, channels, and listening by hour and by weekday
 A new HISTORY line starts whenever the channel, the artist or the title changes. Lines heard for less
-than 3 seconds are dropped. A session ends after a gap of 30 minutes. The newest 10 000 lines are
+)WIZ",
+R"WIZ(than 3 seconds are dropped. A session ends after a gap of 30 minutes. The newest 10 000 lines are
 kept one by one; older ones are folded into lifetime totals, so TOP CHANNELS and HABITS stay lifetime
 figures.
 
@@ -1295,8 +1301,7 @@ HEARD A SONG ON THE RADIO? DOWNLOAD IT: [[Header]]
 The radio writes down the artist and title the stream sends. On the HISTORY tab [y] on a line opens an
 overlay that searches YouTube for "artist title". [ENTER] downloads the hovered result into the
 download folder (yt-dlp, opus), [TAB] edits the search query, [ESC] closes. A result is marked
-)WIZ",
-R"WIZ([ok] done, [..] downloading, [!!] failed.
+[ok] done, [..] downloading, [!!] failed.
 This is the online search of the music player reached from the radio, so a song you only heard once
 on air ends up in your local library (after a rescan with [SHIFT+r] in the player).
 

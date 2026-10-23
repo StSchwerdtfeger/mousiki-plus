@@ -476,11 +476,16 @@ Several sort options are available for the LIBRARY PANE:
             in the library pane; the filtered overall list so to speak)
 [r]         Show edited tracks first (highlighted in the same color as headers)
 [n]         Show recently added tracks first (newest files on top)
+            The pane title shows what is active, e.g. [EDITED FIRST + MISSING TITLE].
+            [ESC] removes it step by step: first the filter, then [r]/[n], then leaves the pane.
 [x]         Show all tracks with NO META DATA
 [SHIFT+t]   Show all track with MISSING TITLE tag
 [SHIFT+a]   Show all tracks with MISSING ARTIST tag
 [SHIFT+y]   Show all tracks with MISSING YEAR tag
 [SHIFT+l]   Show all tracks with MISSING ALBUM tag
+NOTE: If [r] or [n] shows no titles, one of these filters may still be active - it
+hides all tracks that are not missing that tag. The bottom row then says
+"NOTE: [MISSING TITLE] filter active, hit [ESC] to clear filter". [ESC] clears it.
 
 FETCHING META DATA OF SINGLE TRACKS (POSSIBLE IN BOTH TABS)[[Header]]
 [SHIFT+b]   Fetch missing tags of a SINGLE TRACK
