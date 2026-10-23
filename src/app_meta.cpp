@@ -240,6 +240,7 @@ void App::handle_meta_key(int key) {
         if (key == 'a') { meta_add_hovering_to_fetch(); return; } // queue it for AcoustID, like the main queue's 'a'
         if (key == 'F' && !arrow) { meta_add_view_to_fetch(); return; } // SHIFT+f: the whole (filtered) pane
         if (key == 'r') { meta_toggle_resort(); return; } // toggle: edited files on top vs. alphabetical order
+        if (key == 'n' && !arrow) { meta_toggle_sort_added(); return; } // toggle: recently added files first
         // Missing-tag filters. 'T'/'Y' have no other meaning here; 'A' is
         // only the Up ARROW together with last_key_was_arrow(), which the
         // two navigation keys above already claimed -- so a plain Shift+A
@@ -799,7 +800,7 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
         if (meta_tab_ == 0) {
             groups.push_back({"Move", {lr, "[TAB] Focus", "[\u2191\u2193] Navi.", "[SHIFT+\u2191\u2193] Page\001Page", "[CTRL+\u2191\u2193] Top/bottom\001Top/bot.", enter_hint, "[SHIFT+p] Play"}});
             groups.push_back({"Fetch", {"[a] To list", "[SHIFT+f] All searched to fetch list\001Searched to list", "\002Single track\003", fetch_missing, "[SHIFT+n] (Re-)fetch all\001(Re-)fetch all"}});
-            groups.push_back({"Filter", {"[r] Recently edited first\001Edited", "[x/T/A/L/Y] Specific missing tags\001Missing", rescan}});
+            groups.push_back({"Filter", {"[r] Recently edited first\001Edited", "[n] Recently added first\001Added", "[x/T/A/L/Y] Specific missing tags\001Missing", rescan}});
         } else {
             LegendGroup mv{"Move", {meta_fetch_focus_ == 1 ? std::string("[\u2190\u2192] Option") : lr, "[TAB] Focus"}};
             if (meta_fetch_focus_ == 1) mv.cmds.push_back("[SPACE] Tick");

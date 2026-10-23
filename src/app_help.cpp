@@ -204,7 +204,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "HKeySwitchBetweenCards", "Switch between panels (list / queue)"},
         {nullptr, "HKeyFilterForFolder", "Filter by folder"},
         {nullptr, "HKeyClearFilter", "Clear filter"},
-        {nullptr, "HKeyCycleSortMode", "Cycle local list sort mode (folder order / title A-Z / artist A-Z)"},
+        {nullptr, "HKeyCycleSortMode", "Cycle local list sort mode (folder order / title A-Z / artist A-Z / recently added, newest first)"},
         {nullptr, "HKeyToggleMetaOnly", "Toggle metadata-only track list (no filename)"},
         {nullptr, "HKeyToggleWaveform", "Toggle waveform style (raw/smooth)"},
         {nullptr, "HKeyFolderOverlay", "Big folder overlay: tree of the library's folders (ENTER opens, f shows the folder in the list, / searches)"},
@@ -273,7 +273,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         // is the playlist editor's own fixed legend (build_playlist_screen()'s
         // footer), none of which is a rebindable hotkey.
         {"PLAYLISTS", "HKeyPlaylist", "Open Playlists (create / manage)"},
-        {nullptr, "HKeyAddToPlaylist", "Add the hovering track of the library pane to a new or an existing playlist (saved at once, the playlist editor stays closed; a YouTube / SoundCloud / Bandcamp track is downloaded into the download folder first)"},
+        {nullptr, "HKeyAddToPlaylist", "Main player UI: add the hovering track of the library / search result pane (not the library picker inside the playlist menu) to a new or an existing playlist; saved at once, the playlist menu stays closed; a YouTube / SoundCloud / Bandcamp track is downloaded into the download folder first"},
         {nullptr, "#LEFT/RIGHT", "Switch tab (Create/Edit vs Saved Playlists); inside a name / search field after typing: move the caret"},
         {nullptr, "#ESC", "Leave the field you typed in (LEFT/RIGHT switch tabs again); outside a field: close (asks to save unsaved changes)"},
         {nullptr, "#" MUISC_ALT_NAME_UC "+LEFT/RIGHT", "Switch tab from anywhere, also while typing"},
@@ -303,6 +303,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
                 {nullptr, "#TAB  LEFT/RIGHT  SPACE (Fetch List)", "Meta editor, Fetch List tab: TAB moves between the list and the fetch option line; LEFT/RIGHT move over the boxes, SPACE ticks one (missing only / all exclude the rest; the tag boxes combine); ENTER fetches the full list"},
         {nullptr, "#UP/DOWN  ENTER  DEL/d  ESC", "Meta editor choice overlay: select / take it / discard the fetched value and all options / close"},
         {nullptr, "#r", "Meta editor: toggle edited files on top of the library pane"},
+        {nullptr, "#n", "Meta editor (library pane): toggle recently added files first"},
         {nullptr, "#x, SHIFT+/t/a/l/y", "Filter + sort the library pane by missing metadata: x = missing any, SHIFT+t = title, SHIFT+a = artist, SHIFT+l = album, SHIFT+y = year (same order as the fields)"},
         {nullptr, "#SHIFT+p", "Meta editor (library pane / fetch list): start the hovering track"},
         {nullptr, "HKeyFetchTags", "Meta editor / main list: fetch the missing tags (empty ones only) of the hovered title (AcoustID)"},

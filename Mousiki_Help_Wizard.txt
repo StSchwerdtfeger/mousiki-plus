@@ -228,7 +228,8 @@ Hitting [a] adds a song on the top of a queue. See chapter on  BUILDING A QUEUE[
 for more details.
 
 Using [SHIFT+n] toggles between showing the filename / track name in the lists, [SHIFT+t]
-changes the sorting of the local audio files.
+changes the sorting of the local audio files: folder order, file name / title A-Z,
+artist A-Z, recently added (newest files first).
 
 The command [f] filters the local list by folder, which means, when a highlighted track is
 e.g. in folder with other tracks from the same album, it will then only show the files in
@@ -236,6 +237,8 @@ the associated folder. Use [c] or [ESC] to clear folder filter.
 [SHIFT+l] opens a BIG LIST OVERLAY[[HEADER]] for a better overview.
 [SHIFT+f] opens the BIG FOLDER OVERLAY[[Header]].
 [SHIFT+k] opens the BIG QUEUE OVERLAY[[Header]].
+The three big overlays switch directly: with one open, press the key of another
+([SHIFT+l], [SHIFT+k], [SHIFT+f]) - no need to close it first.
 
 QUEUE PANE: [[Header]]
 See BUILDING A QUEUE[[Header]] for details on how to e.g. adjust the queue order, how to
@@ -472,6 +475,7 @@ Several sort options are available for the LIBRARY PANE:
 [SHIFT+f]   Add all searched tracks to the fetch list (the result of the search 
             in the library pane; the filtered overall list so to speak)
 [r]         Show edited tracks first (highlighted in the same color as headers)
+[n]         Show recently added tracks first (newest files on top)
 [x]         Show all tracks with NO META DATA
 [SHIFT+t]   Show all track with MISSING TITLE tag
 [SHIFT+a]   Show all tracks with MISSING ARTIST tag
@@ -549,15 +553,17 @@ NAME: Choose a name for a playlist.
 SEARCH AND ADD: Use the search function to search for titles and add via [ENTER]
 SEARCH FOLDERS: Start the search with /f: (e.g. /f:abbey) to list the tracks of the matching folders.
 SORT: [SHIFT+t] cycles the library sort: folder order, Filenames A-Z, Title A-Z, Artist A-Z,
-Album A-Z (also for search results). Use it before typing, or after leaving the box with [ESC].
+Album A-Z, Recently added (also for search results). Use it before typing, or after leaving the box with [ESC].
 REMOVE: Move the focus to the track list, choose and delete a track via [DEL/d]
 SAVE/DISCARD: Save via [CTRL+s] and just choose [No] when exiting the playlist
 editor to discard your current playlist.
 
 ADD A TRACK DIRECTLY: [[Header]]
-In the track list press [SHIFT+a], choose a new or an existing playlist and hit [ENTER]:
-the track is added and the playlist saved without opening this editor. YouTube/SoundCloud/
-Bandcamp tracks are downloaded into the download folder first.
+In the MAIN UI's track list (library / search results, not this editor's
+picker) press [SHIFT+a], choose a new or an existing playlist and hit
+[ENTER]: the track is added and the playlist saved without opening this
+editor. YouTube/SoundCloud/Bandcamp tracks are downloaded into the
+download folder first.
 
 PLAYLISTS TAB: [[Header]]
 SEARCH AND ADD TO QUEUE: Search and choose a playlist and hit [ENTER] to add to queue.
@@ -728,6 +734,7 @@ Like a real scope in X-Y mode. Wide stereo fills the area, a phase-shifted tone 
 A nearly mono track fades over to a phase portrait instead of a flat line.
 
 TUNING OVERLAY:[[Header]] [SHIFT+o] opens it, the picture changes live while the music plays.
+[SHIFT+i] / [SHIFT+u] switch straight to the spectrogram options / full screen.
 Scope mode       XY, YT, XY + YT (overlap), XY + YT (row), XY + YT (column)
 Osci style       braille (works in any terminal) / image (pixels, needs Kitty graphics or Sixel)
 Frame rate       30 / 45 / 60 / 90 / 120 / 165 fps
@@ -769,6 +776,7 @@ Made the way Audacity makes its spectrogram view, with Audacity's defaults (2048
 zero padding 2, Mel scale 0 to 20 000 Hz, gain 20 / range 80 dB, Roseus colors). Stereo is drawn
 as two channels.
 [SHIFT+i] options        [SHIFT+u] full screen (with frequency labels on the left and a time ruler on top)
+[SHIFT+o] / [SHIFT+0] in the options: switch straight to the oscilloscope options / full screen
 Scale        linear / logarithmic / mel / bark / erb / period
 Motion       sweep (a page at a time) / scroll (newest on the right)
 Window size  256 .. 8192: bigger = sharper frequency lines, smaller = crisper clicks and drum hits
@@ -1036,6 +1044,9 @@ Share Profiles (on: the radio uses the player's oscilloscope/spectrogram setting
 Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
 Update Notice (a quiet once-a-day look for a newer release; a small window, once per version: [ESC] close, [o] open the release page)
 Media Keys (Windows: media pop-up/keys; Linux: MPRIS widgets/playerctl; macOS: Now Playing; the system media keys control Mousiki)
+Track Buffer (MB) (default 256: a track whose decoded audio is smaller is held whole in RAM,
+  so seeking is instant; a bigger one uses a moving 2-minute window. [ENTER] types a number,
+  [->] then [ENTER] on [ Set back to default ] restores 256; applies to the next track)
 Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars, Stereo Sound,
 Normalize Volume, Replace Emoji, Marquee Scrolling
 VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches

@@ -198,7 +198,7 @@ Three themes are made for colour vision deficiencies: **Colorblind Deuteranopia*
 
 ### Installers and portables for Windows / macOS / Linux 
 
-Windows (installer, portable zip), Linux (`.deb`, portable) and macOS (`.pkg`, portable) from the [latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest), or build it yourself (below). Release files are signed (GPG) and come with build-provenance attestations; an installer upgrades an existing version and keeps your settings. Automated tests (117; run on Linux, macOS and Windows by a GitHub workflow): `cmake -DMOUSIKI_BUILD_TESTS=ON`.
+Windows (installer, portable zip), Linux (`.deb`, portable) and macOS (`.pkg`, portable) from the [latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest), or build it yourself (below). Release files are signed (GPG) and come with build-provenance attestations; an installer upgrades an existing version and keeps your settings. **Portable versions:** unzip the new version over the old folder (or copy your `data/` folder into the new one) and keep `portable.txt` next to the launcher: it makes Mousiki keep settings, cache, playlists and history in `data/`; without it they are not found. Automated tests (117; run on Linux, macOS and Windows by a GitHub workflow): `cmake -DMOUSIKI_BUILD_TESTS=ON`.
 
 ### Build it yourself (Windows)
 
@@ -414,7 +414,7 @@ Mousiki uses a small number of third-party components. They are listed here with
 |---|---|---|---|
 | miniaudio | audio playback and decoding | 0.11.25 | 0.11.25 |
 | miniz | compresses the oscilloscope pictures (Kitty graphics) | 3.1.2 | 3.1.2 |
-| Chromaprint | AcoustID fingerprint (`fpcalc`) | 1.6.1 | 1.6.1 |
+| Chromaprint | AcoustID fingerprint (`fpcalc`) | 1.6.2 | 1.6.2 |
 | KISS FFT | spectrum / spectrogram | vendored copy (no version marker; v131 line) | 131.2.0 (build-system changes only) |
 | stb_truetype | karaoke letters of Japanese / Chinese / Korean text | 1.26 | 1.26 |
 | SDL2 | the optional scope and spectrogram windows (Windows: bundled `SDL2.dll`) | 2.32.10 | 2.32.10 |

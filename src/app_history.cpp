@@ -122,7 +122,7 @@ static const char* const kSmartLabels[4][4] = {
 // into a music folder keeps an old modification time on many systems, but
 // its creation time -- Windows -- or inode change time -- POSIX -- is when it
 // arrived). 0 when the file cannot be read.
-static long long file_added_time(const fs::path& p) {
+long long file_added_time(const fs::path& p) {
 #if defined(_WIN32)
     struct _stat64 st;
     if (_wstat64(p.c_str(), &st) != 0) return 0;

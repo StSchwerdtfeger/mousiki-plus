@@ -719,6 +719,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidVisFluidity: return std::to_string(settings_.visualizer_fluidity);
             case kSidWaveStyle: return settings_.waveform_smooth ? "smooth" : "raw";
             case kSidDiskSpeed: return std::to_string(settings_.disk_rotation_speed).substr(0, 4);
+            case kSidTrackBuffer: return std::to_string(settings_.track_buffer_mb);
             case kSidVisDegr: return std::to_string(settings_.visualizer_degradation_speed);
             case kSidVisVisc: return std::to_string(settings_.visualizer_viscosity);
             case kSidLyrAlign: return settings_.lyrics_alignment == 1 ? "left" : settings_.lyrics_alignment == 2 ? "right" : "center";
@@ -779,6 +780,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidOrder1: case kSidOrder2: case kSidOrder3: case kSidOrder4: return {"sphere", "osci", "spectro", "lyrics"};
             case kSidPlayback: return {"list", "loop", "shuffle", "stop", "queue then stop"};
             case kSidStartMode: return {"player", "radio"};
+            case kSidTrackBuffer: return {};   // a number (ENTER types it) and a "Set back to default" button (RIGHT, then ENTER)
             case kSidRemoteApp: return {};   // not a switch: ENTER / LEFT / RIGHT open the REMOTE APP overlay
             case kSidVisFluidity: case kSidVisDegr: case kSidVisVisc: return {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
             case kSidWaveStyle: return {"raw", "smooth"};
@@ -863,6 +865,16 @@ void App::settings_commit_edit_impl() {
             case kSidVisFluidity: try { settings_.visualizer_fluidity = std::stoi(buf); } catch (...) {} return;
             case kSidWaveStyle: settings_.waveform_smooth = (v == "smooth"); return;
             case kSidDiskSpeed: try { settings_.disk_rotation_speed = std::stod(buf); } catch (...) {} return;
+            case kSidTrackBuffer: {   // typed MB; the next track that is loaded uses it
+                try {
+                    const int mb = std::stoi(buf);
+                    settings_.track_buffer_mb = std::clamp(mb, Settings::kTrackBufferMinMB, Settings::kTrackBufferMaxMB);
+                    status_line_ = "track buffer: " + std::to_string(settings_.track_buffer_mb) + " MB" +
+                                   (mb != settings_.track_buffer_mb ? " (allowed: " + std::to_string(Settings::kTrackBufferMinMB) + " - " + std::to_string(Settings::kTrackBufferMaxMB) + ")" : "") +
+                                   " -- applies to the next track that is loaded";
+                } catch (...) { status_line_ = "track buffer: type a number of MB"; }
+                return;
+            }
             case kSidVisDegr: try { settings_.visualizer_degradation_speed = std::stoi(buf); } catch (...) {} return;
             case kSidVisVisc: try { settings_.visualizer_viscosity = std::stoi(buf); } catch (...) {} return;
             case kSidLyrAlign: settings_.lyrics_alignment = (v == "left") ? 1 : (v == "right") ? 2 : 0; return;
@@ -1401,6 +1413,12 @@ void App::handle_settings_key(int key) {
                 return;
             }
         }
+        if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTrackBuffer && settings_col_ == 1) {   // "Set back to default"
+            settings_.track_buffer_mb = Settings::kTrackBufferDefaultMB;
+            settings_col_ = 0;
+            status_line_ = "track buffer: back to the default, " + std::to_string(Settings::kTrackBufferDefaultMB) + " MB -- applies to the next track that is loaded";
+            return;
+        }
         if (settings_tab_ == 0 && settings_row_ == 2) { settings_.border_smooth = !settings_.border_smooth; return; }   // SMOOTHNESS
         if (settings_tab_ == 0 && settings_row_ == 0) { // THEME | CREATE THEME
             if (settings_col_ == 0) theme_open_picker(); else theme_open_creator();
@@ -1412,8 +1430,12 @@ void App::handle_settings_key(int key) {
         mode_ = Mode::ColorEdit;
         return;
     }
-    if (key == 'A') { if (settings_row_ > 0) --settings_row_; return; }
-    if (key == 'B') { if (settings_row_ < settings_max_row()) ++settings_row_; return; }
+    if (key == 'A') { if (settings_row_ > 0) --settings_row_; if (settings_tab_ != 0) settings_col_ = 0; return; }
+    if (key == 'B') { if (settings_row_ < settings_max_row()) ++settings_row_; if (settings_tab_ != 0) settings_col_ = 0; return; }
+    if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTrackBuffer && (key == 'C' || key == 'D')) {
+        settings_col_ = key == 'C' ? 1 : 0;   // the number | the "Set back to default" button
+        return;
+    }
     if (key == 'C') { // right
         if (settings_tab_ == 0) {
             if (settings_row_ == 2) settings_.border_smooth = !settings_.border_smooth;
@@ -1697,6 +1719,17 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
                              (MAX_Y > 1) ? static_cast<float>(y - 1) / (MAX_Y - 1) : 0.0f, false);
     };
     auto pos = [&](int y, int x, const std::string& s) { frame << "\x1b[" << y << ";" << x << "H" << s; };
+    // The scrollbar of a tab that is longer than the panel, the same as in the help wizard: the last column inside the
+    // frame, a thumb as tall as the visible part is of the whole, in the disk gradient. `first` is the first line shown.
+    auto scrollbar = [&](int first, int visible, int total) {
+        overlay::Thumb th;
+        if (!overlay::scroll_thumb(first, visible, total, th)) return;
+        for (int r = 0; r < visible && 3 + r < MAX_Y; ++r) {
+            const bool on = r >= th.at && r < th.at + th.len;
+            pos(3 + r, W - 1, gradient_ansi(settings_.disk_color, settings_.disk_color_end,
+                                            visible > 1 ? static_cast<float>(r) / static_cast<float>(visible - 1) : 0.0f) + (on ? "\u2588" : "\u2591") + R);
+        }
+    };
     auto repeat = [](const std::string& s, int n) {
         std::string r; r.reserve(s.size() * static_cast<size_t>(std::max(0, n)));
         for (int i = 0; i < n; ++i) r += s;
@@ -1918,16 +1951,18 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
                 const bool sel = (r == settings_row_ && mode_ != Mode::ColorEdit);
                 const bool ed = (r == settings_row_ && mode_ == Mode::ColorEdit);
                 pos(y, 6, pad(L.text, 25)); pos(y, 32, ":");
+                const bool buf_row = settings_tab_ == 1 && settings_item_id(1, r) == kSidTrackBuffer;
                 std::string v = ed ? edit_paint(edit_field_width()).s : pad(settings_get_value(r, 0), 20);
-                pos(y, 35, (sel ? HI : "") + (ed ? change_sgr(settings_) : "") + v + R);
+                pos(y, 35, ((sel && !(buf_row && settings_col_ == 1)) ? HI : "") + (ed ? change_sgr(settings_) : "") + v + R);
+                if (buf_row) {   // the button to the right of the number
+                    pos(y, 57, ((sel && settings_col_ == 1) ? HI : legend_sgr(settings_)) + "[ Set back to default ]" + R);
+                } else
                 if (sel && !settings_options_for(settings_tab_, r).empty())
                     pos(y, 57, ansi_for(settings_.tab_current_color, false) + "< \u2194 >\x1b[0m");
             }
             y++;
         }
-        // there is more above / below: small marks at the right edge
-        if (first > 0) pos(3, W - 3, legend_sgr(settings_) + "\u25b2" + R);
-        if (first + visible < total) pos(3 + visible - 1, W - 3, legend_sgr(settings_) + "\u25bc" + R);
+        scrollbar(first, visible, total);   // there is more above / below
         if (!note.empty()) {
             int ny = MAX_Y - static_cast<int>(note.size());
             for (const auto& ln : note) {
@@ -2039,6 +2074,7 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
             }
             else draw_path_row(r);
         }
+        scrollbar(scroll, visible, display_count);
     } else if (settings_tab_ == 4) {
         // Reference tab: a one-line read-only note pointing at the cheat
         // sheet first, then the rebindable hotkeys grouped under
@@ -2139,6 +2175,7 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
         if (y < MAX_Y) draw_header("FONT / CHARACTER MAP");
         for (size_t li = 0; li < letters.size() && y < MAX_Y; ++li)
             draw_font_row(letters[li], kRefEnd + static_cast<int>(li));
+        scrollbar(scroll, visible, display_count);
     } else if (settings_tab_ == 5) {
         // About App: shows the hard coded about_app_text() (about_text.h),
         // scrolled so it never exceeds player_h.
@@ -2151,6 +2188,7 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
             if (idx < total) pos(y, 6, about_app_text()[idx]);
             y++;
         }
+        scrollbar(scroll, visible, total);
     }
 
     while (y < MAX_Y) { pos(y, 1, B(y) + "\u2502" + R); pos(y, W, B(y) + "\u2502" + R); y++; }

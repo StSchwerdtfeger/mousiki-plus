@@ -115,7 +115,7 @@ enum SetId {
     kSidVizField, kSidDisk, kSidDummy, kSidQueue, kSidWave, kSidLyricsEngine, kSidLyricViz, kSidVisualizer, kSidNoLyricsViz,
     kSidStereo, kSidNormalize, kSidMetaOnly, kSidEmoji, kSidMarquee, kSidUseLyrics, kSidUseOsci, kSidUseSpectro, kSidUseSphere,
     kSidOrder1, kSidOrder2, kSidOrder3, kSidOrder4,
-    kSidPlayback, kSidStartMode, kSidBlackBg, kSidShareProfiles, kSidRemoteApp, kSidUpdateCheck, kSidMediaKeys,
+    kSidPlayback, kSidStartMode, kSidBlackBg, kSidShareProfiles, kSidRemoteApp, kSidUpdateCheck, kSidMediaKeys, kSidTrackBuffer,
     kSidVisFluidity, kSidWaveStyle, kSidDiskSpeed, kSidVisDegr, kSidVisVisc, kSidLyrAlign, kSidLyrAnim,
 };
 struct SetLine { bool header; int id; const char* text; };   // a category header, or a row (id + label)
@@ -124,6 +124,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {true, -1, "MODES"},
         {false, kSidPlayback, "Playback"}, {false, kSidStartMode, "Start Mode"}, {false, kSidBlackBg, "Black Background"}, {false, kSidShareProfiles, "Share Profiles"},
         {false, kSidRemoteApp, "Remote App"}, {false, kSidUpdateCheck, "Update Notice"}, {false, kSidMediaKeys, "Media Keys"},
+        {false, kSidTrackBuffer, "Track Buffer (MB)"},
         {true, -1, ""},
         {true, -1, "ON/OFF"},
         {false, kSidDisk, "Eliment Disk"}, {false, kSidDummy, "Dummy Buttons"}, {false, kSidQueue, "Queue Display"},

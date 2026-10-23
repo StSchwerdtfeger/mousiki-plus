@@ -476,11 +476,12 @@ void apply_default_hotkeys(Settings& s) {
                 if (!taken) sw->second = ")";
             }
         }
+        std::vector<std::string> added_now;   // commands that came with a newer version
         for (const auto& [action, key] : defaults) {
             // Only fill actions that are entirely absent from the config.
             // A key explicitly set to "" (user unbound it on purpose) is
             // left alone rather than silently re-bound.
-            if (s.hotkeys.find(action) == s.hotkeys.end()) s.hotkeys[action] = key;
+            if (s.hotkeys.find(action) == s.hotkeys.end()) { s.hotkeys[action] = key; added_now.push_back(action); }
         }
         // The wizard's "W" is the one default that can land on an occupied
         // key: the migration above leaves an old HKeyScopeWindow on "W" when
@@ -491,12 +492,19 @@ void apply_default_hotkeys(Settings& s) {
         // reach this.
         // The same goes for the keys that became rebindable later (their old fixed key may have been given to another
         // action in the meantime, which could never fire: the fixed key was caught first).
-        for (const char* name : {"HKeyWizard", "HKeyRescan", "HKeyFetchTags", "HKeyLyricsTiming", "HKeyReadLyrics",
-                                 "HKeyQueueUndoClear", "HKeyQueueToPlaylist", "HKeyBulkAdd", "HKeyAddToPlaylist"}) {
+        // Any command that is new to this config gets the same treatment: the user's own binding on that key wins.
+        std::vector<std::string> check = {"HKeyWizard", "HKeyRescan", "HKeyFetchTags", "HKeyLyricsTiming", "HKeyReadLyrics",
+                                          "HKeyQueueUndoClear", "HKeyQueueToPlaylist", "HKeyBulkAdd", "HKeyAddToPlaylist"};
+        check.insert(check.end(), added_now.begin(), added_now.end());
+        for (const std::string& name : check) {
             auto wiz = s.hotkeys.find(name);
             if (wiz != s.hotkeys.end() && !wiz->second.empty()) {
                 for (const auto& [action, key] : s.hotkeys) {
-                    if (action != name && key == wiz->second) { wiz->second = ""; break; }
+                    if (action == name || key != wiz->second) continue;
+                    // two commands that are both new keep their defaults (a fresh config); only the user's own key wins
+                    if (std::find(added_now.begin(), added_now.end(), action) != added_now.end() &&
+                        std::find(added_now.begin(), added_now.end(), name) != added_now.end()) continue;
+                    wiz->second = ""; break;
                 }
             }
         }
@@ -742,6 +750,10 @@ static Settings load_from_config(const fs::path& path) {
             std::string v = trim(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.update_check = !(v == "false" || v == "0" || v == "off" || v == "no");
+            continue;
+        }
+        if (key == "TrackBufferMB") {
+            try { s.track_buffer_mb = std::clamp(std::stoi(trim(unquote(value))), Settings::kTrackBufferMinMB, Settings::kTrackBufferMaxMB); } catch (...) {}
             continue;
         }
         if (key == "MediaKeys") {
@@ -1564,6 +1576,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "RemoteAppPin=" << s.remote_pin << "\n## 4 - 8 digits -- the PIN the app needs; made when the remote app is switched on (mousiki --remote-info shows it)\n";
     out << "ShareProfiles=" << (s.share_profiles ? "true" : "false") << "\n## true , false -- the radio uses this file's oscilloscope and spectrogram settings instead of its own (its own come back when this is false; player and radio)\n";
     out << "UpdateCheck=" << (s.update_check ? "true" : "false") << "\n## true , false -- at start-up Mousiki looks (at most once a day, in the background) whether a newer release exists and tells you once per version; nothing is installed and nothing about you is sent (needs Python 3)\n";
+    out << "TrackBufferMB=" << s.track_buffer_mb << "\n## 64 - 16384 (default 256) -- a track whose decoded audio is bigger than this many MB (about 10 MB per minute of CD-quality stereo, double at 96 kHz) is not held whole in RAM but in a moving 2-minute window; seeking inside the window is instant, a jump outside it takes a moment. A bigger value = fast seeking in longer tracks, more RAM in use\n";
     out << "MediaKeys=" << (s.media_keys ? "true" : "false") << "\n## true , false -- the system's media controls: Windows shows Mousiki in the media pop-up and its media keys work, Linux shows it in the desktop's media widgets (MPRIS; playerctl works), macOS shows Now Playing and handles the media keys (read at the next start; player and radio)\n";
     out << "PlaybackMode=" << play_mode_name(s.play_mode) << "\n## list , loop , shuffle , stop , queue then stop\n"
         << "## shuffle never reorders the queue: n and the end of a track play its next title, only # picks a random one of it\n";

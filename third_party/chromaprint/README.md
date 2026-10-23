@@ -1,6 +1,6 @@
 # Chromaprint (vendored)
 
-Vendored source of **Chromaprint 1.6.1** — <https://github.com/acoustid/chromaprint>
+Vendored source of **Chromaprint 1.6.2** — <https://github.com/acoustid/chromaprint>
 — the audio fingerprinting library behind AcoustID, imported so that mousiki
 *builds* `fpcalc` (`tools/fpcalc.cpp`) instead of shipping a prebuilt binary:
 configuring and building the project needs no download at any point.
@@ -32,4 +32,6 @@ The bundled kissfft is under `kissfft/COPYING` (BSD-3-Clause / Unlicense).
   audio plumbing (`audio/ffmpeg_*.h`, `avresample/`) — same reason.
 - The test suite and `3rdparty/googletest/`.
 
-Upstream release archive: `chromaprint-1.6.1.tar.gz` / tag `v1.6.1`.
+Upstream release archive: `chromaprint-1.6.2.tar.gz` / tag `v1.6.2` (SHA-256 `d54ada62c16b2db396d3251ec54fc7a58909c163131a1cfcf7fa6407dbc14360`).
+
+Updated from 1.6.1 to 1.6.2: only `chromaprint.cpp`, `chromaprint.h` (the version), `fingerprint_decompressor.cpp` and `fingerprint_decompressor.h` differ; every other file of the list above is identical. 1.6.2 rejects invalid fingerprints that caused undefined behaviour when decoded (a shift past 32 bits) and checks the arguments of the C API's encode / decode functions. (Its fpcalc fixes concern upstream's `cmd/fpcalc.cpp`, which is not used here.)

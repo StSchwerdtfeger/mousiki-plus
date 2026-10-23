@@ -14,6 +14,9 @@
 
 namespace muisc {
 
+// When a file arrived in the library (later of modification and creation / change time); 0 when unreadable. app_history.cpp.
+long long file_added_time(const fs::path& p);
+
 // Worker-thread exception guard: whatever a background task throws is turned into a log line and that task alone fails
 // (an exception that escapes a std::thread would call std::terminate() and end the whole program).
 template <class F>

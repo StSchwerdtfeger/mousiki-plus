@@ -63,7 +63,7 @@ struct StreamingPcm {
 
     // ---- Windowed mode (long / big tracks) ------------------------------------------------------------------------
     // A whole track as 32-bit float is 8 bytes per stereo frame: an 80-minute file at 48 kHz is 1.8 GB. Above
-    // kWindowBytes the buffer instead holds a window of kWindowSeconds around the playing position (a ring): the
+    // the limit (kWindowBytes unless the user changed it) the buffer instead holds a window of kWindowSeconds around the playing position (a ring): the
     // decoder stays up to 3/4 of it ahead and keeps 1/4 behind (a short step back needs no new decoding), and a seek
     // outside it moves the decoder there (stream_decode_ffmpeg). The audio itself is exactly the same -- same rate,
     // same 32-bit samples -- only less of it is held at once. Loudness and the waveform then come from a separate
@@ -71,7 +71,7 @@ struct StreamingPcm {
     //
     // Positions stay ABSOLUTE frame numbers in both modes; in windowed mode frame f lives at ring slot f % ring_frames
     // and only [start, available) is held.
-    static constexpr double kWindowBytes = 192.0 * 1024 * 1024;
+    static constexpr double kWindowBytes = 256.0 * 1024 * 1024;   // the default; Settings -> ON/OFF -> MODES -> Track Buffer (config.txt: TrackBufferMB)
     static constexpr double kWindowSeconds = 120.0;
     bool windowed = false;
     size_t ring_frames = 0;
@@ -85,7 +85,8 @@ struct StreamingPcm {
     std::atomic<bool> analysis_done{false};
     std::atomic<long> internal_refs{0};             // shared_ptr holders that are the decode threads themselves
 
-    void reserve_for_seconds(double seconds, int sr, int ch = 1) {
+    // limit_bytes: the size of the decoded audio (without the headroom below) above which the window is used instead.
+    void reserve_for_seconds(double seconds, int sr, int ch = 1, double limit_bytes = kWindowBytes) {
         sample_rate = sr;
         channels = ch >= 2 ? 2 : 1;
         meter.reset(sr, channels);
@@ -93,7 +94,12 @@ struct StreamingPcm {
         est_frames = static_cast<size_t>(std::max(1.0, seconds) * sr);
         size_t est = static_cast<size_t>(std::max(1.0, seconds) * sr * 1.25); // 25% headroom, in frames
         const double bytes = static_cast<double>(est) * channels * sizeof(float);
-        if (bytes > kWindowBytes && static_cast<double>(est_frames) > kWindowSeconds * sr * 1.5) {
+        // The headroom (25 %) is only for the reservation: the estimate comes from the file header and can be too low, and the
+        // buffer must never grow after the fact (see the top of this struct). It is address space that is reserved, not
+        // memory in use: the pages are only touched as the decoder fills them.
+        const double audio_bytes = static_cast<double>(est_frames) * channels * sizeof(float);
+        (void)bytes;
+        if (audio_bytes > limit_bytes && static_cast<double>(est_frames) > kWindowSeconds * sr * 1.5) {
             windowed = true;
             ring_frames = static_cast<size_t>(kWindowSeconds * sr);
             data.assign(ring_frames * static_cast<size_t>(channels), 0.0f);

@@ -13,7 +13,7 @@ endif()
 #   miniaudio.h         : single-file audio library (public domain / MIT-0), v0.11.25
 #   kissfft/            : small real-input FFT for the spectrum visualizer (BSD-3-Clause)
 #   miniz/              : deflate (MIT / public domain), compresses the oscilloscope picture sent over Kitty graphics
-#   chromaprint/        : AcoustID fingerprinting library, 1.6.1 (MIT/LGPL-2.1) —
+#   chromaprint/        : AcoustID fingerprinting library, 1.6.2 (MIT/LGPL-2.1) —
 #                         compiled into the fpcalc helper below, which is why the
 #                         project needs neither a prebuilt fpcalc.exe nor any
 #                         download to produce one.

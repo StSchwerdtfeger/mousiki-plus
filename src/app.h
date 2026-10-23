@@ -118,7 +118,10 @@ private:
     ListSource pre_search_list_source_ = ListSource::Local;
     std::string pre_search_local_query_;
     std::string last_online_query_;
-    int local_sort_mode_ = 0; // 0=folder order, 1=title A-Z, 2=artist A-Z
+    int local_sort_mode_ = 0; // 0=folder order, 1=title A-Z, 2=artist A-Z, 3=recently added (newest first)
+    long long added_time_of(const fs::path& p) const;   // file_added_time(), looked up once per file (cleared on rescan)
+    mutable std::mutex added_time_mutex_;
+    mutable std::unordered_map<std::string, long long> added_time_cache_;   // mode 3: when each file arrived (looked up once per rescan / choice of the mode)
     static constexpr int kListVisibleRows = 8; // initial list height before the first frame; from then on the list/queue panes take ALL the rows the terminal leaves (render_frame()), so a maximised window is filled instead of ending in blank lines
 
     // --- terminal-height awareness --------------------------------------
@@ -440,7 +443,7 @@ private:
     std::vector<LocalTrack> playlist_edit_lib_view_;   // filter_and_rank_local(playlist_edit_lib_query_)
     int playlist_edit_lib_selected_ = 0;
     std::vector<LocalTrack> filter_local_or_folders(const std::string& query) const;   // search, or "/f:" folder search
-    int playlist_edit_sort_ = 0;   // LIBRARY sort (Shift+T): 0 folder order, 1 file names, 2 titles, 3 artists, 4 albums A-Z
+    int playlist_edit_sort_ = 0;   // LIBRARY sort (Shift+T): 0 folder order, 1 file names, 2 titles, 3 artists, 4 albums A-Z, 5 recently added (newest first)
     static const char* playlist_sort_name(int mode);
     int playlist_edit_track_selected_ = 0;
     bool playlist_edit_dirty_ = false;    // true once tab 0 has unsaved changes -- see ESC's confirm prompt below
@@ -524,6 +527,7 @@ private:
     // never reorders the list behind the user's back -- see
     // meta_refresh_lib_view(), which does the sorting on every refresh.
     bool meta_resort_edited_ = false;
+    bool meta_sort_added_ = false;     // 'n': the library pane newest-arrived first
     int meta_lib_selected_ = 0;
     int meta_field_ = 0; // hovered row of the field editor (0=FILE .. 4=YEAR)
     // Two-stage field editor (meta_focus_ == 2): a hovered tag is only
@@ -615,6 +619,7 @@ private:
     void meta_ensure_session_loaded(); // restores the autosaved session, once
     void meta_refresh_lib_view();
     void meta_toggle_resort();         // 'r', edited files to the top of the pane
+    void meta_toggle_sort_added();     // 'n', recently added files first
     // Missing-tag filters over the library pane: 0 = off, 1 = files with no
     // metadata at all ('x'), 2 = missing title (Shift+T), 3 = missing artist
     // (Shift+A), 4 = missing year (Shift+Y), 5 = missing album (Shift+L). Pressing the same key again

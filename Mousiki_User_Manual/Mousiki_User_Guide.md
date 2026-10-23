@@ -444,7 +444,7 @@ The cheat sheet splits these keys into groups: **NAVIGATION & VIEW** (the lists 
 | `TAB` | Switch between panels | Moves focus between the **list** and the **queue**. This decides which panel the up/down arrows, `d` (remove), `4`/`5` (move) and `a` (add / bulk add) act on. |
 | `f` | Filter by folder | Narrows the local list to the **folder of the highlighted track**. It also switches the sort back to *folder order*. The pane title then shows `sort: folder order, folder: <name> [c] clear`. The filter stacks on top of an active search. |
 | `c` | Clear filter | Removes the folder filter. It leaves the sort mode alone. |
-| `T` (Shift+T) | Cycle local list sort mode | Cycles the sort of the local list through three modes: **folder order → title A-Z → artist A-Z**. The current mode is shown in the pane title (see below). |
+| `T` (Shift+T) | Cycle local list sort mode | Cycles the sort of the local list through four modes: **folder order → title A-Z → artist A-Z → recently added**. The current mode is shown in the pane title (see below). |
 | `N` (Shift+N) | Toggle metadata-only track list | Switches every list row between **filename** and **metadata title** (the embedded title tag). The first line of the metadata block follows it and is labelled **File** or **Title** accordingly. Files with no title tag, or whose tags have not been read yet, keep showing their filename. This also switches what "title A-Z" sorts by (see below). Also available in **Settings → ON/OFF**. |
 | `w` | Toggle waveform style | Switches the waveform between **raw** and **smooth**. |
 | `r` | Refresh UI | Forces a full redraw. Use it when a terminal resize or a switch of terminal session left the screen torn or stale. (Up to v3.0.0 this was `k`, which opens the karaoke overlay now; `SHIFT+r` stays the library rescan.) |
@@ -480,6 +480,7 @@ The sort mode in the pane title always tells you what is being sorted on:
 | Title A-Z, `SHIFT+n` **off** | `sort: file name A-Z` | The file name |
 | Title A-Z, `SHIFT+n` **on** | `sort: title A-Z` | The embedded title tag (falling back to the file name where there is none) |
 | Artist A-Z | `sort: artist A-Z` | The artist tag (falling back to the artist guessed from the parent folder) |
+| Recently added | `sort: recently added` | **Newest first**: when the file arrived in your library (the later of its modification time and its creation / change time, so a file you copied or downloaded into a music folder counts from then, even if it is an old recording). The times are read once and kept until the next rescan (`SHIFT+r`) or until you choose the mode again. |
 
 Toggling `SHIFT+n` re-sorts the list immediately and keeps your cursor on the same track. In **metadata-only** mode the order can shift slightly right after startup, while the background scan is still reading tags.
 
@@ -585,6 +586,7 @@ Opens a window in the middle of the screen where the look of the oscilloscope ca
 | `←` / `→` | Decrease / increase the selected value, or step through its choices |
 | `R` | Reset the rows of the style in use to their defaults |
 | `ESC` or `SHIFT+o` | Close the overlay. The values are **saved to `config.txt`** when it closes. |
+| `SHIFT+i` / `SHIFT+u` | Switch straight to the **spectrogram** options / full screen, without closing this overlay first (the values are saved). |
 
 Playback keeps running while the overlay is open, but its keys are the only ones that react until you close it. The overlay opens on every main screen. The rows are:
 
@@ -725,7 +727,7 @@ While an overlay (`SHIFT+i`, `SHIFT+o` …) covers part of the picture, the rest
 
 **Full screen (`SHIFT+u`)**: the spectrogram over the whole screen, with the track (radio: station and song) as its title, **frequency labels** on the left like Audacity's ruler (both channels), a **time ruler** on top and the scale and range in the bottom line. `SHIFT+i` opens the options on top of it, `ESC` or `SHIFT+u` closes it. Playback keys keep working.
 
-**Options (`SHIFT+i`)** -- `↑`/`↓` select, `←`/`→` change, `R` puts everything back to Audacity's defaults (style and motion stay), `ESC` or `SHIFT+i` closes and saves:
+**Options (`SHIFT+i`)** -- `↑`/`↓` select, `←`/`→` change, `R` puts everything back to Audacity's defaults (style and motion stay), `ESC` or `SHIFT+i` closes and saves. `SHIFT+o` / `SHIFT+0` switch straight to the **oscilloscope** options / full screen without closing this overlay first:
 
 | Row | Choices | Default |
 |---|---|---|
@@ -997,7 +999,7 @@ The same idea as the big list overlay, for the queue: a large window that shows 
 | `CTRL+SHIFT+u` | Save the queue as a playlist (opens the playlist editor) |
 | `ESC` or `SHIFT+k` | Close the overlay (the previous focus is restored) |
 
-Only one of the two overlays can be open at a time: `SHIFT+k` while the list overlay is open switches to the queue overlay, and vice versa. Pressing `/` closes the queue overlay, because the search filters the list underneath. Playback keys (`n`, `b`, `p`, seek, volume) keep working. The bottom border of the frame shows the page counter and the number of tracks. All commands of the overlay are listed in a gray **legend below the frame** (`[d] delete`, `[SHIFT+x] clear all`, `[4/5] move up/down`, `[SHIFT+4/5] move to top/bottom`, `[!] lock` / `[!] unlock`, `[CTRL+SHIFT+u] queue to playlist`, `[CTRL+SHIFT+z] undo clear`, `[SHIFT+UP/DOWN] page`, `[ESC] close`).
+Only one of the big overlays can be open at a time: `SHIFT+k` while the list overlay is open switches to the queue overlay, and vice versa. The same goes for the **folder overlay** (`SHIFT+f`): from the list or the queue overlay `SHIFT+f` switches to it, and inside it `SHIFT+l` / `SHIFT+k` switch back, without closing the overlay first. Pressing `/` closes the queue overlay, because the search filters the list underneath. Playback keys (`n`, `b`, `p`, seek, volume) keep working. The bottom border of the frame shows the page counter and the number of tracks. All commands of the overlay are listed in a gray **legend below the frame** (`[d] delete`, `[SHIFT+x] clear all`, `[4/5] move up/down`, `[SHIFT+4/5] move to top/bottom`, `[!] lock` / `[!] unlock`, `[CTRL+SHIFT+u] queue to playlist`, `[CTRL+SHIFT+z] undo clear`, `[SHIFT+UP/DOWN] page`, `[ESC] close`).
 
 ![Big queue overlay](images/Playback_Main_UI_QUEUE_OVERLAY.png)
 
@@ -1074,7 +1076,7 @@ When the meta editor **renames** a file, every saved playlist that contains it i
 | `↑` / `↓` | Move through the focused list or picker |
 | `ENTER` | Depends on focus. See the table below. |
 | `4` / `5` | Move the highlighted track up or down in the playlist you are building |
-| `SHIFT+t` | Library picker: cycle the **sort** of the library list (and of a search result): folder order → *Filenames A-Z* → *Title A-Z* → *Artist A-Z* → *Album A-Z*. The current sort is shown in the LIBRARY title. Works as long as nothing was typed in the search box yet (a capital `T` typed into the box is a letter; press `ESC` to leave the box, or start with a small `t`). The key is the main list's *cycle sort* hotkey (`HKeyCycleSortMode`). |
+| `SHIFT+t` | Library picker: cycle the **sort** of the library list (and of a search result): folder order → *Filenames A-Z* → *Title A-Z* → *Artist A-Z* → *Album A-Z* → *Recently added* (newest first, by when the file arrived in the library). The current sort is shown in the LIBRARY title. Works as long as nothing was typed in the search box yet (a capital `T` typed into the box is a letter; press `ESC` to leave the box, or start with a small `t`). The key is the main list's *cycle sort* hotkey (`HKeyCycleSortMode`). |
 | `/f:` | In the search box: search **folders**. `/f:abbey` lists every track whose folder (or its parent folder) contains `abbey`; several words must all match. Combines with the sort. |
 | `D` / `DEL` / `BACKSPACE` | Remove the highlighted track (track list focused). On the Saved Playlists tab, `DEL` deletes the selected playlist after a Yes/No confirmation. |
 | `e` | On the Saved Playlists tab (list focused): **export** the selected playlist as an **M3U8** (default) or **M3U** file. See *Exporting a playlist* below. |
@@ -1085,7 +1087,7 @@ When the meta editor **renames** a file, every saved playlist that contains it i
 
 ### Add a track straight to a playlist (`SHIFT+a`)
 
-With the **library pane** focused, `SHIFT+a` (rebindable: **Add Track To Playlist**) adds the highlighted track to a playlist without opening the playlist editor. It uses the same small overlay as *Queue to playlist*: **New playlist** or **Existing playlist** (`←` / `→` or `TAB`, `ENTER`, or `n` / `e`). With **Existing playlist** you search and pick from the saved playlists; with **New playlist** you type a name. `ENTER` adds the track and **saves the playlist at once**; the status line reports it. A track that is already in the playlist is not added twice.
+In the **main player UI**, with the **library / search result pane** focused (not the library picker inside the playlist menu), `SHIFT+a` (rebindable: **Add Track To Playlist**) adds the highlighted track to a playlist without opening the playlist editor. It uses the same small overlay as *Queue to playlist*: **New playlist** or **Existing playlist** (`←` / `→` or `TAB`, `ENTER`, or `n` / `e`). With **Existing playlist** you search and pick from the saved playlists; with **New playlist** you type a name. `ENTER` adds the track and **saves the playlist at once**; the status line reports it. A track that is already in the playlist is not added twice.
 
 Only tracks can be added, not playlist rows or folder rows (the status line says so). A track from **YouTube, SoundCloud or Bandcamp** is **downloaded automatically** into the download folder first (in the background, the status line says `downloading ...`) and is then added as the local file it has become, so it also shows up in your library. With the queue pane focused the key only reminds you to focus the library pane.
 
@@ -1149,6 +1151,7 @@ In a text box you typed into, the first `ESC` only leaves the box (the text stay
 | `a` | Add the highlighted file to the **fetch list** (library focused). Add a single title and tick the boxes on the Fetch List tab to fetch just some tags of it |
 | `SHIFT+f` | **Add full list**: adds every title the library pane shows right now to the fetch list (library focused). The search and the missing-tag filter (`x`, `SHIFT+t/a/l/y`) are applied, titles already on the list are skipped, the status line says how many were added. Typical use: filter for `SHIFT+l` (missing album), press `SHIFT+f`, switch to the Fetch List tab and press `ENTER` |
 | `r` | Toggle **edited files on top** of the library pane |
+| `n` | Toggle **recently added first** in the library pane (newest arrived files on top; with `r` on, the edited files stay above them) |
 | `x` | Filter the library to files missing **any** metadata (library pane focused; press again to clear) |
 | `SHIFT+t` | Filter the library to files missing a **title** (press again to clear) |
 | `SHIFT+a` | Filter the library to files missing an **artist** (press again to clear) |
@@ -1427,6 +1430,7 @@ The tab has two categories (in the header colour); change a row with `←`/`→`
 | Remote App | `[ENTER] settings` | Opens the **REMOTE APP** overlay (12.1): on / off (default **off**), port, PIN, the address and a QR code for the phone. One value for the player and the radio (`RemoteApp=`, `RemoteAppPort=`, `RemoteAppPin=` in the player's `config.txt`). |
 | Update Notice | true, false | Default **true**. At start-up Mousiki looks, in the background and at most **once a day**, whether a newer release exists on the project's GitHub page and shows a small **New version** window (player and radio) with the new version and the address of the release -- **once per version**. `ESC` closes it, `o` opens the release page in your browser. Nothing is installed or downloaded, nothing about you or your music is sent (only the public releases page is asked, by the small script `scripts/check_update.py`, which needs Python 3 like the lyrics). Without Python or a network nothing happens. Read at the next start. (`UpdateCheck=`) |
 | Media Keys | true, false | Default **true**. **Windows:** the media pop-up of the volume flyout / lock screen and the media keys. **Linux:** Mousiki appears in the desktop's media widgets (MPRIS: the volume pop-up, a panel applet, the lock screen, `playerctl`) and its media keys, headphone buttons and sliders control it. **macOS:** Now Playing and the media keys. See 12.2. Read at the next start; player and radio. (`MediaKeys=`) |
+| Track Buffer (MB) | a number, `64` - `16384` | Default **256**. A track is decoded into RAM as 32-bit float (about 10 MB per minute of CD-quality stereo; double at 96 kHz, and so on). While the decoded audio is not bigger than this number the **whole track is held in RAM**: seeking anywhere is instant, which helps most when you adjust lyrics timing. A bigger track is held in a moving **2-minute window** around the playing position instead (so a very long file or mix does not need gigabytes); a jump outside the window then takes a moment while the decoder moves there. `ENTER` types a number; `→` moves to the button **[ Set back to default ]**, and `ENTER` on it restores 256. The change applies to the next track that is loaded. Config: `TrackBufferMB`. Only the audio counts: the extra 25 % that is reserved on top (the length comes from the file header and can be a little off, and the buffer must not move while it plays) is address space that is only used as far as the decoder fills it. |
 
 **ON/OFF** -- switches, most of them true/false. (The folder settings are on the PATHS tab; **Lyrics/Viz Default**, **No-Lyrics Viz** and the **Viz Order** rows are on ANIMA/VIZ.)
 
@@ -1456,7 +1460,7 @@ The tab has two categories (in the header colour); change a row with `←`/`→`
 
 *The ANIMA/VIZ tab (the screenshot shows its predecessor, the ANIMATION tab). The `< ↔ >` hint shows that `←`/`→` cycle the value.*
 
-The tab collects everything about the **animations and the visualizations**, in five categories (in the header colour, with a blank line before each). All rows are cycled with `←`/`→` (or typed after `ENTER`). If the terminal is too short, the tab **scrolls with the cursor** (▲ / ▼ show that there is more) while the note at the bottom stays in place.
+The tab collects everything about the **animations and the visualizations**, in five categories (in the header colour, with a blank line before each). All rows are cycled with `←`/`→` (or typed after `ENTER`). If the terminal is too short, the tab **scrolls with the cursor (a scrollbar like the help wizard's marks where you are)** (▲ / ▼ show that there is more) while the note at the bottom stays in place.
 
 **LYRICS**
 
@@ -1506,7 +1510,7 @@ The tab collects everything about the **animations and the visualizations**, in 
 
 *The PATHS tab: the folders Mousiki reads music from, downloads to, and keeps playlists and the history in. (The screenshot is from before the PLAYLIST EXPORT PATH row was added.)*
 
-Five sections, each under its header in the header colour. Move onto a row and press `ENTER` to edit it. The tab scrolls with the cursor, so a short terminal is fine.
+Five sections, each under its header in the header colour. Move onto a row and press `ENTER` to edit it. The tab scrolls with the cursor (a scrollbar like the help wizard's marks where you are) (a scrollbar like the wizard's shows where you are), so a short terminal is fine.
 
 | Section | Rows | What it does |
 |---|---|---|
@@ -2060,7 +2064,7 @@ In the radio, a live station has no length, so the position slider is off; the s
 
 ## 14. Upgrades and your settings
 
-**New version notice.** With **Update Notice** on (Settings -> ON/OFF -> MODES, `UpdateCheck=true`, the default), Mousiki asks the project's releases page once a day, in the background, whether a newer version exists and tells you **once per version** with a small window (*Mousiki 4.6.0 is out. You are using 4.5.0.* and the address of the release, plus the note that configs and everything else is not overwritten when updating; `ESC` Close, `o` Go to release). It appears as soon as the main screen is showing (not on top of a menu or the help wizard). It never installs anything -- how to update depends on how you installed Mousiki (`winget upgrade`, `scoop update`, `brew upgrade`, the installer or the `.deb`). The answer is kept in `update_check.txt` in the config folder.
+**New version notice.** With **Update Notice** on (Settings -> ON/OFF -> MODES, `UpdateCheck=true`, the default), Mousiki asks the project's releases page once a day, in the background, whether a newer version exists and tells you **once per version** with a small window (*Mousiki 4.6.0 is out. You are using 4.5.0.* and the address of the release, plus the note that your configuration stays the same when you update by installing the newer version (a new command whose default key you already use for something else is left unbound, see Settings -> REFERENCE); for the portable versions the note says: unzip the new version over the old folder, or copy your `data` folder into the new one, and keep `portable.txt` next to the launcher (without it the configs in `data` are not found); `ESC` Close, `o` Go to release). It appears as soon as the main screen is showing (not on top of a menu or the help wizard). It never installs anything -- how to update depends on how you installed Mousiki (`winget upgrade`, `scoop update`, `brew upgrade`, the installer or the `.deb`). The answer is kept in `update_check.txt` in the config folder.
 
 Installing a new version never deletes your settings (`config.txt`, `radio_config.txt` ... live in the config folder, not in the program folder). The first time a new version saves a settings file, the previous file is kept as **`config.txt.bak`** / **`radio_config.txt.bak`** next to it (one backup, replaced at the next upgrade), so you can go back if something looks wrong. The files carry a `# Written by Mousiki v...` line for that.
 
@@ -2094,7 +2098,7 @@ Mousiki is licensed under the Apache Licence 2.0 (file `LICENSE`). It contains o
 | KISS FFT | Spectrum visualizer, spectrogram | BSD-3-Clause | Compiled in |
 | miniz 3.1.2 | Compresses the image-style pictures (Kitty graphics) | MIT | Compiled in |
 | Roseus colour map | Default spectrogram colours | CC0 1.0 | Compiled in |
-| Chromaprint 1.6.1 (with its own KISS FFT) | `fpcalc`, the AcoustID fingerprint helper | MIT (upstream treats the full project as LGPL-2.1 because of FFmpeg parts that are not included here) | Compiled into `fpcalc` |
+| Chromaprint 1.6.2 (with its own KISS FFT) | `fpcalc`, the AcoustID fingerprint helper | MIT (upstream treats the full project as LGPL-2.1 because of FFmpeg parts that are not included here) | Compiled into `fpcalc` |
 | SDL2 | Scope window and spectrogram window | zlib | Loaded at run time; `SDL2.dll` is included in the Windows packages |
 | FFmpeg (`ffmpeg`, `ffprobe`) | Decoding, metadata, tag writing, radio streams, recordings | GPL-3.0 (bundled builds) | Separate program; bundled on Windows and in the Linux portable zip |
 | yt-dlp | YouTube / SoundCloud / Bandcamp streams and downloads | Unlicense | Separate program; bundled in the packages |

@@ -246,6 +246,10 @@ struct Settings : VizPrefs {
     bool share_profiles = false;
     // A quiet check for a newer release at start-up (once a day, shown once per version); config.txt: UpdateCheck=true|false.
     bool update_check = true;
+    // Decoded audio above this many MB is not held whole in RAM but in a moving 2-minute window (see streaming_pcm.h);
+    // config.txt: TrackBufferMB. Default 256.
+    static constexpr int kTrackBufferDefaultMB = 256, kTrackBufferMinMB = 64, kTrackBufferMaxMB = 16384;
+    int track_buffer_mb = kTrackBufferDefaultMB;
     // The desktop's media controls (Linux: MPRIS; macOS: Now Playing + media keys); config.txt: MediaKeys=true|false.
     bool media_keys = true;
     // The remote app (phone): a small web server inside Mousiki, off by default. One value for both programs (config.txt:

@@ -1001,8 +1001,17 @@ const char* App::sort_mode_name(int mode, bool meta_only) {
     switch (mode) {
         case 1: return meta_only ? "title A-Z" : "file name A-Z";
         case 2: return "artist A-Z";
+        case 3: return "recently added";
         default: return "folder order";
     }
+}
+
+long long App::added_time_of(const fs::path& p) const {
+    const std::string key = path_utf8(p);
+    std::lock_guard<std::mutex> lk(added_time_mutex_);
+    auto it = added_time_cache_.find(key);
+    if (it == added_time_cache_.end()) it = added_time_cache_.emplace(key, file_added_time(p)).first;
+    return it->second;
 }
 
 // Applied only when browsing with no active search query -- a fuzzy
@@ -1037,6 +1046,19 @@ void App::apply_local_sort(std::vector<LocalTrack>& tracks) const {
             };
             return lower(artist_of(a)) < lower(artist_of(b));
         });
+    }
+    else if (local_sort_mode_ == 3) {
+        // Newest first: the time a file arrived (file_added_time(): later of modification and creation / change time, so
+        // a file that was copied or downloaded into the library counts from then). Looked up once per file and kept
+        // until the next rescan, because this runs again every time background tags re-filter the list.
+        std::vector<std::pair<long long, size_t>> keyed;
+        keyed.reserve(tracks.size());
+        for (size_t i = 0; i < tracks.size(); ++i) keyed.emplace_back(added_time_of(tracks[i].path), i);
+        std::stable_sort(keyed.begin(), keyed.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+        std::vector<LocalTrack> sorted;
+        sorted.reserve(tracks.size());
+        for (const auto& k : keyed) sorted.push_back(std::move(tracks[k.second]));
+        tracks = std::move(sorted);
     }
     // mode 0: leave as scanned (folder order) -- no-op
 }
@@ -1155,6 +1177,7 @@ void App::refresh_playlists_after_rescan() {
 }
 
 void App::rescan_library() {
+    { std::lock_guard<std::mutex> lk(added_time_mutex_); added_time_cache_.clear(); }   // "recently added" sort: files may have arrived
     // Keep the streamed-track cache folder in the list even if the edit
     // happened to drop it, for the same reason the constructor injects it
     // at all: downloaded songs belong in the local view.
@@ -1600,7 +1623,8 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
         pl.pcm = std::make_shared<StreamingPcm>();
         // the file's own sample rate: no resampling on the way to the device (it used to be 44.1 kHz for everything)
         pl.pcm->reserve_for_seconds(duration > 0 ? duration : 300.0,
-                                    native_sample_rate(decode_from, pl.metadata.sampling, duration), want_stereo ? 2 : 1);
+                                    native_sample_rate(decode_from, pl.metadata.sampling, duration), want_stereo ? 2 : 1,
+                                    static_cast<double>(settings_.track_buffer_mb) * 1024.0 * 1024.0);
         pl.success = true;
 
         write_load_timing_log(pl.title, is_local, t_resolve, t_probe, elapsed_s(t_start), "");
@@ -3203,6 +3227,13 @@ void App::handle_key(int key) {
         }
         if (!arrow && act == "HKeyScopeWindow") { scope_window_toggle(); return; }     // the windows: always
         if (!arrow && act == "HKeySpectroWindow") { spectro_window_toggle(); return; }
+        // the oscilloscope's overlays take over without closing this one first
+        if (!arrow && act == "HKeyOscMenu") { save_settings(settings_); spectro_full_ = false; osci_menu_row_ = 0; mode_ = Mode::OsciMenu; force_redraw_ = true; return; }
+        if (!arrow && act == "HKeyScopeBig") {
+            save_settings(settings_);
+            scope_big_ = true; spectro_full_ = false; scope_big_color_edit_ = false; scope_metrics_open_ = false;
+            osci_menu_row_ = 0; mode_ = Mode::OsciMenu; force_redraw_ = true; return;
+        }
         if (!arrow && (key == 27 || act == "HKeySpectroMenu")) {
             mode_ = Mode::Browse;
             save_settings(settings_);
@@ -3240,6 +3271,13 @@ void App::handle_key(int key) {
         if (!arrow && osc_action == "HKeyScopeWindow") { scope_window_toggle(); return; }     // the windows: always
         if (!arrow && osc_action == "HKeySpectroWindow") { spectro_window_toggle(); return; }
         if (!arrow && osc_action == "HKeyScopeBig") { scope_big_ = !scope_big_; spectro_full_ = false; scope_big_color_edit_ = false; scope_metrics_open_ = false; force_redraw_ = true; return; }
+        // the spectrogram's overlays take over without closing this one first
+        if (!arrow && osc_action == "HKeySpectroMenu") { save_settings(settings_); scope_big_ = false; spectro_menu_row_ = kSrStyle; mode_ = Mode::SpectroMenu; force_redraw_ = true; return; }
+        if (!arrow && osc_action == "HKeySpectroFull") {
+            save_settings(settings_);
+            spectro_full_ = true; scope_big_ = false;
+            spectro_menu_row_ = kSrStyle; mode_ = Mode::SpectroMenu; force_redraw_ = true; return;
+        }
         if (!arrow && (key == 27 || osc_action == "HKeyOscMenu")) {
             mode_ = Mode::Browse;
             save_settings(settings_);
@@ -4071,8 +4109,9 @@ void App::handle_key(int key) {
                 status_line_ = "not a cached stream";
             }
         }
-    } else if (action == "HKeyCycleSortMode") { // cycle local-list sort mode (folder order -> title A-Z -> artist A-Z)
-        local_sort_mode_ = (local_sort_mode_ + 1) % 3;
+    } else if (action == "HKeyCycleSortMode") { // cycle local-list sort mode (folder order -> title A-Z -> artist A-Z -> recently added)
+        local_sort_mode_ = (local_sort_mode_ + 1) % 4;
+        if (local_sort_mode_ == 3) { std::lock_guard<std::mutex> lk(added_time_mutex_); added_time_cache_.clear(); }   // fresh times each time the mode is chosen
         refresh_local_view();
         log_event(std::string("sort: ") + sort_mode_name(local_sort_mode_, settings_.meta_only));
     } else if (action == "HKeyPlay") {
@@ -5556,6 +5595,7 @@ const char* App::playlist_sort_name(int mode) {
         case 2: return "Title A-Z";
         case 3: return "Artist A-Z";
         case 4: return "Album A-Z";
+        case 5: return "Recently added";
         default: return "folder order";
     }
 }
@@ -5566,7 +5606,16 @@ const char* App::playlist_sort_name(int mode) {
 // order; sort 0 keeps the relevance ranking / folder order.
 void App::playlist_refresh_lib_view() {
     playlist_edit_lib_view_ = filter_local_or_folders(playlist_edit_lib_query_);
-    if (playlist_edit_sort_ != 0) {
+    if (playlist_edit_sort_ == 5) {   // recently added: newest first (a stable sort: equal times keep their order)
+        std::vector<std::pair<long long, size_t>> keyed;
+        keyed.reserve(playlist_edit_lib_view_.size());
+        for (size_t i = 0; i < playlist_edit_lib_view_.size(); ++i) keyed.emplace_back(added_time_of(playlist_edit_lib_view_[i].path), i);
+        std::stable_sort(keyed.begin(), keyed.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+        std::vector<LocalTrack> sorted;
+        sorted.reserve(keyed.size());
+        for (const auto& k : keyed) sorted.push_back(std::move(playlist_edit_lib_view_[k.second]));
+        playlist_edit_lib_view_ = std::move(sorted);
+    } else if (playlist_edit_sort_ != 0) {
         struct Key { bool empty; std::string s; };
         std::vector<std::pair<Key, size_t>> keyed;
         keyed.reserve(playlist_edit_lib_view_.size());
@@ -6282,7 +6331,8 @@ void App::handle_playlist_key(int key) {
         // Shift+T (HKeyCycleSortMode) sorts the list -- while the box has not been typed into yet (a capital T typed
         // as text is a T, so start a search with a small letter, or leave the box with ESC first).
         if (!text_engaged("playlist-lib-search") && resolve_hotkey_action(key) == "HKeyCycleSortMode") {
-            playlist_edit_sort_ = (playlist_edit_sort_ + 1) % 5;
+            playlist_edit_sort_ = (playlist_edit_sort_ + 1) % 6;
+            if (playlist_edit_sort_ == 5) { std::lock_guard<std::mutex> lk(added_time_mutex_); added_time_cache_.clear(); }
             playlist_refresh_lib_view();
             playlist_status_ = std::string("sort: ") + playlist_sort_name(playlist_edit_sort_);
             return;
@@ -6990,7 +7040,7 @@ void App::meta_refresh_lib_view() {
     // INDEX would silently point the picker -- and with it the fields panel,
     // which is what the user is editing -- at a different track.
     std::string keep;
-    if (meta_resort_edited_ && !meta_lib_view_.empty()) keep = meta_hovering_path();
+    if ((meta_resort_edited_ || meta_sort_added_) && !meta_lib_view_.empty()) keep = meta_hovering_path();
 
     meta_lib_view_ = filter_local_or_folders(meta_query_);
 
@@ -7031,6 +7081,17 @@ void App::meta_refresh_lib_view() {
                              meta_lib_view_.end());
     }
 
+    if (meta_sort_added_) {   // 'n': newest arrived first; 'r' (below) still lifts the edited files above this order
+        std::vector<std::pair<long long, size_t>> keyed;
+        keyed.reserve(meta_lib_view_.size());
+        for (size_t i = 0; i < meta_lib_view_.size(); ++i) keyed.emplace_back(added_time_of(meta_lib_view_[i].path), i);
+        std::stable_sort(keyed.begin(), keyed.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+        std::vector<LocalTrack> sorted;
+        sorted.reserve(keyed.size());
+        for (const auto& k : keyed) sorted.push_back(std::move(meta_lib_view_[k.second]));
+        meta_lib_view_ = std::move(sorted);
+    }
+
     if (meta_resort_edited_) {
         // Strict "edited before not edited" on a stable sort is a stable
         // partition: every file with a pending edit moves into one block at
@@ -7047,12 +7108,12 @@ void App::meta_refresh_lib_view() {
                              };
                              return edited(a) && !edited(b);
                          });
-        if (!keep.empty()) {
-            for (size_t i = 0; i < meta_lib_view_.size(); ++i) {
-                if (path_utf8(meta_lib_view_[i].path) == keep) {
-                    meta_lib_selected_ = static_cast<int>(i);
-                    break;
-                }
+    }
+    if (!keep.empty()) {
+        for (size_t i = 0; i < meta_lib_view_.size(); ++i) {
+            if (path_utf8(meta_lib_view_[i].path) == keep) {
+                meta_lib_selected_ = static_cast<int>(i);
+                break;
             }
         }
     }
@@ -7077,6 +7138,14 @@ void App::meta_toggle_resort() {
     } else {
         meta_status_ = "library order: alphabetical again";
     }
+}
+
+// 'n': flip the library pane between its normal order and "the files that arrived last first" (see added_time_of()).
+void App::meta_toggle_sort_added() {
+    meta_sort_added_ = !meta_sort_added_;
+    if (meta_sort_added_) { std::lock_guard<std::mutex> lk(added_time_mutex_); added_time_cache_.clear(); }   // fresh times
+    meta_refresh_lib_view();
+    meta_status_ = meta_sort_added_ ? "library order: recently added first" : "library order: alphabetical again";
 }
 
 const char* App::meta_filter_label() const {
@@ -8376,6 +8445,8 @@ bool App::folder_overlay_key(int key) {
     if (action.empty() && lookup >= 'a' && lookup <= 'z') action = resolve_hotkey_action(lookup - 32);
     if (action.empty() && lookup >= 'A' && lookup <= 'Z') action = resolve_hotkey_action(lookup + 32);
     if (action == "HKeyFolderOverlay") { folder_overlay_close(); return true; }
+    if (action == "HKeyListOverlay") { folder_overlay_close(); list_overlay_open(); return true; }     // switch without closing first
+    if (action == "HKeyQueueOverlay") { folder_overlay_close(); queue_overlay_open(); return true; }
     if (action == "HKeyFilterForFolder") { folder_overlay_filter(); return true; }
     static const char* const kPass[] = {
         "HKeyTogglePlayPause", "HKeyPlayNextSong", "HKeyPlayPreviousSong", "HKeyShuffleNext", "HKeyCyclePlayMode",
@@ -10414,7 +10485,10 @@ std::vector<std::string> App::build_update_panel() const {
     lines.push_back(row(""));
     lines.push_back(row(shown_url));
     lines.push_back(row(""));
-    for (const std::string& l : wrap_lines("Configs and everything else is not overwritten when updating/installing a newer version.", inner, 3))
+    for (const std::string& l : wrap_lines("Your configuration stays the same when you update by installing the newer version. New commands get their default key; if you already use that key for something else, yours is kept and the new command is left unbound (set it under Settings > REFERENCE).", inner, 6))
+        lines.push_back(row(l));
+    lines.push_back(row(""));
+    for (const std::string& l : wrap_lines("Note for those using portable versions: unzip the new version over the old folder, or copy your data folder into the new one, and keep portable.txt next to the launcher. Without portable.txt your configs are not found.", inner, 6))
         lines.push_back(row(l));
     lines.push_back(row(""));
     lines.push_back(box_bottom(W, "[ESC] Close  [o] Go to release", border_bottom));

@@ -231,7 +231,8 @@ Hitting [a] adds a song on the top of a queue. See chapter on  BUILDING A QUEUE[
 for more details.
 
 Using [SHIFT+n] toggles between showing the filename / track name in the lists, [SHIFT+t]
-changes the sorting of the local audio files.
+changes the sorting of the local audio files: folder order, file name / title A-Z,
+artist A-Z, recently added (newest files first).
 
 The command [f] filters the local list by folder, which means, when a highlighted track is
 e.g. in folder with other tracks from the same album, it will then only show the files in
@@ -239,6 +240,8 @@ the associated folder. Use [c] or [ESC] to clear folder filter.
 [SHIFT+l] opens a BIG LIST OVERLAY[[HEADER]] for a better overview.
 [SHIFT+f] opens the BIG FOLDER OVERLAY[[Header]].
 [SHIFT+k] opens the BIG QUEUE OVERLAY[[Header]].
+The three big overlays switch directly: with one open, press the key of another
+([SHIFT+l], [SHIFT+k], [SHIFT+f]) - no need to close it first.
 
 QUEUE PANE: [[Header]]
 See BUILDING A QUEUE[[Header]] for details on how to e.g. adjust the queue order, how to
@@ -392,11 +395,11 @@ indicates which playback mode is currently active. Use [m] to step through them.
 
 S[[Header]] ==[[Header]] SHUFFLE MODE[[Header]]
 Shuffles through tracks that are currently in the local audio files list (search filters apply!).
-Note that you can also actively shuffle to next song in the list via [#].
+)WIZ",
+R"WIZ(Note that you can also actively shuffle to next song in the list via [#].
 The QUEUE is never shuffled: [n] and the end of a track play its next title in order; only [#]
 picks a random title of the queue.
-)WIZ",
-R"WIZ(
+
 L[[Header]] ==[[Header]] LIST MODE[[Header]]
 Plays the next song in the list (filters apply!).
 
@@ -476,6 +479,7 @@ Several sort options are available for the LIBRARY PANE:
 [SHIFT+f]   Add all searched tracks to the fetch list (the result of the search 
             in the library pane; the filtered overall list so to speak)
 [r]         Show edited tracks first (highlighted in the same color as headers)
+[n]         Show recently added tracks first (newest files on top)
 [x]         Show all tracks with NO META DATA
 [SHIFT+t]   Show all track with MISSING TITLE tag
 [SHIFT+a]   Show all tracks with MISSING ARTIST tag
@@ -553,16 +557,18 @@ NAME: Choose a name for a playlist.
 SEARCH AND ADD: Use the search function to search for titles and add via [ENTER]
 SEARCH FOLDERS: Start the search with /f: (e.g. /f:abbey) to list the tracks of the matching folders.
 SORT: [SHIFT+t] cycles the library sort: folder order, Filenames A-Z, Title A-Z, Artist A-Z,
-Album A-Z (also for search results). Use it before typing, or after leaving the box with [ESC].
+Album A-Z, Recently added (also for search results). Use it before typing, or after leaving the box with [ESC].
 REMOVE: Move the focus to the track list, choose and delete a track via [DEL/d]
-SAVE/DISCARD: Save via [CTRL+s] and just choose [No] when exiting the playlist
+)WIZ",
+R"WIZ(SAVE/DISCARD: Save via [CTRL+s] and just choose [No] when exiting the playlist
 editor to discard your current playlist.
 
 ADD A TRACK DIRECTLY: [[Header]]
-In the track list press [SHIFT+a], choose a new or an existing playlist and hit [ENTER]:
-)WIZ",
-R"WIZ(the track is added and the playlist saved without opening this editor. YouTube/SoundCloud/
-Bandcamp tracks are downloaded into the download folder first.
+In the MAIN UI's track list (library / search results, not this editor's
+picker) press [SHIFT+a], choose a new or an existing playlist and hit
+[ENTER]: the track is added and the playlist saved without opening this
+editor. YouTube/SoundCloud/Bandcamp tracks are downloaded into the
+download folder first.
 
 PLAYLISTS TAB: [[Header]]
 SEARCH AND ADD TO QUEUE: Search and choose a playlist and hit [ENTER] to add to queue.
@@ -689,14 +695,14 @@ MAKE THE LYRICS BIGGER: [[Header]]
 Size 1 is normal terminal text. Sizes 2 to 5 use Mousiki's own pixel font drawn in braille dots
 (3 x 2, 6 x 4, 9 x 6 and 12 x 8 cells per letter). Only the lyrics change size, long lines wrap
 between words. The bottom border shows the size for a moment, and it is saved when you close.
-The basic font covers Latin letters, digits, punctuation, umlauts and common accented letters.
+)WIZ",
+R"WIZ(The basic font covers Latin letters, digits, punctuation, umlauts and common accented letters.
 Another font for Japanese, Chinese, Korean, Cyrillic and Greek letters is also available but
 may have different sizing options.
 
 KEYS THAT KEEP WORKING IN KARAOKE: [[Header]]
 [p] play/pause   [n] / [b] next / previous   [#] shuffle   [<-/->] seek   [+/-] volume
-)WIZ",
-R"WIZ([x] mute   [m] mode   [v] normalization
+[x] mute   [m] mode   [v] normalization
 [ALT+L] the lyrics timing overlay, right here over the big lyrics: the easiest place to judge an offset
 
 
@@ -734,6 +740,7 @@ Like a real scope in X-Y mode. Wide stereo fills the area, a phase-shifted tone 
 A nearly mono track fades over to a phase portrait instead of a flat line.
 
 TUNING OVERLAY:[[Header]] [SHIFT+o] opens it, the picture changes live while the music plays.
+[SHIFT+i] / [SHIFT+u] switch straight to the spectrogram options / full screen.
 Scope mode       XY, YT, XY + YT (overlap), XY + YT (row), XY + YT (column)
 Osci style       braille (works in any terminal) / image (pixels, needs Kitty graphics or Sixel)
 Frame rate       30 / 45 / 60 / 90 / 120 / 165 fps
@@ -775,6 +782,7 @@ Made the way Audacity makes its spectrogram view, with Audacity's defaults (2048
 zero padding 2, Mel scale 0 to 20 000 Hz, gain 20 / range 80 dB, Roseus colors). Stereo is drawn
 as two channels.
 [SHIFT+i] options        [SHIFT+u] full screen (with frequency labels on the left and a time ruler on top)
+[SHIFT+o] / [SHIFT+0] in the options: switch straight to the oscilloscope options / full screen
 Scale        linear / logarithmic / mel / bark / erb / period
 Motion       sweep (a page at a time) / scroll (newest on the right)
 Window size  256 .. 8192: bigger = sharper frequency lines, smaller = crisper clicks and drum hits
@@ -827,15 +835,15 @@ Rows: Live view (Spectrogram = default, Oscilloscope XY, Oscilloscope YT), Scope
 preview, Created files... In the big preview your microphone is shown live (a playing song stops and
 comes back afterwards): [ENTER] starts / stops a recording (mic_<date>_<time>.wav in the creator folder,
 max. 5 minutes), [V] changes the view, [G] the grid, [ESC] closes the preview (a running recording is saved) and returns to the overlay.
-A one-channel microphone gives the same signal left and right, so XY is a diagonal line: use YT or the
+)WIZ",
+R"WIZ(A one-channel microphone gives the same signal left and right, so XY is a diagonal line: use YT or the
 spectrogram. If the microphone cannot be opened, the overlay says why (allow microphone access for your
 terminal on macOS / Windows).
 
 PREVIEW: [[Header]]
 The file plays in a loop and the XY scope (oscilloscope music) or the spectrogram shows it. It has its
 own settings and does not change your [SHIFT+o] / [SHIFT+i] settings.
-)WIZ",
-R"WIZ([ESC] closes the preview and returns to the overlay; the song that played before comes back (from its start). [SPACE] pauses.
+[ESC] closes the preview and returns to the overlay; the song that played before comes back (from its start). [SPACE] pauses.
 
 
 [[New Page]]
@@ -998,7 +1006,8 @@ Every change is live: you see and hear it while you are still in the settings. B
 it to config.txt and closes. [ESC] or [q] discards. With unsaved changes the settings ask first:
 [s] save, [d] discard, [ESC] keep editing. Discarding puts every row back the way it was when you
 opened the settings, paths included. While there are unsaved changes a note says so.
-
+)WIZ",
+R"WIZ(
 TEXT EDITING, IN EVERY FIELD: [[Header]]
 [<-/->] caret            [SHIFT+<-/->] mark          [HOME] [END] jump
 [DEL] [BACKSPACE] delete [CTRL+c] [CTRL+x] [CTRL+v]  copy, cut, paste
@@ -1011,8 +1020,7 @@ TEXT EDITING, IN EVERY FIELD: [[Header]]
 
 THE COLORS TAB: [[Header]]
 A THEME row and the color rows, each with one or two value cells, a swatch and a live preview.
-)WIZ",
-R"WIZ(Colors are numbers of the 256-color terminal palette (1-255) in every field, text or background;
+Colors are numbers of the 256-color terminal palette (1-255) in every field, text or background;
 0 or empty means "no color" (the terminal's own). Black is 16.
 BORDER_COLOR, DISK, METADATA, VIZ, PROGRESS_BAR, LIST, QUEUE, LYRICS, HEADER, LEGEND, TAB_NAMES,
 CHANGE (a field you type in) and FOCUS (the [◀] behind the title of an active pane).
@@ -1044,6 +1052,9 @@ Share Profiles (on: the radio uses the player's oscilloscope/spectrogram setting
 Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
 Update Notice (a quiet once-a-day look for a newer release; a small window, once per version: [ESC] close, [o] open the release page)
 Media Keys (Windows: media pop-up/keys; Linux: MPRIS widgets/playerctl; macOS: Now Playing; the system media keys control Mousiki)
+Track Buffer (MB) (default 256: a track whose decoded audio is smaller is held whole in RAM,
+  so seeking is instant; a bigger one uses a moving 2-minute window. [ENTER] types a number,
+  [->] then [ENTER] on [ Set back to default ] restores 256; applies to the next track)
 Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars, Stereo Sound,
 Normalize Volume, Replace Emoji, Marquee Scrolling
 VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
@@ -1132,7 +1143,8 @@ KEYS ON THE MAIN SCREEN: [[Header]]
 [n] / [b]    next / previous channel    [#]      a random channel
 [p]          mute / unmute              [x]      stop          [R]  reconnect
 [+] / [-]    volume                     [/]      search        [SHIFT+t]  sort list order <-> A-Z
-[SHIFT+p] presets   [SHIFT+s] radio browser   [SHIFT+k] station lists   [SHIFT+l] big stations overlay
+)WIZ",
+R"WIZ([SHIFT+p] presets   [SHIFT+s] radio browser   [SHIFT+k] station lists   [SHIFT+l] big stations overlay
 [h] history   [s] settings   [?] cheat sheet   [<] menus index   [SHIFT+w] this wizard   [q] quit
 
 THE BIG STATIONS OVERLAY: [[Header]]
@@ -1146,8 +1158,7 @@ THE BIG STATIONS OVERLAY: [[Header]]
 A preset is a named set of 16 station slots on the keys:
 1  2  3  4  5  6  7  8  9  0  e  r  t  d  f  g
 Press one on the main screen to recall that slot. [SHIFT+<-/->] switch to the previous / next
-)WIZ",
-R"WIZ(preset. The name of the active preset is in the pane title: e.g. PRESETS (Morning).
+preset. The name of the active preset is in the pane title: e.g. PRESETS (Morning).
 
 THE PRESETS MENU:[[Header]] [SHIFT+p] opens it. A small [◀] behind a pane's title shows which pane is
 focused, just as in the music palyer. Names are 1 to 24 characters and unique. Every change is written 
@@ -1284,7 +1295,8 @@ HEARD A SONG ON THE RADIO? DOWNLOAD IT: [[Header]]
 The radio writes down the artist and title the stream sends. On the HISTORY tab [y] on a line opens an
 overlay that searches YouTube for "artist title". [ENTER] downloads the hovered result into the
 download folder (yt-dlp, opus), [TAB] edits the search query, [ESC] closes. A result is marked
-[ok] done, [..] downloading, [!!] failed.
+)WIZ",
+R"WIZ([ok] done, [..] downloading, [!!] failed.
 This is the online search of the music player reached from the radio, so a song you only heard once
 on air ends up in your local library (after a rescan with [SHIFT+r] in the player).
 
@@ -1297,8 +1309,7 @@ OPEN:[[Header]] [s] opens the radio settings. Same frame, tab strip and editing 
 [ESC] / [q] discards (asks first when something changed).
 They are stored in radio_config.txt, separate from the config.txt of the player. Colors are not
 carried over between the two modes: the radio has its own palette and its own theme choice.
-)WIZ",
-R"WIZ(
+
 COLORS (ONLY THE RADIO HAS): [[Header]]
 ON_AIR            the diagonal gradient of the ON AIR sign, the needle, the lamp and LIVE
 OSCI              left / right color of the oscilloscope
