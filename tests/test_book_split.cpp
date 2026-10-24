@@ -46,7 +46,9 @@ TEST(chapter_mark_lines_and_storing) {
     CHECK_EQ(chapter_marks_of(c, "b.wav").size(), static_cast<size_t>(1));
     chapter_marks_store(c, "a.wav", {});
     CHECK(chapter_marks_of(c, "a.wav").empty());
-    CHECK_EQ(chapter_marks_of(c, "b.wav")[0].title, std::string("One"));
+    const std::vector<ChapterMark> b_marks = chapter_marks_of(c, "b.wav");   // (kept in a variable: CHECK_EQ holds a reference to the title)
+    CHECK(!b_marks.empty());
+    if (!b_marks.empty()) CHECK_EQ(b_marks[0].title, std::string("One"));
 }
 
 TEST(clock_text_parsing) {
