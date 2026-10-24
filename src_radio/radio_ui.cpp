@@ -3146,10 +3146,10 @@ std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const R
             return "  " + pad_right(left, cw - display_width(key)) + s.legend + key + kReset + "  ";
         };
         lines.push_back(box_top(s, W, "MENUS & OVERLAYS", s.border));
-        lines.push_back(box_line(s, spaces(inner + 2), s.border));
+        lines.push_back(box_line(s, spaces(inner), s.border));
         for (size_t r = 0; r < nrows; ++r)
             lines.push_back(box_line(s, cell(cols[0], r, cw) + " " + s.border + "\u2502" + kReset + " " + cell(cols[1], r, cw2), s.border));
-        lines.push_back(box_line(s, spaces(inner + 2), s.border));
+        lines.push_back(box_line(s, spaces(inner), s.border));
         lines.push_back(box_bottom(s, W, "[\u2191\u2193\u2190\u2192] Select  [ENTER] Open  [ESC / " + menus_key_label(c, "Menus") + "] Close", s.border_bottom));
         return lines;
     }
