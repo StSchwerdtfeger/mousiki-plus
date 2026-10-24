@@ -50,7 +50,7 @@ The new main UI of the radio mode looks like the below:
 
 <p align="center"><img width="850" height="412" alt="grafik" src="readme_images/intro_radio_ui.png" /></p>
 
-And the audio book mode, the third one, with chapters, bookmarks, auto-marks and notes (a book's cover image or the stack of books takes the place of the disk):
+And the audio book mode, the third one, with bookmarks, notes, cutting audio files into chapters...:
 
 <p align="center"><img width="850" alt="The main UI of the audio book mode" src="readme_images/audio_book_main_ui.png" /></p>
 
