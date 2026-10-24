@@ -464,10 +464,12 @@ int win_poll_key() {
     switch (k.wVirtualKeyCode) {
         case VK_UP:    g_last_key_was_arrow = true; g_last_key_was_shifted = shifted; g_last_key_was_ctrl = ctrl_held; return 'A';
         case VK_DOWN:  g_last_key_was_arrow = true; g_last_key_was_shifted = shifted; g_last_key_was_ctrl = ctrl_held; return 'B';
-        case VK_RIGHT: if (shifted) { g_last_key_was_arrow = false; return kKeyShiftRight; }
+        case VK_RIGHT: if (ctrl_held && g_text_entry) { g_last_key_was_arrow = false; return shifted ? kKeyCtrlShiftRight : kKeyCtrlRight; }
+                       if (shifted) { g_last_key_was_arrow = false; return kKeyShiftRight; }
                        if (alt_held) { g_last_key_was_arrow = false; return kKeyAltRight; }
                        g_last_key_was_arrow = true; return 'C';
-        case VK_LEFT:  if (shifted) { g_last_key_was_arrow = false; return kKeyShiftLeft; }
+        case VK_LEFT:  if (ctrl_held && g_text_entry) { g_last_key_was_arrow = false; return shifted ? kKeyCtrlShiftLeft : kKeyCtrlLeft; }
+                       if (shifted) { g_last_key_was_arrow = false; return kKeyShiftLeft; }
                        if (alt_held) { g_last_key_was_arrow = false; return kKeyAltLeft; }
                        g_last_key_was_arrow = true; return 'D';
         case VK_HOME:  g_last_key_was_arrow = false; return kKeyHome;
@@ -529,6 +531,7 @@ int win_poll_key() {
             if (k.wVirtualKeyCode == 'S' && (wc_ctrl == 0x13 || wc_ctrl == 0)) { g_last_key_was_arrow = false; return kKeyCtrlS; }
             if (k.wVirtualKeyCode == 'P' && (wc_ctrl == 0x10 || wc_ctrl == 0)) { g_last_key_was_arrow = false; return kKeyCtrlP; }
             if (k.wVirtualKeyCode == 'L' && (wc_ctrl == 0x0c || wc_ctrl == 0)) { g_last_key_was_arrow = false; return kKeyCtrlL; }
+            if (k.wVirtualKeyCode == 'N' && (wc_ctrl == 0x0e || wc_ctrl == 0)) { g_last_key_was_arrow = false; return kKeyCtrlN; }
         }
     }
 

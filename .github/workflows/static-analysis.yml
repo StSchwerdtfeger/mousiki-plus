@@ -1,4 +1,4 @@
-# cppcheck and clang-tidy over the project's own code (src/, src_radio/, tools/; not third_party/). NON-BLOCKING: the jobs
+# cppcheck and clang-tidy over the project's own code (src/, src_radio/, src_audio_book/, tools/; not third_party/). NON-BLOCKING: the jobs
 # never turn the run red because of findings; read the reports (run summary, and the artifact "static-analysis"), fix what
 # matters. They find what the sanitizers cannot: problems in code paths the tests never run.
 name: static-analysis
@@ -11,6 +11,7 @@ on:
     paths:
       - "src/**"
       - "src_radio/**"
+      - "src_audio_book/**"
       - ".github/workflows/static-analysis.yml"
 
 concurrency:
@@ -37,18 +38,18 @@ jobs:
         run: |
           cppcheck --std=c++17 --enable=warning,performance,portability --inline-suppr --quiet \
             --suppress=missingIncludeSystem --suppress=unusedFunction \
-            -i third_party -I src -I src_radio \
+            -i third_party -I src -I src_radio -I src_audio_book \
             --template='{file}:{line}: [{severity}] {id}: {message}' \
-            src src_radio 2> cppcheck.txt || true
+            src src_radio src_audio_book 2> cppcheck.txt || true
           echo "cppcheck findings: $(grep -c '^src' cppcheck.txt || true)"
       - name: clang-tidy
         continue-on-error: true
         run: |
           # bugprone/performance/clang-analyzer checks only: a short list of real problems instead of style noise
-          FILES=$(ls src/*.cpp src_radio/*.cpp | grep -v -e 'miniaudio_impl' )
+          FILES=$(ls src/*.cpp src_radio/*.cpp src_audio_book/*.cpp | grep -v -e 'miniaudio_impl' )
           clang-tidy -p build --quiet \
             --checks='-*,bugprone-*,-bugprone-easily-swappable-parameters,-bugprone-narrowing-conversions,performance-*,clang-analyzer-*,-clang-analyzer-optin.performance.Padding,-performance-enum-size,-bugprone-empty-catch,-bugprone-switch-missing-default-case' \
-            --header-filter='^.*/(src|src_radio)/.*$' $FILES > clang-tidy.txt 2>&1 || true
+            --header-filter='^.*/(src|src_radio|src_audio_book)/.*$' $FILES > clang-tidy.txt 2>&1 || true
           echo "clang-tidy warnings: $(grep -c 'warning:' clang-tidy.txt || true)"
       - name: Summary
         run: |

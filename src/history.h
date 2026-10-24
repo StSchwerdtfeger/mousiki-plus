@@ -123,6 +123,8 @@ public:
     void load();
     // Folder that holds history.json ("" = the default, ~/.cache/mousiki/history). Only sets it: call load() / save() after.
     void set_dir(const std::string& dir_utf8) { dir_ = dir_utf8; }
+    void set_file_name(const std::string& name) { file_name_ = name; }   // "history.json" unless set (the audio book mode keeps reading_history.json)
+    const std::string& file_name() const { return file_name_; }
     const std::string& dir() const { return dir_; }
     bool file_exists() const;
     std::string effective_dir() const;   // the folder in use (the default when none is set)
@@ -158,6 +160,7 @@ public:
 private:
     void trim_overflow();             // folds the oldest records into archive_ while over the cap
     std::string dir_;                 // history folder override (UTF-8), "" = default
+    std::string file_name_ = "history.json";
     std::string file_utf8() const;
     HistoryArchive archive_;
     std::vector<HistoryPlay> plays_;  // newest first, capped

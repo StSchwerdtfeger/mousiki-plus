@@ -58,7 +58,9 @@ std::atomic<bool> g_running{false};
 std::vector<Command> g_commands;
 Clock::time_point g_screen_asked{};
 int g_want_cols = 44, g_want_rows = 30;
-std::string g_screen_json;          // the last screen the program handed over
+std::string g_screen_json;
+std::string g_pic_key, g_pic_png;   // the picture the phone draws over the screen (a PNG), and what it shows
+std::string g_pic_json;            // ,"image":{...} for the screen JSON ("" = none)
 std::string g_mode = "player";
 long long g_rev = 0;
 std::string g_status_json = "{}";
@@ -274,6 +276,10 @@ std::string handle_request(const std::string& request_line, const std::string& /
         g_screen_asked = now;
         if (g_screen_json.empty()) return json_reply(503, "{\"wait\":true}");
         return json_reply(200, g_screen_json);
+    }
+    if (path == "/api/image") {
+        if (g_pic_png.empty() || get(q, "key") != g_pic_key) return json_reply(404, "{\"error\":\"no such picture\"}");
+        return reply(200, "image/png", g_pic_png);
     }
     if (path == "/api/cmd") {
         Command c;
@@ -521,8 +527,27 @@ void set_screen(const char* mode, int cols, int rows, const std::vector<std::str
         j += (i ? "," : "") + std::string("{\"x\":") + std::to_string(z.x) + ",\"y\":" + std::to_string(z.y) + ",\"w\":" + std::to_string(z.w) +
              ",\"h\":" + std::to_string(z.h) + ",\"cmd\":\"" + json_escape(z.cmd) + "\",\"arg\":\"" + json_escape(z.arg) + "\"}";
     }
-    j += "]}";
+    j += "]" + g_pic_json + "}";
+    g_pic_json.clear();   // (one screen only: the next one names its picture again)
     g_screen_json.swap(j);
+}
+
+bool picture_has(const std::string& key) {
+    std::lock_guard<std::mutex> lk(g_mu);
+    return key == g_pic_key && !g_pic_png.empty();
+}
+
+void picture_store(const std::string& key, const std::string& png) {
+    std::lock_guard<std::mutex> lk(g_mu);
+    g_pic_key = key;
+    g_pic_png = png;
+}
+
+void set_picture(bool active, int x, int y, int w, int h, const std::string& key) {
+    std::lock_guard<std::mutex> lk(g_mu);
+    g_pic_json = active ? ",\"image\":{\"x\":" + std::to_string(x) + ",\"y\":" + std::to_string(y) + ",\"w\":" + std::to_string(w) +
+                              ",\"h\":" + std::to_string(h) + ",\"key\":\"" + json_escape(key) + "\"}"
+                        : std::string();
 }
 
 void set_status(const std::vector<std::pair<std::string, std::string>>& kv) {

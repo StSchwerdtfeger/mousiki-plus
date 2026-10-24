@@ -95,6 +95,17 @@ constexpr int kKeyCtrlP = 317;
 // lyrics timing overlay; that one is Alt+L only now. Not rebindable.
 constexpr int kKeyCtrlL = 318;
 
+// Ctrl+N -- audio book mode: the small note field and the big notes overlay swap the note that is being written (control byte 0x0e).
+// Not rebindable.
+constexpr int kKeyCtrlN = 319;
+
+// Ctrl+Left / Ctrl+Right (a word to the side) and Ctrl+Shift+Left / Right (mark a word). Only reported while a text field has the
+// keyboard (set_text_entry); everywhere else the keys stay what they were, so no screen loses a key.
+constexpr int kKeyCtrlLeft = 320;
+constexpr int kKeyCtrlRight = 321;
+constexpr int kKeyCtrlShiftLeft = 322;
+constexpr int kKeyCtrlShiftRight = 323;
+
 // Name of the Alt key as shown in legends / the cheat sheet. The Mac keyboard
 // has no key called Alt -- the same key (the modifier the terminal reports as
 // "Alt/Meta") is labelled Option there. Chosen at compile time, so Windows and

@@ -1,6 +1,8 @@
 // The music player's settings: defaults, the config.txt round trip, the shared oscilloscope rows, the hotkey table.
 #include "test_framework.h"
 #include "settings.h"
+#include "themes.h"
+#include "app_internal.h"
 
 #include <algorithm>
 #include <fstream>
@@ -137,4 +139,138 @@ TEST(settings_update_check_and_media_keys_default_on_and_round_trip) {
     CHECK(!back.media_keys);
     CHECK(!read_update_check());
     CHECK(!read_media_keys());
+}
+
+// ---- the three modes: which are on, in which order, where Mousiki starts, the audio book path ----
+TEST(settings_modes_default_order_and_all_on) {
+    mt::TempHome home;
+    const Settings s = load_settings();
+    CHECK(s.use_mode[0] && s.use_mode[1] && s.use_mode[2]);
+    CHECK_EQ(mode_order_text(s.mode_order), std::string("player,radio,audiobook"));
+    CHECK_EQ(s.start_mode, std::string("player"));
+    CHECK_EQ(s.next_mode(0, 1), 1);    // player -> radio -> audio book -> player
+    CHECK_EQ(s.next_mode(1, 1), 2);
+    CHECK_EQ(s.next_mode(2, 1), 0);
+    CHECK_EQ(s.next_mode(0, -1), 2);   // SHIFT and - goes back
+}
+
+TEST(settings_modes_round_trip_and_one_mode_stays_on) {
+    mt::TempHome home;
+    Settings s = load_settings();
+    s.mode_order[0] = 2; s.mode_order[1] = 0; s.mode_order[2] = 1;   // audio book, player, radio
+    s.use_mode[1] = false;                                           // radio left out
+    s.audiobook_path = "/some/books";
+    s.start_mode = "audiobook";
+    save_settings(s);
+    const Settings back = load_settings();
+    CHECK_EQ(mode_order_text(back.mode_order), std::string("audiobook,player,radio"));
+    CHECK(back.use_mode[0] && !back.use_mode[1] && back.use_mode[2]);
+    CHECK_EQ(back.audiobook_path, std::string("/some/books"));
+    CHECK_EQ(back.start_mode, std::string("audiobook"));
+    CHECK_EQ(back.next_mode(2, 1), 0);   // the radio is skipped
+    CHECK_EQ(back.next_mode(0, 1), 2);
+    // read_mode_config() reads the same file without loading everything (the radio and main() use it)
+    const ModeConfig mc = read_mode_config();
+    CHECK(!mc.use[1]);
+    CHECK_EQ(next_mode_in(mc, 0, -1), 2);
+
+    // everything switched off is repaired to "one mode on", and a start mode that is off moves to the first one that is on
+    Settings off = back;
+    off.use_mode[0] = off.use_mode[1] = off.use_mode[2] = false;
+    off.start_mode = "radio";
+    off.mode_normalize();
+    CHECK(off.use_mode[0]);
+    CHECK_EQ(off.start_mode, std::string("player"));
+    CHECK_EQ(off.next_mode(0, 1), 0);    // nowhere else to go
+}
+
+TEST(settings_mode_order_is_always_a_permutation) {
+    mt::TempHome home;
+    Settings s = load_settings();
+    s.mode_order[0] = 1; s.mode_order[1] = 1; s.mode_order[2] = 7;   // nonsense
+    s.mode_normalize();
+    CHECK_EQ(mode_order_text(s.mode_order), std::string("player,radio,audiobook"));
+    CHECK_EQ(mode_index("music"), 0);
+    CHECK_EQ(mode_index("Audiobook"), 2);
+    CHECK_EQ(mode_index("nonsense"), -1);
+}
+
+// ---- one look per mode: the audio book mode keeps its colours, elements, visualizations and sound in audiobook_config.txt ----
+TEST(book_profile_sync_keeps_the_look_and_takes_the_rest) {
+    Settings player;
+    Settings book = player;
+    book.book_profile = true;
+    book.border_color = "33";
+    book.element_disk = false;
+    book.normalize = false;
+    book.play_mode = 3;
+    player.header_color = "9";
+    player.local_music_paths = {"/music"};
+    player.audiobook_path = "/books";
+    sync_shared(player, book);
+    CHECK_EQ(book.local_music_paths.size(), size_t(1));      // paths follow
+    CHECK_EQ(book.audiobook_path, std::string("/books"));
+    CHECK_EQ(book.border_color, std::string("33"));            // the look stays
+    CHECK(!book.element_disk);
+    CHECK(!book.normalize);
+    CHECK_EQ(book.play_mode, 3);
+    CHECK(book.header_color != std::string("9"));              // a colour of the player does not come along
+    CHECK(book.book_profile);
+}
+
+TEST(book_profile_is_saved_apart_from_the_players_file) {
+    mt::TempHome home;
+    Settings player = load_settings();
+    player.border_color = "21";
+    save_settings(player);
+    Settings book = load_book_settings(player);
+    CHECK(book.book_profile);
+    CHECK_EQ(book.border_color, std::string("21"));            // the first time it looks like the player
+    book.border_color = "46";
+    book.header_color = "196";
+    book.use_osci = false;
+    book.eq_enabled = true;
+    book.audiobook_path = "/some/books";                       // a shared value
+    save_settings(book);
+    // the player's file: its own look, the shared value
+    const Settings again = load_settings();
+    CHECK_EQ(again.border_color, std::string("21"));
+    CHECK(again.header_color != std::string("196"));
+    CHECK(again.use_osci);
+    CHECK(!again.eq_enabled);
+    CHECK_EQ(again.audiobook_path, std::string("/some/books"));
+    // the book's file: its look (and nothing of the paths)
+    const Settings b2 = load_book_settings(again);
+    CHECK_EQ(b2.border_color, std::string("46"));
+    CHECK_EQ(b2.header_color, std::string("196"));
+    CHECK(!b2.use_osci);
+    CHECK(b2.eq_enabled);
+    std::ifstream in(book_config_path());
+    std::stringstream ss;
+    ss << in.rdbuf();
+    CHECK(ss.str().find("AudioBookPath") == std::string::npos);
+    CHECK(ss.str().find("HKey") == std::string::npos);
+    CHECK(ss.str().find("ColorBorderTop=46") != std::string::npos);
+}
+
+// A built-in theme picked in the audio book mode must still be that theme after the profile was saved and read again
+// (the settings screen names the theme by comparing its colours).
+TEST(book_profile_keeps_a_picked_theme_exactly) {
+    mt::TempHome home;
+    Settings player = load_settings();
+    save_settings(player);
+    const std::vector<themes::Theme> all = themes::load_all();
+    for (const themes::Theme& t : all) {
+        Settings book = load_book_settings(player);
+        theme_apply(book, t);
+        save_settings(book);
+        Settings back = load_book_settings(load_settings());
+        Settings want = book;
+        CHECK_EQ(settings_to_text(back).size() > 0, true);
+        std::istringstream a(settings_to_text(want)), b(settings_to_text(back));
+        std::string la, lb;
+        while (std::getline(a, la) && std::getline(b, lb)) {
+            if (la.compare(0, 5, "Color") == 0 && la != lb) { std::cerr << t.name << ": " << la << " != " << lb << "\n"; CHECK(false); }
+        }
+    }
 }

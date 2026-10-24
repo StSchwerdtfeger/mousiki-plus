@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <memory>
 #include <clocale>
 #include <iostream>
@@ -91,25 +92,40 @@ int main(int argc, char** argv) {
     // created inside its own scope, so everything it held (audio device, threads, caches) is released before the
     // player comes back; the player is only suspended (see `app` below and src/mode_switch.h).
     int rc = 0;
-    std::unique_ptr<muisc::App> app;   // lives while the radio runs (suspended, playback paused); the radio itself is destroyed on every switch
+    // The music player and the audio book player are two App instances (they live while another mode runs, suspended, so
+    // coming back is instant); the radio itself is destroyed on every switch. Each of the two has its own Settings object: they
+    // differ in their look (colours, theme, elements, visualizations ...: audio book mode in audiobook_config.txt) and are
+    // brought in line in everything else (paths, hotkeys, sound ...) whenever the other one starts to run (sync_shared).
+    muisc::Settings shared_settings = muisc::load_settings();
+    bool book_default_theme = false;
+    muisc::Settings book_settings = muisc::load_book_settings(shared_settings, &book_default_theme);
+    if (book_default_theme) muisc::apply_book_default_theme(book_settings);   // no look of its own yet: Rose Pine
+    muisc::Settings* last_run = &shared_settings;   // the one that was edited last (the radio talks through config.txt)
+    std::unique_ptr<muisc::App> app, book_app;
     try {
         muisc::update_check::start(muisc::locate_script("check_update.py"));   // a quiet look for a newer release (once a day, in the background)
-        bool radio = (muisc::read_start_mode() == "radio");   // Settings -> ON/OFF -> Start Mode
+        int mode = std::max(0, muisc::mode_index(muisc::read_start_mode()));   // 0 music player, 1 radio, 2 audio book player
         for (;;) {
-            if (!radio) {
+            if (mode != 1) {
                 muisc::set_emoji_replacement(false);   // the radio forces "?" for emoji; the player follows its setting
-                if (!app) app = std::make_unique<muisc::App>();
-                rc = app->run();
+                std::unique_ptr<muisc::App>& a = (mode == 2) ? book_app : app;
+                muisc::Settings* mine = (mode == 2) ? &book_settings : &shared_settings;
+                muisc::sync_shared(*last_run, *mine);   // what the other mode changed meanwhile (paths, hotkeys ...)
+                last_run = mine;
+                if (!a) a = std::make_unique<muisc::App>(mine, mode == 2);
+                rc = a->run();
             } else {
                 char arg0[] = "mousiki";
                 char* argv[] = {arg0, nullptr};
                 rc = radio_main(1, argv);
             }
             if (rc != kExitSwitchMode) break;
-            radio = !radio;
+            mode = muisc::next_mode_in(muisc::read_mode_config(), mode, g_mode_switch_dir);   // (the settings screens save before they switch)
             rc = 0;
         }
-        if (app && app->suspended()) app->shutdown();   // quit from the radio: now the player really ends
+        // quit from another mode: now the players really end (each saves, so it first takes over what the last one changed)
+        if (app && app->suspended()) { muisc::sync_shared(*last_run, shared_settings); app->shutdown(); }
+        if (book_app && book_app->suspended()) { muisc::sync_shared(*last_run, book_settings); book_app->shutdown(); }
         muisc::media::shutdown();               // the system media controls (MPRIS / Now Playing), if on
         muisc::remote::net::shutdown();         // the remote app's web server (if on)
         muisc::scope_window_close();            // the scope window (if open) closes with the program

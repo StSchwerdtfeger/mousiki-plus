@@ -1,4 +1,4 @@
-# CodeQL code scanning for the C++ code (src/, src_radio/) and the workflows, without the vendored third_party/ libraries.
+# CodeQL code scanning for the C++ code (src/, src_radio/, src_audio_book/) and the workflows, without the vendored third_party/ libraries.
 # Results: Security tab -> Code scanning. Replaces GitHub's "default setup": switch that off first
 # (Settings -> Advanced Security -> CodeQL analysis -> ... -> Disable CodeQL), otherwise the two clash.
 #

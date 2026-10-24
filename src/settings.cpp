@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <iostream>
 #include <random>
@@ -568,6 +569,118 @@ static bool parse_bool(const std::string& v) {
     return s == "yes" || s == "true" || s == "1";
 }
 
+int mode_index(const std::string& name) {
+    std::string n = trim(name);
+    for (auto& c : n) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (n == "audio book" || n == "audio-book" || n == "book") n = "audiobook";
+    if (n == "music" || n == "music player") n = "player";
+    for (int i = 0; i < 3; ++i) if (n == kModeNames[i]) return i;
+    return -1;
+}
+
+std::string mode_order_text(const int order[3]) {
+    std::string t;
+    for (int i = 0; i < 3; ++i) t += std::string(i ? "," : "") + kModeNames[std::clamp(order[i], 0, 2)];
+    return t;
+}
+
+// "player,radio,audiobook" in any order. Names that are missing are appended in their standard place; repeats and
+// unknown names are ignored, so the result is always a permutation of 0..2.
+static void parse_mode_order(const std::string& value, int order[3]) {
+    int out[3], n = 0;
+    bool seen[3] = {false, false, false};
+    std::string cur;
+    const std::string v = unquote(value) + ",";
+    for (char c : v) {
+        if (c != ',') { cur += c; continue; }
+        const int m = mode_index(cur);
+        cur.clear();
+        if (m >= 0 && !seen[m] && n < 3) { seen[m] = true; out[n++] = m; }
+    }
+    for (int m = 0; m < 3; ++m) if (!seen[m]) out[n++] = m;
+    for (int i = 0; i < 3; ++i) order[i] = out[i];
+}
+
+void Settings::mode_normalize() {
+    bool seen[3] = {false, false, false};
+    bool ok = true;
+    for (int i = 0; i < 3; ++i) {
+        if (mode_order[i] < 0 || mode_order[i] > 2 || seen[mode_order[i]]) ok = false;
+        else seen[mode_order[i]] = true;
+    }
+    if (!ok) { mode_order[0] = 0; mode_order[1] = 1; mode_order[2] = 2; }
+    if (!use_mode[0] && !use_mode[1] && !use_mode[2]) use_mode[0] = true;   // one mode is always on
+    int sm = mode_index(start_mode);
+    if (sm < 0) sm = 0;
+    if (!use_mode[sm]) for (int i = 0; i < 3; ++i) if (use_mode[mode_order[i]]) { sm = mode_order[i]; break; }
+    start_mode = kModeNames[sm];
+}
+
+bool same_folder_path(const std::string& a, const std::string& b) {
+    if (a.empty() || b.empty()) return false;
+    auto norm = [](const std::string& s) {
+        std::string n = path_utf8(path_from_utf8(s).lexically_normal());
+        for (char& c : n) {
+            if (c == '\\') c = '/';
+#ifdef _WIN32
+            c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+#endif
+        }
+        while (n.size() > 1 && n.back() == '/') n.pop_back();
+        return n;
+    };
+    return norm(a) == norm(b);
+}
+
+bool book_path_conflicts(const std::vector<std::string>& music_paths, const std::string& book) {
+    for (const std::string& m : music_paths) if (same_folder_path(m, book)) return true;
+    return false;
+}
+
+std::string read_audiobook_path() {
+    std::ifstream in(config_path());
+    std::string line;
+    std::string path;
+    while (std::getline(in, line)) {
+        const size_t eq = line.find('=');
+        if (eq == std::string::npos || line.empty() || line[0] == '#') continue;
+        if (trim(line.substr(0, eq)) != "AudioBookPath") continue;
+        path = trim(unquote(line.substr(eq + 1)));
+        if (!path.empty() && path[0] == '~') {
+            const char* home = std::getenv("HOME");
+            if (home) path = std::string(home) + path.substr(1);
+        }
+    }
+    return path;
+}
+
+ModeConfig read_mode_config() {
+    ModeConfig mc;
+    std::ifstream in(config_path());
+    std::string line;
+    while (std::getline(in, line)) {
+        const size_t eq = line.find('=');
+        if (eq == std::string::npos || line[0] == '#') continue;
+        const std::string key = trim(line.substr(0, eq)), val = line.substr(eq + 1);
+        if (key == "UseModePlayer") mc.use[0] = parse_bool(val);
+        else if (key == "UseModeRadio") mc.use[1] = parse_bool(val);
+        else if (key == "UseModeAudiobook") mc.use[2] = parse_bool(val);
+        else if (key == "ModeOrder") parse_mode_order(val, mc.order);
+    }
+    if (!mc.use[0] && !mc.use[1] && !mc.use[2]) mc.use[0] = true;
+    return mc;
+}
+
+int next_mode_in(const ModeConfig& mc, int cur, int dir) {
+    int pos = 0;
+    for (int i = 0; i < 3; ++i) if (mc.order[i] == cur) pos = i;
+    for (int k = 1; k <= 3; ++k) {
+        const int c = mc.order[((pos + (dir >= 0 ? k : -k)) % 3 + 3) % 3];
+        if (c != cur && mc.use[c]) return c;
+    }
+    return cur;
+}
+
 // Parse font_en block: font_en={ A={A,a}, B={B,b}, ... };
 static void parse_font_block(std::ifstream& in, Settings& s) {
     std::string line;
@@ -752,6 +865,24 @@ static Settings load_from_config(const fs::path& path) {
             s.share_profiles = (v == "true" || v == "1" || v == "on" || v == "yes");
             continue;
         }
+        if (key == "BookmarkAsk") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.book_ask_bookmark = !(v == "false" || v == "0" || v == "off" || v == "no");
+            continue;
+        }
+        if (key == "BookCoverWave") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.book_cover_wave = !(v == "false" || v == "0" || v == "off" || v == "no");
+            continue;
+        }
+        if (key == "BookCover") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.book_cover = (v == "true" || v == "1" || v == "on" || v == "yes");
+            continue;
+        }
         if (key == "UpdateCheck") {
             std::string v = trim(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
@@ -779,7 +910,21 @@ static Settings load_from_config(const fs::path& path) {
         if (key == "StartMode") {
             std::string v = trim(unquote(value));
             for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-            s.start_mode = (v == "radio") ? "radio" : "player";
+            s.start_mode = (v == "radio") ? "radio" : (v == "audiobook") ? "audiobook" : "player";
+            continue;
+        }
+        if (key == "BookAnimation") continue;   // an older file: the animations are braille only now
+        if (key == "UseModePlayer") { s.use_mode[0] = parse_bool(value); continue; }
+        if (key == "UseModeRadio") { s.use_mode[1] = parse_bool(value); continue; }
+        if (key == "UseModeAudiobook") { s.use_mode[2] = parse_bool(value); continue; }
+        if (key == "ModeOrder") { parse_mode_order(value, s.mode_order); continue; }
+        if (key == "AudioBookPath") {
+            std::string path = trim(unquote(value));
+            if (!path.empty() && path[0] == '~') {
+                const char* home = std::getenv("HOME");
+                if (home) path = std::string(home) + path.substr(1);
+            }
+            s.audiobook_path = path;
             continue;
         }
         if (key == "PlaybackMode") {
@@ -948,19 +1093,19 @@ static Settings load_from_config(const fs::path& path) {
         if (key == "meta_key_color") { if (!value.empty()) s.meta_key_color = normalize_color_value(value); continue; }
         if (key == "meta_val_color") { if (!value.empty()) s.meta_val_color = normalize_color_value(value); continue; }
         if (key == "search_text_color") { if (!value.empty()) s.search_text_color = normalize_color_value(value); continue; }
-        if (key == "search_bg_color") { if (!value.empty()) s.search_bg_color = normalize_color_value(value); continue; }
+        if (key == "search_bg_color") { s.search_bg_color = value.empty() ? std::string() : normalize_color_value(value); continue; }   // empty = no colour (a theme may have none)
         if (key == "search_inactive_text_color") { if (!value.empty()) s.search_inactive_text_color = normalize_color_value(value); continue; }
         if (key == "search_inactive_bg_color") { if (!value.empty()) s.search_inactive_bg_color = normalize_color_value(value); continue; }
         if (key == "list_color") { if (!value.empty()) s.list_color = normalize_color_value(value); continue; }
         if (key == "list_inactive_bg_color") { if (!value.empty()) s.list_inactive_bg_color = normalize_color_value(value); continue; }
         if (key == "list_playing_color") { if (!value.empty()) s.list_playing_color = normalize_color_value(value); continue; }
         if (key == "list_cursor_color") { if (!value.empty()) s.list_cursor_color = normalize_color_value(value); continue; }
-        if (key == "list_playing_bg_color") { if (!value.empty()) s.list_playing_bg_color = normalize_color_value(value); continue; }
+        if (key == "list_playing_bg_color") { s.list_playing_bg_color = value.empty() ? std::string() : normalize_color_value(value); continue; }   // empty = no colour (a theme may have none)
         if (key == "list_cursor_bg_color") { if (!value.empty()) s.list_cursor_bg_color = normalize_color_value(value); continue; }
         if (key == "queue_color") { if (!value.empty()) s.queue_color = normalize_color_value(value); continue; }
         if (key == "queue_inactive_bg_color") { if (!value.empty()) s.queue_inactive_bg_color = normalize_color_value(value); continue; }
         if (key == "queue_playing_color") { if (!value.empty()) s.queue_playing_color = normalize_color_value(value); continue; }
-        if (key == "queue_playing_bg_color") { if (!value.empty()) s.queue_playing_bg_color = normalize_color_value(value); continue; }
+        if (key == "queue_playing_bg_color") { s.queue_playing_bg_color = value.empty() ? std::string() : normalize_color_value(value); continue; }   // empty = no colour (a theme may have none)
         if (key == "queue_cursor_color") { if (!value.empty()) s.queue_cursor_color = normalize_color_value(value); continue; }
         if (key == "queue_cursor_bg_color") { if (!value.empty()) s.queue_cursor_bg_color = normalize_color_value(value); continue; }
         if (key == "button_color") { if (!value.empty()) s.button_color = normalize_color_value(value); continue; }
@@ -1177,6 +1322,7 @@ static Settings load_from_config(const fs::path& path) {
     }
 
     if (!focus_color_set) s.focus_color = s.header_color;
+    s.mode_normalize();
     // The field starts with the default view. A config from before VizDefault existed starts with the view it was left on.
     if (!have_viz_default) s.viz_default = 4;
     if (s.viz_default <= 3) {   // 4 = last used: the view the "." key left (ElimentLyrics / LyricViz) stays
@@ -1246,8 +1392,12 @@ std::string read_start_mode() {
         if (line.compare(0, 10, "StartMode=") != 0) continue;
         std::string v = trim(unquote(line.substr(10)));
         for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        mode = (v == "radio") ? "radio" : "player";
+        mode = (v == "radio") ? "radio" : (v == "audiobook") ? "audiobook" : "player";
     }
+    // a mode that is switched off cannot be the start mode: the first one that is on takes over
+    const ModeConfig mc = read_mode_config();
+    const int m = mode_index(mode);
+    if (m >= 0 && !mc.use[m]) for (int i = 0; i < 3; ++i) if (mc.use[mc.order[i]]) { mode = kModeNames[mc.order[i]]; break; }
     return mode;
 }
 
@@ -1577,12 +1727,21 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "VisualizerFluidity=" << s.visualizer_fluidity << "\n## 1 to 10\n";
     out << "WaveformStyle=" << (s.waveform_smooth ? "smooth" : "raw") << "\n## raw , smooth\n";
     out << "DiskRotationSpeed=" << s.disk_rotation_speed << "\n## 0.01x to 1.00x\n";
-    out << "StartMode=" << (s.start_mode == "radio" ? "radio" : "player") << "\n## player , radio -- the mode Mousiki starts in (the * key switches while it runs; set in Settings -> ON/OFF -> MODES)\n";
+    out << "StartMode=" << (s.start_mode == "radio" ? "radio" : s.start_mode == "audiobook" ? "audiobook" : "player")
+        << "\n## player , radio , audiobook -- the mode Mousiki starts in (SHIFT and + / SHIFT and - switch while it runs; set in Settings -> ON/OFF -> MODES)\n";
+    out << "UseModePlayer=" << tf(s.use_mode[0]) << "\n";
+    out << "UseModeRadio=" << tf(s.use_mode[1]) << "\n";
+    out << "UseModeAudiobook=" << tf(s.use_mode[2]) << "\n";
+    out << "## false = the mode is left out of the mode switch (one mode always stays on); set in Settings -> ON/OFF -> MODES\n";
+    out << "ModeOrder=" << mode_order_text(s.mode_order) << "\n## the order SHIFT and + walks through the modes (player, radio, audiobook in any order); SHIFT and - goes back; Settings -> ON/OFF -> MODES -> Mode Order 1..3\n";
     out << "BlackBackground=" << (s.black_background ? "true" : "false") << "\n## true , false -- the terminal's background is black while Mousiki runs (given back on exit; player and radio)\n";
     out << "RemoteApp=" << (s.remote_app ? "true" : "false") << "\n## true , false -- the remote app (Android app or phone browser) can control Mousiki over the home network (off by default; player and radio)\n";
     out << "RemoteAppPort=" << s.remote_port << "\n## 1024 - 65535 -- the network port of the remote app (default 4747)\n";
     out << "RemoteAppPin=" << s.remote_pin << "\n## 4 - 8 digits -- the PIN the app needs; made when the remote app is switched on (mousiki --remote-info shows it)\n";
     out << "ShareProfiles=" << (s.share_profiles ? "true" : "false") << "\n## true , false -- the radio uses this file's oscilloscope and spectrogram settings instead of its own (its own come back when this is false; player and radio)\n";
+    out << "BookmarkAsk=" << (s.book_ask_bookmark ? "true" : "false") << "\n## true , false -- audio book mode: changing the chapter, the mode or quitting asks first whether to set a bookmark at the exact time (the audio is paused meanwhile)\n";
+    out << "BookCoverWave=" << (s.book_cover_wave ? "true" : "false") << "\n## true , false -- with BookCover on: true = the colour wave runs over the cover (a grey cover), false = the cover is shown in its own colours (the standard picture always has the wave)\n";
+    out << "BookCover=" << (s.book_cover ? "true" : "false") << "\n## true , false -- audio book mode: false = the standard picture (a woman reading), true = the cover image found in the book's folder (cover / folder / front / albumart .jpg .png ..., or the only picture there); the colour wave runs over either one\n";
     out << "UpdateCheck=" << (s.update_check ? "true" : "false") << "\n## true , false -- at start-up Mousiki looks (at most once a day, in the background) whether a newer release exists and tells you once per version; nothing is installed and nothing about you is sent (needs Python 3)\n";
     out << "TrackBufferMB=" << s.track_buffer_mb << "\n## 64 - 16384 (default 256) -- a track whose decoded audio is bigger than this many MB (about 10 MB per minute of CD-quality stereo, double at 96 kHz) is not held whole in RAM but in a moving 2-minute window; seeking inside the window is instant, a jump outside it takes a moment. A bigger value = fast seeking in longer tracks, more RAM in use\n";
     out << "MediaKeys=" << (s.media_keys ? "true" : "false") << "\n## true , false -- the system's media controls: Windows shows Mousiki in the media pop-up and its media keys work, Linux shows it in the desktop's media widgets (MPRIS; playerctl works), macOS shows Now Playing and handles the media keys (read at the next start; player and radio)\n";
@@ -1736,6 +1895,11 @@ static void write_settings(std::ostream& out, const Settings& s) {
         out << "# \"conversion-export\" folder inside the download folder).\n";
         out << "ConversionExportPath=" << s.conversion_export_path << "\n";
     }
+    if (!s.audiobook_path.empty()) {
+        out << "\n# The folder of the audio books (one folder; every folder below it with audio files is one book).\n";
+        out << "# Mousiki keeps a .cue file beside each book that records where you last stopped listening.\n";
+        out << "AudioBookPath=" << s.audiobook_path << "\n";
+    }
     if (!s.history_path.empty()) {
         out << "\n# Folder of the listening history (history.json; one folder, unset means ~/.cache/mousiki/history).\n";
         out << "HistoryPath=" << s.history_path << "\n";
@@ -1801,7 +1965,143 @@ bool backup_config_if_older(const fs::path& p) {
     return !ec;
 }
 
+// ---- one look per mode (see settings.h) ----
+void copy_look(const Settings& src, Settings& dst) {
+    static_cast<VizPrefs&>(dst) = static_cast<const VizPrefs&>(src);   // oscilloscope / spectrogram
+#define MOUSIKI_LOOK(f) dst.f = src.f
+    // colours
+    MOUSIKI_LOOK(theme_name); MOUSIKI_LOOK(border_color); MOUSIKI_LOOK(border_color_bottom); MOUSIKI_LOOK(border_smooth);
+    MOUSIKI_LOOK(disk_color); MOUSIKI_LOOK(disk_color_end); MOUSIKI_LOOK(disk_color_gradient);
+    MOUSIKI_LOOK(active_line_color); MOUSIKI_LOOK(active_line_bg_color); MOUSIKI_LOOK(active_word_color); MOUSIKI_LOOK(active_word_bg_color);
+    MOUSIKI_LOOK(inactive_line_color); MOUSIKI_LOOK(inactive_line_bg_color);
+    MOUSIKI_LOOK(progress_remaining_color); MOUSIKI_LOOK(progress_played_color); MOUSIKI_LOOK(progress_timestamp_color);
+    MOUSIKI_LOOK(search_text_color); MOUSIKI_LOOK(search_bg_color); MOUSIKI_LOOK(search_inactive_text_color); MOUSIKI_LOOK(search_inactive_bg_color);
+    MOUSIKI_LOOK(list_color); MOUSIKI_LOOK(list_inactive_bg_color); MOUSIKI_LOOK(list_playing_color); MOUSIKI_LOOK(list_cursor_color);
+    MOUSIKI_LOOK(list_playing_bg_color); MOUSIKI_LOOK(list_cursor_bg_color);
+    MOUSIKI_LOOK(queue_color); MOUSIKI_LOOK(queue_inactive_bg_color); MOUSIKI_LOOK(queue_playing_color); MOUSIKI_LOOK(queue_playing_bg_color);
+    MOUSIKI_LOOK(queue_cursor_color); MOUSIKI_LOOK(queue_cursor_bg_color);
+    MOUSIKI_LOOK(button_color); MOUSIKI_LOOK(header_color); MOUSIKI_LOOK(legend_color); MOUSIKI_LOOK(legend_cmd_color);
+    MOUSIKI_LOOK(tab_current_color); MOUSIKI_LOOK(tab_other_color); MOUSIKI_LOOK(change_text_color); MOUSIKI_LOOK(change_bg_color);
+    MOUSIKI_LOOK(focus_color); MOUSIKI_LOOK(visualizer_color); MOUSIKI_LOOK(visualizer_color_end);
+    MOUSIKI_LOOK(meta_key_color); MOUSIKI_LOOK(meta_val_color); MOUSIKI_LOOK(status_color); MOUSIKI_LOOK(pl_active_bg_color);
+    MOUSIKI_LOOK(viz_left_color); MOUSIKI_LOOK(viz_center_color); MOUSIKI_LOOK(viz_right_color);
+    MOUSIKI_LOOK(lyr_inactive_color); MOUSIKI_LOOK(lyr_active_line_color); MOUSIKI_LOOK(lyr_active_word_color);
+    // elements and visualizations
+    MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
+    MOUSIKI_LOOK(volume_indicator); MOUSIKI_LOOK(volume_gradient); MOUSIKI_LOOK(element_vizfield); MOUSIKI_LOOK(element_lyrics);
+    MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
+    MOUSIKI_LOOK(use_sphere); MOUSIKI_LOOK(viz_default); MOUSIKI_LOOK(element_visualizer); MOUSIKI_LOOK(waveform_smooth);
+    for (int i = 0; i < 4; ++i) dst.viz_order[i] = src.viz_order[i];
+    MOUSIKI_LOOK(meta_only); MOUSIKI_LOOK(visualizer_fluidity); MOUSIKI_LOOK(visualizer_degradation_speed); MOUSIKI_LOOK(visualizer_viscosity);
+    MOUSIKI_LOOK(viz_style); MOUSIKI_LOOK(viz_bands); MOUSIKI_LOOK(viz_density); MOUSIKI_LOOK(disk_rotation_speed);
+    // border characters
+    MOUSIKI_LOOK(box_upper_left); MOUSIKI_LOOK(box_upper_right); MOUSIKI_LOOK(box_lower_left); MOUSIKI_LOOK(box_lower_right);
+    MOUSIKI_LOOK(box_vertical); MOUSIKI_LOOK(box_horizontal); MOUSIKI_LOOK(meta_separator); MOUSIKI_LOOK(list_separator);
+    MOUSIKI_LOOK(play_mode);
+    // the sound of the mode: a book is speech, so loudness, equaliser and stereo / mono are its own
+    MOUSIKI_LOOK(normalize); MOUSIKI_LOOK(normalize_target_lufs); MOUSIKI_LOOK(normalize_max_boost_db);
+    MOUSIKI_LOOK(eq_enabled); MOUSIKI_LOOK(eq_gains); MOUSIKI_LOOK(stereo);
+#undef MOUSIKI_LOOK
+}
+
+void sync_shared(const Settings& from, Settings& to) {
+    if (&from == &to) return;
+    Settings merged = from;
+    copy_look(to, merged);            // the look of `to` stays
+    merged.book_profile = to.book_profile;
+    to = std::move(merged);
+}
+
+fs::path book_config_path() { return config_path().parent_path() / "audiobook_config.txt"; }
+
+static bool is_look_key(const std::string& key);   // (below)
+
+// The look lines of a settings object as text: two profiles that give the same text look the same.
+static std::string look_text(const Settings& s) {
+    std::istringstream in(settings_to_text(s));
+    std::string line, out;
+    while (std::getline(in, line)) {
+        const std::string t = trim(line);
+        if (t.empty() || t[0] == '#') continue;
+        const size_t cut = t.find_first_of("=:");
+        if (cut != std::string::npos && is_look_key(trim(t.substr(0, cut)))) out += t + "\n";
+    }
+    return out;
+}
+
+Settings load_book_settings(const Settings& player, bool* wants_default_theme) {
+    if (wants_default_theme) *wants_default_theme = false;
+    Settings s = player;
+    s.book_profile = true;
+    s.element_disk = true;   // the picture field of the audio book mode is always there
+    std::error_code ec;
+    const fs::path p = book_config_path();
+    if (!fs::exists(p, ec)) { if (wants_default_theme) *wants_default_theme = true; return s; }   // not saved yet: the caller gives it the default theme of the mode
+    try {
+        const Settings file = load_from_config(p);
+        copy_look(file, s);
+        s.element_disk = true;
+        // A profile that is still an untouched copy of the music player's look (what the first version of the mode saved) gets the default
+        // theme too; one that was changed on purpose stays as it is.
+        if (wants_default_theme && look_text(s) == look_text(player)) *wants_default_theme = true;
+    } catch (const std::exception& e) {
+        std::cerr << "mousiki: couldn't parse " << path_utf8(p) << " (" << e.what() << ") -- the audio book mode uses the player's look this session.\n";
+    } catch (...) {
+        std::cerr << "mousiki: couldn't parse " << path_utf8(p) << " -- the audio book mode uses the player's look this session.\n";
+    }
+    return s;
+}
+
+// The keys of config.txt that belong to the look (see copy_look): only these go into audiobook_config.txt.
+static bool is_look_key(const std::string& key) {
+    static const char* const prefixes[] = {"Color", "BorderGradient", "Eliment", "Volume", "VizLyricsField", "LyricViz", "VizDefault", "NoLyricsViz",
+                                           "UseLyrics", "UseOscilloscope", "UseSpectrogram", "UseSphere", "VizOrder", "Osci", "Scope", "Spectro",
+                                           "Visualizer", "WaveformStyle", "DiskRotationSpeed", "MetaDataOnly", "PlaybackMode", "UpperLeftCorner",
+                                           "UpperRightCorner", "BottomLeftCorner", "LowerRightCorner", "Vertical", "Horizontal", "Seprator", "ListSeparator",
+                                           "Normalize", "EqualizerEnabled", "EqualizerBands", "StereoPlayback"};
+    for (const char* p : prefixes) if (key.compare(0, std::strlen(p), p) == 0) return true;
+    return false;
+}
+
+// A save in the audio book mode: the look into audiobook_config.txt, everything else into config.txt (that file keeps the
+// music player's look: it is read, the shared values of `s` are put in, and it is written again).
+static void save_book_profile(const Settings& s) {
+    std::error_code ec;
+    const fs::path bp = book_config_path();
+    fs::create_directories(bp.parent_path(), ec);
+    {
+        std::ostringstream all;
+        write_settings(all, s);
+        std::ofstream out(bp, std::ios::trunc);
+        if (out.is_open()) {
+            out << "# Mousiki Configuration File -- AUDIO BOOK MODE\n";
+            out << config_stamp_line() << "\n";
+            out << "# Only the look of the audio book mode is kept here: colours, elements, visualizations, borders, play mode.\n";
+            out << "# Everything else (paths, hotkeys, sound, the mode switches ...) is shared by all modes and lives in config.txt.\n";
+            out << "# Same notation as config.txt: colour numbers of the 256-colour palette, 0 or empty = no colour.\n\n";
+            std::istringstream in(all.str());
+            std::string line;
+            while (std::getline(in, line)) {
+                const std::string t = trim(line);
+                if (t.empty() || t[0] == '#') continue;
+                const size_t cut = t.find_first_of("=:");
+                if (cut == std::string::npos) continue;
+                if (is_look_key(trim(t.substr(0, cut)))) out << line << "\n";
+            }
+        }
+    }
+    Settings base = load_settings();     // the file as the music player left it
+    Settings merged = s;
+    copy_look(base, merged);             // its look stays the player's
+    merged.book_profile = false;
+    const fs::path p = config_path();
+    backup_config_if_older(p);
+    std::ofstream out(p, std::ios::trunc);
+    if (out.is_open()) write_settings(out, merged);
+}
+
 void save_settings(const Settings& s) {
+    if (s.book_profile) { save_book_profile(s); return; }
     fs::path p = config_path();
     std::error_code ec;
     fs::create_directories(p.parent_path(), ec);

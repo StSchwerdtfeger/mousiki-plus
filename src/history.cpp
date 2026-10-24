@@ -292,7 +292,7 @@ void HistoryArchive::fold(const HistoryPlay& p) {
 
 std::string HistoryStore::file_utf8() const {
     const fs::path dir = dir_.empty() ? default_history_dir() : path_from_utf8(dir_);
-    return path_utf8(dir / "history.json");
+    return path_utf8(dir / path_from_utf8(file_name_));
 }
 
 std::string HistoryStore::effective_dir() const {

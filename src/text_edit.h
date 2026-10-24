@@ -162,6 +162,21 @@ inline void le_paste(std::string& s, size_t& caret, size_t& anchor, const std::s
     caret = anchor = caret + t.size();
 }
 
+// Word movement (Ctrl+Left / Right): a word is a run of non-blank characters. Left goes to the start of the word before the caret,
+// right to the start of the next one (or the end of the text). Both stop only at blanks or the ends, so never inside a character.
+inline size_t le_word_left(const std::string& s, size_t caret) {
+    size_t i = std::min(caret, s.size());
+    while (i > 0 && s[i - 1] == ' ') --i;
+    while (i > 0 && s[i - 1] != ' ') --i;
+    return i;
+}
+inline size_t le_word_right(const std::string& s, size_t caret) {
+    size_t i = std::min(caret, s.size());
+    while (i < s.size() && s[i] != ' ') ++i;
+    while (i < s.size() && s[i] == ' ') ++i;
+    return i;
+}
+
 // One keystroke, every single-line text field in the app.
 //
 // Caret movement, Shift+arrows marking, Home/End, Ctrl+C/X/V and typing --
@@ -187,6 +202,8 @@ inline bool edit_text_key(std::string& buf, size_t& caret, size_t& anchor, int k
     if (key == kKeyEnd) { caret = anchor = buf.size(); return false; }
     if (key == kKeyShiftLeft) { le_move(buf, caret, anchor, -1, true); return false; }
     if (key == kKeyShiftRight) { le_move(buf, caret, anchor, +1, true); return false; }
+    if (key == kKeyCtrlLeft || key == kKeyCtrlShiftLeft) { le_clamp(buf, caret, anchor); caret = le_word_left(buf, caret); if (key == kKeyCtrlLeft) anchor = caret; return false; }
+    if (key == kKeyCtrlRight || key == kKeyCtrlShiftRight) { le_clamp(buf, caret, anchor); caret = le_word_right(buf, caret); if (key == kKeyCtrlRight) anchor = caret; return false; }
     if (key == kKeyDelete) { le_delete_forward(buf, caret, anchor); return true; }
     if (key == kKeyCtrlC) {
         size_t a = 0, b = 0;

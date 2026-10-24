@@ -227,6 +227,22 @@ std::vector<App::PathRow> App::build_path_rows() const {
         rows.push_back(n);
     }
 
+    // AUDIO BOOK PATH: ONE folder (settings_.audiobook_path) -- the library of the audio book mode (SHIFT and +).
+    {
+        PathRow p;
+        p.label = "AUDIO BOOK PATH";
+        p.kind = PathRow::Kind::Path;
+        p.sel = sel++;
+        p.path_index = -1;
+        p.audiobook_folder = true;
+        rows.push_back(p);
+
+        PathRow n;
+        n.kind = PathRow::Kind::Note;
+        n.label = "Audio books: every folder in it with audio files is one book. A .cue file beside each book records where you last stopped listening.";
+        rows.push_back(n);
+    }
+
     return rows;
 }
 
@@ -377,6 +393,13 @@ void theme_apply(Settings& s, const themes::Theme& t) {
     for (const ThemeKey& k : kThemeKeys) if (const std::string* v = t.get(k.key, false)) s.*(k.p) = *v;
     // a theme written before the focus indicator had a color of its own: it gets the theme's header color
     if (!t.get("ColorFocus", false) && t.get("ColorHeader", false)) s.focus_color = s.header_color;
+}
+
+// The theme the audio book mode starts with, until a theme is picked there.
+void apply_book_default_theme(Settings& s) {
+    const std::vector<themes::Theme> all = themes::load_all();
+    const int i = themes::find_name(all, "Rose Pine");
+    if (i >= 0) theme_apply(s, all[static_cast<size_t>(i)]);
 }
 
 int App::theme_current_index() const {
@@ -692,12 +715,15 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidVizField: v = settings_.element_vizfield; break;
             case kSidLyricsEngine: v = settings_.element_lyrics; break;
             // "Lyrics/Viz Default" isn't a bool: it cycles sphere / osci / spectro / lyrics (see settings_options_for() and settings_commit_edit()).
-            case kSidLyricViz: return settings_.viz_default == 4 ? "last used" : kVizNames[std::clamp(settings_.viz_default, 0, 3)];
+            case kSidLyricViz: return settings_.viz_default == 4 ? "last used" : viz_row_name(settings_.viz_default);
             case kSidVisualizer: v = settings_.element_visualizer; break;
             case kSidNoLyricsViz: return settings_.nolyrics_viz == 1 ? "osci" : settings_.nolyrics_viz == 2 ? "spectro" : settings_.nolyrics_viz == 3 ? "none" : "sphere";
             case kSidStereo: v = settings_.stereo; break;
             case kSidBlackBg: v = settings_.black_background; break;
             case kSidShareProfiles: v = settings_.share_profiles; break;
+            case kSidBookAsk: v = settings_.book_ask_bookmark; break;
+            case kSidBookCover: v = settings_.book_cover; break;
+            case kSidBookCoverWave: v = settings_.book_cover_wave; break;
             case kSidUpdateCheck: v = settings_.update_check; break;
             case kSidMediaKeys: v = settings_.media_keys; break;
             case kSidRemoteApp: return settings_.remote_app ? "on   [ENTER] settings" : "off  [ENTER] settings";   // opens the REMOTE APP overlay
@@ -710,12 +736,17 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidUseSpectro: v = settings_.use_spectro; break;
             case kSidUseSphere: v = settings_.use_sphere; break;
             case kSidOrder1: case kSidOrder2: case kSidOrder3: case kSidOrder4:   // which view comes at that place of the "." cycle
-                return kVizNames[std::clamp(settings_.viz_order[settings_item_id(settings_tab_, row) - kSidOrder1], 0, 3)];
+                return viz_row_name(settings_.viz_order[settings_item_id(settings_tab_, row) - kSidOrder1]);
+            case kSidUseModePlayer: v = settings_.use_mode[0]; break;
+            case kSidUseModeRadio: v = settings_.use_mode[1]; break;
+            case kSidUseModeBook: v = settings_.use_mode[2]; break;
+            case kSidModeOrder1: case kSidModeOrder2: case kSidModeOrder3:   // which mode comes at that place of the SHIFT and + cycle
+                return mode_row_name(settings_.mode_order[settings_item_id(settings_tab_, row) - kSidModeOrder1]);
             case kSidPlayback: {
                 static const char* names[] = {"list", "loop", "shuffle", "stop", "queue then stop"};
                 return names[std::clamp(settings_.play_mode, 0, 4)];
             }
-            case kSidStartMode: return settings_.start_mode == "radio" ? "radio" : "player";
+            case kSidStartMode: return mode_row_name(std::max(0, mode_index(settings_.start_mode)));
             case kSidVolIndicator: return kVolIndicatorNames[std::clamp(settings_.volume_indicator, 0, kVolStyleCount - 1)];
             case kSidVisFluidity: return std::to_string(settings_.visualizer_fluidity);
             case kSidWaveStyle: return settings_.waveform_smooth ? "smooth" : "raw";
@@ -748,6 +779,7 @@ std::string App::settings_get_value(int row, int col) const {
             if (r.history_folder) return settings_.history_path.empty() ? history_.effective_dir() : settings_.history_path;
             if (r.export_folder) return settings_.playlist_export_path.empty() ? path_utf8(playlists_dir()) : settings_.playlist_export_path;
             if (r.conversion_folder) return conversion_export_dir();
+            if (r.audiobook_folder) return settings_.audiobook_path;
             if (r.download_folder) {
                 // Show what is actually in effect: while nothing has been
                 // configured that is the default cache folder, and the point
@@ -776,11 +808,16 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
         // Bool toggles cycle true / false; the pick rows have lists of their own.
         switch (settings_item_id(tab, row)) {
             case -1: return {};
-            case kSidLyricViz: return {"sphere", "osci", "spectro", "lyrics", "last used"};   // the view the field starts with, not a bool
+            case kSidLyricViz: return {"sphere", "osci", "spectro", viz_row_name(3), "last used"};   // the view the field starts with, not a bool
             case kSidNoLyricsViz: return {"sphere", "osci", "spectro", "none"};
-            case kSidOrder1: case kSidOrder2: case kSidOrder3: case kSidOrder4: return {"sphere", "osci", "spectro", "lyrics"};
+            case kSidOrder1: case kSidOrder2: case kSidOrder3: case kSidOrder4: return {"sphere", "osci", "spectro", viz_row_name(3)};
+            case kSidModeOrder1: case kSidModeOrder2: case kSidModeOrder3: return {mode_row_name(0), mode_row_name(1), mode_row_name(2)};
             case kSidPlayback: return {"list", "loop", "shuffle", "stop", "queue then stop"};
-            case kSidStartMode: return {"player", "radio"};
+            case kSidStartMode: {   // only modes that are switched on can start
+                std::vector<std::string> o;
+                for (int i = 0; i < 3; ++i) if (settings_.use_mode[settings_.mode_order[i]]) o.push_back(mode_row_name(settings_.mode_order[i]));
+                return o;
+            }
             case kSidVolIndicator: return {kVolIndicatorNames[0], kVolIndicatorNames[1], kVolIndicatorNames[2], kVolIndicatorNames[3], kVolIndicatorNames[4]};
             case kSidTrackBuffer: return {};   // a number (ENTER types it) and a "Set back to default" button (RIGHT, then ENTER)
             case kSidRemoteApp: return {};   // not a switch: ENTER / LEFT / RIGHT open the REMOTE APP overlay
@@ -837,7 +874,7 @@ void App::settings_commit_edit_impl() {
             else if (v == "osci" || v == "oscilloscope") pick = 1;
             else if (v == "spectro" || v == "spectrogram") pick = 2;
             else if (v == "none" && id == kSidNoLyricsViz) pick = 3;
-            else if (v == "lyrics" && id == kSidLyricViz) pick = 3;
+            else if ((v == "lyrics" || v == "notes") && id == kSidLyricViz) pick = 3;
             else if (v == "last used" && id == kSidLyricViz) pick = 4;   // starts with the view it was left on
             if (id == kSidLyricViz && settings_.viz_default <= 3) {   // the default is also the view shown now ("last used" changes nothing)
                 settings_.element_lyrics = settings_.viz_default == 3;
@@ -850,6 +887,7 @@ void App::settings_commit_edit_impl() {
         if (id >= kSidOrder1 && id <= kSidOrder4) {
             int want = -1;
             for (int i = 0; i < 4; ++i) if (v == kVizNames[i]) want = i;
+            if (v == "notes") want = 3;
             if (v == "oscilloscope") want = 1;
             if (v == "spectrogram") want = 2;
             if (want < 0) return;
@@ -858,12 +896,21 @@ void App::settings_commit_edit_impl() {
                 if (settings_.viz_order[i] == want) { std::swap(settings_.viz_order[i], settings_.viz_order[place]); break; }
             return;
         }
+        // "Mode Order 1..3": naming a mode puts it at this place; the mode that was there takes the place it left.
+        if (id >= kSidModeOrder1 && id <= kSidModeOrder3) {
+            const int want = mode_index(v);
+            if (want < 0) return;
+            const int place = id - kSidModeOrder1;
+            for (int i = 0; i < 3; ++i)
+                if (settings_.mode_order[i] == want) { std::swap(settings_.mode_order[i], settings_.mode_order[place]); break; }
+            return;
+        }
         switch (id) {   // the rows that are neither bools nor views
             case kSidPlayback:
                 settings_.play_mode = (v == "loop") ? 1 : (v == "shuffle") ? 2 : (v == "stop") ? 3 : (v == "queue then stop") ? 4 : 0;
                 queue_reset_lap();
                 return;
-            case kSidStartMode: settings_.start_mode = (v == "radio") ? "radio" : "player"; return;
+            case kSidStartMode: { const int m = mode_index(v); if (m >= 0 && settings_.use_mode[m]) settings_.start_mode = kModeNames[m]; return; }
             case kSidVolIndicator:
                 settings_.volume_indicator = std::max(0, volume_style_from_name(v));
                 return;
@@ -921,6 +968,9 @@ void App::settings_commit_edit_impl() {
             case kSidMarquee: settings_.marquee = is_true; break;
             case kSidBlackBg: settings_.black_background = is_true; break;   // the render loop applies it
             case kSidShareProfiles: settings_.share_profiles = is_true; break;   // the radio reads it when it starts
+            case kSidBookAsk: settings_.book_ask_bookmark = is_true; break;
+            case kSidBookCover: settings_.book_cover = is_true; break;
+            case kSidBookCoverWave: settings_.book_cover_wave = is_true; break;
             case kSidUpdateCheck: settings_.update_check = is_true; break;   // read at the next start
             case kSidMediaKeys: settings_.media_keys = is_true; break;       // read at the next start
             case kSidRemoteApp:
@@ -932,6 +982,16 @@ void App::settings_commit_edit_impl() {
             case kSidUseOsci: settings_.use_osci = is_true; break;
             case kSidUseSpectro: settings_.use_spectro = is_true; break;
             case kSidUseSphere: settings_.use_sphere = is_true; break;
+            case kSidUseModePlayer: case kSidUseModeRadio: case kSidUseModeBook: {
+                const int m = id - kSidUseModePlayer;
+                if (!is_true && !settings_.use_mode[(m + 1) % 3] && !settings_.use_mode[(m + 2) % 3]) {   // the last one stays on
+                    status_line_ = "one mode always stays on";
+                    return;
+                }
+                settings_.use_mode[m] = is_true;
+                settings_.mode_normalize();   // a start mode that went off moves to the first one that is on
+                break;
+            }
             default: break;
         }
     } else if (settings_tab_ == 4 && settings_row_ >= kRefStart && settings_row_ < kRefEnd) {
@@ -961,6 +1021,18 @@ void App::settings_commit_edit_impl() {
                 status_line_ = p.empty() ? "playlist export folder: the playlist folder" : "playlist export folder: " + p;
                 return;
             }
+            if (r.audiobook_folder) {
+                // One folder: the audio book library. Nothing moves; the audio book mode scans it (when it is the running mode,
+                // right away, otherwise the next time it opens).
+                if (book_path_conflicts(settings_.local_music_paths, p)) {
+                    status_line_ = "CONFLICT: that folder is also a LOCAL MUSIC PATH. Pick a sub folder of it (the music player then leaves it out) or another folder";
+                    return;
+                }
+                settings_.audiobook_path = p;
+                status_line_ = p.empty() ? "audio book folder removed" : "audio book folder: " + p;
+                rescan_library();   // the music player's library leaves the book folder out, the book player lists it
+                return;
+            }
             if (r.conversion_folder) {
                 // One folder, nothing moves: only where the next conversion writes (empty = conversion-export in the download folder).
                 settings_.conversion_export_path = p;
@@ -983,6 +1055,10 @@ void App::settings_commit_edit_impl() {
                 // away, and -- when one is set -- add it to the local paths so
                 // the rescan below picks it up. That injection is the whole
                 // "no extra LocalMusicPath line needed" half of this setting.
+                if (same_folder_path(p, settings_.audiobook_path)) {
+                    status_line_ = "CONFLICT: that folder is the AUDIO BOOK PATH (the download folder is a music folder)";
+                    return;
+                }
                 settings_.download_folder = p;
                 const fs::path old_archive = cache_.download_archive_path();
                 cache_.set_download_dir(path_from_utf8(p));
@@ -1004,6 +1080,10 @@ void App::settings_commit_edit_impl() {
                     status_line_ = "download folder: " + p;
                 }
                 rescan_library(); // a path row that does not rescan is a path row you have to restart for
+                return;
+            }
+            if (!r.playlist_path && same_folder_path(p, settings_.audiobook_path)) {
+                status_line_ = "CONFLICT: that folder is the AUDIO BOOK PATH. A local music path may not be the audio book folder (a folder around it is fine)";
                 return;
             }
             std::vector<std::string>& paths = r.playlist_path ? settings_.playlists_paths
@@ -1114,7 +1194,7 @@ void App::settings_cycle(int dir) {
     }
     if (id >= kSidOrder1 && id <= kSidOrder4) {
         std::string o = "\".\" cycle: ";
-        for (int i = 0; i < 4; ++i) o += std::string(i ? " > " : "") + kVizNames[std::clamp(settings_.viz_order[i], 0, 3)];
+        for (int i = 0; i < 4; ++i) o += std::string(i ? " > " : "") + viz_row_name(settings_.viz_order[i]);
         status_line_ = o;
     }
     if (id == kSidPlayback) status_line_ = std::string("playback: ") + play_mode_name(settings_.play_mode);
@@ -1122,6 +1202,13 @@ void App::settings_cycle(int dir) {
                                                                      : "black background: off -- the terminal keeps its own background";
     if (id == kSidShareProfiles) status_line_ = settings_.share_profiles ? "share profiles: on -- the radio uses these oscilloscope / spectrogram settings (its own come back when this is off)"
                                                                          : "share profiles: off -- the radio keeps its own oscilloscope / spectrogram settings";
+    if (id == kSidBookCover) status_line_ = settings_.book_cover ? "book cover: on"
+                                                                 : "book cover: off -- the standard picture";
+    if (id == kSidBookCoverWave) status_line_ = settings_.book_cover_wave ? "book gradient wave: true -- colour wave over the cover"
+                                                                          : "book gradient wave: false -- the cover in its own colours";
+    if ((id == kSidBookCover || id == kSidBookCoverWave) && settings_.book_cover) status_line_ += " | " + book_cover_report();
+    if (id == kSidBookAsk) status_line_ = settings_.book_ask_bookmark ? "ask for bookmark: on -- leaving a chapter, the mode or the program asks first (the audio pauses meanwhile)"
+                                                                      : "ask for bookmark: off -- only SHIFT+b sets a bookmark";
     if (id == kSidUpdateCheck) status_line_ = settings_.update_check ? "update notice: on -- at start-up Mousiki looks once a day for a newer release and tells you once (nothing is installed)"
                                                                      : "update notice: off -- no check for a newer release";
     if (id == kSidMediaKeys) status_line_ = settings_.media_keys ? "media keys: on -- Mousiki shows in the system's now-playing and answers its media keys (from the next start)"
@@ -1132,8 +1219,18 @@ void App::settings_cycle(int dir) {
                      : !err.empty() ? "remote app: " + err
                      : "remote app: " + remote::net::url() + "  PIN " + settings_.remote_pin + "  (Mousiki Remote app or the phone's browser, same network; s saves)";
     }
-    if (id == kSidStartMode) status_line_ = settings_.start_mode == "radio" ? "Mousiki starts in the radio (the music player is one SHIFT+* away)"
-                                                                            : "Mousiki starts with the music player";
+    if (id == kSidStartMode) status_line_ = settings_.start_mode == "radio" ? "Mousiki starts in the radio (SHIFT and + / SHIFT and - switch modes)"
+                                       : settings_.start_mode == "audiobook" ? "Mousiki starts with the audio books (SHIFT and + / SHIFT and - switch modes)"
+                                       : "Mousiki starts with the music player (SHIFT and + / SHIFT and - switch modes)";
+    if (id >= kSidUseModePlayer && id <= kSidUseModeBook) {
+        const int m = id - kSidUseModePlayer;
+        status_line_ = std::string(mode_row_name(m)) + (settings_.use_mode[m] ? ": in the SHIFT and + cycle" : ": left out of the SHIFT and + cycle") + " (one mode always stays on)";
+    }
+    if (id >= kSidModeOrder1 && id <= kSidModeOrder3) {
+        std::string o = "SHIFT and + cycle: ";
+        for (int i = 0; i < 3; ++i) o += std::string(i ? " > " : "") + mode_row_name(settings_.mode_order[i]);
+        status_line_ = o + "  (SHIFT and - goes back)";
+    }
 }
 
 // ---- REFERENCE tab: reset to default + undo (the radio settings work the same way) ----

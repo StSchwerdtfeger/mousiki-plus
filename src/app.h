@@ -2,11 +2,13 @@
 #include "wizard.h"
 #include "creator.h"
 #include "mic_capture.h"
+#include <future>
 #include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <condition_variable>
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <set>
 #include <memory>
@@ -16,6 +18,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include "book_notes.h"
+#include "book_cue.h"
+#include "book_split.h"
 #include "disk_art.h"
 #include "remote_server.h"
 #include "remote_overlay.h"
@@ -45,7 +50,7 @@
 
 namespace muisc {
 
-enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex, UpdateNotice, QueueToPlaylist };
+enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex, UpdateNotice, QueueToPlaylist, BookOverlay };
 enum class ListSource { Local, Online, Playlist, Folder };
 
 // One row of the main UI's "/f:" folder list: a folder that directly
@@ -55,6 +60,12 @@ struct FolderSummary {
     std::string name;   // folder's own name
     std::string parent; // name of its parent folder (usually the artist)
     int track_count = 0;
+    // The audio book mode's books pane is a tree you walk through: a folder that holds other books is a container (ENTER goes in,
+    // `sub_count` books below it) and the first row of a deeper level is "..", the way back (see App::book_build_view).
+    bool container = false;
+    bool up = false;
+    bool self = false;      // inside a container: the audio files of the container folder itself
+    int sub_count = 0;
 };
 
 struct QueueItem {
@@ -73,12 +84,21 @@ struct QueueItem {
 
 class App {
 public:
-    App();
+    // `shared`: the settings main() loaded, used by every App instance (the music player and the audio book player are two
+    // instances; changes made in one are seen by the other at once). nullptr = this App loads its own copy.
+    // `audiobook`: this instance is the audio book player (see is_audiobook()).
+    explicit App(Settings* shared = nullptr, bool audiobook = false);
     int run();
     void shutdown();                       // really end the session (also when it was suspended for the radio)
     bool suspended() const { return suspended_; }
+    // The audio book player is the same engine as the music player with a different library (the AUDIO BOOK PATH, only its
+    // folders are listed), a chapter pane instead of the queue, bookmarks and notes.
+    bool is_audiobook() const { return audiobook_; }
 
 private:
+    const bool audiobook_ = false;
+    std::vector<std::string> library_roots() const;   // what the library scan walks (see app.cpp)
+    Settings own_settings_;   // used when no shared settings were handed in (declared before settings_, which refers to it)
     // --- infrastructure ---
     CacheManager cache_;
     YoutubeSource youtube_{cache_};
@@ -207,6 +227,7 @@ private:
     int fo_sel_ = 0, fo_scroll_ = 0;
     int fo_rows_ = kListVisibleRows;         // list rows the overlay fits; recomputed every frame
     std::set<std::string> fo_expanded_;
+    std::set<std::string> fo_marked_;          // audio book mode: files (full paths) that carry a bookmark
     std::vector<FoRow> fo_view_;             // the visible rows (tree walk + search filter)
     std::map<std::string, std::vector<std::string>> fo_subdirs_;   // folder -> sorted subfolders
     std::map<std::string, std::vector<std::string>> fo_files_;     // folder -> sorted files
@@ -279,6 +300,7 @@ private:
     void folder_overlay_filter();            // `f`: show the hovered folder / the folder of the hovered file in the list
     void folder_overlay_geometry(int W, int& panel_w, int& rows) const;
     std::vector<std::string> folder_overlay_legend(int panel_w) const;
+    std::vector<LegendRow> folder_overlay_book_legend(int panel_w) const;   // the tree-table legend of the audio book library overlay
     std::vector<std::string> build_folder_overlay_panel(int panel_w, int rows) const;
 
     // --- queue overlay (HKeyQueueOverlay, SHIFT+k) -----------------------
@@ -761,6 +783,8 @@ private:
     mutable bool gfx2_shown_ = false;
     mutable bool gfx_ok_ = false;              // the picture belongs on screen in the frame just rendered
     mutable int gfx_last_crop_ = -1;
+    mutable std::vector<uint8_t> gfx_full_level_;      // the audio book picture without a hole for a floating panel (see render_frame)
+    mutable int gfx_last_cut_[4] = {0, 0, 0, 0};       // the hole that is cut into it now (pixels x0, y0, x1, y1)
     mutable int scope_cut_last_[8] = {-1, -1, -1, -1, -1, -1, -1, -1};   // the panel cut-outs of the overlay's pictures of the last frame
     mutable int cell_w_ = 9, cell_h_ = 18;
     bool gfx_due_ = true;
@@ -776,6 +800,9 @@ private:
     // when it started, so moving the cursor to a different row always
     // restarts the scroll from the beginning of that row's title instead
     // of resuming wherever the previous row's animation had reached.
+    std::string book_cut_error_;           // why the original could not be moved aside (the system's own words)
+    mutable int marquee_ch_idx_ = -1;      // the audio book's chapter pane: the row that scrolls (see build_chapter_panel)
+    mutable std::chrono::steady_clock::time_point marquee_ch_since_;
     mutable int marquee_row_idx_ = -1;
     mutable std::chrono::steady_clock::time_point marquee_since_;
     // Same idea, kept separate because the playlist editor's LIBRARY and
@@ -1109,7 +1136,7 @@ private:
     // what actually fixes the truncation-corrupts-everything fragility
     // class of bug (a mis-sized pad on one row used to bleed into
     // whatever the next escape code was).
-    Settings settings_;
+    Settings& settings_;
     static constexpr int kSettingsTabCount = 6; // Colors, On/Off, Animation, Paths, Reference, About App
     int settings_tab_ = 0;
     int settings_row_ = 0;   // resets to 0 on every tab switch
@@ -1241,6 +1268,7 @@ private:
         bool history_folder = false;   // Path: the single HISTORY PATH field (settings_.history_path)
         bool export_folder = false;    // Path: the single PLAYLIST EXPORT PATH field (settings_.playlist_export_path)
         bool conversion_folder = false; // Path: the single CONVERSION EXPORT PATH field (settings_.conversion_export_path)
+        bool audiobook_folder = false;  // Path: the single AUDIO BOOK PATH field (settings_.audiobook_path)
         const char* label = "";    // Header: section title; AddPath: "+ new path"
     };
     // Every display row of the path section, in paint order, with `sel`
@@ -1673,6 +1701,245 @@ private:
     void act_prev();
     void act_cycle_play_mode();      // m: list -> repeat -> shuffle -> stop -> queue then stop
     void act_wizard_toggle();        // SHIFT+w from the remote control: open / close the help wizard
+    // --- audio book player (app_audiobook.cpp) ---
+    struct BookChapter { fs::path path; std::string title; };
+    std::string book_dir_;                    // the folder of the open book ("" = none)
+    std::vector<BookChapter> chapters_;       // its chapters, in natural file name order (shown in the chapter pane)
+    std::chrono::steady_clock::time_point book_seek_last_{}, book_seek_start_{};
+    int book_seek_dir_ = 0, book_seek_run_ = 0;
+    std::string book_nav_;                    // the folder the books pane shows the content of ("" = the AUDIO BOOK PATH itself)
+    void book_build_view();                   // folder_view_ for book_nav_ (a flat list while a search is typed)
+    void book_refresh_view();                 // the books list (left pane) from the scanned library
+    void book_load_chapters(const std::string& dir);
+    void book_open(int row);                  // ENTER on a book: its chapters fill the chapter pane
+    void book_fit_scroll();
+    int book_current_chapter() const;         // index in chapters_ of the loaded track, -1 when none
+    void book_play_chapter(int idx);
+    void book_step(int delta, bool direct = false);   // direct (the remote app): no questions, the chapter plays from its start                // n / b
+    void book_advance();                      // the chapter ended
+    void book_seek(int dir);                  // accelerating seek
+    bool book_intercept(const std::string& action, int key);   // keys of the audio book player (true = used)
+    std::vector<std::string> build_chapter_panel(int total_width, int height) const;
+    bool book_picture_gfx(int col, int cols, int rows) const;   // the picture as a real pixel image (Kitty / Sixel) into gfx_; false: use braille
+    std::vector<std::string> book_art_lines(int which, double t) const;   // which: 0 the opening book, 1 the stack of books
+    // The picture that takes the disk's place on the remote app's screen: the book's cover (Book Cover on) as braille dots in its own
+    // colours (or in the wave's), else the standard picture; cols x rows cells. Empty while the cover is still being read.
+    std::vector<std::string> book_phone_picture(int& cols, int& rows) const;
+    const std::string* book_phone_png(std::string& key) const;   // the same picture as a PNG for the remote app (nullptr: not ready)
+    double book_anim_t_ = 0.0;                // seconds of the book animation (advances while a chapter plays)
+    double book_idle_t_ = 0.0;                // seconds of the stack animation (advances while no book is loaded)
+    // --- audio book tags (SHIFT+m): an editor only, nothing is fetched. One chapter at a time; every row is written with ffmpeg -c copy ---
+    static constexpr int kBookTagCount = 7;   // file name, book title, author, narrator, chapter, publisher + year, genre
+    using BookTagVals = std::array<std::string, kBookTagCount>;
+    static const char* book_tag_label(int i);
+    static BookTagVals book_read_tags(const fs::path& file);
+    static constexpr int kBookOverlayWidth = 96;   // at most (a narrow terminal gets less)
+    std::string book_meta_path_;              // the loaded chapter's tags below belong to this file
+    BookTagVals book_meta_vals_{};
+    int book_ov_chapter_ = 0;                 // the chapter the tag editor shows
+    BookTagVals book_ov_val_{}, book_ov_orig_{};
+    int book_ov_row_ = 0;
+    bool book_ov_editing_ = false;
+    bool book_ov_confirm_ = false;            // ESC with unsaved changes: Y save / N discard
+    std::string book_ov_status_;
+    struct BookTagJob {
+        bool active = false;
+        std::vector<std::pair<fs::path, std::array<std::pair<bool, std::string>, 7>>> todo;   // file, per row: (changed, new value)
+        size_t next = 0;
+        int ok = 0;
+        std::string error;
+        std::vector<std::pair<fs::path, fs::path>> renames;   // file name changes (old, new), done last in two phases
+        fs::path cue_file;                // <book folder>/<folder>.cue
+        std::vector<std::pair<std::string, std::string>> cue_set;   // header lines to write into it (narrator, publisher, year, ...)
+        bool cue_written = false;
+        int renamed = 0;
+    };
+    BookTagJob book_job_;
+    void book_tags_open();
+    void book_ov_load(int chapter);           // fills book_ov_val_ / book_ov_orig_ from the file
+    bool book_ov_dirty() const;
+    void book_ov_save(bool whole_book);       // queues the job: this chapter only, or the book-wide rows for every chapter
+    std::vector<std::pair<fs::path, fs::path>> book_rename_plan(bool whole_book) const;   // the renames a save would do (book-wide: numbered)
+    void book_finish_job(BookTagJob& job);    // the .cue and the renames, after the last tag write
+    bool book_ov_rename_whole_ = true;        // the question is about the whole book ([a]) or about this chapter and the numbers moving to the front ([s])
+    std::string book_cover_report() const;    // what the book cover needs / why it is not shown (for the status line)
+    int book_numbering() const;               // 0 the file names carry no chapter number, 1 it is in front, 2 it is at the end
+    bool book_ov_rename_ask_ = false;         // SHIFT-free [a] with a changed file name: asks first, the chapter numbers are added
+    bool book_overlay_key(int key);
+    bool book_tags_key(int key);
+    std::vector<std::string> build_book_overlay_panel(int panel_w) const;
+    std::vector<std::string> build_book_tags_panel(int panel_w) const;
+    // --- bookmark and notes (app_audiobook_notes.cpp) ---
+    // The overlay of the book mode is one Mode (BookOverlay) with several faces.
+    enum class BookOv { Tags, Ask, Resume, Notes, Marks, Chapters, DelMark, Continue, Pick };
+    BookOv book_ov_kind_ = BookOv::Tags;
+    using BookBookmark = BookMark;            // file, second, when it was set (REM BOOKMARK lines in the .cue)
+    BookBookmark book_bookmark_;              // the newest bookmark of the open book (the one the resume choices are about)
+    std::vector<BookMark> book_marks_;        // all bookmarks of the open book (file order)
+    BookMark book_resume_mark_;               // the bookmark the resume choices are about
+    int book_mark_in_chapter(int idx) const;  // index in book_marks_ of the newest bookmark in chapter idx, -1 when none
+    // the bookmark list (SHIFT+k: the bookmark of every book; app_audiobook_marks.cpp)
+    // A time stamp of a book. Three kinds: the auto-mark (kind 0; the program writes it as REM AUTOMARK while one listens), a regular
+    // bookmark (1; REM BOOKMARK, as many as one likes) and a note (2; a bookmark with a text, in <folder>_notes.txt).
+    struct BookStamp {
+        int kind = 1;                         // 0 auto-mark, 1 bookmark, 2 note
+        std::string dir, book, file, title;   // book folder, its name, the chapter's file name, the note's title ("" = none)
+        double sec = 0.0;
+        long long when = 0;                   // seconds since 1970 (0 = unknown; notes have none)
+        int num = 0;                          // position among its kind in the book's file (1 based): "Bookmark 2", "Note 3"
+        BookNote note;                        // kind 2: the whole note (for the undo; carries the dates it was set and last changed)
+    };
+    std::vector<BookStamp> book_mrows_;
+    std::vector<BookStamp> book_undo_;        // recent deletions, newest last (CTRL+SHIFT+u brings them back)
+    BookMark book_automark_;                  // the auto-mark of the open book
+    // the auto-mark: written every few seconds while a chapter plays; "leave, but keep the time stamp" holds it back
+    std::chrono::steady_clock::time_point book_am_last_{};
+    std::string book_am_last_file_;
+    double book_am_last_sec_ = -100.0;
+    bool book_am_hold_ = false;
+    std::string book_am_hold_file_;
+    double book_am_hold_sec_ = 0.0;
+    void book_automark_tick(bool force);      // writes the auto-mark of the chapter that plays (force: now, whatever the interval)
+    std::vector<BookStamp> book_chapter_stamps(int idx, bool with_auto) const;   // auto-mark, bookmarks and notes of chapter idx
+    static std::string book_stamp_name(const BookStamp& s);   // "Auto-mark", "Bookmark 2", the note's title or "Note 3"
+    static const char* book_stamp_type(const BookStamp& s);   // "Auto-mark", "Bookmark", "Note"
+    bool book_stamp_remove(BookStamp s);      // deletes it from the .cue / notes file and remembers it for the undo
+    bool book_stamp_restore(const BookStamp& s);
+    std::string book_undo_pop();              // CTRL+SHIFT+u: brings back the last deleted time stamp; the text says what happened
+    void book_stamps_changed(const std::string& dir);
+    int book_automark_convert(const std::string& dir, const BookMark& am);   // auto-mark -> bookmark (returns its number, 0 on an error)
+    void book_continue_open(int idx);         // "continue where you left?" (a chapter with an auto-mark and no bookmark)
+    bool book_continue_key(int key);
+    std::vector<std::string> build_book_continue_panel(int panel_w) const;
+    void book_pick_open(int idx, std::vector<BookStamp> rows);   // the time stamps of the chapter to choose from
+    bool book_pick_key(int key);
+    std::vector<std::string> build_book_pick_panel(int panel_w) const;
+    std::vector<BookStamp> book_pick_rows_;
+    int book_pick_sel_ = 0, book_pick_idx_ = -1;
+    BookMark book_cont_mark_;                 // the auto-mark that the continue question is about
+    int book_cont_idx_ = -1;
+    std::string book_resume_label_ = "bookmark";   // what the resume choices are about (header text)
+    int book_msel_ = 0, book_mscroll_ = 0;
+    int book_notes_sort_ = 0;                 // SHIFT+t in the notes overlay: 0 chapter order (furthest on top), 1 recently edited first
+    int book_mfilter_ = 0;                    // SHIFT+t in the list: 0 all, 1 notes by the date they were set, 2 notes by the date of the last change
+    int book_mmode_ = 0;                      // 0 the list, 1 "discard this bookmark?"
+    // --- chapter marks and cutting a file into chapters (Phase 3; app_audiobook_chapters.cpp) ---
+    std::string book_cm_file_;                // the file that is marked (its name in book_dir_)
+    double book_cm_dur_ = 0.0;                // its length in seconds (0 = unknown)
+    std::vector<ChapterMark> book_cm_;        // its chapter marks, by time (kept in the .cue as REM CHAPTER lines)
+    int book_cm_sel_ = 0;
+    int book_cm_mode_ = 0;                    // 0 the list, 1 title field, 2 time field, 3 time field of a new mark, 4 delete the mark?, 5 cut?, 6 delete the backups?
+    std::string book_cm_text_;                // the field
+    int book_cm_edit_ = -1;                   // index of the mark whose title / time is typed
+    void book_cm_open();                      // ALT+L in the audio book player
+    bool book_cm_key(int key);
+    std::vector<std::string> build_book_cm_panel(int panel_w, int panel_h) const;
+    void book_cm_save();                      // the marks into the .cue
+    void book_cm_insert(double sec, const std::string& title, bool ask_title);
+    std::vector<fs::path> book_backup_files() const;   // <name>.<ending>.mousiki-backup files in the open book's folder
+    struct BookCutJob {
+        bool active = false;
+        fs::path src;
+        std::string dir, file;
+        std::vector<SplitPart> parts;
+        size_t next = 0;
+        std::vector<fs::path> made;
+        std::string error;
+        bool trim = false;                    // trim the blank audio at the edges of the parts to 2 s
+        bool detecting = false;               // ffmpeg's silencedetect runs over the file (in `detect`)
+        std::future<std::string> detect;
+        bool waiting = false;                 // the original is being waited for (it is still in use)
+        std::chrono::steady_clock::time_point wait_start{}, last_try{};
+    };
+    BookCutJob book_cut_;
+    void book_cut_start(bool trim);
+    void book_cut_step();                     // one part per call (from book_poll)
+    void book_cut_finish();
+    void book_marks_open();
+    void book_marks_fill();
+    bool book_marks_key(int key);
+    std::vector<std::string> build_book_marks_panel(int panel_w, int panel_h) const;
+    bool book_open_dir(const std::string& dir);   // opens the book of that folder (false when it is not in the library)
+    void book_marks_write(const std::string& dir, const std::vector<BookMark>& marks);
+    std::vector<BookNote> book_notes_;        // the open book's notes (<folder>_notes.txt)
+    void book_bookmark_load();                // book_dir_ -> book_bookmark_ and book_notes_
+    void book_bookmark_store(const std::string& file, double sec);
+    int book_bookmark_chapter() const;        // index of the chapter that carries the bookmark, -1 when none
+    void book_set_bookmark_now();             // SHIFT+b
+    // the question "set a bookmark?" (it pauses the audio) and the resume choices
+    std::function<void()> book_then_;         // what happens after the answer
+    bool book_prompt_paused_ = false;         // the question paused a running chapter
+    std::string book_ask_file_;               // where the question is about
+    double book_ask_sec_ = 0.0;
+    int book_resume_idx_ = -1, book_resume_sel_ = 0;
+    bool book_ask_due() const;
+    void book_ask_then(const std::string& what, std::function<void()> then);   // asks when it is due (then runs `then` after the answer), else runs it at once
+    std::string book_ask_what_;               // the line under the question: what the user is about to do
+    std::string book_note_dir_;               // the folder of the book the note editor writes to
+    std::chrono::steady_clock::time_point book_seek_at_{};
+    void book_go(int idx);                    // the user picks chapter idx: the question, the resume choices, then playing
+    bool book_play_file(const std::string& path);   // reading history: opens the book of the file and goes to its chapter
+    void book_play_at(int idx, double sec);   // starts chapter idx and goes to sec
+    void book_resume_open(int idx, const BookMark& mark, const std::string& label = "bookmark");
+    bool book_ask_key(int key);
+    void book_delmark_open(int idx);          // [d] in the chapter pane: the small question before the bookmark of chapter idx is deleted
+    bool book_delmark_key(int key);
+    std::vector<std::string> build_book_delmark_panel(int panel_w) const;
+    BookMark book_del_mark_;                  // the bookmark that the question is about
+    bool book_resume_key(int key);
+    std::vector<std::string> build_book_ask_panel(int panel_w) const;
+    std::vector<std::string> build_book_resume_panel(int panel_w) const;
+    bool book_seek_pending_ = false;          // a chapter is loading and has to go to book_seek_sec_ when it is ready
+    std::string book_seek_file_;
+    double book_seek_sec_ = 0.0;
+    double book_prev_elapsed_ = 0.0;          // for noticing that playback passed a note
+    // the note editor in the field (SHIFT+n; the viz / notes field shows it instead of the visualization)
+    bool book_note_edit_ = false;
+    bool book_note_typing_ = true;            // true: keys type; false: SHIFT+s saves, ENTER types again, ESC discards
+    bool book_note_discard_ask_ = false;
+    std::vector<std::string> book_note_lines_;   // [0] the title, then the text lines
+    std::string book_note_file_;
+    double book_note_sec_ = 0.0;
+    int book_note_row_ = 0;                   // the line with the caret (edit_caret_ = the byte in it)
+    int book_note_arow_ = 0;                  // the line with the other end of the marked text (edit_anchor_ = the byte in it)
+    mutable int book_note_vscroll_ = 0;       // the first visible row of the (soft-wrapped) text
+    mutable int book_note_wrap_w_ = 40;       // the width the text was wrapped to last (Up / Down move by those rows)
+    int book_note_replace_ = -1;              // index in book_notes_ when an existing note is edited
+    std::string book_note_status_;
+    bool book_note_shown_ = false;            // the field shows a note (not the visualization)
+    BookNote book_note_view_;
+    bool book_note_auto_ = false;             // shown by playback passing it (goes away by itself)
+    std::chrono::steady_clock::time_point book_note_auto_at_{};
+    bool book_overlay_switch(int key);        // SHIFT+s / k / m / l inside one of those overlays: the other one opens without closing first
+    int book_viz_before_ = -1;                // the view of the field (0 sphere, 1 oscilloscope, 2 spectrogram, 3 lyrics) before a note took its place
+    void book_viz_remember();                 // called when a note enters the field
+    void book_viz_restore();                  // called when it leaves: that view is on again
+    void book_note_new();
+    void book_note_edit_existing(int idx);
+    void book_note_to_overlay();              // CTRL+n: the note that is written (or shown) goes on in the big notes overlay
+    std::string book_note_where(const std::string& file, double sec, int width) const;   // "chapter  @ 0:00:05" that always keeps the time
+    bool book_note_key(int key);
+    void book_note_save();
+    void book_note_show(const BookNote& n, bool automatic);
+    void book_notes_follow();                 // render loop: playback passed a note -> show it
+    bool book_field_has_note() const { return audiobook_ && (book_note_edit_ || book_note_shown_); }
+    std::vector<std::string> book_note_field_rows(int w, int h) const;   // what the field shows instead of the visualization
+    // the notes overlay (SHIFT+l)
+    int book_notes_sel_ = 0, book_notes_scroll_ = 0;
+    int book_notes_mode_ = 0;                 // 0 the list, 1 export path, 2 import path, 3 delete question, 4 a note is written / changed in the right pane
+    std::vector<LegendRow> book_overlay_legend(int panel_w, const std::vector<LegendGroup>& groups, int max_rows) const;   // the tree-table legend of the book overlays
+    std::string book_notes_path_;
+    std::vector<int> book_notes_order() const;   // entries of the list: -1 = the bookmark, else an index into book_notes_ (chapter, time)
+    void book_notes_open();
+    bool book_notes_key(int key);
+    std::vector<std::string> build_book_notes_panel(int panel_w, int panel_h) const;
+    int book_ov_width(int term_w) const;
+    int book_chapter_of(const std::string& file) const;   // chapter index by file name, -1 when none
+    std::string scanned_book_path_;           // the AUDIO BOOK PATH the library was scanned with (a change meanwhile means a rescan)
+    void exclude_book_files(std::vector<LocalTrack>& tracks) const;   // the music player's library leaves out what lies in the audio book folder
+    void book_totals(double elapsed, double& total, double& done, bool& complete) const;   // length of the book / listened so far (sums the known chapter lengths)
+    void book_poll();                         // render loop: the tags of the loaded chapter, a running save
+    bool request_mode_switch(int dir);   // SHIFT and + / SHIFT and -: leave for the next / previous mode (false: no other mode is on)
     void sync_after_radio();         // adopt what the radio changed in config.txt meanwhile
     void remote_poll();              // commands from outside + the status file; called every frame
     void remote_app_apply();         // starts / stops the remote app's web server to match settings_
@@ -1687,6 +1954,13 @@ private:
     int phone_focus_ = 0;            // LISTS: the pane UP / DOWN page through (0 the local list, 1 the saved playlists)
     int phone_page_ = 0;             // LISTS: the page of the local list ...
     int phone_page2_ = 0;            // ... and of the playlists
+    // Audio book mode: LISTS shows the library as a tree (the library overlay's folders, books and chapters). phone_book_open_ holds
+    // the opened folders; the rows are numbered from 1 for the commands book-open (folder) and track (chapter).
+    struct PhonePic { bool active = false; int x = 0, y = 0, w = 0, h = 0; std::string key; };
+    mutable PhonePic phone_pic_;     // audio book: where the phone draws the picture (cells) and which one
+    std::set<std::string> phone_book_open_;
+    std::vector<FoRow> phone_book_rows() const;
+    void phone_book_reveal();        // opens the way to the book that is open and sets the page that shows it
     std::string phone_note_;         // its status line ("queued 12 titles from ...")
     std::chrono::steady_clock::time_point phone_clear_armed_{};   // CLEAR QUEUE tapped once: a second tap within 5 s clears
     std::string queue_playlist(const std::string& name);   // every title of a saved playlist into the queue; the message
@@ -1715,7 +1989,7 @@ private:
     std::vector<std::string> build_progress_panel(int width) const;
     std::vector<std::string> build_search_bar(int width) const;
     std::vector<std::string> build_list_panel(int width, int height) const;
-    std::vector<std::string> build_queue_panel(int width, int height) const;
+    std::vector<std::string> build_queue_panel(int width, int height, bool wide_artist = false) const;   // wide_artist: the big overlay gives the artist column twice the room
 };
 
 } // namespace muisc

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(mousiki VERSION 4.5.0 LANGUAGES CXX C)
+project(mousiki VERSION 4.6.0 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -234,6 +234,17 @@ if(EXISTS "${CMAKE_SOURCE_DIR}/radio_config.txt")
       COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/radio_config.txt"
               "$<TARGET_FILE_DIR:mousiki>/radio_config.txt")
 endif()
+
+# ---------------------------------------------------------------------------
+# Audio book mode (src_audio_book/): the same program, too. Its App instance, the notes / bookmark / chapter-mark overlays,
+# the .cue and notes files, the cutting of chapters and the book pictures live here; the shared plumbing stays in src/.
+# ---------------------------------------------------------------------------
+file(GLOB AUDIO_BOOK_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src_audio_book/*.cpp")
+if(NOT AUDIO_BOOK_SOURCES)
+  message(FATAL_ERROR "src_audio_book/ is missing: the audio book mode's sources belong in src_audio_book/ (see CMakeLists.txt).")
+endif()
+target_sources(mousiki PRIVATE ${AUDIO_BOOK_SOURCES})
+target_include_directories(mousiki PRIVATE "${CMAKE_SOURCE_DIR}/src_audio_book")
 
 # Optional stand-alone radio executable (development / tests): the radio only, no mode switch.
 option(MOUSIKI_BUILD_RADIO_STANDALONE "Also build the radio as its own executable (mousiki_radio)" OFF)

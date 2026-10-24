@@ -120,6 +120,11 @@ std::string mode_switch_key_label() {
     return "*";
 }
 
+std::string mode_switch_back_label() {
+    const std::string up = mode_switch_key_label();
+    return up == "*" ? "_" : up == "SHIFT and +" ? "SHIFT and -" : "SHIFT+-";
+}
+
 std::string symbol_key_label(const std::string& key) {
     if (key != "(" && key != ")" && key != "=" && key != "<") return key;
     const std::string c = keyboard_layout_code();

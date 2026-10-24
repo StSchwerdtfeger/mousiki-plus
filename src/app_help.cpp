@@ -164,11 +164,12 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
     //     rather than looked up in settings_.hotkeys, so there is no hotkey
     //     entry for them to reference.
     struct CheatRow { const char* header; const char* action; const char* desc; };
-    static const CheatRow rows[] = {
+    static const CheatRow all_rows[] = {
         // --- System -- listed first. Besides the rebindable system hotkeys
         // this also carries the literal keys used across multiple overlays
         // (not tied to one editor's own legend below). ---
-        {"SYSTEM (MAIN UI)", "#@SWITCHKEY", "Switch to the RADIO mode (types the * character; playback is paused and the player waits in the background)"},
+        {"SYSTEM (MAIN UI)", "#@SWITCHKEY", "Switch to the next mode (music player, radio, audio books; the order and the modes that are on are set in Settings -> ON/OFF -> MODES). Playback pauses and the mode waits in the background"},
+        {nullptr, "#@SWITCHBACK", "Switch to the previous mode"},
         {nullptr, "HKeySetting", "Open Settings panel, hit again to save and quit"},
         {nullptr, "HKeyConsole", "Console / logs"},
         {nullptr, "HKeyWizard", "Help wizard: the user guide as tutorial pages (arrow keys turn them)"},
@@ -179,6 +180,29 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "#ENTER", "Confirm / select"},
         {nullptr, "#ARROW KEYS", "Navigate (context-dependent)"},
         {nullptr, "#Y / N", "Confirm or cancel a prompt"},
+        // --- Audio book mode ---
+        {"AUDIO BOOK MODE", "#ENTER", "Left pane: open the book (its chapters fill the right pane). Chapter pane: play the chapter"},
+        {nullptr, "HKeySwitchBetweenCards", "Move between the books and the chapters"},
+        {nullptr, "HKeyPlayNextSong", "Next chapter (also at the end of a chapter; the play mode can repeat the chapter or stop after it)"},
+        {nullptr, "HKeyPlayPreviousSong", "Previous chapter"},
+        {nullptr, "HKeySeekForward", "Seek forward: 5 s, then faster and faster while the key is held (up to minutes)"},
+        {nullptr, "HKeySeekBackward", "Seek backward: the same acceleration"},
+        {nullptr, "HKeyMetaEditor", "Tag editor of the chapter: file name, book title, author, narrator, chapter, publisher + year, genre (edits only, nothing is fetched); LEFT/RIGHT other chapter, [s] save, [a] book-wide rows to all chapters"},
+        {nullptr, "HKeyConvertOverlay", "Converter (works on the audio books; /f: searches folders)"},
+        {nullptr, "HKeyCyclePlayMode", "Play mode: on to the next chapter / repeat the chapter / stop after the chapter"},
+        {nullptr, "HKeySearch", "Search the books (fuzzy, over the folder names); ESC shows all books again; in the chapter pane ESC goes back to the library pane; inside a folder of the library pane ESC and LEFT go one step up"},
+        {nullptr, "HKeyRescan", "Scan the audio book folder again (new books and chapters)"},
+        {nullptr, "HKeyFetchTags", "Audio book: set a bookmark at the exact time - a book may carry many (the last bookmarked chapter is lit in the header colour). Three kinds of time stamps: the auto-mark (kept by itself while you listen), bookmarks and notes (a bookmark with a text)"},
+        {nullptr, "#CTRL+SHIFT+u", "Audio book: undo the last deletion of a bookmark, note or auto-mark (up to 30; also in the SHIFT+k list and the notes overlay)"},
+        {nullptr, "#d", "Audio book: in the chapter pane [d] deletes the bookmark of the chosen chapter (a small question first; CTRL+SHIFT+u undoes it)"},
+        {nullptr, "HKeyToggleMetaOnly", "Audio book: write a note at the current time (title, then text in the field; CTRL+SHIFT+s saves; ESC stops typing, then SHIFT+s saves)"},
+        {nullptr, "#CTRL+n", "Audio book: the note in the small field (shown or written) goes on in the big notes overlay; in the overlay CTRL+n goes back to the small field"},
+        {nullptr, "HKeyListOverlay", "Audio book: all notes of the book (left: chapter, time, title; right: the note); [n] new note, [ENTER] (or [t]) edit it right there in the overlay, [f] show it in the field of the main screen, [x] delete, SHIFT+p plays from there, SHIFT+t sorts by chapter / last edit, SHIFT+e export, SHIFT+i import"},
+        {nullptr, "HKeyQueueOverlay", "Audio book: the time stamps of all books - auto-marks, bookmarks and notes, with a TYPE column - newest first; ENTER the resume choices, SHIFT+p plays from there, SHIFT+d discards one (asks first), CTRL+SHIFT+u brings it back, SHIFT+b turns an auto-mark into a bookmark, SHIFT+t sorts by the date set or by book (highest chapter and furthest mark first; ESC resets it)"},
+        {nullptr, "#SHIFT+s", "Audio book: library overlay - the search pane over the books; ENTER / right arrow opens a book and lists its chapters (a diamond marks a bookmark), ENTER on a chapter plays it, [f] opens the book in the chapter pane, CTRL+p plays at once; SHIFT+k / m / l switch to the other overlays without closing this one"},
+        {nullptr, "HKeyHistory", "Audio book: the reading history (every chapter you play, top chapters, top books, habits); ENTER plays the chapter again"},
+        {nullptr, "HKeyLyricsTiming", "Audio book: chapter marks of the chapter that plays - [m] mark here, [a] by time h:mm:ss, [t] time, [r] title, [x] delete, LEFT/RIGHT seek (faster while held), [c] cut the file at the marks ([y] cut, [t] cut and trim blank audio at the edges to 2 s; the original is kept as backup), SHIFT+d delete the backup"},
+        {nullptr, "#@VIZKEYS", "Audio book: switch the field between the notes and the visualizations (sphere, oscilloscope, spectrogram): the first key goes forward, the second backward; [.] puts a shown note away (the view from before comes back), [,] on a shown note writes it again"},
         // --- Playback ---
         {"PLAYBACK (MAIN UI)", "HKeyPlay", "Play the selected track"},
         {nullptr, "HKeyTogglePlayPause", "Play / pause"},
@@ -350,6 +374,36 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {"DOWNLOADS", "HKeyDownloadStream", "Save stream to the download folder (Settings > Download Path, else .cache/mousiki)"},
     };
 
+    // The table of this mode: the audio book player only lists what it can do (its own category first, then the parts of the
+    // other categories that work in it); every other mode shows the whole table.
+    std::vector<CheatRow> rows;
+    {
+        const char* pending = nullptr;
+        std::string cat;
+        for (const CheatRow& r : all_rows) {
+            if (r.header) { cat = r.header; pending = r.header; }
+            const std::string act = r.action, desc = r.desc;
+            if (audiobook_) {
+                bool keep = false;
+                if (cat == "SYSTEM (MAIN UI)" || cat == "AUDIO BOOK MODE" || cat == "FILE CONVERSION (MAIN UI)" || cat == "SETTINGS" ||
+                    cat == "SETTINGS (REFERENCE TAB)" || cat == "EQUALIZER") keep = true;
+                else if (cat == "PLAYBACK (MAIN UI)") {
+                    static const char* const drop[] = {"HKeyPlay", "HKeyPlayNextSong", "HKeyPlayPreviousSong", "HKeyShuffleNext", "HKeyCyclePlayMode",
+                                                       "HKeySeekForward", "HKeySeekBackward", "HKeyCreator"};
+                    keep = desc.rfind("Creator overlay", 0) != 0;
+                    for (const char* d : drop) if (act == d) keep = false;
+                } else if (cat == "NAVIGATION & VIEW (MAIN UI)") keep = act == "HKeyNavigateUp" || act == "HKeyNavigateDown" || act == "HKeyRefreshUi";
+                else if (cat == "VISUALIZATIONS AND LYRICS (MAIN UI)") keep = act != "HKeyToggleLyrics" && act != "HKeyToggleLyricsBack";
+                if (!keep) continue;
+            }
+            CheatRow c = r;
+            c.header = pending;
+            pending = nullptr;
+            if (audiobook_ && c.header && cat == "VISUALIZATIONS AND LYRICS (MAIN UI)") c.header = "VISUALIZATIONS (MAIN UI)";
+            rows.push_back(c);
+        }
+    }
+
     // Same height as every other full-screen view: term_rows_ - 1 lines (the
     // terminal's last row stays untouched so a trailing newline can never
     // scroll), of which 2 are this overlay's own top/bottom border rows. It
@@ -362,6 +416,10 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
     // so the scroll range counts what is really drawn. The description column starts after the widest key + 2 spaces.
     const int inner = std::max(0, W - 4);
     auto key_of = [&](const CheatRow& r) {
+        if (std::string(r.action) == "#@VIZKEYS") {   // the two keys of the notes / visualizations switch
+            auto one = [&](const char* a) { auto it = settings_.hotkeys.find(a); return it != settings_.hotkeys.end() && !it->second.empty() ? pretty_key(it->second) : std::string("-"); };
+            return one("HKeyToggleLyrics") + " / " + one("HKeyToggleLyricsBack");
+        }
         if (r.action[0] == '#') return pretty_key(std::string(r.action + 1));
         auto it = settings_.hotkeys.find(r.action);
         return pretty_key((it != settings_.hotkeys.end() && !it->second.empty()) ? it->second : std::string("-"));
@@ -407,7 +465,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         struct Res { int row; helpsearch::Hit hit; std::string doc; };
         std::vector<Res> res;
         if (!words.empty()) {
-            for (size_t i = 0; i < sizeof(rows) / sizeof(rows[0]); ++i) {
+            for (size_t i = 0; i < rows.size(); ++i) {
                 // the key is padded to the width of the table's key column, so the descriptions line up as in the table
                 std::string doc = pad_right(truncate_str(key_of(rows[i]), key_w), desc_col) + rows[i].desc + "  [" + row_category[i] + "]";
                 helpsearch::Hit h = helpsearch::match(words, doc);

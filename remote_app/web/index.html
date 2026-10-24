@@ -134,6 +134,7 @@ let cols = BASE_COLS, rows = MIN_ROWS, cw = 9, ch = 18, ox = 0, oy = 0, dpr = 1,
 let screen = null;        // the last screen from Mousiki: {rev, mode, cols, rows, lines, zones}
 let grid = [];            // its cells
 let overlay = null;       // a panel of this page on top of the screen (PIN, menu, connection lost)
+let picture = null;       // the picture of the screen (the audio book cover): {key, img, x, y, w, h}
 let flash = null;         // the tapped zone, lit for a moment
 
 function layout() {
@@ -281,6 +282,17 @@ function draw() {
   ctx.fillStyle = DEFAULT_BG;
   ctx.fillRect(0, 0, cv.width, cv.height);
   if (grid.length) paintCells(grid, !!overlay);
+  if (picture && picture.img && picture.ready && screen && screen.image && screen.image.key === picture.key) {
+    // the real picture, as large as the rectangle of cells allows, with its own proportions, centred
+    const r = screen.image, bw = r.w * cw, bh = r.h * ch;
+    const k = Math.min(bw / picture.img.naturalWidth, bh / picture.img.naturalHeight);
+    const w = picture.img.naturalWidth * k, h = picture.img.naturalHeight * k;
+    ctx.globalAlpha = overlay ? 0.35 : 1;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(picture.img, ox + r.x * cw + (bw - w) / 2, oy + r.y * ch + (bh - h) / 2, w, h);
+    ctx.globalAlpha = 1;
+  }
   if (flash && !overlay) {
     ctx.fillStyle = "rgba(255,255,255,0.22)";
     ctx.fillRect(ox + flash.x * cw, oy + flash.y * ch, flash.w * cw, flash.h * ch);
@@ -406,6 +418,14 @@ async function poll() {
         const n = parseInt(s.text, 10);
         textColor = n >= 1 && n <= 255 ? PAL[n] : "";
         grid = s.lines.map(parseLine);
+        if (s.image) {   // fetched once per picture
+          if (!picture || picture.key !== s.image.key) {
+            const p = { key: s.image.key, img: new Image(), ready: false };
+            p.img.onload = () => { p.ready = true; draw(); };
+            p.img.src = "/api/image?pin=" + encodeURIComponent(pin) + "&key=" + encodeURIComponent(s.image.key);
+            picture = p;
+          }
+        } else picture = null;
         draw();
       }
     }

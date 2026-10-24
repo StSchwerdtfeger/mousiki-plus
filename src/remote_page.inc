@@ -136,9 +136,10 @@ let cols = BASE_COLS, rows = MIN_ROWS, cw = 9, ch = 18, ox = 0, oy = 0, dpr = 1,
 let screen = null;        // the last screen from Mousiki: {rev, mode, cols, rows, lines, zones}
 let grid = [];            // its cells
 let overlay = null;       // a panel of this page on top of the screen (PIN, menu, connection lost)
-let flash = null;         // the tapped zone, lit for a moment
+let picture = null;       // the picture of the screen (the audio book cover): {key, img, x, y, w, h}
 )WEB",
-R"WEB(
+R"WEB(let flash = null;         // the tapped zone, lit for a moment
+
 function layout() {
   const W = box.clientWidth, H = box.clientHeight;
   dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
@@ -284,6 +285,17 @@ function draw() {
   ctx.fillStyle = DEFAULT_BG;
   ctx.fillRect(0, 0, cv.width, cv.height);
   if (grid.length) paintCells(grid, !!overlay);
+  if (picture && picture.img && picture.ready && screen && screen.image && screen.image.key === picture.key) {
+    // the real picture, as large as the rectangle of cells allows, with its own proportions, centred
+    const r = screen.image, bw = r.w * cw, bh = r.h * ch;
+    const k = Math.min(bw / picture.img.naturalWidth, bh / picture.img.naturalHeight);
+    const w = picture.img.naturalWidth * k, h = picture.img.naturalHeight * k;
+    ctx.globalAlpha = overlay ? 0.35 : 1;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(picture.img, ox + r.x * cw + (bw - w) / 2, oy + r.y * ch + (bh - h) / 2, w, h);
+    ctx.globalAlpha = 1;
+  }
   if (flash && !overlay) {
     ctx.fillStyle = "rgba(255,255,255,0.22)";
     ctx.fillRect(ox + flash.x * cw, oy + flash.y * ch, flash.w * cw, flash.h * ch);
@@ -294,7 +306,8 @@ function draw() {
 // ---- panels of this page (drawn with the same look) -----------------------------------------------------------------
 const C = { border: "\x1b[38;5;170m", bottom: "\x1b[38;5;104m", head: "\x1b[1;38;5;10m", legend: "\x1b[38;5;8m",
             text: "\x1b[38;5;7m", field: "\x1b[38;5;15;48;5;238m", warn: "\x1b[38;5;203m", R: "\x1b[0m" };
-function plainWidth(s) { return parseLine(s).length; }
+)WEB",
+R"WEB(function plainWidth(s) { return parseLine(s).length; }
 // a centred panel: title + lines (each "text" or {t: text, cmd: "..."}); returns {cells, zones}
 function panel(title, items, wantW) {
   const w = Math.min(cols - 2, wantW || 40), inner = w - 4;
@@ -306,8 +319,7 @@ function panel(title, items, wantW) {
   lines.push(C.border + "╭─" + C.R + C.head + t + C.R + C.border + "─".repeat(Math.max(0, w - 3 - plainWidth(t))) + "╮" + C.R);
   items.forEach((it, i) => {
     let txt = typeof it === "string" ? it : it.t;
-)WEB",
-R"WEB(    while (plainWidth(txt) > inner) txt = txt.slice(0, -1);   // never past the frame
+    while (plainWidth(txt) > inner) txt = txt.slice(0, -1);   // never past the frame
     const vis = plainWidth(txt);
     lines.push(C.border + "│" + C.R + " " + txt + C.R + pad(inner - vis) + " " + C.border + "│" + C.R);
     if (typeof it !== "string" && it.cmd) zones.push({ x: left, y: top + 1 + i, w, h: 1, cmd: it.cmd });
@@ -410,6 +422,14 @@ async function poll() {
         const n = parseInt(s.text, 10);
         textColor = n >= 1 && n <= 255 ? PAL[n] : "";
         grid = s.lines.map(parseLine);
+        if (s.image) {   // fetched once per picture
+          if (!picture || picture.key !== s.image.key) {
+            const p = { key: s.image.key, img: new Image(), ready: false };
+            p.img.onload = () => { p.ready = true; draw(); };
+            p.img.src = "/api/image?pin=" + encodeURIComponent(pin) + "&key=" + encodeURIComponent(s.image.key);
+            picture = p;
+          }
+        } else picture = null;
         draw();
       }
     }
@@ -486,7 +506,8 @@ cv.addEventListener("pointerup", e => {
 let pressTimer = 0;
 cv.addEventListener("pointerdown", () => { clearTimeout(pressTimer); pressTimer = setTimeout(() => { if (!overlay) showMenu(); }, 700); });
 ["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, () => clearTimeout(pressTimer)));
-
+)WEB",
+R"WEB(
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 window.addEventListener("resize", layout);
 window.addEventListener("orientationchange", () => setTimeout(layout, 200));

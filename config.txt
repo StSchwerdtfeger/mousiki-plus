@@ -219,7 +219,13 @@ WaveformStyle=raw
 DiskRotationSpeed=0.1
 ## 0.01x to 1.00x
 StartMode=player
-## player , radio -- the mode Mousiki starts in (the * key switches while it runs; set in Settings -> ON/OFF -> MODES)
+## player , radio , audiobook -- the mode Mousiki starts in (SHIFT and + / SHIFT and - switch while it runs; set in Settings -> ON/OFF -> MODES)
+UseModePlayer=true
+UseModeRadio=true
+UseModeAudiobook=true
+## false = the mode is left out of the mode switch (one mode always stays on); set in Settings -> ON/OFF -> MODES
+ModeOrder=player,radio,audiobook
+## the order SHIFT and + walks through the modes (player, radio, audiobook in any order); SHIFT and - goes back; Settings -> ON/OFF -> MODES -> Mode Order 1..3
 BlackBackground=true
 ## true , false -- the terminal's background is black while Mousiki runs (given back on exit; player and radio)
 RemoteApp=false
@@ -230,6 +236,12 @@ RemoteAppPin=
 ## 4 - 8 digits -- the PIN the app needs; made when the remote app is switched on (mousiki --remote-info shows it)
 ShareProfiles=false
 ## true , false -- the radio uses the player's oscilloscope and spectrogram settings (its own are kept as a backup and come back when off)
+BookmarkAsk=true
+## true , false -- audio book mode: changing the chapter, the mode or quitting asks first whether to set a bookmark at the exact time (the audio is paused meanwhile); SHIFT+b always sets one
+BookCoverWave=true
+## true , false -- with BookCover on: true = the colour wave runs over the cover (a grey cover), false = the cover is shown in its own colours (the standard picture always has the wave)
+BookCover=false
+## true , false -- audio book mode: false = the standard picture (a woman reading), true = the cover image found in the book's folder (cover / folder / front / albumart .jpg .png ..., or the first picture there; none: the standard picture); the colour wave runs over either one
 UpdateCheck=true
 ## true , false -- at start-up Mousiki looks (at most once a day, in the background) whether a newer release exists and tells you once per version; nothing is installed and nothing about you is sent (needs Python 3)
 TrackBufferMB=256
@@ -416,6 +428,23 @@ LocalMusicPath=%USERPROFILE%\Music
 # Settings -> PATHS ("CONVERSION EXPORT PATH").
 #ConversionExportPath=D:\Downloads\mousiki\conversion-export
  
+# The audio book mode keeps its own look (colours, theme, elements, visualizations,
+# borders, play mode, sound) in audiobook_config.txt next to this file; everything
+# else (paths, hotkeys, the mode switches ...) is shared and lives here.
+
+# Audio book folder (optional, ONE folder): the library of the audio book mode
+# (SHIFT and + switches to it). Every folder in it that directly holds audio
+# files is one book; a .cue file beside each book records where you last
+# stopped listening (it also keeps the narrator, publisher and year; the
+# music player's library leaves the files of this folder out; it may lie INSIDE a LocalMusicPath folder but may not be
+# the same folder as one: that is a conflict). Editable live in Settings -> PATHS ("AUDIO BOOK PATH"),
+# which is shown in every mode.
+# In the audio book mode some hotkeys do other things (the keys stay the ones below): HKeyQueueOverlay (K) lists the
+# auto-marks, bookmarks and notes of the books (HKeyQueueToPlaylist, CTRL+SHIFT+U, undoes a deletion there), HKeyFolderOverlay (F) / SHIFT+s is the library overlay, HKeyHistory (H) is the
+# reading history (kept in reading_history.json next to history.json), HKeyLyricsTiming (ALT+L) sets chapter marks and
+# cuts a file into chapters (the original stays as <name>.<ending>.mousiki-backup until you delete it there).
+#AudioBookPath=D:\Audiobooks
+
 # Download folder (optional, single -- not a list): where yt-dlp writes what
 # it downloads. Leaving it out means the built-in cache folder,
 # %USERPROFILE%\.cache\mousiki, which is also what Settings shows in this

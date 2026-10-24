@@ -242,9 +242,31 @@ struct Settings : VizPrefs {
 
     // --- playback ------------------------------------------------------
     bool waveform_smooth = true;
-    // Which mode Mousiki starts in: "player" (the music player) or "radio". Settings -> ON/OFF -> MODES -> Start Mode (the
-    // radio's settings have the same row). config.txt: StartMode=player|radio. main() reads it with read_start_mode().
+    // Which mode Mousiki starts in: "player" (the music player), "radio" or "audiobook". Settings -> ON/OFF -> MODES -> Start
+    // Mode (the radio's settings have the same row). config.txt: StartMode=player|radio|audiobook. main() reads it with
+    // read_start_mode().
     std::string start_mode = "player";
+    // The three modes (0 = music player, 1 = radio, 2 = audio book player), which of them are switched on and the order the
+    // SHIFT and + key (forward) / SHIFT and - key (back) walks through them. One mode is always on (mode_normalize()).
+    // config.txt: UseModePlayer= / UseModeRadio= / UseModeAudiobook=, ModeOrder=player,radio,audiobook. Both programs share them.
+    bool use_mode[3] = {true, true, true};
+    int mode_order[3] = {0, 1, 2};
+    // The folder of the audio books (Settings -> PATHS -> AUDIO BOOK PATH, config.txt: AudioBookPath=). Every folder below it
+    // that holds audio files is one book; Mousiki keeps a .cue file beside each book that records where you stopped listening.
+    std::string audiobook_path;
+    bool mode_usable(int m) const { return m >= 0 && m < 3 && use_mode[m]; }
+    // The next switched-on mode after `cur` in mode_order (dir > 0 forward, < 0 back); `cur` itself when no other is on.
+    int next_mode(int cur, int dir) const {
+        int pos = 0;
+        for (int i = 0; i < 3; ++i) if (mode_order[i] == cur) pos = i;
+        for (int k = 1; k <= 3; ++k) {
+            const int c = mode_order[((pos + (dir >= 0 ? k : -k)) % 3 + 3) % 3];
+            if (c != cur && use_mode[c]) return c;
+        }
+        return cur;
+    }
+    // Makes the three values consistent: a permutation for the order, at least one mode on, a start mode that is on.
+    void mode_normalize();
     // Black Background (ON/OFF -> MODES): the terminal's background is black while Mousiki runs (OSC 11, restored on exit).
     // One value for the player and the radio, in config.txt (BlackBackground=true|false); the radio reads / writes that line.
     bool black_background = true;
@@ -252,6 +274,15 @@ struct Settings : VizPrefs {
     // this config.txt) instead of its own; its own values wait in radio_config.txt and come back when this is turned off.
     // One value for both programs (config.txt: ShareProfiles=true|false); the radio reads / writes that line. Colours are never shared.
     bool share_profiles = false;
+    // Audio book mode: leaving a chapter, the mode or the program asks whether to set a bookmark (config.txt: BookmarkAsk=true|false).
+    bool book_ask_bookmark = true;
+    // Audio book mode: false = the picture of the woman reading in the disk's place, true = the cover image found in the book's folder
+    // (the standard picture when the book has none); config.txt: BookCover=true|false. Where the terminal speaks neither Kitty graphics
+    // nor Sixel the standard picture is drawn as braille dots instead.
+    bool book_cover = false;
+    // With Book Cover on: true = the colour wave runs over the cover (grey), false = the cover in its own colours
+    // (config.txt: BookCoverWave=true|false). The standard picture always has the wave.
+    bool book_cover_wave = true;
     // A quiet check for a newer release at start-up (once a day, shown once per version); config.txt: UpdateCheck=true|false.
     bool update_check = true;
     // Decoded audio above this many MB is not held whole in RAM but in a moving 2-minute window (see streaming_pcm.h);
@@ -334,6 +365,9 @@ struct Settings : VizPrefs {
     std::string autosave_c2;             // empty = falls back to visualizer_color
 
     std::string theme_name = "default";
+    // The audio book mode keeps its own look (colours, theme, elements, visualizations, borders: copy_look() below) in
+    // audiobook_config.txt; this flag (set by main(), never written to a file) makes save_settings() route a save that way.
+    bool book_profile = false;
 
     // --- local music library paths -------------------------------------
     // Each entry is an absolute path scanned for audio files.
@@ -459,7 +493,20 @@ void apply_default_hotkeys(Settings& s);
 fs::path config_path();
 // The StartMode= line of config.txt ("player" or "radio"; "player" when there is none). Read by main() before anything
 // starts, and by the radio, whose Start Mode row is the same setting.
-std::string read_start_mode();
+std::string read_start_mode();   // "player", "radio" or "audiobook" -- already corrected to a mode that is switched on
+// The modes: names as written in config.txt, and the shared switches (UseMode*= and ModeOrder= lines of config.txt).
+inline const char* const kModeNames[3] = {"player", "radio", "audiobook"};
+int mode_index(const std::string& name);                      // 0..2, or -1 for an unknown name
+struct ModeConfig { bool use[3] = {true, true, true}; int order[3] = {0, 1, 2}; };
+// Are `a` and `b` the same folder (written differently, trailing slash, "." parts; not case sensitive on Windows)? Empty never matches.
+bool same_folder_path(const std::string& a, const std::string& b);
+// Is `book` (the AUDIO BOOK PATH) one of the music folders? The two must not be the same folder: a book folder INSIDE a music folder
+// is fine (the music player leaves it out), the very same folder is a conflict.
+bool book_path_conflicts(const std::vector<std::string>& music_paths, const std::string& book);
+std::string read_audiobook_path();                           // AudioBookPath= of config.txt ("" when missing; the radio's PATHS tab edits it)
+ModeConfig read_mode_config();                                // from config.txt (defaults when missing), normalised
+std::string mode_order_text(const int order[3]);              // "player,radio,audiobook"
+int next_mode_in(const ModeConfig& mc, int cur, int dir);     // like Settings::next_mode
 // The BlackBackground= line of config.txt (true when there is none); the radio may have changed it meanwhile.
 bool read_black_background();
 // The ShareProfiles= line of config.txt (false when there is none).
@@ -489,7 +536,21 @@ std::string config_stamp_line();
 std::string config_written_by(const std::filesystem::path& p);   // "" when the file has no stamp (older than v4.2.0)
 bool backup_config_if_older(const std::filesystem::path& p);     // true when a .bak was written
 void save_settings(const Settings& s);
-// The text save_settings() would write (used to tell whether the settings screen changed anything).
+// ---- one look per mode ----
+// What each mode keeps for itself ("the look"): all colours and the theme, the border characters, which elements and
+// visualizations are shown (and their oscilloscope / spectrogram settings), the volume bar look, the disk, the spectrum bar
+// tuning, the list display and the play mode, and the sound (loudness normalisation, equaliser, stereo / mono). Everything else (paths, hotkeys, sound, the mode switches, the remote app ...)
+// belongs to all modes. The radio has its own file for its look; the audio book mode uses audiobook_config.txt.
+void copy_look(const Settings& src, Settings& dst);
+// Everything that is NOT the look is taken over from `from` into `to`; the look of `to` stays (main() calls it when the running mode changes).
+void sync_shared(const Settings& from, Settings& to);
+fs::path book_config_path();   // audiobook_config.txt next to config.txt
+// The settings of the audio book mode: those of the music player, with the look read from audiobook_config.txt (when it exists).
+// `wants_default_theme` (optional): set when the mode has no look of its own yet, so the caller applies its default theme
+// (apply_book_default_theme, Rose Pine) before the mode starts.
+Settings load_book_settings(const Settings& player, bool* wants_default_theme = nullptr);
+void apply_book_default_theme(Settings& s);   // app_settings.cpp (the player's program only)
+// The text save_settings() would write would write (used to tell whether the settings screen changed anything).
 std::string settings_to_text(const Settings& s);
 
 // ---- the SHIFT+o overlay: the shared rows are in viz_prefs.h; the player adds the "Display" row (what the lyrics area shows) ----

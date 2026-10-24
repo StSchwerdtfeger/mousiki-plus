@@ -43,6 +43,7 @@
 #include "keyboard_layout.h"
 #include "spectrogram.h"
 #include "mode_switch.h"
+#include "settings.h"
 #include "radio_settings.h"
 #include "radio_fuzzy.h"
 #include "radio_history.h"
@@ -740,7 +741,10 @@ int radio_main(int argc, char** argv) {
         else if (n == "seek") { if (tuned) engine.jump(muisc::remote::number(c.arg, 0)); }
         else if (n == "live") { if (tuned) engine.go_live(); }
         else if (n == "playback-mode") { ui.model.shuffle = !ui.model.shuffle; cfg.playback_shuffle = ui.model.shuffle; ui.model.settings.dirty = true; }
-        else if (n == "switch-mode") { switch_mode = true; running = false; }
+        else if (n == "switch-mode") {
+            const int dir = muisc::remote::number(c.arg, 1) < 0 ? -1 : 1;   // (-1: the previous mode)
+            if (muisc::next_mode_in(muisc::read_mode_config(), 1, dir) != 1) { g_mode_switch_dir = dir; switch_mode = true; running = false; }
+        }
         else if (n == "quit") running = false;
         // the phone's STATIONS list: open / close it, page through it, tune the tapped station
         else if (n == "remote-view") { ui.model.phone_view = c.arg == "1" ? 1 : 0; ui.model.phone_page = 0; ui.model.phone_note.clear(); }
@@ -1565,6 +1569,11 @@ int radio_main(int argc, char** argv) {
                                 const char* home = std::getenv("HOME");
                                 if (!home || !*home) home = std::getenv("USERPROFILE");
                                 if (home) v = std::string(home) + v.substr(1);
+                            }
+                            if (sm.row == 5 && muisc::book_path_conflicts(muisc::load_settings().local_music_paths, v)) {
+                                sm.status = "CONFLICT: that folder is also a LOCAL MUSIC PATH of the player. Pick a sub folder of it or another folder";
+                                sm.editing = false; set_text_entry(false);
+                                continue;
                             }
                             if (*f != v) { *f = v; sm.dirty = true; storage_changed(); }
                         }
@@ -2502,7 +2511,16 @@ int radio_main(int argc, char** argv) {
                 else if (k == 'B') ui.model.cursor = std::min(std::max(0, nvis - 1), ui.model.cursor + 1);
                 continue;
             }
-            if (k == '*') { switch_mode = true; running = false; continue; }   // SHIFT and the + key ('*' on a German keyboard): to the music player
+            if (k == '*' || k == '_') {   // SHIFT and the + key ('*' on a German keyboard): the next mode; SHIFT and - ('_'): the previous one
+                const int dir = k == '*' ? 1 : -1;
+                if (muisc::next_mode_in(muisc::read_mode_config(), 1, dir) == 1) {
+                    ui.model.scope_notice = "the radio is the only mode switched on (Settings -> ON/OFF -> MODES)";
+                    ui.model.scope_notice_until = ui.model.t_sec + 4;
+                    continue;
+                }
+                g_mode_switch_dir = dir;
+                switch_mode = true; running = false; continue;
+            }
             {   // Timeshift: pause / jump back and forth / back to live. Matched by the bound key itself (the key table's
                 // translation maps a key to the first letter of its default, which "SPACE" would turn into 'S').
                 auto mmss = [](double sec) {

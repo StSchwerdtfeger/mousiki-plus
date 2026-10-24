@@ -2,11 +2,14 @@
 // Helpers that app.cpp and the files split out of it (app_meta.cpp, app_history.cpp, app_readlyrics.cpp) both use.
 // Only for those files: nothing here is part of the program's interface. The functions are defined in app.cpp
 // (n_files_label in app_history.cpp).
+#include <algorithm>
+#include <cstdio>
 #include <filesystem>
 #include <string>
 #include <utility>
 #include <vector>
 #include "console_log.h"
+#include "path_utf8.h"
 #include "lyrics_fetcher.h"
 #include "settings.h"
 #include "themes.h"
@@ -68,6 +71,8 @@ std::vector<std::string> render_lyric_line_wrapped(const LyricLine& line, double
 // A key as it is shown to the user ("ALT+L" -> the label of this platform), and word wrapping for the help texts (app.cpp).
 std::string pretty_key(const std::string& k);
 std::vector<std::string> wrap_words(const std::string& text, int width);
+// "Chapter 2" before "Chapter 10" (audio book mode, app_audiobook.cpp)
+bool natural_less(const std::string& a, const std::string& b);
 // "12 files" / "1 file" (defined in app_history.cpp)
 std::string n_files_label(size_t n);
 
@@ -79,5 +84,58 @@ void theme_apply(Settings& s, const themes::Theme& t);   // sets the colours of 
 // Hotkey strings (defined in app.cpp, used by the Settings screen)
 std::string combo_key_name(int key);                  // "" when `key` is not a bindable combination
 std::string normalize_hotkey_string(std::string s);   // what was typed into a key field, cleaned up
+
+// Floating-panel legends (defined here so every panel file uses the same ones; used by the EQ / oscilloscope / spectrogram panels and the
+// audio book tag editor).
+// A bottom border with its text centred in it (the dashes are split evenly on both sides).
+inline std::string centred_bottom(const Settings& s, int W, const std::string& text, const std::string& colour) {
+    const std::string t = " " + truncate_str(text, W - 6) + " ";
+    const int dashes = std::max(0, W - 2 - display_width(t));
+    const int left = dashes / 2, right = dashes - left;
+    std::string out = s.box_lower_left;
+    for (int i = 0; i < left; ++i) out += s.box_horizontal;
+    out += t;
+    for (int i = 0; i < right; ++i) out += s.box_horizontal;
+    out += s.box_lower_right;
+    return colour.empty() ? out : colour + out + "\x1b[0m";
+}
+
+// The legend of a floating option panel, all rows in the bottom border colour. With several rows the middle one sits ON the bottom
+// border line (rows/2 rows inside the panel, the rest hanging below it), so the block is centred on that line. `inside(text)` makes
+// a framed row, `bottom(text)` the bottom border carrying a text.
+template <class Inside, class Bottom>
+void push_legend_block(std::vector<std::string>& lines, int W, const std::string& colour, const std::vector<std::string>& rows,
+                       Inside inside, Bottom bottom) {
+    const size_t before = rows.size() / 2;
+    for (size_t i = 0; i < before; ++i) lines.push_back(inside(rows[i]));
+    lines.push_back(bottom(rows[before]));
+    for (size_t i = before + 1; i < rows.size(); ++i) {
+        const std::string tx = truncate_str(rows[i], W - 4);
+        const int left = std::max(0, (W - display_width(tx)) / 2);
+        lines.push_back(colour + std::string(static_cast<size_t>(left), ' ') + tx + std::string(static_cast<size_t>(std::max(0, W - left - display_width(tx))), ' ') + "\x1b[0m");
+    }
+}
+
+// --- the audio book panels (app_audiobook_notes.cpp, app_audiobook_marks.cpp, app_audiobook_chapters.cpp) ---
+// "Chapter 03.mp3" -> "Chapter 03"
+inline std::string stem_of(const std::string& file) { return path_utf8(path_from_utf8(file).stem()); }
+
+// One framed line: the exact `inner` columns of already coloured content between the two border bars.
+struct Framer {
+    std::string bar;
+    int inner;
+    std::string operator()(const std::string& body, int used) const {
+        return bar + " " + body + std::string(static_cast<size_t>(std::max(0, inner - used)), ' ') + "\x1b[0m " + bar;
+    }
+};
+
+// mm:ss, or h:mm:ss from an hour on
+inline std::string clock_text(double sec) {
+    const long long t = static_cast<long long>(std::max(0.0, sec) + 0.5);
+    char b[32];
+    if (t >= 3600) std::snprintf(b, sizeof b, "%lld:%02lld:%02lld", t / 3600, (t / 60) % 60, t % 60);
+    else std::snprintf(b, sizeof b, "%02lld:%02lld", t / 60, t % 60);
+    return b;
+}
 
 } // namespace muisc

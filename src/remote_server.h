@@ -7,6 +7,7 @@
 //   GET /api/screen?pin=&cols=&rows=
 //                              the phone screen, drawn by Mousiki itself (its disk, boxes, buttons, the colours of the theme
 //                              in use): {"rev":..,"mode":..,"cols":..,"rows":..,"lines":[ANSI lines],"zones":[{x,y,w,h,cmd,arg}]}
+//   GET /api/image?pin=&key=   the PNG the screen names under "image" (the audio book cover); image/png
 //   GET /api/cmd?pin=&name=&arg=   one remote command (the names of `mousiki --cmd`)
 //   GET /api/status?pin=       what is playing (the keys of `mousiki --status`) as JSON
 //
@@ -61,6 +62,11 @@ struct Zone { int x = 0, y = 0, w = 0, h = 0; std::string cmd, arg; };
 void set_screen(const char* mode, int cols, int rows, const std::vector<std::string>& lines, const std::vector<Zone>& zones,
                 const std::string& text_color = "");
 void set_status(const std::vector<std::pair<std::string, std::string>>& kv);
+// A picture (a PNG) the phone draws at full resolution over a rectangle of cells of the screen -- the audio book's cover. The
+// screen JSON names it ("image":{x,y,w,h,key}) and the phone fetches GET /api/image?key= once per key. Set before set_screen().
+bool picture_has(const std::string& key);
+void picture_store(const std::string& key, const std::string& png);
+void set_picture(bool active, int x, int y, int w, int h, const std::string& key);
 
 // ---- helpers (exposed for the tests) -------------------------------------------------------------------------------------
 std::string json_escape(const std::string& s);

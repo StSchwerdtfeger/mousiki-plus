@@ -1,6 +1,6 @@
 <div align="center">
     
-# 📻 Mousiki Plus v4.5.0 - Music and Radio Player 🎵 
+# 📻 Mousiki Plus v4.6.0 - Music, Radio and Audio Book Player 🎵 
 (Windows · Linux · macOS)  
 
 <p align="center">
@@ -30,7 +30,7 @@ This fork exists because the original targets POSIX (Linux/macOS/Termux) and had
 
 Along the Win32 port, **a lot of minor and major additions were made too**. The major ones are a e.g. **radio player mode**, **playlist menu** to create playlists from local (or downloaded) tracks, a **meta data editor** including **fetching artist/title via AcoustID** (audio fingerprinting done via chromaprint), a **listening history** (incl. the ability to add top tracks to the playback queue), an **XY mode ASCII-Braille / image oscilloscope** as an alternative to the lyrics ball and lyrics, a **10 band EQ with 12 presets** and the ability to create and save custom presets, enlarged **list/queue overlays**, **sleep timer**, a **user manual** (.md and .pdf)... Minor changes/additions are e.g. a general key to shuffle to a next title (before only the next title in the list was possible or switching to shuffle mode), stereo audio playback and loudness normalization, adding paths via the settings menu, toggling the lyrics on/off via a hotkey command, an optimized search engine for Windows (searching metadata was very slow and only available 2-3 min. after starting the app), fuzzy search (e.g. "X-Files" didn't show up when searching "X Files" without the dash), a categorized cheat sheet... As mentioned, the design remained the same for obvious reasons; the design asset added is a Braille-ASCII music cassette, shown when no track is loaded... See [Changes from the Original](Changes_from_the_Original.md#added-features-beyond-the-port) for a full detailed list of modifications and added features, and [Features at a glance](#features-at-a-glance) below for an overview with screenshots.  
 
-The latest addition is the mentioned **[radio player mode](#radio-player)** (online radio with a tuning-dial look, presets, Radio Browser search, recording option and its own listening history) that is part of the very same program: press `SHIFT` and `+` (the `*` character) to switch between the music player and the radio; the radio is closed completely when you leave it, while the player only waits in the background (playback paused), so coming back to it is instant.
+The latest additions are the mentioned **[radio player mode](#radio-player)** (online radio with a tuning-dial look, presets, Radio Browser search, recording option and its own listening history) and an **[audio book player mode](#audio-book-player)** (books and chapters, a cover image, auto-marks, bookmarks, notes you write while you listen, chapter marks and cutting of long files, its own look and settings), both part of the very same program: press `SHIFT` and `+` (the `*` character) to go to the next mode (music player → radio → audio books) and `SHIFT` and `-` to go back; the order and the modes that are on are set in the settings. The radio is closed completely when you leave it, while the player and the audio book player only wait in the background (playback paused), so coming back to them is instant.
 
 - **Original:** [github.com/itzender5820/mousiki](https://github.com/itzender5820/mousiki) — ender ([itzender5820](https://github.com/itzender5820))
 - **License:** Apache 2.0 — see [LICENSE](LICENSE)
@@ -50,11 +50,15 @@ The new main UI of the radio mode looks like the below:
 
 <p align="center"><img width="850" height="412" alt="grafik" src="readme_images/intro_radio_ui.png" /></p>
 
+And the audio book mode, the third one, with chapters, bookmarks, auto-marks and notes (a book's cover image or the stack of books takes the place of the disk):
+
+<p align="center"><img width="850" alt="The main UI of the audio book mode" src="readme_images/audio_book_main_ui.png" /></p>
+
 
 
 ## Table of contents
 
-- [Current Status of the Port and Modification (v4.5.0)](#current-status-of-the-port-and-modification-v450)
+- [Current Status of the Port and Modification (v4.6.0)](#current-status-of-the-port-and-modification-v460)
 - [Features at a glance](#features-at-a-glance)
   - [Music player](#music-player)
   - [Visualizations](#visualizations)
@@ -62,6 +66,7 @@ The new main UI of the radio mode looks like the below:
   - [Playlists, meta data, history, conversion](#playlists-meta-data-history-conversion)
   - [Sound](#sound)
   - [Radio player](#radio-player)
+  - [Audio book player](#audio-book-player)
   - [Themes and colours](#themes-and-colours)
     - [Colour-blind friendly themes](#colour-blind-friendly-themes)
   - [Help, settings and keys](#help-settings-and-keys)
@@ -79,14 +84,14 @@ The new main UI of the radio mode looks like the below:
 - [Changes compared to the original Mousiki](#changes-compared-to-the-original-mousiki)
 - [Images](#images)
 
-## Current Status of the Port and Modification (v4.5.0)
+## Current Status of the Port and Modification (v4.6.0)
 
 For now the Mousiki port works well and also includes everything I at least wanted and made sense to me for a music player, so there might be no further major releases that add new features, except of bug-fixes that might appear to me or others in the future (feel free to start discussions or report issues!!). I might adjust the code to be more polished / robust and might optimize the setup release (Win version results currently in ~250MB size, setup itself ~80MB, portable .zip ~100MB)... Since v2.5.0 my version of Mousiki also builds on macOS/Linux again (`setup.sh`), which is a first step towards making it potentially integratable into the main branch of the original project (which still seems way too hard after dozens of comments in the last two weeks, at least from my perspective). The Linux/macOS builds are less tested than the Windows one, so reports from users on those platforms would help finalize it more. 
 Concerning potential new features: the online-radio function is now included (see [radio mode](#radio-player)); a mixtape creator would be cool, but I'll see. Again, feel free to give feedback in the discussions, report issues you might experience using this modified port or contributing in any other way...
 
 ## Features at a glance
 
-Everything below is in the current version (v4.5.0) and works the same on Windows, Linux and macOS but was only tested on Windows and WSL. The **[user manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** describes every key and every setting; inside the app `?` opens the cheat sheet, `<` (German keyboard; `SHIFT+,` on an English one) a list of all menus and overlays to choose from, and `SHIFT+w` the help wizard. All pictures of this README are in the folder **[readme_images/](readme_images/)**.
+Everything below is in the current version (v4.6.0) and works the same on Windows, Linux and macOS but was only tested on Windows and WSL. The **[user manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** describes every key and every setting; inside the app `?` opens the cheat sheet, `<` (German keyboard; `SHIFT+,` on an English one) a list of all menus and overlays to choose from, and `SHIFT+w` the help wizard. All pictures of this README are in the folder **[readme_images/](readme_images/)**.
 
 ### Music player
 
@@ -147,7 +152,7 @@ Everything below is in the current version (v4.5.0) and works the same on Window
 
 ### Radio player
 
-The radio is part of the same program: `*` (`SHIFT` and `+` on a German keyboard, `SHIFT+8` on an English one) switches between music player and radio.
+The radio is part of the same program: `*` (`SHIFT` and `+` on a German keyboard, `SHIFT+8` on an English one) goes to the next mode, `_` (`SHIFT` and `-`) to the previous one.
 
 - An **ON AIR / OFF AIR sign** with a colour wave, a tuning-dial frequency band, its own oscilloscope, spectrogram and equalizer.
 - **Radio Browser** search through tens of thousands of stations, **16 presets** in several preset lists, **station lists**, a big stations overlay.
@@ -156,6 +161,21 @@ The radio is part of the same program: `*` (`SHIFT` and `+` on a German keyboard
 <p align="center"><img width="850" alt="The radio player, tuned to a station (theme Cyberpunk)" src="readme_images/theme_cyberpunk.png" /></p>
 
 <p align="center"><img width="850" alt="The radio's presets menu" src="readme_images/radio_presets.png" /></p>
+
+### Audio book player
+
+The audio book player is the third mode, switched to with the same key as to the other modes (`SHIFT` and `+`; `SHIFT` and `-` goes back). **Settings → ON/OFF → MODES** switches modes off (one always stays on) and changes their order; **Settings → PATHS → AUDIO BOOK PATH** is the folder of your books (shown in every mode). Files/folders placed there wont show up in the music player mode...
+
+- **Books and chapters:** the left pane of the audio book player lists only the books (folders), the right pane takes the place of the queue and lists the chapters of the open book. `n` / `b` and the end of a chapter walk the chapters.
+- **Book covers or a beautiful default image as placeholder** take the place of the disk (a grey version of a colour picture): where the terminal speaks Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm ...) a real transparent pixel image of the book cover or an default image at full resolution will be shown (a terminal without them gets braille dots; Settings → ON/OFF → *Book Cover* (`BookCover`) shows the cover image from the book's folder, scaled to fit and centred, with a colour wave or, with *Gradient Wave* off, in its own colours). Original default placeholder image by Kamara Rahmat (iyaniyan) from Unsplash (https://unsplash.com/de/grafiken/young-woman-reading-a-blue-book-on-a-blanket-outdoors-brNfZ1TdBN0).
+- **Time stamps:** three kinds are available - the **auto-mark** (written by itself every few seconds while you listen and when you leave: `REM AUTOMARK`), any number of manually set **bookmarks** (`SHIFT+b`, numbered Bookmark 1, 2 …: `REM BOOKMARK`; changing the chapter, switching the mode or quitting first asks whether to set one, the audio pauses meanwhile; can be turned off when it gets annoying) and **notes** (bookmarks with a text of your choice). `ENTER` on a chapter that was left but not bookmarked asks *continue where you left?* (`y` continue - the only answer that starts the chapter, `n` leave and keep the auto-mark, `b` convert the auto-mark to a bookmark and leave); with any bookmark it offers continuing playback on the spot / 10 / 20 / 30 / 60 s before / the start; with several time stamps given it lists them. 
+- **Book notes:** `SHIFT+n` writes a note at the current time (title, then the text, in the field of the visualizations), `SHIFT+s` saves it to `<book folder>/<folder>_notes.txt`; `SHIFT+l` opens all notes in a big overlay (list left, the note right; `t` edits and `n` writes a note right there), `SHIFT+p` plays from a note, `SHIFT+e` / `SHIFT+i` export / import. A note appears in the field when playback passes it. 
+- **Bookmark list, library, reading history:** `SHIFT+k` lists the auto-marks, bookmarks and notes of every book with a TYPE column (`ENTER` resumes, `SHIFT+p` plays from it, `SHIFT+d` discards one after a warning, `CTRL+SHIFT+u` brings it back, `SHIFT+b` turns an auto-mark into a bookmark, `SHIFT+t` sorts by date or by book and progress); `SHIFT+s` is a big library overlay (search pane + books, `ENTER` inserts the chapters of a book); `SHIFT+h` is the reading history (`reading_history.json`). Notes are stamped at the moment `SHIFT+n` is pressed.
+- **Chapter marks and cutting:** `ALT+l` sets chapter marks while you listen (`m`, or by time `h:mm:ss`; standard titles "Chapter N", editable; seeking accelerates), `c` cuts the file at the marks with `ffmpeg -c copy` into `01 Chapter 1.wav`, … and keeps the original as `…mousiki-backup` until you delete it (`SHIFT+d`); bookmark and notes move to the new files.
+- The converter works on the books and searches folders, and the visualizations (sphere, oscilloscope, spectrogram), the equalizer, normalization and the sleep timer are the player's.
+
+<p align="center"><img width="850" alt="The audio book player: books left, chapters right, cover image, waveform and the notes field" src="readme_images/audio_book_main_ui.png" /></p>
+<p align="center"><img width="850" alt="The audio book player showing a note in the field of the visualizations while the playback passes it" src="readme_images/audio_book_main_ui_notes.png" /></p>
 
 ### Themes and colours
 
@@ -187,19 +207,21 @@ Three themes are made for colour vision deficiencies: **Colorblind Deuteranopia*
 
 ### Remote control and phone app
 
-- **Phone remote** (Settings → ON/OFF → Remote App): switch it on, scan the QR code and the phone shows a Mousiki screen drawn by Mousiki itself in your theme -- the spinning disk, meta data, working buttons, volume, playback mode, the local list and your playlists (tap: play / into the queue), clear queue, the manual, and the radio with its sign, station and the whole station list (tap to tune). Any phone browser, or the Android app **Mousiki Remote** ([remote_app/](remote_app/)). PIN-protected, home network only, off by default.
+- **Phone remote** (Settings → ON/OFF → Remote App): switch it on, scan the QR code and the phone shows a Mousiki screen drawn by Mousiki itself in your theme -- the spinning disk, meta data, working buttons, volume, playback mode, the local list and your playlists (tap: play / into the queue), clear queue, the manual, the radio with its sign, station and the whole station list (tap to tune), and the audio book player with the whole library as a folder tree (tap a chapter to play it). Any phone browser, or the Android app **Mousiki Remote** ([remote_app/](remote_app/)). PIN-protected, home network only, off by default.
 - **System media controls:** on Windows Mousiki uses the **System Media Transport Controls** (media pop-up, lock screen, media keys), on Linux it speaks **MPRIS** (media widgets, `playerctl`, media keys and headset buttons work), on macOS it shows **Now Playing** and answers the media keys; player and radio. A quiet **new-version notice** at start-up (checked once a day, a small window once per version with `[o] Go to release`, never installs anything; `UpdateCheck=false` switches it off).
 - **Command line remote:** `mousiki --cmd next`, `--cmd volume 60`, `--cmd seek -30`, `mousiki --status` ... (`mousiki --cmd --help` lists all). Bind them to any keys of your system to get global media keys, also on keyboards without them.
 
 | | | |
 |:---:|:---:|:---:|
-| <img width="260" alt="The phone remote, music player" src="readme_images/phone_player.png" /> | <img width="260" alt="The phone remote, radio" src="readme_images/phone_radio.png" /> | <img width="420" alt="The REMOTE APP settings with the QR code" src="readme_images/remote_overlay.png" /> |
+| <img width="260" alt="The phone remote, music player" src="readme_images/phone_player.png" /><br>**Music player** | <img width="260" alt="The phone remote, radio" src="readme_images/phone_radio.png" /><br>**Radio** | <img width="260" alt="The phone remote, audio book player" src="readme_images/remote_audio_book.webp" /><br>**Audio book player** |
+
+<p align="center"><img width="600" alt="The REMOTE APP settings with the QR code" src="readme_images/remote_overlay.png" /></p>
 
 ## Quick start
 
 ### Installers and portables for Windows / macOS / Linux 
 
-Windows (installer, portable zip), Linux (`.deb`, portable) and macOS (`.pkg`, portable) from the [latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest), or build it yourself (below). Release files are signed (GPG) and come with build-provenance attestations; an installer upgrades an existing version and keeps your settings. **Portable versions:** unzip the new version over the old folder (or copy your `data/` folder into the new one) and keep `portable.txt` next to the launcher: it makes Mousiki keep settings, cache, playlists and history in `data/`; without it they are not found. Automated tests (117; run on Linux, macOS and Windows by a GitHub workflow): `cmake -DMOUSIKI_BUILD_TESTS=ON`.
+Windows (installer, portable zip), Linux (`.deb`, portable) and macOS (`.pkg`, portable) from the [latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest), or build it yourself (below). Release files are signed (GPG) and come with build-provenance attestations; an installer upgrades an existing version and keeps your settings. **Portable versions:** unzip the new version over the old folder (or copy your `data/` folder into the new one) and keep `portable.txt` next to the launcher: it makes Mousiki keep settings, cache, playlists and history in `data/`; without it they are not found. Automated tests (146; run on Linux, macOS and Windows by a GitHub workflow): `cmake -DMOUSIKI_BUILD_TESTS=ON`.
 
 ### Build it yourself (Windows)
 

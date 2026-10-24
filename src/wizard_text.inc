@@ -148,11 +148,20 @@ III RADIO PLAYER MODE[[Header]]
    12.1 Radio Settings: Colors, ON/OFF and ANIMA/VIZ
    12.2 Radio Settings: Paths, Keys and Files
 
-IV REMOTE CONTROL[[Header]]
+IV AUDIO BOOK MODE[[Header]]
 
-  13 Remote Control[[Header]]
-   13.1 Remote Control and Key Bindings
-   13.2 The Remote App (Phone)
+  13 The Audio Book Player[[Header]]
+   13.1 The Audio Book Screen and its Keys
+   13.2 Book Tags
+   13.3 Bookmarks and Notes
+   13.4 List of Time Stamps, Library and Reading History
+   13.5 Chapter Marks and Cutting
+
+V REMOTE CONTROL[[Header]]
+
+  14 Remote Control[[Header]]
+   14.1 Remote Control and Key Bindings
+   14.2 The Remote App (Phone)
 
 [[New Page]]
 
@@ -175,6 +184,10 @@ and a listening history that contains meta data, so you can search and
 download songs you listened to on the radio. Channels can be assigned
 preset keys to tune in to channels fast...
 
+The audio book mode is the third mode: the music player shaped for
+books (books and chapters instead of library and queue, an opening
+book in place of the disk, tags made for books).
+
 Mousiki Plus (Win/Linux/macOS):
 StSchwerdtfeger — github.com/StSchwerdtfeger
 Version {VERSION} — Apache 2.0 license
@@ -187,8 +200,9 @@ Version 1.0 — Apache 2.0 license
 [[New Page]]
 1.1 THE MAIN MUSIC PLAYER UI AND ITS SCREEN PANES [[Header]]
 
-MODE CHANGE:[[Header]] Use [SHIFT and +] (German keyboard) or [SHIFT+8] (English keyboard) to 
-switch between music and radio player.
+MODE CHANGE:[[Header]] [SHIFT and +] (German keyboard) or [SHIFT+8] (English keyboard) switches to the
+next mode, [SHIFT and -] (German) or [SHIFT+-] (English) to the previous one: music player, radio and
+audio books, in the order of Settings -> ON/OFF -> MODES (every mode can be switched off there).
 
 MENUS INDEX:[[Header]] [<] (German keyboard) or [SHIFT+,] (English keyboard) lists all menus
 and overlays with their keys; [ENTER] opens the selected one.
@@ -205,7 +219,8 @@ MAIN PANE:[[Header]]
 Includes the Mousiki disk, meta data information, visualizations and
 lyrics (only music player mode). Several adjustments to this pane (e.g. turning visualizations
 on/off) can be made in the settings "ON/OFF" tab ([s] to open and save setting).
-
+)WIZ",
+R"WIZ(
 PROGRESS BAR: [[Header]]
 Shows the progress of an audio file. Use [<-/->] to seek through a track (in steps of 5 s).
 
@@ -218,8 +233,7 @@ details see PLAYBACK MODES[[Header]].
 
 SEARCH BAR: [[Header]]
 Type in a search query. See SEARCH[[HEADER]] and DOWNLOAD[[Header]] for details on what
-)WIZ",
-R"WIZ(can be specifically search for.
+can be specifically search for.
 
 LOCAL AUDIO FILES: [[Header]]
 When focused or using the search bar [UP]/[DOWN] can be used to hover through the track list.
@@ -381,7 +395,8 @@ When using yt-dlp outside of Mousiki it is recommended to point the history file
 Mousiki is creating inside the chosen download path as seen below (maybe create a shell profile
 function for downloading songs and playlists from it). NOTE: When the download folder is changed in
 Mousiki, the history folder will be copied (not moved!) to avoid history amnesia on the yt-dlp side.
-
+)WIZ",
+R"WIZ(
 YT-DLP COMMAND POINTING AT SHARED HISTORY FOLDER: [[Header]]
 yt-dlp -x -P "<download folder>" --download-archive "<download folder>/history/downloaded_history.txt" <playlist-url>
 
@@ -395,8 +410,7 @@ There are five different playback modes. In the main UI the small box to the rig
 indicates which playback mode is currently active. Use [m] to step through them.
 
 S[[Header]] ==[[Header]] SHUFFLE MODE[[Header]]
-)WIZ",
-R"WIZ(Shuffles through tracks that are currently in the local audio files list (search filters apply!).
+Shuffles through tracks that are currently in the local audio files list (search filters apply!).
 Note that you can also actively shuffle to next song in the list via [#].
 The QUEUE is never shuffled: [n] and the end of a track play its next title in order; only [#]
 picks a random title of the queue.
@@ -545,7 +559,8 @@ Apply [a] to a highlighted track in the LIBRARY PANE[[Header]] to add a track to
 the FETCH LIST PANE[[Header]]. For fetching data of all fetch listed tracks
 at once hit [ENTER].
 The command [DEL] or [d] deletes a track from the fetch list.
-[SHIFT+d] or [SHIFT+DEL] empties the whole fetch list (after a question); the pending edits,
+)WIZ",
+R"WIZ([SHIFT+d] or [SHIFT+DEL] empties the whole fetch list (after a question); the pending edits,
 fetched tags included, stay until [CTRL+s] or [CTRL+SHIFT+x].
 All edited tracks will also be highlighted and filtered by the [r] command in the
 LIBRARY PANE [[Header]] of the EDIT TAB [[Header]].
@@ -555,8 +570,7 @@ quitting a process.
 
 
 [[NEW PAGE]]
-)WIZ",
-R"WIZ(3.4 PLAYLIST EDITOR/CREATOR [[Header]]
+3.4 PLAYLIST EDITOR/CREATOR [[Header]]
 
 OPEN AND CHANGE TABS:[[Header]] Open via [SHIFT+p], change tabs via [<-/->]
 
@@ -685,15 +699,15 @@ meanwhile then only gives a warning.
 
 [[New Page]]
 4.3 KARAOKE MODE [[Header]]
-
+)WIZ",
+R"WIZ(
 OPEN AND CLOSE:[[Header]] [k] opens the karaoke overlay, [ESC] or [k] close it.
 
 The lyrics are shown over the whole screen. The coloring behavior again matches the colors
 applied in the SETTING COLORS TAB[[Header]]. Lines are centered, with an empty row between them. On both sides a ASCII-Braille image saying "Karaoke" in Japanese is drawn in your disk colors, 
 with a wave running across it. On a narrow terminals the images are left out and the lyrics 
 take the whole width...
-)WIZ",
-R"WIZ(
+
 NOTE:[[Header]] The overlay always uses the lyrics engine, also when it is switched off on the main screen.
 It fetches the lyrics itself then (and again after a track change) without changing that setting.
 
@@ -824,7 +838,8 @@ Left = x, right = y: the beam draws the outlines of your text again and again, 3
 
 SPECTROGRAM: [[Header]]
 The text is the spectrogram: time left to right, pitch bottom to top, brightness = loudness. Only the
-notes of a scale play (pentatonic minor by default), so it sounds like music.
+)WIZ",
+R"WIZ(notes of a scale play (pentatonic minor by default), so it sounds like music.
 
 ROWS: [[Header]]
 Text ([|] = new line), Sound, Length (5 - 60 s), Invert, the options of the chosen sound, Scope grid
@@ -832,8 +847,7 @@ Text ([|] = new line), Sound, Length (5 - 60 s), Invert, the options of the chos
 
 [UP]/[DOWN] pick a row, [<-/->] or [ENTER] change it, [ESC] closes.
 [SPACE] does nothing here (it only types a space in the text), so nothing is created by accident.
-)WIZ",
-R"WIZ(The files are saved in <music folder>/creator (else ~/Music/creator).
+The files are saved in <music folder>/creator (else ~/Music/creator).
 They are not part of the library (not in the list, the search or the queue): play them only from
 Created files... in this overlay.
 In the preview [G] turns the scope grid on/off.
@@ -986,7 +1000,8 @@ HOW TO USE THEM: [[Header]]
 [2] (or [->])     go to TOP TRACKS
 [TAB]             move into the pane (a [◀] appears behind its title)
 arrow keys        pick a list; while the pane has the focus [<-/->] move between the columns
-[ENTER]           add that list to the end of the queue
+)WIZ",
+R"WIZ([ENTER]           add that list to the end of the queue
 [ESC] or [TAB]    back to the track list
 
 TIMES OF DAY: [[Header]]
@@ -1000,8 +1015,7 @@ Files that moved or were deleted are skipped, and the status line says how many 
 
 [[New Page]]
 8.1 SETTINGS BASICS [[Header]]
-)WIZ",
-R"WIZ(
+
 OPEN:[[Header]] [s] opens the settings, always on the first tab. Six tabs:
 COLORS; ON/OFF; ANIMA/VIZ; PATHS; REFERENCE; ABOUT APP ([TAB] steps through them)
 
@@ -1053,7 +1067,10 @@ built-in theme needs a new name. [ESC] with unsaved changes asks first, leaving 
 8.3 ON/OFF, ANIMA/VIZ AND PATHS [[Header]]
 
 ON/OFF TAB: [[Header]] every row is changed with [<-/->]
-MODES: Playback (like [m]), Start Mode (player / radio: which of the two Mousiki opens with),
+MODES: Playback (like [m]), Start Mode (player / radio / audiobook: which mode Mousiki opens with),
+Use Music Player / Use Radio / Use Audio Books (false: the mode is left out of the [SHIFT and +] cycle; one mode
+always stays on, the last one cannot be switched off), Mode Order 1..3 (the order of the cycle, like Viz Order 1..4:
+picking a mode for a place swaps it with the place that held it; [SHIFT and -] walks the same order backwards),
 Black Background (on: the terminal is black and plain text takes the list color while Mousiki runs; its own colors come back on exit)
 Share Profiles (on: the radio uses the player's oscilloscope/spectrogram settings; its own values are kept and come back when off)
 Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
@@ -1084,6 +1101,14 @@ PLAYLIST PATH          one folder for all playlists
 PLAYLIST EXPORT PATH   where [e] writes M3U8 / M3U
 HISTORY PATH           holds history.json
 CONVERSION EXPORT PATH where converted files go
+AUDIO BOOK PATH        (last row) one folder; every folder in it with audio files is one book. A .cue file
+                       beside each book keeps its narrator, publisher and year. The player's library
+                       leaves these files out (also from its searches): the book folder may lie INSIDE a
+                       music folder, but may not BE one (a conflict message says so).
+In the audio book mode the ON/OFF and ANIMA/VIZ tabs only show what a book needs (no lyrics, no disk
+speed). The audio book mode has its own look: colours and theme, elements, visualizations,
+borders, play mode and sound are kept in audiobook_config.txt, apart from the player and the radio. Paths,
+hotkeys, the mode switches and the like are the same in all three modes (config.txt).
 Changing LOCAL PATH rescans at once. Changing the playlist or history folder copies what is there;
 nothing is moved or deleted. Changed folders only stick when you save with [s]. A warning will
 appear in case you unsaved changes are present. 
@@ -1106,7 +1131,8 @@ TAB, SPACE, BACKSPACE, ARROW_KEY_UP / DOWN / LEFT / RIGHT. A combination ([ALT+L
 SAFETY: [[Header]]
 A key that is already used by another command is refused with a message naming it, so you can
 never lose a command by accident. [*] and [ESC] are reserved. Keys that are not listed (the keys of
-editors and overlays, [ENTER], the arrows, [CTRL+s] ...) are fixed. The cheat sheet [?] lists
+)WIZ",
+R"WIZ(editors and overlays, [ENTER], the arrows, [CTRL+s] ...) are fixed. The cheat sheet [?] lists
 those, and it always shows the default keys.
 
 ABOUT APP TAB: [[Header]]
@@ -1116,11 +1142,12 @@ The credits and versions, scrolled with [UP]/[DOWN].
 [[New Page]]
 RADIO PLAYER MODE: [[Header]]
 
-The radio player is the second half of Mousiki Plus. Switch with [SHIFT and +] (German keyboard) or
-[SHIFT+8] (English keyboard) in both directions.
+The radio player is the second of the three modes of Mousiki Plus. [SHIFT and +] (German keyboard) or
+[SHIFT+8] (English keyboard) go to the next mode, [SHIFT and -] (German) or [SHIFT+-] (English) to the
+previous one (order and used modes: Settings -> ON/OFF -> MODES).
 
 PLAYER -> RADIO:[[Header]] the player is paused and kept in memory (queue, position and screen).
-RADIO -> PLAYER:[[Header]] the radio is closed completely, so it only uses resources while you are in it.
+RADIO -> OTHER MODE:[[Header]] the radio is closed completely, so it only uses resources while you are in it.
 Files added to your music folders meanwhile are found after [SHIFT+r] in the player.
 [q] (or [CTRL+c]) in the radio quits the program, both modes end.
 
@@ -1135,8 +1162,7 @@ sphere and spectrogram (there are no lyrics).
 
 LETTERS ARE MORE OFTEN CASE SENSITIVE IN THE RADIO: [[Header]]
 [r] recalls a preset slot, [R] reconnects the station.
-)WIZ",
-R"WIZ(
+
 [[New Page]]
 9.1 THE RADIO SCREEN AND ITS KEYS [[Header]]
 
@@ -1251,7 +1277,8 @@ the square bracket keys (left / right)   back / forward 30 seconds
 the curly bracket keys (left / right)    back 5 minutes / back to live
                                          (German keyboard: [ALT GR+7] / [ALT GR+0])
 Every jump is shown for 4 seconds under the scope block, e.g. -0:30 | 2:30 behind live.
-You can never go back before the moment you tuned in: internet radio only delivers from "now".
+)WIZ",
+R"WIZ(You can never go back before the moment you tuned in: internet radio only delivers from "now".
 Catching up with the forward key hands back to the live stream without a gap. Tuning another
 station, [x] or quitting clears the buffer.
 
@@ -1285,8 +1312,7 @@ volume, mute and the mono fold.
 
 WHERE IT GOES: [[Header]]
 Into the download folder of the radio ([s] Settings[[Header]] ->> PATHS[[Header]]), which by default is
-)WIZ",
-R"WIZ(the one of the music player. After a rescan ([SHIFT+r] in the player) the recordings are part of
+the one of the music player. After a rescan ([SHIFT+r] in the player) the recordings are part of
 your local library.
 
 
@@ -1332,7 +1358,9 @@ BORDER_COLOR, METADATA, VIZ, LIST, HEADER, LEGEND and TAB_NAMES work as in the p
 THEME row, [e], [SHIFT+d] and the unsaved-changes questions.
 
 ON/OFF: [[Header]]
-Playback (shuffle / list, like [m]), Start Mode (player / radio), Black Background, On air ascii,
+Playback (shuffle / list, like [m]), Start Mode (player / radio / audiobook), Use Music Player / Use Radio /
+Use Audio Books and Mode Order 1..3 (the same rows and values as in the player, kept in its config.txt),
+Black Background, On air ascii,
 Pulse wave, Dummy buttons, Volume indicator (the look of the VOLUME BAR, like in the player),
 Spectrum Bars, Stereo sound, Normalize volume, Tuning noise (static while
 tuning, off by default and never recorded), Timeshift buffer (5 / 15 / 30 / 45 / 60 minutes),
@@ -1350,6 +1378,8 @@ Every path is a base folder; the radio makes its own sub folders below it:
 STATION LISTS PATH   stations/ and station_lists/          PRESETS PATH   presets/presets.txt
 DOWNLOAD PATH        radio_downloads/ (or the same folder as the music player)
 HISTORY PATH         radio_history/
+AUDIO BOOK PATH      the player's audio book folder (kept in the player's config.txt, listed here 
+                     so it can be set from every mode)
 Changed folders are copied, never moved, and nothing is deleted. Playback stops and everything reloads.
 
 REFERENCE: REBINDING THE KEYS OF THE RADIO: [[Header]]
@@ -1369,7 +1399,216 @@ radio_history/     history_radio.txt and archive_radio.txt
 All of them live in the config folder: ~/.config/mousiki/ (Windows: %USERPROFILE%\.config\mousiki\).
 
 [[New Page]]
-13.1 REMOTE CONTROL AND KEY BINDINGS [[Header]]
+AUDIO BOOK MODE: [[Header]]
+
+The audio book player is the third mode of Mousiki Plus and represents the music player 
+shaped for listening to books. 
+
+[SHIFT and +] (German keyboard) / [SHIFT+8] (English keyboard) go to the next mode,
+[SHIFT and -] (German) / [SHIFT+-] (English) back to the previous one. By default the order is
+music player, radio, audio books; Settings -> ON/OFF -> MODES switches modes off and changes the order.
+
+LIKE THE RADIO, IT IS ANOTHER PLAYER INSIDE THE PROGRAM: [[Header]] when you leave it, the
+chapter that plays is paused and everything stays as it was.
+
+SETTING IT UP: [[Header]] 
+Settings -> PATHS -> AUDIO BOOK PATH takes ONE folder (also listed in the radio's
+settings). Every folder in it that directly holds audio files is one book; the files in it are its
+chapters. A .cue file next to each book files records where you last stopped listening.
+The books pane walks through the folders like a tree: a folder that holds other books shows as 
+[> Name  n books], ENTER goes into it (its own audio files come first, then the folders below), 
+the first row [<- ..] ENTER goes back up or hitting [ESC]. A search shows all books flat.
+
+
+[[New Page]]
+13.1 THE AUDIO BOOK SCREEN AND ITS KEYS [[Header]]
+
+PANES: [[Header]]
+BOOKS (left)      only folders: one row per book with its number of chapters. [ENTER] opens the book.
+)WIZ",
+R"WIZ(                  [/] searches the books, [ESC] shows all books again; in the chapter pane [ESC] goes 
+                  back to the library pane; in a folder of the library pane [<-] and [ESC] go one step 
+                  up in the folder hierarchy.
+CHAPTERS (right)  takes the place of the queue: the files of the open book in natural order
+                  ("Chapter 2" before "Chapter 10"). [ENTER] plays a chapter. [TAB] moves the focus.
+                  Hitting [ESC] moves back to the library/books pane. 
+
+PLAYBACK: [[Header]]
+[n] / [b]    next / previous chapter, also at the end of a chapter. 
+[m]          cycles the playpack mode: on to the next chapter / repeat the chapter / stop after it. 
+[->] / [<-]  seek: 5 seconds at first, faster and faster the longer the key is held (up to minutes), 
+             so a long book can be crossed quickly. [p] pause, volume, mute and the sleep timer as always.
+
+THE DEFAULT PICTURE: [[Header]] 
+An image of a women rading a book (a grey version of a colour picture) takes the place of the disk. 
+It is drawn as small braille dots (a 60 x 60 dot field) and stays still; the colour wave of the 
+radio's ON AIR sign runs over it diagonally, from the upper left to the lower right. In a terminal 
+with Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm ...) it is a real transparent 
+image at full pixel resolution instead of braille dots (a terminal without them gets the braille 
+version, which does not look nice though, to be honest). The original of the beautiful default 
+image is done by Kamara Rahmat (iyaniyan; taken from Unsplash).
+
+BOOK COVER: [[Header]]
+The option [Book Cover] in Settings, ON/OFF, set to true shows the cover image found in the book's 
+folder instead (a file named cover, folder, front or albumart, else the first picture there; 
+jpg, png, webp ...; no picture file: the cover art inside the first audio file is used). The 
+gradient wave can also be toggled via [Book gradient]. 
+
+A book without a cover image keeps the default picture. Switching Book Cover on shows in the 
+status line which protocol is used and the cover file found (or why there is none; the console log, t, 
+has the path). Where the visualizations are, a stack of books builds itself up while no book is loaded.
+
+META DATA: [[Header]] 
+Given are book, author, narrator, chapter (number and title), publisher, genre, the length 
+of the book and how much of it has been heard, then sampling, format and file size.
+
+MENUS FROM OTHER MODES: [[Header]] 
+The converter [SHIFT+c] works on the audio books and searches folders with [/f:]. The equalizer
+[SHIFT+e] and sleept timer [SHIFT+z] is also available in this mode. 
+
+
+[[New Page]]
+13.2 BOOK TAGS [[Header]]
+
+[SHIFT+m] opens the tag editor of the audio book player. It only edits, nothing is fetched in this
+mode, which makes the meta data editor much more light weight and simple. 
+It shows one chapter at a time: 
+File name, Book title, Author, Narrator, Chapter, Publisher, Year and Genre.
+
+[UP]/[DOWN]   pick a row, [ENTER] types into it (a second [ENTER] puts the cursor away), 
+[<-]/[->]     go to the other chapters (unsaved changes have to be saved with [s] or dropped 
+with [d] first). A changed row is drawn in the header colour) 
+[s]           writes this chapter's changes. The audio is copied bit for bit (ffmpeg -c copy). 
+              The File name row edits the name only; the ending (.mp3 ...) stays.
+[a]           writes the changed book rows (book title, author, narrator, publisher + year, genre) 
+              to every chapter of the book; the chapter title stays each chapter's own. The chapter 
+              number always goes in FRONT of the name (01 Dune, 02 Dune ...): the folder is sorted 
+              by name, so the number keeps the track order whatever the titles are.
+
+A number that is there already is not added twice; numbers at the END of every name (Dune 01) are moved 
+to the front of every file - the editor says why and asks [y] / [n] first. [s] puts the number in front 
+of the renamed chapter.Bookmarks, auto-mark, chapter marks and notes follow the new file names. 
+[ESC] leaves; with unsaved changes it asks: [y] save, [n] discard, [ESC] keep editing.
+Publisher and year are one row: "Penguin, 2019" (a last part with four digits is the year).
+The narrator is stored as composer and narrator tag, the book title as album, the author as artist. Narrator,
+publisher and year are also written to the book's .cue file (REM NARRATOR / PUBLISHER / DATE) and read from it first, so a WAV file keeps them too.
+
+[[New Page]]
+13.3 BOOKMARKS AND NOTES [[Header]]
+
+THREE KINDS OF TIME STAMPS: [[Header]]
+AUTO-MARK  where you stopped; written by itself every few seconds while you listen and when you leave
+           (.cue: REM AUTOMARK). One per book.
+BOOKMARK   a place you set on purpose with [SHIFT+b]; a book and even a chapter may carry many. They are
+           numbered automatically: Bookmark 1, Bookmark 2 ... (.cue: REM BOOKMARK).
+NOTE       a bookmark with a text (SHIFT+n, below); without a title it is numbered: Note 1, Note 2 ...
+
+The chapter with the newest bookmark is lit in the header colour with a diamond.
+[d] in the chapter pane deletes the bookmark of the chosen chapter (a small question first).
+Before the chapter changes ([n], [b], [ENTER] on another one), the mode switches or Mousiki quits, a
+question asks "Set a bookmark here?" with the exact time: [y]/[ENTER] yes, [n] no, [ESC] stay.
+The audio is paused while the question is open. Settings -> ON/OFF -> BOOKMARKS -> Ask for Bookmark 
+turns it off, since it can become annoying and auto-mark is always on anyways.
+
+[ENTER] on a chapter that was left but not bookmarked asks "Do you want to continue where you left?":
+  [y] Continue there (the only answer that starts the chapter)   
+  [n] Leave, keep the auto-mark, nothing is played
+  [b] Convert auto-mark to bookmark and leave (nothing is played)   [ESC] cancel.
+[ENTER] on a chapter with ONE bookmark offers: on the spot / 10 / 20 / 30 / 60 seconds before / the start
+([UP]/[DOWN] + [ENTER] or [1] to [6]; [ESC] does not play it).
+[ENTER] on a chapter with SEVERAL time stamps lists them: Auto-mark, Bookmark 1, 2 ..., the notes by title,
+and the start of the chapter; the choice opens the resume offer.
+[CTRL+SHIFT+u] brings back the last deleted time stamp (up to 30).
+
+NOTES: [[Header]]
+[SHIFT+n]  a note at the time you pressed [SHIFT+n] (not when you save): the field of the visualizations 
+           becomes the editor. First line = title, [ENTER] goes on to the text. [CTRL+SHIFT+s] saves; 
+           [ESC] stops typing, then [SHIFT+s] saves, [ENTER] types on, [ESC] again discards. 
+           The audio goes on while writing a note and the note is shown in the future when the respective 
+           time stamp is passed.
+           [CTRL+n] goes on in the big notes overlay (same text, same caret), there [CTRL+n] comes back.
+           A shown note: [CTRL+n] opens it there for editing. The time stamp (@ h:mm:ss) always stays whole.
+[SHIFT+l]  all notes in a full-screen overlay: the list left (chapter, time, title), the note right.
+           [ENTER] (or [t]) edits it right there, [f] shows it in the field, [SHIFT+p] plays from that 
+           point (the note is in the field after the overlay is closed), the right pane becomes the editor, 
+           [n] writes a new note at the playing point, [x] deletes, [SHIFT+e] / [SHIFT+i] export / import (an
+           import adds only new notes).
+[SHIFT+t]  sorts: chapter order with highest chapter and furthest time on top, recently edited first.
+[.] / [,]  switch the field between the notes and the visualizations. When a note is open and was just
+           saved [.] puts a shown note away: the view from before comes back. [,] on a shown note (e.g. 
+           right after saving it) writes it again.
+
+Export / import of notes is possible and use the folder <book folder>/notes.
+Again, a note shows itself in the field (for 20 seconds) when playback passes its time.
+)WIZ",
+R"WIZ(
+[[New Page]]
+13.4 LIST OF TIME STAMPS, LIBRARY AND READING HISTORY [[Header]]
+
+A book has an auto-mark, any number of bookmarks and notes. Three big windows:
+
+LIST OF TIME STAMPS [SHIFT+k]: [[Header]] 
+It shows every auto-mark, bookmark and note with the columns: when, TYPE (Auto-mark, Bookmark or Note), 
+book, chapter, time; the newest first, notes last. 
+[UP]/[DOWN] choose, [SHIFT+UP]/[SHIFT+DOWN] page.
+[ENTER]    opens the book, goes to the chapter and offers the resume choices 
+           (on the spot / 10 / 20 / 30 / 60 s before / start).
+[SHIFT+p]  opens the book and plays from the time stamp at once; the list stays.
+[SHIFT+d]  discards a time stamp of any kind - a warning asks first; [y] confirms this step.
+[SHIFT+b]  turns an auto-mark into a regular bookmark.
+[SHIFT+t]  sorting: by the date the stamp was set (newest first), by book (A-Z, the highest chapter 
+           and the furthest mark first).
+[ESC]      back to the date sorting, and closes.
+[CTRL+SHIFT+u] brings the last discarded one back.
+[ESC]      closes/clears sorting.
+
+BIG LIBRARY OVERLAY [SHIFT+s]: [[Header]] 
+It has a search pane on top ([/] types, the words narrow the list) and the audio book pane below it.
+[ENTER] / [->] on a book opens it and inserts its chapters below it, [<-] or [ESC] closes it; 
+               a diamond marks a bookmark.
+[ENTER]        on a chapter plays it (the bookmark question first), [CTRL+p] plays it from its start 
+               and the overlay stays,
+[f]            opens the book in the chapter pane.
+
+LISTENING/READING HISTORY [SHIFT+h]: [[Header]] 
+The listening history made for books, in its own file reading_history.json. Every chapter
+you listen to is recorded. Change tab via  [<-]/[->] or [1] to [4]. 
+Given tabs are HISTORY, TOP CHAPTERS, TOP BOOKS, HABITS.
+[ENTER] on a chapter opens its book and plays it. [ESC] closes.
+
+[[New Page]]
+13.5 CHAPTER MARKS AND CUTTING [[Header]]
+
+A book often is one long file. [ALT+l] opens the chapter marks of the chapter that plays (else 
+the chapter under the cursor starts). The window shows where you are and the marks: number, time, 
+title, length. You set them while listening:
+[m]        a mark at the point you listen at. The first mark adds the start (0:00:00, "Chapter 1"). 
+           A new mark is called "Chapter N" (the standard titles are renumbered when one is inserted); 
+           the title field opens with it selected:[ENTER] keeps it, typing replaces it.
+[a]        a mark by its time, h:mm:ss (or m:ss), then the title.        
+[t] / [r]  change the time / the title.
+[x]        deletes the mark.                                              
+[ENTER]    plays from the mark.
+[<-]/[->] seek: 5 seconds, faster and faster the longer the key is held, up to minutes. [p] pauses.
+The marks are saved in the book's .cue after every change (REM CHAPTER lines).
+
+[c] CUTS THE FILE: [[Header]] after one question ffmpeg copies the parts without re-encoding 
+(-c copy) into the book folder as "01 Chapter 1.wav", "02 The Storm.wav" ... with the chapter 
+title as title tag. If anything fails, the new files are removed and the original is untouched.
+Answer the question with [t] instead of [y] to also trim blank audio at the edges of the parts to 2 seconds
+(bookmarks, auto-mark and notes are moved accordingly).
+
+THE BACKUP: [[Header]] 
+The original becomes "Dune.wav.mousiki-backup" in the book folder (not listed as a chapter) and 
+stays until you delete it on purpose: [SHIFT+d] in this window shows how much space it takes...
+
+BOOKMARK AND NOTES FOLLOW: [[Header]] 
+The bookmark and every note in the cut file move to the part that holds their place,
+with the time inside that part (a note at 0:25:00, a chapter starting at 0:10:00: 0:15:00 
+of the new chapter).
+
+[[New Page]]
+14.1 REMOTE CONTROL AND KEY BINDINGS [[Header]]
 
 A running player or radio can be controlled with the same program:
   mousiki --cmd next | prev | play-pause | pause | stop | shuffle | mute | live | playback-mode | wizard | switch-mode | quit
@@ -1385,7 +1624,7 @@ macOS:     Shortcuts app (Run Shell Script) or skhd
 THEME PREVIEW: [[Header]] in the CHOOSE THEME list [SHIFT+p] shows a still copy of the main screen in the highlighted theme; any key goes back.
 
 [[New Page]]
-13.2 THE REMOTE APP (PHONE) [[Header]]
+14.2 THE REMOTE APP (PHONE) [[Header]]
 
 Settings -> ON/OFF -> MODES -> Remote App -> [ENTER] opens the REMOTE APP overlay (player or radio):
 switch it ON, see the address and a QR code (scan it with the phone camera: the remote opens,

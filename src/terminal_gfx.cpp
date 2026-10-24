@@ -67,9 +67,10 @@ std::string kitty_emit(const GfxFrame& f) {
             rgba[i * 4] = f.grid_rgb[0] & 0xF8; rgba[i * 4 + 1] = f.grid_rgb[1] & 0xF8; rgba[i * 4 + 2] = f.grid_rgb[2] & 0xF8; rgba[i * 4 + 3] = 0xF8;
             continue;
         }
-        if (f.level[i] < 8) { rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = rgba[i * 4 + 3] = 0; continue; }
+        if (f.level[i] < (f.plain ? 3 : 8)) { rgba[i * 4] = rgba[i * 4 + 1] = rgba[i * 4 + 2] = rgba[i * 4 + 3] = 0; continue; }
         float r, g, b, a;
         shade(f, f.level[i], f.hue[i], r, g, b, a);
+        if (f.plain) { a = static_cast<float>(f.level[i]) / 255.0f; r = f.pal[f.hue[i]][0]; g = f.pal[f.hue[i]][1]; b = f.pal[f.hue[i]][2]; }
         // 5 bits per channel: invisible on screen, and it halves what has to be sent (the bloom is full of near-equal values)
         rgba[i * 4] = static_cast<uint8_t>(r) & 0xF8; rgba[i * 4 + 1] = static_cast<uint8_t>(g) & 0xF8; rgba[i * 4 + 2] = static_cast<uint8_t>(b) & 0xF8;
         rgba[i * 4 + 3] = static_cast<uint8_t>(std::clamp(a * 255.0f, 0.0f, 255.0f)) & 0xF8;
@@ -125,6 +126,7 @@ std::string sixel_emit(const GfxFrame& f) {
     static std::string pal_text;
     static std::array<std::array<uint8_t, 3>, 256> pal_seen{};
     static bool pal_valid = false;
+    static bool plain_seen = false;
     static std::array<uint8_t, 3> grid_seen{};
     static std::vector<uint8_t> bits;           // per colour: one 6-bit mask per output column (kept zeroed between bands)
     static std::vector<int> minx(256), maxx(256);
@@ -153,6 +155,7 @@ std::string sixel_emit(const GfxFrame& f) {
     for (size_t i = 0; i < idx.size(); ++i) {
         const int st = step_of[f.level[i]];
         if (grid_shows(f, i)) idx[i] = 242;   // the grid colour, under the beam
+        else if (f.direct) { if (f.level[i] >= 3) idx[i] = static_cast<uint8_t>(1 + std::min<int>(f.hue[i], 239)); }
         else if (st >= 1) idx[i] = static_cast<uint8_t>(1 + (f.hue[i] >> 4) * 15 + (st - 1));
     }
     // The picture is opaque: every pixel that is not beam or grid is drawn black (colour 243), so a new picture replaces the old
@@ -169,17 +172,25 @@ std::string sixel_emit(const GfxFrame& f) {
             const bool yin = y >= ya && y < yb;
             for (int x = 0; x < f.w; ++x) {
                 uint8_t& c = idx[static_cast<size_t>(y) * f.w + x];
-                if (c == 0 && !(yin && x >= xa && x < xb)) c = 243;
+                if (c == 0 && !f.plain && !(yin && x >= xa && x < xb)) c = 243;
             }
         }
     }
     // the palette only changes with the colour settings: build its text once
-    if (!pal_valid || pal_seen != f.pal || grid_seen != f.grid_rgb) {
+    static bool direct_seen = false;
+    if (!pal_valid || pal_seen != f.pal || grid_seen != f.grid_rgb || plain_seen != f.plain || direct_seen != f.direct) {
         pal_text.clear();
+        if (f.direct) {   // the picture's own colours: colour 1 + i is pal[i]
+            for (int i = 0; i < 240; ++i) {
+                pal_text += '#'; put_int(pal_text, 1 + i);
+                pal_text += ";2;"; put_int(pal_text, f.pal[static_cast<size_t>(i)][0] * 100 / 255); pal_text += ';';
+                put_int(pal_text, f.pal[static_cast<size_t>(i)][1] * 100 / 255); pal_text += ';'; put_int(pal_text, f.pal[static_cast<size_t>(i)][2] * 100 / 255);
+            }
+        } else
         for (int hb = 0; hb < 16; ++hb)
             for (int st = 1; st <= 15; ++st) {
                 const float l = static_cast<float>(st) / 15.0f;
-                const float hot = std::clamp((l - 0.80f) / 0.20f, 0.0f, 1.0f) * 0.40f;
+                const float hot = f.plain ? 0.0f : std::clamp((l - 0.80f) / 0.20f, 0.0f, 1.0f) * 0.40f;
                 const auto& p = f.pal[static_cast<size_t>(hb * 16 + 8)];
                 auto ch = [&](int c) { return static_cast<int>(std::lround(((static_cast<float>(p[static_cast<size_t>(c)]) * (1.0f - hot) + 255.0f * hot) * l) / 255.0f * 100.0f)); };
                 pal_text += '#'; put_int(pal_text, 1 + hb * 15 + st - 1);
@@ -191,6 +202,8 @@ std::string sixel_emit(const GfxFrame& f) {
         pal_seen = f.pal;
         grid_seen = f.grid_rgb;
         pal_valid = true;
+        plain_seen = f.plain;
+        direct_seen = f.direct;
     }
     if (bits.size() != static_cast<size_t>(256) * W) bits.assign(static_cast<size_t>(256) * W, 0);
     std::string o;

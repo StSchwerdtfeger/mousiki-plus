@@ -9,6 +9,7 @@
 #include <cmath>
 #include <cstdio>
 
+#include "path_utf8.h"
 #include "remote_server.h"
 #include "settings.h"
 #include "terminal_ui.h"
@@ -69,8 +70,10 @@ void App::phone_publish() {
     if (now - phone_built_ < std::chrono::milliseconds(70)) return;   // at most ~14 screens a second
     phone_built_ = now;
     std::vector<remote::net::Zone> zones;
+    phone_pic_.active = false;
     const std::vector<std::string> lines = build_phone_screen(cols, rows, zones);
-    remote::net::set_screen("player", cols, rows, lines, zones, settings_.list_color);
+    remote::net::set_picture(phone_pic_.active && phone_view_ == 0 && audiobook_, phone_pic_.x, phone_pic_.y, phone_pic_.w, phone_pic_.h, phone_pic_.key);
+    remote::net::set_screen(audiobook_ ? "audiobook" : "player", cols, rows, lines, zones, settings_.list_color);
 }
 
 std::vector<std::string> App::build_phone_screen(int W, int H, std::vector<remote::net::Zone>& zones) const {
@@ -136,6 +139,55 @@ std::vector<std::string> App::build_phone_screen(int W, int H, std::vector<remot
     // On top the local list (as sorted / filtered on the computer; tap a title: it plays), below it, smaller, the saved
     // playlists (tap one: its titles go into the queue). A tap on a pane that is not in focus only gives it the focus;
     // UP / DOWN page through the pane in focus, a whole page at a time. At the bottom CLEAR QUEUE (tap twice).
+    if (phone_view_ == 1 && audiobook_) {
+        // The audio book's LISTS: the library as in the big library overlay -- the folders (open / close with a tap), the books
+        // and their chapters indented below them; a tap on a chapter plays it from its start. One pane, paged by UP / DOWN.
+        out.clear();
+        zones.clear();
+        const std::vector<FoRow> rows = phone_book_rows();
+        const int nr = static_cast<int>(rows.size());
+        int per = 0, per2 = 0;
+        remote::net::phone_lists_rows(H, per, per2);
+        per = std::max(1, per + per2 - 1);
+        const int pages = std::max(1, (nr + per - 1) / per);
+        const int page = std::clamp(phone_page_, 0, pages - 1);
+        const std::string on_col = ansi_for(settings_.tab_current_color, true);
+        const std::string now_col = ansi_for(settings_.list_playing_color) + bg_ansi_for(settings_.list_playing_bg_color);
+        out.push_back(box_top("LIBRARY", W, B));
+        zones.push_back({0, 0, W, 1, "@menu", ""});
+        row(phone_note_.empty() ? legend + truncate_str("tap a folder or a chapter (plays)", inner) + kR
+                                : "\x1b[32m" + truncate_str(phone_note_, inner) + kR);
+        {
+            const std::string label = "▶ AUDIO BOOKS (" + std::to_string(nr) + ")  " + std::to_string(page + 1) + "/" + std::to_string(pages);
+            const std::string lab = truncate_str(label, W - 8);
+            std::string h = B + "├" + settings_.box_horizontal + " " + on_col + lab + kR + " " + B;
+            const int dashes = std::max(0, W - 2 - display_width(settings_.box_horizontal) - display_width(lab) - 2);
+            for (int k = 0; k < dashes; ++k) h += settings_.box_horizontal;
+            out.push_back(h + "┤" + kR);
+        }
+        for (int i = 0; i < per; ++i) {
+            const int k = page * per + i;
+            if (k >= nr) { row(i == 0 && nr == 0 ? legend + truncate_str("no books (AUDIO BOOK PATH in the settings)", inner) + kR : ""); continue; }
+            const FoRow& r = rows[static_cast<size_t>(k)];
+            const bool now = !r.is_dir && has_track_ && current_is_local_ && path_utf8(current_path_) == r.path;
+            const std::string indent = blanks(std::min(r.depth, 6) * 2);
+            std::string head_txt = r.is_dir ? (r.expanded ? "▾ " : "▸ ") : (now ? "▶ " : "  ");
+            const std::string cnt = r.is_dir ? " (" + std::to_string(r.count) + ")" : std::string();
+            const std::string name = truncate_str(apply_font_map(r.label, settings_.font_map), std::max(4, inner - display_width(indent) - 2 - display_width(cnt)));
+            const std::string text = indent + head_txt + name + cnt;
+            if (now) row(now_col + pad_right(text, inner) + kR);
+            else if (r.is_dir) row(k_col + text + kR);
+            else row(v_col + text + kR);
+            zones.push_back({0, static_cast<int>(out.size()) - 1, W, 1, r.is_dir ? "book-open" : "track", std::to_string(k + 1)});
+        }
+        out.push_back(box_bottom(W, "", BB));
+        while (static_cast<int>(out.size()) < H - 3) out.push_back(blanks(W));
+        boxes({{"", "▲ UP", "remote-scroll", "-1"}, {"", "BACK", "remote-view", "0"}, {"", "DOWN ▼", "remote-scroll", "+1"}});
+        if (static_cast<int>(out.size()) > H) out.resize(static_cast<size_t>(H));
+        for (auto& z : zones) if (z.y + z.h > H) z.h = std::max(0, H - z.y);
+        zones.erase(std::remove_if(zones.begin(), zones.end(), [](const remote::net::Zone& z) { return z.h <= 0; }), zones.end());
+        return panel_gradient(out);
+    }
     if (phone_view_ == 1) {
         out.clear();
         zones.clear();
@@ -213,16 +265,55 @@ std::vector<std::string> App::build_phone_screen(int W, int H, std::vector<remot
     zones.push_back({0, static_cast<int>(out.size()) - 1, W, 1, "@menu", ""});   // the title: the remote's own settings
     {
         const std::string cur = ansi_for(settings_.tab_current_color, false), other = ansi_for(settings_.tab_other_color, false);
-        const std::string tabs = cur + "[PLAYER]" + kR + "  " + other + "RADIO" + kR;
+        // the modes that are on, in the order of the mode key; the one in use in brackets, a tap on another one goes to it
+        // (the next mode in the order: switch-mode, the previous one: switch-mode -1)
+        static const char* const kNames[3] = {"PLAYER", "RADIO", "BOOKS"};
+        const int me = audiobook_ ? 2 : 0;
+        int mypos = 0;
+        for (int i = 0; i < 3; ++i) if (settings_.mode_order[i] == me) mypos = i;
+        std::string tabs;
+        struct Tab { int x, w; const char* arg; };
+        std::vector<Tab> hits;
+        for (int i = 0; i < 3; ++i) {
+            const int m = settings_.mode_order[i];
+            if (m != me && !settings_.use_mode[m]) continue;
+            const std::string name = m == me ? std::string("[") + kNames[m] + "]" : std::string(kNames[m]);
+            if (!tabs.empty()) tabs += "  ";
+            hits.push_back({vis(tabs), static_cast<int>(name.size()), m == me ? "" : (i == (mypos + 1) % 3 ? "1" : (i == (mypos + 2) % 3 ? "-1" : "1"))});
+            tabs += (m == me ? cur : other) + name + kR;
+        }
         const std::string hint = legend + "[" + hotkey_text("HKeySwitchMode", "*") + "] switch" + kR;
         row(tabs + blanks(inner - vis(tabs) - vis(hint)) + hint);
-        zones.push_back({2 + 10, static_cast<int>(out.size()) - 1, 5, 1, "switch-mode", ""});
-        zones.push_back({2 + inner - vis(hint), static_cast<int>(out.size()) - 1, vis(hint), 1, "switch-mode", ""});
+        const int ty = static_cast<int>(out.size()) - 1;
+        for (const Tab& t : hits) if (*t.arg) zones.push_back({2 + t.x, ty, t.w, 1, "switch-mode", t.arg});
+        zones.push_back({2 + inner - vis(hint), ty, vis(hint), 1, "switch-mode", ""});
     }
 
     // ---- the disk ----
     for (int i = 0; i < disk_pad; ++i) row("");
     {
+        if (audiobook_) {
+            // the audio book: the book's cover or the standard picture takes the disk's place (the same picture as on the computer)
+            std::string pkey;
+            const std::string* png = book_phone_png(pkey);
+            if (png) {   // the phone draws the real picture (full resolution) over these rows: it fetches it once per key
+                if (!remote::net::picture_has(pkey)) remote::net::picture_store(pkey, *png);
+                phone_pic_ = {true, 2, static_cast<int>(out.size()), inner, disk_h, pkey};
+                for (int i = 0; i < disk_h; ++i) row("");
+                zones.push_back({2, static_cast<int>(out.size()) - disk_h, inner, disk_h, "play-pause", ""});
+            } else {
+            int pw = 0, ph = 0;
+            std::vector<std::string> pic = book_phone_picture(pw, ph);
+            if (pic.empty()) pic.assign(static_cast<size_t>(std::max(1, ph)), std::string());   // the cover is being read
+            const int left = std::max(0, (inner - pw) / 2);
+            const int top = static_cast<int>(out.size());
+            for (int i = 0; i < disk_h; ++i) {
+                const int ai = i - (disk_h - static_cast<int>(pic.size())) / 2;
+                row(ai >= 0 && ai < static_cast<int>(pic.size()) ? blanks(left) + pic[static_cast<size_t>(ai)] : std::string());
+            }
+            zones.push_back({2 + left, top, std::max(1, pw), disk_h, "play-pause", ""});
+            }
+        } else {
         std::vector<std::string> frame = disk_.frame(phone_angle_);
         const int dw = disk_.width();
         const int left = std::max(0, (inner - dw) / 2);
@@ -232,6 +323,7 @@ std::vector<std::string> App::build_phone_screen(int W, int H, std::vector<remot
         }
         const int disk_top = static_cast<int>(out.size()) - static_cast<int>(frame.size());
         zones.push_back({2 + left, disk_top, dw, static_cast<int>(frame.size()), "play-pause", ""});   // the disk itself: play / pause
+        }
     }
     for (int i = 0; i < disk_pad; ++i) row("");
 

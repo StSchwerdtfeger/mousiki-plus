@@ -6,5 +6,11 @@
 // instant; it really ends when the program quits.
 constexpr int kExitSwitchMode = 77;
 
+// There are three modes: the music player (0), the radio (1) and the audio book player (2) -- the player and the audio book
+// player are two instances of the same engine (class App). SHIFT and + ('*') goes to the next mode that is switched on
+// (Settings -> ON/OFF -> MODES: Mode Order), SHIFT and - ('_') to the previous one. A mode that returns kExitSwitchMode
+// says which way in this variable (+1 forward, -1 back); main() picks the next mode with it.
+inline int g_mode_switch_dir = 1;
+
 // The radio mode (src_radio/radio_main.cpp). Returns 0 on a normal quit, kExitSwitchMode for the mode switch ('*').
 int radio_main(int argc, char** argv);

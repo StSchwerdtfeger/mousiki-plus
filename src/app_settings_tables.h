@@ -118,13 +118,21 @@ enum SetId {
     kSidPlayback, kSidStartMode, kSidBlackBg, kSidShareProfiles, kSidRemoteApp, kSidUpdateCheck, kSidMediaKeys, kSidTrackBuffer,
     kSidVisFluidity, kSidWaveStyle, kSidDiskSpeed, kSidVisDegr, kSidVisVisc, kSidLyrAlign, kSidLyrAnim,
     kSidVolIndicator,
+    kSidUseModePlayer, kSidUseModeRadio, kSidUseModeBook, kSidModeOrder1, kSidModeOrder2, kSidModeOrder3, kSidBookAsk, kSidBookCover, kSidBookCoverWave,
 };
+// True while the audio book player is the mode that runs (set by App::run()): its ON/OFF and ANIMA/VIZ tabs leave out what only
+// belongs to the music player and name the lyrics view "notes".
+inline bool g_settings_book_layout = false;
 struct SetLine { bool header; int id; const char* text; };   // a category header, or a row (id + label)
 inline const std::vector<SetLine>& settings_layout(int tab) {
     static const std::vector<SetLine> on_off = {
         {true, -1, "MODES"},
         {false, kSidPlayback, "Playback"}, {false, kSidStartMode, "Start Mode"}, {false, kSidBlackBg, "Black Background"}, {false, kSidShareProfiles, "Share Profiles"},
         {false, kSidRemoteApp, "Remote App"}, {false, kSidUpdateCheck, "Update Notice"}, {false, kSidMediaKeys, "Media Keys"},
+        {true, -1, ""},
+        {true, -1, "MODE SWITCH"},   // SHIFT and + / SHIFT and - walk through the modes that are on, in this order
+        {false, kSidUseModePlayer, "Use Music Player"}, {false, kSidUseModeRadio, "Use Radio"}, {false, kSidUseModeBook, "Use Audio Books"},
+        {false, kSidModeOrder1, "Mode Order 1"}, {false, kSidModeOrder2, "Mode Order 2"}, {false, kSidModeOrder3, "Mode Order 3"},
         {true, -1, ""},
         {true, -1, "MAIN UI / AUDIO"},
         {false, kSidDisk, "Eliment Disk"}, {false, kSidDummy, "Dummy Buttons"}, {false, kSidQueue, "Queue Display"},
@@ -158,6 +166,46 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidOrder1, "Viz Order 1"}, {false, kSidOrder2, "Viz Order 2"},
         {false, kSidOrder3, "Viz Order 3"}, {false, kSidOrder4, "Viz Order 4"},
     };
+    // The audio book player: the same tabs without what only the music player uses (the play mode, the lyrics, the disk's
+    // speed), the lyrics view called "notes", the disk's place taken by the book animation.
+    static const std::vector<SetLine> book_on_off = {
+        {true, -1, "MODES"},
+        {false, kSidStartMode, "Start Mode"}, {false, kSidBlackBg, "Black Background"}, {false, kSidShareProfiles, "Share Profiles"},
+        {false, kSidRemoteApp, "Remote App"}, {false, kSidUpdateCheck, "Update Notice"}, {false, kSidMediaKeys, "Media Keys"},
+        {true, -1, ""},
+        {true, -1, "MODE SWITCH"},
+        {false, kSidUseModePlayer, "Use Music Player"}, {false, kSidUseModeRadio, "Use Radio"}, {false, kSidUseModeBook, "Use Audio Books"},
+        {false, kSidModeOrder1, "Mode Order 1"}, {false, kSidModeOrder2, "Mode Order 2"}, {false, kSidModeOrder3, "Mode Order 3"},
+        {true, -1, ""},
+        {true, -1, "BOOKMARKS"},
+        {false, kSidBookAsk, "Ask for Bookmark"},
+        {true, -1, ""},
+        {true, -1, "MAIN UI / AUDIO"},
+        {false, kSidBookCover, "Book Cover"}, {false, kSidBookCoverWave, "Book Gradient Wave"}, {false, kSidDummy, "Dummy Buttons"}, {false, kSidQueue, "Chapter Display"},
+        {false, kSidWave, "Progress Waveform"}, {false, kSidVolIndicator, "Volume Indicator"}, {false, kSidVisualizer, "Spectrum Bars"},
+        {false, kSidStereo, "Stereo Sound"}, {false, kSidNormalize, "Normalize Volume"}, {false, kSidTrackBuffer, "Track Buffer (MB)"},
+        {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},
+        {true, -1, ""},
+        {true, -1, "MAIN UI VIZ/NOTES FIELD"},
+        {false, kSidVizField, "Viz/Notes Field"}, {false, kSidUseLyrics, "Use Book Notes"},
+        {false, kSidUseOsci, "Use Oscilloscope"},
+        {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"},
+    };
+    static const std::vector<SetLine> book_anima = {
+        {true, -1, "SPECTRUM BARS"},
+        {false, kSidVisFluidity, "Bars Fluidity"}, {false, kSidVisDegr, "Bars Degradation"}, {false, kSidVisVisc, "Bars Viscosity"},
+        {true, -1, ""},
+        {true, -1, "PROGRESS WAVEFORM"},
+        {false, kSidWaveStyle, "Waveform Style"},
+        {true, -1, ""},
+        {true, -1, "WHAT THE FIELD SHOWS"},
+        {false, kSidLyricViz, "Notes/Viz Default"}, {false, kSidNoLyricsViz, "No-Notes Viz"},
+        {true, -1, ""},
+        {true, -1, "VIZ/NOTES ORDER"},
+        {false, kSidOrder1, "Viz Order 1"}, {false, kSidOrder2, "Viz Order 2"},
+        {false, kSidOrder3, "Viz Order 3"}, {false, kSidOrder4, "Viz Order 4"},
+    };
+    if (g_settings_book_layout) return tab == 1 ? book_on_off : book_anima;
     return tab == 1 ? on_off : anima;
 }
 inline int settings_item_count(int tab) {
@@ -178,5 +226,9 @@ inline int settings_item_line(int tab, int row) {
     return 0;
 }
 inline const char* const kVizNames[4] = {"sphere", "osci", "spectro", "lyrics"};   // viz_order values, row values
+// The name of mode `m` (0 music player, 1 radio, 2 audio books) on a row: the words of config.txt.
+inline const char* mode_row_name(int m) { return m == 1 ? "radio" : m == 2 ? "audiobook" : "player"; }
+// The name of view `i` on a row: the audio book player calls the lyrics view "notes".
+inline const char* viz_row_name(int i) { return (g_settings_book_layout && i == 3) ? "notes" : kVizNames[i < 0 ? 0 : i > 3 ? 3 : i]; }
 
 } // namespace muisc

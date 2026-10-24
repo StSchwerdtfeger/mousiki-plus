@@ -104,6 +104,11 @@ void App::history_begin_current_play() {
     p.len_sec = static_cast<double>(total_sec_);
     p.started_at = static_cast<long long>(std::time(nullptr));
     p.playlist = current_playlist_;
+    if (audiobook_) {   // the reading history: the chapter, the book's name as the "artist" and as the "playlist" (TOP BOOKS)
+        const std::string book = path_utf8(current_path_.parent_path().filename());
+        p.artist = book;
+        p.playlist = book;
+    }
     history_.begin_play(p);
 }
 
@@ -244,7 +249,7 @@ void App::handle_history_key(int key) {
     // Top Tracks tab: TAB switches between the two panes (the track list and
     // ADD SMART HISTORY TO QUEUE). It never switches tabs (Left/Right do).
     if (key == 9) {
-        if (history_tab_ == 1) { history_pane_ ^= 1; history_status_.clear(); }
+        if (history_tab_ == 1 && !audiobook_) { history_pane_ ^= 1; history_status_.clear(); }
         return;
     }
 
@@ -296,6 +301,10 @@ void App::handle_history_key(int key) {
             id = r.id; title = r.title; artist = r.artist;
         }
         if (id.empty()) return;
+        if (audiobook_) {   // a chapter: its book opens, the chapter plays (with the bookmark questions)
+            history_status_ = book_play_file(id) ? "playing: " + title : "cannot play: the file no longer exists";
+            return;
+        }
         if (artist == "-") artist.clear();
         if (id.compare(0, 3, "yt:") == 0) {
             OnlineResult r{id.substr(3), title, artist};
@@ -356,7 +365,8 @@ void App::build_history_screen(std::ostringstream& frame, int W, int target_heig
     const std::string HI = "\x1b[7m", R = "\x1b[0m";
 
     {   // one fused pane: LISTENING HISTORY rests on the top border line, the settings-style tab strip below it (no numbers)
-        const auto strip = menu_tab_strip(W, "LISTENING HISTORY", {"HISTORY", "TOP TRACKS", "TOP PLAYLISTS", "HABITS"}, history_tab_, border, border,
+        const auto strip = menu_tab_strip(W, audiobook_ ? "READING HISTORY" : "LISTENING HISTORY",
+                                          audiobook_ ? std::vector<std::string>{"HISTORY", "TOP CHAPTERS", "TOP BOOKS", "HABITS"} : std::vector<std::string>{"HISTORY", "TOP TRACKS", "TOP PLAYLISTS", "HABITS"}, history_tab_, border, border,
                                           settings_.box_upper_left, settings_.box_upper_right, settings_.box_vertical, 0, "", 0,
                                           ansi_for(settings_.tab_current_color, false), ansi_for(settings_.tab_other_color, false));
         frame << strip.first << "\n" << strip.second << "\n";
@@ -374,6 +384,8 @@ void App::build_history_screen(std::ostringstream& frame, int W, int target_heig
     // simply gives up one row for it, the way Browse does for its prompt.
     const std::string hint = (history_tab_ == 1 && history_pane_ == 1)
         ? "[\u2191\u2193\u2190\u2192] Pick a list  [ENTER] Add it to the queue  [TAB] Track list  [ESC] Leave the pane"
+        : (history_tab_ == 1 && audiobook_)
+        ? "[\u2190\u2192] Switch Tab  [1-4] Tab  [\u2191\u2193] Move  [ENTER] Play the chapter  [r] Flip sort  [ESC] Exit"
         : (history_tab_ == 1)
         ? "[\u2190\u2192] Switch Tab  [1-4] Tab  [TAB] Smart history pane  [\u2191\u2193] Move  [ENTER] Play  [r] Flip sort  [ESC] Exit"
         : (history_tab_ == kHistTabPlaylists || history_tab_ == kHistTabHabits)
@@ -402,7 +414,7 @@ void App::build_history_screen(std::ostringstream& frame, int W, int target_heig
     // row + four option rows + its own two border rows) below the list, so the list gives those
     // rows up -- the whole tab still adds up to `budget` lines (29 on a
     // 30-line terminal). No upper cap on the list: it fills a maximised window.
-    const bool top_tab = (history_tab_ == 1);
+    const bool top_tab = (history_tab_ == 1) && !audiobook_;   // (no smart queue pane for books)
     const int add_body = 5;                       // column titles + 4 rows of lists
     const int add_rows = top_tab ? add_body + 2 : 0;
     int panel_h = std::max(top_tab ? 3 : 6, budget - fixed_rows - 2 - legend_rows - status_rows - add_rows);
@@ -426,7 +438,7 @@ std::vector<std::string> App::build_history_panel(int total_width, int height) {
 
     // The info that sits on the bottom border line.
     std::string info;
-    if (history_tab_ == 0) info = std::to_string(history_.plays().size()) + " plays (newest 100 shown)";
+    if (history_tab_ == 0) info = std::to_string(history_.plays().size()) + (audiobook_ ? " chapter plays (newest 100 shown)" : " plays (newest 100 shown)");
     else if (history_tab_ == 1) info = history_most_first_ ? "most played first" : "least played first";
     else if (history_tab_ == kHistTabPlaylists) info = "top 5 each";
 
@@ -468,7 +480,7 @@ std::vector<std::string> App::build_history_panel(int total_width, int height) {
         const int text_w = std::max(16, inner - when_w - 2 - len_w - 2 - state_w - static_cast<int>(tsep.size()));
         const int title_w = text_w * 3 / 5;
         const int artist_w = text_w - title_w;
-        lines.push_back({T("WHEN", when_w) + "  " + T("TITLE", title_w) + tsep + T("ARTIST", artist_w) + L("LEN", len_w) + "  " + T("STATE", state_w), 1});
+        lines.push_back({T("WHEN", when_w) + "  " + T("TITLE", title_w) + tsep + T(audiobook_ ? "BOOK" : "ARTIST", artist_w) + L("LEN", len_w) + "  " + T("STATE", state_w), 1});
         if (total == 0) {
             lines.push_back({"nothing played yet -- plays show up here as soon as music runs", 0});
         } else {
@@ -492,7 +504,7 @@ std::vector<std::string> App::build_history_panel(int total_width, int height) {
         const int text_w = std::max(16, inner - len_w - 2 - plays_w - static_cast<int>(tsep.size()));
         const int title_w = text_w * 3 / 5;
         const int artist_w = text_w - title_w;
-        lines.push_back({T("TITLE", title_w) + tsep + T("ARTIST", artist_w) + L("LEN", len_w) + "  " + std::string(static_cast<size_t>(std::max(0, plays_w - 7)), ' ') + "PLAYS " + (history_most_first_ ? "\u25bc" : "\u25b2"), 1});
+        lines.push_back({T("TITLE", title_w) + tsep + T(audiobook_ ? "BOOK" : "ARTIST", artist_w) + L("LEN", len_w) + "  " + std::string(static_cast<size_t>(std::max(0, plays_w - 7)), ' ') + "PLAYS " + (history_most_first_ ? "\u25bc" : "\u25b2"), 1});
         if (history_top_view_.empty()) {
             lines.push_back({"nothing played yet -- plays show up here as soon as music runs", 0});
         } else {
@@ -638,9 +650,18 @@ void App::history_playlists_lines(int inner, std::vector<std::pair<std::string, 
         const int w = display_width(s);
         return w >= n ? truncate_str(s, n) : std::string(static_cast<size_t>(n - w), ' ') + s;
     };
+    // (in the audio book mode this tab lists the books: the word is swapped in every text)
+    auto bk = [&](std::string t) {
+        if (!audiobook_) return t;
+        for (const auto& [from, to] : std::vector<std::pair<std::string, std::string>>{{"PLAYLISTS", "BOOKS"}, {"PLAYLIST", "BOOK"}, {"Playlists", "Books"}, {"playlists", "books"}, {"playlist", "book"}}) {
+            size_t pos = 0;
+            while ((pos = t.find(from, pos)) != std::string::npos) { t.replace(pos, from.size(), to); pos += to.size(); }
+        }
+        return t;
+    };
     auto section = [&](int p) {
         std::vector<std::pair<std::string, int>> out;
-        out.push_back({T(kPeriods[p].title, col_w), 1});
+        out.push_back({T(bk(kPeriods[p].title), col_w), 1});
         const auto rows = history_top_playlists(history_.plays(), &history_.archive(),
                                                 kPeriods[p].days > 0 ? now - kPeriods[p].days * 86400LL : 0, 5);
         for (size_t i = 0; i < 5; ++i) {
@@ -650,7 +671,7 @@ void App::history_playlists_lines(int inner, std::vector<std::pair<std::string, 
                                R(std::to_string(r.plays) + (r.plays == 1 ? " play" : " plays"), plays_w) +
                                R(format_len(r.listened_sec), time_w), 0});
             } else {
-                out.push_back({std::to_string(i + 1) + ". " + (i == 0 ? "-- no playlist played in this period --" : "-"), 3});
+                out.push_back({std::to_string(i + 1) + ". " + (i == 0 ? bk("-- no playlist played in this period --") : "-"), 3});
             }
         }
         return out;
@@ -665,12 +686,12 @@ void App::history_playlists_lines(int inner, std::vector<std::pair<std::string, 
     const HistoryStats st = history_stats(history_.plays(), &history_.archive());
     std::vector<std::pair<std::string, int>> sum;
     sum.push_back({T("SUMMARY", col_w), 1});
-    sum.push_back({T("Playlists played", col_w - 8) + R(std::to_string(n_playlists), 8), 0});
-    sum.push_back({T("Plays from playlists", col_w - 8) + R(std::to_string(n_plays), 8), 0});
+    sum.push_back({T(bk("Playlists played"), col_w - 8) + R(std::to_string(n_playlists), 8), 0});
+    sum.push_back({T(bk("Plays from playlists"), col_w - 8) + R(std::to_string(n_plays), 8), 0});
     sum.push_back({T("Share of all plays", col_w - 8) +
                    R(st.plays > 0 ? std::to_string(std::min(100, static_cast<int>(100.0 * static_cast<double>(n_plays) / st.plays + 0.5))) + "%" : "-", 8), 0});
     if (n_plays == 0) {
-        sum.push_back({T("Queue a saved playlist (Enter on a playlist row) -- its plays are counted from then on.", col_w), 3});
+        sum.push_back({T(audiobook_ ? "Every chapter you play counts for its book." : "Queue a saved playlist (Enter on a playlist row) -- its plays are counted from then on.", col_w), 3});
     }
 
     auto append_col = [&](std::vector<std::pair<std::string, int>>& dst, const std::vector<std::vector<std::pair<std::string, int>>>& parts) {

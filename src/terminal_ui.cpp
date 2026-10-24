@@ -536,6 +536,7 @@ int TerminalIO::poll_key() {
                 if (mod == 5 && (code == 's' || code == 'S')) { g_last_key_was_arrow = false; return kKeyCtrlS; } // Ctrl+S
                 if (mod == 5 && (code == 'p' || code == 'P')) { g_last_key_was_arrow = false; return kKeyCtrlP; } // Ctrl+P
                 if (mod == 5 && (code == 'l' || code == 'L')) { g_last_key_was_arrow = false; return kKeyCtrlL; } // Ctrl+L
+                if (mod == 5 && (code == 'n' || code == 'N')) { g_last_key_was_arrow = false; return kKeyCtrlN; } // Ctrl+N
                 // "1;<mod> A" -- an arrow (or Home/End) pressed WITH a
                 // modifier, which is how xterm-style terminals report
                 // Shift+Left/Right: "ESC [ 1 ; 2 D". mod is
@@ -561,6 +562,10 @@ int TerminalIO::poll_key() {
                         // Used to fall through as a bare Escape.
                         if (((m - 1) & 4) != 0 && !shift && !alt && (tail == 'A' || tail == 'B')) {   // CTRL+Up / Down
                             g_last_key_was_arrow = true; g_last_key_was_ctrl = true; return tail;
+                        }
+                        if (((m - 1) & 4) != 0 && !alt && g_text_entry_requested && (tail == 'C' || tail == 'D')) {   // a word to the side / mark a word
+                            g_last_key_was_arrow = false;
+                            return tail == 'D' ? (shift ? kKeyCtrlShiftLeft : kKeyCtrlLeft) : (shift ? kKeyCtrlShiftRight : kKeyCtrlRight);
                         }
                         if (shift && !alt && tail == 'A') { g_last_key_was_arrow = true; g_last_key_was_shifted = true; return 'A'; }
                         if (shift && !alt && tail == 'B') { g_last_key_was_arrow = true; g_last_key_was_shifted = true; return 'B'; }
@@ -588,6 +593,7 @@ int TerminalIO::poll_key() {
     if (c == 0x10) { g_last_key_was_arrow = false; return kKeyCtrlP; }   // Ctrl+P
     // Ctrl+L = the READ LYRICS overlay (it used to be a second way to open the lyrics timing overlay, which is Alt+L only now).
     if (c == 0x0c) { g_last_key_was_arrow = false; return kKeyCtrlL; }
+    if (c == 0x0e) { g_last_key_was_arrow = false; return kKeyCtrlN; }   // Ctrl+N (audio book mode: small note field <-> big notes overlay)
     g_last_key_was_arrow = false;
     return c;
 #endif

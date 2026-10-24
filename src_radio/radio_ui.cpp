@@ -16,6 +16,7 @@
 #include <map>
 #include <unordered_set>
 #include "history.h"
+#include "settings.h"
 #include "radio_sign.h"
 #include "sphere_visualizer.h"
 #include "terminal_ui.h"
@@ -1747,6 +1748,7 @@ std::vector<std::string> build_browse(const Style& s, const UiModel& m, const Ra
 // "SHIFT+t" (the binding itself stays "T"); labels such as "SHIFT+t" / "CTRL+SHIFT+u" get the lower-case letter too.
 std::string pretty_key(const std::string& k) {
     if (k == "@SWITCHKEY") return muisc::mode_switch_key_label();   // named for this keyboard (keyboard_layout.h)
+    if (k == "@SWITCHBACK") return muisc::mode_switch_back_label();
     if (k == "(" || k == ")") return muisc::symbol_key_label(k);   // SHIFT+8 / SHIFT+9 on a German keyboard
     if (k.size() == 1 && k[0] >= 'A' && k[0] <= 'Z') return std::string("SHIFT+") + static_cast<char>(k[0] + 32);
     std::string o = k;
@@ -1787,7 +1789,8 @@ std::vector<std::string> wrap_words(const std::string& text, int width) {
 struct CheatRow { const char* header; const char* key; const char* desc; };
 const CheatRow kCheatRows[] = {
     // --- System ---
-    {"SYSTEM (MAIN UI)", "@SWITCHKEY", "Switch to the MUSIC PLAYER (types the * character; the radio is closed completely first)"},
+    {"SYSTEM (MAIN UI)", "@SWITCHKEY", "Switch to the next mode (music player, radio, audio books: the order and the modes that are on are set in Settings -> ON/OFF -> MODES; the radio is closed completely first)"},
+    {nullptr, "@SWITCHBACK", "Switch to the previous mode"},
     {nullptr, "?", "This cheatsheet (toggle)"},
     {nullptr, "<", "The MENUS index: every menu and overlay by category with its key (UP/DOWN/LEFT/RIGHT select, ENTER opens, ESC closes). SHIFT+, on an English keyboard"},
     {nullptr, "q / CTRL+C", "Quit (CTRL+C copies instead while you type in a text field)"},
@@ -2718,8 +2721,8 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
         int cur = 0;
         for (int i = 0; i < total; ++i) if (dl[static_cast<size_t>(i)].row == sm.row) cur = i;
         int first = std::clamp(cur - avail / 2, 0, std::max(0, total - avail));
-        if (first <= 2) first = 0;   // near the top: keep the first category header visible
-        else if (dl[static_cast<size_t>(first)].row >= 0 && dl[static_cast<size_t>(first) - 1].row < 0) first = std::max(0, first - 1);
+        if (first <= 2 && cur < avail) first = 0;   // near the top: keep the first category header visible (as long as the cursor row still fits)
+        else if (first > 0 && dl[static_cast<size_t>(first)].row >= 0 && dl[static_cast<size_t>(first) - 1].row < 0) first = std::max(0, first - 1);
         for (int i = first; i < total && i < first + avail; ++i) {
             std::vector<Seg> segs = dl[static_cast<size_t>(i)].segs;
             line(segs);
@@ -2790,8 +2793,10 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
                     if (r == 0) def = sp.stations_file.parent_path();
                     else if (r == 1) def = sp.presets_file.parent_path();
                     else if (r == 2) def = sp.download_dir.parent_path();
+                    else if (r == 5) def.clear();   // no audio book folder yet
                     else def = sp.history_dir.parent_path();
-                    segs.push_back({sel ? "\x1b[7m" : list_ink, pad_right(utf8_take(unused ? std::string("SAME PATH AS THE MUSIC PLAYER IS USED") : def.string(), kFieldW), kFieldW)});
+                    const std::string shown = unused ? std::string("SAME PATH AS THE MUSIC PLAYER IS USED") : r == 5 ? std::string("NOT SET (audio books are off until a folder is given)") : def.string();
+                    segs.push_back({sel ? "\x1b[7m" : list_ink, pad_right(utf8_take(shown, kFieldW), kFieldW)});
                 } else {
                     segs.push_back({sel ? "\x1b[7m" : list_ink, pad_right(utf8_take(val, kFieldW), kFieldW)});
                 }
@@ -2799,6 +2804,8 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
             line(segs);
             if (r != 2) line({});   // DOWNLOAD PATH and "Same folder as music player" belong together
         }
+        line({{legend, "   Audio books: every folder in it with audio files is one book. A .cue file beside each book"}});
+        line({{legend, "   records where you last stopped listening."}});
         line({{legend, "   When folder paths are changed, the respective files are only copied, never moved, and no deletions are performed."}});
     } else {
         // ---- COLORS
@@ -3888,11 +3895,27 @@ std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus&
     out.push_back(box_top(s, W, "MOUSIKI PLUS", s.border));
     zones.push_back({0, static_cast<int>(out.size()) - 1, W, 1, "@menu", ""});
     {
-        const std::string tabs = ansi_fg(cfg.tab_current) + "[RADIO]" + kReset + "  " + ansi_fg(cfg.tab_other) + "PLAYER" + kReset;
+        // the modes that are on, in the order of the mode key; the one in use in brackets; a tap on another one goes to it
+        static const char* const kNames[3] = {"PLAYER", "RADIO", "BOOKS"};
+        const muisc::ModeConfig mc = muisc::read_mode_config();
+        int mypos = 0;
+        for (int i = 0; i < 3; ++i) if (mc.order[i] == 1) mypos = i;
+        std::string tabs;
+        struct Tab { int x, w; const char* arg; };
+        std::vector<Tab> hits;
+        for (int i = 0; i < 3; ++i) {
+            const int m = mc.order[i];
+            if (m != 1 && !mc.use[m]) continue;
+            const std::string name = m == 1 ? std::string("[") + kNames[m] + "]" : std::string(kNames[m]);
+            if (!tabs.empty()) tabs += "  ";
+            hits.push_back({vis(tabs), static_cast<int>(name.size()), m == 1 ? "" : (i == (mypos + 1) % 3 ? "1" : "-1")});
+            tabs += ansi_fg(m == 1 ? cfg.tab_current : cfg.tab_other) + name + kReset;
+        }
         const std::string hint = s.legend + "[*] switch" + kReset;
         row(tabs + spaces(inner - vis(tabs) - vis(hint)) + hint);
-        zones.push_back({2 + 9, static_cast<int>(out.size()) - 1, 6, 1, "switch-mode", ""});
-        zones.push_back({2 + inner - vis(hint), static_cast<int>(out.size()) - 1, vis(hint), 1, "switch-mode", ""});
+        const int ty = static_cast<int>(out.size()) - 1;
+        for (const Tab& t : hits) if (*t.arg) zones.push_back({2 + t.x, ty, t.w, 1, "switch-mode", t.arg});
+        zones.push_back({2 + inner - vis(hint), ty, vis(hint), 1, "switch-mode", ""});
     }
 
     // the ON AIR / OFF AIR sign with its colour wave and pulse (the left block of the main screen)

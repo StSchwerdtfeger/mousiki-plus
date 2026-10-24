@@ -30,7 +30,7 @@ namespace {
 
 const char* const kCommands[] = {"play-pause", "play", "pause", "stop", "next", "prev", "shuffle", "volume-up", "volume-down",
                                  "volume", "mute", "unmute", "toggle-mute", "seek", "live", "playback-mode", "wizard", "switch-mode", "quit",
-                                 "playlist", "tune", "remote-view", "remote-scroll", "remote-focus", "track", "clear-queue"};
+                                 "playlist", "tune", "remote-view", "remote-scroll", "remote-focus", "track", "clear-queue", "book-open"};
 
 bool known(const std::string& n) {
     for (const char* c : kCommands) if (n == c) return true;
@@ -172,7 +172,7 @@ bool is_client_call(int argc, char** argv) {
 namespace {
 
 void usage(std::ostream& o) {
-    o << "Mousiki remote control: send a command to the running player or radio.\n\n"
+    o << "Mousiki remote control: send a command to the running player, radio or audio book player.\n\n"
          "  mousiki --cmd <command> [value]     e.g.  mousiki --cmd next      mousiki --cmd volume 60      mousiki --cmd seek +10\n"
          "  mousiki --cmd --help                this list (also: mousiki --cmd help, mousiki --remote-help)\n"
          "  mousiki --status                    prints what is playing (state, title, artist, position, volume, mode ...)\n"
@@ -192,7 +192,9 @@ void usage(std::ostream& o) {
          "  track <n>                           player: play title n of the local list (as sorted / filtered there)\n"
          "  clear-queue                         player: clear the queue (CTRL+SHIFT+Z in Mousiki undoes it)\n"
          "  tune <n>                            radio: tune station n of the station list\n"
-         "  switch-mode                         player <-> radio (the * key)\n"
+         "  book-open <n>                       audio book: open / close row n of the library tree (the phone's LISTS)\n"
+         "                                      (track <n> plays a chapter row of that tree, from its start)\n"
+         "  switch-mode [-1]                    the next mode (player, radio, audio book; the * key); -1: the previous one\n"
          "  quit\n\n"
          "Exit code: 0 sent, 1 Mousiki is not running, 2 unknown command or bad value.\n"
          "System-wide keys: bind the keys of your choice in the operating system to these commands, for example a media key or\n"

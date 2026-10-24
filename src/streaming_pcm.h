@@ -83,6 +83,7 @@ struct StreamingPcm {
     static constexpr size_t kEnvGran = 256;
     std::vector<float> env_sumsq;                   // written by the analysis pass; read after analysis_done
     std::atomic<bool> analysis_done{false};
+    std::atomic<bool> cancelled{false};             // the file must be let go now (a cut, a rename): the decode threads end and close it
     std::atomic<long> internal_refs{0};             // shared_ptr holders that are the decode threads themselves
 
     // limit_bytes: the size of the decoded audio (without the headroom below) above which the window is used instead.

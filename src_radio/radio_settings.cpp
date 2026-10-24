@@ -2,6 +2,7 @@
 #include "remote_server.h"
 #include "version.h"
 #include "about_text.h"
+#include "settings.h"   // kModeNames, ModeConfig, read_mode_config(): the mode switch is the player's config.txt
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -107,7 +108,7 @@ int theme_index(const RadioSettings& s, const std::vector<themes::Theme>& all) {
 
 namespace {
 enum RsId {
-    kRsPlayback, kRsStartMode, kRsBlackBg, kRsShareProfiles, kRsRemoteApp,
+    kRsPlayback, kRsStartMode, kRsUseModePlayer, kRsUseModeRadio, kRsUseModeBook, kRsModeOrder1, kRsModeOrder2, kRsModeOrder3, kRsBlackBg, kRsShareProfiles, kRsRemoteApp,
     kRsOnAir, kRsPulse, kRsDummy, kRsVolIndicator, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc,
     kRsScope, kRsOsciStyle,
@@ -118,7 +119,10 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
     // A header with an empty text is the blank line before the next header.
     static const std::vector<SettingsLine> on_off = {
         {true, -1, "MODES"},
-        {false, kRsPlayback, "Playback"}, {false, kRsStartMode, "Start Mode"}, {false, kRsBlackBg, "Black Background"}, {false, kRsShareProfiles, "Share Profiles"}, {false, kRsRemoteApp, "Remote App"},
+        {false, kRsPlayback, "Playback"}, {false, kRsStartMode, "Start Mode"},
+        {false, kRsUseModePlayer, "Use Music Player"}, {false, kRsUseModeRadio, "Use Radio"}, {false, kRsUseModeBook, "Use Audio Books"},
+        {false, kRsModeOrder1, "Mode Order 1"}, {false, kRsModeOrder2, "Mode Order 2"}, {false, kRsModeOrder3, "Mode Order 3"},
+        {false, kRsBlackBg, "Black Background"}, {false, kRsShareProfiles, "Share Profiles"}, {false, kRsRemoteApp, "Remote App"},
         {true, -1, ""},
         {true, -1, "ON/OFF"},
         {false, kRsOnAir, "On air ascii"}, {false, kRsPulse, "Pulse wave"}, {false, kRsDummy, "Dummy buttons"}, {false, kRsVolIndicator, "Volume indicator"},
@@ -214,7 +218,13 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsShareProfiles: return s.share_profiles ? "true" : "false";
         case kRsRemoteApp: return s.remote_app ? "on   [ENTER] settings" : "off  [ENTER] settings";   // opens the REMOTE APP overlay
         case kRsPlayback: return s.playback_shuffle ? "shuffle" : "list";
-        case kRsStartMode: return s.start_mode == "radio" ? "radio" : "player";
+        case kRsStartMode: return s.start_mode == "radio" || s.start_mode == "audiobook" ? s.start_mode : "player";
+        case kRsUseModePlayer: return s.use_mode[0] ? "true" : "false";
+        case kRsUseModeRadio: return s.use_mode[1] ? "true" : "false";
+        case kRsUseModeBook: return s.use_mode[2] ? "true" : "false";
+        case kRsModeOrder1: return muisc::kModeNames[std::clamp(s.mode_order[0], 0, 2)];
+        case kRsModeOrder2: return muisc::kModeNames[std::clamp(s.mode_order[1], 0, 2)];
+        case kRsModeOrder3: return muisc::kModeNames[std::clamp(s.mode_order[2], 0, 2)];
         case kRsVolIndicator: return muisc::kVolIndicatorNames[std::clamp(s.volume_indicator, 0, muisc::kVolStyleCount - 1)];
         case kRsTimeshift: return std::to_string(timeshift_minutes(s)) + " min";
         case kRsGradSpeed: return fmt_speed(kSpeedSteps[nearest_step(s.gradient_wave_speed)]);
@@ -240,7 +250,33 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
             if (s.remote_app && s.remote_pin.empty()) s.remote_pin = muisc::remote::net::make_pin();
             break;
         case kRsPlayback: s.playback_shuffle = !s.playback_shuffle; break;
-        case kRsStartMode: s.start_mode = s.start_mode == "radio" ? "player" : "radio"; break;
+        case kRsStartMode: {   // walks through the modes that are switched on, in the mode order
+            int cur = muisc::mode_index(s.start_mode);
+            if (cur < 0) cur = 0;
+            muisc::ModeConfig mc; for (int i = 0; i < 3; ++i) { mc.use[i] = s.use_mode[i]; mc.order[i] = s.mode_order[i]; }
+            const int nx = muisc::next_mode_in(mc, cur, dir < 0 ? -1 : 1);
+            s.start_mode = muisc::kModeNames[nx];
+            break;
+        }
+        case kRsUseModePlayer: case kRsUseModeRadio: case kRsUseModeBook: {
+            const int m = id - kRsUseModePlayer;
+            const bool want = dir == 0 ? !s.use_mode[m] : dir > 0;
+            int others = 0;
+            for (int i = 0; i < 3; ++i) if (i != m && s.use_mode[i]) ++others;
+            if (want || others > 0) s.use_mode[m] = want;   // one mode always stays on
+            // a start mode that is switched off moves to the first mode that is on
+            int sm = muisc::mode_index(s.start_mode);
+            if (sm < 0 || !s.use_mode[sm]) for (int i = 0; i < 3; ++i) if (s.use_mode[s.mode_order[i]]) { s.start_mode = muisc::kModeNames[s.mode_order[i]]; break; }
+            break;
+        }
+        case kRsModeOrder1: case kRsModeOrder2: case kRsModeOrder3: {   // the slot takes the next / previous mode; the slot that held it takes the old one (a swap)
+            const int slot = id - kRsModeOrder1;
+            const int old = s.mode_order[slot];
+            const int nw = ((old + (dir < 0 ? 2 : 1)) % 3 + 3) % 3;
+            for (int i = 0; i < 3; ++i) if (s.mode_order[i] == nw) s.mode_order[i] = old;
+            s.mode_order[slot] = nw;
+            break;
+        }
         case kRsVolIndicator: step(s.volume_indicator, muisc::kVolStyleCount); break;
         case kRsTimeshift: step(s.timeshift_idx, 5); break;
         case kRsGradSpeed: cycle_speed(s.gradient_wave_speed, dir); break;
@@ -287,8 +323,8 @@ void norm_reset(RadioSettings& s) {
     s.normalize_target_lufs = d.normalize_target_lufs; s.normalize_max_boost_db = d.normalize_max_boost_db;
 }
 
-const int kPathRowCount = 5;
-const char* const kPathRows[] = {"STATION LISTS PATH", "PRESETS PATH", "DOWNLOAD PATH", "Same folder as music player", "HISTORY PATH"};
+const int kPathRowCount = 6;
+const char* const kPathRows[] = {"STATION LISTS PATH", "PRESETS PATH", "DOWNLOAD PATH", "Same folder as music player", "HISTORY PATH", "AUDIO BOOK PATH"};
 
 std::string* path_row_text(RadioSettings& s, int row) {
     switch (row) {
@@ -296,6 +332,7 @@ std::string* path_row_text(RadioSettings& s, int row) {
         case 1: return &s.presets_path;
         case 2: return &s.download_path;
         case 4: return &s.history_path;
+        case 5: return &s.audiobook_path;   // lives in the player's config.txt (AudioBookPath=), not in radio_config.txt
     }
     return nullptr;
 }
@@ -506,11 +543,30 @@ bool set_player_config_value(const std::string& key, const std::string& value) {
 
 std::string player_start_mode() {
     // The start mode lives in the player's config.txt (StartMode=player|radio), one value for both programs.
-    return lower(player_config_value("startmode")) == "radio" ? "radio" : "player";
+    const std::string v = lower(player_config_value("startmode"));
+    return v == "radio" ? "radio" : v == "audiobook" ? "audiobook" : "player";
 }
 
 bool set_player_start_mode(const std::string& mode) {
-    return set_player_config_value("StartMode", mode == "radio" ? "radio" : "player");
+    return set_player_config_value("StartMode", mode == "radio" ? "radio" : mode == "audiobook" ? "audiobook" : "player");
+}
+
+void load_player_mode_settings(RadioSettings& s) {
+    const muisc::ModeConfig mc = muisc::read_mode_config();   // same file; defaults when missing, always one mode on
+    for (int i = 0; i < 3; ++i) { s.use_mode[i] = mc.use[i]; s.mode_order[i] = mc.order[i]; }
+    s.audiobook_path = player_config_value("audiobookpath");
+    int sm = muisc::mode_index(s.start_mode);
+    if (sm < 0 || !s.use_mode[sm]) for (int i = 0; i < 3; ++i) if (s.use_mode[s.mode_order[i]]) { s.start_mode = muisc::kModeNames[s.mode_order[i]]; break; }
+}
+
+void save_player_mode_settings(const RadioSettings& s) {
+    const muisc::ModeConfig now = muisc::read_mode_config();
+    const char* const keys[3] = {"UseModePlayer", "UseModeRadio", "UseModeAudiobook"};
+    for (int i = 0; i < 3; ++i) if (now.use[i] != s.use_mode[i]) set_player_config_value(keys[i], s.use_mode[i] ? "true" : "false");
+    bool same = true;
+    for (int i = 0; i < 3; ++i) if (now.order[i] != s.mode_order[i]) same = false;
+    if (!same) set_player_config_value("ModeOrder", muisc::mode_order_text(s.mode_order));
+    if (s.audiobook_path != player_config_value("audiobookpath")) set_player_config_value("AudioBookPath", s.audiobook_path);
 }
 
 bool player_black_background() {
@@ -720,6 +776,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (!in) {   // no radio_config.txt yet: the defaults, plus what the player's config.txt holds for both modes
         if (source_out) *source_out = "built-in defaults";
         s.start_mode = player_start_mode();
+        load_player_mode_settings(s);
         s.black_background = player_black_background();
         if (player_share_profiles()) radio_share_profiles(s, true);
         const RemoteAppConfig rc = read_remote_app();
@@ -840,6 +897,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("PulseWaveSpeed")) try { s.pulse_wave_speed = std::clamp(std::stod(*v), 0.01, 1.0); } catch (...) {}
     if (auto v = get("PlaybackMode")) s.playback_shuffle = lower(*v) != "list";
     s.start_mode = player_start_mode();
+    load_player_mode_settings(s);
     s.black_background = player_black_background();
     if (auto v = get("Visualizer")) s.element_visualizer = as_bool(*v, s.element_visualizer);
     if (auto v = get("VisualizerFluidity")) s.visualizer_fluidity = as_int(*v, s.visualizer_fluidity, 1, 10);
@@ -1061,6 +1119,7 @@ bool save_radio_settings(const RadioSettings& s, std::string* err) {
     std::ofstream o(target, std::ios::trunc);
     if (!o) { if (err) *err = "cannot write " + target.string(); return false; }
     if (s.start_mode != player_start_mode()) set_player_start_mode(s.start_mode);   // the settings that live in the player's config.txt
+    save_player_mode_settings(s);
     if (s.black_background != player_black_background()) set_player_black_background(s.black_background);
     if (s.share_profiles != player_share_profiles()) set_player_share_profiles(s.share_profiles);
     {

@@ -1,8 +1,8 @@
-# Mousiki User Guide v4.5.0 (Windows · Linux · macOS) – music player and radio
+# Mousiki User Guide v4.6.0 (Windows · Linux · macOS) – music player, radio and audio book player
 
 ## Welcome: a quick tour
 
-Mousiki Plus is a music player and an internet radio that runs inside your terminal. You control everything with the keyboard, you see your music as colours, braille pictures and an oscilloscope, and you can steer it from your phone. This page gives you the short version; the chapters after it explain every key.
+Mousiki Plus is a music player, an internet radio and an audio book player that runs inside your terminal. You control everything with the keyboard, you see your music as colours, braille pictures and an oscilloscope, and you can steer it from your phone. This page gives you the short version; the chapters after it explain every key.
 
 ![The music player: meta data with the spinning disk, waveform, lyrics and the track list](images/Playback_Main_UI_lyrics.png)
 
@@ -11,6 +11,7 @@ Mousiki Plus is a music player and an internet radio that runs inside your termi
 - **Play your music:** add your music folders and Mousiki builds a library with fuzzy search over file names and tags (`/`). Plays MP3, FLAC, WAV, M4A, OGG, OPUS, tracker modules, console and C64 music and more.
 - **Play the web:** search, stream and download from **YouTube, SoundCloud and Bandcamp**, or add a whole YouTube playlist in one go.
 - **Listen to the radio:** press the `*` key and the program becomes an online radio with a tuning dial, stations from Radio Browser, presets, timeshift (pause and rewind live radio) and recording.
+- **Listen to audio books:** `SHIFT` and `+` again and the program is an audio book player: your books in one pane, their chapters in the other, an opening book in place of the disk, accelerating seek for long chapters and a tag editor made for books (see [chapter 12](#12-audio-book-mode)).
 - **See your music:** an **oscilloscope** (made for oscilloscope music) and a **spectrogram**, as braille pictures or as real images in Kitty / Sixel terminals, in the main screen, full screen or in their own window.
 - **Sing along:** **synchronized lyrics** fetched for you, word by word, with translations and a big-letter **karaoke mode**.
 - **Organize:** a **queue**, saved **playlists**, a **tag editor** that finds missing titles by audio fingerprint, a **listening history** with top lists and smart lists, a 10-band **equalizer**, loudness normalization and a sleep timer.
@@ -35,15 +36,15 @@ Mousiki Plus is a music player and an internet radio that runs inside your termi
 
 ### Use your phone as a remote
 
-Switch on **Settings → ON/OFF → MODES → Remote App**, scan the QR code that appears and your phone shows a small Mousiki screen: the spinning disk, meta data, play, next, volume, your lists and playlists, and the radio with its stations. It needs a PIN and works in your home network only; the details are in [chapter 12](#12-remote-control-and-key-bindings).
+Switch on **Settings → ON/OFF → MODES → Remote App**, scan the QR code that appears and your phone shows a small Mousiki screen: the spinning disk, meta data, play, next, volume, your lists and playlists, and the radio with its stations. It needs a PIN and works in your home network only; the details are in [chapter 13](#13-remote-control-and-key-bindings).
 
 <p align="center"><img width="200" alt="Mousiki on the phone" src="images/Remote_app_phone_player.png" /></p>
 
 ### How this guide is organised
 
-Mousiki is two programs in one: a terminal music player (chapters 1 to 10) and an online radio (chapter 11). The player also has an oscilloscope, a spectrogram and a karaoke mode. Press `SHIFT` and `+` on a German keyboard (`SHIFT+8` on an English one: the key that types `*`) to switch between radio and music player mode (see [Two modes in one program](#two-modes-in-one-program) and [Keyboard layouts](#keyboard-layouts-german-and-english)).
+Mousiki is three programs in one: a terminal music player (chapters 1 to 10), an online radio (chapter 11) and an audio book player (chapter 12). The player also has an oscilloscope, a spectrogram and a karaoke mode. Press `SHIFT` and `+` on a German keyboard (`SHIFT+8` on an English one: the key that types `*`) to switch to the next mode and `SHIFT` and `-` (`SHIFT+-`, the key that types `_`) to go back to the previous one (see [Three modes in one program](#three-modes-in-one-program) and [Keyboard layouts](#keyboard-layouts-german-and-english)).
 
-Chapter 12 describes the phone remote and the command-line remote, chapter 13 the automated tests and chapter 14 how upgrades treat your settings.
+Chapter 13 describes the phone remote and the command-line remote, chapter 14 the automated tests and chapter 15 how upgrades treat your settings.
 
 The music player chapters walk through **every entry of the in-app cheat sheet** (`?`) and explain what each command does. Some settings that can only be changed in the config.txt are also discussed at the end of chapter 10. The radio chapter only describes what is new in the radio; everything both modes have in common (equalizer, oscilloscope, loudness normalization, sleep timer …) is explained once in the player chapters.
 The key shown for each command is the **default binding**. Your own bindings may differ if you changed them in `config.txt` or under **Settings → Reference**; the cheat sheet always shows the keys you actually have.
@@ -64,7 +65,7 @@ The key shown for each command is the **default binding**. Your own bindings may
   - [Uppercase letters](#uppercase-letters)
   - [Keyboard layouts (German and English)](#keyboard-layouts-german-and-english)
   - [Menus with tabs and text boxes](#menus-with-tabs-and-text-boxes)
-  - [Two modes in one program](#two-modes-in-one-program)
+  - [Three modes in one program](#three-modes-in-one-program)
   - [What can Mousiki play? Audio formats, tracker modules and chiptunes](#what-can-mousiki-play-audio-formats-tracker-modules-and-chiptunes)
   - [The main screen](#the-main-screen)
   - [Play mode letter](#play-mode-letter)
@@ -140,14 +141,22 @@ The key shown for each command is the **default binding**. Your own bindings may
   - [11.12 Radio settings](#1112-radio-settings)
   - [11.13 The radio's files](#1113-the-radios-files)
   - [11.14 Not done yet](#1114-not-done-yet)
-- **[12. Remote control and key bindings](#12-remote-control-and-key-bindings)**
-  - [12.1 The remote app (Android / phone browser)](#121-the-remote-app-android--phone-browser)
-  - [12.2 System media controls: media keys and now playing (Windows, Linux, macOS)](#122-system-media-controls-media-keys-and-now-playing-windows-linux-macos)
-- **[13. Automated tests](#13-automated-tests)**
-- **[14. Upgrades and your settings](#14-upgrades-and-your-settings)**
+- **[12. Audio book mode](#12-audio-book-mode)**
+  - [12.1 Switching, setting up and the screen](#121-switching-setting-up-and-the-screen)
+  - [12.2 Books, chapters and the keys](#122-books-chapters-and-the-keys)
+  - [12.3 The book tag editor (`SHIFT+m`)](#123-the-book-tag-editor-shiftm)
+  - [12.4 Bookmarks and book notes](#124-bookmarks-and-book-notes)
+  - [12.5 The list of time stamps, the library overlay and the reading history](#125-the-list-of-time-stamps-the-library-overlay-and-the-reading-history)
+  - [12.6 Chapter marks and cutting a file into chapters](#126-chapter-marks-and-cutting-a-file-into-chapters)
+  - [12.7 Settings in the audio book mode](#127-settings-in-the-audio-book-mode)
+- **[13. Remote control and key bindings](#13-remote-control-and-key-bindings)**
+  - [13.1 The remote app (Android / phone browser)](#131-the-remote-app-android--phone-browser)
+  - [13.2 System media controls: media keys and now playing (Windows, Linux, macOS)](#132-system-media-controls-media-keys-and-now-playing-windows-linux-macos)
+- **[14. Automated tests](#14-automated-tests)**
+- **[15. Upgrades and your settings](#15-upgrades-and-your-settings)**
 - **[About this app](#about-this-app)**
   - [Original developer of v1.0](#original-developer-of-v10)
-  - [Windows port, incl. extensive modifications up to v4.5.0 (including the radio mode)](#windows-port-incl-extensive-modifications-up-to-v450-including-the-radio-mode)
+  - [Windows port, incl. extensive modifications up to v4.6.0 (including the radio and audio book modes)](#windows-port-incl-extensive-modifications-up-to-v460-including-the-radio-and-audio-book-modes)
   - [Third-party software and licences](#third-party-software-and-licences)
   
 ---
@@ -216,15 +225,15 @@ The meta editor's **field editor** (FILE, ARTIST, TITLE, ALBUM, YEAR) is a text 
 
 **Settings** (both modes) keep `TAB` as the tab switch and `←` / `→` for cycling a value or picking a colour cell. While a field is being edited there (after `ENTER`: a colour, a path, a value or a key), `←` / `→` move the caret and `TAB` does nothing; only `ENTER` (apply) or `ESC` (cancel) leave the field. See [Settings](#10-settings-individual-tabs).
 
-### Two modes in one program
+### Three modes in one program
 
-| | Music player | Radio |
-|---|---|---|
-| What it plays | Your local files and YouTube, SoundCloud and Bandcamp streams | Internet radio stations |
-| Settings file | `config.txt` | `radio_config.txt` |
-| Guide | Chapters 1 to 10 | Chapter 11 |
+| | Music player | Radio | Audio books |
+|---|---|---|---|
+| What it plays | Your local files and YouTube, SoundCloud and Bandcamp streams | Internet radio stations | The books in your audio book folder |
+| Settings file | `config.txt` | `radio_config.txt` | `config.txt` (the same settings as the player) |
+| Guide | Chapters 1 to 10 | Chapter 11 | Chapter 12 |
 
-The key that types `*` switches between the two, in both directions: `SHIFT` and `+` on a German keyboard, `SHIFT+8` on an English (US / UK) one. The `+` key on its own is **volume up** in both modes (`-` is volume down). The player is **paused and kept in memory** while the radio runs, so coming back is instant; the radio is **closed completely** when you leave it. The cheat sheet of both modes shows the switch key as its first line, adapted to your keyboard layout (detected automatically, `MOUSIKI_KEYBOARD=us|de|fr|…` overrides it). It is a fixed key. `SHIFT+m` stays the meta editor.
+The key that types `*` goes to the **next** mode: `SHIFT` and `+` on a German keyboard, `SHIFT+8` on an English (US / UK) one. The key that types `_` goes to the **previous** mode: `SHIFT` and `-` on a German keyboard, `SHIFT+-` on an English one. By default the order is music player, radio, audio books; **Settings → ON/OFF → MODES** switches a mode off (one always stays on) and changes the order (see chapter 10). The `+` key on its own is **volume up** in every mode (`-` is volume down). The player and the audio book player are **paused and kept in memory** while another mode runs, so coming back is instant; the radio is **closed completely** when you leave it. The cheat sheet of both modes shows the switch key as its first line, adapted to your keyboard layout (detected automatically, `MOUSIKI_KEYBOARD=us|de|fr|…` overrides it). It is a fixed key. `SHIFT+m` stays the meta editor.
 
 ### What can Mousiki play? Audio formats, tracker modules and chiptunes
 
@@ -983,7 +992,7 @@ The queue is a list of tracks that play **before** the normal list continues. Th
 
 ### Big queue overlay (`SHIFT+k`)
 
-The same idea as the big list overlay, for the queue: a large window that shows the QUEUE pane with many more rows. It is on `SHIFT+k` (and not on `q`) so that you cannot quit the app by accident. It shares the cursor with the small queue pane, and the queue is automatically focused while it is open, so the arrow keys move through the queue.
+The same idea as the big list overlay, for the queue: a large window that shows the QUEUE pane with many more rows. It is on `SHIFT+k` (and not on `q`) so that you cannot quit the app by accident. It shares the cursor with the small queue pane, and the queue is automatically focused while it is open, so the arrow keys move through the queue. The artist column has twice the room it has in the small pane (32 characters instead of 16, in a window wide enough for it).
 
 | Key | Action |
 |---|---|
@@ -1424,12 +1433,14 @@ The tab has two categories (in the header colour); change a row with `←`/`→`
 | Setting | Values | What it does |
 |---|---|---|
 | Playback | list, loop, shuffle, stop, queue then stop | The play mode. Same as the `m` key (`loop` is the mode shown as *repeat*). (`PlaybackMode=`) |
-| Start Mode | player, radio | Which of the two Mousiki **opens with**: the music player or the radio. Picked in either mode's Settings; it is one value, stored as `StartMode=` in the player's `config.txt`, so it is the same whichever mode you set it in. `Start Mode` only decides the start: you can still switch between the two at any time with `*`. (`StartMode=`) |
+| Start Mode | player, radio, audiobook | Which mode Mousiki **opens with**. Picked in any mode's Settings; it is one value, stored as `StartMode=` in the player's `config.txt`, so it is the same whichever mode you set it in. Only the modes that are switched on can be picked. `Start Mode` only decides the start: you can still switch at any time with `*` / `_`. (`StartMode=`) |
+| Use Music Player, Use Radio, Use Audio Books | true, false | Whether the mode is part of the `SHIFT` and `+` / `SHIFT` and `-` cycle. **One mode always stays on**: the last one cannot be switched off. A start mode that is switched off moves to the first mode that is on. (`UseModePlayer=`, `UseModeRadio=`, `UseModeAudiobook=`) |
+| Mode Order 1, 2, 3 | player, radio, audiobook | The order of the cycle, set like *Viz Order 1..4* on the ANIMA/VIZ tab: giving a place a mode swaps it with the place that held that mode, so the order always has all three. `SHIFT` and `-` walks the same order backwards. (`ModeOrder=player,radio,audiobook`) |
 | Black Background | true, false | Default **true**: while Mousiki runs, the terminal's background is **black** and text without a colour of its own takes the theme's LIST INACTIVE colour (Mousiki sets the terminal's default background with the standard OSC 11 sequence). On exit -- quitting, `Ctrl+C`, closing by a signal -- the terminal gets its own background back: Mousiki asks the terminal for its colour the first time (Linux / macOS) and resets it (OSC 111). One value for the player and the radio (`BlackBackground=` in the player's `config.txt`; the radio's row writes that line). Most terminals support it (Kitty, WezTerm, foot, Alacritty, xterm, GNOME Terminal, iTerm2, Windows Terminal); one that does not simply keeps its colour. `false` leaves the terminal's background alone. |
 | Share Profiles | true, false | Default **false**. **true**: the radio uses the player's oscilloscope and spectrogram settings (the `SHIFT+i` / `SHIFT+o` screens) instead of its own, so both modes look the same. The radio's own values are **not lost**: they are kept as a backup in `radio_config.txt` (lines starting with `## own `) and come back unchanged when you turn the switch off. While it is on, the radio's visual settings are shown but changes there change the player's values. Stored as `ShareProfiles=` in the player's `config.txt`; the row exists in both modes' Settings. The colours and themes are **never** shared by this switch. |
-| Remote App | `[ENTER] settings` | Opens the **REMOTE APP** overlay (12.1): on / off (default **off**), port, PIN, the address and a QR code for the phone. One value for the player and the radio (`RemoteApp=`, `RemoteAppPort=`, `RemoteAppPin=` in the player's `config.txt`). |
+| Remote App | `[ENTER] settings` | Opens the **REMOTE APP** overlay (13.1): on / off (default **off**), port, PIN, the address and a QR code for the phone. One value for the player and the radio (`RemoteApp=`, `RemoteAppPort=`, `RemoteAppPin=` in the player's `config.txt`). |
 | Update Notice | true, false | Default **true**. At start-up Mousiki looks, in the background and at most **once a day**, whether a newer release exists on the project's GitHub page and shows a small **New version** window (player and radio) with the new version and the address of the release -- **once per version**. `ESC` closes it, `o` opens the release page in your browser. Nothing is installed or downloaded, nothing about you or your music is sent (only the public releases page is asked, by the small script `scripts/check_update.py`, which needs Python 3 like the lyrics). Without Python or a network nothing happens. Read at the next start. (`UpdateCheck=`) |
-| Media Keys | true, false | Default **true**. **Windows:** the media pop-up of the volume flyout / lock screen and the media keys. **Linux:** Mousiki appears in the desktop's media widgets (MPRIS: the volume pop-up, a panel applet, the lock screen, `playerctl`) and its media keys, headphone buttons and sliders control it. **macOS:** Now Playing and the media keys. See 12.2. Read at the next start; player and radio. (`MediaKeys=`) |
+| Media Keys | true, false | Default **true**. **Windows:** the media pop-up of the volume flyout / lock screen and the media keys. **Linux:** Mousiki appears in the desktop's media widgets (MPRIS: the volume pop-up, a panel applet, the lock screen, `playerctl`) and its media keys, headphone buttons and sliders control it. **macOS:** Now Playing and the media keys. See 13.2. Read at the next start; player and radio. (`MediaKeys=`) |
 
 **MAIN UI / AUDIO** and **MAIN UI VIZ/LYRICS FIELD** (the two categories under MODES on the ON/OFF tab; before: *ON/OFF* and *VIZ/LYRICS FIELD*) -- switches, most of them true/false. (The folder settings are on the PATHS tab; **Lyrics/Viz Default**, **No-Lyrics Viz** and the **Viz Order** rows are on ANIMA/VIZ.)
 
@@ -1445,7 +1456,7 @@ The tab has two categories (in the header colour); change a row with `←`/`→`
 | Normalize Volume | Loudness normalization on or off. Same as the `v` key. Target and boost are set with the `SHIFT+v` overlay. |
 | Track Buffer (MB) | A number, `64` - `16384` (`[ENTER]` types it, `→` then `ENTER` on *Set back to default* restores 256). Default **256**. A track is decoded into RAM as 32-bit float (about 10 MB per minute of CD-quality stereo; double at 96 kHz, and so on). While the decoded audio is not bigger than this number the **whole track is held in RAM**: seeking anywhere is instant, which helps most when you adjust lyrics timing. A bigger track is held in a moving **2-minute window** around the playing position instead (so a very long file or mix does not need gigabytes); a jump outside the window then takes a moment while the decoder moves there. `ENTER` types a number; `→` moves to the button **[ Set back to default ]**, and `ENTER` on it restores 256. The change applies to the next track that is loaded. Config: `TrackBufferMB`. Only the audio counts: the extra 25 % that is reserved on top (the length comes from the file header and can be a little off, and the buffer must not move while it plays) is address space that is only used as far as the decoder fills it. |
 | Replace Emoji | An emoji in a title is drawn as a single `?`, so the frame borders stay aligned. Off draws the real emoji. (`ReplaceEmoji=` in `config.txt`.) |
-| Marquee Scrolling | On (default): a name that is too long for its column scrolls -- the row under the cursor in the lists, Name / Artist / Album of the metadata block, the playlist editor's lists. Off: nothing scrolls anywhere and a too long text is cut off with `...`. (`MarqueeScrolling=` in `config.txt`.) |
+| Marquee Scrolling | On (default): a name that is too long for its column scrolls -- the hovered book folder and chapter in the audio book mode, the row under the cursor in the lists, Name / Artist / Album of the metadata block, the playlist editor's lists. Off: nothing scrolls anywhere and a too long text is cut off with `...`. (`MarqueeScrolling=` in `config.txt`.) |
 | *MAIN UI VIZ/LYRICS FIELD* | |
 | Viz/Lyrics Field | The master switch of the **field right of the meta data** (lyrics, sphere, oscilloscope, spectrogram). `false`: the field is gone, the meta data and the spectrum bars take its width, no lyrics are fetched for it and `.` says so. The big overlays and the windows still work. Default `true`. (`VizLyricsField=`) |
 | Use Lyrics Engine | `false` switches the lyrics off **entirely**: they are never fetched and `.` skips them (the field then only shows the visuals). `true` lets the field show the lyrics (fetched from the net when it does; turning it on while a track plays fetches them at once); whether the field starts with them is set by **Lyrics/Viz Default**, and `.` switches the view while Mousiki runs. Default `true`. (`UseLyrics=`; this replaces the former *Lyrics Engine* row, which did the same) |
@@ -1511,12 +1522,13 @@ The tab collects everything about the **animations and the visualizations**, in 
 
 *The PATHS tab: the folders Mousiki reads music from, downloads to, and keeps playlists and the history in. (The screenshot is from before the PLAYLIST EXPORT PATH row was added.)*
 
-Five sections, each under its header in the header colour. Move onto a row and press `ENTER` to edit it. The tab scrolls with the cursor (a scrollbar like the help wizard's marks where you are) (a scrollbar like the wizard's shows where you are), so a short terminal is fine.
+Seven sections, each under its header in the header colour. Move onto a row and press `ENTER` to edit it. The tab scrolls with the cursor (a scrollbar like the help wizard's marks where you are) (a scrollbar like the wizard's shows where you are), so a short terminal is fine.
 
 | Section | Rows | What it does |
 |---|---|---|
 | LOCAL PATH | `Local Path 1`, `2`, … plus `+ new path` | The folders scanned for music. `ENTER` edits one. `+ new path` (`ENTER`) adds an empty line and opens it for typing. Committing a change **rescans the library immediately**. |
 | DOWNLOAD PATH | one row | Where `y` (Save stream) puts downloaded tracks. Until you set one it shows the default cache folder (`~/.cache/mousiki`). It is added to the scanned folders automatically, so you do not repeat it as a local path. The radio uses the same folder by default. |
+| AUDIO BOOK PATH | one row | The **one** folder of the audio book mode (chapter 12): every folder in it that directly holds audio files is one book, a single long file works too. Under the path a note says that a `.cue` file beside each book records where you last stopped listening. Empty = no audio books. Changing it rescans the books, and the music player's library no longer lists the files in this folder, in no list, search or folder filter. **The book folder may lie inside a music folder** (e.g. `Music` as the local path and `Music/Books` as the audio book path): the books stay out of the player. **The very same folder is a conflict**: the settings refuse it with a message (in the PATHS tab of every mode, in either direction, also for the download folder); pick a folder around it or beside it. A music folder that lies inside the book folder keeps its own files. It is the **last row** of the PATHS tab. The row is on the PATHS tab of **every** mode (the radio's settings list it too and keep it in the player's `config.txt`). (`AudioBookPath=`) |
 | PLAYLIST PATH | one row | The **one** folder playlists are loaded from, saved to and deleted in. If none is set, the first local path plus `/playlists` is used. Under the path a note says that changing it copies the existing playlists to the new folder. |
 | CONVERSION EXPORT PATH | one row | The **one** folder the file conversion overlay (`SHIFT+c`) writes its converted files to. Empty = the `conversion-export` folder inside the download folder (the row shows the folder in effect). Changing it only affects the next conversion. (`ConversionExportPath=`) |
 | PLAYLIST EXPORT PATH | one row | The **one** folder `e` on the playlist editor's Saved Playlists tab exports M3U8 / M3U files to (see [Exporting a playlist](#exporting-a-playlist-m3u8--m3u)). Empty = the playlist folder. Nothing is copied or moved when it changes. |
@@ -1524,7 +1536,7 @@ Five sections, each under its header in the header colour. Move onto a row and p
 
 **Shared download archive.** Every YouTube track Mousiki downloads is also written as `youtube <video id>` to `<download folder>/history/downloaded_history.txt`, the file format of yt-dlp's `--download-archive`. Use the same file for downloads you make in a terminal, e.g. `yt-dlp -x -P <download folder> --download-archive <download folder>/history/downloaded_history.txt <playlist-url>`: yt-dlp then skips what Mousiki already fetched and Mousiki's downloads are known to the next terminal run. Changing DOWNLOAD PATH copies this file to the new folder's `history/` (the old one stays; an existing one in the new folder is kept). Mousiki only appends to the file and never skips a download because of it. An existing `downloaded_history.txt` lying directly in the download folder is moved into `history/` the first time Mousiki records a download. Do not put `--download-archive` into yt-dlp's own config file: Mousiki's yt-dlp would then refuse to fetch a song whose file you deleted.
 
-DOWNLOAD PATH, PLAYLIST PATH, PLAYLIST EXPORT PATH, CONVERSION EXPORT PATH and HISTORY PATH are single paths: their name sits on the row itself, followed by `:` and the folder, and there is no `+ new path` line. Paths accept `~` and `%USERPROFILE%` shortcuts, and both slash directions on Windows. Emptying a path line and pressing `ENTER` removes that path (for the single paths: resets it to the default). Changed folders only take effect for good when you save with `s`; with `ESC` or `q` they are put back.
+DOWNLOAD PATH, AUDIO BOOK PATH, PLAYLIST PATH, PLAYLIST EXPORT PATH, CONVERSION EXPORT PATH and HISTORY PATH are single paths: their name sits on the row itself, followed by `:` and the folder, and there is no `+ new path` line. Paths accept `~` and `%USERPROFILE%` shortcuts, and both slash directions on Windows. Emptying a path line and pressing `ENTER` removes that path (for the single paths: resets it to the default). Changed folders only take effect for good when you save with `s`; with `ESC` or `q` they are put back.
 
 ### Tab 5: REFERENCE
 
@@ -1589,6 +1601,11 @@ The credits and versions of the original app and of this port, as text that scro
 | `SleepFade` | Whether the sleep timer fades the volume out over the last 10 % of its time (default `true`). |
 | `WizardSeen` | Whether the [help wizard](#the-help-wizard-shiftw) (`SHIFT+w`) has already opened itself once (default `false`, set to `true` the first time it is closed). `false` makes it greet you again on the next start. The radio has the same line in `radio_config.txt`. |
 | `KaraokeLyricsSize` | Lyrics size of the karaoke overlay, `1` (normal text, default) to `5`. Normally changed with `*` / `_` in the overlay (German `SHIFT` and `+` / `-`, English `SHIFT+8` / `SHIFT` and `-`). |
+| `StartMode`, `UseModePlayer`, `UseModeRadio`, `UseModeAudiobook`, `ModeOrder` | The mode Mousiki opens with (`player`, `radio`, `audiobook`), whether each mode is in the `SHIFT` and `+` cycle, and the order of the cycle (`player,radio,audiobook` in any order). Settings → ON/OFF → MODES. At least one mode is always on. |
+| `BookmarkAsk` | Audio book mode: whether changing the chapter, the mode or quitting asks first about a bookmark (`true` / `false`, default `true`). Settings → ON/OFF → BOOKMARKS. |
+| `BookCoverWave` | Audio book mode, with `BookCover` on: `true` = the colour wave runs over the (grey) cover, `false` = the cover in its own colours (`true` / `false`, default `true`). Settings → ON/OFF → *Book Cover*, the *Gradient Wave* value to the right of it, shown only while Book Cover is on (`←` `→` switch between the two, `ENTER` changes the lit one). |
+| `BookCover` | Audio book mode: `false` = the standard picture (a woman reading), `true` = the cover image found in the open book's folder (default `false`; a book without one keeps the standard picture). Settings → ON/OFF → *Book Cover*. |
+| `AudioBookPath` | The folder of the audio books (one folder). Settings → PATHS (last row). Its files are left out of the music player's library. The audio book mode's own look (colours, elements, visualizations, borders, play mode, sound) is in `audiobook_config.txt`, not here. |
 | `ConversionExportPath` | The folder the file conversion overlay writes to (one folder; unset = `conversion-export` in the download folder). |
 | `PlaylistsPath`, `PlaylistExportPath`, `HistoryPath` | The playlist folder, the playlist export folder and the listening history folder (one each; a second `PlaylistsPath` line is ignored). Normally set under **Settings → PATHS**. |
 | `ColorHeader`, `ColorLegend`, `ColorLegendCommand`, `ColorTabCurrent`, `ColorTabOther`, `ColorFocus` | The header, legend, tab-name and pane focus indicator colours (also on the COLORS tab). Without `ColorFocus` the indicator follows `ColorHeader`. |
@@ -1609,10 +1626,10 @@ Requirements: `ffmpeg` (decodes the streams, also needed by the player), `curl` 
 
 ### 11.1 Switching between player and radio
 
-Press the key that types `*` to switch to the other mode, in the player and in the radio: `SHIFT` and `+` on a German keyboard, `SHIFT+8` on an English (US / UK) one. The first line of the cheat sheet (`?`) of both modes shows the combination that fits **your keyboard layout** (detected automatically, `MOUSIKI_KEYBOARD=us|de|fr|…` overrides it). The key is fixed and cannot be rebound.
+Press the key that types `*` to switch to the next mode (`_`: the previous one), in the player and in the radio; with the audio books switched off in the settings the two modes just switch between each other: `SHIFT` and `+` on a German keyboard, `SHIFT+8` on an English (US / UK) one. The first line of the cheat sheet (`?`) of both modes shows the combination that fits **your keyboard layout** (detected automatically, `MOUSIKI_KEYBOARD=us|de|fr|…` overrides it). The key is fixed and cannot be rebound.
 
 - **Player → radio:** the player is **paused and kept in memory** with its queue, position and screen exactly as they were.
-- **Radio → player:** the radio is **closed completely** (threads, audio device, buffers), so it only uses resources while you are in it. The player comes back instantly, without a loading screen.
+- **Radio → the next mode:** the radio is **closed completely** (threads, audio device, buffers), so it only uses resources while you are in it. The player comes back instantly, without a loading screen.
 - Files added to your music folders while you were in the radio are not known to the player yet: press `SHIFT+r` to rescan the library (see chapter 1).
 - `q` (or `CTRL+c`) in the radio quits the program; both modes end.
 
@@ -1894,7 +1911,8 @@ BORDER_COLOR, METADATA, VIZ, LIST, HEADER, LEGEND and TAB_NAMES work as in the p
 | Row | What it does |
 |---|---|
 | Playback | `shuffle` or `list` for the station surf (same as `m`). Saved as `PlaybackMode=`. |
-| Start Mode | `player` or `radio`: which of the two Mousiki opens with. The same value as in the player's Settings (`StartMode=` in the player's `config.txt`; the radio reads and writes that one line). |
+| Start Mode | `player`, `radio` or `audiobook`: which mode Mousiki opens with (only modes that are on). The same value as in the player's Settings (`StartMode=` in the player's `config.txt`; the radio reads and writes that one line). |
+| Use Music Player, Use Radio, Use Audio Books, Mode Order 1..3 | The same rows as in the player (`UseMode…=` and `ModeOrder=` in the player's `config.txt`): which modes the `*` / `_` keys switch between, and in which order. One mode always stays on; if the radio is the only one, the key says so. |
 | Black Background | `true` (default) / `false`: the terminal's background is black while Mousiki runs and is given back on exit. The same value as in the player's Settings (`BlackBackground=` in the player's `config.txt`). |
 
 **ON/OFF**
@@ -1932,6 +1950,7 @@ The player's Waveform Style, Disk Speed, Lyrics Alignment and Lyrics Animation d
 | DOWNLOAD PATH | `<path>/radio_downloads/`: recordings (`y`) and YouTube downloads from the history. Below the path: *SAME PATH AS THE MUSIC PLAYER IS USED* while the next row is on. |
 | Same folder as music player | On = use the player's download folder instead of DOWNLOAD PATH |
 | HISTORY PATH | `<path>/radio_history/` (`history_radio.txt`, `archive_radio.txt`) |
+| AUDIO BOOK PATH | The player's audio book folder (`AudioBookPath=` in the player's `config.txt`), listed here so every mode can set it. No sub folder is made. |
 
 An empty path shows the default folder in effect. When folder paths are changed, the respective files are **only copied, never moved, and no deletions are performed**; playback is stopped and everything is reloaded from the new place.
 
@@ -1975,15 +1994,189 @@ The `@keys` line names the letters of the slots the file was written with (slot 
 
 ---
 
-## 12. Remote control and key bindings
+## 12. Audio book mode
 
-A running Mousiki (player **or** radio) can be controlled from outside with the same program:
+The third mode of Mousiki Plus is the music player shaped for listening to **books**: the left pane lists the books, the right pane the chapters of the open book (it takes the place of the queue), an **opening book** turns where the disk is, seeking gets faster the longer you hold the key, and the tag editor knows what a book has: author, narrator, chapter.
+
+Everything the audio book player has in common with the music player (progress bar, volume, equalizer, loudness normalization, sleep timer, oscilloscope, spectrogram, sphere, settings, cheat sheet, help wizard, remote control) works as described in chapters 1 to 10. **This chapter only describes what is new or different.** It is a second player inside the same program, like the radio is: the music player keeps its queue, its position and its screen while you are in another mode.
+
+### 12.1 Switching, setting up and the screen
+
+**Switching.** `SHIFT` and `+` (German keyboard; `SHIFT+8` on an English one, the key that types `*`) goes to the next mode, `SHIFT` and `-` (`SHIFT+-`, the key that types `_`) to the previous one. The order is music player → radio → audio books by default. **Settings → ON/OFF → MODES** has *Use Music Player*, *Use Radio*, *Use Audio Books* (a mode that is off is skipped; one mode always stays on), *Mode Order 1..3* and *Start Mode*. The rows are in the settings of every mode.
+
+**Setting it up.** **Settings → PATHS → AUDIO BOOK PATH** takes **one** folder. Every folder in it (also nested ones) that directly holds audio files is one **book**; its files are the chapters. A single long file (an `.m4b` or `.mp3`, for example) in a folder of its own is a book with one chapter. Under the path a note says that a `.cue` file beside each book records where you last stopped listening. The first time the audio book mode opens, Mousiki scans the folder; **SHIFT+r** scans it again.
+
+**Walking through folders.** The books pane (left) shows one folder level at a time: a folder that only holds audio files is a **book**; a folder that holds other books is shown as `▸ Name` with the number of books below it. `ENTER` on it goes in: the level below lists first the container's own audio files (when it has any, as a book named like the folder, `this folder` in the parent column), then its books and sub folders; the first row `← ..` (`ENTER`) goes back up and keeps the cursor on the folder you came from. While a search (`/`) is typed the list is flat, with every matching book of any level.
+
+![The main screen of the audio book mode](images_audio_book/audio_book_main_ui.png)
+
+*The audio book player: the books on the left, the chapters on the right, the opening book where the disk is, the meta data of the book and the field for the visualizations.*
+
+![The main screen of the audio book mode, second view](images_audio_book/audio_book_main_ui2.png)
+
+*The audio book player, a second view of the main screen.*
+
+**The screen** is the music player's screen with these differences:
+
+| Where | Music player | Audio book player |
+|---|---|---|
+| Disk | The spinning disk | A **picture of a woman reading a book** (a grey version of a colour picture with a transparent background), drawn as small braille dots (a dithered 60 x 60 dot field), centred between the left border and the `:` of the separator. It is a still picture; the colour wave of the radio's ON AIR sign (from the disk colour to the disk colour end) runs over it **diagonally** from the upper left to the lower right. **Pixel image:** where the terminal speaks Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm, Ghostty, foot ...), the picture is not made of braille characters but is a **real transparent image** at the full pixel resolution of the field (the original, 494 x 505 pixels, scaled down with an area average; its dark parts are dark grey, its transparent background stays transparent), and the diagonal colour wave runs over it. Without Kitty or Sixel the braille picture is used. *Settings → ON/OFF → MAIN UI / AUDIO → **Book Cover*** (`BookCover`, replaces the former *Eliment Book* and *Book Pic Image* rows: the field is always there and always a picture): *false* shows the standard picture, *true* shows the **cover image of the open book** where its folder holds one (a file named `cover`, `folder`, `front` or `albumart`, else the first picture there: jpg, png, webp, bmp, gif, tif; with no picture file the cover art inside the first audio file; decoded by ffmpeg in the background; if it cannot be read the status line says why and the console log, `t`, has the path). Like every switch the row changes with `←` / `→`. The cover is a real image, so it needs **Sixel or Kitty** (Windows Terminal 1.22+ speaks Sixel; if the terminal is not recognised, `OsciImageProtocol=sixel` in `config.txt` forces it); when you switch Book Cover on, the status line reports, short enough to read to the end, the protocol and the cover file that was found (`book cover: on | sixel | cover: cover.jpg`) or why there is none (`no cover: ffmpeg could not read ...`; the console log, `t`, has the full path). Windows Terminal speaks Sixel only, not Kitty graphics, so Sixel is the right protocol there. The cover is scaled to fit the field with its own proportions, centred, with a row of room above and below and a column at the sides (the standard picture fills the field), in the same grey and colour wave (or, with the row below it, ***Book Gradient Wave*** (`BookCoverWave`, `←` / `→` toggle true / false), set to *false*, in its own colours: 240 colours, no wave). A book without a cover image shows the standard picture. The wave runs a little slower than the ON AIR sign's. The image resolution follows *SHIFT+o → Image Resolution* (`ImageScale`) and the protocol *GfxProtocol*, like the oscilloscope's image style; while the picture is an image, the oscilloscope in the audio book mode is drawn in braille. Original image by Kamara Rahmat (iyaniyan) from Unsplash (https://unsplash.com/de/grafiken/young-woman-reading-a-blue-book-on-a-blanket-outdoors-brNfZ1TdBN0). Where the visualizations are, a **stack of books** builds itself up in the same braille look while no book is loaded. |
+| Library pane (left) | Titles | **Only folders**: one row per book with its number of chapters. |
+| Queue pane (right) | The queue | The **chapters** of the open book |
+| Field with the visualizations | Lyrics or a visualization | The notes field: a visualization (sphere, oscilloscope, spectrogram, as in the player). While **no book is loaded** a **stack of books** builds itself up there. |
+| Meta data | Title, artist, album, year, … | **Book**, **Author**, **Narrator**, **Chapter** (number and title), **Publisher** (with the year), **Genre**, the **Length** of the whole book and how much of it you have **Heard** (a `+` after the length: not every chapter length is known yet), then sampling, format and file size (no location in this mode) |
+
+### 12.2 Books, chapters and the keys
+
+| Key | What it does in the audio book player |
+|---|---|
+| `ENTER` | On a **book**: opens it, its chapters fill the right pane and the focus moves there. On a **chapter**: plays it. |
+| `TAB` | Moves the focus between the books and the chapters (the `◀` marks it). |
+| `↑` / `↓` | Move in the pane that has the focus. |
+| `/` | Searches the **books** (fuzzy, over the folder names). `ESC` shows all books again. In the **chapter pane** `ESC` moves the focus back to the library pane. In the library pane, **inside a folder**, `←` and `ESC` both go **one step up** in the folder tree (the `← ..` row); at the top level `ESC` shows all books again. |
+| `n` / `b` | The next / the previous chapter (asks about a bookmark first, 12.4). The same happens when a chapter ends (`m`, below, can change that). |
+| `m` | Cycles the play mode: **on to the next chapter**, **repeat the chapter**, **stop after the chapter**. |
+| `→` / `←` | Seek forward / backward: **5 seconds** with the first press, then **faster and faster the longer the key is held**; after a few seconds one second of holding jumps by minutes, so a long book can be crossed quickly. Releasing the key and pressing it again starts with 5 seconds again. |
+| `p`, `+` / `-`, `x`, `SHIFT+z`, `SHIFT+e`, `SHIFT+v` | Pause, volume, mute, sleep timer, equalizer, loudness normalization: as in the player. |
+| `SHIFT+m` | The **book tag editor** (12.3). |
+| `SHIFT+b`, `SHIFT+n`, `SHIFT+l`, `CTRL+SHIFT+u` | A **bookmark**, a **note**, the **notes overlay** and the **undo** of a deleted time stamp (12.4). |
+| `SHIFT+k` | The **list of time stamps**: the auto-marks, bookmarks and notes of all books (12.5). |
+| `SHIFT+s` | The **library overlay**: search pane and books with their chapters (12.5). |
+| `SHIFT+h` | The **reading history** (12.5). |
+| `ALT+l` | **Chapter marks** and cutting a file into chapters (12.6). |
+| `SHIFT+c` | The **file conversion** overlay works on the audio books too; `/f:` searches folders (the way it does in the player). |
+
+Not available in this mode (the status line says *not available in the audio book player*): the queue and everything that edits it, playlists, bulk add, downloads, the AcoustID fetching (`SHIFT+b` is the bookmark here), lyrics and karaoke (`ALT+l`, the lyrics timing of the player, is the chapter marks editor here and `SHIFT+h` shows the reading history), the sort modes and the big list / queue overlays (`SHIFT+k` is the list of time stamps, `SHIFT+l` the notes, `CTRL+SHIFT+u` undoes a deletion). The cheat sheet (`?`) shows only what the audio book mode can do: its own category (including `.` / `,`, which switch the field between the notes and the visualizations) and the parts of the other categories that work here (volume, normalization, sleep timer, equalizer, visualizations, conversion, settings). With nothing loaded the meta data field says *Currently No Narrative Loaded*.
+
+### 12.3 The book tag editor (`SHIFT+m`)
+
+`SHIFT+m` opens a small overlay instead of the meta editor of chapter 7. It is **only an editor**: nothing is fetched, no AcoustID, no MusicBrainz. It shows **one chapter at a time** with seven rows:
+
+| Row | Stored as |
+|---|---|
+| File name | The file's name (a rename; the extension stays, typing `Chapter 3` gives `Chapter 3.mp3`) |
+| Book title | the `album` tag |
+| Author | the `artist` and `album_artist` tags |
+| Narrator | the book's `.cue` file (`REM NARRATOR`), also the `composer` and `narrator` tags (many taggers keep the narrator as the composer) |
+| Chapter | the `title` tag |
+| Publisher, Year | the `publisher` and `date` tags: one row, written like `Penguin, 2019` (a last part with four digits is the year) |
+| Genre | the `genre` tag |
+
+`↑` / `↓` pick a row, `ENTER` types into it (a second `ENTER` puts the cursor away; the usual text keys work: `SHIFT+←/→` mark, `CTRL+C/X/V`, `HOME`, `END`). A changed row is drawn in the header colour. `←` / `→` go to the other chapters (with unsaved changes they ask you to save or drop them first). `s` writes this chapter, `d` drops the changes. **`a`** writes the changed **book rows** (book title, author, narrator, publisher + year, genre) to **every chapter** of the book in one go; the chapter title stays each chapter's own. **The file name row** edits the name only: the ending (`.mp3`, `.m4a`, …) is shown after it and cannot be changed. **The chapter number always goes in front of the name** (`01 Dune`, `02 Dune`, …): the folder is sorted by name, so the number keeps the chapters in their order however the titles are changed. With `a` a changed file name becomes the base of **all** files and every file gets its number in front; before it does so, the editor says it in the note rows and waits for `y` (rename all) or `n` (back). With `s` the renamed chapter gets its chapter number in front of the new name. **A number that is there already is not added twice:** the editor looks at all file names of the folder; if every name starts with its own number, that number stays; if every name **ends** with its own number (`Dune 01`), the numbers are **removed from the end and put in front** of **every** file of the folder (`01 Dune`) - with a warning that says why (to keep the track order from getting jumbled) and waits for `y` / `n`. A number you type yourself in front (or at the end, where the folder has them) is not doubled. The bookmarks, the auto-mark, the chapter marks and the notes follow the new file names. The files are renamed in two steps, so a chapter may take the name another one has just left, and if anything fails every file is put back. The legend of the editor is centred in several rows, in the colour of the bottom border. `ESC` leaves; with unsaved changes it asks `y` save / `n` discard / `ESC` keep editing.
+
+Every file is a copy through `ffmpeg -c copy` (the audio is not touched), one file per frame, so the screen stays alive while a whole book is written. **Narrator, publisher and year** are also written to the book's **`.cue` file** (`<book folder>/<folder name>.cue`: `REM NARRATOR "…"`, `REM PUBLISHER "…"`, `REM DATE 2019`, and with `a` also `TITLE` / `PERFORMER`), and the cue is read first, so they survive in a **WAV** file, which has no tags for them. Other lines in the cue are kept as they are. A file that is being played cannot be replaced on Windows (the status line says so); pause or pick another chapter first. The tag values shown in the chapter pane and the meta data block are read again afterwards.
+
+### 12.4 Bookmarks and book notes
+
+A book carries **three kinds of time stamps**. They all live in the book's own files and all of them can be listed (12.5), played from and deleted:
+
+| Kind | What it is | Where it is kept |
+|---|---|---|
+| **Auto-mark** | Where you stopped listening. The program writes it by itself every few seconds while a chapter plays and when you leave (change the chapter, switch the mode, quit). A book has one. | `REM AUTOMARK "Dune 01.wav" 1234.5 <date>` in the `.cue` |
+| **Bookmark** | A place you set on purpose. A book (and a chapter) may carry **many**; they are numbered automatically: *Bookmark 1*, *Bookmark 2* … in the order they were set. | `REM BOOKMARK "Dune 01.wav" 1234.5 <date>` in the `.cue` |
+| **Note** | A bookmark **with a text** (12.4, below). A note works like a bookmark; if it has no title it is numbered automatically: *Note 1*, *Note 2* … | `<folder>_notes.txt` |
+
+In the chapter pane the chapter that carries the newest bookmark is drawn in the **header colour** with a `◆` in front of its title. When you open the book (`ENTER`), the cursor is on it.
+
+| Key / event | What happens |
+|---|---|
+| `SHIFT+b` | Sets a bookmark **right now** (chapter and exact time); the status line says which number it got. Several bookmarks can be set in a book and in one chapter. |
+| `d` (chapter pane) | **Deletes the bookmark** of the chosen chapter: a small overlay asks first (`y` / `ENTER` delete, `n` / `ESC` keep). `CTRL+SHIFT+u` brings it back. |
+| `n`, `b`, `ENTER` on another chapter | Before the chapter changes, a question asks **Set a bookmark here?** with the chapter and the exact time (`mm:ss` or `h:mm:ss`) and what you are about to do. `y` / `ENTER` sets it, `n` does not, `ESC` stays where you are (the audio goes on). **The audio is paused while the question is open.** |
+| `SHIFT` and `+` / `SHIFT` and `-` (another mode), `q` (quit) | The same question first, then the mode switches or Mousiki quits. |
+| `ENTER` on a chapter that was left and **not bookmarked** (it only carries the auto-mark) | The question **Do you want to continue where you left?** with the time: **`y`** / `ENTER` **Continue** there: the chapter starts at the auto-mark (from there you can listen on or set a bookmark by hand). **`n`** **Leave, but keep the auto-mark**: nothing is played, the auto-mark stays as it is. **`b`** **Convert auto-mark to bookmark and leave**: the auto-mark becomes a regular bookmark (kept for good), nothing is played. Only *yes* starts the chapter; after a leave you open the chapter again on purpose. `ESC` cancels like `n`. |
+| `ENTER` on a chapter with **one bookmark** | The **Resume** overlay: *right on the spot*, *10 / 20 / 30 / 60 seconds before* (each with the time it jumps to), or *the start of the chapter*. `↑` / `↓` and `ENTER`, or `1` to `6`; `ESC` does not play it (the chapter that was paused for the question goes on). `n` / `b` arriving at the chapter show it as well. |
+| `ENTER` on a chapter with **several time stamps** (a bookmark and the auto-mark, or more bookmarks) | An overlay lists them with their time: **Auto-mark**, **Bookmark 1**, **Bookmark 2** …, the notes of the chapter by their title (or *Note 1* …) and *the start of the chapter*. `↑` / `↓` and `ENTER`, or `1` to `9`; the choice opens the Resume overlay above. An auto-mark within five seconds of a bookmark is the same place and is not listed twice. |
+| `CTRL+SHIFT+u` | **Undo**: brings back the last deleted time stamp (bookmark, note or auto-mark), at its old place in the list. Up to 30 deletions are remembered, newest first; it works in the book window, in the `SHIFT+k` list and in the notes overlay. |
+
+*Settings → ON/OFF → BOOKMARKS → Ask for Bookmark* switches the question *Set a bookmark here?* off (`BookmarkAsk=false`); `SHIFT+b` still works and the auto-mark is written in any case.
+
+**Notes.** A note is a title and a text that belongs to a point in a chapter. **The point is the time at which you pressed `SHIFT+n`**, not the time at which you save: it is shown in the editor's header (*set when SHIFT+n was pressed* where there is room). The header and the line under a shown note are `chapter  @ h:mm:ss`; when the field is narrow the **chapter name is cut (`...`) and the time stamp always stays whole** and stays while you type, also when the chapter changes meanwhile.
+
+| Key | What it does |
+|---|---|
+| `SHIFT+n` | **Writes a note** at the current time. The field of the visualizations turns into the editor: the first line is the **title**, `ENTER` goes on to the text (`ENTER` is a new line there, `↑` / `↓` change the line, the usual text keys work). The audio goes on. `CTRL+SHIFT+s` saves (the legend under the editor wraps to the width of the field). `ESC` stops the typing; then `SHIFT+s` saves, `ENTER` types on and `ESC` again discards (it asks `y` / `n` when there is text). Long lines wrap to the width of the field or the overlay (only on the screen, the text keeps its lines); `CTRL+C` copies instead of ending the program: in the editor the marked text (nothing marked: the whole text), on a note that is shown in the field or chosen in the notes overlay the whole note. |
+| `CTRL+n` | **Small field ↔ big overlay.** In the small field (while you write a note, or while one is shown) `CTRL+n` opens the **big notes overlay** with the same note: the text and the caret stay where they are and you go on writing in the right pane. A note that is only shown is opened there for editing; with no note in the field a new one starts there. In the overlay's editor `CTRL+n` goes back to the small field. |
+| `SHIFT+s` / `SHIFT+k` / `SHIFT+m` / `SHIFT+l` (in one of these overlays) | The library overlay, the time stamp list, the tag editor and the notes overlay **switch to each other** without closing first (not while something is typed or asked; the tag editor with unsaved changes asks first). The key of the overlay that is open closes it, as before. |
+| `.` / `,` | Switch the field between the notes and the visualizations (forward / backward); a note that is shown is put away by `.`, and the view that was on before the note (sphere, oscilloscope, spectrogram or lyrics) comes back. `,` on a note that is shown (for example right after saving it) **writes it again**: the note opens in the editor. |
+| `SHIFT+l` | The **notes overlay**, a big window. **The window fills the whole terminal.** **Left:** every note with its chapter number, file name, time and title (the bookmarks and the auto-marks are in the list of 12.5 as well). **Right:** the chosen note. `↑` / `↓` choose. `ENTER` (or `t`) **changes the note right there** (see below). **`f`** shows the note in the field of the main screen (the overlay closes). **`SHIFT+p`** opens the note and **starts playing from that point**; the overlay stays, and the note is in the field once you close it. The right pane becomes the editor (title, then the text; the keys are those of the editor in the field: `ENTER` new line, `CTRL+SHIFT+s` saves, `ESC` stops typing, then `SHIFT+s` saves or `ESC` throws it away) and the list stays visible. **`n`** writes a **new note** at the point that plays, also in the overlay. `x` deletes a note (asks `y` / `n`; `CTRL+SHIFT+u` brings it back). **`SHIFT+t`** sorts the list: by **chapter** with the highest chapter and, inside a chapter, the furthest time on top (the default), or by the **last edit**, the most recently written or changed note first (notes without a date come last); `ESC` closes the window and the next one opens in the chapter order again. `ESC` closes. The legend below the window is a small table like the legends of the meta editor: the group names (*List*, *Note*, *File*) in the header colour, the keys and their descriptions in the legend and command colours. |
+| `SHIFT+e` / `SHIFT+i` (in the overlay) | **Export / import** the notes: a path field appears (the file `<folder>_notes_export.txt` in the folder **`notes`** inside the book folder is suggested; the folder is made when the file is written); `ENTER` does it. An import adds only the notes you do not have yet and says how many it added. |
+
+The notes are saved in **`<book folder>/<folder name>_notes.txt`**, a text file you can read and edit by hand:
+
+```
+=== Dune 01.wav | 0:12:34 | The title of the note
+the text of the note,
+as many lines as it takes
+```
+
+While a chapter plays and passes the time of a note, the note **shows itself in the field** (for 20 seconds, or until the chapter changes); the oscilloscope and spectrogram are shown whenever no note is. A text line that starts with `===` is written with a space in front of it.
+
+![A note shown in the field of the visualizations on the audio book main screen](images_audio_book/audio_book_main_ui_notes.png)
+
+*The main screen while a note is shown in the field of the visualizations (it appears when the playback passes it, or with `f` / `,`).*
+
+![The big notes editor over the audio book main screen](images_audio_book/audio_book_main_ui_notes_big_editor.png)
+
+*The big notes overlay (`SHIFT+l`, or `CTRL+n` from the small field) with the note being edited in the right pane.*
+
+### 12.5 The list of time stamps, the library overlay and the reading history
+
+A book has an **auto-mark**, any number of **bookmarks** and **notes** (12.4). Three big windows help to find your way around the books. Like the notes overlay they fill the whole terminal and have their legend in the table of the meta editor's legends: categories in the header colour, then the keys with their descriptions (list of time stamps: *List*, *Time stamp*; library overlay: *Open*, *Play*, *Find*; chapter marks: *Marks*, *Listen*, *Cut*).
+
+**The list of time stamps (`SHIFT+k`).** Every auto-mark, bookmark and note of every book, one row each: when it was set (notes have no date: `-`), the **TYPE** (*Auto-mark*, *Bookmark* or *Note*), the book, the chapter (a bookmark with its number, a note with its title or number) and the time; the newest first, the notes after them. `↑` / `↓` choose (`SHIFT+↑` / `SHIFT+↓` turn a page). **`ENTER`** opens that book, goes to its chapter and shows the *Resume* choices of 12.4 (after the usual question about a bookmark where you are). **`SHIFT+p`** opens the book and plays at once from the time stamp; the list stays open. **`SHIFT+b`** converts an **auto-mark** into a regular bookmark (the row turns into *Bookmark N*). **`SHIFT+t`** switches the sorting: **by the date the time stamp was set** (the newest first; the default; a note counts from the day it was written, older notes have no date: `-`) or **by book** (the books A-Z; inside a book the **highest chapter first**, inside a chapter the **furthest mark first**, so the top row of a book is how far you have come). `ESC` goes back to the date sorting and closes the list. **`SHIFT+d`** discards the chosen time stamp of **any** kind: a warning in the header colour says so, `y` does it, anything else cancels. **`CTRL+SHIFT+u`** brings the last discarded time stamp back (up to 30). `ESC` (or `SHIFT+k` again) closes.
+
+![The list of auto-marks, bookmarks and notes of all books](images_audio_book/bookmarks_automark_notes_overlay.png)
+
+*The list of time stamps (`SHIFT+k`): auto-marks, bookmarks and notes of every book with the TYPE column.*
+
+**The library overlay (`SHIFT+s`).** A big window made like the folder overlay of the player: the **search pane** on top (`/` types, the words narrow the list, `ESC` / `ENTER` / `TAB` leave the field) and the **audio book pane** below it: the book folder and its books with their number of chapters. `ENTER` (or `→`) on a book **opens it and inserts its chapters** below it, `←` closes it again (or goes up to the book). A `◆` in front of a chapter marks a bookmark. The book that is open in the chapter pane is opened already. **`ENTER` on a chapter** plays it (the question about a bookmark comes first, then the continue question, the Resume choices or the list of time stamps if the chapter carries any), **`CTRL+p`** plays it from the start at once and the overlay stays, **`f`** opens the book in the chapter pane and closes the overlay. `SHIFT+↑` / `SHIFT+↓` turn a page. `ESC` or `SHIFT+s` closes. The playback keys (pause, seek, volume) work while it is open.
+
+![The library overlay of the audio book mode with the search pane](images_audio_book/search_overlay.png)
+
+*The library overlay (`SHIFT+s`): the search pane on top, the books below with their chapters inserted.*
+
+**The reading history (`SHIFT+h`).** The listening history of the player, made for books and kept in its own file, **`reading_history.json`**, next to `history.json`. Every chapter you listen to is recorded with the book as its "artist" and "playlist". Four tabs (`←` / `→` or `1` to `4`): **HISTORY** (the last plays: when, chapter, book, length, whether it was played to the end or skipped), **TOP CHAPTERS**, **TOP BOOKS** (how often and how long each book was heard) and **HABITS** (when you listen). `ENTER` on a chapter of the history opens its book and plays it. `ESC` closes. (The history is switched off for everything with *History* off in the settings, as in the player.)
+
+### 12.6 Chapter marks and cutting a file into chapters
+
+A book often is **one long file**. `ALT+l` (the key of the lyrics timing in the player) opens the **chapter marks** of the chapter that plays; if nothing plays, the chapter under the cursor starts. A big window shows where you are (`playing at 0:12:34 of 1:20:00`), and a list of the marks: number, time, title, length; the part you are in is marked with a `▶`. You set marks while you listen:
+
+| Key | What it does |
+|---|---|
+| `m` | **Marks the point you are listening at.** The first mark also adds the start (`0:00:00`, *Chapter 1*). A new mark gets the **standard title "Chapter N"** (N is the number of the chapter at that place; the standard titles are renumbered when a mark is inserted), and the title field opens with the title selected: `ENTER` keeps it, typing replaces it. |
+| `a` | Adds a mark **by its time**, typed as `h:mm:ss` (or `m:ss`; the field starts with the current time, selected); then the title field. |
+| `t` / `r` | Change the **time** (`h:mm:ss`) or the **title** of the chosen mark. The first mark always stays at `0:00:00`. |
+| `x` | Deletes the mark (asks `y` / `n`). |
+| `←` / `→` | **Seek** as in the player: 5 seconds at first, **faster and faster the longer the key is held**, up to jumps of minutes; `p` pauses, `+` / `-` change the volume. |
+| `ENTER` | Plays from the chosen mark. |
+| `c` | **Cuts the file** (below). |
+| `SHIFT+d` | **Deletes the backup** (below). |
+| `ESC` | Closes (the marks are saved in the book's `.cue` after every change, as `REM CHAPTER "Dune.wav" 3723.5 "Chapter 4"` lines, and are there when you come back). |
+
+**Cutting.** `c` asks once (`y` / `n`) how many chapters the file becomes. **`t`** answers yes **and trims the blank audio** at the edges of the parts: ffmpeg (`silencedetect`, -50 dB, stretches of 2.5 s or more) looks for silence at the start and the end of every part, and a blank of, say, 10 s is cut down to **2 s** (the blank at the end of one part and at the start of the next are each trimmed). The audio itself is still copied without re-encoding. A part that is blank nearly all through is left alone. Bookmarks, the auto-mark and notes follow the new times: a place inside the removed blank moves to the edge of its part. The status row says how many parts were trimmed. Then `ffmpeg` copies the parts **without re-encoding** (`-c copy`, the audio is not touched; the tags of the file are copied, and each part gets its chapter title as title tag and its number as track) into the book folder as **`01 Chapter 1.wav`, `02 The Storm.wav`, …** (the number comes first so the natural order is the order of the book; characters a file system refuses are left out of the title). The playback of that file stops while the cut runs (one part per frame, the screen stays alive). If anything fails, the new files are removed again and the original is untouched.
+
+**The backup.** When all parts are written, the original is renamed to **`Dune.wav.mousiki-backup`** in the book folder (it has no audio ending, so the library does not list it as a book or a chapter) and **stays there until you delete it on purpose**: `SHIFT+d` in the chapter marks window shows how many files and how much space they take, and asks `y` / `n` (*the uncut original is gone then*). Mousiki lets go of the file itself first (the decoder that plays or analyses a long file is told to close it). If another program still holds the file (a virus scanner, a sync client) Mousiki **waits for it for up to 90 seconds** (the status row counts the seconds) before it gives up with the system's reason; nothing is changed then. A book with a backup says so in the status row of the window. To get the original back, delete the new parts and remove the `.mousiki-backup` ending by hand.
+
+**Bookmark and notes follow the cut.** The bookmark and every note that pointed into the cut file are moved to the part that holds their place, with the time inside that part (a note at 0:25:00 of the old file, with a chapter starting at 0:10:00, is at 0:15:00 of the new second chapter). Bookmarks and notes in other files are not touched; the marks that were used up are removed from the `.cue`. The library is scanned again, so the new chapters show up in the chapter pane at once.
+
+### 12.7 Settings in the audio book mode
+
+The settings are the same screen as in the other modes, with the rows that make no sense for a book left out (and *Ask for Bookmark* added under BOOKMARKS): the ON/OFF tab has no *Playback*, no lyrics switches; the ANIMA/VIZ tab no lyrics rows and no *Disk Speed*, but *Notes/Viz Default*, *No-Notes Viz* and the *Viz/Notes Order*. The PATHS tab is the same in every mode.
+
+**The audio book mode has its own look.** Its colours and theme, the border characters, which elements and visualizations are shown (with their oscilloscope and spectrogram settings), the volume bar, the disk and spectrum tuning, the list display (*Show meta data only*), the play mode and the sound (loudness normalization, equalizer, stereo / mono) are kept apart from the music player's and the radio's, in **`audiobook_config.txt`** next to `config.txt` (same notation, only these lines). It starts with the theme **Rose Pine** (a profile that is still an untouched copy of the player's look gets it, too); from then on a theme picked or a colour changed in the audio book mode changes nothing in the other modes and the other way round. Everything that concerns all players stays shared in `config.txt`: the paths (library, download, playlists, history, conversion, audio books), the hotkeys, the mode switches and their order, Black Background, the remote app, buffer size, media keys and the like. The radio keeps its own look in `radio_config.txt` as before.
+
+---
+
+## 13. Remote control and key bindings
+
+A running Mousiki (player, radio **or** audio book player) can be controlled from outside with the same program:
 
 ```
 mousiki --cmd next             mousiki --cmd volume 60       mousiki --cmd seek +10
 mousiki --status               what is playing (state, title, artist, volume, playback mode ...)
 mousiki --cmd --help           the list of commands (also: mousiki --cmd help, mousiki --remote-help)
-mousiki --remote-info          address and PIN of the remote app (12.1)
+mousiki --remote-info          address and PIN of the remote app (13.1)
 mousiki --help / --version     the command line options / the version
 ```
 
@@ -2002,7 +2195,7 @@ Commands: `play-pause`, `play`, `pause`, `stop`, `next`, `prev`, `shuffle` (play
 
 How it works: the program keeps a small folder `control/` in the config folder. The client writes one command file; the running Mousiki reads and deletes it (about ten times a second) and writes `status` once a second. Only the fixed command names above with a short number are accepted; anything else is ignored.
 
-### 12.1 The remote app (Android / phone browser)
+### 13.1 The remote app (Android / phone browser)
 
 Mousiki can be controlled from a phone in the same network. It is part of the program itself: it works the same with a Mousiki you built yourself and with an installed one -- nothing else has to be installed on the computer.
 
@@ -2028,7 +2221,8 @@ The phone shows a narrow version of the main screen, **drawn by Mousiki itself**
   * **CLEAR QUEUE (n)** at the very bottom clears the queue: tap it, then tap again within 5 seconds (`TAP AGAIN TO CLEAR`). `CTRL+SHIFT+Z` on the computer brings it back (`mousiki --cmd clear-queue` clears at once).
 * **Radio:** the ON AIR / OFF AIR sign with its colour wave (tap: pause / resume), the station, the state (LIVE, PAUSED, how far behind live), `<<<` / `>>>` previous / next station, PLAY / PAUSE, the volume bar, RANDOM, MUTE, STOP, VOL - / VOL +, LIVE, MODE S / L, STATIONS, MANUAL.
 * **STATIONS** (radio) opens the whole station list (number, name, genre, bitrate / codec, country; the tuned one is marked ▶): tap a station and it is tuned. ▲ UP / ▼ DOWN page, BACK returns. Same as `mousiki --cmd tune <n>`.
-* **[RADIO] / [PLAYER]** at the top (or `[*] switch`) changes the mode, like `*`.
+* **Audio book player:** the same screen as the player, but the picture of the audio book mode (the standard picture, or the cover of the book when *Book Cover* is on) takes the disk's place (tap: play / pause) -- as a real picture at full resolution (the phone fetches it once per book; the cover in its own colours, or in the disk colours when the colour wave is on; braille dots only while the cover is being read or when the picture cannot be loaded) (meta data of the chapter, waveform, the buttons); PREV / NEXT walk the chapters (no questions are asked on the computer: the auto-mark is kept and the chapter plays from its start), RANDOM does nothing. **LISTS** opens the **library** in the style of the big library overlay, with its folder hierarchy: a folder (`▸` closed, `▾` open, with the number of chapters below it) opens and closes with a tap, the books and their chapters are indented below it, the chapter that plays is marked ▶, and the book that is open is already unfolded. A tap on a chapter plays it from its start (`mousiki --cmd track <n>`; `mousiki --cmd book-open <n>` opens / closes row n). There is no search field. ▲ UP / ▼ DOWN page, BACK returns.
+* **[PLAYER] [RADIO] [BOOKS]** at the top (the modes that are on, in the order of the mode key; or `[*] switch`) changes the mode: a tap on a tab goes to that mode (`mousiki --cmd switch-mode` the next one, `switch-mode -1` the previous one).
 * Long-press anywhere or tap the title: the remote's own settings -- the 16 base colours (pick the scheme of your terminal: Windows Terminal, xterm, GNOME), the size of the braille dots (thick / normal / small), the PIN, the manual.
 
 <p align="center"><img width="300" alt="The phone remote, music player" src="images/Remote_app_phone_player.png" /> &nbsp; <img width="300" alt="The phone remote, radio" src="images_radio/radio_remote_phone.png" /></p>
@@ -2046,7 +2240,7 @@ The phone shows a narrow version of the main screen, **drawn by Mousiki itself**
 
 The boxes are labelled with the keys of the computer (your own key bindings). Settings rows `RemoteApp=`, `RemoteAppPort=` (default 4747) and `RemoteAppPin=` are in `config.txt`. **Security:** off by default; only the home network can reach it (nothing is forwarded to the internet unless you set that up in your router); every command needs the PIN, and after 10 wrong PINs it answers nothing for a minute; only the fixed remote commands exist. On Windows the firewall asks once whether Mousiki may accept connections: allow *private networks*.
 
-### 12.2 System media controls: media keys and now playing (Windows, Linux, macOS)
+### 13.2 System media controls: media keys and now playing (Windows, Linux, macOS)
 
 Mousiki (player **and** radio) shows what is playing to the operating system and answers its media controls, so the keys of your keyboard and headset, the volume pop-up and the lock screen work without any set-up:
 
@@ -2060,11 +2254,11 @@ In the radio, a live station has no length, so the position slider is off; the s
 
 *Good to know (macOS):* the system sends the media keys to the app it considers "the" Now Playing app. A program started from a terminal is not always picked for that; when the keys still go to Music, start playback in Mousiki first (so it becomes the last app that played), or use the `mousiki --cmd` bindings above.
 
-## 13. Automated tests
+## 14. Automated tests
 
-`cmake -DMOUSIKI_BUILD_TESTS=ON ..` then `make mousiki_tests && ./mousiki_tests` (Windows: `cmake --build . --config Release --target mousiki_tests`, then `Release\mousiki_tests.exe`) runs the checks of the text editor and fuzzy search, themes, settings files and their upgrade backup, the shared oscilloscope settings, Share Profiles, the remote control, the remote app's server and phone screen, the oscilloscope drawing, the JSON reader, the lyrics text helpers, saved playlists, and the listening history of the player and of the radio (137 tests). On GitHub the workflow *Tests* builds and runs them on Linux, macOS and Windows with every push. `./mousiki_tests remote` runs only the tests whose name contains "remote". The tests use a temporary config folder and never touch yours.
+`cmake -DMOUSIKI_BUILD_TESTS=ON ..` then `make mousiki_tests && ./mousiki_tests` (Windows: `cmake --build . --config Release --target mousiki_tests`, then `Release\mousiki_tests.exe`) runs the checks of the text editor and fuzzy search, themes, settings files and their upgrade backup, the shared oscilloscope settings, Share Profiles, the remote control, the remote app's server and phone screen, the oscilloscope drawing, the JSON reader, the lyrics text helpers, saved playlists, and the listening history of the player and of the radio (146 tests). On GitHub the workflow *Tests* builds and runs them on Linux, macOS and Windows with every push. `./mousiki_tests remote` runs only the tests whose name contains "remote". The tests use a temporary config folder and never touch yours.
 
-## 14. Upgrades and your settings
+## 15. Upgrades and your settings
 
 **New version notice.** With **Update Notice** on (Settings -> ON/OFF -> MODES, `UpdateCheck=true`, the default), Mousiki asks the project's releases page once a day, in the background, whether a newer version exists and tells you **once per version** with a small window (*Mousiki 4.6.0 is out. You are using 4.5.0.* and the address of the release, plus the note that your configuration stays the same when you update by installing the newer version (a new command whose default key you already use for something else is left unbound, see Settings -> REFERENCE); for the portable versions the note says: unzip the new version over the old folder, or copy your `data` folder into the new one, and keep `portable.txt` next to the launcher (without it the configs in `data` are not found); `ESC` Close, `o` Go to release). It appears as soon as the main screen is showing (not on top of a menu or the help wizard). It never installs anything -- how to update depends on how you installed Mousiki (`winget upgrade`, `scoop update`, `brew upgrade`, the installer or the `.deb`). The answer is kept in `update_check.txt` in the config folder.
 
@@ -2082,12 +2276,12 @@ Installing a new version never deletes your settings (`config.txt`, `radio_confi
 | **Email** | itz.ender5820@gmail.com | **Version** | original and final v1.0 |
 | | | **Licence** | Apache Licence 2.0 |
 
-### Windows port, incl. extensive modifications up to v4.5.0 (including the radio mode)
+### Windows port, incl. extensive modifications up to v4.6.0 (including the radio and audio book modes)
 
 | | | | |
 |---|---|---|---|
 | **Developer** | Steffen Schwerdtfeger | **GitHub** | [StSchwerdtfeger](https://github.com/StSchwerdtfeger) |
-| **Email** | fanti.blub@gmail.com | **Version** | current v4.5.0 |
+| **Email** | fanti.blub@gmail.com | **Version** | current v4.6.0 |
 | | | **Licence** | Apache Licence 2.0 |
 
 ### Third-party software and licences

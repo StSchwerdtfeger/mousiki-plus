@@ -6,6 +6,7 @@
 #include "about_text.h"
 #include "border_gradient.h"
 #include "mode_switch.h"
+#include "book_art.h"
 #include "keyboard_layout.h"
 #include "path_utf8.h"
 #include "utf8_util.h"
@@ -673,8 +674,8 @@ void export_fpcalc_to_scripts() {
 
 std::filesystem::path locate_script(const std::string& filename) { return find_scripts_file(filename); }
 
-App::App() {
-    settings_ = load_settings();
+App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(shared ? *shared : own_settings_) {
+    if (!shared) settings_ = load_settings();
     // Still the colours of a built-in theme as an earlier version had them (with terminal-dependent colours 1-15 and empty
     // text colours)? Then the theme's fixed colours, which look the same in every terminal (see themes::renewed_builtins()).
     for (const auto& [was, now] : themes::renewed_builtins()) {
@@ -687,6 +688,7 @@ App::App() {
     // ask where a download would go. Empty config = default cache folder,
     // which is what set_download_dir() restores on its own.
     cache_.set_download_dir(path_from_utf8(settings_.download_folder));
+    if (audiobook_) history_.set_file_name("reading_history.json");   // the reading history is a file of its own
     history_.set_dir(settings_.history_path);
     history_.load(); // listening history: a missing/corrupt file is not fatal (see HistoryStore::load)
     set_emoji_replacement(settings_.replace_emoji);
@@ -701,6 +703,7 @@ App::App() {
     translate_script_ = find_scripts_file("translate_lyrics.py"); // lyrics translation of Mode::ReadLyrics
     export_fpcalc_to_scripts(); // ...and the fpcalc it runs (see why there)
 
+    if (!audiobook_) {   // (the audio book player only looks at the AUDIO BOOK PATH: library_roots())
     // BUGFIX: the cache-dir injection below used to push_back()
     // unconditionally, every single launch -- and since save_settings()
     // (called on every quit) writes settings_.local_music_paths back to
@@ -741,8 +744,12 @@ App::App() {
         settings_.local_music_paths.push_back(download_dir_str);
     }
 
-    all_local_tracks_ = local_source_.scan(settings_.local_music_paths, &local_scan_diagnostics_);
+    }
+    all_local_tracks_ = local_source_.scan(library_roots(), &local_scan_diagnostics_);
+    exclude_book_files(all_local_tracks_);   // the audio books are not part of the music library
+    scanned_book_path_ = settings_.audiobook_path;
     local_view_ = all_local_tracks_;
+    if (audiobook_) book_refresh_view();   // the left pane lists the books
     launch_row_meta_resolver();
     start_device_worker();
 }
@@ -1081,6 +1088,7 @@ std::vector<LocalTrack> App::filter_and_rank_local_view(const std::string& query
 }
 
 void App::refresh_local_view() {
+    if (audiobook_) { book_refresh_view(); return; }   // (the audio book player has no track list, only the books)
     local_view_ = filter_and_rank_local_view(last_local_query_);
     selected_ = 0;
     scroll_ = 0;
@@ -1176,13 +1184,20 @@ void App::refresh_playlists_after_rescan() {
     if (rewritten > 0) log_event("playlists updated after the rescan: " + std::to_string(rewritten));
 }
 
+// The folders the library scan walks: the local music paths (with the download / cache folders), or in the audio book
+// player only the AUDIO BOOK PATH.
+std::vector<std::string> App::library_roots() const {
+    if (audiobook_) return settings_.audiobook_path.empty() ? std::vector<std::string>{} : std::vector<std::string>{settings_.audiobook_path};
+    return settings_.local_music_paths;
+}
+
 void App::rescan_library() {
     { std::lock_guard<std::mutex> lk(added_time_mutex_); added_time_cache_.clear(); }   // "recently added" sort: files may have arrived
     // Keep the streamed-track cache folder in the list even if the edit
     // happened to drop it, for the same reason the constructor injects it
     // at all: downloaded songs belong in the local view.
     std::string cache_dir_str = path_utf8(cache_.cache_dir());
-    if (std::find(settings_.local_music_paths.begin(), settings_.local_music_paths.end(), cache_dir_str)
+    if (!audiobook_ && std::find(settings_.local_music_paths.begin(), settings_.local_music_paths.end(), cache_dir_str)
         == settings_.local_music_paths.end()) {
         settings_.local_music_paths.push_back(cache_dir_str);
     }
@@ -1191,7 +1206,7 @@ void App::rescan_library() {
     // line, which is what the DOWNLOAD PATH setting promises. Skipped
     // while it is still the default -- that IS the cache dir just above.
     std::string download_dir_str = path_utf8(cache_.download_dir());
-    if (download_dir_str != cache_dir_str
+    if (!audiobook_ && download_dir_str != cache_dir_str
         && std::find(settings_.local_music_paths.begin(), settings_.local_music_paths.end(), download_dir_str)
                == settings_.local_music_paths.end()) {
         settings_.local_music_paths.push_back(download_dir_str);
@@ -1201,12 +1216,14 @@ void App::rescan_library() {
     // is read back once at startup by run() (before any rescan can happen)
     // and never again, so per-scan results go straight to the log instead.
     std::vector<std::string> diagnostics;
-    all_local_tracks_ = local_source_.scan(settings_.local_music_paths, &diagnostics);
+    all_local_tracks_ = local_source_.scan(library_roots(), &diagnostics);
+    exclude_book_files(all_local_tracks_);
+    scanned_book_path_ = settings_.audiobook_path;
     search_idx_.clear();
     refresh_local_view(); // applies the active query/sort/filter to the new set
     for (const auto& line : diagnostics) ConsoleLog::instance().log_basic(line);
 
-    refresh_playlists_after_rescan();
+    if (!audiobook_) refresh_playlists_after_rescan();
 
     // Newly added files need their tags resolved too -- for search and for
     // metadata-only rows. Re-arm the background sweep, which skips every
@@ -1242,6 +1259,16 @@ void App::update_live_search_preview() {
     while (!buf.empty() && buf.front() == ' ') buf.erase(buf.begin());
     while (!buf.empty() && buf.back() == ' ') buf.pop_back();
 
+    if (audiobook_) {   // the audio book player only searches its books (the folders): plain words, an "f:" in front is allowed
+        std::string q = buf;
+        if (q.size() >= 2 && lower(q.substr(0, 2)) == "f:") q = q.substr(2);
+        while (!q.empty() && q.front() == ' ') q.erase(q.begin());
+        list_source_ = ListSource::Folder;
+        folder_view_ = filter_folders(q);
+        selected_ = 0;
+        scroll_ = 0;
+        return;
+    }
     size_t plen = 0;
     if (online_prefix(buf, plen) >= 0) {   // online: nothing until ENTER
         list_source_ = pre_search_list_source_;
@@ -1287,6 +1314,17 @@ void App::submit_search() {
     while (!buf.empty() && buf.front() == ' ') buf.erase(buf.begin());
     while (!buf.empty() && buf.back() == ' ') buf.pop_back();
 
+    if (audiobook_) {   // search the books (see update_live_search_preview())
+        std::string q = buf;
+        if (q.size() >= 2 && lower(q.substr(0, 2)) == "f:") q = q.substr(2);
+        while (!q.empty() && q.front() == ' ') q.erase(q.begin());
+        last_folder_query_ = q;
+        list_source_ = ListSource::Folder;
+        folder_view_ = filter_folders(q);
+        selected_ = 0;
+        scroll_ = 0;
+        return;
+    }
     size_t plen = 0;
     if (const int src = online_prefix(buf, plen); src >= 0) {   // s: YouTube, sc: SoundCloud, b: Bandcamp
         std::string query = buf.substr(plen);
@@ -1376,6 +1414,7 @@ std::vector<FolderSummary> App::filter_folders(const std::string& query) const {
 // so [c] clears it again and the pane title shows the folder name. Any
 // active local query is dropped so really every file of the folder shows up.
 void App::open_selected_folder() {
+    if (audiobook_) { book_open(selected_); return; }
     if (folder_view_.empty() || selected_ < 0 || selected_ >= static_cast<int>(folder_view_.size())) return;
     folder_filter_ = folder_view_[static_cast<size_t>(selected_)].path;
     last_local_query_.clear();
@@ -1657,7 +1696,7 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
                 // load was superseded) -- they count themselves in internal_refs
                 std::weak_ptr<StreamingPcm> watch = pcm;
                 StreamingPcm* raw = pcm.get();
-                auto abandoned = [watch, raw]() { return watch.use_count() <= raw->internal_refs.load(); };
+                auto abandoned = [watch, raw]() { return raw->cancelled.load() || watch.use_count() <= raw->internal_refs.load(); };
                 raw->internal_refs.store(1);   // this thread's `pcm`
                 std::thread([this, decode_path, keep = pcm, waveform_smooth, abandoned]() { run_guarded("track analysis", [&] {
                     analyse_track(decode_path, *keep, abandoned);
@@ -1725,7 +1764,7 @@ void App::launch_lyrics_fetch(std::string title, std::string artist, fs::path pa
     lyrics_ready_ = false;
     lyrics_path_ = path;
     int my_epoch = ++lyrics_epoch_;
-    const double track_secs = total_sec_;
+    const double track_secs = static_cast<double>(total_sec_);
     std::thread([this, title, artist, path, force_network, my_epoch, track_secs]() { run_guarded("lyrics fetch", [&] {
         LyricsResult r = fetch_synced_lyrics(title, artist, path_utf8(lyrics_script_), path, force_network, track_secs);
         std::lock_guard<std::mutex> lock(lyrics_mutex_);
@@ -1806,7 +1845,7 @@ void App::poll_pending_load() {
     // still hit the network for every single track, whether or not
     // anything was ever shown. Toggling it off now actually turns the
     // feature off, matching what the settings label already claimed.
-    if (settings_.lyrics_on()) {
+    if (settings_.lyrics_on() && !audiobook_) {   // (no lyrics for audio books)
         launch_lyrics_fetch(pl.title, pl.artist, pl.path);
     } else {
         // nothing fetched for this track: the lyrics of the last one must not count as its own (the karaoke
@@ -2149,6 +2188,8 @@ void App::advance_track() {
             return;
         }
     }
+
+    if (audiobook_) { book_advance(); return; }   // the next chapter (or the end of the book)
 
     // The queue always takes priority over the library — it's an
     // explicit user-built-up-next list.
@@ -2579,7 +2620,14 @@ void App::restore_snapshot(const SnapshotData& snap) {
     queue_.clear();
     queue_locked_ = snap.queue_locked;
     queue_next_run_ = 0;
+    // (a snapshot written by an older version may hold audio book chapters: the audio book player has its own place, in the .cue files)
+    auto is_book_file = [&](const std::string& path) {
+        std::vector<LocalTrack> one{LocalTrack{path_utf8(path_from_utf8(path).stem()), path_from_utf8(path), std::string()}};
+        exclude_book_files(one);
+        return one.empty();
+    };
     for (const auto& t : snap.queue) {
+        if (t.is_local && is_book_file(t.path)) continue;
         queue_.push_back({t.is_local, t.title, t.artist, t.is_local ? path_from_utf8(t.path) : fs::path(), t.video_id, false, t.playlist});
     }
     clamp_queue_selected();
@@ -2589,7 +2637,9 @@ void App::restore_snapshot(const SnapshotData& snap) {
         if (snap.now_playing.is_local) {
             fs::path p = path_from_utf8(snap.now_playing.path);
             std::error_code ec;
-            if (fs::exists(p, ec)) {
+            if (is_book_file(snap.now_playing.path)) {
+                resume_start_sec_ = 0.0;   // an audio book chapter does not belong to the music player
+            } else if (fs::exists(p, ec)) {
                 LocalTrack t{path_utf8(p.stem()), p, snap.now_playing.artist};
                 start_local_track(t);
                 log_event("resuming: " + t.title);
@@ -2606,7 +2656,7 @@ void App::restore_snapshot(const SnapshotData& snap) {
 }
 
 void App::maybe_autosave() {
-    if (!settings_.autosave_enabled) return;
+    if (!settings_.autosave_enabled || audiobook_) return;   // (the audio book player must not overwrite the music player's session: it keeps its place in the .cue files)
     double delay = std::max(1, settings_.autosave_delay_sec);
     double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - last_autosave_at_).count();
     if (elapsed < delay) return;
@@ -2771,6 +2821,7 @@ void App::commit_bulk_add(bool all) {
 // "CTRL+SHIFT+z" get the same lower-case letter.
 std::string pretty_key(const std::string& k) {
     if (k == "@SWITCHKEY") return mode_switch_key_label();   // the mode-switch key, named for this keyboard (keyboard_layout.h)
+    if (k == "@SWITCHBACK") return mode_switch_back_label();   // ... and the one that goes back to the previous mode
     if (k == "(" || k == ")" || k == "=") return symbol_key_label(k);   // SHIFT+8 / SHIFT+9 / SHIFT+0 on a German keyboard
     if (k == "@KARAOKESIZE") {   // the karaoke size keys * and _, named for this keyboard
         const std::string up = mode_switch_key_label();
@@ -2856,11 +2907,36 @@ void App::start_online_track(const OnlineResult& result) {
 
 // What the radio may have changed in config.txt while the player was suspended: Start Mode, Black Background, Share Profiles and,
 // with Share Profiles on, the oscilloscope / spectrogram settings (the radio writes its edits of them there).
+// SHIFT and + (dir = 1) / SHIFT and - (dir = -1): leave for the next / previous mode that is switched on.
+bool App::request_mode_switch(int dir) {
+    const int me = audiobook_ ? 2 : 0;
+    if (settings_.next_mode(me, dir) == me) {
+        status_line_ = "this is the only mode switched on (Settings -> ON/OFF -> MODES)";
+        return false;
+    }
+    g_mode_switch_dir = dir;
+    if (audiobook_ && book_ask_due()) {   // leaving the audio book: the question about a bookmark first
+        book_ask_then(dir > 0 ? "Switching to the next mode" : "Switching to the previous mode", [this]() { switch_mode_ = true; quit_ = true; });
+        return true;
+    }
+    switch_mode_ = true;
+    quit_ = true;
+    return true;
+}
+
 void App::sync_after_radio() {
     settings_.start_mode = read_start_mode();
+    {   // the mode switches and their order (the radio's settings change the same lines)
+        const ModeConfig mc = read_mode_config();
+        for (int i = 0; i < 3; ++i) { settings_.use_mode[i] = mc.use[i]; settings_.mode_order[i] = mc.order[i]; }
+    }
+    {   // the AUDIO BOOK PATH (the radio's PATHS tab can change it): a new folder changes what the library lists
+        settings_.audiobook_path = read_audiobook_path();
+        if (settings_.audiobook_path != scanned_book_path_) rescan_library();   // also: the other mode changed it while this one waited
+    }
     settings_.black_background = read_black_background();
     settings_.share_profiles = read_share_profiles();
-    if (settings_.share_profiles) { VizPrefs v; if (read_player_viz(v)) settings_.take_shared_from(v); }
+    if (settings_.share_profiles && !audiobook_) { VizPrefs v; if (read_player_viz(v)) settings_.take_shared_from(v); }   // the audio book mode keeps its own
     const RemoteAppConfig rc = read_remote_app();
     settings_.remote_app = rc.enabled;
     settings_.remote_port = rc.port;
@@ -2934,6 +3010,7 @@ void App::act_mute(int how) {   // force volume to 0 without touching the pause 
 }
 
 void App::act_next() {
+    if (audiobook_) { book_step(1); return; }
     // The queue (if any) takes priority, same as auto-advance-on-finish does: its next title in order (only # picks a random
     // one), Queue-then-stop respected via play_next_from_queue() -- a manual skip still always actually skips, though: Repeat/Stop/Queue-then-stop only govern
     // *automatic* advance, not an explicit "next" press.
@@ -2942,6 +3019,7 @@ void App::act_next() {
 }
 
 void App::act_prev() {
+    if (audiobook_) { book_step(-1); return; }
     // Relative to what's actually playing (see current_track_list_index()), not the hover cursor. No queue equivalent: a FIFO
     // queue has no well-defined "previous" once an item's been consumed.
     play_relative(-1);
@@ -2949,7 +3027,8 @@ void App::act_prev() {
 
 // Commands from `mousiki --cmd ...` and the status file for `mousiki --status`. Called every frame.
 void App::remote_poll() {
-    remote::tick("player");
+    const char* const mode_name = audiobook_ ? "audiobook" : "player";   // (the audio book is its own mode for the remote app)
+    remote::tick(mode_name);
     {   // "a newer version is out": once; the popup waits until the main screen is showing
         update_check::Notice n;
         if (!update_pending_ && update_check::take(n)) {
@@ -2967,9 +3046,9 @@ void App::remote_poll() {
         if (n == "play-pause") act_play_pause();
         else if (n == "play") { if (has_track_ && player_.is_paused()) player_.resume(); }
         else if (n == "pause" || n == "stop") { if (has_track_ && !player_.is_paused()) player_.pause(); }
-        else if (n == "next") act_next();
-        else if (n == "prev") act_prev();
-        else if (n == "shuffle") { if (!queue_.empty()) play_next_from_queue(true); else play_relative_random(); }
+        else if (n == "next") { if (audiobook_) book_step(1, true); else act_next(); }
+        else if (n == "prev") { if (audiobook_) book_step(-1, true); else act_prev(); }
+        else if (n == "shuffle") { if (audiobook_) status_line_ = "no shuffle in the audio book mode"; else if (!queue_.empty()) play_next_from_queue(true); else play_relative_random(); }
         else if (n == "volume-up") act_volume_change(static_cast<int>(remote::number(c.arg, 5)));
         else if (n == "volume-down") act_volume_change(-static_cast<int>(remote::number(c.arg, 5)));
         else if (n == "volume") {
@@ -2988,7 +3067,8 @@ void App::remote_poll() {
             phone_view_ = remote::number(c.arg, 0) > 0.5 ? 1 : 0;
             phone_note_.clear();
             phone_clear_armed_ = {};
-            if (phone_view_ == 1) {   // the local list opens on the page of the playing title
+            if (phone_view_ == 1 && audiobook_) phone_book_reveal();   // the library tree opens at the book that is open
+            else if (phone_view_ == 1) {   // the local list opens on the page of the playing title
                 int cols = 44, rows = 44;
                 remote::net::screen_wanted(cols, rows);
                 int per = 0, per2 = 0;
@@ -3008,12 +3088,34 @@ void App::remote_poll() {
             int per = 0, per2 = 0;
             remote::net::phone_lists_rows(rows, per, per2);
             const int step = static_cast<int>(remote::number(c.arg, 0));
-            if (phone_focus_ == 0) {
+            if (audiobook_) {   // one pane: the whole library tree
+                const int pages = std::max(1, (static_cast<int>(phone_book_rows().size()) + per + per2 - 2) / std::max(1, per + per2 - 1));
+                phone_page_ = std::clamp(phone_page_ + step, 0, pages - 1);
+            } else if (phone_focus_ == 0) {
                 const int pages = std::max(1, (static_cast<int>(local_view_.size()) + per - 1) / per);
                 phone_page_ = std::clamp(phone_page_ + step, 0, pages - 1);
             } else {
                 const int pages = std::max(1, (static_cast<int>(playlist_summaries().size()) + per2 - 1) / per2);
                 phone_page2_ = std::clamp(phone_page2_ + step, 0, pages - 1);
+            }
+        }
+        else if (n == "book-open" || (n == "track" && audiobook_)) {   // the phone's library tree (1 = its first row)
+            const std::vector<FoRow> rows = phone_book_rows();
+            const int k = static_cast<int>(remote::number(c.arg, 0)) - 1;
+            if (k >= 0 && k < static_cast<int>(rows.size())) {
+                const FoRow& r = rows[static_cast<size_t>(k)];
+                if (r.is_dir) {   // a folder opens / closes
+                    if (!phone_book_open_.erase(r.path)) phone_book_open_.insert(r.path);
+                } else if (book_open_dir(path_utf8(path_from_utf8(r.path).parent_path()))) {   // a chapter plays from its start (no questions)
+                    for (size_t i = 0; i < chapters_.size(); ++i)
+                        if (path_utf8(chapters_[i].path) == r.path) {
+                            book_automark_tick(true);
+                            book_prompt_paused_ = false;
+                            book_play_chapter(static_cast<int>(i));
+                            phone_note_ = "playing " + path_utf8(path_from_utf8(r.path).stem());
+                            break;
+                        }
+                } else phone_note_ = "that book is no longer in the library";
             }
         }
         else if (n == "track") {   // the phone's local list: play that title (1 = the first title of the list)
@@ -3052,7 +3154,7 @@ void App::remote_poll() {
                 if (idle && !queue_.empty()) { play_next_from_queue(); phone_note_ += " -- playing"; }
             }
         }
-        else if (n == "switch-mode") { switch_mode_ = true; quit_ = true; }
+        else if (n == "switch-mode") request_mode_switch(remote::number(c.arg, 1) < 0 ? -1 : 1);   // (-1: the previous mode)
         else if (n == "quit") quit_ = true;
         // "live" belongs to the radio: ignored here
         force_redraw_ = true;
@@ -3062,7 +3164,7 @@ void App::remote_poll() {
     char pos[32], dur[32];
     std::snprintf(pos, sizeof pos, "%.1f", has_track_ ? player_.poll_elapsed() : 0.0);
     std::snprintf(dur, sizeof dur, "%zu", has_track_ ? total_sec_ : static_cast<size_t>(0));
-    remote::publish_status({{"mode", "player"},
+    remote::publish_status({{"mode", mode_name},
                             {"state", !has_track_ ? "stopped" : player_.is_paused() ? "paused" : muted_ ? "muted" : "playing"},
                             {"title", has_track_ ? md.name : std::string()},
                             {"artist", has_track_ && md.artist != "-" ? md.artist : std::string()},
@@ -3072,8 +3174,74 @@ void App::remote_poll() {
                             {"playback_mode", play_mode_name(settings_.play_mode)}});
 }
 
+namespace { std::string fo_name_of(const std::string& p); }   // (defined with the folder overlay below)
+
+// The phone's audio book LISTS: the library overlay's tree (folders, books, chapters), walked with phone_book_open_.
+std::vector<App::FoRow> App::phone_book_rows() const {
+    std::vector<FoRow> out;
+    std::function<void(const std::string&, int)> emit = [&](const std::string& d, int depth) {
+        FoRow r;
+        r.path = d;
+        r.label = fo_name_of(d);
+        r.is_dir = true;
+        r.depth = depth;
+        r.expanded = phone_book_open_.count(d) > 0;
+        const auto c = fo_count_.find(d);
+        r.count = c == fo_count_.end() ? 0 : c->second;
+        out.push_back(r);
+        if (!r.expanded) return;
+        const auto sd = fo_subdirs_.find(d);
+        if (sd != fo_subdirs_.end()) for (const auto& x : sd->second) emit(x, depth + 1);
+        const auto f = fo_files_.find(d);
+        if (f != fo_files_.end())
+            for (const auto& file : f->second) {
+                FoRow fr;
+                fr.path = file;
+                fr.label = path_utf8(path_from_utf8(file).stem());
+                fr.depth = depth + 1;
+                out.push_back(fr);
+            }
+    };
+    for (const auto& r : fo_roots_) emit(r, 0);
+    return out;
+}
+
+// LISTS was opened: the tree is built again (the library may have been scanned meanwhile) and the way down to the open book
+// is opened, the page is the one that shows it.
+void App::phone_book_reveal() {
+    folder_overlay_build_tree();
+    phone_page_ = 0;
+    phone_note_.clear();
+    if (book_dir_.empty()) return;
+    phone_book_open_.insert(book_dir_);
+    std::set<std::string> roots(fo_roots_.begin(), fo_roots_.end());
+    std::string k = path_utf8(path_from_utf8(book_dir_).parent_path());
+    while (!k.empty()) {
+        if (fo_subdirs_.count(k)) phone_book_open_.insert(k);
+        if (roots.count(k)) break;
+        const std::string par = path_utf8(path_from_utf8(k).parent_path());
+        if (par.empty() || par == k) break;
+        k = par;
+    }
+    int cols = 44, rows = 44;
+    remote::net::screen_wanted(cols, rows);
+    int per = 0, per2 = 0;
+    remote::net::phone_lists_rows(rows, per, per2);
+    const int page_rows = std::max(1, per + per2 - 1);
+    const std::vector<FoRow> v = phone_book_rows();
+    for (size_t i = 0; i < v.size(); ++i)
+        if (v[i].path == book_dir_) { phone_page_ = static_cast<int>(i) / page_rows; break; }
+}
+
 void App::handle_key(int key) {
     if (key == 0) return;
+
+    // Audio book: the note editor owns every key while it is open (the audio goes on).
+    if (audiobook_ && book_note_edit_ && mode_ == Mode::Browse) {
+        if (key == kKeyCtrlN && !book_note_discard_ask_) { book_note_to_overlay(); return; }   // CTRL+n: on in the big notes overlay
+        book_note_key(key);
+        return;
+    }
 
     // While the pending edits are written to the files nothing else may happen; ESC stops after the current file.
     if (meta_save_.active) {
@@ -3355,6 +3523,7 @@ void App::handle_key(int key) {
         return;
     }
 
+    if (mode_ == Mode::BookOverlay) { book_overlay_key(key); return; }
     if (mode_ == Mode::Creator) { creator_key(key); return; }
     if (mode_ == Mode::MenuIndex) { menu_index_key(key); return; }
 
@@ -3788,11 +3957,12 @@ void App::handle_key(int key) {
     // action individually.
     // SHIFT and the + key (the character '*' on a German keyboard): switch to the radio mode. Fixed key. Only here, in the
     // Browse view -- text fields and menus handled their keys above.
-    if (key == '*' && !last_key_was_arrow()) { switch_mode_ = true; quit_ = true; return; }
+    if ((key == '*' || key == '_') && !last_key_was_arrow()) { request_mode_switch(key == '*' ? 1 : -1); return; }
     int lookup_key = (key == '\r') ? '\n' : key;
     std::string action = resolve_hotkey_action(lookup_key);
     if (action.empty() && lookup_key >= 'a' && lookup_key <= 'z') action = resolve_hotkey_action(lookup_key - 32);
     if (action.empty() && lookup_key >= 'A' && lookup_key <= 'Z') action = resolve_hotkey_action(lookup_key + 32);
+    if (audiobook_ && book_intercept(action, key)) return;   // the audio book player's own keys (and what it does not offer)
 
     if (action == "HKeyRescan") {   // SHIFT+r: new files copied / uploaded while the app runs
         rescan_now();
@@ -4039,7 +4209,7 @@ void App::handle_key(int key) {
         mode_ = Mode::Cheatsheet;
         cheat_searching_ = false;
     } else if (action == "HKeyMenus") {   // "<": the list of all menus and overlays
-        menu_index_sel_ = std::clamp(menu_index_sel_, 0, 1000);
+        menu_index_sel_ = 0;
         mode_ = Mode::MenuIndex;
     } else if (action == "HKeyFilterForFolder") {
         if (list_source_ == ListSource::Local && !local_view_.empty() &&
@@ -4618,6 +4788,9 @@ TrackMetadata App::display_metadata() const {
 
 std::vector<std::string> App::build_metadata_panel(int total_width) const {
     const int inner = total_width - 4;
+    // The audio book's picture sits in the disk's place; its field is one column wider on the left (the other fields move to the
+    // right, the meta data field is a column shorter).
+    const int book_extra = 0;   // (the field was a column wider for a while; the picture keeps its place, the field is the disk's width again)
     const int disk_w = settings_.element_disk ? disk_.width() : 0;
     const int panel_h = disk_.height();
     
@@ -4625,7 +4798,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
     int sep_w = display_width(sep);
     const int fixed_extra = settings_.element_disk ? sep_w : 2;
 
-    int avail = std::max(10, inner - disk_w - fixed_extra);
+    int avail = std::max(10, inner - disk_w - fixed_extra + book_extra);   // (the extra column is taken from the meta data below)
     // Previously this split only happened when settings_.element_lyrics was
     // true; with it off, lyrics_w stayed 0 and meta_w took the whole
     // panel, so turning the Lyrics Engine off silently also gave up the
@@ -4638,9 +4811,30 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
     meta_w = std::min(meta_w, avail);
     int lyrics_w = std::max(0, avail - meta_w);
     if (!settings_.element_vizfield) { meta_w = avail; lyrics_w = 0; }   // "Viz/Lyrics Field" off: the meta data take the field's place
+    if (book_extra) meta_w = std::max(10, meta_w - book_extra);
 
     std::vector<std::string> disk_frame;
-    if (settings_.element_disk) {
+    bool book_pic_img = false;   // the audio book picture is a real pixel image this frame (it uses the picture slot gfx_)
+    if (settings_.element_disk && audiobook_ && book_picture_gfx(2, disk_w, panel_h)) {
+        book_pic_img = true;
+        // placeholder cells: the main loop writes them as spaces or (Sixel) skips them so the picture stays
+        for (int i = 0; i < panel_h; ++i) disk_frame.push_back(gfx_hole(disk_w));
+    } else if (settings_.element_disk && audiobook_) {
+        // The opening book takes the disk's place: braille dots in the colour wave. It is smaller than the disk, so it sits
+        // centred between the left border and the ':' of the separator (a column to the right of the exact middle when the
+        // widths do not divide), and in the upper part of the field (centred vertically).
+        const std::vector<std::string> art = book_art_lines(0, book_anim_t_);
+        const int art_w = BookArt::get(BookArt::Which::Book).cols();
+        const int left = std::clamp((disk_w + 4 - art_w + 1) / 2 - 2 + 1 + 1, 0, std::max(0, disk_w - art_w));
+        const int top = std::max(0, (panel_h - static_cast<int>(art.size())) / 2 - 2);   // two rows above the middle: the sparkles rise above the book
+        for (int i = 0; i < panel_h; ++i) {
+            const int ai = i - top;
+            if (ai >= 0 && ai < static_cast<int>(art.size()))
+                disk_frame.push_back(std::string(static_cast<size_t>(left), ' ') + art[static_cast<size_t>(ai)] +
+                                     std::string(static_cast<size_t>(std::max(0, disk_w - left - art_w)), ' '));
+            else disk_frame.emplace_back(std::string(static_cast<size_t>(disk_w), ' '));
+        }
+    } else if (settings_.element_disk) {
         disk_frame = disk_.frame(angle_);
         while (static_cast<int>(disk_frame.size()) < panel_h) disk_frame.emplace_back(std::string(disk_w, ' '));
         for (size_t row_i = 0; row_i < disk_frame.size(); ++row_i) {
@@ -4684,8 +4878,11 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
             if (marquee_slot >= 0 && marquee_slot < 3) {
                 // The scroll restarts whenever the text changes (new track).
                 const int key = static_cast<int>(std::hash<std::string>{}(mapped_val) & 0x7fffffffu);
-                value_lines.push_back(marquee_or_truncate(mapped_val, avail_v, key,
-                                                          marquee_meta_idx_[marquee_slot], marquee_meta_since_[marquee_slot]));
+                // the scrolling text ends one column before the next field starts
+                const int mw = std::max(1, avail_v - 1);
+                value_lines.push_back(marquee_or_truncate(mapped_val, mw, key,
+                                                          marquee_meta_idx_[marquee_slot], marquee_meta_since_[marquee_slot]) +
+                                      (avail_v > 0 ? " " : ""));
             } else {
                 const int room = std::max(1, last_meta_row - meta_row_cursor_ + 1);
                 value_lines = wrap_lines(mapped_val, avail_v, std::min(max_lines, room));
@@ -4727,6 +4924,39 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
                 if (me->edited[fn] && !me->value[fn].empty()) first_value = me->value[fn];
             }
         }
+        if (audiobook_) {
+            // The audio book's block: everything that matters for a book (tags read by book_poll(), "-" while they load).
+            const bool tags_ready = book_meta_path_ == path_utf8(current_path_);
+            auto tag = [&](int i) { return tags_ready && !book_meta_vals_[static_cast<size_t>(i)].empty() ? book_meta_vals_[static_cast<size_t>(i)] : std::string("-"); };
+            std::string book_name = tag(1);
+            if (book_name == "-" && !book_dir_.empty()) book_name = path_utf8(path_from_utf8(book_dir_).filename());
+            const int cur_ch = book_current_chapter();
+            std::string chapter = tag(4);
+            if (chapter == "-") chapter = path_utf8(current_path_.stem());
+            if (cur_ch >= 0) chapter = std::to_string(cur_ch + 1) + "/" + std::to_string(chapters_.size()) + "  " + chapter;
+            double total = 0, done = 0; bool complete = false;
+            book_totals(elapsed, total, done, complete);
+            auto clock = [](double sec) {
+                const long long t = static_cast<long long>(std::max(0.0, sec) + 0.5);
+                char b[32];
+                if (t >= 3600) std::snprintf(b, sizeof b, "%lld:%02lld:%02lld", t / 3600, (t / 60) % 60, t % 60);
+                else std::snprintf(b, sizeof b, "%02lld:%02lld", t / 60, t % 60);
+                return std::string(b);
+            };
+            kv("Book", book_name, 1, 0);
+            kv("Author", tag(2), 1, 1);
+            kv("Narrator", tag(3), 1, 2);
+            kv("Chapter", chapter);
+            kv("Publisher", tag(5));
+            kv("Genre", tag(6));
+            if (total > 0) {
+                kv("Length", clock(total) + (complete ? "" : " +"));
+                kv("Heard", clock(done) + "  (" + std::to_string(static_cast<int>(100.0 * done / total + 0.5)) + " %)");
+            }
+            kv("Sampling", metadata_.sampling);
+            kv("Format", metadata_.format);
+            kv("File size", metadata_.file_size);
+        } else {
         kv(show_file ? "File" : "Title", first_value, 1, 0);
         kv("Artist", shown.artist, 1, 1);
         kv("Album", shown.album, 1, 2);
@@ -4737,6 +4967,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
         kv("File size", metadata_.file_size);
         kv("Location", metadata_.location, 2);
         if (!metadata_.extra_label.empty()) kv(metadata_.extra_label, metadata_.extra_value);
+        }
 
         // Real spectrum visualizer (KISS FFT), not a copy of the progress
         // bar's RMS envelope. Two rows: bottom row is the base level
@@ -4779,7 +5010,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
         // or the file that was playing got deleted. The message sits centred
         // (both ways) in the metadata/visualizer column instead of being
         // glued to its first row, where it used to hide behind the disk.
-        meta_rows[std::max(0, panel_h / 2)] = center_pad("Currently No Track Loaded", meta_w);
+        meta_rows[std::max(0, panel_h / 2)] = center_pad(audiobook_ ? "Currently No Narrative Loaded" : "Currently No Track Loaded", meta_w);
     }
     for (int i = 0; i < static_cast<int>(meta_rows.size()); ++i) {
         if (meta_rows[i].empty()) {
@@ -4801,7 +5032,9 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
     double lyrics_delay = 0.0; // lyrics timing correction (ALT+L), seconds, + = lyrics later
     {
         std::lock_guard<std::mutex> lock(lyrics_mutex_);
-        if (settings_.lyrics_on() && lyrics_ready_) {
+        if (audiobook_) {
+            // the audio book mode fetches no lyrics: its field shows the notes (or the visualization), never a "fetching" caption
+        } else if (settings_.lyrics_on() && lyrics_ready_) {
             lines_copy = lyrics_result_.lines;
             lyrics_delay = lyrics_result_.delay;
             lyrics_status = lyrics_result_.message;
@@ -4815,7 +5048,16 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
         // misleading status line.
     }
 
-    if (!has_track_) {
+    if (!has_track_ && audiobook_) {
+        // No book loaded: the stack of books builds itself up where the visualizations are.
+        const std::vector<std::string> st = book_art_lines(1, book_idle_t_);
+        const int sw = BookArt::get(BookArt::Which::Stack).cols();
+        const int start = std::max(0, (panel_h - static_cast<int>(st.size())) / 2);
+        const int left = std::max(0, (lyrics_w - sw) / 2);
+        for (int i = 0; i < static_cast<int>(st.size()) && start + i < panel_h && lyrics_w >= sw; ++i)
+            lyric_rows[static_cast<size_t>(start + i)] = std::string(static_cast<size_t>(left), ' ') + st[static_cast<size_t>(i)] +
+                                                         std::string(static_cast<size_t>(std::max(0, lyrics_w - left - sw)), ' ');
+    } else if (!has_track_) {
         // Nothing is playing, so there is no lyric visual and no lyric line to draw
         // and this column would just be empty. Fill it with the braille
         // cassette picture (kTapeArt above -- 15 rows of 30 cells, the disk's
@@ -4882,7 +5124,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
                 const int pal = os.palette;
                 OscilloscopeVisualizer::Params osci_params = osci_scope_params(settings_, viz_dt_);
                 bool as_image = false;
-                if (settings_.osci_style == 1 && gfx_proto_ != GfxProto::None && lyrics_w > 0) {
+                if (settings_.osci_style == 1 && gfx_proto_ != GfxProto::None && lyrics_w > 0 && !book_pic_img) {
                     // image style: the terminal draws the picture; the cells stay blank here and the loop emits it
                     gfx_cell_pixels(settings_.cell_pixels, cell_w_, cell_h_);
                     const int cw0 = std::max(4, cell_w_), ch0 = std::max(8, cell_h_);
@@ -5042,6 +5284,9 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
             }
         }
     }
+
+    // Audio book: the note that is typed or shown takes the field's place (oscilloscope / spectrogram come back when it is put away).
+    if (audiobook_ && lyrics_w >= 12 && book_field_has_note()) lyric_rows = book_note_field_rows(lyrics_w, panel_h);
 
     // --- assemble bordered block ---
     // NOTE: lyric_rows may contain ANSI color codes (word-highlighting),
@@ -5265,7 +5510,7 @@ std::vector<std::string> App::build_progress_panel(int total_width) const {
 std::vector<std::string> App::build_search_bar(int total_width) const {
     std::string label = (list_source_ == ListSource::Online) ? "SEARCH ONLINE"
                        : (list_source_ == ListSource::Playlist) ? "SEARCH PLAYLISTS"
-                       : (list_source_ == ListSource::Folder) ? "SEARCH FOLDERS"
+                       : (list_source_ == ListSource::Folder) ? (audiobook_ ? "SEARCH BOOKS" : "SEARCH FOLDERS")
                        : "SEARCH LOCAL";
     if (list_source_ == ListSource::Local) {   // "/r:" and "/a:" narrow the search to artists / albums
         std::string rest;
@@ -5298,7 +5543,7 @@ std::vector<std::string> App::build_search_bar(int total_width) const {
     } else if (list_source_ == ListSource::Playlist) {
         content = "/p:" + last_playlist_query_;
     } else if (list_source_ == ListSource::Folder) {
-        content = "/f:" + last_folder_query_;
+        content = (audiobook_ ? "/" : "/f:") + last_folder_query_;
     } else {
         std::string rest;
         const int scope = local_query_scope(last_local_query_, rest);
@@ -5375,7 +5620,7 @@ std::vector<std::string> App::build_list_panel(int total_width, int height) cons
     bool folders_mode = (list_source_ == ListSource::Folder);
     std::string label = online ? "ONLINE RESULTS"
                        : playlists_mode ? "SAVED PLAYLISTS (Enter: queue all)"
-                       : folders_mode ? "LOCAL AUDIO FOLDERS (Enter: open folder)"
+                       : folders_mode ? (audiobook_ ? "AUDIO BOOKS (Enter: open the book)" : "LOCAL AUDIO FOLDERS (Enter: open folder)")
                        : local_pane_label(total_width - 2);   // 2 columns stay free for the focus indicator
     size_t total = online ? online_view_.size() : playlists_mode ? playlist_view_.size()
                  : folders_mode ? folder_view_.size() : local_view_.size();
@@ -5421,9 +5666,12 @@ std::vector<std::string> App::build_list_panel(int total_width, int height) cons
                 std::string t_idx = apply_font_map(std::to_string(idx + 1), settings_.font_map);
                 std::string t_name = apply_font_map(f.name, settings_.font_map);
                 std::string t_parent = apply_font_map(f.parent, settings_.font_map);
-                std::string t_count = std::to_string(f.track_count) + (f.track_count == 1 ? " track" : " tracks");
+                std::string t_count = std::to_string(f.track_count) + (audiobook_ ? (f.track_count == 1 ? " chapter" : " chapters") : (f.track_count == 1 ? " track" : " tracks"));
+                if (audiobook_ && f.up) { t_name = "\u2190 .."; t_count.clear(); }
+                else if (audiobook_ && f.container) { t_name = "\u25b8 " + t_name; t_count = std::to_string(f.sub_count) + (f.sub_count == 1 ? " book" : " books"); }   // a folder you walk into
                 content = pad_right(t_idx, idx_w) + settings_.list_separator + " "
-                        + pad_right(truncate_str(t_name, name_w), name_w) + settings_.list_separator + " "
+                        + (idx == selected_ ? marquee_or_truncate(t_name, name_w, idx + 1000000, marquee_row_idx_, marquee_since_)   // (the hovered folder / book scrolls when too long)
+                                            : pad_right(truncate_str(t_name, name_w), name_w)) + settings_.list_separator + " "
                         + pad_right(truncate_str(t_parent, parent_w), parent_w) + settings_.list_separator + " "
                         + pad_right(t_count, count_w);
             } else {
@@ -5498,7 +5746,8 @@ std::vector<std::string> App::build_list_panel(int total_width, int height) cons
     return out;
 }
 
-std::vector<std::string> App::build_queue_panel(int total_width, int height) const {
+std::vector<std::string> App::build_queue_panel(int total_width, int height, bool wide_artist) const {
+    if (audiobook_) return build_chapter_panel(total_width, height);   // (the audio book player has chapters instead of a queue)
     int inner = total_width - 4;
     std::string border_ansi = ansi_for(settings_.border_color, false);
     std::string border_ansi_bottom = ansi_for(settings_.border_color_bottom, false);
@@ -5547,7 +5796,7 @@ std::vector<std::string> App::build_queue_panel(int total_width, int height) con
                 std::string t_title = apply_font_map(q.is_local ? list_row_title(q.local_path, q.title) : q.title, settings_.font_map);   // "Show meta data only" counts here too
                 const std::string t_artist = apply_font_map(artist, settings_.font_map);
                 const int sep_w = display_width(settings_.list_separator) + 1;
-                const int artist_w = inner >= 34 ? 16 : inner >= 24 ? 10 : 0;
+                const int artist_w = inner >= 34 ? (wide_artist && inner >= 80 ? 32 : 16) : inner >= 24 ? 10 : 0;   // (the big overlay: twice the room for the artist)
                 if (artist_w == 0) content = t_title;
                 else {
                     const int title_w = std::max(5, inner - artist_w - sep_w);
@@ -7976,7 +8225,7 @@ bool App::list_overlay_active() const {
     if (!list_overlay_open_) return false;
     switch (mode_) {
         case Mode::Browse: case Mode::Search: case Mode::BulkAdd:
-        case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: return true;
+        case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: case Mode::BookOverlay: return true;
         default: return false;
     }
 }
@@ -8203,7 +8452,7 @@ bool App::folder_overlay_active() const {
 void App::folder_overlay_build_tree() {
     fo_subdirs_.clear(); fo_files_.clear(); fo_count_.clear(); fo_roots_.clear();
     std::vector<fs::path> roots;
-    for (const auto& r : settings_.local_music_paths) if (!r.empty()) roots.push_back(fo_normal_root(r));
+    for (const auto& r : library_roots()) if (!r.empty()) roots.push_back(fo_normal_root(r));
 
     std::map<std::string, std::set<std::string>> sub;
     std::set<std::string> root_keys, seen;
@@ -8340,7 +8589,19 @@ void App::folder_overlay_open() {
     folder_overlay_build_tree();
     // Start on the folder of the hovered track, with the way down to it opened.
     std::string target;
-    if (list_source_ == ListSource::Local && selected_ >= 0 && selected_ < static_cast<int>(local_view_.size()))
+    fo_marked_.clear();
+    if (audiobook_) {   // the audio book player: the open book (else the book under the cursor), with its chapters shown
+        if (!book_dir_.empty()) { target = book_dir_; fo_expanded_.insert(book_dir_); }
+        else if (selected_ >= 0 && selected_ < static_cast<int>(folder_view_.size())) target = folder_view_[static_cast<size_t>(selected_)].path;
+        for (const auto& kv : fo_files_) {   // chapters with a bookmark get a mark
+            BookCue cue;
+            if (!cue.load(BookCue::path_for(path_from_utf8(kv.first)))) continue;
+            for (const std::string& raw : cue.get_all_raw("REM BOOKMARK")) {
+                BookMark m;
+                if (parse_bookmark(raw, m)) fo_marked_.insert(path_utf8(path_from_utf8(kv.first) / path_from_utf8(m.file)));
+            }
+        }
+    } else if (list_source_ == ListSource::Local && selected_ >= 0 && selected_ < static_cast<int>(local_view_.size()))
         target = path_utf8(local_view_[static_cast<size_t>(selected_)].path.parent_path());
     else if (!folder_filter_.empty()) target = folder_filter_;
     if (!target.empty() && fo_files_.count(target)) {
@@ -8373,6 +8634,12 @@ void App::folder_overlay_filter() {
     if (fo_sel_ < 0 || fo_sel_ >= static_cast<int>(fo_view_.size())) return;
     const FoRow row = fo_view_[static_cast<size_t>(fo_sel_)];
     const std::string dir = row.is_dir ? row.path : path_utf8(path_from_utf8(row.path).parent_path());
+    if (audiobook_) {   // `f`: the book opens in the chapter pane
+        folder_overlay_close();
+        if (!book_open_dir(dir)) { status_line_ = "that folder holds no audio files"; return; }
+        if (!row.is_dir) for (size_t i = 0; i < chapters_.size(); ++i) if (path_utf8(chapters_[i].path) == row.path) { queue_selected_ = static_cast<int>(i); book_fit_scroll(); break; }
+        return;
+    }
     folder_filter_ = dir;
     last_local_query_.clear();   // otherwise an old query would hide files of the folder
     local_sort_mode_ = 0;        // folder order, like `f`
@@ -8413,7 +8680,13 @@ bool App::folder_overlay_key(int key) {
     const FoRow* cur = (fo_sel_ >= 0 && fo_sel_ < total) ? &fo_view_[static_cast<size_t>(fo_sel_)] : nullptr;
     if (key == kKeyCtrlP) {      // CTRL+p: play the hovered file; the overlay stays open
         if (!cur) return true;
-        if (cur->is_dir) { status_line_ = "CTRL+p plays a file -- open the folder (ENTER) and pick one"; return true; }
+        if (cur->is_dir) { status_line_ = "CTRL+p plays a chapter -- open the book (ENTER) and pick one"; return true; }
+        if (audiobook_) {   // plays from its start at once (no questions), the overlay stays
+            if (!book_open_dir(path_utf8(path_from_utf8(cur->path).parent_path()))) return true;
+            for (size_t i = 0; i < chapters_.size(); ++i)
+                if (path_utf8(chapters_[i].path) == cur->path) { book_prompt_paused_ = false; book_play_chapter(static_cast<int>(i)); break; }
+            return true;
+        }
         for (const auto& t : all_local_tracks_)
             if (path_utf8(t.path) == cur->path) {
                 queue_focus_ = false;
@@ -8431,7 +8704,7 @@ bool App::folder_overlay_key(int key) {
         return true;
     }
 
-    if (key == 27) { folder_overlay_close(); return true; }
+    if (key == 27 || (audiobook_ && key == 'S')) { folder_overlay_close(); return true; }
     if (key == '/' || key == 9) { fo_search_ = true; return true; }
 
     if (key == '\r' || key == '\n') {
@@ -8439,6 +8712,10 @@ bool App::folder_overlay_key(int key) {
         if (cur->is_dir) {
             if (fo_expanded_.count(cur->path)) fo_expanded_.erase(cur->path); else fo_expanded_.insert(cur->path);
             folder_overlay_rebuild_view();
+        } else if (audiobook_) {   // ENTER on a chapter: its book opens and the chapter plays (with the bookmark questions)
+            const std::string file = cur->path;
+            folder_overlay_close();
+            if (!book_play_file(file)) status_line_ = "that file no longer exists";
         } else {
             status_line_ = "[" + hotkey_text("HKeyFilterForFolder", "f") + "] shows this file's folder in the list";
         }
@@ -8466,6 +8743,7 @@ bool App::folder_overlay_key(int key) {
     std::string action = resolve_hotkey_action(lookup);
     if (action.empty() && lookup >= 'a' && lookup <= 'z') action = resolve_hotkey_action(lookup - 32);
     if (action.empty() && lookup >= 'A' && lookup <= 'Z') action = resolve_hotkey_action(lookup + 32);
+    if (audiobook_ && !fo_search_ && book_overlay_switch(key)) return true;   // SHIFT+k / m / l: the other audio book overlays
     if (action == "HKeyFolderOverlay") { folder_overlay_close(); return true; }
     if (action == "HKeyListOverlay") { folder_overlay_close(); list_overlay_open(); return true; }     // switch without closing first
     if (action == "HKeyQueueOverlay") { folder_overlay_close(); queue_overlay_open(); return true; }
@@ -8480,13 +8758,30 @@ bool App::folder_overlay_key(int key) {
 
 void App::folder_overlay_geometry(int W, int& panel_w, int& rows) const {
     panel_w = std::min(W, std::max(40, std::min(W - 6, 160)));
-    const int legend = static_cast<int>(folder_overlay_legend(panel_w).size());
+    const int legend = audiobook_ ? static_cast<int>(folder_overlay_book_legend(panel_w).size()) : static_cast<int>(folder_overlay_legend(panel_w).size());
     rows = std::max(1, term_rows_ - 2 + overlay_legend_shift(legend) - kListOverlayChromeRows - legend);
+}
+
+// The legend of the library overlay of the audio book mode: a tree table in three groups (the legends of the meta editor look like this).
+std::vector<LegendRow> App::folder_overlay_book_legend(int panel_w) const {
+    const std::vector<LegendGroup> groups = {
+        {"Open", {"[ENTER] Open the book / play the chapter\001Open", "[\u2190\u2192] Close/open a book\001Fold", "[" + hotkey_text("HKeyFilterForFolder", "f") + "] Book to the chapter pane\001To pane"}},
+        {"Play", {"[CTRL+p] Play from the start (the overlay stays)\001Play"}},
+        {"Find", {"[/] Search", "[SHIFT+\u2191\u2193] Page", "[ESC] Close"}}};
+    return layout_legend_tree(groups, std::max(0, panel_w), 3);
 }
 
 std::vector<std::string> App::folder_overlay_legend(int panel_w) const {
     const int max_lines = std::clamp(term_rows_ - kListOverlayChromeRows - 5, 1, 3);
-    std::vector<std::string> items = {
+    std::vector<std::string> items = audiobook_ ? std::vector<std::string>{
+        "[←→] open/close book",
+        "[ENTER] open the book / play the chapter",
+        "[" + hotkey_text("HKeyFilterForFolder", "f") + "] book to the chapter pane",
+        "[CTRL+p] play from the start",
+        "[/] search",
+        "[SHIFT+↑↓] page",
+        "[ESC] close",
+    } : std::vector<std::string>{
         "[ENTER/←→] open/close folder",
         "[" + hotkey_text("HKeyFilterForFolder", "f") + "] folder to list",
         "[CTRL+p] play",
@@ -8506,9 +8801,9 @@ std::vector<std::string> App::build_folder_overlay_panel(int panel_w, int list_r
     // --- search bar (same look as the main one) ---
     {
         const int search_w = panel_w - 5;
-        out.push_back(box_top("SEARCH LOCAL FOLDERS", search_w, border_ansi) + border_ansi + "╭───╮\x1b[0m");
+        out.push_back(box_top(audiobook_ ? "SEARCH BOOKS" : "SEARCH LOCAL FOLDERS", search_w, border_ansi) + border_ansi + "╭───╮\x1b[0m");
         const int inner = std::max(0, search_w - 4);
-        const std::string pre = "/f:";
+        const std::string pre = audiobook_ ? "/" : "/f:";
         std::string q = fo_query_;
         const int room = std::max(0, inner - display_width(pre) - (fo_search_ ? 1 : 0));
         if (display_width(q) > room) q = truncate_str(q, room);
@@ -8523,7 +8818,7 @@ std::vector<std::string> App::build_folder_overlay_panel(int panel_w, int list_r
     // --- the tree ---
     const int inner = panel_w - 4;
     const int total = static_cast<int>(fo_view_.size());
-    out.push_back(box_top("LOCAL AUDIO FILES FOLDER", panel_w, border_ansi));
+    out.push_back(box_top(audiobook_ ? "AUDIO BOOKS" : "LOCAL AUDIO FILES FOLDER", panel_w, border_ansi));
     for (int row = 0; row < list_rows; ++row) {
         const int idx = fo_scroll_ + row;
         std::string content;
@@ -8531,10 +8826,10 @@ std::vector<std::string> App::build_folder_overlay_panel(int panel_w, int list_r
         if (idx < total) {
             const FoRow& r = fo_view_[static_cast<size_t>(idx)];
             const std::string indent(static_cast<size_t>(r.depth) * 2, ' ');
-            const std::string mark = r.is_dir ? (r.expanded ? "▾ " : "▸ ") : "  ";
+            const std::string mark = r.is_dir ? (r.expanded ? "▾ " : "▸ ") : (audiobook_ && fo_marked_.count(r.path) ? "◆ " : "  ");   // (◆: a bookmark)
             const std::string head = indent + mark;
             if (r.is_dir) {
-                const std::string cnt = std::to_string(r.count) + (r.count == 1 ? " track" : " tracks");
+                const std::string cnt = std::to_string(r.count) + (audiobook_ ? (r.count == 1 ? " chapter" : " chapters") : (r.count == 1 ? " track" : " tracks"));
                 const int name_w = std::max(5, inner - display_width(head) - 2 - static_cast<int>(cnt.size()));
                 content = head + pad_right(truncate_str(apply_font_map(r.label, settings_.font_map), name_w), name_w) + "  " + cnt;
             } else {
@@ -8569,8 +8864,13 @@ std::vector<std::string> App::build_folder_overlay_panel(int panel_w, int list_r
         out.push_back(box_bottom(panel_w, footer, border_ansi_bottom));
     }
     {
-        const auto lines = folder_overlay_legend(panel_w);
-        for (const auto& l : lines) out.push_back(overlay_legend_line(settings_, l, panel_w, lines.size() > 1));
+        if (audiobook_) {
+            const auto lrows = folder_overlay_book_legend(panel_w);
+            for (size_t i = 0; i < lrows.size(); ++i) out.push_back(paint_legend(settings_, lrows, i, border_ansi, panel_w, false));
+        } else {
+            const auto lines = folder_overlay_legend(panel_w);
+            for (const auto& l : lines) out.push_back(overlay_legend_line(settings_, l, panel_w, lines.size() > 1));
+        }
     }
     return out;
 }
@@ -8851,7 +9151,7 @@ void App::convert_overlay_start() {
 
     const fs::path out = path_from_utf8(conversion_export_dir());
     std::vector<fs::path> roots;
-    for (const auto& r : settings_.local_music_paths) if (!r.empty()) roots.push_back(fo_normal_root(r));
+    for (const auto& r : library_roots()) if (!r.empty()) roots.push_back(fo_normal_root(r));
     const std::string ext = convert_preset(cv_preset_).ext;
 
     std::vector<ConvertItem> items;
@@ -9178,7 +9478,7 @@ bool App::queue_overlay_active() const {
     if (!queue_overlay_open_) return false;
     switch (mode_) {
         case Mode::Browse: case Mode::Search: case Mode::BulkAdd:
-        case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: return true;
+        case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: case Mode::BookOverlay: return true;
         default: return false;
     }
 }
@@ -9234,7 +9534,7 @@ void App::queue_overlay_page(int dir) {
 // box; only its bottom border is replaced, to carry the page counter, the
 // number of tracks; the key legend follows below the frame (see build_list_overlay_panel()).
 std::vector<std::string> App::build_queue_overlay_panel(int panel_w, int queue_rows) const {
-    std::vector<std::string> out = build_queue_panel(panel_w, queue_rows);
+    std::vector<std::string> out = build_queue_panel(panel_w, queue_rows, true);
     if (!out.empty()) {
         const int total = static_cast<int>(queue_.size());
         const int rows = std::max(1, queue_rows);
@@ -9719,37 +10019,6 @@ void App::eq_delete_custom(bool confirmed) {
     eq_status_ = "Deleted \"" + name + "\"";
     save_settings(settings_);
 }
-
-namespace {
-// A bottom border with its text centred in it (the dashes are split evenly on both sides).
-std::string centred_bottom(const Settings& s, int W, const std::string& text, const std::string& colour) {
-    const std::string t = " " + truncate_str(text, W - 6) + " ";
-    const int dashes = std::max(0, W - 2 - display_width(t));
-    const int left = dashes / 2, right = dashes - left;
-    std::string out = s.box_lower_left;
-    for (int i = 0; i < left; ++i) out += s.box_horizontal;
-    out += t;
-    for (int i = 0; i < right; ++i) out += s.box_horizontal;
-    out += s.box_lower_right;
-    return colour.empty() ? out : colour + out + "\x1b[0m";
-}
-
-// The legend of a floating option panel, all rows in the bottom border colour. With several rows the middle one sits ON the bottom
-// border line (rows/2 rows inside the panel, the rest hanging below it), so the block is centred on that line. `inside(text)` makes
-// a framed row, `bottom(text)` the bottom border carrying a text.
-template <class Inside, class Bottom>
-void push_legend_block(std::vector<std::string>& lines, int W, const std::string& colour, const std::vector<std::string>& rows,
-                       Inside inside, Bottom bottom) {
-    const size_t before = rows.size() / 2;
-    for (size_t i = 0; i < before; ++i) lines.push_back(inside(rows[i]));
-    lines.push_back(bottom(rows[before]));
-    for (size_t i = before + 1; i < rows.size(); ++i) {
-        const std::string tx = truncate_str(rows[i], W - 4);
-        const int left = std::max(0, (W - display_width(tx)) / 2);
-        lines.push_back(colour + std::string(static_cast<size_t>(left), ' ') + tx + std::string(static_cast<size_t>(std::max(0, W - left - display_width(tx))), ' ') + "\x1b[0m");
-    }
-}
-} // namespace
 
 std::vector<std::string> App::build_eq_panel() const {
     const int W = kEqPanelWidth;
@@ -10242,7 +10511,7 @@ std::vector<std::string> App::build_sleep_timer_panel() const {
 // ---------------------------------------------------------------------
 namespace {
 struct MenuIdxEntry { const char* cat; const char* title; const char* action; const char* fallback; };
-const MenuIdxEntry kMenuIdx[] = {
+const MenuIdxEntry kMenuIdxPlayer[] = {
     {"LYRICS",           "Karaoke",                   "HKeyKaraoke",        "k"},
     {"LYRICS",           "Read lyrics",               "HKeyReadLyrics",     "CTRL+L"},
     {"LYRICS",           "Lyrics timing",             "HKeyLyricsTiming",   "ALT+L"},
@@ -10269,11 +10538,42 @@ const MenuIdxEntry kMenuIdx[] = {
     {"SYSTEM",           "Help wizard",               "HKeyWizard",         "W"},
     {"SYSTEM",           "Cheat sheet",               "HKeyCheatsheet",     "?"},
 };
-constexpr int kMenuIdxCount = static_cast<int>(sizeof(kMenuIdx) / sizeof(kMenuIdx[0]));
+// The audio book mode: only what it can do (the lyrics, playlist and creator entries are not there). An action starting with '#'
+// is a fixed key (the fallback), not a bound one.
+const MenuIdxEntry kMenuIdxBook[] = {
+    {"BOOKS & NOTES",    "Library overlay",           "#",                  "S"},
+    {"BOOKS & NOTES",    "Notes overlay",             "HKeyListOverlay",    "L"},
+    {"BOOKS & NOTES",    "Bookmark list",             "HKeyQueueOverlay",   "K"},
+    {"BOOKS & NOTES",    "New note",                  "HKeyToggleMetaOnly", "N"},
+    {"BOOKS & NOTES",    "Set bookmark",              "HKeyFetchTags",      "B"},
+    {"BOOKS & NOTES",    "Chapter marks",             "HKeyLyricsTiming",   "ALT+L"},
+    {"BOOKS & NOTES",    "Tag editor",                "HKeyMetaEditor",     "M"},
+    {"BOOKS & NOTES",    "Reading history",           "HKeyHistory",        "H"},
+    {"BOOKS & NOTES",    "File conversion",           "HKeyConvertOverlay", "C"},
+    {"SOUND",            "Equalizer",                 "HKeyEqualizer",      "E"},
+    {"SOUND",            "Normalization",             "HKeyNormMenu",       "V"},
+    {"SOUND",            "Sleep timer",               "HKeySleepTimer",     "Z"},
+    {"VISUALS",          "Oscilloscope options",      "HKeyOscMenu",        "O"},
+    {"VISUALS",          "Oscilloscope full screen",  "HKeyScopeBig",       "="},
+    {"VISUALS",          "Spectrogram options",       "HKeySpectroMenu",    "I"},
+    {"VISUALS",          "Spectrogram full screen",   "HKeySpectroFull",    "U"},
+    {"SYSTEM",           "Settings",                  "HKeySetting",        "s"},
+    {"SYSTEM",           "Console / logs",            "HKeyConsole",        "t"},
+    {"SYSTEM",           "Help wizard",               "HKeyWizard",         "W"},
+    {"SYSTEM",           "Cheat sheet",               "HKeyCheatsheet",     "?"},
+};
+struct MenuIdxTable { const MenuIdxEntry* e; int n; };
+MenuIdxTable menu_idx_table(bool book) {
+    return book ? MenuIdxTable{kMenuIdxBook, static_cast<int>(sizeof(kMenuIdxBook) / sizeof(kMenuIdxBook[0]))}
+                : MenuIdxTable{kMenuIdxPlayer, static_cast<int>(sizeof(kMenuIdxPlayer) / sizeof(kMenuIdxPlayer[0]))};
+}
 
 // Two columns of cells (entry index, or -1 for a header / blank line), split at the category boundary that balances them.
 struct MenuIdxCell { int entry = -1; const char* header = nullptr; };
-std::vector<std::vector<MenuIdxCell>> menu_idx_layout() {
+std::vector<std::vector<MenuIdxCell>> menu_idx_layout(bool book) {
+    const MenuIdxTable tab = menu_idx_table(book);
+    const MenuIdxEntry* kMenuIdx = tab.e;
+    const int kMenuIdxCount = tab.n;
     std::vector<std::vector<MenuIdxCell>> cats;   // one cell list per category
     for (int i = 0; i < kMenuIdxCount; ++i) {
         if (i == 0 || std::string(kMenuIdx[i].cat) != kMenuIdx[i - 1].cat) cats.push_back({MenuIdxCell{-1, kMenuIdx[i].cat}});
@@ -10305,7 +10605,10 @@ std::vector<std::string> App::build_menu_index_panel() const {
     const std::string border_bottom = ansi_for(settings_.border_color_bottom, false);
     const std::string R = "\x1b[0m", HI = "\x1b[7m";
     const std::string bar = border + settings_.box_vertical + R;
-    const auto cols = menu_idx_layout();
+    const MenuIdxTable tab = menu_idx_table(audiobook_);
+    const MenuIdxEntry* kMenuIdx = tab.e;
+    const int kMenuIdxCount = tab.n;
+    const auto cols = menu_idx_layout(audiobook_);
     const size_t rows = std::max(cols[0].size(), cols[1].size());
     const int sel = std::clamp(menu_index_sel_, 0, kMenuIdxCount - 1);
 
@@ -10317,7 +10620,7 @@ std::vector<std::string> App::build_menu_index_panel() const {
         if (c.header) return "  " + header_sgr(settings_) + pad_right(c.header, cw) + R + "  ";
         if (c.entry < 0) return std::string(static_cast<size_t>(cw_full), ' ');
         const MenuIdxEntry& e = kMenuIdx[c.entry];
-        const std::string key = "[" + hotkey_text(e.action, e.fallback) + "]";
+        const std::string key = "[" + (e.action[0] == '#' ? std::string(e.fallback) : hotkey_text(e.action, e.fallback)) + "]";
         const std::string left = std::string(c.entry == sel ? "> " : "  ") + e.title;
         const int gap = std::max(1, cw - display_width(left) - display_width(key));
         const std::string plain = truncate_str(left + std::string(static_cast<size_t>(gap), ' ') + key, cw);
@@ -10339,7 +10642,11 @@ std::vector<std::string> App::build_menu_index_panel() const {
 void App::menu_index_key(int key) {
     const bool arrow = last_key_was_arrow();
     if (!arrow && (key == 27 || key_is("HKeyMenus", key))) { mode_ = Mode::Browse; return; }
-    const auto cols = menu_idx_layout();
+    const MenuIdxTable tab = menu_idx_table(audiobook_);
+    const MenuIdxEntry* kMenuIdx = tab.e;
+    const int kMenuIdxCount = tab.n;
+    const auto cols = menu_idx_layout(audiobook_);
+    menu_index_sel_ = std::clamp(menu_index_sel_, 0, kMenuIdxCount - 1);
     int col = 0; size_t row = 0;
     for (int c = 0; c < 2; ++c)
         for (size_t r = 0; r < cols[c].size(); ++r) if (cols[c][r].entry == menu_index_sel_) { col = c; row = r; }
@@ -10360,7 +10667,9 @@ void App::menu_index_key(int key) {
         const MenuIdxEntry& e = kMenuIdx[std::clamp(menu_index_sel_, 0, kMenuIdxCount - 1)];
         const auto it = settings_.hotkeys.find(e.action);
         mode_ = Mode::Browse;
-        if (it != settings_.hotkeys.end()) {
+        if (e.action[0] == '#') {   // a fixed key
+            handle_key(static_cast<unsigned char>(e.fallback[0]));
+        } else if (it != settings_.hotkeys.end()) {
             const int k = hotkey_string_to_key(it->second);
             if (k > 0) handle_key(k);
         }
@@ -10932,7 +11241,7 @@ std::string App::render_frame(TerminalIO& term) {
         // opening and closing it would force a full clear and flicker.
         if (m == Mode::LyricsEdit && lyrics_edit_from_karaoke_) return 7;
         switch (m) {
-            case Mode::Browse: case Mode::Search: case Mode::BulkAdd: case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: return 0;
+            case Mode::Browse: case Mode::Search: case Mode::BulkAdd: case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: case Mode::BookOverlay: return 0;
             case Mode::Settings: case Mode::ColorEdit: return 1;
             case Mode::Console: return 2;
             case Mode::Cheatsheet: return 3;
@@ -10945,7 +11254,11 @@ std::string App::render_frame(TerminalIO& term) {
         }
         return 0;
     };
-    const bool big_overlay_now = list_overlay_active() || convert_overlay_active() || folder_overlay_active() || queue_overlay_active();
+    // (the audio book's full-screen faces - notes, bookmarks, chapter marks - count too: closing them clears the whole screen, so no row of
+    // their window or legend can stay behind in the main screen)
+    const bool book_big_overlay = audiobook_ && mode_ == Mode::BookOverlay &&
+        (book_ov_kind_ == BookOv::Notes || book_ov_kind_ == BookOv::Marks || book_ov_kind_ == BookOv::Chapters);
+    const bool big_overlay_now = list_overlay_active() || convert_overlay_active() || folder_overlay_active() || queue_overlay_active() || book_big_overlay;
     const bool overlay_closed = last_big_overlay_ && !big_overlay_now;
     last_big_overlay_ = big_overlay_now;
     bool hard_clear = overlay_closed || (W != last_render_w_) || (term_rows_ != last_render_rows_) || (mode_family(mode_) != mode_family(last_render_mode_)) || force_redraw_;
@@ -11384,6 +11697,8 @@ std::string App::render_frame(TerminalIO& term) {
         draw_floating_panel(floating, build_menu_index_panel(), kMenuIndexPanelWidth, W, 0, true);
     } else if (mode_ == Mode::SleepTimer) {
         draw_floating_panel(floating, build_sleep_timer_panel(), kSleepTimerPanelWidth, W);
+    } else if (mode_ == Mode::BookOverlay) {
+        { const int bw = book_ov_width(W); draw_floating_panel(floating, build_book_overlay_panel(bw), bw, W); }
     } else if (mode_ == Mode::Creator) {
         draw_floating_panel(floating, build_creator_panel(), kCreatorPanelWidth, W);
     } else if (mode_ == Mode::Equalizer) {
@@ -11397,6 +11712,28 @@ std::string App::render_frame(TerminalIO& term) {
         else {
             gfx_.crop = 0;
             const int fx = float_rect_[0], fy = float_rect_[1], fw = float_rect_[2], fh = float_rect_[3];
+            if (gfx_.plain) {
+                // The audio book picture stays under a floating panel (a question, the "<" menu): only the pixels the panel covers
+                // are left out. `gfx_full_level_` is the picture as made; the hole is cut into the copy that is sent.
+                int cut[4] = {0, 0, 0, 0};
+                if (floating_mode && fw > 0 && fy < gfx_.row + gfx_.rows && fy + fh > gfx_.row && fx < gfx_.col + gfx_.cols && fx + fw > gfx_.col &&
+                    gfx_.cols > 0 && gfx_.rows > 0) {
+                    cut[0] = std::clamp((fx - gfx_.col) * gfx_.w / gfx_.cols, 0, gfx_.w);
+                    cut[2] = std::clamp((fx + fw - gfx_.col) * gfx_.w / gfx_.cols + 1, 0, gfx_.w);
+                    cut[1] = std::clamp((fy - gfx_.row) * gfx_.h / gfx_.rows, 0, gfx_.h);
+                    cut[3] = std::clamp((fy + fh - gfx_.row) * gfx_.h / gfx_.rows + 1, 0, gfx_.h);
+                }
+                const bool changed = std::memcmp(cut, gfx_last_cut_, sizeof(cut)) != 0;
+                const bool new_picture = gfx_.fresh || gfx_full_level_.size() != gfx_.level.size();
+                if (new_picture) gfx_full_level_ = gfx_.level;
+                else if (changed) gfx_.level = gfx_full_level_;
+                if (new_picture || changed) {
+                    for (int y = cut[1]; y < cut[3]; ++y)
+                        std::fill(gfx_.level.begin() + static_cast<long>(y) * gfx_.w + cut[0], gfx_.level.begin() + static_cast<long>(y) * gfx_.w + cut[2], 0);
+                    if (changed) gfx_.fresh = true;
+                }
+                std::memcpy(gfx_last_cut_, cut, sizeof(cut));
+            } else
             if (floating_mode && fw > 0 && fy < gfx_.row + gfx_.rows && fy + fh > gfx_.row && fx < gfx_.col + gfx_.cols && fx + fw > gfx_.col) {
                 // an overlay covers part of the picture: free the columns up to its right edge (all of it when it sits further right)
                 gfx_.crop = fx <= gfx_.col ? std::clamp(fx + fw - gfx_.col, 0, gfx_.cols) : gfx_.cols;
@@ -11451,6 +11788,7 @@ int App::run() {
     // Coming back from the radio the App is still alive (it was only suspended): nothing is initialised or restored again.
     const bool resuming = suspended_;
     suspended_ = false;
+    g_settings_book_layout = audiobook_;   // (the settings screen shows this mode's rows)
     remote::start("player");
     if (resuming) sync_after_radio();
     remote_app_apply();   // the remote app's web server (Settings -> ON/OFF -> MODES -> Remote App)   // the radio's settings may have changed some of ours meanwhile
@@ -11483,7 +11821,7 @@ int App::run() {
     // or corrupt snapshot.json is treated identically to "no snapshot at
     // all" (load_snapshot() already guards that), so this always falls
     // back to the normal cold-start behavior on any failure.
-    if (settings_.autosave_enabled) {
+    if (settings_.autosave_enabled && !audiobook_) {   // (the audio book player keeps its place in the .cue files instead)
         SnapshotData snap;
         if (load_snapshot(snap)) {
             restore_snapshot(snap);
@@ -11495,7 +11833,7 @@ int App::run() {
             log_event("restored previous session");
         }
     }
-    if (!restored && !local_view_.empty()) {
+    if (!restored && !local_view_.empty() && !audiobook_) {
         selected_ = 0;
         start_local_track(local_view_[0]);
     }
@@ -11503,7 +11841,7 @@ int App::run() {
     // writes WizardSeen=true, so this happens exactly once -- and only on a
     // cold start, never when coming back from the radio (which keeps the
     // player suspended, not restarted).
-    if (wizard::kEnabled && !settings_.wizard_seen) wizard_open();
+    if (wizard::kEnabled && !settings_.wizard_seen && !audiobook_) wizard_open();
     }   // !resuming
 
     TerminalIO term;
@@ -11524,7 +11862,7 @@ int App::run() {
         const auto frame_start = std::chrono::steady_clock::now();
         // the image styles (oscilloscope or spectrogram) need to know what the terminal speaks: ask once, and again when
         // the protocol setting changes
-        if ((settings_.osci_style == 1 || settings_.spectro.style == 1) && gfx_probed_pref_ != settings_.gfx_protocol) {
+        if ((settings_.osci_style == 1 || settings_.spectro.style == 1 || audiobook_) && gfx_probed_pref_ != settings_.gfx_protocol) {
             if (gfx_shown) { write_frame(gfx_clear(gfx_proto_)); gfx_shown = false; }
             gfx_proto_ = gfx_probe(settings_.gfx_protocol);
             gfx_probed_pref_ = settings_.gfx_protocol;
@@ -11564,6 +11902,9 @@ int App::run() {
                        (mode_ == Mode::BulkAdd && !bulk_add_results_ready_) ||
                        (mode_ == Mode::QueueToPlaylist && qtp_stage_ >= 1) ||
                        (mode_ == Mode::RetryLyrics && rl_text_ptr(rl_focus_) != nullptr) ||
+                       (audiobook_ && book_note_edit_ && book_note_typing_ && !book_note_discard_ask_) ||   // the note editor (CTRL+c copies)
+                       (audiobook_ && book_note_shown_ && !book_note_edit_) ||                            // a note in the field: CTRL+c copies it
+                       (audiobook_ && mode_ == Mode::BookOverlay && book_ov_kind_ == BookOv::Notes) ||     // the notes overlay (list, path fields, editor)
                        (mode_ == Mode::Cheatsheet && cheat_searching_) ||
                        (mode_ == Mode::Wizard && wizard_st_.searching) ||
                        (mode_ == Mode::MetaEdit && meta_tab_ == 0 &&
@@ -11585,6 +11926,7 @@ int App::run() {
         poll_pending_row_meta_tags();
         poll_pending_meta_fetch(); // AcoustID results -> pending edits
         poll_meta_save();          // the next slice of a running save
+        if (audiobook_) book_poll();   // the loaded chapter's tags, a running tag save
         readlyrics_poll();         // a finished lyrics translation
         maybe_autosave();
         remote_poll();             // `mousiki --cmd ...` and the status file
@@ -11612,6 +11954,10 @@ int App::run() {
         enforce_visual_switches();
         // Disk only spins while something is actually playing — frozen
         // when idle or paused, per instruction.
+        if (audiobook_) {   // the audio book's own animations: the book moves while a chapter plays, the stack while none is loaded
+            if (has_track_ && !player_.is_paused()) book_anim_t_ += dt;
+            if (!has_track_) book_idle_t_ += dt;
+        }
         if (has_track_ && !player_.is_paused()) {
             angle_ = std::fmod(angle_ + kAngularVelocity *settings_.disk_rotation_speed * dt,
                                2.0 * 3.14159265358979323846);
@@ -11698,10 +12044,15 @@ int App::run() {
                 }
                 wire = frame_str;
             }
+            // A floating panel (a question, the "<" menu, a small overlay) came or went: the text it left over the picture's cells
+            // must be wiped. Sixel keeps its picture only while the cells are skipped, so then the cells are written as spaces and
+            // the picture is sent again in the same write (nothing shows in between).
+            const bool floating_changed = floating != last_floating;
+            if (sixel_on && floating_changed && gfx_.active) gfx_.fresh = true;
             last_floating = floating;
             last_frame_str = std::move(frame_str);
             last_frame_written_at = frame_now;
-            gfx_fill_holes(wire, sixel_on);
+            gfx_fill_holes(wire, sixel_on && !(floating_changed && gfx_.active));
         }
         // The scope image goes after the text (Sixel replaces the cells; a Kitty image sits under the text and is
         // replaced in place). The text frame is often unchanged and then not sent at all, the picture still is.
@@ -11777,7 +12128,7 @@ int App::run() {
         terminal_hold_alt_screen();
         term.restore();
         save_settings(settings_);
-        if (settings_.autosave_enabled) save_snapshot(build_snapshot());
+        if (settings_.autosave_enabled && !audiobook_) save_snapshot(build_snapshot());
         suspended_ = true;
         remote::stop();
         return kExitSwitchMode;
@@ -11802,7 +12153,7 @@ void App::shutdown() {
         player_.stop();
     }
     save_settings(settings_);
-    if (settings_.autosave_enabled) {
+    if (settings_.autosave_enabled && !audiobook_) {
         save_snapshot(build_snapshot());
         ConsoleLog::instance().log_basic("saved session snapshot on exit");
     }

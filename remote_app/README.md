@@ -2,7 +2,7 @@
 
 Controls a Mousiki that runs on a computer in the same network: the spinning braille disk, the meta data, the working
 dummy buttons (seek / play-pause), next / previous, random, volume, playback mode, the local list and the saved playlists (tap: play / into the queue), clear queue, the station list (tap: tune), the manual and the
-switch between the music player and the radio -- in the colours of the theme Mousiki uses.
+switch between the music player, the radio and the audio book player (its LISTS is the library with folders, books and chapters; the book cover or the default picture is shown at full resolution) -- in the colours of the theme Mousiki uses.
 
 ## How it works
 

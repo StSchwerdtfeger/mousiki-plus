@@ -16,6 +16,8 @@ enum class GfxProto { None, Kitty, Sixel };
 // The finished picture of one frame, filled by the UI (app.cpp) and turned into escape codes by gfx_emit().
 struct GfxFrame {
     bool active = false;            // an image belongs on screen this frame (false: remove it)
+    bool plain = false;             // a picture, not a beam: the colour as it is (no white-hot core), nothing painted behind it (Sixel)
+    bool direct = false;            // with `plain`: `hue` is an index into `pal` (at most 240 colours) taken as it is, `level` only the opacity
     bool fresh = false;             // `level` / `hue` hold new pixels (false: the picture of the last frame stays)
     int col = 0, row = 0;           // top-left cell, 0-based
     int cols = 0, rows = 0;         // size in cells

@@ -107,7 +107,13 @@ struct RadioSettings : VizPrefs {
     bool stereo = true;                         // false = fold left + right to mono
     // Which mode Mousiki starts in ("player" / "radio"): the same setting as the music player's, kept in ITS config.txt
     // (StartMode=); the radio only reads and writes that one line (player_start_mode() / set_player_start_mode()).
-    std::string start_mode = "player";
+    std::string start_mode = "player";   // "player" | "radio" | "audiobook"
+    // Mode switch (SHIFT and + / SHIFT and -): which modes are on and in which order they follow each other. The same values as
+    // the player's (UseModePlayer / UseModeRadio / UseModeAudiobook / ModeOrder in ITS config.txt); one mode is always on.
+    bool use_mode[3] = {true, true, true};      // player, radio, audio book
+    int mode_order[3] = {0, 1, 2};              // a permutation of 0..2
+    // AudioBookPath= of the player's config.txt (shown in this program's PATHS tab so it is reachable from every mode).
+    std::string audiobook_path;
     // Black Background: the terminal's background is black while Mousiki runs. One value with the player, in ITS config.txt
     // (BlackBackground=); read / written like the start mode.
     bool black_background = true;
@@ -214,6 +220,9 @@ std::string scope_mode_name(const RadioSettings& s);                    // "osci
 // Start Mode lives in the music player's config.txt (StartMode=player|radio): read it / write just that line.
 std::string player_start_mode();
 bool set_player_start_mode(const std::string& mode);
+// The mode switch and the audio book path live there as well: read them into / write them from a RadioSettings.
+void load_player_mode_settings(RadioSettings& s);
+void save_player_mode_settings(const RadioSettings& s);
 // Black Background lives there too (BlackBackground=true|false, true when missing).
 bool player_black_background();
 bool set_player_black_background(bool on);
