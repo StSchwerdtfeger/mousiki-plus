@@ -2102,10 +2102,17 @@ void App::play_next_from_queue(bool random) {
     play_queue_item(idx);
 }
 
-// Starts the queue item at `idx` (the head for the next key, a random one for shuffle, the highlighted one for ENTER in the queue pane).
-void App::play_queue_item(int idx) {
+// Starts the queue item at `idx` (the head for the next key, a random one for shuffle, the highlighted one for ENTER in the queue pane;
+// with `move_along` (SHIFT+ENTER) the items in front of it move to the end of the queue first).
+void App::play_queue_item(int idx, bool move_along) {
     if (idx < 0 || idx >= static_cast<int>(queue_.size())) return;
     const bool queue_once = settings_.play_mode == 4 && queue_locked_;
+    if (move_along && idx > 0) {   // SHIFT+ENTER: the items in front of it are passed over -- they go to the end in their order (as if they had been played)
+        std::rotate(queue_.begin(), queue_.begin() + idx, queue_.end());
+        for (size_t i = queue_.size() - static_cast<size_t>(idx); i < queue_.size(); ++i) queue_[i].played = queue_once;
+        idx = 0;
+        queue_selected_ = 0;
+    }
     QueueItem item = queue_[idx];
     queue_.erase(queue_.begin() + idx);
     if (queue_locked_) {                       // played track -> end of the list
@@ -4285,7 +4292,7 @@ void App::handle_key(int key) {
         refresh_local_view();
         log_event(std::string("sort: ") + sort_mode_name(local_sort_mode_, settings_.meta_only));
     } else if (action == "HKeyPlay") {
-        if (queue_focus_) { queue_next_run_ = 0; if (!queue_.empty()) play_queue_item(std::clamp(queue_selected_, 0, static_cast<int>(queue_.size()) - 1)); }   // ENTER in the queue pane (small or big): play the highlighted item
+        if (queue_focus_) { queue_next_run_ = 0; if (!queue_.empty()) play_queue_item(std::clamp(queue_selected_, 0, static_cast<int>(queue_.size()) - 1), last_key_was_shifted()); }   // ENTER in the queue pane (small or big): play the highlighted item; SHIFT+ENTER also moves the queue along up to it
         else play_selected();
     } else if (action == "HKeySearch") {
         if (queue_overlay_open_) queue_overlay_close(); // the search filters the list underneath, which the queue overlay covers
@@ -4834,7 +4841,16 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
                                      std::string(static_cast<size_t>(std::max(0, disk_w - left - art_w)), ' '));
             else disk_frame.emplace_back(std::string(static_cast<size_t>(disk_w), ' '));
         }
+    } else if (settings_.element_disk && !audiobook_ && settings_.album_cover && album_cover_gfx(2, disk_w, panel_h)) {
+        // Album Cover: the cover of the playing track is a pixel image in the disk's place (it uses the picture slot gfx_, so the
+        // oscilloscope is drawn in braille meanwhile, like next to the audio book picture)
+        book_pic_img = true;
+        for (int i = 0; i < panel_h; ++i) disk_frame.push_back(gfx_hole(disk_w));
+    } else if (settings_.element_disk && !audiobook_ && settings_.album_cover && gfx_proto_ == GfxProto::None &&
+               !(disk_frame = album_cover_lines(disk_w, panel_h)).empty()) {
+        // (no Kitty / Sixel: the cover in braille dots)
     } else if (settings_.element_disk) {
+        disk_frame.clear();
         disk_frame = disk_.frame(angle_);
         while (static_cast<int>(disk_frame.size()) < panel_h) disk_frame.emplace_back(std::string(disk_w, ' '));
         for (size_t row_i = 0; row_i < disk_frame.size(); ++row_i) {
@@ -5140,6 +5156,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
                     g.cols = lyrics_w; g.rows = viz_rows_h; g.w = lyrics_w * cws; g.h = viz_rows_h * chs;
                     g.col = 2 + disk_w + (settings_.element_disk ? sep_w : 2) + meta_w;
                     g.row = 1;
+                    g.plain = false; g.direct = false; g.opaque = false; g.erase = false;   // (the album cover's picture is a plain one)
                     g.id = 0; g.grid.clear(); g.cut_w = 0;   // no grid on the main screen (the big overlay sets one on the same frame object)
                     scope_.render_image(g.w, g.h, osci_params, g.level, g.hue);
                     if (pal == 0) {
@@ -6693,8 +6710,9 @@ std::vector<std::string> App::build_playlist_library_panel(int total_width, int 
     const int col2_w = avail / 3;
     const int col3_w = avail - col1_w - col2_w;
     {
-        std::string header = pad_right(truncate_str("Filename", col1_w), col1_w) + col_sep
-                           + pad_right(truncate_str("Title", col2_w), col2_w) + col_sep
+        const std::string head_sep(col_sep.size(), ' ');   // (the names only, without the "|" of the rows below)
+        std::string header = pad_right(truncate_str("Filename", col1_w), col1_w) + head_sep
+                           + pad_right(truncate_str("Title", col2_w), col2_w) + head_sep
                            + pad_right(truncate_str("Artist", col3_w), col3_w);
         out.push_back(bar + " " + header_sgr(settings_)
                       + pad_right(truncate_str(header, inner), inner) + "\x1b[0m " + bar);
@@ -11722,6 +11740,13 @@ std::string App::render_frame(TerminalIO& term) {
                     cut[2] = std::clamp((fx + fw - gfx_.col) * gfx_.w / gfx_.cols + 1, 0, gfx_.w);
                     cut[1] = std::clamp((fy - gfx_.row) * gfx_.h / gfx_.rows, 0, gfx_.h);
                     cut[3] = std::clamp((fy + fh - gfx_.row) * gfx_.h / gfx_.rows + 1, 0, gfx_.h);
+                }
+                // the same hole in cells, for Sixel pictures that paint or blank their cells (opaque / erase): not under the panel
+                gfx_.cut_w = 0;
+                if (cut[2] > cut[0] && cut[3] > cut[1]) {
+                    const int c0 = std::max(fx, gfx_.col), c1 = std::min(fx + fw, gfx_.col + gfx_.cols);
+                    const int r0 = std::max(fy, gfx_.row), r1 = std::min(fy + fh, gfx_.row + gfx_.rows);
+                    gfx_.cut_c = c0 - gfx_.col; gfx_.cut_r = r0 - gfx_.row; gfx_.cut_w = c1 - c0; gfx_.cut_h = r1 - r0;
                 }
                 const bool changed = std::memcmp(cut, gfx_last_cut_, sizeof(cut)) != 0;
                 const bool new_picture = gfx_.fresh || gfx_full_level_.size() != gfx_.level.size();

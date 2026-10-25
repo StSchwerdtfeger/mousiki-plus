@@ -1,0 +1,376 @@
+#include "cover_art.h"
+#include "book_art.h"
+#include "console_log.h"
+#include "path_utf8.h"
+#include "process_util.h"
+#include <algorithm>
+#include <cctype>
+#include <chrono>
+#include <cmath>
+#include <future>
+#include <memory>
+#include <sstream>
+
+namespace muisc {
+
+// ---- scaling ---------------------------------------------------------------------------------------------------------------
+void quantize_colours(const std::vector<unsigned char>& rgb, const std::vector<unsigned char>& alpha, int n,
+                      std::array<std::array<uint8_t, 3>, 256>& pal, std::vector<unsigned char>& hue) {
+    const size_t px = alpha.size();
+    std::vector<unsigned int> hist(32768, 0);
+    for (size_t i = 0; i < px; ++i)
+        if (alpha[i] >= 3) ++hist[(static_cast<size_t>(rgb[i * 3] >> 3) << 10) | (static_cast<size_t>(rgb[i * 3 + 1] >> 3) << 5) | (rgb[i * 3 + 2] >> 3)];
+    std::vector<int> bins;
+    for (int b = 0; b < 32768; ++b) if (hist[static_cast<size_t>(b)]) bins.push_back(b);
+    auto chan = [](int b, int c) { return c == 0 ? (b >> 10) & 31 : c == 1 ? (b >> 5) & 31 : b & 31; };
+    std::vector<std::vector<int>> boxes;
+    if (!bins.empty()) boxes.push_back(bins);
+    while (static_cast<int>(boxes.size()) < n) {
+        int best = -1, best_c = 0, best_range = 0;
+        for (size_t k = 0; k < boxes.size(); ++k) {
+            if (boxes[k].size() < 2) continue;
+            for (int c = 0; c < 3; ++c) {
+                int lo = 31, hi = 0;
+                for (int b : boxes[k]) { lo = std::min(lo, chan(b, c)); hi = std::max(hi, chan(b, c)); }
+                if (hi - lo > best_range) { best_range = hi - lo; best = static_cast<int>(k); best_c = c; }
+            }
+        }
+        if (best < 0) break;
+        std::vector<int> v = std::move(boxes[static_cast<size_t>(best)]);
+        std::sort(v.begin(), v.end(), [&](int a, int b) { return chan(a, best_c) < chan(b, best_c); });
+        unsigned long long total = 0, acc = 0;
+        for (int b : v) total += hist[static_cast<size_t>(b)];
+        size_t cut = 1;
+        for (size_t i = 0; i + 1 < v.size(); ++i) { acc += hist[static_cast<size_t>(v[i])]; cut = i + 1; if (acc * 2 >= total) break; }
+        boxes[static_cast<size_t>(best)] = std::vector<int>(v.begin(), v.begin() + static_cast<long>(cut));
+        boxes.emplace_back(v.begin() + static_cast<long>(cut), v.end());
+    }
+    std::vector<unsigned char> of_bin(32768, 0);
+    for (size_t k = 0; k < boxes.size(); ++k) {
+        double sum[3] = {0, 0, 0}, cnt = 0;
+        for (int b : boxes[k]) {
+            const double c = hist[static_cast<size_t>(b)];
+            for (int ch = 0; ch < 3; ++ch) sum[ch] += c * ((chan(b, ch) << 3) | (chan(b, ch) >> 2));
+            cnt += c;
+            of_bin[static_cast<size_t>(b)] = static_cast<unsigned char>(k);
+        }
+        for (int ch = 0; ch < 3; ++ch) pal[k][static_cast<size_t>(ch)] = static_cast<uint8_t>(cnt > 0 ? std::lround(sum[ch] / cnt) : 0);
+    }
+    hue.assign(px, 0);
+    for (size_t i = 0; i < px; ++i)
+        if (alpha[i] >= 3) hue[i] = of_bin[(static_cast<size_t>(rgb[i * 3] >> 3) << 10) | (static_cast<size_t>(rgb[i * 3 + 1] >> 3) << 5) | (rgb[i * 3 + 2] >> 3)];
+}
+
+const CoverScaled& cover_scaled(const CoverImage& c, int max_w, int max_h, bool colour, int contrast) {
+    static CoverScaled cs;
+    contrast = std::clamp(contrast, 0, 100);
+    const std::string key = c.key + "|" + std::to_string(max_w) + "x" + std::to_string(max_h) + (colour ? "c" : "g") + std::to_string(contrast);
+    // more contrast: values move away from the middle (0 % = unchanged, 100 % = 2.5 times the distance from the middle grey)
+    const double factor = 1.0 + contrast / 100.0 * 1.5;
+    auto punch = [&](unsigned char v) { return static_cast<unsigned char>(std::clamp(static_cast<int>(std::lround((v - 127.5) * factor + 127.5)), 0, 255)); };
+    if (cs.key == key) return cs;
+    cs = CoverScaled();
+    cs.key = key;
+    if (!colour) {
+        cs.grey = BookArt::scale_grey(c.level, c.w, c.h, max_w, max_h, cs.w, cs.h);
+        int aw = 0, ah = 0;
+        cs.alpha = BookArt::scale_grey(c.alpha, c.w, c.h, max_w, max_h, aw, ah);
+        if (contrast > 0)
+            for (unsigned char& v : cs.grey) if (v) v = std::max<unsigned char>(1, punch(v));
+        return cs;
+    }
+    const size_t n = static_cast<size_t>(c.w) * c.h;
+    std::vector<unsigned char> chn[4];
+    int ow = 0, oh = 0;
+    for (int k = 0; k < 4; ++k) {
+        std::vector<unsigned char> plane(n);
+        for (size_t i = 0; i < n; ++i) plane[i] = k < 3 ? c.rgb[i * 3 + static_cast<size_t>(k)] : c.alpha[i];
+        chn[k] = BookArt::scale_grey(plane, c.w, c.h, max_w, max_h, ow, oh);
+    }
+    cs.w = ow; cs.h = oh;
+    const size_t m = static_cast<size_t>(ow) * oh;
+    std::vector<unsigned char> rgb(m * 3);
+    for (size_t i = 0; i < m; ++i) for (int k = 0; k < 3; ++k) rgb[i * 3 + static_cast<size_t>(k)] = contrast > 0 ? punch(chn[k][i]) : chn[k][i];
+    cs.level = chn[3];
+    quantize_colours(rgb, cs.level, 240, cs.pal, cs.hue);
+    return cs;
+}
+
+// ---- the search order ------------------------------------------------------------------------------------------------------
+std::vector<CoverStep> cover_steps(int search) {
+    switch (search) {
+        // (every search but Within File Only ends with FolderAny: any picture of the folder, by name, when nothing else gave one)
+        case 1: return {CoverStep::FolderClose, CoverStep::FolderGeneric, CoverStep::Embedded, CoverStep::FolderAny};     // Folder First
+        case 2: return {CoverStep::Embedded, CoverStep::FolderClose, CoverStep::FolderAny};                                // Within File First
+        case 3: return {CoverStep::FolderClose, CoverStep::FolderGeneric, CoverStep::FolderAny};                           // Image in Folder Only
+        case 4: return {CoverStep::Embedded};                                                                                       // Within File Only (never looks at the folder)
+        default: return {CoverStep::Embedded, CoverStep::FolderClose, CoverStep::FolderGeneric, CoverStep::FolderAny};     // Default
+    }
+}
+
+// ---- how close two names are -----------------------------------------------------------------------------------------------
+namespace {
+
+// Lower case, everything that is not a letter or digit (ASCII) becomes a single space; UTF-8 bytes stay as they are.
+std::string normalise(const std::string& s) {
+    std::string o;
+    bool space = true;
+    for (unsigned char c : s) {
+        if (c >= 0x80) { o += static_cast<char>(c); space = false; }
+        else if (std::isalnum(c)) { o += static_cast<char>(std::tolower(c)); space = false; }
+        else if (!space) { o += ' '; space = true; }
+    }
+    while (!o.empty() && o.back() == ' ') o.pop_back();
+    return o;
+}
+
+double lev_ratio(const std::string& a, const std::string& b) {
+    if (a.empty() && b.empty()) return 1.0;
+    const size_t la = std::min<size_t>(a.size(), 96), lb = std::min<size_t>(b.size(), 96);
+    std::vector<int> prev(lb + 1), cur(lb + 1);
+    for (size_t j = 0; j <= lb; ++j) prev[j] = static_cast<int>(j);
+    for (size_t i = 1; i <= la; ++i) {
+        cur[0] = static_cast<int>(i);
+        for (size_t j = 1; j <= lb; ++j)
+            cur[j] = std::min({prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] == b[j - 1] ? 0 : 1)});
+        std::swap(prev, cur);
+    }
+    return 1.0 - static_cast<double>(prev[lb]) / static_cast<double>(std::max(la, lb));
+}
+
+std::vector<std::string> words(const std::string& n) {
+    std::vector<std::string> w;
+    std::istringstream in(n);
+    std::string t;
+    while (in >> t) w.push_back(t);
+    return w;
+}
+
+} // namespace
+
+double name_closeness(const std::string& a, const std::string& b) {
+    const std::string na = normalise(a), nb = normalise(b);
+    if (na.empty() || nb.empty()) return 0.0;
+    if (na == nb) return 1.0;
+    double best = lev_ratio(na, nb);
+    // one name inside the other, as whole words ("abbey road front" holds "abbey road"): the shorter the difference, the closer
+    const std::string& s = na.size() <= nb.size() ? na : nb;
+    const std::string& l = na.size() <= nb.size() ? nb : na;
+    if (s.size() >= 3 && (" " + l + " ").find(" " + s + " ") != std::string::npos)
+        best = std::max(best, 0.70 + 0.25 * static_cast<double>(s.size()) / static_cast<double>(l.size()));
+    // words: how many of them have a near partner in the other name (a typo or a plural does not matter)
+    const std::vector<std::string> wa = words(na), wb = words(nb);
+    if (!wa.empty() && !wb.empty()) {
+        std::vector<bool> used(wb.size(), false);
+        int matched = 0;
+        for (const std::string& x : wa) {
+            int pick = -1;
+            double pr = 0.8;
+            for (size_t j = 0; j < wb.size(); ++j) {
+                if (used[j]) continue;
+                double r = lev_ratio(x, wb[j]);
+                // an abbreviation ("cov" for "cover") counts as a near partner too
+                const std::string& sh = x.size() <= wb[j].size() ? x : wb[j];
+                const std::string& lg = x.size() <= wb[j].size() ? wb[j] : x;
+                if (sh.size() >= 3 && lg.compare(0, sh.size(), sh) == 0) r = std::max(r, 0.85);
+                if (r >= pr) { pr = r; pick = static_cast<int>(j); }
+            }
+            if (pick >= 0) { used[static_cast<size_t>(pick)] = true; ++matched; }
+        }
+        best = std::max(best, 0.95 * 2.0 * matched / static_cast<double>(wa.size() + wb.size()));
+    }
+    return std::clamp(best, 0.0, 0.99);
+}
+
+namespace {
+
+std::string lower_ext(const fs::path& f) {
+    std::string e = path_utf8(f.extension());
+    for (char& c : e) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return e;
+}
+
+bool is_picture_file(const fs::path& f) {
+    const std::string e = lower_ext(f);
+    for (const char* x : kCoverPictureExtensions) if (e == x) return true;
+    return false;
+}
+
+} // namespace
+
+fs::path pick_folder_picture(const fs::path& dir, const std::vector<std::string>& names, bool generic, bool any) {
+    std::error_code ec;
+    std::vector<fs::path> pics;
+    for (fs::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec))
+        if (it->is_regular_file(ec) && is_picture_file(it->path())) pics.push_back(it->path());
+    if (pics.empty()) return {};
+    std::sort(pics.begin(), pics.end());
+    if (any) return pics.front();
+    if (generic) {
+        static const char* const kNames[] = {"cover", "folder", "front", "albumart", "album", "thumb"};
+        for (const char* n : kNames)
+            for (const fs::path& f : pics) {
+                std::string stem = path_utf8(f.stem());
+                for (char& c : stem) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+                if (stem == n) return f;
+            }
+        return {};
+    }
+    fs::path best;
+    double best_score = 0.0;
+    for (const fs::path& f : pics) {
+        const std::string stem = path_utf8(f.stem());
+        for (const std::string& n : names) {
+            if (n.empty()) continue;
+            const double sc = name_closeness(stem, n);
+            if (sc > best_score) { best_score = sc; best = f; }
+        }
+    }
+    ConsoleLog::instance().log_basic("album cover: closest picture in " + path_utf8(dir) + " is " + (best.empty() ? std::string("(none)") : path_utf8(best.filename())) +
+                                     " (match " + std::to_string(static_cast<int>(best_score * 100)) + "%, needs " + std::to_string(static_cast<int>(kCoverCloseness * 100)) + "%)");
+    return best_score >= kCoverCloseness ? best : fs::path();
+}
+
+// ---- decoding --------------------------------------------------------------------------------------------------------------
+namespace {
+
+// ffmpeg writes the picture as one PAM image (a tiny header, then RGBA bytes) at most 640 x 640; the grey level of it is
+// 0.15 + 0.85 * luminance, times the alpha -- the same as the audio book cover's.
+bool decode_picture(const fs::path& file, bool embedded, CoverImage& d) {
+    std::string cmd = "ffmpeg -v error -i " + shell_quote(path_utf8(file));
+    if (embedded) cmd += " -an";
+    cmd += " -vf scale=w=640:h=640:force_original_aspect_ratio=decrease -frames:v 1 -f image2pipe -vcodec pam -pix_fmt rgba -";
+    std::string o;   // (read straight from the process: run_capture would write the picture's bytes into the console log)
+    if (std::unique_ptr<ChildProcess> child = spawn_capture(cmd, false)) {
+        std::vector<char> buf(1 << 16);
+        std::ptrdiff_t n;
+        while ((n = child->read(buf.data(), buf.size())) > 0) o.append(buf.data(), static_cast<size_t>(n));
+        child->wait();
+    }
+    if (o.size() < 16 || o.compare(0, 2, "P7") != 0) return false;
+    const size_t hdr = o.find("ENDHDR\n");
+    if (hdr == std::string::npos) return false;
+    int w = 0, h = 0;
+    {
+        std::istringstream in(o.substr(0, hdr));
+        std::string tok;
+        while (in >> tok) {
+            if (tok == "WIDTH") in >> w;
+            else if (tok == "HEIGHT") in >> h;
+        }
+    }
+    const size_t at = hdr + 7;
+    if (w < 2 || h < 2 || o.size() < at + static_cast<size_t>(w) * h * 4) return false;
+    d.w = w; d.h = h;
+    d.level.assign(static_cast<size_t>(w) * h, 0);
+    d.rgb.assign(static_cast<size_t>(w) * h * 3, 0);
+    d.alpha.assign(static_cast<size_t>(w) * h, 0);
+    for (size_t i = 0; i < d.level.size(); ++i) {
+        const unsigned char* p = reinterpret_cast<const unsigned char*>(o.data()) + at + i * 4;
+        const double lum = (0.299 * p[0] + 0.587 * p[1] + 0.114 * p[2]) / 255.0;
+        const double v = (0.15 + 0.85 * lum) * (p[3] / 255.0) * 255.0;
+        d.rgb[i * 3] = p[0]; d.rgb[i * 3 + 1] = p[1]; d.rgb[i * 3 + 2] = p[2]; d.alpha[i] = p[3];
+        d.level[i] = p[3] ? static_cast<unsigned char>(std::clamp(static_cast<int>(std::lround(v)), 1, 255)) : 0;
+    }
+    d.ok = true;
+    return true;
+}
+
+CoverImage load_track_cover(CoverRequest rq, std::string key) {
+    CoverImage d;
+    d.key = key;
+    const fs::path file = path_from_utf8(rq.path);
+    const fs::path dir = file.parent_path();
+    d.dir = path_utf8(dir);
+    d.album = rq.album;
+    // the names the folder's pictures are compared with: the album, the title and the file's own name without a track number
+    std::vector<std::string> names;
+    names.push_back(rq.album);
+    names.push_back(rq.title);
+    {
+        std::string stem = path_utf8(file.stem());
+        size_t i = 0;
+        while (i < stem.size() && (std::isdigit(static_cast<unsigned char>(stem[i])) || stem[i] == ' ' || stem[i] == '.' || stem[i] == '-' || stem[i] == '_')) ++i;
+        names.push_back(i < stem.size() ? stem.substr(i) : stem);
+    }
+    std::string tried;
+    for (CoverStep step : cover_steps(rq.search)) {
+        CoverImage t;
+        t.key = key;
+        if (step == CoverStep::Embedded) {
+            if (decode_picture(file, true, t)) {
+                d = std::move(t);
+                d.dir = path_utf8(dir); d.album = rq.album;
+                d.source = path_utf8(file.filename()) + " (inside the file)";
+                ConsoleLog::instance().log_basic("album cover: using the picture inside " + rq.path);
+                return d;
+            }
+            tried += "no picture inside the file";
+        } else {
+            const fs::path pic = pick_folder_picture(dir, names, step == CoverStep::FolderGeneric, step == CoverStep::FolderAny);
+            if (!pic.empty() && decode_picture(pic, false, t)) {
+                d = std::move(t);
+                d.dir = path_utf8(dir); d.album = rq.album;
+                d.source = path_utf8(pic.filename());
+                ConsoleLog::instance().log_basic("album cover: using " + path_utf8(pic));
+                return d;
+            }
+            tried += pic.empty() ? (step == CoverStep::FolderClose ? "no closely named picture in the folder" : step == CoverStep::FolderAny ? "no picture in the folder" : "no cover.jpg / folder.jpg in the folder")
+                                 : "ffmpeg could not read " + path_utf8(pic.filename());
+        }
+        tried += "; ";
+    }
+    if (tried.size() >= 2) tried.resize(tried.size() - 2);
+    d.note = tried.empty() ? "nothing to search" : tried;
+    ConsoleLog::instance().log_basic("album cover: none for " + rq.path + " (" + d.note + ")");
+    return d;
+}
+
+std::string request_key(const CoverRequest& rq) {
+    return rq.path + "\n" + rq.title + "\n" + rq.album + "\n" + std::to_string(rq.search);
+}
+
+// the single slot: the cover that is ready, and the one being read
+struct TrackCoverState {
+    CoverImage have;
+    std::future<CoverImage> pending;
+    std::string pending_key;
+};
+TrackCoverState& state() {
+    static TrackCoverState s;
+    return s;
+}
+
+} // namespace
+
+const CoverImage* track_cover(const CoverRequest& rq) {
+    if (rq.path.empty()) return nullptr;
+    TrackCoverState& s = state();
+    const std::string key = request_key(rq);
+    if (s.pending.valid() && s.pending.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        s.have = s.pending.get();
+        s.pending_key.clear();
+    }
+    if (s.have.key == key) return s.have.ok ? &s.have : nullptr;
+    if (!s.pending.valid()) {
+        s.pending_key = key;
+        s.pending = std::async(std::launch::async, load_track_cover, rq, key);
+    }
+    // the next track of the same album (in the same folder) is being read: the cover on screen is the one it will get
+    const std::string dir = path_utf8(path_from_utf8(rq.path).parent_path());
+    if (s.have.ok && !rq.album.empty() && s.have.album == rq.album && s.have.dir == dir) return &s.have;
+    return nullptr;
+}
+
+std::string cover_note(const CoverRequest& rq) {
+    TrackCoverState& s = state();
+    if (s.have.key == request_key(rq) && !s.have.ok) return s.have.note;
+    return "";
+}
+
+std::string cover_source() {
+    const TrackCoverState& s = state();
+    return s.have.ok ? s.have.source : std::string();
+}
+
+} // namespace muisc

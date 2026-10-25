@@ -722,6 +722,13 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidBlackBg: v = settings_.black_background; break;
             case kSidShareProfiles: v = settings_.share_profiles; break;
             case kSidBookAsk: v = settings_.book_ask_bookmark; break;
+            case kSidAlbumCover: v = settings_.album_cover; break;
+            case kSidCoverMode: return settings_.cover_mode == 0 ? "Just Cover" : settings_.cover_mode == 1 ? "Cover with Gradient" : settings_.cover_mode == 4 ? "Cover behind Disk (Full Anima)" : settings_.cover_mode == 3 ? "Cover behind Disk v2" : "Cover behind Disk";
+            case kSidCoverContrast: return std::to_string(std::clamp(settings_.cover_contrast, 0, 100)) + "%";
+            case kSidCoverSearch: {
+                static const char* names[] = {"Default", "Folder First", "Within File First", "Image in Folder Only", "Within File Only"};
+                return names[std::clamp(settings_.cover_search, 0, 4)];
+            }
             case kSidBookCover: v = settings_.book_cover; break;
             case kSidBookCoverWave: v = settings_.book_cover_wave; break;
             case kSidUpdateCheck: v = settings_.update_check; break;
@@ -819,6 +826,9 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
                 return o;
             }
             case kSidVolIndicator: return {kVolIndicatorNames[0], kVolIndicatorNames[1], kVolIndicatorNames[2], kVolIndicatorNames[3], kVolIndicatorNames[4]};
+            case kSidCoverMode: return {"Just Cover", "Cover with Gradient", "Cover behind Disk", "Cover behind Disk v2", "Cover behind Disk (Full Anima)"};
+            case kSidCoverContrast: { std::vector<std::string> o; for (int i = 0; i <= 100; i += 5) o.push_back(std::to_string(i) + "%"); return o; }
+            case kSidCoverSearch: return {"Default", "Folder First", "Within File First", "Image in Folder Only", "Within File Only"};
             case kSidTrackBuffer: return {};   // a number (ENTER types it) and a "Set back to default" button (RIGHT, then ENTER)
             case kSidRemoteApp: return {};   // not a switch: ENTER / LEFT / RIGHT open the REMOTE APP overlay
             case kSidVisFluidity: case kSidVisDegr: case kSidVisVisc: return {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
@@ -910,6 +920,19 @@ void App::settings_commit_edit_impl() {
                 settings_.play_mode = (v == "loop") ? 1 : (v == "shuffle") ? 2 : (v == "stop") ? 3 : (v == "queue then stop") ? 4 : 0;
                 queue_reset_lap();
                 return;
+            case kSidCoverMode:
+                settings_.cover_mode = v == "just cover" ? 0 : v == "cover with gradient" ? 1 : v == "cover behind disk" ? 2 : v == "cover behind disk v2" ? 3 : v == "cover behind disk (full anima)" ? 4 : settings_.cover_mode;
+                return;
+            case kSidCoverContrast: {
+                std::string d = v;
+                if (!d.empty() && d.back() == '%') d.pop_back();
+                settings_.cover_contrast = std::clamp((std::atoi(d.c_str()) + 2) / 5 * 5, 0, 100);
+                return;
+            }
+            case kSidCoverSearch:
+                settings_.cover_search = v == "default" ? 0 : v == "folder first" ? 1 : v == "within file first" ? 2
+                                       : v == "image in folder only" ? 3 : v == "within file only" ? 4 : settings_.cover_search;
+                return;
             case kSidStartMode: { const int m = mode_index(v); if (m >= 0 && settings_.use_mode[m]) settings_.start_mode = kModeNames[m]; return; }
             case kSidVolIndicator:
                 settings_.volume_indicator = std::max(0, volume_style_from_name(v));
@@ -944,6 +967,7 @@ void App::settings_commit_edit_impl() {
         if (!is_true && !is_false) return;
         switch (id) {
             case kSidDisk: settings_.element_disk = is_true; break;
+            case kSidAlbumCover: settings_.album_cover = is_true; break;
             case kSidDummy: settings_.element_dummy_buttons = is_true; break;
             case kSidQueue: settings_.element_queue = is_true; break;
             case kSidWave: settings_.element_waveform = is_true; break;
@@ -2083,7 +2107,8 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
                     pos(y, 57, ((sel && settings_col_ == 1) ? HI : legend_sgr(settings_)) + "[ Set back to default ]" + R);
                 } else
                 if (sel && !settings_options_for(settings_tab_, r).empty())
-                    pos(y, 57, ansi_for(settings_.tab_current_color, false) + "< \u2194 >\x1b[0m");
+                    // Right behind the value (a long value such as "Cover behind Disk (Full Anima)" used to run into a fixed column).
+                    pos(y, std::max(57, 35 + static_cast<int>(display_width(shown)) + 2), ansi_for(settings_.tab_current_color, false) + "< \u2194 >\x1b[0m");
             }
             y++;
         }

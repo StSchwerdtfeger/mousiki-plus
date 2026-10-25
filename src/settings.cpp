@@ -877,6 +877,38 @@ static Settings load_from_config(const fs::path& path) {
             s.book_cover_wave = !(v == "false" || v == "0" || v == "off" || v == "no");
             continue;
         }
+        if (key == "AlbumCover") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.album_cover = (v == "true" || v == "1" || v == "on" || v == "yes");
+            continue;
+        }
+        if (key == "CoverMode") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            if (v == "1" || v == "cover" || v == "just cover") s.cover_mode = 0;
+            else if (v == "2" || v == "gradient" || v == "cover with gradient") s.cover_mode = 1;
+            else if (v == "3" || v == "disk" || v == "behind" || v == "cover behind disk") s.cover_mode = 2;
+            else if (v == "4" || v == "disk2" || v == "v2" || v == "cover behind disk v2") s.cover_mode = 3;
+            else if (v == "5" || v == "full" || v == "full anima" || v == "cover behind disk (full anima)") s.cover_mode = 4;
+            continue;
+        }
+        if (key == "CoverContrast") {
+            std::string v = trim(unquote(value));
+            if (!v.empty() && v.back() == '%') v.pop_back();
+            s.cover_contrast = std::clamp((std::atoi(v.c_str()) + 2) / 5 * 5, 0, 100);
+            continue;
+        }
+        if (key == "CoverSearch") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            if (v == "default") s.cover_search = 0;
+            else if (v == "folder first") s.cover_search = 1;
+            else if (v == "file first" || v == "within file first") s.cover_search = 2;
+            else if (v == "folder only" || v == "image in folder only") s.cover_search = 3;
+            else if (v == "file only" || v == "within file only") s.cover_search = 4;
+            continue;
+        }
         if (key == "BookCover") {
             std::string v = trim(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
@@ -1681,6 +1713,11 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "##-------------------------------------------\n\n";
     auto tf = [](bool v) -> const char* { return v ? "true" : "false"; };
     out << "ElimentDisk=" << tf(s.element_disk) << "\n";
+    out << "AlbumCover=" << tf(s.album_cover) << "\n## true , false -- music player: the cover of the playing track takes the disk's place (needs ElimentDisk=true; where a track has no cover the disk is shown)\n";
+    out << "CoverMode=" << (s.cover_mode == 0 ? "cover" : s.cover_mode == 1 ? "gradient" : s.cover_mode == 3 ? "disk2" : s.cover_mode == 4 ? "full" : "disk") << "\n## cover (just the cover) , gradient (the cover in the disk's gradient colours, as a wave moving diagonally from the upper left to the lower right) , disk (the cover behind the disk: the disk's dots are pinholes that let the full cover shine through; the dots stay on their grid, only the pattern turns) , disk2 (the same, but the dots themselves turn) , full (the disk's full animation, the dots that come and go as it turns)\n";
+    out << "CoverContrast=" << s.cover_contrast << "\n## 0 .. 100 (percent, steps of 5) -- more contrast for the album cover (0 = the cover as it is)\n";
+    out << "CoverSearch=" << (s.cover_search == 1 ? "folder first" : s.cover_search == 2 ? "file first" : s.cover_search == 3 ? "folder only" : s.cover_search == 4 ? "file only" : "default")
+        << "\n## default (the picture inside the file, else the closest-named picture in the folder) , folder first , file first (inside the file, else only a closely named folder picture) , folder only , file only -- every search except file only ends with any picture of the folder (the first by name) when nothing else gave one\n";
     out << "ElimentDummyButtons=" << tf(s.element_dummy_buttons) << "\n";
     out << "ElimentQueue=" << tf(s.element_queue) << "\n";
     out << "ElimentWaveForm=" << tf(s.element_waveform) << "\n";

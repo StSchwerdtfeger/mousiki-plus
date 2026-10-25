@@ -130,6 +130,64 @@ DiskArt::DiskArt() {
     }
 }
 
+std::vector<unsigned char> DiskArt::dots(double angle, bool solid) const {
+    const int pixelWidth = width_ * 2;
+    const int pixelHeight = height_ * 4;
+    std::vector<unsigned char> bitmap(static_cast<size_t>(pixelWidth) * pixelHeight, 0);
+    const double cx = (pixelWidth - 1) / 2.0;
+    const double cy = (pixelHeight - 1) / 2.0;
+    const double c = std::cos(angle);
+    const double s = std::sin(angle);
+    if (solid) {   // backwards: where did the dot at this grid position come from? (the artwork at angle 0)
+        std::vector<unsigned char> src(bitmap.size(), 0);
+        for (const auto& p : dots_) src[static_cast<size_t>(p.y) * pixelWidth + static_cast<size_t>(p.x)] = 1;
+        for (int ny = 0; ny < pixelHeight; ++ny)
+            for (int nx = 0; nx < pixelWidth; ++nx) {
+                const double x = nx - cx, y = ny - cy;
+                const int sx = static_cast<int>(std::round(x * c + y * s + cx));
+                const int sy = static_cast<int>(std::round(-x * s + y * c + cy));
+                if (sx >= 0 && sx < pixelWidth && sy >= 0 && sy < pixelHeight) bitmap[static_cast<size_t>(ny) * pixelWidth + nx] = src[static_cast<size_t>(sy) * pixelWidth + sx];
+            }
+        return bitmap;
+    }
+    for (const auto& p : dots_) {
+        const double x = p.x - cx, y = p.y - cy;
+        const int nx = static_cast<int>(std::round(x * c - y * s + cx));
+        const int ny = static_cast<int>(std::round(x * s + y * c + cy));
+        if (nx >= 0 && nx < pixelWidth && ny >= 0 && ny < pixelHeight) bitmap[static_cast<size_t>(ny) * pixelWidth + nx] = 1;
+    }
+    return bitmap;
+}
+
+std::vector<unsigned char> DiskArt::cells(double angle, bool solid) const {
+    const int pixelWidth = width_ * 2;
+    const std::vector<unsigned char> bitmap = dots(angle, solid);
+    static const unsigned char kBit[4][2] = {{0x01, 0x08}, {0x02, 0x10}, {0x04, 0x20}, {0x40, 0x80}};   // (the Braille dot numbers)
+    std::vector<unsigned char> out(static_cast<size_t>(width_) * height_, 0);
+    for (int row = 0; row < height_; ++row)
+        for (int col = 0; col < width_; ++col) {
+            unsigned char bits = 0;
+            for (int dy = 0; dy < 4; ++dy)
+                for (int dx = 0; dx < 2; ++dx)
+                    if (bitmap[static_cast<size_t>(row * 4 + dy) * pixelWidth + col * 2 + dx]) bits |= kBit[dy][dx];
+            out[static_cast<size_t>(row) * width_ + col] = bits;
+        }
+    return out;
+}
+
+std::vector<DiskArt::RotatedDot> DiskArt::rotated_dots(double angle) const {
+    const double cx = (width_ * 2 - 1) / 2.0;
+    const double cy = (height_ * 4 - 1) / 2.0;
+    const double c = std::cos(angle), s = std::sin(angle);
+    std::vector<RotatedDot> out;
+    out.reserve(dots_.size());
+    for (const auto& p : dots_) {
+        const double x = p.x - cx, y = p.y - cy;
+        out.push_back({static_cast<float>(x * c - y * s + cx), static_cast<float>(x * s + y * c + cy)});
+    }
+    return out;
+}
+
 std::vector<std::string> DiskArt::frame(double angle) const {
     const int pixelWidth = width_ * 2;
     const int pixelHeight = height_ * 4;

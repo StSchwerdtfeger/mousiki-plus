@@ -342,7 +342,7 @@ The metadata panel lists **Name, Artist, Album, Year**, sampling, type, format, 
 
 | Key | Action | What it does |
 |---|---|---|
-| `ENTER` | Play the selected track | Starts the highlighted track. Pressing it again on the same track reloads it. On a **playlist row** it does not play. It queues every track in that playlist instead. With the focus on the **queue** (`TAB`, small pane or big overlay) it plays the highlighted queue item. |
+| `ENTER` | Play the selected track | Starts the highlighted track. Pressing it again on the same track reloads it. On a **playlist row** it does not play. It queues every track in that playlist instead. With the focus on the **queue** (`TAB`, small pane or big overlay) it plays the highlighted queue item. **`SHIFT+ENTER`** in the queue (small pane or big overlay) plays the highlighted item **and moves the whole queue along to that point**: the items in front of it go to the end of the queue in their order, as if they had been played (useful with a locked queue, where played tracks go to the end anyway; on Windows Terminal and other consoles that report the Shift key). |
 | `p` | Play / pause | Pauses or resumes the current track. |
 | `n` | Next | Plays the next track. If the **queue** has items, the next queue item plays. Otherwise the next track in the list plays (relative to what is *playing*, not where your cursor is). A manual skip always skips, even in repeat or stop mode. |
 | `b` | Previous | Plays the previous track in the list. There is no queue equivalent, because a queue that has been consumed has no meaningful "previous". |
@@ -1160,7 +1160,7 @@ In a text box you typed into, the first `ESC` only leaves the box (the text stay
 | `a` | Add the highlighted file to the **fetch list** (library focused). Add a single title and tick the boxes on the Fetch List tab to fetch just some tags of it |
 | `SHIFT+f` | **Add full list**: adds every title the library pane shows right now to the fetch list (library focused). The search and the missing-tag filter (`x`, `SHIFT+t/a/l/y`) are applied, titles already on the list are skipped, the status line says how many were added. Typical use: filter for `SHIFT+l` (missing album), press `SHIFT+f`, switch to the Fetch List tab and press `ENTER` |
 | `r` | Toggle **edited files on top** of the library pane. If **no titles appear** (or fewer than you expect), a missing-tag filter (`x`, `SHIFT+t/a/l/y`) may still be active: it hides every file that is not missing that tag. The status line then ends with `NOTE: [MISSING TITLE] filter active, hit [ESC] to clear filter` (the name of the active filter); `ESC` in the library pane clears the filter (a second `ESC` then switches the `r` / `n` order off). The same note appears after `n`. |
-| `n` | Toggle **recently added first** in the library pane (newest arrived files on top; with `r` on, the edited files stay above them). What is active is shown in the pane title, joined with a plus: `LIBRARY [EDITED FIRST + ADDED FIRST + MISSING TITLE]`. `ESC` in the library pane takes things off step by step: the first `ESC` clears the missing-tag filter, the next one switches `r` and `n` off, the one after that moves up to the search bar (`r` and `n` can also be switched off by pressing them again). |
+| `n` | Toggle **recently added first** in the library pane (newest arrived files on top; with `r` on, the edited files stay above them). What is active is shown in the pane title, joined with a plus: `FILE LIBRARY [EDITED FIRST + ADDED FIRST + MISSING TITLE]`. `ESC` in the library pane takes things off step by step: the first `ESC` clears the missing-tag filter, the next one switches `r` and `n` off, the one after that moves up to the search bar (`r` and `n` can also be switched off by pressing them again). |
 | `x` | Filter the library to files missing **any** metadata (library pane focused; press again to clear) |
 | `SHIFT+t` | Filter the library to files missing a **title** (press again to clear) |
 | `SHIFT+a` | Filter the library to files missing an **artist** (press again to clear) |
@@ -1446,7 +1446,11 @@ The tab has two categories (in the header colour); change a row with `←`/`→`
 
 | Setting | What it does |
 |---|---|
-| Eliment Disk | Shows or hides the spinning disk in the player area. |
+| Eliment Disk / Cover | Shows or hides the **disk field** in the player area: the spinning disk or, with *Album Cover* on, the cover of the playing track. (`ElimentDisk=`; before: *Eliment Disk*) |
+| Album Cover | true, false. Default **false**. **true**: the **album cover of the playing track** is shown in the disk's place (see *The album cover* below). A track without a cover (and every stream) keeps the disk. Needs *Eliment Disk / Cover* to be true. Music player only. (`AlbumCover=`) |
+| Cover Mode | *Just Cover*, *Cover with Gradient*, *Cover behind Disk* (default), *Cover behind Disk v2*, *Cover behind Disk (Full Anima)*. How the cover is shown, see below. (`CoverMode=` `cover` / `gradient` / `disk` / `disk2` / `full`) |
+| Cover Contrast | 0% (default) to 100% in steps of 5%: adds contrast to the cover in every look (0% = the cover as it is; 100% = the brightnesses move 2.5 times as far from the middle grey). (`CoverContrast=`) |
+| Cover Search | *Default*, *Folder First*, *Within File First*, *Image in Folder Only*, *Within File Only*. Where the cover is looked for, see below. (`CoverSearch=` `default` / `folder first` / `file first` / `folder only` / `file only`) |
 | Dummy Buttons | Shows or hides the three decorative buttons next to the progress bar. |
 | Queue Display | Shows or hides the Queue panel. |
 | Progress Waveform | Shows or hides the braille **waveform inside the progress bar** (the whole track as a wave). With it off, a plain `[####----]` bar is drawn instead. (`ElimentWaveForm=`) |
@@ -1463,6 +1467,41 @@ The tab has two categories (in the header colour); change a row with `←`/`→`
 | Use Oscilloscope | `false` leaves the oscilloscope out: `.` and the **Lyrics/Viz Default** row skip it, and the picks that pointed at it (Lyrics/Viz Default, No-Lyrics Viz) move on to the next visual that is on. The scope window (`)`) still works. (`UseOscilloscope=`) |
 | Use Spectrogram | `false` leaves the spectrogram out of the lyrics area: `.` skips it. Full screen (`SHIFT+u`) and the spectrogram window (`(`) still work. (`UseSpectrogram=`) For example: Use Oscilloscope and Use Spectrogram `false` = `.` only switches between the lyrics and the sphere. |
 | Use Sphere | `false` leaves the sphere out of the `.` cycle (it used to be always there). Picks that pointed at it move on to the next visual that is on; picking it in **Lyrics/Viz Default** or **No-Lyrics Viz** turns it on again. (`UseSphere=`) |
+
+**The album cover (music player).** With **Album Cover** on, the disk's place shows the cover of the track that is playing, taken from the file or from its folder. **Cover Mode** chooses how it is shown, in five ways:
+
+1. **Just Cover** -- the cover in its own colours, fitted into the field with a little room around it.
+2. **Cover with Gradient** -- a grey version of the cover with the gradient of the disk put over it (disk colour to disk colour end, set under COLORS). The gradient is a slow **moving wave** that runs diagonally over the picture, from the upper left to the lower right, like the colour wave of the audio book cover.
+3. **Cover behind Disk** (default) -- the grey cover in **full resolution** fills the field **behind the turning disk**, and the disk's braille dots act as a kind of **pinhole pattern**: the background stays **black**, and the cover only comes through the dots of the disk, at full brightness (in the gradient colours). The dots stay on their fixed grid (blocks of horizontal lines) and only the **pattern of the disk turns** through them, at the speed of *Disk Speed* (ANIMA/VIZ); no dot comes or goes. Think of the terminal background as a sheet of paper in front of the cover and the dots as holes in it: outside the dots you see the background (black with *Black Background*, else the terminal's own colour). A cover with a **removed background** (transparent parts, such as the audio book's standard picture) does not cut the disk down to its silhouette: the dots over the transparent parts show a plain grey, so the whole disk stays visible.
+4. **Cover behind Disk v2** -- like 3, but the **dots themselves turn** around the centre, smoothly (they do not stay on the grid).
+5. **Cover behind Disk (Full Anima)** -- like 3, but the pinholes follow the **exact braille animation of the disk**: its dots are turned and rounded to the dot grid, so some of them **come and go** as the disk turns (the same effect as the *disk* look of the *Volume Indicator*).
+
+| |
+|:---:|
+| <img width="600" alt="Album cover, Just Cover" src="images/cover.png" /><br>**Just Cover** |
+| <img width="600" alt="Album cover, Cover with Gradient" src="images/cover_gradient.png" /><br>**Cover with Gradient** |
+| <img width="600" alt="Album cover, Cover behind Disk" src="images/cover_behind_disk.png" /><br>**Cover behind Disk** |
+
+With **Kitty graphics or Sixel** (Windows Terminal 1.22+, Kitty, WezTerm, Ghostty, foot ...) the cover is a real picture at the terminal's full resolution (at most 640 x 640 pixels, whatever *Image Resolution* says: *Just Cover* and *Cover with Gradient* are only sent when the cover changes). Sixel draws 240 colours (*Just Cover*) or 16 gradient steps of 15 brightnesses (the other two), Kitty all of them. While a cover is a picture, the oscilloscope next to it is drawn in braille, like beside the audio book picture. Without Kitty and Sixel the same looks are drawn with **braille dots**: the cover dithered (*Just Cover*, *Cover with Gradient*), or the turning disk with every cell lit by the part of the cover under it (the *Cover behind Disk* looks); the status line says so when the row is changed.
+
+**Where the cover comes from.** Per track, the cover is looked for in two places:
+
+- **Inside the file:** the picture attached to the audio file (mp3's ID3 picture, FLAC / Ogg / Opus pictures, the cover of an m4a ...), read by ffmpeg in the background.
+- **In the folder of the file** (not the folders below it): the picture whose name is **close to the title of the track or to its album tag** (the title falls back to the file name). "Close" means a **fuzzy match**: upper and lower case, punctuation and track numbers do not matter, a word more or less or a typo does not either (`Abbey_Road - front.jpg` and `abbey road.png` both belong to the album *Abbey Road*). That makes it possible to keep the covers of **tracks from different albums in one folder**: each track gets the picture named like its album (or like itself). If no picture is close enough, a picture named `cover`, `folder`, `front`, `albumart` or `album` is taken. If **nothing** of this gives a picture, the **first picture of the folder by name (alphabetically)** is taken as the last resort -- in every Cover Search value except *Within File Only*, which never looks at the folder.
+
+**Picture formats.** Pictures in the folder can be jpg / jpeg / jpe / jfif, png / apng, webp, bmp / dib, gif, tif / tiff, avif, heic / heif, jxl, jp2, ico, tga, ppm / pgm / pnm, pcx -- every regular picture format, read by ffmpeg (avif, heic and jxl only if your ffmpeg build can decode them). Camera RAW files and other very large formats are not looked at. The **audio book mode** uses the same list for the cover of a book. The name only has to be close: `test-song-cover.jpg` belongs to `test_song-cover3.mp3`, and an abbreviation such as `cov` counts for `cover`. The console log (`t`) names the closest picture and its match in percent when none was close enough.
+
+**Cover Search** decides the order of the two places:
+
+| Value | What is looked at |
+|---|---|
+| Default | First the picture **inside the file**. If it has none, the folder: the closest-named picture, then `cover.jpg` and its like. |
+| Folder First | First the **folder** (the closest-named picture, then `cover.jpg` and its like), and only then the picture inside the file. |
+| Within File First | First the picture **inside the file**; if there is none, only a **closely named** picture of the folder (no `cover.jpg` fallback -- a folder of mixed albums does not give every track the same picture). |
+| Image in Folder Only | **Only the folder** (closest-named picture, then `cover.jpg` and its like); the pictures inside the files are never looked at. |
+| Within File Only | **Only the picture inside the file**; the folder is never looked at. |
+
+A track that has no cover keeps the disk (the console log, `t`, says what was tried: `album cover: none for ... (no picture inside the file; no closely named picture in the folder; ...)` and which file was used: `album cover: using ...`). While the next track of the same album is read, the cover on screen stays.
 
 **How these switches work together.** No combination is left contradicting itself: choosing a view that is switched off (in Lyrics/Viz Default or No-Lyrics Viz) **turns its Use switch on**; switching a Use switch off **takes its dependents with it** instead of being undone -- Use Lyrics Engine off stops the field showing the lyrics, Use Oscilloscope / Spectrogram / Sphere / Lyrics Engine off moves Lyrics/Viz Default and No-Lyrics Viz to the next view that is on (No-Lyrics Viz to `none`, an empty field, when none is left). The status line says what moved. Earlier versions turned the oscilloscope (or the spectrogram) back on by themselves while it was the No-Lyrics pick, so it could not be switched off.
 
@@ -1602,6 +1641,7 @@ The credits and versions of the original app and of this port, as text that scro
 | `WizardSeen` | Whether the [help wizard](#the-help-wizard-shiftw) (`SHIFT+w`) has already opened itself once (default `false`, set to `true` the first time it is closed). `false` makes it greet you again on the next start. The radio has the same line in `radio_config.txt`. |
 | `KaraokeLyricsSize` | Lyrics size of the karaoke overlay, `1` (normal text, default) to `5`. Normally changed with `*` / `_` in the overlay (German `SHIFT` and `+` / `-`, English `SHIFT+8` / `SHIFT` and `-`). |
 | `StartMode`, `UseModePlayer`, `UseModeRadio`, `UseModeAudiobook`, `ModeOrder` | The mode Mousiki opens with (`player`, `radio`, `audiobook`), whether each mode is in the `SHIFT` and `+` cycle, and the order of the cycle (`player,radio,audiobook` in any order). Settings → ON/OFF → MODES. At least one mode is always on. |
+| `AlbumCover`, `CoverMode`, `CoverSearch` | Music player: the album cover in the disk's place. `AlbumCover` = `true` / `false` (default `false`); `CoverMode` = `cover` (just the cover), `gradient` (the cover under the disk's gradient), `disk` (the cover behind the turning disk, default) or `full` (the same with the disk's full animation, dots that come and go); `CoverSearch` = `default`, `folder first`, `file first`, `folder only` or `file only`. Settings → ON/OFF → MAIN UI / AUDIO → *Album Cover*, *Cover Mode*, *Cover Search*. |
 | `BookmarkAsk` | Audio book mode: whether changing the chapter, the mode or quitting asks first about a bookmark (`true` / `false`, default `true`). Settings → ON/OFF → BOOKMARKS. |
 | `BookCoverWave` | Audio book mode, with `BookCover` on: `true` = the colour wave runs over the (grey) cover, `false` = the cover in its own colours (`true` / `false`, default `true`). Settings → ON/OFF → *Book Cover*, the *Gradient Wave* value to the right of it, shown only while Book Cover is on (`←` `→` switch between the two, `ENTER` changes the lit one). |
 | `BookCover` | Audio book mode: `false` = the standard picture (a woman reading), `true` = the cover image found in the open book's folder (default `false`; a book without one keeps the standard picture). Settings → ON/OFF → *Book Cover*. |

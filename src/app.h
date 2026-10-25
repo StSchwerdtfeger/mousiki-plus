@@ -82,6 +82,8 @@ struct QueueItem {
     std::string playlist;
 };
 
+struct CoverImage;   // cover_art.h
+
 class App {
 public:
     // `shared`: the settings main() loaded, used by every App instance (the music player and the audio book player are two
@@ -1371,7 +1373,7 @@ private:
     // so both respect the queue exactly the same way. Caller must check
     // !queue_.empty() first.
     void play_next_from_queue(bool random = false);   // random: any item of the queue (#), otherwise its order
-    void play_queue_item(int idx);   // start the queue item at idx (see play_next_from_queue)
+    void play_queue_item(int idx, bool move_along = false);   // start the queue item at idx (see play_next_from_queue); move_along: SHIFT+ENTER, the items in front of it go to the end
     // Single letter for the mode-indicator button after the search bar:
     // L=list, R=repeat, S=shuffle, Q=queue then stop, O=stop (play-and-stop
     // -- not "S", that's shuffle's letter already).
@@ -1720,6 +1722,14 @@ private:
     void book_seek(int dir);                  // accelerating seek
     bool book_intercept(const std::string& action, int key);   // keys of the audio book player (true = used)
     std::vector<std::string> build_chapter_panel(int total_width, int height) const;
+    // ---- the album cover in the disk's place (music player; Settings -> Album Cover / Cover Mode / Cover Search; app_cover.cpp) ----
+    const CoverImage* player_cover() const;   // the cover of the playing track (nullptr: off, none, or still being read)
+    void cover_fill(GfxFrame& g, const CoverImage& cover, int mode, double angle, int w, int h, int cws, int chs) const;   // the pixels of a cover look
+    const std::string* player_phone_png(std::string& key) const;   // the cover look as a PNG for the remote app (nullptr: no cover)
+    bool album_cover_gfx(int col, int cols, int rows) const;   // as a pixel image (Kitty / Sixel) into gfx_; false: no cover / no protocol
+    std::vector<std::string> album_cover_lines(int cols, int rows) const;   // as braille dots (empty: no cover)
+    mutable std::string cover_pic_key_;       // what gfx_ holds when it holds the cover (a still picture is only built again when this changes)
+    mutable std::chrono::steady_clock::time_point cover_pic_at_{};
     bool book_picture_gfx(int col, int cols, int rows) const;   // the picture as a real pixel image (Kitty / Sixel) into gfx_; false: use braille
     std::vector<std::string> book_art_lines(int which, double t) const;   // which: 0 the opening book, 1 the stack of books
     // The picture that takes the disk's place on the remote app's screen: the book's cover (Book Cover on) as braille dots in its own
@@ -1957,6 +1967,7 @@ private:
     // Audio book mode: LISTS shows the library as a tree (the library overlay's folders, books and chapters). phone_book_open_ holds
     // the opened folders; the rows are numbered from 1 for the commands book-open (folder) and track (chapter).
     struct PhonePic { bool active = false; int x = 0, y = 0, w = 0, h = 0; std::string key; };
+    mutable std::string phone_cover_key_;   // music player: the key of the cover picture the phone shows
     mutable PhonePic phone_pic_;     // audio book: where the phone draws the picture (cells) and which one
     std::set<std::string> phone_book_open_;
     std::vector<FoRow> phone_book_rows() const;

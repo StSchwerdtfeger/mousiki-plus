@@ -1,0 +1,77 @@
+#pragma once
+#include "picture_formats.h"
+// Album covers for the music player: where a track's cover comes from (the picture inside the file, a picture in its folder
+// whose name is close to the track's title or album), how it is decoded (ffmpeg, in the background) and how it is scaled for the
+// disk's place. Settings -> ON/OFF -> MAIN UI / AUDIO -> Album Cover / Cover Mode / Cover Search.
+#include <array>
+#include <cstdint>
+#include <filesystem>
+#include <string>
+#include <vector>
+
+namespace muisc {
+
+// A decoded cover, at most 640 x 640 pixels.
+struct CoverImage {
+    std::string key;                      // what it was made for (see track_cover())
+    std::string dir, album;               // the folder and album tag of the track it was made for
+    int w = 0, h = 0;                     // size of `level`
+    std::vector<unsigned char> level;     // grey level 1..255 (never 0 where the cover is: 0 would be transparent)
+    std::vector<unsigned char> rgb, alpha;   // the colours (w * h * 3) and the opacity (w * h)
+    bool ok = false;
+    std::string source;                   // "cover.jpg" or "song.mp3 (inside the file)" -- for the status line
+    std::string note;                     // why there is no cover (when !ok)
+};
+
+// A cover scaled to a size: grey (`grey`) or in its own colours (`level` = opacity, `hue` = palette index into `pal`, 240 colours).
+struct CoverScaled {
+    std::string key;
+    int w = 0, h = 0;
+    std::vector<unsigned char> grey;      // grey mode: the grey level (already times the opacity)
+    std::vector<unsigned char> alpha;     // grey mode: the opacity (255 = opaque, 0 = transparent: a cover with a removed background)
+    std::vector<unsigned char> level, hue;
+    std::array<std::array<uint8_t, 3>, 256> pal{};
+};
+
+// Median cut over a 5-bit-per-channel histogram: the palette (at most `n` colours) and the palette index of every pixel.
+void quantize_colours(const std::vector<unsigned char>& rgb, const std::vector<unsigned char>& alpha, int n,
+                      std::array<std::array<uint8_t, 3>, 256>& pal, std::vector<unsigned char>& hue);
+// The cover fitted into max_w x max_h pixels (proportions kept). `key_id` names the cover (a new id = a new scaling).
+// `contrast` 0..100 (%): 0 = the cover as it is; more pushes the brightnesses (the colours) away from the middle grey.
+const CoverScaled& cover_scaled(const CoverImage& c, int max_w, int max_h, bool colour, int contrast = 0);
+
+// ---- where a cover comes from ----------------------------------------------------------------------------------------------
+// The places that are looked at, in this order, until one gives a picture:
+enum class CoverStep {
+    Embedded,       // the picture inside the audio file (mp3, flac, m4a ...)
+    FolderClose,    // a picture in the track's folder whose name is close to the title or the album (a fuzzy match)
+    FolderGeneric,  // a picture in the folder that is named like a cover (cover, folder, front, albumart, album)
+    FolderAny,      // the last resort of every search: the first picture of the folder by name (alphabetically)
+};
+// Settings -> Cover Search (0 Default, 1 Folder First, 2 Within File First, 3 Image in Folder Only, 4 Within File Only).
+std::vector<CoverStep> cover_steps(int search);
+
+// How close two names are, 0 (nothing in common) .. 1 (the same after case, punctuation and spacing are ignored).
+double name_closeness(const std::string& a, const std::string& b);
+// The picture in `dir` (not below it) for FolderClose (`generic` false: the one whose name is closest to any of `names`, at least
+// kCoverCloseness) or FolderGeneric (`generic` true), or, with `any`, for FolderAny: the first picture of the folder by name. Empty path = none.
+inline constexpr double kCoverCloseness = 0.62;
+
+std::filesystem::path pick_folder_picture(const std::filesystem::path& dir, const std::vector<std::string>& names, bool generic, bool any = false);
+
+// ---- the cover of the playing track ---------------------------------------------------------------------------------------
+struct CoverRequest {
+    std::string path;     // the audio file (UTF-8)
+    std::string title;    // title tag, else the file name without extension
+    std::string album;    // album tag ("" = none)
+    int search = 0;       // Settings -> Cover Search
+};
+// The cover of the track, once it has been read in the background. nullptr: not read yet, or the track has none (cover_note()
+// says which). While the next track of the same album is read, the cover of the one before stays.
+const CoverImage* track_cover(const CoverRequest& rq);
+// "" while the cover is being read or exists; otherwise why there is none ("no picture inside the file or in the folder").
+std::string cover_note(const CoverRequest& rq);
+// What the shown cover was read from ("cover.jpg", "song.mp3 (inside the file)"), "" = none.
+std::string cover_source();
+
+} // namespace muisc

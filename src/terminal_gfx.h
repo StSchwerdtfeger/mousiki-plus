@@ -39,6 +39,14 @@ struct GfxFrame {
     // A rectangle of cells, relative to col / row, that something else covers (a floating panel): the caller has cleared its
     // pixels; Sixel must not erase its cells either. cut_w = 0: none.
     int cut_c = 0, cut_r = 0, cut_w = 0, cut_h = 0;
+    // With `plain` (a picture, no beam), Sixel only: what happens to the pixels that are not part of the picture.
+    //   opaque: they are painted black (the terminal is black: Settings -> Black Background), so the picture replaces what was there
+    //           -- the last picture of an animation, the text under it. Cells in the cut rectangle stay as they are.
+    //   erase:  the terminal keeps its own background colour, so the picture's cells are blanked with spaces first (in the same
+    //           write; the cut rectangle is left out) and the picture is drawn on top of the empty cells.
+    // Neither: the pixels stay transparent (a still picture such as the audio book's).
+    bool opaque = false;
+    bool erase = false;
 };
 
 // Which protocol does this terminal speak? `pref` = "auto" | "kitty" | "sixel" | "off" (the environment variable

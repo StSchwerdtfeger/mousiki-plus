@@ -536,6 +536,7 @@ int win_poll_key() {
     }
 
     wchar_t wc = k.uChar.UnicodeChar;
+    if (k.wVirtualKeyCode == VK_RETURN) g_last_key_was_shifted = shifted && !ctrl_held && !alt_held;   // SHIFT+ENTER is still Enter (13); the flag tells them apart (queue: play and move along)
     g_last_key_was_arrow = false; // from here down it is a real character or nothing at all
     if (wc == 0) return 0; // a bare modifier, function key, Home/End/PgUp/... -- ignored, as on POSIX
     if (wc == 8) return 127; // Backspace -- same normalization the old _getch() path applied

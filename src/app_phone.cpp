@@ -72,7 +72,7 @@ void App::phone_publish() {
     std::vector<remote::net::Zone> zones;
     phone_pic_.active = false;
     const std::vector<std::string> lines = build_phone_screen(cols, rows, zones);
-    remote::net::set_picture(phone_pic_.active && phone_view_ == 0 && audiobook_, phone_pic_.x, phone_pic_.y, phone_pic_.w, phone_pic_.h, phone_pic_.key);
+    remote::net::set_picture(phone_pic_.active && phone_view_ == 0, phone_pic_.x, phone_pic_.y, phone_pic_.w, phone_pic_.h, phone_pic_.key);
     remote::net::set_screen(audiobook_ ? "audiobook" : "player", cols, rows, lines, zones, settings_.list_color);
 }
 
@@ -313,6 +313,17 @@ std::vector<std::string> App::build_phone_screen(int W, int H, std::vector<remot
             }
             zones.push_back({2 + left, top, std::max(1, pw), disk_h, "play-pause", ""});
             }
+        } else if (const std::string* cpng = [&]() -> const std::string* {   // the album cover takes the disk's place (as on the computer)
+                       std::string ck;
+                       const std::string* p = player_phone_png(ck);
+                       if (p && !remote::net::picture_has(ck)) remote::net::picture_store(ck, *p);
+                       phone_cover_key_ = p ? ck : std::string();
+                       return p;
+                   }()) {
+            phone_pic_ = {true, 2, static_cast<int>(out.size()), inner, disk_h, phone_cover_key_};
+            for (int i = 0; i < disk_h; ++i) row("");
+            zones.push_back({2, static_cast<int>(out.size()) - disk_h, inner, disk_h, "play-pause", ""});
+            (void)cpng;
         } else {
         std::vector<std::string> frame = disk_.frame(phone_angle_);
         const int dw = disk_.width();

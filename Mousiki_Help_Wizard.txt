@@ -258,6 +258,8 @@ QUEUE PANE: [[Header]]
 See BUILDING A QUEUE[[Header]] for details on how to e.g. adjust the queue order, how to
 save a queue to a list and more...
 The bottom border shows how many titles are below the visible rows: ( 5 more ).
+[ENTER] plays the highlighted item; [SHIFT+ENTER] plays it AND moves the whole queue along to it (the
+items in front of it go to the end in their order, as if they had been played).
 
 
 [[NEW PAGE]]
@@ -1068,7 +1070,8 @@ Share Profiles (on: the radio uses the player's oscilloscope/spectrogram setting
 Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
 Update Notice (a quiet once-a-day look for a newer release; a small window, once per version: [ESC] close, [o] open the release page)
 Media Keys (Windows: media pop-up/keys; Linux: MPRIS widgets/playerctl; macOS: Now Playing; the system media keys control Mousiki)
-MAIN UI / AUDIO: Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars,
+MAIN UI / AUDIO: Eliment Disk / Cover, Album Cover, Cover Mode, Cover Contrast, Cover Search, Dummy Buttons, Queue Display,
+Progress Waveform, Spectrum Bars,
 Stereo Sound, Normalize Volume, Replace Emoji, Marquee Scrolling
 Track Buffer (MB) (default 256: a track whose decoded audio is smaller is held whole in RAM,
   so seeking is instant; a bigger one uses a moving 2-minute window. [ENTER] types a number,
@@ -1078,6 +1081,37 @@ characters that does not repeat) or two moving braille blocks = the braille effe
 the bar follows the disk animation, with the centre of the circle two cells in from the left.
 Right of it: gradient / no gradient (gradient = the VIZ colours from left to right, like the
 oscilloscope). [<-] [->] switch between the two values of the row, [ENTER] changes the lit one
+ALBUM COVER (music player): Album Cover (false by default) shows the cover of the playing track in the
+disk's place; a track without a cover keeps the disk. Cover Mode chooses how it is shown (five ways):
+  1. Just Cover - the cover in its own colours.
+  2. Cover with Gradient - a grey version of the cover under the disk's gradient colours, a slow wave
+     that moves diagonally over the picture, from the upper left to the lower right.
+  3. Cover behind Disk - the grey cover in full resolution behind the turning disk: the dots of the
+     disk are pinholes through which the cover shines at full brightness; the rest is the terminal
+     background, like a sheet of paper in front of the cover. The dots stay on their grid and only the
+     pattern of the disk turns. Transparent parts of a cover show a plain grey in the dots, so the whole
+     disk stays visible.
+  4. Cover behind Disk v2 - the same, but the dots themselves turn smoothly around the centre.
+  5. Cover behind Disk (Full Anima) - the same, but the dots follow the exact braille animation of
+     the disk: rotated and rounded to the dot grid, some of them come and go as it turns (the effect of
+     the disk look of the Volume Indicator).
+  With Kitty or Sixel the cover is a real picture, without them the same looks are drawn in braille dots.
+Cover Contrast (0% .. 100%, steps of 5%) adds contrast to the cover in every look; 0% = as it is.
+Cover Search says where the cover is looked for. Default: first the picture inside the file (mp3 and the
+other formats that can carry one). If it has none, the folder of the file is searched for a picture whose
+name is close to the title of the track or to its album tag: a fuzzy match (case, punctuation and small
+typos do not matter), so a folder with tracks of different albums can hold one picture per album
+("Thriller.jpg" belongs to the tracks of the album Thriller). If none is close, a picture named cover,
+folder, front, albumart or album is taken.
+Last resort of every Cover Search value except Within File Only: when nothing else gave a picture, the first picture of the folder
+by name (alphabetical) is taken.
+Picture formats (also for the audio book cover): jpg jpeg jpe jfif, png apng, webp, bmp dib, gif, tif tiff,
+avif, heic heif, jxl, jp2, ico, tga, ppm pgm pnm, pcx (every regular format read by ffmpeg; avif, heic and jxl
+only if your ffmpeg can decode them; no camera RAW or other very large formats). The name only has to be close.
+  Folder First - the folder first (close name, then cover.jpg and its like), the file's picture last
+  Within File First - inside the file; then only a closely named picture of the folder (no cover.jpg)
+  Image in Folder Only - never looks inside the files
+  Within File Only - never looks in the folder
 MAIN UI VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
 Use Lyrics Engine / Oscilloscope / Spectrogram / Sphere. False leaves that view out of the [,/.] cycle.
 

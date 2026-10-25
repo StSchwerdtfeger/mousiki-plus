@@ -288,6 +288,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "HKeyQueueMoveDown", "Move hovering queue item down"},
         {nullptr, "HKeyQueueMoveTop", "Move hovering queue item to the top"},
         {nullptr, "HKeyQueueMoveBottom", "Move hovering queue item to the bottom"},
+        {nullptr, "#SHIFT+ENTER", "Queue pane / big queue overlay: play the highlighted item AND move the queue along to it (the items in front of it go to the end in their order; handy with a locked queue)"},
         {nullptr, "HKeyQueueLock", "Lock / unlock the queue (locked = default: played track goes to the end; unlocked: it leaves)"},
         {nullptr, "HKeyClearQueue", "Clear the whole queue (asks Yes / No first)"},
         {nullptr, "HKeyQueueUndoClear", "Undo the last queue clear"},

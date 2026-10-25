@@ -81,6 +81,21 @@ ColorLyricsActiveWordBg=
 ##-------------------------------------------
  
 ElimentDisk=true
+## Album Cover (music player) = the cover of the playing track takes the disk's place (needs ElimentDisk=true; a track without a cover keeps the disk)
+AlbumCover=false
+## CoverMode: cover = just the cover | gradient = a grey cover under the disk's gradient colours (a slow wave moving diagonally, upper left to lower right) | disk = the grey cover in full resolution
+## behind the turning disk; the disk's dots are pinholes that let it shine through at full brightness, they stay on a fixed grid and only
+## the pattern turns | disk2 = the same, the dots themselves turn | full = the same with the disk's full animation: its dots are rounded to the dot grid as it turns, so some come and go
+CoverMode=disk
+## CoverContrast = 0 .. 100 (percent, steps of 5): more contrast for the album cover (0 = the cover as it is)
+CoverContrast=0
+## CoverSearch = where the cover is looked for (every search except "file only" ends with any picture of the folder, the first by name, when nothing else gave one):
+##   default      the picture inside the file, else the picture in the folder whose name is closest to the title or the album tag (a fuzzy
+##                match, so one folder can hold the covers of several albums), else cover / folder / front / albumart / album (jpg jpeg png webp bmp gif tif tiff avif heic jxl jp2 ico tga ppm pcx; no camera RAW)
+##   folder first the folder first (as above), the picture inside the file last
+##   file first   inside the file, else only a closely named picture of the folder (no cover.jpg fallback)
+##   folder only  never looks inside the files        file only  never looks in the folder
+CoverSearch=default
 ElimentDummyButtons=true
 ElimentQueue=true
 ## Progress Waveform = the braille waveform in the progress bar (off: a plain bar)

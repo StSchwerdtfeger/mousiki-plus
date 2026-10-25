@@ -7,6 +7,7 @@
 #include "utf8_util.h"
 #include "path_utf8.h"
 #include "book_art.h"
+#include "picture_formats.h"
 #include "miniz.h"
 #include "book_cue.h"
 #include "process_util.h"
@@ -537,13 +538,12 @@ const CoverScaled& scaled_cover(const CoverData& c, int max_w, int max_h, bool c
 // The picture file of a book folder that is the cover: a file named like a cover (cover, folder, front, albumart ...) first, else
 // the first picture in the folder (by name). Empty path = none.
 fs::path find_cover_file(const fs::path& dir) {
-    static const char* const kExt[] = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".gif", ".tif", ".tiff"};
     static const char* const kNames[] = {"cover", "folder", "front", "albumart", "album", "book", "thumb"};
     std::error_code ec;
     auto is_picture = [&](const fs::path& f) {
         std::string ext = path_utf8(f.extension());
         for (char& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        for (const char* e : kExt) if (ext == e) return true;
+        for (const char* e : kCoverPictureExtensions) if (ext == e) return true;
         return false;
     };
     std::vector<fs::path> pics;

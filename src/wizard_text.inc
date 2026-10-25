@@ -261,6 +261,8 @@ QUEUE PANE: [[Header]]
 See BUILDING A QUEUE[[Header]] for details on how to e.g. adjust the queue order, how to
 save a queue to a list and more...
 The bottom border shows how many titles are below the visible rows: ( 5 more ).
+[ENTER] plays the highlighted item; [SHIFT+ENTER] plays it AND moves the whole queue along to it (the
+items in front of it go to the end in their order, as if they had been played).
 
 
 [[NEW PAGE]]
@@ -393,10 +395,10 @@ the same file name and therefore does not rely on the history itself, but is bui
 to the history file that is created by yt-dlp using it outside Mousiki so duplicates are avoided.
 When using yt-dlp outside of Mousiki it is recommended to point the history file to the same folder
 Mousiki is creating inside the chosen download path as seen below (maybe create a shell profile
-function for downloading songs and playlists from it). NOTE: When the download folder is changed in
-Mousiki, the history folder will be copied (not moved!) to avoid history amnesia on the yt-dlp side.
 )WIZ",
-R"WIZ(
+R"WIZ(function for downloading songs and playlists from it). NOTE: When the download folder is changed in
+Mousiki, the history folder will be copied (not moved!) to avoid history amnesia on the yt-dlp side.
+
 YT-DLP COMMAND POINTING AT SHARED HISTORY FOLDER: [[Header]]
 yt-dlp -x -P "<download folder>" --download-archive "<download folder>/history/downloaded_history.txt" <playlist-url>
 
@@ -556,11 +558,11 @@ also fetches the year tag, since it is closely associated.
 
 ADD TO FETCH LIST AND FETCH ALL:[[Header]]
 Apply [a] to a highlighted track in the LIBRARY PANE[[Header]] to add a track to
-the FETCH LIST PANE[[Header]]. For fetching data of all fetch listed tracks
+)WIZ",
+R"WIZ(the FETCH LIST PANE[[Header]]. For fetching data of all fetch listed tracks
 at once hit [ENTER].
 The command [DEL] or [d] deletes a track from the fetch list.
-)WIZ",
-R"WIZ([SHIFT+d] or [SHIFT+DEL] empties the whole fetch list (after a question); the pending edits,
+[SHIFT+d] or [SHIFT+DEL] empties the whole fetch list (after a question); the pending edits,
 fetched tags included, stay until [CTRL+s] or [CTRL+SHIFT+x].
 All edited tracks will also be highlighted and filtered by the [r] command in the
 LIBRARY PANE [[Header]] of the EDIT TAB [[Header]].
@@ -694,13 +696,13 @@ so far and the translations and the text itseld. [TAB] switches between the two 
 the command [ENTER] fetches.
 [SHIFT+t] shows / cycles / hides translations, [d] or [DEL] deletes a translation.
 Fetching translations goes on in the background and may take a while; asking for another one 
-meanwhile then only gives a warning.
+)WIZ",
+R"WIZ(meanwhile then only gives a warning.
 
 
 [[New Page]]
 4.3 KARAOKE MODE [[Header]]
-)WIZ",
-R"WIZ(
+
 OPEN AND CLOSE:[[Header]] [k] opens the karaoke overlay, [ESC] or [k] close it.
 
 The lyrics are shown over the whole screen. The coloring behavior again matches the colors
@@ -835,11 +837,11 @@ Makes music out of a text, saves it as a WAV file, plays it and shows it in a fu
 
 OSCILLOSCOPE (XY): [[Header]]
 Left = x, right = y: the beam draws the outlines of your text again and again, 30 - 120 times a second.
-
+)WIZ",
+R"WIZ(
 SPECTROGRAM: [[Header]]
 The text is the spectrogram: time left to right, pitch bottom to top, brightness = loudness. Only the
-)WIZ",
-R"WIZ(notes of a scale play (pentatonic minor by default), so it sounds like music.
+notes of a scale play (pentatonic minor by default), so it sounds like music.
 
 ROWS: [[Header]]
 Text ([|] = new line), Sound, Length (5 - 60 s), Invert, the options of the chosen sound, Scope grid
@@ -999,9 +1001,9 @@ Top 100       the year         Night          least: year
 HOW TO USE THEM: [[Header]]
 [2] (or [->])     go to TOP TRACKS
 [TAB]             move into the pane (a [◀] appears behind its title)
-arrow keys        pick a list; while the pane has the focus [<-/->] move between the columns
 )WIZ",
-R"WIZ([ENTER]           add that list to the end of the queue
+R"WIZ(arrow keys        pick a list; while the pane has the focus [<-/->] move between the columns
+[ENTER]           add that list to the end of the queue
 [ESC] or [TAB]    back to the track list
 
 TIMES OF DAY: [[Header]]
@@ -1076,7 +1078,8 @@ Share Profiles (on: the radio uses the player's oscilloscope/spectrogram setting
 Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
 Update Notice (a quiet once-a-day look for a newer release; a small window, once per version: [ESC] close, [o] open the release page)
 Media Keys (Windows: media pop-up/keys; Linux: MPRIS widgets/playerctl; macOS: Now Playing; the system media keys control Mousiki)
-MAIN UI / AUDIO: Eliment Disk, Dummy Buttons, Queue Display, Progress Waveform, Spectrum Bars,
+MAIN UI / AUDIO: Eliment Disk / Cover, Album Cover, Cover Mode, Cover Contrast, Cover Search, Dummy Buttons, Queue Display,
+Progress Waveform, Spectrum Bars,
 Stereo Sound, Normalize Volume, Replace Emoji, Marquee Scrolling
 Track Buffer (MB) (default 256: a track whose decoded audio is smaller is held whole in RAM,
   so seeking is instant; a bigger one uses a moving 2-minute window. [ENTER] types a number,
@@ -1086,6 +1089,38 @@ characters that does not repeat) or two moving braille blocks = the braille effe
 the bar follows the disk animation, with the centre of the circle two cells in from the left.
 Right of it: gradient / no gradient (gradient = the VIZ colours from left to right, like the
 oscilloscope). [<-] [->] switch between the two values of the row, [ENTER] changes the lit one
+ALBUM COVER (music player): Album Cover (false by default) shows the cover of the playing track in the
+disk's place; a track without a cover keeps the disk. Cover Mode chooses how it is shown (five ways):
+  1. Just Cover - the cover in its own colours.
+  2. Cover with Gradient - a grey version of the cover under the disk's gradient colours, a slow wave
+     that moves diagonally over the picture, from the upper left to the lower right.
+  3. Cover behind Disk - the grey cover in full resolution behind the turning disk: the dots of the
+     disk are pinholes through which the cover shines at full brightness; the rest is the terminal
+     background, like a sheet of paper in front of the cover. The dots stay on their grid and only the
+     pattern of the disk turns. Transparent parts of a cover show a plain grey in the dots, so the whole
+     disk stays visible.
+  4. Cover behind Disk v2 - the same, but the dots themselves turn smoothly around the centre.
+  5. Cover behind Disk (Full Anima) - the same, but the dots follow the exact braille animation of
+     the disk: rotated and rounded to the dot grid, some of them come and go as it turns (the effect of
+     the disk look of the Volume Indicator).
+  With Kitty or Sixel the cover is a real picture, without them the same looks are drawn in braille dots.
+Cover Contrast (0% .. 100%, steps of 5%) adds contrast to the cover in every look; 0% = as it is.
+Cover Search says where the cover is looked for. Default: first the picture inside the file (mp3 and the
+other formats that can carry one). If it has none, the folder of the file is searched for a picture whose
+name is close to the title of the track or to its album tag: a fuzzy match (case, punctuation and small
+typos do not matter), so a folder with tracks of different albums can hold one picture per album
+("Thriller.jpg" belongs to the tracks of the album Thriller). If none is close, a picture named cover,
+folder, front, albumart or album is taken.
+Last resort of every Cover Search value except Within File Only: when nothing else gave a picture, the first picture of the folder
+by name (alphabetical) is taken.
+Picture formats (also for the audio book cover): jpg jpeg jpe jfif, png apng, webp, bmp dib, gif, tif tiff,
+avif, heic heif, jxl, jp2, ico, tga, ppm pgm pnm, pcx (every regular format read by ffmpeg; avif, heic and jxl
+only if your ffmpeg can decode them; no camera RAW or other very large formats). The name only has to be close.
+  Folder First - the folder first (close name, then cover.jpg and its like), the file's picture last
+)WIZ",
+R"WIZ(  Within File First - inside the file; then only a closely named picture of the folder (no cover.jpg)
+  Image in Folder Only - never looks inside the files
+  Within File Only - never looks in the folder
 MAIN UI VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
 Use Lyrics Engine / Oscilloscope / Spectrogram / Sphere. False leaves that view out of the [,/.] cycle.
 
@@ -1131,8 +1166,7 @@ TAB, SPACE, BACKSPACE, ARROW_KEY_UP / DOWN / LEFT / RIGHT. A combination ([ALT+L
 SAFETY: [[Header]]
 A key that is already used by another command is refused with a message naming it, so you can
 never lose a command by accident. [*] and [ESC] are reserved. Keys that are not listed (the keys of
-)WIZ",
-R"WIZ(editors and overlays, [ENTER], the arrows, [CTRL+s] ...) are fixed. The cheat sheet [?] lists
+editors and overlays, [ENTER], the arrows, [CTRL+s] ...) are fixed. The cheat sheet [?] lists
 those, and it always shows the default keys.
 
 ABOUT APP TAB: [[Header]]
@@ -1222,7 +1256,8 @@ SEARCHING YOUR OWN STATIONS: [[Header]]
 [ENTER] tunes the highlighted station and [ESC] clears the search.
 (a name, genre or country)   filters your stations
 [s:]                         back to searching stations
-[p:]                         your saved STATION LISTS; [ENTER] fills the pane with that list and tunes
+)WIZ",
+R"WIZ([p:]                         your saved STATION LISTS; [ENTER] fills the pane with that list and tunes
                              its first station
 While a list is shown the pane title reads STATIONS (LIST: name - ESC: all) and [n], [b] and [#] surf
 only inside that list. [ESC] clears a search still in the box; the next [ESC] returns to all stations.
@@ -1277,8 +1312,7 @@ the square bracket keys (left / right)   back / forward 30 seconds
 the curly bracket keys (left / right)    back 5 minutes / back to live
                                          (German keyboard: [ALT GR+7] / [ALT GR+0])
 Every jump is shown for 4 seconds under the scope block, e.g. -0:30 | 2:30 behind live.
-)WIZ",
-R"WIZ(You can never go back before the moment you tuned in: internet radio only delivers from "now".
+You can never go back before the moment you tuned in: internet radio only delivers from "now".
 Catching up with the forward key hands back to the live stream without a gap. Tuning another
 station, [x] or quitting clears the buffer.
 
@@ -1371,7 +1405,8 @@ Gradient wave speed and Pulse wave speed (the ON AIR sign), Bars Fluidity / Degr
 Osci/sphere (osci / sphere / spectro / off) and Osci style (braille / image).
 
 [[New Page]]
-12.2 RADIO SETTINGS: PATHS, KEYS AND FILES [[Header]]
+)WIZ",
+R"WIZ(12.2 RADIO SETTINGS: PATHS, KEYS AND FILES [[Header]]
 
 PATHS: [[Header]]
 Every path is a base folder; the radio makes its own sub folders below it:
@@ -1425,8 +1460,7 @@ the first row [<- ..] ENTER goes back up or hitting [ESC]. A search shows all bo
 
 PANES: [[Header]]
 BOOKS (left)      only folders: one row per book with its number of chapters. [ENTER] opens the book.
-)WIZ",
-R"WIZ(                  [/] searches the books, [ESC] shows all books again; in the chapter pane [ESC] goes 
+                  [/] searches the books, [ESC] shows all books again; in the chapter pane [ESC] goes 
                   back to the library pane; in a folder of the library pane [<-] and [ESC] go one step 
                   up in the folder hierarchy.
 CHAPTERS (right)  takes the place of the queue: the files of the open book in natural order
@@ -1500,7 +1534,8 @@ THREE KINDS OF TIME STAMPS: [[Header]]
 AUTO-MARK  where you stopped; written by itself every few seconds while you listen and when you leave
            (.cue: REM AUTOMARK). One per book.
 BOOKMARK   a place you set on purpose with [SHIFT+b]; a book and even a chapter may carry many. They are
-           numbered automatically: Bookmark 1, Bookmark 2 ... (.cue: REM BOOKMARK).
+)WIZ",
+R"WIZ(           numbered automatically: Bookmark 1, Bookmark 2 ... (.cue: REM BOOKMARK).
 NOTE       a bookmark with a text (SHIFT+n, below); without a title it is numbered: Note 1, Note 2 ...
 
 The chapter with the newest bookmark is lit in the header colour with a diamond.
@@ -1540,8 +1575,7 @@ NOTES: [[Header]]
 
 Export / import of notes is possible and use the folder <book folder>/notes.
 Again, a note shows itself in the field (for 20 seconds) when playback passes its time.
-)WIZ",
-R"WIZ(
+
 [[New Page]]
 13.4 LIST OF TIME STAMPS, LIBRARY AND READING HISTORY [[Header]]
 
@@ -1627,7 +1661,8 @@ THEME PREVIEW: [[Header]] in the CHOOSE THEME list [SHIFT+p] shows a still copy 
 14.2 THE REMOTE APP (PHONE) [[Header]]
 
 Settings -> ON/OFF -> MODES -> Remote App -> [ENTER] opens the REMOTE APP overlay (player or radio):
-switch it ON, see the address and a QR code (scan it with the phone camera: the remote opens,
+)WIZ",
+R"WIZ(switch it ON, see the address and a QR code (scan it with the phone camera: the remote opens,
 logged in), change the PORT or the PIN ([n] a new one). [ESC] back, [s] saves the settings.
 Works with your own build as well as with an installed Mousiki. The phone must be in the same network.
 

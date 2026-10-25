@@ -533,6 +533,7 @@ int TerminalIO::poll_key() {
                     if (code == 'U' || code == 'u') { g_last_key_was_arrow = false; return kKeyCtrlShiftU; }
                     if (code == 'Z' || code == 'z') { g_last_key_was_arrow = false; return kKeyCtrlShiftZ; }
                 }
+                if (mod == 2 && code == 13) { g_last_key_was_arrow = false; g_last_key_was_shifted = true; return 13; }   // SHIFT+ENTER (terminals that report it): Enter, with the shift flag
                 if (mod == 5 && (code == 's' || code == 'S')) { g_last_key_was_arrow = false; return kKeyCtrlS; } // Ctrl+S
                 if (mod == 5 && (code == 'p' || code == 'P')) { g_last_key_was_arrow = false; return kKeyCtrlP; } // Ctrl+P
                 if (mod == 5 && (code == 'l' || code == 'L')) { g_last_key_was_arrow = false; return kKeyCtrlL; } // Ctrl+L

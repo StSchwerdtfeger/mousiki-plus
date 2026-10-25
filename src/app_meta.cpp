@@ -383,14 +383,16 @@ std::vector<std::string> App::build_meta_library_panel(int total_width, int heig
     // The pane title carries the active missing-tag filter, so a list
     // narrowed by 'x' or Shift+T/A/Y is never mistaken for the whole
     // library (the status line repeats it with a count).
-    std::string lib_label = "LIBRARY";
+    std::string lib_label = "FILE LIBRARY";
     {   // what is active: the sorts ('r' edited first, 'n' added first) and the filter, joined with " + "
         std::string active;
         auto add = [&](const std::string& part) { active += (active.empty() ? "" : " + ") + part; };
         if (meta_resort_edited_) add("EDITED FIRST");
         if (meta_sort_added_) add("ADDED FIRST");
         if (meta_filter_ != 0) add(meta_filter_label());
-        if (!active.empty()) lib_label += truncate_str(" [" + active + "]", std::max(8, total_width - 14));
+        // the filters are cut with "..." so that title, filters and the focus indicator always fit the border (" ◀" is 2 columns)
+        const int room = total_width - 5 - display_width(lib_label) - 2;
+        if (!active.empty() && room >= 4) lib_label += truncate_str(" [" + active + "]", room);
     }
     if (meta_focus_ == 1) lib_label += focus_indicator(settings_, border_ansi);
     out.push_back(box_top(lib_label, total_width, border_ansi));

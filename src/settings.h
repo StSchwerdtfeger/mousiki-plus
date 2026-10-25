@@ -24,6 +24,11 @@ namespace fs = std::filesystem;
 struct Settings : VizPrefs {
     // --- element visibility toggles (config.txt: "Eliment_*") ----------
     bool element_disk = true;
+    // Album cover in the disk's place (music player; config.txt AlbumCover / CoverMode / CoverSearch).
+    bool album_cover = false;            // the cover of the playing track is shown in the disk's place (the disk where there is none)
+    int cover_mode = 2;                  // 0 = just the cover, 1 = cover with the disk's gradient, 2 = cover behind the disk (the disk's dots are pinholes; the dot grid stays, the pattern turns), 3 = v2 (the dots themselves turn), 4 = full animation (dots that come and go)
+    int cover_contrast = 0;              // 0..100 in steps of 5 (%): more contrast for the cover
+    int cover_search = 0;                // 0 default (file, then folder), 1 folder first, 2 within file first, 3 image in folder only, 4 within file only
     bool element_dummy_buttons = true;
     bool element_queue = true;           // replaces the old queue_visible
     bool element_waveform = true;

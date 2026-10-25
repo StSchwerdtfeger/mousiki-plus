@@ -172,7 +172,7 @@ std::string sixel_emit(const GfxFrame& f) {
             const bool yin = y >= ya && y < yb;
             for (int x = 0; x < f.w; ++x) {
                 uint8_t& c = idx[static_cast<size_t>(y) * f.w + x];
-                if (c == 0 && !f.plain && !(yin && x >= xa && x < xb)) c = 243;
+                if (c == 0 && (!f.plain || f.opaque) && !(yin && x >= xa && x < xb)) c = 243;
             }
         }
     }
@@ -209,6 +209,15 @@ std::string sixel_emit(const GfxFrame& f) {
     std::string o;
     o.reserve(65536);
     o += "\x1b[0m";
+    if (f.erase && f.plain) {   // blank the picture's cells (not the ones something else covers), then draw on them
+        auto blank = [&](int r, int from, int to) { if (to > from) { o += at_cell(f.row + r, f.col + from); o.append(static_cast<size_t>(to - from), ' '); } };
+        for (int r = 0; r < f.rows; ++r) {
+            if (f.cut_w > 0 && r >= f.cut_r && r < f.cut_r + f.cut_h) {
+                blank(r, crop, std::min(f.cols, std::max(crop, f.cut_c)));
+                blank(r, std::max(crop, f.cut_c + f.cut_w), f.cols);
+            } else blank(r, crop, f.cols);
+        }
+    }
     o += at_cell(f.row, f.col + crop);
     o += "\x1bP0;1;0q\""; put_int(o, pan); o += ";1;"; put_int(o, W); o += ';'; put_int(o, H);
     o += pal_text;

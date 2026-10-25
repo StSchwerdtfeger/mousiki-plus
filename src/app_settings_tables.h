@@ -119,6 +119,7 @@ enum SetId {
     kSidVisFluidity, kSidWaveStyle, kSidDiskSpeed, kSidVisDegr, kSidVisVisc, kSidLyrAlign, kSidLyrAnim,
     kSidVolIndicator,
     kSidUseModePlayer, kSidUseModeRadio, kSidUseModeBook, kSidModeOrder1, kSidModeOrder2, kSidModeOrder3, kSidBookAsk, kSidBookCover, kSidBookCoverWave,
+    kSidAlbumCover, kSidCoverMode, kSidCoverContrast, kSidCoverSearch,
 };
 // True while the audio book player is the mode that runs (set by App::run()): its ON/OFF and ANIMA/VIZ tabs leave out what only
 // belongs to the music player and name the lyrics view "notes".
@@ -135,7 +136,8 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidModeOrder1, "Mode Order 1"}, {false, kSidModeOrder2, "Mode Order 2"}, {false, kSidModeOrder3, "Mode Order 3"},
         {true, -1, ""},
         {true, -1, "MAIN UI / AUDIO"},
-        {false, kSidDisk, "Eliment Disk"}, {false, kSidDummy, "Dummy Buttons"}, {false, kSidQueue, "Queue Display"},
+        {false, kSidDisk, "Eliment Disk / Cover"}, {false, kSidAlbumCover, "Album Cover"}, {false, kSidCoverMode, "Cover Mode"}, {false, kSidCoverContrast, "Cover Contrast"}, {false, kSidCoverSearch, "Cover Search"},
+        {false, kSidDummy, "Dummy Buttons"}, {false, kSidQueue, "Queue Display"},
         {false, kSidWave, "Progress Waveform"}, {false, kSidVolIndicator, "Volume Indicator"}, {false, kSidVisualizer, "Spectrum Bars"},   // the braille waveform in the progress bar / the bars under the meta data
         {false, kSidStereo, "Stereo Sound"}, {false, kSidNormalize, "Normalize Volume"}, {false, kSidTrackBuffer, "Track Buffer (MB)"},
         {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},
