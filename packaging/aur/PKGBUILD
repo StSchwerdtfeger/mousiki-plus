@@ -1,0 +1,51 @@
+# Maintainer: <your name and address for the AUR here>
+# Builds Mousiki Plus from the GitHub release tag. Test it with run-in-container.sh (see README.md in this folder).
+pkgname=mousiki-plus
+pkgver=4.6.0
+pkgrel=1
+pkgdesc='Terminal music player, internet radio and audio book player with oscilloscope and spectrogram'
+arch=('x86_64')
+url='https://github.com/StSchwerdtfeger/mousiki-plus'
+license=('Apache-2.0')
+depends=('gcc-libs' 'glibc' 'alsa-lib' 'libpulse' 'ffmpeg' 'python' 'curl' 'yt-dlp' 'python-certifi')
+makedepends=('cmake')
+# no separate -debug package (its symlinks would point into /usr/lib/mousiki, which namcap flags as errors)
+options=('!debug')
+optdepends=('sdl2: the oscilloscope and spectrogram windows'
+            'sidplayfp: Commodore 64 SID tunes'
+            'xclip: pasting into text fields (X11)'
+            'wl-clipboard: pasting into text fields (Wayland)'
+            'pipewire-pulse: audio through PipeWire')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+# Fill in with `updpkgsums` (run-in-container.sh does it) -- the checksum of the tag's source archive.
+sha256sums=('SKIP')
+
+build() {
+  cd "$pkgname-$pkgver"
+  # third_party/ is part of the repository: nothing is downloaded. The build also copies scripts/, stations.txt,
+  # radio_config.txt and the fpcalc helper next to the binary (into build/).
+  cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -Wno-dev
+  cmake --build build
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  # The program looks for scripts/, stations.txt and radio_config.txt next to its own file (like the .deb: /opt/mousiki).
+  local dest="$pkgdir/usr/lib/mousiki"
+  install -Dm755 build/mousiki "$dest/mousiki"
+  install -Dm644 build/stations.txt "$dest/stations.txt"
+  install -Dm644 build/radio_config.txt "$dest/radio_config.txt"
+  install -d "$dest/scripts"
+  install -m644 build/scripts/*.py "$dest/scripts/"
+  install -m755 build/scripts/fpcalc "$dest/scripts/fpcalc"
+
+  # the two commands that start the app
+  install -d "$pkgdir/usr/bin"
+  ln -s /usr/lib/mousiki/mousiki "$pkgdir/usr/bin/mousiki"
+  ln -s /usr/lib/mousiki/mousiki "$pkgdir/usr/bin/lala"
+
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 THIRD_PARTY_LICENSES.txt "$pkgdir/usr/share/licenses/$pkgname/THIRD_PARTY_LICENSES.txt"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+  install -Dm644 Mousiki_User_Manual/Mousiki_User_Guide.md "$pkgdir/usr/share/doc/$pkgname/Mousiki_User_Guide.md"
+}
