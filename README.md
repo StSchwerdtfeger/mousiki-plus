@@ -339,12 +339,13 @@ LocalMusicPath=C:\Users\you\Music
 LocalMusicPath=~/Music
 ```
 Playlists folder (optional, **one** `PlaylistsPath=` line; further lines are ignored; changing it in the settings copies the existing playlists there). The listening history folder works the same way (`HistoryPath=`: an existing `history.json` in the new folder is used, otherwise the current one is copied). Without it, playlists live in `<first LocalMusicPath>\playlists`. Listing, loading, saving and deleting all use that single folder.
-You can also add folders in the settings (`s`). Same goes for the (single) download folder (`DownloadFolder=`, default is `%USERPROFILE%\.cache\mousiki`), which is automatically added to the local music paths.
+You can also add folders in the settings (`s`). Same goes for the (single) download folder (`DownloadFolder=`, default is `%USERPROFILE%\.cache\mousiki`), which is automatically added to the local music path(s).
 
 ```
 PlaylistsPath=C:\Users\YOUR NAME !!!!!!!\Music\playlists
 DownloadFolder=D:\Downloads\mousiki
 ```
+
 
 ### Build it yourself (Linux / macOS)
 
