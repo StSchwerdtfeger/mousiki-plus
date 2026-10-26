@@ -858,6 +858,10 @@ Type: filesandordirs; Name: "{app}\docs"
 Type: filesandordirs; Name: "{app}\bin"
 Type: filesandordirs; Name: "{app}\pylib"
 
+[UninstallDelete]
+; the optional pykakasi download is not tracked by the installer, so remove it explicitly
+Type: filesandordirs; Name: "{app}\pylib"
+
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; Flags: unchecked
 Name: "addtopath"; Description: "Add Mousiki to &PATH (type 'mousiki' or 'lala' in any terminal)"
