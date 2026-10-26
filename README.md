@@ -421,6 +421,10 @@ Keep the `scripts/` folder next to the binary if you move it, otherwise lyrics, 
 | Radio listening history | `~/.config/mousiki/radio_history/` — `history_radio.txt`, `archive_radio.txt` |
 | Radio recordings / downloads | the player's download folder by default, otherwise `<path>/radio_downloads/` (`~/Music/radio_downloads` if the toggle is off and the path empty) |
 
+### Uninstalling Mousiki Plus
+
+Every bundled dependency (e.g. FFmpeg) from the installers will be uninstalled. Note that the current setup does not automatically delete the .config/, .cache/ folders. Other folders such as audio_books, playlists, history that are placed / created inside set paths also remain after uninstalling Mousiki Plus, have to be deleted manually. 
+
 ## Verifying downloads
 
 Every release file (installer, `.deb`, `.pkg`, portable zips) is built by the public GitHub Actions workflow in this repository and comes with:
