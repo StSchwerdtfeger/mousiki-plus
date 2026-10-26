@@ -186,6 +186,7 @@ bool App::handle_meta_cov_key(int key) {
         return true;
     }
     if (key == '/') { meta_cov_search_ = true; return true; }
+    if (key == 't' && !arrow) { meta_toggle_cover_res(); meta_cov_msg_ = meta_status_; return true; }   // the same switch as in the meta editor
     if ((key == '\r' || key == '\n') && n > 0) {
         const MetaCovItem& it = meta_cov_items_[static_cast<size_t>(meta_cov_sel_)];
         std::string choice;
@@ -208,7 +209,7 @@ bool App::handle_meta_cov_key(int key) {
     return true;
 }
 
-std::vector<std::string> App::build_meta_cov_panel() const {
+std::vector<std::string> App::build_meta_cov_panel(int screen_w) const {
     const int W = kMetaCovPanelWidth;
     const int inner = W - 2;
     const int list_w = 40;
@@ -246,7 +247,19 @@ std::vector<std::string> App::build_meta_cov_panel() const {
             else if (it.special == 2) msg = "no cover";
             else msg = "automatic";
         } else msg = "no picture found";
-        prev = cover_preview_lines(file, emb, prev_w, rows, msg);
+        // [t] (as in the meta editor and the cover fetch): the preview as a real picture (Kitty / Sixel) or as braille dots
+        bool drawn = false;
+        if (cf_full_res_ && gfx_proto_ != GfxProto::None && !file.empty()) {
+            // where the floating panel stands (the same arithmetic as draw_floating_panel()); the preview is right of the list
+            const int panel_h = rows + 4;
+            const int start_col = 1 + std::max(0, (screen_w - W) / 2);
+            const int start_row = std::clamp(1 + std::max(0, (term_rows_ - panel_h) / 2 - kFloatingPanelUpShift), 1, std::max(1, term_rows_ - panel_h));
+            if (cover_full_picture(file, emb, prev_w, rows, (start_col - 1) + 1 + list_w + 1, (start_row - 1) + 2)) {
+                for (int r = 0; r < rows; ++r) prev.push_back(gfx_hole(prev_w));
+                drawn = true;
+            }
+        }
+        if (!drawn) prev = cover_preview_lines(file, emb, prev_w, rows, msg);
     }
     const int first = std::clamp(meta_cov_sel_ - rows / 2, 0, std::max(0, n - rows));
     for (int r = 0; r < rows; ++r) {
@@ -268,7 +281,7 @@ std::vector<std::string> App::build_meta_cov_panel() const {
     }
     std::string msg = meta_cov_ask_delete_ ? "Delete this picture from the disk?   [Y]es   [N]o" : meta_cov_msg_;
     lines.push_back(obar + pad_right(truncate_str(" " + msg, inner), inner) + obar);
-    lines.push_back(box_bottom(W, "[↑↓] select  [ENTER] use  [DEL] delete  [TAB] search  [ESC] close", border));
+    lines.push_back(box_bottom(W, "[↑↓] select  [ENTER] use  [t] ASCII/full  [DEL] delete  [TAB] search  [ESC] close", border));
     return lines;
 }
 

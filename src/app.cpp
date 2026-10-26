@@ -11655,8 +11655,9 @@ std::string App::render_frame(TerminalIO& term) {
         }
         if (meta_cov_open_) {
             std::ostringstream panel;
-            draw_floating_panel(panel, build_meta_cov_panel(), kMetaCovPanelWidth, W);
+            draw_floating_panel(panel, build_meta_cov_panel(W), kMetaCovPanelWidth, W);
             shown += panel.str();
+            gfx_ok_ = gfx_.active;   // (the panel's preview is a real picture when [t] says so)
         }
         // Saving takes a moment for a few files and a while for hundreds: the panel only appears when it lasts longer than ~1 s.
         if (meta_save_.active && std::chrono::steady_clock::now() - meta_save_.started > std::chrono::milliseconds(1000)) {

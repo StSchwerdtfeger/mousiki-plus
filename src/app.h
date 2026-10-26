@@ -711,7 +711,7 @@ private:
     void meta_cov_open();
     void meta_cov_rebuild();
     bool handle_meta_cov_key(int key);
-    std::vector<std::string> build_meta_cov_panel() const;
+    std::vector<std::string> build_meta_cov_panel(int screen_w) const;   // (screen_w: where the floating panel will stand, for the picture)
     void meta_toggle_cover_res();
     mutable int meta_pane_col_ = 0;     // screen column of the FIELDS panel (where a full-resolution cover picture starts)
     std::vector<std::string> meta_cover_pane(int inner, int rows) const;   // the track's cover as braille lines, `rows` x `inner` columns
