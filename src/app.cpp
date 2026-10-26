@@ -97,6 +97,7 @@ struct PreparedQuery {
     std::string q;
     std::vector<std::string> words;
     std::vector<uint64_t> masks;   // per word: which characters it contains (hashed to 64 bits)
+    std::string compact;           // the words run together (for the abbreviation match)
 };
 inline int popcount64(uint64_t x) {   // portable (no compiler intrinsic)
     x = x - ((x >> 1) & 0x5555555555555555ULL);
@@ -109,6 +110,7 @@ PreparedQuery prepare_query(const std::string& query) {
     PreparedQuery pq;
     pq.q = normalize_for_search(query);
     pq.words = split_words(pq.q);
+    for (const auto& w : pq.words) pq.compact += w;
     for (const auto& w : pq.words) {
         uint64_t m = 0;
         for (char c : w) m |= char_bit(c);
@@ -117,10 +119,11 @@ PreparedQuery prepare_query(const std::string& query) {
     return pq;
 }
 // Edit distance that gives up above `cutoff`: returns cutoff + 1 then (the exact value is never needed above it).
-int levenshtein_capped(std::string_view a, std::string_view b, int cutoff) {
+int levenshtein_capped(std::string_view a, std::string_view b, int cutoff) {   // (an adjacent swap counts as one edit, like levenshtein())
     const int n = static_cast<int>(a.size()), m = static_cast<int>(b.size());
     if (std::abs(n - m) > cutoff) return cutoff + 1;
-    thread_local std::vector<int> prev, cur;
+    thread_local std::vector<int> prev2, prev, cur;
+    prev2.assign(static_cast<size_t>(m) + 1, 0);
     prev.assign(static_cast<size_t>(m) + 1, 0);
     cur.assign(static_cast<size_t>(m) + 1, 0);
     for (int j = 0; j <= m; ++j) prev[static_cast<size_t>(j)] = j;
@@ -129,11 +132,14 @@ int levenshtein_capped(std::string_view a, std::string_view b, int cutoff) {
         int row_min = cur[0];
         for (int j = 1; j <= m; ++j) {
             const int cost = a[static_cast<size_t>(i) - 1] == b[static_cast<size_t>(j) - 1] ? 0 : 1;
-            const int v = std::min({prev[static_cast<size_t>(j)] + 1, cur[static_cast<size_t>(j) - 1] + 1, prev[static_cast<size_t>(j) - 1] + cost});
+            int v = std::min({prev[static_cast<size_t>(j)] + 1, cur[static_cast<size_t>(j) - 1] + 1, prev[static_cast<size_t>(j) - 1] + cost});
+            if (i > 1 && j > 1 && a[static_cast<size_t>(i) - 1] == b[static_cast<size_t>(j) - 2] && a[static_cast<size_t>(i) - 2] == b[static_cast<size_t>(j) - 1])
+                v = std::min(v, prev2[static_cast<size_t>(j) - 2] + 1);
             cur[static_cast<size_t>(j)] = v;
             if (v < row_min) row_min = v;
         }
-        if (row_min > cutoff) return cutoff + 1;
+        if (row_min > cutoff + 1) return cutoff + 1;   // (+1: a swap can still lower the next row by one)
+        std::swap(prev2, prev);
         std::swap(prev, cur);
     }
     return prev[static_cast<size_t>(m)];
@@ -145,7 +151,7 @@ double substring_score(const PreparedQuery& pq, const std::string& t_norm) {
     return pos == std::string::npos ? -1.0 : 1000.0 - std::min<double>(static_cast<double>(pos), 900.0);
 }
 // Tier 2 of fuzzy_score(): every query word must find a close word in the target. -1 = no match.
-double word_fuzzy_score(const PreparedQuery& pq, const std::string& t_norm) {
+double word_fuzzy_core(const PreparedQuery& pq, const std::string& t_norm) {
     if (pq.words.empty() || t_norm.empty()) return -1.0;
     const std::string_view t(t_norm);
     double total_quality = 0.0;
@@ -164,11 +170,26 @@ double word_fuzzy_score(const PreparedQuery& pq, const std::string& t_norm) {
             any_word = true;
             const std::string_view tw = t.substr(start, i - start);
             const size_t max_len = std::max(qw.size(), tw.size());
+            double quality = -1.0;
+            // a word typed only as far as it goes ("cov" for "cover3") is a good fit
+            if (qw.size() >= 2 && tw.size() > qw.size() && tw.compare(0, qw.size(), qw) == 0)
+                quality = 0.80 + 0.15 * static_cast<double>(qw.size()) / static_cast<double>(tw.size());
             const int cutoff = static_cast<int>(0.45 * static_cast<double>(max_len)) + 1;
             // Every distinct character of one word that the other lacks costs an edit (collisions of the hash only
             // lower the count), so this is a lower bound of the distance: no need to compute it when it is too big.
-            if (std::max(popcount64(qmask & ~tmask), popcount64(tmask & ~qmask)) > cutoff) continue;
-            const double quality = 1.0 - static_cast<double>(levenshtein_capped(qw, tw, cutoff)) / static_cast<double>(max_len);
+            if (std::max(popcount64(qmask & ~tmask), popcount64(tmask & ~qmask)) <= cutoff)
+                quality = std::max(quality, 1.0 - static_cast<double>(levenshtein_capped(qw, tw, cutoff)) / static_cast<double>(max_len));
+            // a trailing number of the text's word ("cover3") does not count
+            if (tw.size() > 1 && tw.back() >= '0' && tw.back() <= '9' && !(qw.back() >= '0' && qw.back() <= '9')) {
+                size_t e = tw.size();
+                while (e > 1 && tw[e - 1] >= '0' && tw[e - 1] <= '9') --e;
+                const std::string_view tws = tw.substr(0, e);
+                const size_t ml = std::max(qw.size(), tws.size());
+                const int co = static_cast<int>(0.45 * static_cast<double>(ml)) + 1;
+                double q2 = 1.0 - static_cast<double>(levenshtein_capped(qw, tws, co)) / static_cast<double>(ml) - 0.02;
+                if (qw.size() >= 2 && tws.size() > qw.size() && tws.compare(0, qw.size(), qw) == 0) q2 = std::max(q2, 0.78 + 0.15 * static_cast<double>(qw.size()) / static_cast<double>(tws.size()));
+                quality = std::max(quality, q2);
+            }
             if (quality > best_quality) best_quality = quality;
         }
         if (!any_word) return -1.0;
@@ -176,6 +197,12 @@ double word_fuzzy_score(const PreparedQuery& pq, const std::string& t_norm) {
         total_quality += best_quality;
     }
     return (total_quality / static_cast<double>(pq.words.size())) * 100.0;
+}
+double word_fuzzy_score(const PreparedQuery& pq, const std::string& t_norm) {
+    double best = word_fuzzy_core(pq, t_norm);
+    const int skips = abbreviation_skips(pq.compact, t_norm);   // tier 2b: the query as one run-together word ("testcover" for "test_song-cover3"); the fewer words skipped, the better
+    if (skips >= 0) best = std::max(best, std::max(60.0, 90.0 - 5.0 * skips));
+    return best;
 }
 
 std::string fmt_mmss(double seconds) {
@@ -676,6 +703,9 @@ std::filesystem::path locate_script(const std::string& filename) { return find_s
 
 App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(shared ? *shared : own_settings_) {
     if (!shared) settings_ = load_settings();
+    translit_set_learned_file(path_utf8(config_path().parent_path() / "kanji_readings_learned.txt"));   // what was learned before (tags, folders, MusicBrainz)
+    translit_set_kanji_cache_file(path_utf8(config_path().parent_path() / "kanji_readings_cache.txt"));   // what pykakasi read before
+    translit_load_readings(path_utf8(config_path().parent_path() / "kanji_readings.txt"));   // the user's reading dictionary (Latin letters display)
     // Still the colours of a built-in theme as an earlier version had them (with terminal-dependent colours 1-15 and empty
     // text colours)? Then the theme's fixed colours, which look the same in every terminal (see themes::renewed_builtins()).
     for (const auto& [was, now] : themes::renewed_builtins()) {
@@ -700,6 +730,9 @@ App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(sh
     lyrics_script_ = find_lyrics_script();
     fast_search_script_ = find_fast_search_script();
     meta_script_ = find_scripts_file("fetch_meta.py"); // AcoustID helper for Mode::MetaEdit
+    cf_script_ = find_scripts_file("fetch_cover.py");  // MusicBrainz / Cover Art Archive helper for Mode::CoverFetch
+    name_lookup_script_ = find_scripts_file("lookup_artist_name.py");
+    kanji_script_ = find_scripts_file("kanji_reading.py");
     translate_script_ = find_scripts_file("translate_lyrics.py"); // lyrics translation of Mode::ReadLyrics
     export_fpcalc_to_scripts(); // ...and the fpcalc it runs (see why there)
 
@@ -759,7 +792,7 @@ App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(sh
 // the OPTION key on a Mac; the label shown for it follows the platform (pretty_key()).
 struct NamedComboKey { const char* name; int code; };
 static const NamedComboKey kComboKeys[] = {
-    {"ALT+L", kKeyAltL}, {"CTRL+L", kKeyCtrlL}, {"CTRL+SHIFT+U", kKeyCtrlShiftU}, {"CTRL+SHIFT+Z", kKeyCtrlShiftZ},
+    {"ALT+L", kKeyAltL}, {"ALT+C", kKeyAltC}, {"CTRL+L", kKeyCtrlL}, {"CTRL+SHIFT+U", kKeyCtrlShiftU}, {"CTRL+SHIFT+Z", kKeyCtrlShiftZ},
 };
 
 // "" when `key` is not one of the bindable combinations.
@@ -836,6 +869,14 @@ std::string App::hotkey_conflict(const std::string& key_str, const std::string& 
 // console.log) -- so events are still visible after they've scrolled
 // off the status line, after a terminal-session switch redraw wiped
 // the screen, or after the session itself has ended.
+// HKeyTranslit: the Latin letters display on / off. Also reachable from the karaoke and READ LYRICS overlays.
+void App::toggle_latin_letters() {
+    settings_.latin_letters = !settings_.latin_letters;
+    set_translit_enabled(settings_.latin_letters);
+    status_line_ = settings_.latin_letters ? "Latin letters: on (Japanese kana, Korean and Chinese text are shown in Latin letters)" : "Latin letters: off";
+    force_redraw_ = true;
+}
+
 void App::log_event(const std::string& msg) {
     status_line_ = msg;
     ConsoleLog::instance().log_basic(msg);
@@ -950,8 +991,8 @@ std::vector<LocalTrack> App::filter_and_rank_local(const std::string& raw_query)
         for (const auto& t : all_local_tracks_) {
             SearchIdx e;
             e.key = path_utf8(t.path);
-            e.title_n = normalize_for_search(t.title);
-            e.folder_artist_n = normalize_for_search(t.folder_artist);
+            e.title_n = normalize_for_search(with_latin_spelling(t.title));   // (a title in kana / Hangul / hanzi is also found by its Latin spelling)
+            e.folder_artist_n = normalize_for_search(with_latin_spelling(t.folder_artist));
             search_idx_.push_back(std::move(e));
         }
     }
@@ -961,9 +1002,9 @@ std::vector<LocalTrack> App::filter_and_rank_local(const std::string& raw_query)
             if (e.tags_seen) continue;
             auto it = row_meta_cache_.find(e.key);
             if (it == row_meta_cache_.end()) continue;
-            e.tag_title_n = normalize_for_search(it->second.title);
-            e.artist_n = normalize_for_search(it->second.artist);
-            e.album_n = normalize_for_search(it->second.album);
+            e.tag_title_n = normalize_for_search(with_latin_spelling(it->second.title));
+            e.artist_n = normalize_for_search(with_latin_spelling(it->second.artist));
+            e.album_n = normalize_for_search(with_latin_spelling(it->second.album));
             e.tags_seen = it->second.tags_resolved;
         }
     }
@@ -3276,9 +3317,16 @@ void App::handle_key(int key) {
     }
 
     if (mode_ == Mode::Console) {
-        // ESC, or the console hotkey again, closes it. Anything else is
-        // ignored -- this is a read-only log view.
-        if (key == 27 || key == 't' || key == 'T') mode_ = Mode::Browse;
+        // ESC, or the console hotkey again, closes it. TAB changes the pane (logs / status messages), the arrow keys scroll it
+        // (SHIFT: a page), HOME goes to the oldest line, END back to the newest. A read-only view otherwise.
+        const bool arrow = last_key_was_arrow();
+        if (!arrow && (key == 27 || key == 't' || key == 'T')) mode_ = Mode::Browse;
+        else if (!arrow && key == 9) console_pane_ ^= 1;
+        else if (arrow && (key == 'A' || key == 'B')) {
+            const int step = last_key_was_shifted() ? 8 : 1;
+            console_up_[console_pane_] = std::max(0, console_up_[console_pane_] + (key == 'A' ? step : -step));   // (the upper end is clamped while drawing)
+        } else if (key == kKeyHome) console_up_[console_pane_] = 1 << 20;
+        else if (key == kKeyEnd) console_up_[console_pane_] = 0;
         return;
     }
 
@@ -3289,6 +3337,10 @@ void App::handle_key(int key) {
 
     if (mode_ == Mode::MetaEdit) {
         handle_meta_key(key);
+        return;
+    }
+    if (mode_ == Mode::CoverFetch) {
+        handle_cf_key(key);
         return;
     }
 
@@ -3629,6 +3681,7 @@ void App::handle_key(int key) {
             if (karaoke_size_dirty_) { save_settings(settings_); karaoke_size_dirty_ = false; }   // the lyrics size sticks
         };
         if (key == 27) { karaoke_close(); return; }
+        if (!arrow && key_is("HKeyTranslit", key)) { toggle_latin_letters(); return; }
         // Alt+L: the lyrics timing overlay, over the karaoke screen. Judging an
         // offset is easiest against the big lyrics, so it opens from here as
         // well; lyrics_edit_from_karaoke_ brings karaoke back when it closes.
@@ -3932,11 +3985,22 @@ void App::handle_key(int key) {
     }
     // Big queue overlay (SHIFT+k): same keys as the list overlay above.
     if (queue_overlay_active()) {
+        if (queue_find_edit_) { queue_find_key(key); return; }   // the caret is in the search bar: every key is for it
+        if (key_is("HKeySearch", key) && !last_key_was_arrow()) {   // "/": search the queue (the bar at the bottom)
+            queue_find_edit_ = true;
+            edit_focus("queue-find", queue_find_);
+            text_engage("queue-find");
+            return;
+        }
         if (last_key_was_arrow() && last_key_was_shifted() && (key == 'A' || key == 'B')) {
             queue_overlay_page(key == 'A' ? -1 : 1);
             return;
         }
-        if (key == 27) { queue_overlay_close(); return; }
+        if (key == 27) {
+            if (!queue_find_.empty()) { queue_find_.clear(); return; }   // the first ESC takes the search away
+            queue_overlay_close();
+            return;
+        }
     }
 
     // Ctrl+Shift+U / Ctrl+Shift+Z: queue -> playlist editor / undo the last
@@ -3973,6 +4037,8 @@ void App::handle_key(int key) {
 
     if (action == "HKeyRescan") {   // SHIFT+r: new files copied / uploaded while the app runs
         rescan_now();
+    } else if (action == "HKeyTranslit") {   // SHIFT+' : Japanese / Korean / Chinese text in Latin letters, on / off
+        toggle_latin_letters();
     } else if (action == "HKeyFetchTags") {   // SHIFT+b: AcoustID lookup (audio fingerprint) of the hovered title
         std::string path;
         if (queue_focus_) {
@@ -3990,6 +4056,9 @@ void App::handle_key(int key) {
         }
     } else if (action == "HKeyLyricsTiming") {   // lyrics timing overlay
         lyrics_edit_open();
+    } else if (action == "HKeyCoverFetch") {     // ALT+c: fetch album covers (MusicBrainz / Cover Art Archive)
+        if (audiobook_) status_line_ = "cover fetch: music player only";
+        else cf_open();
     } else if (action == "HKeyReadLyrics") {     // READ LYRICS
         readlyrics_open();
     } else if (action == "HKeyBulkAdd") {           // paste a playlist link, from any pane
@@ -4399,6 +4468,7 @@ void App::ensure_visible_row_meta() {
             std::lock_guard<std::mutex> lk(row_meta_mutex_);
             // No cap on the cache (about 200 bytes a track): a cap left the tags of every file past it unsearchable.
             row_meta_cache_[key] = rm;
+            translit_learn(rm.title, rm.artist, rm.album, key);
         }
         // A visible row whose tags resolved right here (native, no ffprobe
         // needed) still needs the version bump: this row scrolling into
@@ -4485,6 +4555,7 @@ void App::resolve_playlist_tracks_async() {
             {
                 std::lock_guard<std::mutex> lk(row_meta_mutex_);
                 row_meta_cache_[key] = rm;
+                translit_learn(rm.title, rm.artist, rm.album, key);
             }
             row_meta_tags_version_.fetch_add(1, std::memory_order_relaxed);
         }
@@ -4572,6 +4643,7 @@ void App::launch_row_meta_resolver() {
                     // no file already in the cache could ever be promoted from
                     // a duration-only entry to one with real tags once the
                     // cache first filled up.
+                    translit_learn(rm.title, rm.artist, rm.album, key);
                     row_meta_cache_[key] = rm;   // no cap: ~200 bytes a track, and a cap left the tags of every file past it unsearchable
                 }
                 // BUG FIX #3: tell the main thread real tags for a file just
@@ -4821,6 +4893,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
     if (book_extra) meta_w = std::max(10, meta_w - book_extra);
 
     std::vector<std::string> disk_frame;
+    bool cover_pic_img = false;  // the album cover is a pixel image this frame: the oscilloscope picture then goes into the second slot gfx2_
     bool book_pic_img = false;   // the audio book picture is a real pixel image this frame (it uses the picture slot gfx_)
     if (settings_.element_disk && audiobook_ && book_picture_gfx(2, disk_w, panel_h)) {
         book_pic_img = true;
@@ -4843,10 +4916,10 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
         }
     } else if (settings_.element_disk && !audiobook_ && settings_.album_cover && album_cover_gfx(2, disk_w, panel_h)) {
         // Album Cover: the cover of the playing track is a pixel image in the disk's place (it uses the picture slot gfx_, so the
-        // oscilloscope is drawn in braille meanwhile, like next to the audio book picture)
-        book_pic_img = true;
+        // oscilloscope image goes into the second slot gfx2_)
+        cover_pic_img = true;
         for (int i = 0; i < panel_h; ++i) disk_frame.push_back(gfx_hole(disk_w));
-    } else if (settings_.element_disk && !audiobook_ && settings_.album_cover && gfx_proto_ == GfxProto::None &&
+    } else if (settings_.element_disk && !audiobook_ && settings_.album_cover && (gfx_proto_ == GfxProto::None || settings_.cover_mode >= 5) &&
                !(disk_frame = album_cover_lines(disk_w, panel_h)).empty()) {
         // (no Kitty / Sixel: the cover in braille dots)
     } else if (settings_.element_disk) {
@@ -5052,6 +5125,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
             // the audio book mode fetches no lyrics: its field shows the notes (or the visualization), never a "fetching" caption
         } else if (settings_.lyrics_on() && lyrics_ready_) {
             lines_copy = lyrics_result_.lines;
+            latinize_lyrics(lines_copy);
             lyrics_delay = lyrics_result_.delay;
             lyrics_status = lyrics_result_.message;
             lyrics_avail = !lines_copy.empty();
@@ -5145,7 +5219,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
                     gfx_cell_pixels(settings_.cell_pixels, cell_w_, cell_h_);
                     const int cw0 = std::max(4, cell_w_), ch0 = std::max(8, cell_h_);
                     const int cwq = std::clamp(osci_detail_cap(settings_.image_detail, false) / lyrics_w, 4, cw0);
-                    GfxFrame& g = gfx_;
+                    GfxFrame& g = cover_pic_img ? gfx2_ : gfx_;   // (the album cover owns gfx_)
                     // Image resolution (SHIFT+o): render 1/scale of it; Kitty scales the picture up itself, Sixel repeats
                     // its pixels up to the real cell size (out_cw x out_ch). Less to render, encode and send per frame.
                     g.scale = std::clamp(settings_.image_scale, 1, 3);
@@ -5157,7 +5231,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
                     g.col = 2 + disk_w + (settings_.element_disk ? sep_w : 2) + meta_w;
                     g.row = 1;
                     g.plain = false; g.direct = false; g.opaque = false; g.erase = false;   // (the album cover's picture is a plain one)
-                    g.id = 0; g.grid.clear(); g.cut_w = 0;   // no grid on the main screen (the big overlay sets one on the same frame object)
+                    g.id = cover_pic_img ? 1 : 0; g.grid.clear(); g.cut_w = 0; g.crop = 0;   // no grid on the main screen (the big overlay sets one on the same frame object)
                     scope_.render_image(g.w, g.h, osci_params, g.level, g.hue);
                     if (pal == 0) {
                         for (int y = 0; y < g.h; ++y)
@@ -5824,7 +5898,9 @@ std::vector<std::string> App::build_queue_panel(int total_width, int height, boo
             }
             std::string padded = pad_right(truncate_str(content, inner), inner);
             std::string color_ansi;
+            const bool is_hit = wide_artist && !queue_find_.empty() && idx < static_cast<int>(queue_.size()) && queue_find_match(queue_find_, static_cast<size_t>(idx));
             if (is_row_hovering) color_ansi = cursor_sgr(settings_.queue_cursor_color, settings_.queue_cursor_bg_color);
+            else if (is_hit) color_ansi = header_sgr(settings_);   // (a match of the search bar)
             else if (is_row_playing) color_ansi = ansi_for(settings_.queue_playing_color, true) + bg_ansi_for(settings_.queue_playing_bg_color);
             else color_ansi = ansi_for(settings_.queue_color, false) + bg_ansi_for(settings_.queue_inactive_bg_color);
             out.push_back(bar + " " + color_ansi + padded + "\x1b[0m " + bar);
@@ -6697,7 +6773,7 @@ std::vector<std::string> App::build_playlist_library_panel(int total_width, int 
                           + (playlist_edit_focus_ == 1 ? focus_indicator(settings_, border_ansi) : std::string()),
                           total_width, border_ansi));
 
-    // Three equal columns -- Filename | Title | Artist -- separated by
+    // Four columns -- Filename (narrow) | Title | Artist | Album -- separated by
     // " | ", with a header row of their own right under the title row.
     // Filename is the file's stem, Title/Artist come from the resolved
     // tags (row_meta_cache_) with the same folder-name fallback the main
@@ -6705,15 +6781,18 @@ std::vector<std::string> App::build_playlist_library_panel(int total_width, int 
     // the header promises exactly these three and each gets a third.
     const std::string col_sep = " | ";
     const int sep_w = static_cast<int>(col_sep.size());
-    const int avail = std::max(3, inner - 2 * sep_w);
-    const int col1_w = avail / 3;
+    // Filename (half of its former third) | Title | Artist | Album: the rest is shared by the last three
+    const int col1_w = std::max(3, (std::max(3, inner - 2 * sep_w) / 3) / 2);
+    const int avail = std::max(3, inner - 3 * sep_w - col1_w);
     const int col2_w = avail / 3;
-    const int col3_w = avail - col1_w - col2_w;
+    const int col3_w = avail / 3;
+    const int col4_w = avail - col2_w - col3_w;
     {
         const std::string head_sep(col_sep.size(), ' ');   // (the names only, without the "|" of the rows below)
         std::string header = pad_right(truncate_str("Filename", col1_w), col1_w) + head_sep
                            + pad_right(truncate_str("Title", col2_w), col2_w) + head_sep
-                           + pad_right(truncate_str("Artist", col3_w), col3_w);
+                           + pad_right(truncate_str("Artist", col3_w), col3_w) + head_sep
+                           + pad_right(truncate_str("Album", col4_w), col4_w);
         out.push_back(bar + " " + header_sgr(settings_)
                       + pad_right(truncate_str(header, inner), inner) + "\x1b[0m " + bar);
     }
@@ -6725,20 +6804,23 @@ std::vector<std::string> App::build_playlist_library_panel(int total_width, int 
         std::string content;
         if (idx < total) {
             const auto& t = playlist_edit_lib_view_[idx];
-            std::string tag_title, tag_artist;
+            std::string tag_title, tag_artist, tag_album;
             {
                 std::lock_guard<std::mutex> lk(row_meta_mutex_);
                 auto it = row_meta_cache_.find(path_utf8(t.path));
                 if (it != row_meta_cache_.end()) {
                     tag_title = it->second.title;
                     tag_artist = it->second.artist;
+                    tag_album = it->second.album;
                 }
             }
             if (tag_title.empty()) tag_title = "-";
+            if (tag_album.empty()) tag_album = "-";
             if (tag_artist.empty()) tag_artist = t.folder_artist.empty() ? std::string("-") : t.folder_artist;
             std::string c_file = apply_font_map(t.title, settings_.font_map);
             std::string c_title = apply_font_map(tag_title, settings_.font_map);
             std::string c_artist = apply_font_map(tag_artist, settings_.font_map);
+            std::string c_album = apply_font_map(tag_album, settings_.font_map);
             // Every column padded to its own fixed width *before*
             // concatenating (rather than truncating the assembled whole
             // afterward) -- matches build_list_panel()'s row construction,
@@ -6750,8 +6832,9 @@ std::vector<std::string> App::build_playlist_library_panel(int total_width, int 
                 ? marquee_or_truncate(c_file, col1_w, idx, marquee_pl_lib_row_idx_, marquee_pl_lib_since_)
                 : pad_right(truncate_str(c_file, col1_w), col1_w);
             content = file_shown + col_sep
-                    + pad_right(truncate_str(c_title, col2_w), col2_w) + col_sep
-                    + pad_right(truncate_str(c_artist, col3_w), col3_w);
+                    + (row_focused_sel ? marquee_or_truncate(c_title, col2_w, idx, marquee_pl_lib_row_idx_, marquee_pl_lib_since_) : pad_right(truncate_str(c_title, col2_w), col2_w)) + col_sep
+                    + (row_focused_sel ? marquee_or_truncate(c_artist, col3_w, idx, marquee_pl_lib_row_idx_, marquee_pl_lib_since_) : pad_right(truncate_str(c_artist, col3_w), col3_w)) + col_sep
+                    + (row_focused_sel ? marquee_or_truncate(c_album, col4_w, idx, marquee_pl_lib_row_idx_, marquee_pl_lib_since_) : pad_right(truncate_str(c_album, col4_w), col4_w));
         }
         bool sel = (playlist_edit_focus_ == 1) && (idx == playlist_edit_lib_selected_) && idx < total;
         std::string padded = pad_right(truncate_str(content, inner), inner);
@@ -6823,10 +6906,11 @@ std::vector<std::string> App::build_playlist_tracks_panel(int total_width, int h
     // header row of its own, and no index column.
     const std::string col_sep = " | ";
     const int sep_w = static_cast<int>(col_sep.size());
-    const int avail = std::max(3, inner - 2 * sep_w);
-    const int col1_w = avail / 3;
+    const int col1_w = std::max(3, (std::max(3, inner - 2 * sep_w) / 3) / 2);
+    const int avail = std::max(3, inner - 3 * sep_w - col1_w);
     const int col2_w = avail / 3;
-    const int col3_w = avail - col1_w - col2_w;
+    const int col3_w = avail / 3;
+    const int col4_w = avail - col2_w - col3_w;
 
     int scroll = std::clamp(playlist_edit_track_selected_ - height / 2, 0, std::max(0, total - height));
     for (int row = 0; row < height; ++row) {
@@ -6834,16 +6918,18 @@ std::vector<std::string> App::build_playlist_tracks_panel(int total_width, int h
         std::string content;
         if (idx < total) {
             const auto& t = playlist_edit_tracks_[idx];
-            std::string tag_title, tag_artist;
+            std::string tag_title, tag_artist, tag_album;
             {
                 std::lock_guard<std::mutex> lk(row_meta_mutex_);
                 auto it = row_meta_cache_.find(path_utf8(t.path));
                 if (it != row_meta_cache_.end()) {
                     tag_title = it->second.title;
                     tag_artist = it->second.artist;
+                    tag_album = it->second.album;
                 }
             }
             if (tag_title.empty()) tag_title = "-";
+            if (tag_album.empty()) tag_album = "-";
             if (tag_artist.empty()) {
                 std::string folder = path_utf8(t.path.parent_path().filename());
                 tag_artist = folder.empty() ? std::string("-") : folder;
@@ -6852,13 +6938,15 @@ std::vector<std::string> App::build_playlist_tracks_panel(int total_width, int h
             std::string c_file = apply_font_map(file_txt, settings_.font_map);
             std::string c_title = apply_font_map(tag_title, settings_.font_map);
             std::string c_artist = apply_font_map(tag_artist, settings_.font_map);
+            std::string c_album = apply_font_map(tag_album, settings_.font_map);
             bool row_focused_sel = (playlist_edit_focus_ == 2) && (idx == playlist_edit_track_selected_);
             std::string file_shown = row_focused_sel
                 ? marquee_or_truncate(c_file, col1_w, idx, marquee_pl_track_row_idx_, marquee_pl_track_since_)
                 : pad_right(truncate_str(c_file, col1_w), col1_w);
             content = file_shown + col_sep
-                    + pad_right(truncate_str(c_title, col2_w), col2_w) + col_sep
-                    + pad_right(truncate_str(c_artist, col3_w), col3_w);
+                    + (row_focused_sel ? marquee_or_truncate(c_title, col2_w, idx, marquee_pl_track_row_idx_, marquee_pl_track_since_) : pad_right(truncate_str(c_title, col2_w), col2_w)) + col_sep
+                    + (row_focused_sel ? marquee_or_truncate(c_artist, col3_w, idx, marquee_pl_track_row_idx_, marquee_pl_track_since_) : pad_right(truncate_str(c_artist, col3_w), col3_w)) + col_sep
+                    + (row_focused_sel ? marquee_or_truncate(c_album, col4_w, idx, marquee_pl_track_row_idx_, marquee_pl_track_since_) : pad_right(truncate_str(c_album, col4_w), col4_w));
         }
         bool sel = (playlist_edit_focus_ == 2) && (idx == playlist_edit_track_selected_) && idx < total;
         std::string padded = pad_right(truncate_str(content, inner), inner);
@@ -7317,6 +7405,7 @@ void App::meta_ensure_session_loaded() {
 }
 
 void App::meta_refresh_lib_view() {
+    meta_folder_hover_.clear();   // (the folder view's header cursor: the rows are rebuilt)
     // With the 'r' resort on, this rebuild re-orders the pane underneath the
     // cursor, so remember the hovered row by PATH first: clamping the old
     // INDEX would silently point the picker -- and with it the fields panel,
@@ -7519,7 +7608,7 @@ RowMeta App::meta_row_meta(const fs::path& path) {
             if (it->second.tags_resolved) { promote = false; rm = it->second; } // a better answer is already cached
             else if (!usable) { rm = it->second; }
         }
-        if (promote) row_meta_cache_[key] = rm;
+        if (promote) { row_meta_cache_[key] = rm; translit_learn(rm.title, rm.artist, rm.album, key); }
     }
     if (promote && rm.tags_resolved) row_meta_tags_version_.fetch_add(1, std::memory_order_relaxed);
     return rm;
@@ -8319,7 +8408,7 @@ std::vector<LegendRow> App::queue_overlay_legend(int panel_w) const {
                    "[" + join_keys(hotkey_text("HKeyQueueMoveTop", "$"), hotkey_text("HKeyQueueMoveBottom", "%")) + "] Move to top/bottom\001Top/Bottom",
                    "[" + hotkey_text("HKeyQueueLock", "!") + "] " + (queue_locked_ ? "Unlock" : "Lock")}},
         {"Other", {"[" + hotkey_text("HKeyQueueToPlaylist", "CTRL+SHIFT+U") + "] Queue to playlist\001To playlist",
-                   "[SHIFT+\u2191\u2193] Next/Prev. page\001Page", "[ESC] Close"}},
+                   "[SHIFT+\u2191\u2193] Next/Prev. page\001Page", "[" + hotkey_text("HKeySearch", "/") + "] Search\001Search", "[ESC] Close"}},
     };
     return layout_legend_tree(groups, std::max(0, panel_w), max_lines);
 }
@@ -9506,7 +9595,7 @@ void App::queue_overlay_geometry(int W, int& panel_w, int& queue_rows) const {
     // Rows 2 .. term_rows_-1 belong to the panel: queue box border (2) + the queue rows.
     // ...minus the key legend lines below the frame (see list_overlay_geometry()).
     const int legend = static_cast<int>(queue_overlay_legend(panel_w).size());
-    queue_rows = std::max(1, term_rows_ - 2 + overlay_legend_shift(legend) - kQueueOverlayChromeRows - legend);
+    queue_rows = std::max(1, term_rows_ - 2 + overlay_legend_shift(legend) - kQueueOverlayChromeRows - kQueueSearchRows - legend);
 }
 
 void App::queue_overlay_open() {
@@ -9524,10 +9613,59 @@ void App::queue_overlay_open() {
 
 void App::queue_overlay_close() {
     queue_overlay_open_ = false;
+    queue_find_edit_ = false;
+    queue_find_.clear();
+    text_disengage();
     queue_focus_ = queue_overlay_prev_focus_;
     // Both panes share queue_selected_/queue_scroll_: pull the window back so
     // the cursor is inside the small pane's (much shorter) view again.
     clamp_queue_selected();
+}
+
+// ---- the search bar of the queue overlay ---------------------------------------------------------------------------
+// A queue entry matches when its title + artist match the query (the same typo tolerant search as the library's).
+bool App::queue_find_match(const std::string& query, size_t idx) const {
+    if (idx >= queue_.size() || query.empty()) return false;
+    const auto& q = queue_[idx];
+    const std::string title = q.is_local ? list_row_title(q.local_path, q.title) : q.title;
+    return fuzzy_score(query, with_latin_spelling(title + " " + q.artist)) > 0.0;
+}
+
+int App::queue_find_count() const {
+    int n = 0;
+    for (size_t i = 0; i < queue_.size(); ++i) if (queue_find_match(queue_find_, i)) ++n;
+    return n;
+}
+
+void App::queue_find_jump(int dir) {
+    const int total = static_cast<int>(queue_.size());
+    if (total == 0 || queue_find_.empty()) return;
+    const int step = dir < 0 ? -1 : 1;
+    for (int k = (dir == 0 ? 0 : 1); k <= total; ++k) {
+        const int i = ((queue_selected_ + step * k) % total + total) % total;
+        if (queue_find_match(queue_find_, static_cast<size_t>(i))) {
+            queue_selected_ = i;
+            // keep the cursor inside the window
+            const int rows = std::max(1, overlay_queue_rows_);
+            if (queue_selected_ < queue_scroll_) queue_scroll_ = queue_selected_;
+            else if (queue_selected_ >= queue_scroll_ + rows) queue_scroll_ = queue_selected_ - rows + 1;
+            clamp_queue_selected();
+            return;
+        }
+    }
+    status_line_ = "no title of the queue matches";
+}
+
+// Keys while the caret is in the bar: typing searches at once, Up / Down go to the previous / next match, ENTER leaves the bar
+// (the matches stay marked), ESC clears the search.
+void App::queue_find_key(int key) {
+    const bool arrow = last_key_was_arrow();
+    if (key == 27) { queue_find_.clear(); queue_find_edit_ = false; text_disengage(); edit_caret_ = edit_anchor_ = 0; return; }
+    if (key == '\r' || key == '\n') { queue_find_edit_ = false; text_disengage(); return; }
+    if (arrow && (key == 'A' || key == 'B')) { queue_find_jump(key == 'A' ? -1 : 1); return; }
+    edit_focus("queue-find", queue_find_);
+    text_engage("queue-find");
+    if (edit_text_key(queue_find_, edit_caret_, edit_anchor_, key, 120, &status_line_)) queue_find_jump(0);
 }
 
 // One page up/down; same behaviour as list_overlay_page(): the cursor keeps
@@ -9573,6 +9711,31 @@ std::vector<std::string> App::build_queue_overlay_panel(int panel_w, int queue_r
         }
         if (parts.empty()) footer.clear();
         out.back() = box_bottom(panel_w, footer, ansi_for(settings_.border_color_bottom, false));
+        // The search bar: its own small box under the queue (the list overlay has its search at the top).
+        {
+            const std::string border = ansi_for(settings_.border_color, false);
+            const std::string bar = border + settings_.box_vertical + "\x1b[0m";
+            const int inner = panel_w - 4;
+            out.push_back(box_top(std::string("SEARCH QUEUE") + (queue_find_edit_ ? focus_indicator(settings_, border) : std::string()), panel_w, border));
+            const std::string prefix = "/ ";
+            const int field_w = std::max(4, inner - display_width(prefix) - 14);
+            std::string content;
+            int cols = display_width(prefix);
+            if (queue_find_edit_) {
+                EditPaint p = paint_edit_field(queue_find_, edit_caret_, edit_anchor_, field_w, queue_find_.empty() ? search_idle_sgr(settings_) : search_sgr(settings_), true);
+                content = search_idle_sgr(settings_) + prefix + search_run(settings_, p.s, !queue_find_.empty()) + "\x1b[0m";
+                cols += p.cols;
+            } else {
+                const std::string plain = truncate_str(queue_find_.empty() ? std::string("(press [/] to search the queue)") : queue_find_, field_w);
+                content = search_idle_sgr(settings_) + prefix + search_run(settings_, plain, !queue_find_.empty()) + "\x1b[0m";
+                cols += display_width(plain);
+            }
+            std::string hits;
+            if (!queue_find_.empty()) { const int n = queue_find_count(); hits = std::to_string(n) + (n == 1 ? " match" : " matches"); }
+            const int gap = std::max(0, inner - cols - display_width(hits));
+            out.push_back(bar + " " + content + ansi_for(settings_.list_color, false) + std::string(static_cast<size_t>(gap), ' ') + hits + "\x1b[0m " + bar);
+            out.push_back(box_bottom(panel_w, "", ansi_for(settings_.border_color_bottom, false)));
+        }
         // Key legend: below the frame, outside it, in the legend color.
         {
             const auto lrows = queue_overlay_legend(panel_w);
@@ -10367,6 +10530,7 @@ std::vector<std::string> App::build_lyrics_edit_panel() const {
         std::lock_guard<std::mutex> lk(lyrics_mutex_);
         lines = lyrics_result_.lines;
         delay = lyrics_result_.delay;
+        latinize_lyrics(lines);
     }
     const double elapsed = has_track_ ? player_.poll_elapsed() : 0.0;
     const double lyric_t = elapsed - delay;
@@ -10540,6 +10704,7 @@ const MenuIdxEntry kMenuIdxPlayer[] = {
     {"LISTS & LIBRARY",  "File conversion",           "HKeyConvertOverlay", "C"},
     {"LISTS & LIBRARY",  "Playlist editor",           "HKeyPlaylist",       "P"},
     {"LISTS & LIBRARY",  "Meta data editor",          "HKeyMetaEditor",     "M"},
+    {"LISTS & LIBRARY",  "Cover fetch",               "HKeyCoverFetch",     "ALT+C"},
     {"LISTS & LIBRARY",  "Listening history",         "HKeyHistory",        "H"},
     {"SOUND",            "Equalizer",                 "HKeyEqualizer",      "E"},
     {"SOUND",            "Normalization",             "HKeyNormMenu",       "V"},
@@ -10552,7 +10717,7 @@ const MenuIdxEntry kMenuIdxPlayer[] = {
     {"VISUALS",          "Spectrogram window",        "HKeySpectroWindow",  "("},
     {"CREATE",           "Creator",                   "HKeyCreator",        "^"},
     {"SYSTEM",           "Settings",                  "HKeySetting",        "s"},
-    {"SYSTEM",           "Console / logs",            "HKeyConsole",        "t"},
+    {"SYSTEM",           "Console / logs / status",   "HKeyConsole",        "t"},
     {"SYSTEM",           "Help wizard",               "HKeyWizard",         "W"},
     {"SYSTEM",           "Cheat sheet",               "HKeyCheatsheet",     "?"},
 };
@@ -10576,7 +10741,7 @@ const MenuIdxEntry kMenuIdxBook[] = {
     {"VISUALS",          "Spectrogram options",       "HKeySpectroMenu",    "I"},
     {"VISUALS",          "Spectrogram full screen",   "HKeySpectroFull",    "U"},
     {"SYSTEM",           "Settings",                  "HKeySetting",        "s"},
-    {"SYSTEM",           "Console / logs",            "HKeyConsole",        "t"},
+    {"SYSTEM",           "Console / logs / status",   "HKeyConsole",        "t"},
     {"SYSTEM",           "Help wizard",               "HKeyWizard",         "W"},
     {"SYSTEM",           "Cheat sheet",               "HKeyCheatsheet",     "?"},
 };
@@ -11265,6 +11430,7 @@ std::string App::render_frame(TerminalIO& term) {
             case Mode::Cheatsheet: return 3;
             case Mode::Playlist: return 4;
             case Mode::MetaEdit: return 5;
+            case Mode::CoverFetch: return 10;
             case Mode::History: return 6;
             case Mode::Karaoke: return 7;
             case Mode::Wizard: return 8;
@@ -11392,6 +11558,7 @@ std::string App::render_frame(TerminalIO& term) {
     }
 
     if (mode_ == Mode::Console) {
+        capture_status();
         std::ostringstream frame;
         frame << "\x1b[2J\x1b[H\x1b[?25l";
         build_console_screen(frame, W, overlay_budget(W));
@@ -11454,6 +11621,19 @@ std::string App::render_frame(TerminalIO& term) {
         return out;
     }
 
+    if (mode_ == Mode::CoverFetch) {
+        std::ostringstream frame;
+        frame << "\x1b[2J\x1b[H\x1b[?25l";
+        const int cf_budget = overlay_budget(W);   // (this builds the main screen's metadata panel, which switches the cover picture slots on)
+        gfx_.active = false;
+        gfx2_.active = false;
+        build_cf_screen(frame, W, cf_budget);   // (switches gfx_ on when the cover is drawn as a real picture)
+        std::string shown = fullscreen_out(frame);
+        frame_main_len_ = shown.size();
+        gfx_ok_ = gfx_.active;
+        return shown;
+    }
+
     if (mode_ == Mode::MetaEdit) {
         // The five field values are resolved right before drawing them:
         // reading a tag can promote into the shared cache, and the panel
@@ -11461,11 +11641,21 @@ std::string App::render_frame(TerminalIO& term) {
         meta_refresh_hover_values();
         std::ostringstream frame;
         frame << "\x1b[2J\x1b[H\x1b[?25l";
-        build_meta_screen(frame, W, overlay_budget(W));
+        const int meta_budget = overlay_budget(W);   // (this builds the main screen's metadata panel, which switches the picture slots on)
+        gfx_.active = false;
+        gfx2_.active = false;
+        build_meta_screen(frame, W, meta_budget);   // (switches gfx_ on when the cover is drawn as a real picture)
         std::string shown = fullscreen_out(frame);
+        frame_main_len_ = shown.size();
+        gfx_ok_ = gfx_.active;
         if (meta_choice_open_) {
             std::ostringstream panel;
             draw_floating_panel(panel, build_meta_choice_panel(), kMetaChoicePanelWidth, W);
+            shown += panel.str();
+        }
+        if (meta_cov_open_) {
+            std::ostringstream panel;
+            draw_floating_panel(panel, build_meta_cov_panel(), kMetaCovPanelWidth, W);
             shown += panel.str();
         }
         // Saving takes a moment for a few files and a while for hundreds: the panel only appears when it lasts longer than ~1 s.
@@ -11575,7 +11765,7 @@ std::string App::render_frame(TerminalIO& term) {
     for (auto& l : search_lines) frame << l << "\n";
 
     int list_h = list_visible_rows_;
-    if (settings_.element_queue) {
+    if (settings_.element_queue || audiobook_) {   // (the audio book always shows its chapters)
         int list_w = W / 2;
         int queue_w = W - list_w; // exact 50/50, remainder (odd W) goes to queue
         auto list_lines = build_list_panel(list_w, list_h);
@@ -11766,7 +11956,17 @@ std::string App::render_frame(TerminalIO& term) {
         }
         if (gfx_.active && gfx_.crop != gfx_last_crop_) gfx_.fresh = true;
         gfx_last_crop_ = gfx_.active ? gfx_.crop : -1;
-    } else gfx_last_crop_ = -1;
+        // the oscilloscope picture next to an album cover (second slot): a floating panel frees its columns as it does for gfx_
+        if (gfx_.active && gfx2_.active) {
+            gfx2_.crop = 0;
+            const bool floating_mode = mode_ != Mode::Browse && mode_ != Mode::Search;
+            const int fx = float_rect_[0], fy = float_rect_[1], fw = float_rect_[2], fh = float_rect_[3];
+            if (floating_mode && fw > 0 && fy < gfx2_.row + gfx2_.rows && fy + fh > gfx2_.row && fx < gfx2_.col + gfx2_.cols && fx + fw > gfx2_.col)
+                gfx2_.crop = fx <= gfx2_.col ? std::clamp(fx + fw - gfx2_.col, 0, gfx2_.cols) : gfx2_.cols;
+            if (gfx2_.crop != gfx2_last_crop_) gfx2_.fresh = true;
+            gfx2_last_crop_ = gfx2_.crop;
+        } else gfx2_last_crop_ = -1;
+    } else { gfx_last_crop_ = -1; gfx2_last_crop_ = -1; }
     gfx_ok_ = gfx_.active;
     return out;
 }
@@ -11934,6 +12134,7 @@ int App::run() {
                        (mode_ == Mode::Wizard && wizard_st_.searching) ||
                        (mode_ == Mode::MetaEdit && meta_tab_ == 0 &&
                         (meta_focus_ == 0 || meta_focus_ == 2)) ||
+                       (mode_ == Mode::CoverFetch && cf_tab_ == 0 && cf_focus_ == 0) ||
                        playlist_text_field);
 
         for (int key = term.poll_key(); key != 0; key = term.poll_key()) {
@@ -11950,6 +12151,10 @@ int App::run() {
         poll_pending_atp();
         poll_pending_row_meta_tags();
         poll_pending_meta_fetch(); // AcoustID results -> pending edits
+        poll_cover_fetch();        // the cover fetch overlay: index, fetch list
+        capture_status();          // the status messages go to the history shown in the console overlay
+        poll_kanji_reader();       // kanji of Japanese texts read by pykakasi (when installed), in the background
+        poll_name_lookup();        // the Latin name of an artist in Chinese characters (MusicBrainz, in the background)
         poll_meta_save();          // the next slice of a running save
         if (audiobook_) book_poll();   // the loaded chapter's tags, a running tag save
         readlyrics_poll();         // a finished lyrics translation
@@ -12103,7 +12308,9 @@ int App::run() {
             if (gfx_proto_ == GfxProto::None) gfx_shown = false;
             // the overlay's second picture (the XY box) goes with the first one
             if (gfx_ok_ && gfx_.active && gfx2_.active && gfx_proto_ != GfxProto::None) {
-                if (gfx2_.fresh || !gfx2_shown_) { wire += gfx_emit(gfx_proto_, gfx2_); gfx2_shown_ = true; }
+                if (gfx2_.crop >= gfx2_.cols) {
+                    if (gfx2_shown_) { wire += gfx_clear(gfx_proto_, 1); gfx2_shown_ = false; }
+                } else if (gfx2_.fresh || !gfx2_shown_) { wire += gfx_emit(gfx_proto_, gfx2_); gfx2_shown_ = true; }
             } else if (gfx2_shown_) {
                 wire += gfx_clear(gfx_proto_, 1);
                 gfx2_shown_ = false;
@@ -12192,6 +12399,7 @@ void App::shutdown() {
     if (meta_fetch_thread_.joinable()) meta_fetch_thread_.join();
     poll_pending_meta_fetch();
     meta_persist();
+    cf_close();
 }
 
 // ---- Scope window (SHIFT+9) -------------------------------------------------------------------------------------

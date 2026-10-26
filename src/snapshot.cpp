@@ -41,16 +41,31 @@ static SnapshotTrack track_from_json(const Value& v) {
     return t;
 }
 
+static fs::path snapshot_prev_path() {
+    fs::path p = snapshot_path();
+    p += ".prev";
+    return p;
+}
+
 bool load_snapshot(SnapshotData& out) {
     fs::path p = snapshot_path();
     std::error_code ec;
-    if (!fs::exists(p, ec)) return false;
+    bool from_prev = false;
+    if (!fs::exists(p, ec)) {
+        // The last start restored the snapshot (and set it aside) but the app ended before it saved a new one -- a crash: the
+        // session is given back once more (a second crash right away starts fresh, so a snapshot that crashes can not loop).
+        p = snapshot_prev_path();
+        if (!fs::exists(p, ec)) return false;
+        from_prev = true;
+    }
 
     std::ifstream in(p, std::ios::binary);
     if (!in.is_open()) return false;
     std::ostringstream ss;
     ss << in.rdbuf();
     std::string text = ss.str();
+    in.close();
+    if (from_prev) fs::remove(p, ec);   // given back this once
     if (text.empty()) return false;
 
     Value root;
@@ -86,6 +101,7 @@ void save_snapshot(const SnapshotData& data) {
     fs::path p = snapshot_path();
     std::error_code ec;
     fs::create_directories(p.parent_path(), ec);
+    fs::remove(snapshot_prev_path(), ec);   // a new session is saved: the set-aside copy of the restored one is no longer needed
 
     Value root = Value::make_obj();
     root.set("play_mode", Value::make_num(data.play_mode));
@@ -121,8 +137,11 @@ void save_snapshot(const SnapshotData& data) {
 }
 
 void delete_snapshot() {
+    // Set aside, not deleted: if the app crashes before it saves a session of its own, the next start can still restore it (once).
     std::error_code ec;
-    fs::remove(snapshot_path(), ec);
+    fs::remove(snapshot_prev_path(), ec);
+    fs::rename(snapshot_path(), snapshot_prev_path(), ec);
+    if (ec) fs::remove(snapshot_path(), ec);
 }
 
 } // namespace muisc

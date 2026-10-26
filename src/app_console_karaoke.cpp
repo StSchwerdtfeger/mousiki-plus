@@ -55,24 +55,34 @@ namespace muisc {
 
 void App::build_console_screen(std::ostringstream& frame, int W, int target_height) const {
     std::string border = ansi_for(settings_.border_color, false);
-    frame << box_top("CONSOLE / LOGS", W, border) << "\n";
+    // Two panes: the log (what the app ran) above and the status messages (with their times) below. Together exactly as tall as the
+    // player view (target_height). The status pane has 8 rows; on a small terminal it gets what is left after 3 log rows, and
+    // below 2 rows it is left out.
+    const int avail = target_height - 4;                       // minus the borders of the two boxes
+    int log_rows = std::max(3, avail - 8);
+    int status_rows = avail - log_rows;
+    const bool two = status_rows >= 2;
+    if (!two) { log_rows = std::max(1, target_height - 2); status_rows = 0; }
 
-    std::vector<std::string> log_lines = ConsoleLog::instance().lines();
-    // Must always equal the player view's own height (target_height,
-    // computed by player_view_height() -- see its comment in app.h),
-    // never just "whatever the terminal happens to fit". A terminal much
-    // taller than the actual Browse-mode view would otherwise leave this
-    // overlay awkwardly mismatched from the view it's standing in for.
-    int visible = std::max(1, target_height - 2); // minus this overlay's own top/bottom border rows
-    int total = static_cast<int>(log_lines.size());
-    int start = std::max(0, total - visible); // always shows the tail, newest at the bottom
-
-    for (int r = 0; r < visible; ++r) {
-        int idx = start + r;
-        std::string line = (idx < total) ? log_lines[idx] : "";
-        frame << box_line(line, W, border) << "\n";
-    }
-    frame << box_bottom(W, "[t / ESC] close", border) << "\n";
+    auto pane = [&](const std::string& title, const std::vector<std::string>& lines, int rows, int pane_no, const std::string& hint) {
+        const int total = static_cast<int>(lines.size());
+        const int max_up = std::max(0, total - rows);
+        int& up = console_up_[pane_no];
+        up = std::clamp(up, 0, max_up);                         // (a pane that is not following the newest keeps its place)
+        const int start = max_up - up;
+        const bool focus = two && console_pane_ == pane_no;
+        frame << box_top(title + (focus ? " \xE2\x97\x80" : ""), W, border) << "\n";
+        for (int r = 0; r < rows; ++r) {
+            const int idx = start + r;
+            frame << box_line(idx < total ? lines[static_cast<size_t>(idx)] : std::string(), W, border) << "\n";
+        }
+        std::string foot = hint;
+        if (up > 0) foot = hint.empty() ? "scrolled up " + std::to_string(up) : "scrolled up " + std::to_string(up) + " | " + hint;
+        frame << box_bottom(W, foot, border) << "\n";
+    };
+    pane("CONSOLE / LOGS", ConsoleLog::instance().lines(), log_rows, 0,
+         two ? "" : "UP/DOWN scroll | HOME / END | [t / ESC] close");   // (with two panes the one legend sits under the second)
+    if (two) pane("STATUS MESSAGES", status_history_, status_rows, 1, "[TAB] other pane | UP/DOWN scroll (SHIFT: page) | HOME / END | [t / ESC] close");
 }
 
 // ---------------------------------------------------------------------
@@ -315,6 +325,7 @@ void App::build_karaoke_screen(std::ostringstream& frame, int W, int H) {
         title += " · " + name;
         if (!metadata_.artist.empty() && metadata_.artist != "-") title += " – " + metadata_.artist;
     }
+    title = shown_text(title);
     frame << box_top(truncate_str(title, std::max(10, W - 8)), W, border) << "\n";
 
     // --- layout: the art on BOTH sides, 4 columns between art and lyrics, the lyrics centred in between. Recomputed
@@ -328,7 +339,7 @@ void App::build_karaoke_screen(std::ostringstream& frame, int W, int H) {
         std::lock_guard<std::mutex> lock(lyrics_mutex_);
         if (lyrics_ready_ && lyrics_path_ == current_path_) {
             for (const auto& l : lyrics_result_.lines) {
-                for (char32_t cp : karaoke_codepoints(l.full_text)) {
+                for (char32_t cp : karaoke_codepoints(shown_text(l.full_text))) {
                     if (cp >= 0x1100 && !karaoke_glyph(cp) && (cp <= 0x11FF || (cp >= 0x2E80 && cp <= 0xD7FF) || (cp >= 0xF900 && cp <= 0xFFEF))) { wide_script = true; break; }
                 }
                 if (wide_script) break;
@@ -388,6 +399,7 @@ void App::build_karaoke_screen(std::ostringstream& frame, int W, int H) {
         std::lock_guard<std::mutex> lock(lyrics_mutex_);
         if (lyrics_ready_ && lyrics_path_ == current_path_) {   // the lyrics engine runs for the overlay in any case
             lines = lyrics_result_.lines;
+            latinize_lyrics(lines);
             delay = lyrics_result_.delay;
             message = lyrics_result_.message;
         }

@@ -106,6 +106,9 @@ constexpr int kKeyCtrlRight = 321;
 constexpr int kKeyCtrlShiftLeft = 322;
 constexpr int kKeyCtrlShiftRight = 323;
 
+// Alt+C -- the cover fetch overlay (main UI). A modifier combination, so a sentinel like kKeyAltL; bindable (HKeyCoverFetch).
+constexpr int kKeyAltC = 324;
+
 // Name of the Alt key as shown in legends / the cheat sheet. The Mac keyboard
 // has no key called Alt -- the same key (the modifier the terminal reports as
 // "Alt/Meta") is labelled Option there. Chosen at compile time, so Windows and

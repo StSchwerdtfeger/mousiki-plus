@@ -49,7 +49,7 @@ bool load_snapshot(SnapshotData& out);
 // was there before rather than accumulating history).
 void save_snapshot(const SnapshotData& data);
 
-// Removes snapshot.json. Called right after a successful restore at
+// Sets snapshot.json aside (snapshot.json.prev; load_snapshot() gives it back once if the app ended without saving). Called right after a successful restore at
 // startup, so a snapshot is "consumed" exactly once -- if the app
 // crashes immediately after resuming without ever autosaving again,
 // the next launch starts fresh instead of silently reusing a stale

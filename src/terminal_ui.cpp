@@ -470,6 +470,7 @@ int TerminalIO::poll_key() {
         // Alt+L: terminals send ESC followed by the letter (a lone byte, so it
         // has to be recognised before the two-byte read below).
         if (seq[0] == 'l' || seq[0] == 'L') { g_last_key_was_arrow = false; return kKeyAltL; }
+        if (seq[0] == 'c' || seq[0] == 'C') { g_last_key_was_arrow = false; return kKeyAltC; }   // Alt+C: the cover fetch overlay
         // Option/Alt+Left and +Right as macOS Terminal.app and iTerm2 send them
         // out of the box: the readline word-movement pair ESC b / ESC f rather
         // than xterm's "ESC [ 1 ; 3 D" / "ESC [ 1 ; 3 C" (still handled below).

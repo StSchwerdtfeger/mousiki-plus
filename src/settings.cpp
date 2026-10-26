@@ -1,4 +1,6 @@
 #include "settings.h"
+#include "translit.h"
+#include "lyrics_fetcher.h"
 #include "path_utf8.h"
 #include "themes.h"
 #include "version.h"
@@ -182,8 +184,11 @@ std::string parse_ansi256_brightness(const std::string& value) {
 // Font map
 // =====================================================================
 
-std::string apply_font_map(const std::string& text,
+std::string apply_font_map(const std::string& text_in,
                             const std::unordered_map<char, std::pair<std::string, std::string>>& font_map) {
+    // the Latin letters switch (HKeyTranslit). (Done once: kanji that stay in the result must not be converted again -- that recursed forever.)
+    const std::string converted = (translit_enabled() && translit_possible(text_in)) ? transliterate(text_in) : std::string();
+    const std::string& text = converted.empty() ? text_in : converted;
     if (font_map.empty()) return text;
     std::string out;
     out.reserve(text.size());
@@ -418,6 +423,8 @@ void apply_default_hotkeys(Settings& s) {
             {"HKeyRescan",                      "R"},             // SHIFT+r: look for new files
             {"HKeyFetchTags",                   "B"},             // SHIFT+b: AcoustID lookup of the hovered title
             {"HKeyLyricsTiming",                "ALT+L"},         // lyrics timing overlay
+            {"HKeyTranslit",                    "\""},           // SHIFT+' (US keyboard): Japanese / Korean / Chinese text in Latin letters on / off
+            {"HKeyCoverFetch",                  "ALT+C"},         // cover fetch overlay (MusicBrainz / Cover Art Archive)
             {"HKeyReadLyrics",                  "CTRL+L"},        // READ LYRICS overlay
             {"HKeyQueueUndoClear",              "CTRL+SHIFT+Z"},  // bring back the queue that was just cleared
             {"HKeyQueueToPlaylist",             "CTRL+SHIFT+U"},  // save the queue as a playlist
@@ -877,6 +884,41 @@ static Settings load_from_config(const fs::path& path) {
             s.book_cover_wave = !(v == "false" || v == "0" || v == "off" || v == "no");
             continue;
         }
+        if (key == "LyricsNameVariants") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.lyrics_name_variants = !(v == "false" || v == "0" || v == "off" || v == "no");
+            set_lyrics_name_variants(s.lyrics_name_variants);
+            continue;
+        }
+        if (key == "LatinMacrons" || key == "LatinWo") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            const bool on = (v == "true" || v == "1" || v == "on" || v == "yes");
+            (key == "LatinMacrons" ? s.latin_macrons : s.latin_wo) = on;
+            translit_set_style(s.latin_macrons, s.latin_wo);
+            continue;
+        }
+        if (key == "LatinNameLookup") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.latin_lookup = (v == "true" || v == "1" || v == "on" || v == "yes");
+            continue;
+        }
+        if (key == "LatinHanziDefault") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.latin_hanzi_chinese = (v == "chinese" || v == "pinyin");
+            translit_set_default_chinese(s.latin_hanzi_chinese);
+            continue;
+        }
+        if (key == "LatinLetters") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.latin_letters = (v == "true" || v == "1" || v == "on" || v == "yes");
+            set_translit_enabled(s.latin_letters);
+            continue;
+        }
         if (key == "AlbumCover") {
             std::string v = trim(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
@@ -890,6 +932,8 @@ static Settings load_from_config(const fs::path& path) {
             else if (v == "2" || v == "gradient" || v == "cover with gradient") s.cover_mode = 1;
             else if (v == "3" || v == "disk" || v == "behind" || v == "cover behind disk") s.cover_mode = 2;
             else if (v == "4" || v == "disk2" || v == "v2" || v == "cover behind disk v2") s.cover_mode = 3;
+            else if (v == "6" || v == "ascii" || v == "cover ascii") s.cover_mode = 5;
+            else if (v == "7" || v == "ascii gradient" || v == "ascii2" || v == "cover ascii with gradient") s.cover_mode = 6;
             else if (v == "5" || v == "full" || v == "full anima" || v == "cover behind disk (full anima)") s.cover_mode = 4;
             continue;
         }
@@ -1713,8 +1757,14 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "##-------------------------------------------\n\n";
     auto tf = [](bool v) -> const char* { return v ? "true" : "false"; };
     out << "ElimentDisk=" << tf(s.element_disk) << "\n";
+    out << "LatinLetters=" << tf(s.latin_letters) << "\n## true , false -- Japanese, Korean and Chinese titles, tags and lyrics are shown in Latin letters (switch with SHIFT+' on a US keyboard, see HKeyTranslit)\n";
+    out << "LyricsNameVariants=" << tf(s.lyrics_name_variants) << "\n## true , false -- a lyrics search (also the refetch) that finds nothing tries other spellings: the Latin-letters spelling, the title / artist without their Latin or without their Japanese part, the title alone\n";
+    out << "LatinMacrons=" << tf(s.latin_macrons) << "\n## true , false -- Latin letters (SHIFT+'): Japanese long vowels with a macron (koohii -> koohii off, kōhī on; ou -> ō); off = spelled out (ou, uu)\n";
+    out << "LatinWo=" << tf(s.latin_wo) << "\n## true , false -- Latin letters (SHIFT+'): the particle を as \"wo\" (on) or \"o\" (off)\n";
+    out << "LatinNameLookup=" << tf(s.latin_lookup) << "\n## true , false -- the artists whose name is written in Chinese characters are looked up on MusicBrainz in the background to get their Latin name (sends the NAME of the artist, one at a time, to musicbrainz.org; the answers are kept in kanji_readings_learned.txt; needs Python 3)\n";
+    out << "LatinHanziDefault=" << (s.latin_hanzi_chinese ? "chinese" : "leave") << "\n## leave , chinese -- Latin letters (SHIFT+'): Chinese characters of which nothing says whether the text is Japanese or Chinese (the same in both writings, e.g. 東京): leave them, or read them as Chinese (pinyin)\n";
     out << "AlbumCover=" << tf(s.album_cover) << "\n## true , false -- music player: the cover of the playing track takes the disk's place (needs ElimentDisk=true; where a track has no cover the disk is shown)\n";
-    out << "CoverMode=" << (s.cover_mode == 0 ? "cover" : s.cover_mode == 1 ? "gradient" : s.cover_mode == 3 ? "disk2" : s.cover_mode == 4 ? "full" : "disk") << "\n## cover (just the cover) , gradient (the cover in the disk's gradient colours, as a wave moving diagonally from the upper left to the lower right) , disk (the cover behind the disk: the disk's dots are pinholes that let the full cover shine through; the dots stay on their grid, only the pattern turns) , disk2 (the same, but the dots themselves turn) , full (the disk's full animation, the dots that come and go as it turns)\n";
+    out << "CoverMode=" << (s.cover_mode == 0 ? "cover" : s.cover_mode == 1 ? "gradient" : s.cover_mode == 3 ? "disk2" : s.cover_mode == 4 ? "full" : s.cover_mode == 5 ? "ascii" : s.cover_mode == 6 ? "ascii2" : "disk") << "\n## cover (just the cover) , gradient (the cover in the disk's gradient colours, as a wave moving diagonally from the upper left to the lower right) , disk (the cover behind the disk: the disk's dots are pinholes that let the full cover shine through; the dots stay on their grid, only the pattern turns) , disk2 (the same, but the dots themselves turn) , full (the disk's full animation, the dots that come and go as it turns) , ascii (the cover as braille dots in its own colours, also where the terminal could show a picture) , ascii2 (the same in the disk's gradient)\n";
     out << "CoverContrast=" << s.cover_contrast << "\n## 0 .. 100 (percent, steps of 5) -- more contrast for the album cover (0 = the cover as it is)\n";
     out << "CoverSearch=" << (s.cover_search == 1 ? "folder first" : s.cover_search == 2 ? "file first" : s.cover_search == 3 ? "folder only" : s.cover_search == 4 ? "file only" : "default")
         << "\n## default (the picture inside the file, else the closest-named picture in the folder) , folder first , file first (inside the file, else only a closely named folder picture) , folder only , file only -- every search except file only ends with any picture of the folder (the first by name) when nothing else gave one\n";

@@ -4,6 +4,8 @@
 #include <utility>
 #include <vector>
 
+#include "translit.h"
+
 namespace muisc {
 
 namespace fs = std::filesystem;
@@ -15,6 +17,15 @@ struct LyricLine {
     std::string full_text;
     std::vector<std::pair<double, std::string>> words; // empty if not word-synced
 };
+
+// The lyrics in Latin letters (the display switch, see translit.h): the original is kept, a copy is converted.
+inline void latinize_lyrics(std::vector<LyricLine>& lines) {
+    if (!translit_enabled()) return;
+    for (LyricLine& l : lines) {
+        l.full_text = transliterate(l.full_text);
+        for (auto& w : l.words) w.second = transliterate(w.second);
+    }
+}
 
 enum class LyricsStatus {
     Ok,
@@ -50,6 +61,9 @@ struct LyricsResult {
 // comes back from a network fetch is written back to the sidecar file,
 // so the next time this track plays (even offline) it's a local-file
 // hit.
+// Network lyrics searches also try other spellings of the names when the first search finds nothing: the Latin-letters spelling Mousiki
+// shows, the title / artist without their Latin or without their Japanese part, the title alone (LyricsNameVariants=, default on).
+void set_lyrics_name_variants(bool on);
 LyricsResult fetch_synced_lyrics(const std::string& title, const std::string& artist,
                                   const std::string& helper_script_path,
                                   const fs::path& track_path = fs::path(),

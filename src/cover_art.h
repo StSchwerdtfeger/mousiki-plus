@@ -21,6 +21,7 @@ struct CoverImage {
     bool ok = false;
     std::string source;                   // "cover.jpg" or "song.mp3 (inside the file)" -- for the status line
     std::string note;                     // why there is no cover (when !ok)
+    bool per_track = false;               // chosen for this track alone (not shared with the other tracks of its album)
 };
 
 // A cover scaled to a size: grey (`grey`) or in its own colours (`level` = opacity, `hue` = palette index into `pal`, 240 colours).
@@ -57,7 +58,15 @@ double name_closeness(const std::string& a, const std::string& b);
 // kCoverCloseness) or FolderGeneric (`generic` true), or, with `any`, for FolderAny: the first picture of the folder by name. Empty path = none.
 inline constexpr double kCoverCloseness = 0.62;
 
-std::filesystem::path pick_folder_picture(const std::filesystem::path& dir, const std::vector<std::string>& names, bool generic, bool any = false);
+// (with `fetched` the pictures of <dir>/fetched_covers count for the closest-name search too)
+std::filesystem::path pick_folder_picture(const std::filesystem::path& dir, const std::vector<std::string>& names, bool generic, bool any = false, bool fetched = false);
+
+// Decodes a picture file (or, with `embedded`, the picture inside an audio file) with ffmpeg: at most 640 x 640.
+bool decode_cover_file(const std::filesystem::path& file, bool embedded, CoverImage& d);
+// A picture for a preview, decoded in the background and kept (the last 32): nullptr until it is ready or when it cannot be read.
+const CoverImage* preview_cover(const std::string& file, bool embedded);
+// The same for a picture that is already known to be unreadable / still loading: true while it is being read.
+bool preview_cover_loading(const std::string& file, bool embedded);
 
 // ---- the cover of the playing track ---------------------------------------------------------------------------------------
 struct CoverRequest {
@@ -65,12 +74,22 @@ struct CoverRequest {
     std::string title;    // title tag, else the file name without extension
     std::string album;    // album tag ("" = none)
     int search = 0;       // Settings -> Cover Search
+    unsigned store_rev = 0;   // cover_store_revision(): the cover is made again when a choice was made or a cover fetched / deleted
 };
 // The cover of the track, once it has been read in the background. nullptr: not read yet, or the track has none (cover_note()
 // says which). While the next track of the same album is read, the cover of the one before stays.
 const CoverImage* track_cover(const CoverRequest& rq);
 // "" while the cover is being read or exists; otherwise why there is none ("no picture inside the file or in the folder").
 std::string cover_note(const CoverRequest& rq);
+// Which picture a track would get, without decoding it (the overlays' previews): the same order as the cover search incl. the choices.
+struct CoverSource {
+    std::string file;      // the picture file, or for `embedded` the audio file
+    bool embedded = false;
+    bool chosen = false;   // by a choice (not by the search)
+    bool none = false;     // no picture (found, or "no cover" was chosen)
+    std::string label;
+};
+CoverSource resolve_cover_source(const CoverRequest& rq);
 // What the shown cover was read from ("cover.jpg", "song.mp3 (inside the file)"), "" = none.
 std::string cover_source();
 

@@ -99,9 +99,9 @@ Everything below is in the current version (v4.6.0) and works the same on Window
 
 - **Local library** from as many folders as you like (MP3, FLAC, WAV, ALAC, M4A, OGG, OPUS, AAC, tracker modules, console and C64 music ...), sorted by folder, title, artist or length, with **fuzzy search** over file names and tags (`/` and the prefixes `/a:` artist, `/r:` ... ).
 - **Online:** search, stream and **download** from YouTube, SoundCloud and Bandcamp (yt-dlp), whole YouTube playlists in one go (bulk add), with a shared download archive.
-- **Queue** with lock, undo and "save as playlist", big list / folder / queue overlays, play modes list, repeat, shuffle, stop and queue-then-stop, and a shuffle-next key.
+- **Queue** with lock, undo and "save as playlist", big list / folder / queue overlays (the queue overlay has its own search bar), play modes list, repeat, shuffle, stop and queue-then-stop, and a shuffle-next key.
 - **Meta data panel** with the spinning braille disk, waveform progress bar, spectrum bars and the dummy buttons of the original design.
-- **Album covers** in the disk's place (Settings → ON/OFF → *Album Cover*, off by default): the picture inside the audio file or a picture in its folder whose name is close to the track's title or album (a fuzzy match, so one folder can hold the covers of several albums), shown as a real image in Kitty / Sixel terminals (braille dots otherwise): just the cover, the cover under the disk's moving gradient, or the grey cover in full resolution **behind the turning disk**, whose braille dots become pinholes the cover shines through (also with the dots themselves turning, or with the disk's full animation, the dots that come and go); the phone remote shows the cover too. Folder pictures can be jpg, png, webp, bmp, gif, tiff, avif, heic, jxl and more. *Cover Contrast* adds contrast to the picture, *Cover Search* sets where to look first (file or folder, or only one of them; any picture in the folder is the last resort).
+- **Album covers** in the disk's place (Settings → ON/OFF → *Album Cover*, off by default): the picture inside the audio file or a picture in its folder whose name is close to the track's title or album (a fuzzy match, so one folder can hold the covers of several albums), shown as a real image in Kitty / Sixel terminals (braille dots otherwise): just the cover, the cover under the disk's moving gradient, or the grey cover in full resolution **behind the turning disk** (dark parts of a cover are lifted so the disk's silhouette never disappears), whose braille dots become pinholes the cover shines through (also with the dots themselves turning, or with the disk's full animation, the dots that come and go); the phone remote shows the cover too. Folder pictures can be jpg, png, webp, bmp, gif, tiff, avif, heic, jxl and more. *Cover Contrast* adds contrast to the picture, *Cover Search* sets where to look first (file or folder, or only one of them; any picture in the folder is the last resort). **Cover fetch** (`ALT+c`): a menu that lists the albums of your library (missing covers highlighted), fetches the front cover of the albums you put on its list from MusicBrainz / the Cover Art Archive once per album and saves it in a `fetched_covers` folder inside the album's folders (filters for missing, failed and recently fetched covers; `SHIFT+r` rescans the library); the meta editor shows the cover of the track and its *Cover Options* button picks another picture for a single track.
 
 | |
 |:---:|
@@ -143,6 +143,7 @@ Everything below is in the current version (v4.6.0) and works the same on Window
 
 <p align="center"><img width="850" alt="The playlist editor" src="readme_images/changes_09.png" /></p>
 
+- **Latin letters** (`"`, i.e. `SHIFT+'` on a US keyboard): shows Japanese, Korean and Chinese titles, tags, file names, lyrics and karaoke in Latin letters (romaji, Revised Romanization, pinyin) and back. Kanji are only converted when the text is known to be Chinese; a name written both ways (`Kaneko Ayano カネコアヤノ`) shows its Latin part; pairs are learned from your own folder and file names, and the search finds such titles by their Latin spelling. Optional and local: with the separate `pykakasi` package installed, kanji in Japanese text are read too; an opt-in setting (Settings → ON/OFF → MODES → *Latin Name Lookup*, off by default) asks MusicBrainz for the Latin name of artists written in Chinese characters (it sends those artist names, and so your IP address, to musicbrainz.org - nothing else).
 - **Meta data editor** (`SHIFT+m`): edit tags, rename files, and **fetch missing tags by audio fingerprint** (AcoustID / MusicBrainz) for one title or a whole list.
   
 <p align="center"><img width="850" alt="The meta data editor, fetch list" src="readme_images/changes_11.png" /></p>
@@ -228,6 +229,8 @@ Three themes are made for colour vision deficiencies: **Colorblind Deuteranopia*
 
 ### Installers and portables for Windows / macOS / Linux 
 
+> Note: downloading dependencies (ffmpeg, yt-dlp, Python, pykakasi) during a setup needs an internet connection; see [Dependencies and security](#dependencies-and-security).
+
 Windows (installer, portable zip), Linux (`.deb`, portable) and macOS (`.pkg`, portable) from the [latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest), or build it yourself (below). Release files are signed (GPG) and come with build-provenance attestations; an installer upgrades an existing version and keeps your settings. **Portable versions:** unzip the new version over the old folder (or copy your `data/` folder into the new one) and keep `portable.txt` next to the launcher: it makes Mousiki keep settings, cache, playlists and history in `data/`; without it they are not found. Automated tests (146; run on Linux, macOS and Windows by a GitHub workflow): `cmake -DMOUSIKI_BUILD_TESTS=ON`.
 
 ### Build it yourself (Windows)
@@ -293,6 +296,7 @@ Note, I had a bunch of the below already installed, so I am not sure how smooth 
 | curl | radio mode only: the Radio Browser station search (`SHIFT+s` in the radio) | **nothing to install** — ships with Windows 10+ |
 | yt-dlp | online search fallback, YouTube playlists (bulk add), streaming, downloads | `winget install yt-dlp.yt-dlp` |
 | Python 3 | runs the helper scripts in `scripts/`: fast online search (`fast_yt_search.py`), AcoustID fetch (`fetch_meta.py`) and lyrics (`fetch_lyrics.py`) — the first two use the standard library only | `winget install Python.Python.3.13` |
+| `pykakasi` (optional, pip) | reads kanji in Latin letters for the Latin letters display (GPL-3.0, so it is not bundled and not downloaded by the build - Mousiki only calls it) | `pip install pykakasi` |
 | `fpcalc` (Chromaprint) | audio fingerprint for the AcoustID fetch | **nothing to install** — built by CMake from `third_party/chromaprint/` and copied to `scripts\` |
 | `SDL2.dll` (optional) | the scope and spectrogram windows (`)` / `(`: German `SHIFT+9` / `SHIFT+8`, English `SHIFT+0` / `SHIFT+9`); loaded at run time, so the build does not need it | **fetched by `setup.ps1`** next to `mousiki.exe` (or `SDL2.dll` from `SDL2-<version>-win32-x64.zip`, [SDL releases](https://github.com/libsdl-org/SDL/releases)) |
 | `sidplayfp` (optional) | Commodore 64 SID tunes (`.sid`); tracker modules (`.mod/.xm/.it/.s3m`…) and console music (`.nsf/.spc/.vgm`…) only need an FFmpeg built with libopenmpt / libgme (the Gyan.FFmpeg build `setup.ps1` installs has both; an installed FFmpeg is upgraded with `winget upgrade`, or replaced by that build if it lacks them; `-NoUpgrade` skips this) | the project publishes no Windows build. Easiest way: install [MSYS2](https://www.msys2.org), open its **UCRT64** shell and run `pacman -S mingw-w64-ucrt-x86_64-sidplayfp`; copy `sidplayfp.exe` from `C:\msys64\ucrt64\bin` plus the DLLs it needs (`ldd /ucrt64/bin/sidplayfp.exe \| grep ucrt64` lists them) into one folder such as `C:\tools\sidplayfp`, then run `setup.ps1` again: it finds `sidplayfp.exe` and adds its folder to your user `PATH` (any other win64 build of sidplayfp works as well) |
@@ -383,7 +387,8 @@ The config file is created at `~/.config/mousiki/config.txt` (the `config.txt` i
 | ALSA + PulseAudio libraries (Linux) | audio output (miniaudio loads them at runtime; PipeWire works through `pipewire-pulse` / `pipewire-alsa`) | `libasound2-dev libpulse-dev` (apt), `alsa-lib-devel pulseaudio-libs-devel` (dnf), … |
 | FFmpeg (incl. `ffprobe`) | Opus decoding, metadata, AcoustID decoding, tag writing; radio streams (needed) and MP3 recordings (`libmp3lame`; `setup.sh` warns if it is missing) | `ffmpeg` (on Fedora from RPM Fusion; `setup.sh` falls back to `ffmpeg-free` and prints a hint) |
 | yt-dlp | online search fallback, playlists, streaming, downloads | `yt-dlp` from the package manager, otherwise `pip install --user yt-dlp` (then `~/.local/bin` has to be on your `PATH`) |
-| Python 3 | lyrics, fast online search, AcoustID fetch (standard library only, no pip packages) | `python3` |
+| Python 3 | lyrics, fast online search, AcoustID fetch (standard library only, no pip packages), cover fetch, artist-name lookup | `python3` |
+| `pykakasi` (optional, pip) | reads kanji in Latin letters for the Latin letters display (`pip install pykakasi`; GPL-3.0, so it is not bundled - Mousiki only calls it) | `pip install pykakasi` |
 | `xclip` / `wl-clipboard` (Linux, optional) | pasting into the search field; macOS uses the built-in `pbpaste` | `xclip` on X11, `wl-clipboard` on Wayland |
 | `fpcalc` (Chromaprint) | audio fingerprint for the AcoustID fetch | **nothing to install** — built by CMake from `third_party/chromaprint/` and copied to `scripts\` |
 | SDL2 (optional) | the scope and spectrogram windows (`)` / `(`: German `SHIFT+9` / `SHIFT+8`, English `SHIFT+0` / `SHIFT+9`); loaded at run time, so the build does not need it | `libsdl2-2.0-0` (apt), `SDL2` (dnf), `sdl2` (pacman / apk), `brew install sdl2` |
@@ -436,6 +441,8 @@ gh attestation verify <file> --repo StSchwerdtfeger/mousiki-plus
 Note: the files are not signed with a purchased code-signing certificate, so Windows SmartScreen and macOS Gatekeeper may still show a warning on first start.
 
 ## Dependencies and security
+
+**Fetching dependencies needs an internet connection.** `setup.sh`, `setup.ps1` and the optional steps of the installers download what Mousiki uses from the web: ffmpeg, yt-dlp, Python and CMake (through winget, your package manager or pip), and pykakasi (from pypi.org). Without a connection, install these yourself first and run the setup with `--skip-deps` / `-SkipDeps`. Some features also need the internet while you use them (lyrics, covers, online search, radio, name lookup).
 
 Mousiki uses a small number of third-party components. They are listed here with the version in this release and how they are checked (the table is generated; its date is in the last column). Licence texts are in [`THIRD_PARTY_LICENSES.txt`](THIRD_PARTY_LICENSES.txt), how to report a problem is in [`SECURITY.md`](SECURITY.md).
 

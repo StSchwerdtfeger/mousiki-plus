@@ -46,6 +46,9 @@
 #   --install           Create the launchers (the default; kept for older scripts).
 #   --no-upgrade        Don't upgrade an ffmpeg that is already installed (it is upgraded by default,
 #                       so that libopenmpt / libgme support and fixes arrive).
+#   (All the downloads above -- compilers, ffmpeg, yt-dlp, pykakasi -- need an internet connection.)
+#   --with-kanji        Also install pykakasi (pip install --user pykakasi): kanji are then shown in
+#                       Latin letters too (SHIFT+'). Optional; GPL-3.0, not part of Mousiki.
 #   -y, --yes           Don't ask before installing packages (uses sudo if needed).
 #   -h, --help          Show this help.
 
@@ -95,6 +98,7 @@ while [ $# -gt 0 ]; do
         --install)    DO_INSTALL=1 ;;
         --no-install) DO_INSTALL=0 ;;
         --no-upgrade) UPGRADE_FFMPEG=0 ;;
+        --with-kanji) WITH_KANJI=1 ;;
         -y|--yes)     ASSUME_YES=1 ;;
         -h|--help)    usage; exit 0 ;;
         *)            die "unknown option: $1 (try --help)" ;;
@@ -492,6 +496,15 @@ elif [ "$PLATFORM" = "macos" ]; then
     JOBS="$(sysctl -n hw.ncpu 2>/dev/null || echo 2)"
 else
     JOBS=2
+fi
+
+if [ "${WITH_KANJI:-0}" = 1 ]; then
+    step "Installing pykakasi (optional: kanji readings for the Latin letters display)"
+    if python3 -m pip install --quiet --user pykakasi 2>/dev/null || python3 -m pip install --quiet --user --break-system-packages pykakasi; then
+        step "pykakasi installed"
+    else
+        warn "pykakasi could not be installed -- Mousiki works without it (kanji just stay as they are)."
+    fi
 fi
 
 step "Configuring ($BUILD_TYPE)"

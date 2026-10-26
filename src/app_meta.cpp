@@ -62,9 +62,85 @@ int App::meta_nav(int selected, int total, bool up) const {
     return std::clamp(to, 0, total - 1);
 }
 
+// The rows of the folder view: per folder (in the order they first appear in the library pane) a header, then its files numbered from 1.
+std::vector<App::MetaFolderRow> App::meta_folder_rows() const {
+    std::vector<std::string> order;
+    std::unordered_map<std::string, std::vector<int>> members;
+    for (size_t i = 0; i < meta_lib_view_.size(); ++i) {
+        const std::string dir = path_utf8(meta_lib_view_[i].path.parent_path());
+        auto it = members.find(dir);
+        if (it == members.end()) { order.push_back(dir); it = members.emplace(dir, std::vector<int>()).first; }
+        it->second.push_back(static_cast<int>(i));
+    }
+    std::vector<MetaFolderRow> rows;
+    for (const std::string& dir : order) {
+        const std::vector<int>& m = members[dir];
+        MetaFolderRow h;
+        h.header = true;
+        h.lib = m.front();
+        h.folder = dir;
+        h.name = path_utf8(path_from_utf8(dir).filename());
+        if (h.name.empty()) h.name = dir;
+        h.count = static_cast<int>(m.size());
+        h.closed = meta_folder_closed_.count(dir) > 0;
+        rows.push_back(h);
+        if (h.closed) continue;
+        int n = 0;
+        for (int li : m) {
+            MetaFolderRow f;
+            f.lib = li;
+            f.folder = dir;
+            f.num = ++n;
+            rows.push_back(f);
+        }
+    }
+    return rows;
+}
+
+// The row of the cursor: the hovered folder header, else the row of the selected file (a file in a closed folder: its header).
+int App::meta_folder_cursor(const std::vector<MetaFolderRow>& rows) const {
+    if (!meta_folder_hover_.empty())
+        for (size_t i = 0; i < rows.size(); ++i) if (rows[i].header && rows[i].folder == meta_folder_hover_) return static_cast<int>(i);
+    for (size_t i = 0; i < rows.size(); ++i) if (!rows[i].header && rows[i].lib == meta_lib_selected_) return static_cast<int>(i);
+    if (meta_lib_selected_ >= 0 && meta_lib_selected_ < static_cast<int>(meta_lib_view_.size())) {
+        const std::string dir = path_utf8(meta_lib_view_[static_cast<size_t>(meta_lib_selected_)].path.parent_path());
+        for (size_t i = 0; i < rows.size(); ++i) if (rows[i].header && rows[i].folder == dir) return static_cast<int>(i);
+    }
+    return 0;
+}
+
+// Up / Down in the library pane: file to file, or (folder view) row to row, headers included.
+void App::meta_lib_move(bool up) {
+    if (!meta_folder_view_) { meta_lib_selected_ = meta_nav(meta_lib_selected_, static_cast<int>(meta_lib_view_.size()), up); return; }
+    const std::vector<MetaFolderRow> rows = meta_folder_rows();
+    if (rows.empty()) return;
+    const int to = meta_nav(meta_folder_cursor(rows), static_cast<int>(rows.size()), up);
+    const MetaFolderRow& r = rows[static_cast<size_t>(to)];
+    meta_folder_hover_ = r.header ? r.folder : std::string();
+    meta_lib_selected_ = r.lib;   // (on a header: the folder's first file, so the panels beside show something)
+}
+
+void App::meta_add_folder_to_fetch(const std::string& folder) {
+    meta_ensure_session_loaded();
+    std::unordered_set<std::string> queued(meta_fetch_list_.begin(), meta_fetch_list_.end());
+    size_t total = 0, added = 0;
+    for (const auto& t : meta_lib_view_) {
+        if (path_utf8(t.path.parent_path()) != folder) continue;
+        ++total;
+        std::string path = path_utf8(t.path);
+        if (queued.insert(path).second) { meta_fetch_list_.push_back(std::move(path)); ++added; }
+    }
+    if (total == 0) { meta_status_ = "nothing to add -- no titles in this folder"; return; }
+    if (added == 0) { meta_status_ = "all " + std::to_string(total) + " titles of the folder are on the fetch list already (" + std::to_string(meta_fetch_list_.size()) + " queued)"; return; }
+    meta_persist();
+    meta_status_ = "added " + std::to_string(added) + (added == 1 ? " title" : " titles") + " of the folder to the fetch list"
+                 + (added < total ? " (" + std::to_string(total - added) + " already on it)" : std::string()) + " -- " + std::to_string(meta_fetch_list_.size()) + " queued";
+}
+
 void App::handle_meta_key(int key) {
     if (handle_meta_prompt_key(key)) return;
     if (handle_meta_choice_key(key)) return;
+    if (handle_meta_cov_key(key)) return;
 
     if (key == 27) { // ESC
         // Inside a text box ESC first steps out of it: the field editor goes
@@ -217,7 +293,7 @@ void App::handle_meta_key(int key) {
         // convention as the main UI's "/" search); Left/Right are the caret
         // now, which is what makes marking -- and therefore copy/paste --
         // possible in here at all.
-        if (arrow && (key == 'A' || key == 'B')) { meta_lib_selected_ = meta_nav(meta_lib_selected_, static_cast<int>(meta_lib_view_.size()), key == 'A'); return; }
+        if (arrow && (key == 'A' || key == 'B')) { meta_lib_move(key == 'A'); return; }
         if (key == '\r' || key == '\n') {
             // The hovered track (Up/Down already moved meta_lib_selected_
             // while this box had focus) goes straight to its fields --
@@ -238,7 +314,21 @@ void App::handle_meta_key(int key) {
 
     if (meta_focus_ == 1) { // --- library picker ---
         int total = static_cast<int>(meta_lib_view_.size());
-        if (arrow && (key == 'A' || key == 'B')) { meta_lib_selected_ = meta_nav(meta_lib_selected_, total, key == 'A'); return; }
+        if (arrow && (key == 'A' || key == 'B')) { meta_lib_move(key == 'A'); return; }
+        if (meta_folder_view_ && !meta_folder_hover_.empty() && !arrow) {   // a folder header is hovered
+            if (key == '\r' || key == '\n') {   // open / close the folder
+                if (!meta_folder_closed_.erase(meta_folder_hover_)) meta_folder_closed_.insert(meta_folder_hover_);
+                return;
+            }
+            if (key == 'a') { meta_add_folder_to_fetch(meta_folder_hover_); return; }
+            if (key == kKeyDelete || key == 127 || key == 'd' || key == 'P') { meta_status_ = "a folder is hovered -- move onto a title first"; return; }
+        }
+        if (key == 'f' && !arrow) {   // folder view on / off
+            meta_folder_view_ = !meta_folder_view_;
+            meta_folder_hover_.clear();
+            meta_status_ = meta_folder_view_ ? "folder view: on -- [a] on a folder queues all its titles, [ENTER] opens / closes it" : "folder view: off";
+            return;
+        }
         if (key == '\r' || key == '\n') {
             if (total == 0) { meta_status_ = "no track selected"; return; }
             meta_focus_ = 2; // land on the hovered title's fields, highlighted
@@ -259,6 +349,7 @@ void App::handle_meta_key(int key) {
         if (key == 'Y') { meta_toggle_filter(4); return; } // SHIFT+y: missing year
         if (key == 'L') { meta_toggle_filter(5); return; } // SHIFT+l: missing album
         if (key == 'P') { meta_play_hovering(); return; } // SHIFT+p: start the hovered track
+        if (key == 't') { meta_toggle_cover_res(); return; } // the cover picture: ASCII / full resolution
         if (key == kKeyDelete || key == 127 || key == 'd') { meta_remove_hovering(); return; }
         return; // every other printable key would be search input, and search lives in focus 0
     }
@@ -274,6 +365,14 @@ void App::handle_meta_key(int key) {
     {
         std::string path = meta_hovering_path();
         if (path.empty()) { meta_focus_ = 1; meta_field_editing_ = false; return; }
+        if (meta_field_ >= kMetaFieldCount) {   // the "Cover Options" button below the fields
+            meta_field_editing_ = false;
+            if (arrow && (key == 'A' || key == 'B')) { meta_field_ = meta_nav(meta_field_, kMetaFieldCount + 1, key == 'A'); return; }
+            if (key == '\r' || key == '\n') meta_cov_open();
+            return;
+        }
+
+        if (key == 't' && !arrow && !meta_field_editing_) { meta_toggle_cover_res(); return; }   // (a field only takes letters once ENTER armed it)
 
         // The caret belongs to one specific (file, field) pair. If either
         // changed since the last keypress -- a field move, another row, the
@@ -301,7 +400,7 @@ void App::handle_meta_key(int key) {
             // arms this one (caret starts at the end, same as a fresh
             // PATHS-row edit). Everything else is a no-op -- typing on a
             // merely-highlighted field would be surprising.
-            if (arrow && (key == 'A' || key == 'B')) { meta_field_ = meta_nav(meta_field_, kMetaFieldCount, key == 'A'); return; }
+            if (arrow && (key == 'A' || key == 'B')) { meta_field_ = meta_nav(meta_field_, kMetaFieldCount + 1, key == 'A'); return; }
             if (key == '\r' || key == '\n') {
                 if (e && e->needs_choice(meta_field_)) { meta_choice_open(); return; }   // several candidates: pick one first
                 meta_field_editing_ = true;
@@ -390,6 +489,7 @@ std::vector<std::string> App::build_meta_library_panel(int total_width, int heig
         if (meta_resort_edited_) add("EDITED FIRST");
         if (meta_sort_added_) add("ADDED FIRST");
         if (meta_filter_ != 0) add(meta_filter_label());
+        if (meta_folder_view_) add("FOLDERS");
         // the filters are cut with "..." so that title, filters and the focus indicator always fit the border (" ◀" is 2 columns)
         const int room = total_width - 5 - display_width(lib_label) - 2;
         if (!active.empty() && room >= 4) lib_label += truncate_str(" [" + active + "]", room);
@@ -415,6 +515,50 @@ std::vector<std::string> App::build_meta_library_panel(int total_width, int heig
             out.push_back(bar + " " + list_ansi + padded + "\x1b[0m " + bar);
         }
         out.push_back(box_bottom(total_width, "", border_ansi_bottom));
+        return out;
+    }
+
+    if (meta_folder_view_) {   // the same list grouped by folder: header rows, files numbered per folder
+        const std::vector<MetaFolderRow> rows = meta_folder_rows();
+        const int rtotal = static_cast<int>(rows.size());
+        const int cur = meta_folder_cursor(rows);
+        const int rscroll = std::clamp(cur - height / 2, 0, std::max(0, rtotal - height));
+        const int fidx_w = 3;
+        for (int row = 0; row < height; ++row) {
+            const int ri = rscroll + row;
+            std::string content;
+            bool edited = false, needs_choice = false;
+            const bool is_sel = ri == cur && ri < rtotal;
+            const bool is_header = ri < rtotal && rows[static_cast<size_t>(ri)].header;
+            if (ri < rtotal) {
+                const MetaFolderRow& r = rows[static_cast<size_t>(ri)];
+                if (r.header) {
+                    content = std::string(r.closed ? "\xe2\x96\xb8 " : "\xe2\x96\xbe ") + apply_font_map(r.name, settings_.font_map) + "  (" + std::to_string(r.count) + ")";
+                } else {
+                    const auto& t = meta_lib_view_[static_cast<size_t>(r.lib)];
+                    const int title_w = std::max(5, inner - 2 - fidx_w - 2);
+                    content = "  " + pad_right(apply_font_map(std::to_string(r.num), settings_.font_map), fidx_w) + settings_.list_separator + " "
+                            + pad_right(truncate_str(apply_font_map(list_row_title(t.path, t.title), settings_.font_map), title_w), title_w);
+                    const MetaEditEntry* e = meta_entry(path_utf8(t.path));
+                    edited = e && e->any_edited();
+                    needs_choice = e && e->any_needs_choice();
+                }
+            }
+            const std::string padded = pad_right(truncate_str(content, inner), inner);
+            std::string base = is_sel ? cursor_sgr(settings_.list_cursor_color, settings_.list_cursor_bg_color)
+                                      : (ansi_for(settings_.list_color, false) + bg_ansi_for(settings_.list_inactive_bg_color));
+            if (is_header && !is_sel) base += header_sgr(settings_);   // folder headers stand out
+            if (edited) out.push_back(bar + " " + base + (needs_choice ? legend_sgr(settings_) : header_sgr(settings_)) + padded + "\x1b[0m" + base + "\x1b[0m " + bar);
+            else out.push_back(bar + " " + base + padded + "\x1b[0m " + bar);
+        }
+        std::string footer;
+        const int remaining = rtotal - (rscroll + height);
+        if (remaining > 0) footer = "( " + std::to_string(remaining) + " more )";
+        if (!meta_session_.empty()) {
+            const std::string tag = "[ " + std::to_string(meta_session_.size()) + " edited ]";
+            footer += footer.empty() ? tag : "  " + tag;
+        }
+        out.push_back(box_bottom(total_width, footer, border_ansi_bottom));
         return out;
     }
 
@@ -515,10 +659,28 @@ std::vector<std::string> App::build_meta_fields_panel(int total_width, int heigh
     }
 
     const MetaEditEntry* entry = meta_entry(path);
+    std::vector<std::string> cover_pane_cache;
     const int label_w = 8;
     for (int row = 0; row < height; ++row) {
-        if (row >= kMetaFieldCount) { // unused rows stay blank, so the panel height never changes
-            std::string padded = pad_right(std::string(), inner);
+        if (row >= kMetaFieldCount) { // below the fields: the "Cover Options" button, then the cover of the track centred in the free space
+            std::string padded;
+            const int btn_row = kMetaFieldCount + 1;
+            const int pic_first = btn_row + 2;
+            const int pic_rows = height - pic_first;
+            if (row == btn_row) {
+                const bool hov = (meta_focus_ == 2) && meta_field_ >= kMetaFieldCount;
+                const std::string btn = "[ Cover Options ]";
+                const int left = std::max(0, (inner - display_width(btn)) / 2);
+                padded = std::string(static_cast<size_t>(left), ' ') + (hov ? cursor_sgr(settings_.list_cursor_color, settings_.list_cursor_bg_color) : header_sgr(settings_))
+                       + btn + "\x1b[0m" + ansi_for(settings_.list_color, false);
+                padded += std::string(static_cast<size_t>(std::max(0, inner - left - display_width(btn))), ' ');
+            } else if (row >= pic_first && pic_rows >= 3) {
+                if (row == pic_first) cover_pane_cache = meta_cover_pane(inner, pic_rows);
+                const size_t ri = static_cast<size_t>(row - pic_first);
+                padded = ri < cover_pane_cache.size() ? cover_pane_cache[ri] : pad_right(std::string(), inner);
+            } else {
+                padded = pad_right(std::string(), inner);
+            }
             out.push_back(bar + " " + ansi_for(settings_.list_color, false) + padded + "\x1b[0m " + bar);
             continue;
         }
@@ -740,6 +902,7 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
     if (meta_tab_ == 0) {
         int left_w = W / 2;
         int right_w = W - left_w;
+        meta_pane_col_ = left_w;
         auto left_lines = build_meta_library_panel(left_w, panel_h);
         auto right_lines = build_meta_fields_panel(right_w, panel_h);
         size_t rows = std::max(left_lines.size(), right_lines.size());
@@ -800,7 +963,8 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
         std::string enter_hint = "[ENTER] Edit";
         if (meta_tab_ == 0 && meta_focus_ == 2) {
             const MetaEditEntry* he = meta_entry(meta_hovering_path());
-            if (he && meta_field_ >= 0 && he->needs_choice(meta_field_)) enter_hint = "[ENTER] Choose";
+            if (meta_field_ >= kMetaFieldCount) enter_hint = "[ENTER] Cover Options\001Cover";
+            else if (he && meta_field_ >= 0 && he->needs_choice(meta_field_)) enter_hint = "[ENTER] Choose";
         }
         // The legend is a small tree table: one row per group of commands (label | commands), joined by tree lines. Four rows
         // on both tabs, so the footer always has the same height -- 4 legend rows + the status row -- and switching tabs or a
@@ -817,7 +981,7 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
         if (meta_tab_ == 0) {
             groups.push_back({"Move", {lr, "[TAB] Focus", "[\u2191\u2193] Navi.", "[SHIFT+\u2191\u2193] Page\001Page", "[CTRL+\u2191\u2193] Top/bottom\001Top/bot.", enter_hint, "[SHIFT+p] Play"}});
             groups.push_back({"Fetch", {"[a] To list", "[SHIFT+f] All searched to fetch list\001Searched to list", "\002Single track\003", fetch_missing, "[SHIFT+n] (Re-)fetch all\001(Re-)fetch all"}});
-            groups.push_back({"Filter", {"[r] Recently edited first\001Edited", "[n] Recently added first\001Added", "[x/T/A/L/Y] Specific missing tags\001Missing", rescan}});
+            groups.push_back({"Filter", {"[f] Folder view\001Folders", "[r] Recently edited first\001Edited", "[n] Recently added first\001Added", "[x/T/A/L/Y] Specific missing tags\001Missing", rescan, "[t] ASCII / Full Resolution\001ASCII/Full"}});
         } else {
             LegendGroup mv{"Move", {meta_fetch_focus_ == 1 ? std::string("[\u2190\u2192] Option") : lr, "[TAB] Focus"}};
             if (meta_fetch_focus_ == 1) mv.cmds.push_back("[SPACE] Tick");

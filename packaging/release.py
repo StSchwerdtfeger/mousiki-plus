@@ -861,6 +861,7 @@ Type: filesandordirs; Name: "{app}\pylib"
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; Flags: unchecked
 Name: "addtopath"; Description: "Add Mousiki to &PATH (type 'mousiki' or 'lala' in any terminal)"
+Name: "kanjireader"; Description: "Download &pykakasi so kanji are shown in Latin letters too (optional; needs internet; GPL-3.0 package from pypi.org, not part of Mousiki)"
 
 [Files]
 Source: "%(stage)s\*"; DestDir: "{app}"; Excludes: "portable.txt,data\*"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -871,6 +872,10 @@ Name: "{group}\Mousiki"; Filename: "{app}\mousiki-wt.cmd"; IconFilename: "{app}\
 %(manual_icon)sName: "{group}\Mousiki install folder"; Filename: "{app}"
 Name: "{group}\Uninstall Mousiki"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\Mousiki"; Filename: "{app}\mousiki-wt.cmd"; IconFilename: "{app}\mousiki.ico"; WorkingDir: "{userdocs}"; Tasks: desktopicon
+
+[Run]
+; optional: pykakasi (kanji readings) from PyPI into {app}\pylib with the bundled Python; if it fails, Mousiki just goes without
+Filename: "{app}\bin\python\python.exe"; Parameters: %(q3)s{app}\scripts\install_kanji_reader.py%(q2)s %(q2)s{app}\pylib%(q3)s; StatusMsg: "Downloading pykakasi (kanji readings) ..."; Flags: runhidden waituntilterminated skipifdoesntexist; Tasks: kanjireader
 
 [Registry]
 Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Tasks: addtopath; Check: UserPathMissing
@@ -923,7 +928,7 @@ begin
     RemoveFromPath(HKEY_LOCAL_MACHINE, SysEnvKey);
   end;
 end;
-""" % {"ver": version, "guid": APPID_GUID, "out": str(out_dir), "base": base_name, "stage": s, "lic": str(license_file), "manual_icon": manual_icon}
+""" % {"ver": version, "guid": APPID_GUID, "out": str(out_dir), "base": base_name, "stage": s, "lic": str(license_file), "manual_icon": manual_icon, "q3": '"' * 3, "q2": '"' * 2}
 
 
 def authenticode_status(path):

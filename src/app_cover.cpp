@@ -16,10 +16,12 @@
 #include <cstdio>
 
 #include "cover_art.h"
+#include "cover_store.h"
 #include "miniz.h"
 #include "path_utf8.h"
 #include "settings.h"
 #include "terminal_gfx.h"
+#include "terminal_ui.h"
 
 namespace muisc {
 
@@ -55,6 +57,12 @@ double wave_phase_now() {
 
 } // namespace
 
+// The look of the cover mode: the ASCII modes (5 Cover ASCII, 6 Cover ASCII with Gradient) look like Just Cover (0) / Cover with Gradient (1), in braille dots.
+int App::cover_mode_look() const {
+    const int m = std::clamp(settings_.cover_mode, 0, 6);
+    return m >= 5 ? m - 5 : m;
+}
+
 const CoverImage* App::player_cover() const {
     if (audiobook_ || !settings_.element_disk || !settings_.album_cover || !has_track_ || !current_is_local_ || current_path_.empty()) return nullptr;
     const TrackMetadata md = display_metadata();
@@ -63,11 +71,12 @@ const CoverImage* App::player_cover() const {
     rq.title = md.name.empty() ? path_utf8(current_path_.stem()) : md.name;
     rq.album = md.album == "-" ? std::string() : md.album;
     rq.search = settings_.cover_search;
+    rq.store_rev = cover_store_revision();
     return track_cover(rq);
 }
 
 bool App::album_cover_gfx(int col, int cols, int rows) const {
-    if (gfx_proto_ == GfxProto::None || cols < 8 || rows < 4) return false;
+    if (gfx_proto_ == GfxProto::None || cols < 8 || rows < 4 || settings_.cover_mode >= 5) return false;   // (5, 6: the ASCII looks are braille dots)
     const CoverImage* cover = player_cover();
     if (!cover) return false;
     int cw0 = 10, ch0 = 20;
@@ -111,6 +120,55 @@ bool App::album_cover_gfx(int col, int cols, int rows) const {
     return true;
 }
 
+namespace {
+// "Smart" lift of dark parts for the behind-the-disk looks: the disk's dots show the cover through pinholes, so where the cover is dark the
+// disk's silhouette would vanish. The local brightness (a coarse grid of block averages, interpolated smoothly) decides how much a spot is
+// lifted: a dark area gets up to ~35% of the way to white added, a bright area (also a bright part at an edge of an otherwise dark cover)
+// is left exactly as it is, and the lift fades smoothly between the two, so no seams or halos appear. Values 0..255 in, 0..1 strength out.
+std::vector<float> dark_lift_map(const std::vector<unsigned char>& v, int w, int h, std::vector<float>* local_mean = nullptr) {
+    std::vector<float> out(static_cast<size_t>(w) * h, 0.f);
+    if (local_mean) local_mean->assign(static_cast<size_t>(w) * h, 0.f);
+    if (w < 2 || h < 2) return out;
+    const int gx = std::min(w, 6), gy = std::min(h, 6);
+    std::vector<float> mean(static_cast<size_t>(gx) * gy, 0.f);
+    for (int by = 0; by < gy; ++by)
+        for (int bx = 0; bx < gx; ++bx) {
+            const int x0 = bx * w / gx, x1 = std::max(x0 + 1, (bx + 1) * w / gx), y0 = by * h / gy, y1 = std::max(y0 + 1, (by + 1) * h / gy);
+            double sum = 0; int n = 0;
+            for (int y = y0; y < y1; ++y) for (int x = x0; x < x1; ++x) { sum += v[static_cast<size_t>(y) * w + x]; ++n; }
+            mean[static_cast<size_t>(by) * gx + bx] = n ? static_cast<float>(sum / n) : 0.f;
+        }
+    auto need = [](float m) {   // 1 for a dark block (mean <= 40), 0 for a bright one (mean >= 120), smooth between
+        const float t = std::clamp((120.f - m) / 80.f, 0.f, 1.f);
+        return t * t * (3.f - 2.f * t);
+    };
+    for (int y = 0; y < h; ++y) {
+        const float fy = std::clamp((y + 0.5f) * gy / h - 0.5f, 0.f, static_cast<float>(gy - 1));
+        const int y0 = static_cast<int>(fy), y1 = std::min(gy - 1, y0 + 1);
+        const float ty = fy - y0;
+        for (int x = 0; x < w; ++x) {
+            const float fx = std::clamp((x + 0.5f) * gx / w - 0.5f, 0.f, static_cast<float>(gx - 1));
+            const int x0 = static_cast<int>(fx), x1 = std::min(gx - 1, x0 + 1);
+            const float tx = fx - x0;
+            const float a = mean[static_cast<size_t>(y0) * gx + x0] * (1 - tx) + mean[static_cast<size_t>(y0) * gx + x1] * tx;
+            const float b = mean[static_cast<size_t>(y1) * gx + x0] * (1 - tx) + mean[static_cast<size_t>(y1) * gx + x1] * tx;
+            const float m = a * (1 - ty) + b * ty;
+            out[static_cast<size_t>(y) * w + x] = need(m);
+            if (local_mean) (*local_mean)[static_cast<size_t>(y) * w + x] = m;
+        }
+    }
+    return out;
+}
+constexpr float kDarkLift = 0.21f;       // how far (of the way to white) the darkest areas are lifted
+constexpr float kDarkContrast = 0.9f;    // extra local contrast in those areas (0.6: features differ 1.6 times as much from their surroundings), so the lift does not grey them out
+// a value with the local contrast added (around the local mean) and the dark lift on top
+inline float dark_enhance(float v, float mean, float strength) {
+    const float c = std::clamp(mean + (v - mean) * (1.f + kDarkContrast * strength), 0.f, 255.f);
+    return c + kDarkLift * strength * (255.f - c);
+}
+}  // namespace
+
+
 // Builds the cover picture (w x h pixels, cws x chs pixels per cell) of `mode` into g.level / g.hue / g.pal; the disk turned to `angle`
 // (for mode 1: the phase of the gradient wave).
 void App::cover_fill(GfxFrame& g, const CoverImage& cover_ref, int mode, double angle, int w, int h, int cws, int chs) const {
@@ -120,7 +178,7 @@ void App::cover_fill(GfxFrame& g, const CoverImage& cover_ref, int mode, double 
     g.hue.assign(static_cast<size_t>(w) * h, 0);
 
     if (mode == 0) {   // just the cover, in its own colours: fitted into the field with a little room around it
-        const CoverScaled& cs = cover_scaled(*cover, std::max(8, w - 2 * cws), std::max(8, h - chs), true, settings_.cover_contrast);
+        const CoverScaled& cs = cover_scaled(*cover, std::max(8, w - 2 * cws), std::max(8, h - chs), true, 0);   // (Cover Contrast only goes with the gradient looks)
         g.pal = cs.pal;
         const int ox = (w - cs.w) / 2, oy = (h - cs.h) / 2;
         for (int y = 0; y < cs.h; ++y)
@@ -189,6 +247,17 @@ void App::cover_fill(GfxFrame& g, const CoverImage& cover_ref, int mode, double 
                 m = std::max<unsigned char>(m, static_cast<unsigned char>(std::lround(cov * 255.0)));
             }
     }
+    // the brightness the pinholes would show, and from it where the picture is dark enough to need a lift
+    std::vector<unsigned char> field(static_cast<size_t>(w) * h, 0);
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) {
+            const int sx = x + cx0, sy = y + cy0;
+            if (sx < 0 || sy < 0 || sx >= cs.w || sy >= cs.h) continue;
+            const size_t si = static_cast<size_t>(sy) * cs.w + sx;
+            field[static_cast<size_t>(y) * w + x] = static_cast<unsigned char>(std::min(255, cs.grey[si] + static_cast<int>(kBacking * (255 - cs.alpha[si]))));
+        }
+    std::vector<float> lmean;
+    const std::vector<float> lift = dark_lift_map(field, w, h, &lmean);
     for (int y = 0; y < h; ++y) {
         const int sy = y + cy0;
         const uint8_t hu = row_hue(y);
@@ -198,9 +267,9 @@ void App::cover_fill(GfxFrame& g, const CoverImage& cover_ref, int mode, double 
             const size_t si = static_cast<size_t>(sy) * cs.w + sx;
             // a cover with a removed background (transparent parts): the pinholes there show a plain grey, so the disk keeps its
             // whole shape and not just the silhouette of the picture
-            const int v = std::min(255, cs.grey[si] + static_cast<int>(kBacking * (255 - cs.alpha[si])));
-            if (!v) continue;
             const size_t at = static_cast<size_t>(y) * w + x;
+            const int v0 = field[at];
+            const int v = std::clamp(static_cast<int>(std::lround(dark_enhance(static_cast<float>(v0), lmean[at], lift[at]))), 0, 255);   // (black dots in dark areas stay visible)
             const int lv = static_cast<int>(std::lround(v * (hole[at] / 255.0)));
             if (lv < 4) continue;   // no pinhole here: black (transparent)
             g.level[at] = static_cast<unsigned char>(std::min(lv, 255));
@@ -216,7 +285,7 @@ const std::string* App::player_phone_png(std::string& key) const {
     static std::string cache_key, cache_png;
     const CoverImage* cover = player_cover();
     if (!cover) return nullptr;
-    const int mode = std::clamp(settings_.cover_mode, 0, 4);
+    const int mode = cover_mode_look();
     const bool turning = mode >= 1;
     // the step of the picture: the turn of the disk (modes 2 to 4) or the phase of the gradient wave (mode 1)
     const double unit = mode == 1 ? 0.04 : 0.06;
@@ -250,7 +319,7 @@ const std::string* App::player_phone_png(std::string& key) const {
 std::vector<std::string> App::album_cover_lines(int cols, int rows) const {
     const CoverImage* cover = player_cover();
     if (!cover || cols < 8 || rows < 4) return {};
-    const int mode = std::clamp(settings_.cover_mode, 0, 4);
+    const int mode = cover_mode_look();
     const DiskColours dc(settings_);
     const int fw = cols * 2, fh = rows * 4;   // the dot field
     auto sgr = [](int r, int g, int b) {
@@ -274,12 +343,9 @@ std::vector<std::string> App::album_cover_lines(int cols, int rows) const {
         const CoverScaled& cs = cover_scaled(*cover, std::max(8, mw), std::max(8, mh), false, settings_.cover_contrast);
         const int cx0 = (cs.w - fw) / 2, cy0 = (cs.h - fh) / 2;
         const std::vector<unsigned char> bits = disk_.cells(angle_, mode == 2);
-        for (int r = 0; r < rows; ++r) {
-            std::string line, last;
-            const auto base = dc.at(rows > 1 ? static_cast<double>(r) / (rows - 1) : 0.0);
+        std::vector<unsigned char> cell_lum(static_cast<size_t>(rows) * cols, 0);   // the brightness under every cell, and from it the lift of the dark areas
+        for (int r = 0; r < rows; ++r)
             for (int c = 0; c < cols; ++c) {
-                const int b = bits[static_cast<size_t>(r) * disk_.width() + c];
-                if (!b) { line += ' '; continue; }
                 int sum = 0, n = 0;
                 for (int dy = 0; dy < 4; ++dy)
                     for (int dx = 0; dx < 2; ++dx) {
@@ -288,7 +354,18 @@ std::vector<std::string> App::album_cover_lines(int cols, int rows) const {
                         sum += std::min(255, cs.grey[static_cast<size_t>(sy) * cs.w + sx] + static_cast<int>(kBacking * (255 - cs.alpha[static_cast<size_t>(sy) * cs.w + sx])));
                         ++n;
                     }
-                const double lum = n ? sum / (255.0 * n) : 0.0;
+                cell_lum[static_cast<size_t>(r) * cols + c] = static_cast<unsigned char>(n ? sum / n : 0);
+            }
+        std::vector<float> cell_mean;
+        const std::vector<float> cell_lift = dark_lift_map(cell_lum, cols, rows, &cell_mean);
+        for (int r = 0; r < rows; ++r) {
+            std::string line, last;
+            const auto base = dc.at(rows > 1 ? static_cast<double>(r) / (rows - 1) : 0.0);
+            for (int c = 0; c < cols; ++c) {
+                const int b = bits[static_cast<size_t>(r) * disk_.width() + c];
+                if (!b) { line += ' '; continue; }
+                const double lum0 = cell_lum[static_cast<size_t>(r) * cols + c] / 255.0;
+                const double lum = dark_enhance(static_cast<float>(lum0 * 255.0), cell_mean[static_cast<size_t>(r) * cols + c], cell_lift[static_cast<size_t>(r) * cols + c]) / 255.0;
                 const double f = std::max(0.22, std::pow(lum, 0.8));
                 const std::string col = sgr(static_cast<int>(base[0] * f + 0.5), static_cast<int>(base[1] * f + 0.5), static_cast<int>(base[2] * f + 0.5));
                 if (col != last) { line += col; last = col; }
@@ -304,7 +381,7 @@ std::vector<std::string> App::album_cover_lines(int cols, int rows) const {
     // threshold); a cell takes the average colour of the pixels in it, or the disk's gradient dimmed by their brightness
     const bool own = mode == 0;
     const double wphase = wave_phase_now();
-    const CoverScaled& cs = cover_scaled(*cover, fw, fh, own, settings_.cover_contrast);
+    const CoverScaled& cs = cover_scaled(*cover, fw, fh, own, own ? 0 : settings_.cover_contrast);
     const int ox = std::max(0, (fw - cs.w) / 2), oy = std::max(0, (fh - cs.h) / 2);
     static const int kBayer[4][2] = {{0, 4}, {6, 2}, {1, 5}, {7, 3}};   // thresholds 0..7 over the 2 x 4 dots of a cell
     static const int kBit[4][2] = {{0x01, 0x08}, {0x02, 0x10}, {0x04, 0x20}, {0x40, 0x80}};
@@ -345,6 +422,58 @@ std::vector<std::string> App::album_cover_lines(int cols, int rows) const {
         }
         line += "\x1b[0m";
         lines.push_back(std::move(line));
+    }
+    return lines;
+}
+
+// A picture file (or the picture inside an audio file) as braille dots, `cols` x `rows` cells, centred, for the overlays' previews
+// (meta editor, cover fetch). Every line is exactly `cols` columns wide; the picture is read in the background ("reading ..." until
+// then). `msg` replaces the picture (no picture to show).
+std::vector<std::string> App::cover_preview_lines(const std::string& file, bool embedded, int cols, int rows, const std::string& msg) const {
+    cols = std::max(cols, 1); rows = std::max(rows, 1);
+    std::vector<std::string> lines(static_cast<size_t>(rows), std::string(static_cast<size_t>(cols), ' '));
+    auto centred_text = [&](const std::string& t) {
+        const std::string shown = truncate_str(t, cols);
+        const int left = std::max(0, (cols - display_width(shown)) / 2);
+        lines[static_cast<size_t>(rows / 2)] = std::string(static_cast<size_t>(left), ' ') + shown + std::string(static_cast<size_t>(std::max(0, cols - left - display_width(shown))), ' ');
+    };
+    if (!msg.empty() || file.empty()) { centred_text(msg.empty() ? "no picture" : msg); return lines; }
+    const CoverImage* img = preview_cover(file, embedded);
+    if (!img) { centred_text(preview_cover_loading(file, embedded) ? "reading ..." : "(the picture cannot be read)"); return lines; }
+    const int fw = cols * 2, fh = rows * 4;
+    const CoverScaled& cs = cover_scaled(*img, fw, fh, true, 0);   // (previews show the picture as it is: no contrast)
+    const int ox = std::max(0, (fw - cs.w) / 2), oy = std::max(0, (fh - cs.h) / 2);
+    static const int kBayer[4][2] = {{0, 4}, {6, 2}, {1, 5}, {7, 3}};
+    static const int kBit[4][2] = {{0x01, 0x08}, {0x02, 0x10}, {0x04, 0x20}, {0x40, 0x80}};
+    for (int r = 0; r < rows; ++r) {
+        std::string line, last;
+        int used = 0;
+        for (int c = 0; c < cols; ++c) {
+            int bits = 0, n = 0, rs = 0, gs = 0, bs = 0;
+            for (int dy = 0; dy < 4; ++dy)
+                for (int dx = 0; dx < 2; ++dx) {
+                    const int x = c * 2 + dx - ox, y = r * 4 + dy - oy;
+                    if (x < 0 || y < 0 || x >= cs.w || y >= cs.h) continue;
+                    const size_t at = static_cast<size_t>(y) * cs.w + x;
+                    if (cs.level[at] < 128) continue;
+                    const auto& p = cs.pal[cs.hue[at]];
+                    const int lum = (p[0] * 30 + p[1] * 59 + p[2] * 11) / 100;
+                    ++n; rs += p[0]; gs += p[1]; bs += p[2];
+                    if (std::pow(lum / 255.0, 0.7) * 8.0 > kBayer[dy][dx] + 0.5) bits |= kBit[dy][dx];
+                }
+            ++used;
+            if (!bits || !n) { line += ' '; continue; }
+            char col[40];
+            std::snprintf(col, sizeof col, "\x1b[38;2;%d;%d;%dm", rs / n, gs / n, bs / n);
+            if (last != col) { line += col; last = col; }
+            const unsigned cp = 0x2800u + static_cast<unsigned>(bits);
+            line += static_cast<char>(0xE0 | (cp >> 12));
+            line += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+            line += static_cast<char>(0x80 | (cp & 0x3F));
+        }
+        line += "\x1b[0m";
+        lines[static_cast<size_t>(r)] = std::move(line);
+        (void)used;
     }
     return lines;
 }

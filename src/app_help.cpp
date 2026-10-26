@@ -64,7 +64,7 @@ bool App::wizard_allowed_over_mode() const {
             return true;
         case Mode::Equalizer:   return !eq_naming_;                            // the "Save as:" prompt takes typed text
         case Mode::Creator:     return !creator_on_text_field() || creator_list_open_;  // the text field takes the keyboard
-        case Mode::Playlist: case Mode::MetaEdit: return !text_entry_active(); // a text field has the keyboard
+        case Mode::Playlist: case Mode::MetaEdit: case Mode::CoverFetch: return !text_entry_active(); // a text field has the keyboard
         default:                return false;                                  // text fields (search, playlist and meta editors ...), prompts
     }
 }
@@ -171,7 +171,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {"SYSTEM (MAIN UI)", "#@SWITCHKEY", "Switch to the next mode (music player, radio, audio books; the order and the modes that are on are set in Settings -> ON/OFF -> MODES). Playback pauses and the mode waits in the background"},
         {nullptr, "#@SWITCHBACK", "Switch to the previous mode"},
         {nullptr, "HKeySetting", "Open Settings panel, hit again to save and quit"},
-        {nullptr, "HKeyConsole", "Console / logs"},
+        {nullptr, "HKeyConsole", "Console: logs and status messages (TAB pane, arrows scroll)"},
         {nullptr, "HKeyWizard", "Help wizard: the user guide as tutorial pages (arrow keys turn them)"},
         {nullptr, "HKeyCheatsheet", "This cheatsheet"},
         {nullptr, "HKeyMenus", "The MENUS index: every menu and overlay by category with its key (UP/DOWN/LEFT/RIGHT select, ENTER opens, ESC closes)"},
@@ -230,6 +230,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "HKeyClearFilter", "Clear filter"},
         {nullptr, "HKeyCycleSortMode", "Cycle local list sort mode (folder order / title A-Z / artist A-Z / recently added, newest first)"},
         {nullptr, "HKeyToggleMetaOnly", "Toggle metadata-only track list (no filename)"},
+        {nullptr, "HKeyTranslit", "Latin letters on / off: Japanese kana, Korean and Chinese text (titles, tags, lyrics, karaoke) shown in Latin letters (SHIFT+' on a US keyboard; the search finds such titles by their Latin spelling in any case)"},
         {nullptr, "HKeyToggleWaveform", "Toggle waveform style (raw/smooth)"},
         {nullptr, "HKeyFolderOverlay", "Big folder overlay: tree of the library's folders (ENTER opens, f shows the folder in the list, / searches)"},
         {nullptr, "HKeyListOverlay", "Big list overlay: larger LOCAL AUDIO FILES pane (toggle)"},
@@ -314,7 +315,8 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "#CTRL+C/X/V", "Copy / cut / paste text"},
         // --- Meta editor -- same deal: HKeyMetaEditor opens it, everything
         // else is build_meta_screen()'s own fixed legend (both tabs).
-        {"META EDITOR", "HKeyMetaEditor", "Meta editor: edit file name / artist / title / album / year"},
+        {"META EDITOR", "HKeyMetaEditor", "Meta editor: edit file name / artist / title / album / year; the cover of the track below the tags, [Cover Options] to choose / delete / search a cover"},
+        {nullptr, "HKeyCoverFetch", "Cover fetch overlay: album library (missing / one / several covers), fetch the front covers from MusicBrainz / Cover Art Archive into fetched_covers folders (an extra overlay, because MusicBrainz often misjudges album titles)"},
         {nullptr, "#LEFT/RIGHT", "Switch tab (Edit vs Fetch List); in the search field after typing and in the field editor: move the caret"},
         {nullptr, "#ESC", "Leave the search field / field editor; outside a field: close (pending edits are kept)"},
         {nullptr, "#" MUISC_ALT_NAME_UC "+LEFT/RIGHT", "Switch tab from anywhere, also while typing"},
@@ -323,10 +325,11 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "#ENTER", "Edit the hovering field (Fetch List tab: fetch the full list; fetched field with several options: choose)"},
         {nullptr, "#SHIFT+LEFT/RIGHT", "Mark text (search field / field editor)"},
         {nullptr, "#CTRL+C/X/V", "Copy / cut / paste text (search field / field editor)"},
-        {nullptr, "#a", "Meta editor: add the hovering file to the fetch list"},
+        {nullptr, "#a", "Meta editor: add the hovering file (folder view: the hovering folder) to the fetch list"},
         {nullptr, "#SHIFT+f", "Meta editor (library pane): add the full list -- every title the pane shows now (search and missing-tag filter applied) -- to the fetch list"},
                 {nullptr, "#TAB  LEFT/RIGHT  SPACE (Fetch List)", "Meta editor, Fetch List tab: TAB moves between the list and the fetch option line; LEFT/RIGHT move over the boxes, SPACE ticks one (missing only / all exclude the rest; the tag boxes combine); ENTER fetches the full list"},
         {nullptr, "#UP/DOWN  ENTER  DEL/d  ESC", "Meta editor choice overlay: select / take it / discard the fetched value and all options / close"},
+        {nullptr, "#f", "Meta editor (library pane): folder view on / off -- files grouped by folder, numbered per folder; [a] on a folder header adds the whole folder to the fetch list, ENTER closes / opens it"},
         {nullptr, "#r", "Meta editor: toggle edited files on top of the library pane"},
         {nullptr, "#n", "Meta editor (library pane): toggle recently added files first"},
         {nullptr, "#x, SHIFT+/t/a/l/y", "Filter + sort the library pane by missing metadata: x = missing any, SHIFT+t = title, SHIFT+a = artist, SHIFT+l = album, SHIFT+y = year (same order as the fields)"},

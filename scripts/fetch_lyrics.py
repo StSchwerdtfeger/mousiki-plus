@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import time
 import signal
 import sys
 
@@ -76,6 +77,68 @@ def clean_youtube_title(text):
     return text.strip()
 
 
+def has_cjk(text):
+    for ch in text:
+        o = ord(ch)
+        if 0x3040 <= o <= 0x30FF or 0x3400 <= o <= 0x9FFF or 0xAC00 <= o <= 0xD7A3 or 0xFF66 <= o <= 0xFF9F:
+            return True
+    return False
+
+
+def script_parts(text):
+    """(latin part, cjk part) of a name such as "Lemon (レモン)", "米津玄師 Kenshi Yonezu" or "夜に駆ける - Yoru ni kakeru".
+    A part is "" when the name has none of that kind."""
+    pieces = re.split(r"[\(\[（【\)\]）】]|\s[-–—|/]\s", text)
+    latin, cjk = [], []
+    for piece in pieces:
+        piece = piece.strip()
+        if not piece:
+            continue
+        if has_cjk(piece):
+            tokens = piece.split()
+            lt = [t for t in tokens if not has_cjk(t)]
+            ct = [t for t in tokens if has_cjk(t)]
+            if ct:
+                cjk.append(" ".join(ct))
+            if lt:
+                latin.append(" ".join(lt))
+        else:
+            latin.append(piece)
+    return " ".join(latin[:1]), " ".join(cjk[:1])
+
+
+def name_variants(title, artist, alt_title, alt_artist, raw_title=""):
+    """Further (label, (title, artist)) searches to try, most likely first, without repeats. At most 7."""
+    t_lat, t_cjk = script_parts(raw_title or title)   # (the raw title still has the brackets that clean_youtube_title() removes)
+    a_lat, a_cjk = script_parts(artist)
+    cands = []
+    if alt_title or alt_artist:
+        cands.append(("Latin spelling", (alt_title or title, alt_artist or artist)))
+    if t_lat and t_lat != title:
+        cands.append(("title without the Japanese part", (t_lat, a_lat or alt_artist or artist)))
+    if t_cjk and t_cjk != title:
+        cands.append(("title without the Latin part", (t_cjk, a_cjk or artist)))
+    if a_lat != artist or a_cjk != artist:
+        if a_lat and a_lat != artist:
+            cands.append(("artist without the Japanese part", (title, a_lat)))
+        if a_cjk and a_cjk != artist:
+            cands.append(("artist without the Latin part", (title, a_cjk)))
+    cands.append(("title only", (title, "")))
+    if alt_title:
+        cands.append(("Latin title only", (alt_title, "")))
+    seen = {(title.lower(), artist.lower())}
+    out = []
+    for label, (song, performer) in cands:
+        key = (song.strip().lower(), performer.strip().lower())
+        if not key[0] or key in seen:
+            continue
+        seen.add(key)
+        out.append((label, (song.strip(), performer.strip())))
+        if len(out) == 7:
+            break
+    return out
+
+
 def main():
     if len(sys.argv) < 2:
         emit({
@@ -86,7 +149,17 @@ def main():
 
     raw_title = sys.argv[1]
     title = clean_youtube_title(raw_title)
-    artist = sys.argv[2] if len(sys.argv) > 2 else ""
+    artist = sys.argv[2] if len(sys.argv) > 2 and not sys.argv[2].startswith("--") else ""
+    # optional: --variants  (try other spellings of the name when the first search finds nothing),
+    #           --alt-title X --alt-artist Y  (the Latin-letters spelling Mousiki shows, made by the program itself)
+    extra = sys.argv[2:]
+    variants_on = "--variants" in extra
+    alt_title = alt_artist = ""
+    for i, a in enumerate(extra):
+        if a == "--alt-title" and i + 1 < len(extra):
+            alt_title = extra[i + 1]
+        elif a == "--alt-artist" and i + 1 < len(extra):
+            alt_artist = extra[i + 1]
 
     lrc = load_lrc_module()
     if lrc is None:
@@ -103,7 +176,7 @@ def main():
     # last-resort backstop so a truly wedged call still returns *something*
     # to the C++ caller instead of hanging the lyrics fetch forever.
     try:
-        signal.alarm(35)
+        signal.alarm(80 if variants_on else 35)
     except (AttributeError, OSError):
         pass  # Windows or restricted env -- no alarm, best-effort
 
@@ -112,6 +185,7 @@ def main():
 
     result = None
     last_error = None
+    used = ""
 
     try:
         result = do_fetch(title, artist)
@@ -126,8 +200,27 @@ def main():
         if len(parts) == 2 and parts[0] and parts[1]:
             try:
                 result = do_fetch(parts[1], parts[0])
+                used = "swapped title / artist"
             except Exception as e:
                 last_error = str(e)
+
+    # Other spellings of the same names (Settings > ON/OFF > MODES > Lyrics Name Variants): lyrics sites often know a song under
+    # only one of its names -- Latin letters or the original script -- so a search with a mixed or unusual spelling finds nothing
+    # while the same search without the Latin or without the Japanese part does.
+    if result is None and variants_on:
+        started = time.time()
+        for label, (song, performer) in name_variants(title, artist, alt_title, alt_artist, raw_title):
+            if time.time() - started > 40:
+                break
+            try:
+                result = do_fetch(song, performer)
+            except Exception as e:
+                last_error = str(e)
+                result = None
+            if result is not None and (result.get("enhanced_lrc") or result.get("lrc")):
+                used = label
+                break
+            result = None
 
     if result is None:
         detail = last_error or f"no lyrics found for: {title} {artist}".strip()
@@ -154,6 +247,7 @@ def main():
         "enhanced": has_word_timestamps(lrc_text),
         "lrc": lrc_text,
         "source": result.get("source", "lrc.py"),
+        "variant": used,
     })
 
 

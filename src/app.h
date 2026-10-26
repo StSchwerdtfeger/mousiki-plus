@@ -16,11 +16,14 @@
 #include <string>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "book_notes.h"
 #include "book_cue.h"
 #include "book_split.h"
+#include "cover_art.h"
+#include "cover_store.h"
 #include "disk_art.h"
 #include "remote_server.h"
 #include "remote_overlay.h"
@@ -29,6 +32,7 @@
 #include "local_source.h"
 #include "lyrics_fetcher.h"
 #include "lyrics_translate.h"
+#include "name_lookup.h"
 #include "meta_editor.h"
 #include "metadata_probe.h"
 #include "native_duration.h"
@@ -50,7 +54,7 @@
 
 namespace muisc {
 
-enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex, UpdateNotice, QueueToPlaylist, BookOverlay };
+enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, CoverFetch, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex, UpdateNotice, QueueToPlaylist, BookOverlay };
 enum class ListSource { Local, Online, Playlist, Folder };
 
 // One row of the main UI's "/f:" folder list: a folder that directly
@@ -315,6 +319,15 @@ private:
     // open and gets its previous focus back on close. The two overlays are
     // mutually exclusive: opening one closes the other.
     bool queue_overlay_open_ = false;
+    // The search bar of the big queue overlay (at the bottom, under the queue box): the rows that match are marked and the
+    // cursor jumps to them. The queue keeps its order (it is an order), so nothing is hidden.
+    std::string queue_find_;
+    bool queue_find_edit_ = false;                 // the caret is in the bar
+    static constexpr int kQueueSearchRows = 3;     // the bar's box
+    bool queue_find_match(const std::string& query, size_t idx) const;
+    void queue_find_jump(int dir);                 // dir 0: the first match from the cursor on, 1 next, -1 previous (wraps)
+    int queue_find_count() const;
+    void queue_find_key(int key);
     bool queue_overlay_prev_focus_ = false;       // queue_focus_ before the overlay opened
     int overlay_queue_rows_ = kListVisibleRows;   // queue rows the overlay fits; recomputed every frame
     static constexpr int kQueueOverlayChromeRows = 2; // queue box top/bottom border
@@ -528,6 +541,106 @@ private:
     std::vector<std::string> build_playlist_tracks_panel(int width, int height) const;
     std::vector<std::string> build_playlist_manage_panel(int width, int height) const;
 
+
+    // --- cover fetch overlay (Mode::CoverFetch, HKeyCoverFetch = ALT+c) ---
+    // An overlay of its own (and not a tab of the meta editor) because MusicBrainz often misjudges album titles: fetching covers
+    // should be a deliberate step. Tab 0 = ALBUM LIBRARY (a search bar, the folders of the library with the albums in them, one row
+    // per album name, missing covers highlighted) and the cover of the highlighted album with the pictures to choose from;
+    // tab 1 = the FETCH LIST, fetched through scripts/fetch_cover.py (MusicBrainz + Cover Art Archive). A fetched cover is saved in
+    // a "fetched_covers" folder inside every folder that holds the album. The album's default picture chosen here is overruled by
+    // the choice for a single track in the meta editor (cover_store.h).
+    struct CfAlbum { std::string name, artist; std::vector<std::string> tracks; };
+    struct CfFolder { std::string path, name; std::vector<CfAlbum> albums; bool only_album = false; };
+    struct CfRow { int folder = 0; int album = -1; };   // album -1: the folder's own row
+    struct CfFetchItem { std::string album, artist; std::vector<std::string> folders, tracks; std::string state; bool done = false, ok = false; };
+    int cf_tab_ = 0;
+    int cf_focus_ = 1;                  // 0 search bar, 1 album library, 2 the pictures of the highlighted album
+    std::string cf_query_;
+    int cf_filter_ = 0;                 // 0 all albums, 1 no cover, 2 one cover, 3 several covers, 4 previous unsuccessful fetch
+    bool cf_full_res_ = true;          // [t]: the cover as a real picture (cover fetch menu and meta editor; the default) (Kitty / Sixel) instead of braille dots
+    mutable int cf_art_col_ = 0;        // screen column of the ALBUM ART pane (set while drawing)
+    bool cover_full_picture(const std::string& pfile, bool pemb, int pcols, int preview_rows, int scr_col, int scr_row) const;
+    mutable bool cf_cur_fallback_ = false;   // the picture playback would use is another album's (loose name match in the folder)
+    mutable std::string cf_pic_key_;    // what the picture in gfx_ shows
+    int cf_selected_ = 0, cf_art_sel_ = 0, cf_list_sel_ = 0;
+    mutable int cf_page_rows_ = 10;
+    std::string cf_status_;
+    std::vector<CfFolder> cf_folders_;  // the index of what the search shows
+    std::vector<CfRow> cf_rows_;        // the visible rows (folders and, under the open ones, their albums)
+    std::set<std::string> cf_open_;     // the folders that are opened
+    std::vector<CfFetchItem> cf_list_;
+    std::map<std::string, int> cf_covers_;      // "folder|album key" -> number of covers (filled in by the worker)
+    mutable std::mutex cf_mutex_;
+    std::thread cf_index_thread_;
+    std::atomic<unsigned> cf_gen_{0};           // a new search / close stops the running index worker
+    bool cf_index_ready_ = false;               // cf_folders_ was swapped in (poll_cover_fetch)
+    std::vector<CfFolder> cf_pending_folders_;  // the worker's result, taken by poll_cover_fetch()
+    std::atomic<bool> cf_pending_ready_{false};
+    std::atomic<int> cf_progress_{0}, cf_total_{0};
+    std::atomic<bool> cf_scanning_{false};
+    int cf_untagged_ = 0;                       // tracks of the search without an album tag (not listed)
+    // fetching
+    std::thread cf_fetch_thread_;
+    std::atomic<bool> cf_fetch_running_{false};
+    MetaFetchCancel cf_fetch_cancel_;
+    fs::path cf_script_;                        // scripts/fetch_cover.py
+    // --- the Latin name lookup (Settings -> ON/OFF -> MODES -> Latin Name Lookup): artists written in Chinese characters are asked
+    // for on MusicBrainz in the background, one at a time (scripts/lookup_artist_name.py); the answers are kept in kanji_readings_learned.txt
+    struct NameLookupJob { std::atomic<bool> done{false}; std::string name; NameLookupResult result; };
+    std::shared_ptr<NameLookupJob> name_job_;
+    std::chrono::steady_clock::time_point name_lookup_next_{};
+    int name_lookup_fails_ = 0;
+    bool name_lookup_broken_ = false;           // no Python / no script: not tried again in this session
+    fs::path name_lookup_script_;
+    void poll_name_lookup();
+    // --- Japanese kanji read by pykakasi (optional package, scripts/kanji_reading.py), in batches, while the Latin letters are on
+    struct KanjiJob { std::atomic<bool> done{false}; std::vector<std::string> texts; KanjiReadResult result; };
+    std::shared_ptr<KanjiJob> kanji_job_;
+    std::chrono::steady_clock::time_point kanji_next_{};
+    bool kanji_broken_ = false;
+    int kanji_fails_ = 0;
+    fs::path kanji_script_;
+    void poll_kanji_reader();
+    std::string cf_fetch_progress_;
+    enum class CfPrompt { None, Fetch, Delete, ClearList, ClearAlbum };
+    CfPrompt cf_prompt_ = CfPrompt::None;
+    // the cover of the highlighted album and the pictures to choose from, made again when the highlight or the store changes
+    mutable std::string cf_cur_key_;
+    mutable CoverSource cf_cur_src_;
+    mutable std::vector<CoverCandidate> cf_cands_;
+    void cf_open();
+    void cf_close();
+    void cf_refresh();                          // search again (starts the index worker)
+    void cf_rebuild_rows();
+    void cf_remember_selection();               // before cf_folders_ is replaced: the rows index into it
+    std::string cf_keep_folder_, cf_keep_album_;
+    bool cf_keep_ready_ = false;
+    enum class CfPromptX { None };              // (placeholder, keeps the enum below readable)
+    void cf_clear_album_title();                // SHIFT+d: the album tag of the highlighted album becomes a pending (empty) edit of the meta editor
+    std::unordered_map<std::string, std::string> cf_album_override_;   // path -> album tag pending in the meta editor (for the index worker)
+    mutable int cf_marq_idx_ = -1;
+    mutable std::chrono::steady_clock::time_point cf_marq_since_;
+    mutable int cf_marq_art_[2] = {-1, -1};
+    mutable std::chrono::steady_clock::time_point cf_marq_art_since_[2];
+    int cf_covers_of(const CfFolder& f, const CfAlbum& a) const;
+    bool cf_album_shown(const CfFolder& f, const CfAlbum& a) const;   // the filter keeps it (and a failed fetch hides it)   // -1 = not known yet
+    void poll_cover_fetch();
+    void handle_cf_key(int key);
+    void cf_add_album(const CfFolder& f, const CfAlbum& a);
+    void cf_add_selected();
+    void cf_add_view();
+    void cf_start_fetch();
+    void cf_delete_candidate();
+    void cf_update_current() const;             // cf_cur_src_ / cf_cands_ for the highlighted album
+    const CfAlbum* cf_selected_album(const CfFolder** folder = nullptr) const;
+    int cf_nav(int selected, int total, bool up) const;
+    void build_cf_screen(std::ostringstream& frame, int W, int target_height) const;
+    std::vector<std::string> build_cf_library_panel(int width, int height) const;
+    std::vector<std::string> build_cf_art_panel(int width, int height) const;
+    std::vector<std::string> build_cf_list_panel(int width, int height) const;
+    int cover_mode_look() const;                 // cover_mode with the ASCII modes (5, 6) folded onto 0, 1
+    std::vector<std::string> cover_preview_lines(const std::string& file, bool embedded, int cols, int rows, const std::string& msg = "") const;
+
     // --- meta/tag editor overlay (Mode::MetaEdit, HKeyMetaEditor = Shift+M) ---
     // Deliberately shaped like the playlist editor above: same tab strip,
     // same boxed side-by-side panels, same hint/status footer, same Y/N
@@ -550,10 +663,21 @@ private:
     // at the top of the pane. Off by default, so merely opening the editor
     // never reorders the list behind the user's back -- see
     // meta_refresh_lib_view(), which does the sorting on every refresh.
+    // Folder view of the FILE LIBRARY ([f]): the files grouped by folder, every folder a header row ("v folder (5)") with its files numbered
+    // from 1 below it. The cursor is on a file (meta_lib_selected_) or on a folder header (meta_folder_hover_ = the folder); [a] on a header
+    // queues the folder's titles, ENTER opens / closes it.
+    struct MetaFolderRow { bool header = false; int lib = 0; std::string folder, name; int num = 0, count = 0; bool closed = false; };
+    bool meta_folder_view_ = false;
+    std::string meta_folder_hover_;
+    std::unordered_set<std::string> meta_folder_closed_;
+    std::vector<MetaFolderRow> meta_folder_rows() const;
+    int meta_folder_cursor(const std::vector<MetaFolderRow>& rows) const;
+    void meta_lib_move(bool up);
+    void meta_add_folder_to_fetch(const std::string& folder);
     bool meta_resort_edited_ = false;
     bool meta_sort_added_ = false;     // 'n': the library pane newest-arrived first
     int meta_lib_selected_ = 0;
-    int meta_field_ = 0; // hovered row of the field editor (0=FILE .. 4=YEAR)
+    int meta_field_ = 0; // hovered row of the field editor (0=FILE .. 4=YEAR, kMetaFieldCount = the "Cover Options" button)
     // Two-stage field editor (meta_focus_ == 2): a hovered tag is only
     // highlighted until ENTER arms this, showing the caret in the CHANGE
     // colours (change_sgr()) -- the same split the PATHS tab uses between
@@ -572,6 +696,26 @@ private:
     std::string meta_fetch_note_;                      // first MusicBrainz hiccup of the running batch
     // Per path of the running batch: the tag fields the fetch was allowed to fill in (set when it starts).
     std::unordered_map<std::string, std::array<bool, kMetaFieldCount>> meta_fetch_want_;
+    // --- the cover of a track in the meta editor: the picture under the fields and the "Cover Options" overlay ---
+    // The choice made here is kept per track (cover_store.h) and goes before the album's default and before Settings -> Cover Search
+    // (except "Within File Only").
+    struct MetaCovItem { int special = 0; CoverCandidate c; };   // special: 0 a picture, 1 "automatic" (the search decides), 2 "no cover"
+    bool meta_cov_open_ = false;
+    bool meta_cov_search_ = false;       // the file name search field has the keyboard
+    bool meta_cov_ask_delete_ = false;
+    int meta_cov_sel_ = 0;
+    std::string meta_cov_query_;
+    std::string meta_cov_track_;
+    std::string meta_cov_msg_;
+    std::vector<MetaCovItem> meta_cov_items_;
+    void meta_cov_open();
+    void meta_cov_rebuild();
+    bool handle_meta_cov_key(int key);
+    std::vector<std::string> build_meta_cov_panel() const;
+    void meta_toggle_cover_res();
+    mutable int meta_pane_col_ = 0;     // screen column of the FIELDS panel (where a full-resolution cover picture starts)
+    std::vector<std::string> meta_cover_pane(int inner, int rows) const;   // the track's cover as braille lines, `rows` x `inner` columns
+    static constexpr int kMetaCovPanelWidth = 86;
     // The choice overlay (ENTER on a field with several fetched candidates).
     bool meta_choice_open_ = false;
     int meta_choice_field_ = 0;
@@ -785,6 +929,7 @@ private:
     mutable bool gfx2_shown_ = false;
     mutable bool gfx_ok_ = false;              // the picture belongs on screen in the frame just rendered
     mutable int gfx_last_crop_ = -1;
+    mutable int gfx2_last_crop_ = -1;
     mutable std::vector<uint8_t> gfx_full_level_;      // the audio book picture without a hole for a floating panel (see render_frame)
     mutable int gfx_last_cut_[4] = {0, 0, 0, 0};       // the hole that is cut into it now (pixels x0, y0, x1, y1)
     mutable int scope_cut_last_[8] = {-1, -1, -1, -1, -1, -1, -1, -1};   // the panel cut-outs of the overlay's pictures of the last frame
@@ -886,6 +1031,14 @@ private:
     // in-memory buffer this overlay renders -- see log_event() and
     // build_console_screen().
     void log_event(const std::string& msg);
+    void toggle_latin_letters();
+    // The status messages ("Latin letters: on", "added to queue", Settings notes ...) are not shown on the main screen: every new one is
+    // kept here with its time and shown in the second pane of the console overlay. capture_status() looks at the message lines each tick.
+    std::vector<std::string> status_history_;       // "[HH:MM:SS] message", oldest first (the last kMaxStatusHistory)
+    std::vector<std::string> status_seen_;          // the last value of each message line that was looked at
+    void capture_status();
+    int console_pane_ = 0;                          // 0 = logs, 1 = status messages: the pane the arrow keys scroll
+    mutable int console_up_[2] = {0, 0};            // lines scrolled up from the newest, per pane (0 = following the newest)
     void build_console_screen(std::ostringstream& frame, int W, int target_height) const;
 
     // --- cheatsheet overlay (HKeyCheatsheet) ----------------------------

@@ -343,12 +343,35 @@ inline std::string lower(std::string s) {
 // separator to a space first turns "x-files" into "x files" so both
 // tiers line up with "X Files" the same way they already would for a
 // title that happens to use a plain space.
+// The Latin letters with accents / umlauts (U+00C0 .. U+017F) as plain ASCII, so "Ärzte", "arzte" and "Aerzte"-style typing find each
+// other ("é" -> "e", "ß" -> "ss", "æ" -> "ae" ...). nullptr: not a letter (the multiplication and division signs).
+inline const char* const* latin_fold_table() {
+    static const char* const t[192] = {"a","a","a","a","a","a","ae","c","e","e","e","e","i","i","i","i","d","n","o","o","o","o","o",nullptr,"o","u","u","u","u","y","th","ss","a","a","a","a","a","a","ae","c","e","e","e","e","i","i","i","i","d","n","o","o","o","o","o",nullptr,"o","u","u","u","u","y","th","y","a","a","a","a","a","a","c","c","c","c","c","c","c","c","d","d","d","d","e","e","e","e","e","e","e","e","e","e","g","g","g","g","g","g","g","g","h","h","h","h","i","i","i","i","i","i","i","i","i","i",nullptr,nullptr,"j","j","k","k","k","l","l","l","l","l","l",nullptr,nullptr,"l","l","n","n","n","n","n","n","n","n","n","o","o","o","o","o","o","oe","oe","r","r","r","r","r","r","s","s","s","s","s","s","s","s","t","t","t","t","t","t","u","u","u","u","u","u","u","u","u","u","u","u","w","w","y","y","y","z","z","z","z","z","z","s"};
+    return t;
+}
+
+// Lowercases (also the accented Latin letters), folds those to ASCII and folds common word-separator punctuation (hyphen,
+// underscore, dot, slash) down to plain spaces. Used only for search matching (fuzzy_score below), never for display.
+//
+// The separators: without this, a tag/filename like "X-Files" is one glued-together token "x-files" as far as matching is
+// concerned, while a query typed as "X Files" is two separate words ["x", "files"].
 inline std::string normalize_for_search(std::string s) {
     s = lower(std::move(s));
-    for (char& c : s) {
-        if (c == '-' || c == '_' || c == '.' || c == '/') c = ' ';
+    std::string o;
+    o.reserve(s.size());
+    const char* const* tab = latin_fold_table();
+    for (size_t i = 0; i < s.size(); ++i) {
+        const unsigned char c = static_cast<unsigned char>(s[i]);
+        if (c == 0xC3 && i + 1 < s.size()) {   // U+00C0 .. U+00FF
+            const unsigned cp = 0xC0u + (static_cast<unsigned char>(s[i + 1]) - 0x80u);
+            if (cp >= 0xC0 && cp <= 0xFF && tab[cp - 0xC0]) { o += tab[cp - 0xC0]; ++i; continue; }
+        } else if ((c == 0xC4 || c == 0xC5) && i + 1 < s.size()) {   // U+0100 .. U+017F
+            const unsigned cp = (c == 0xC4 ? 0x100u : 0x140u) + (static_cast<unsigned char>(s[i + 1]) - 0x80u);
+            if (cp >= 0x100 && cp <= 0x17F && tab[cp - 0xC0]) { o += tab[cp - 0xC0]; ++i; continue; }
+        }
+        o += (c == '-' || c == '_' || c == '.' || c == '/') ? ' ' : static_cast<char>(c);
     }
-    return s;
+    return o;
 }
 
 inline std::vector<std::string> split_words(const std::string& s) {
@@ -368,7 +391,7 @@ inline std::vector<std::string> split_words(const std::string& s) {
 // Standard edit distance (single-char insert/delete/substitute cost 1).
 // Small strings only (track titles/artists/search words) — the O(n*m)
 // DP table is negligible at this scale.
-inline int levenshtein(const std::string& a, const std::string& b) {
+inline int levenshtein(const std::string& a, const std::string& b) {   // (an adjacent swap counts as one edit: "teh" -> "the")
     size_t n = a.size(), m = b.size();
     std::vector<std::vector<int>> dp(n + 1, std::vector<int>(m + 1, 0));
     for (size_t i = 0; i <= n; ++i) dp[i][0] = static_cast<int>(i);
@@ -377,9 +400,69 @@ inline int levenshtein(const std::string& a, const std::string& b) {
         for (size_t j = 1; j <= m; ++j) {
             int cost = (a[i - 1] == b[j - 1]) ? 0 : 1;
             dp[i][j] = std::min({dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost});
+            if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) dp[i][j] = std::min(dp[i][j], dp[i - 2][j - 2] + 1);
         }
     }
     return dp[n][m];
+}
+
+// How well a typed word fits a word of the text, 0..1 (below ~0.55 = not at all): the edit distance, but a word typed only
+// as far as it goes ("cov" for "cover3") counts as a good fit, and a trailing number of the text's word ("cover3") is ignored.
+inline double word_pair_quality(const std::string& qw, const std::string& tw) {
+    const size_t max_len = std::max(qw.size(), tw.size());
+    if (max_len == 0) return 0.0;
+    double q = 1.0 - static_cast<double>(levenshtein(qw, tw)) / static_cast<double>(max_len);
+    if (qw.size() >= 2 && tw.size() > qw.size() && tw.compare(0, qw.size(), qw) == 0)
+        q = std::max(q, 0.80 + 0.15 * static_cast<double>(qw.size()) / static_cast<double>(tw.size()));
+    if (!tw.empty() && tw.back() >= '0' && tw.back() <= '9' && !(qw.back() >= '0' && qw.back() <= '9')) {
+        size_t e = tw.size();
+        while (e > 1 && tw[e - 1] >= '0' && tw[e - 1] <= '9') --e;
+        if (e < tw.size()) q = std::max(q, word_pair_quality(qw, tw.substr(0, e)) - 0.02);
+    }
+    return q;
+}
+
+// A word typed as the run-together starts of several words of the text: "testcover" finds "test song cover3" (test + cover, the
+// word in between skipped), "boh rhap" typed as "bohrhap" finds "bohemian rhapsody". Each part has to start at the start of a word and
+// run on from there. `q` has no spaces; `t` is the normalised text. Returns the number of skipped words, -1 = no such way.
+inline int abbreviation_skips(const std::string& q, const std::string& t) {
+    if (q.size() < 4 || q.size() > 40 || t.size() < q.size()) return -1;
+    {   // cheap exit first: some word has to start with the query's first character
+        bool any = false;
+        for (size_t i = 0; i < t.size() && !any; ++i) any = t[i] == q[0] && (i == 0 || t[i - 1] == ' ' || t[i - 1] == '\t');
+        if (!any) return -1;
+    }
+    std::vector<std::pair<size_t, size_t>> w;   // [from, to) of the text's words
+    for (size_t i = 0; i < t.size();) {
+        while (i < t.size() && (t[i] == ' ' || t[i] == '\t')) ++i;
+        const size_t b = i;
+        while (i < t.size() && t[i] != ' ' && t[i] != '\t') ++i;
+        if (i > b) w.push_back({b, i});
+        if (w.size() > 24) break;
+    }
+    if (w.size() < 2) return -1;
+    // best[qi][wi]: fewest skipped words when the first qi characters are matched and the last one ended a stretch inside word wi
+    // (any position in it: the next character either goes on in this word at `at` or starts a later word)
+    const int INF = 1 << 20;
+    // state: (qi chars matched, word wi, chars consumed of wi = ci). Plain DP over qi.
+    std::vector<std::vector<std::vector<int>>> dp(q.size() + 1, std::vector<std::vector<int>>(w.size()));
+    for (auto& r : dp) for (size_t i = 0; i < w.size(); ++i) r[i].assign(w[i].second - w[i].first + 1, INF);
+    for (size_t wi = 0; wi < w.size(); ++wi)   // the first character starts a word (the words before it are not "skipped": the match starts there)
+        if (t[w[wi].first] == q[0]) dp[1][wi][1] = 0;
+    for (size_t qi = 1; qi < q.size(); ++qi)
+        for (size_t wi = 0; wi < w.size(); ++wi)
+            for (size_t ci = 1; ci < dp[qi][wi].size(); ++ci) {
+                const int cur = dp[qi][wi][ci];
+                if (cur >= INF) continue;
+                const size_t len = w[wi].second - w[wi].first;
+                if (ci < len && t[w[wi].first + ci] == q[qi]) dp[qi + 1][wi][ci + 1] = std::min(dp[qi + 1][wi][ci + 1], cur);   // on in this word
+                for (size_t wj = wi + 1; wj < w.size(); ++wj)                                                                    // a later word starts
+                    if (t[w[wj].first] == q[qi]) dp[qi + 1][wj][1] = std::min(dp[qi + 1][wj][1], cur + static_cast<int>(wj - wi - 1));
+            }
+    int best = INF;
+    for (size_t wi = 0; wi < w.size(); ++wi)
+        for (size_t ci = 1; ci < dp[q.size()][wi].size(); ++ci) best = std::min(best, dp[q.size()][wi][ci]);
+    return best >= INF ? -1 : best;
 }
 
 // Typo-tolerant match score: higher is better, negative means "not a
@@ -408,20 +491,24 @@ inline double fuzzy_score(const std::string& query, const std::string& target) {
     auto t_words = split_words(t);
     if (q_words.empty() || t_words.empty()) return -1.0;
 
-    double total_quality = 0.0;
-    for (auto& qw : q_words) {
-        double best_quality = -1.0;
-        for (auto& tw : t_words) {
-            size_t max_len = std::max(qw.size(), tw.size());
-            if (max_len == 0) continue;
-            double normalized = static_cast<double>(levenshtein(qw, tw)) / static_cast<double>(max_len);
-            double quality = 1.0 - normalized;
-            if (quality > best_quality) best_quality = quality;
+    double fuzzy = -1.0;
+    {
+        double total_quality = 0.0;
+        bool ok = true;
+        for (auto& qw : q_words) {
+            double best_quality = -1.0;
+            for (auto& tw : t_words) best_quality = std::max(best_quality, word_pair_quality(qw, tw));
+            if (best_quality < 0.55) { ok = false; break; }   // this query word doesn't fit anywhere close enough -- not a real match
+            total_quality += best_quality;
         }
-        if (best_quality < 0.55) return -1.0; // this query word doesn't fit anywhere close enough -- not a real match
-        total_quality += best_quality;
+        if (ok) fuzzy = (total_quality / static_cast<double>(q_words.size())) * 100.0; // tier 2: fuzzy, always below tier 1's range
     }
-    return (total_quality / static_cast<double>(q_words.size())) * 100.0; // tier 2: fuzzy, always below tier 1's range
+    // tier 2b: the query as one run-together word ("testcover" for "test_song-cover3"); the fewer words skipped, the better
+    std::string compact;
+    for (const auto& w : q_words) compact += w;
+    const int skips = abbreviation_skips(compact, t);
+    if (skips >= 0) fuzzy = std::max(fuzzy, std::max(60.0, 90.0 - 5.0 * skips));
+    return fuzzy;
 }
 
 

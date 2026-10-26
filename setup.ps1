@@ -31,6 +31,11 @@
     Don't upgrade an FFmpeg that is already installed. By default `winget upgrade` is tried on it, and if it still
     lacks libopenmpt / libgme (tracker modules, console music) the full Gyan.FFmpeg build is installed.
 
+.PARAMETER WithKanji
+    (Every download of this script -- CMake, FFmpeg, yt-dlp, Python, pykakasi -- needs an internet connection.)
+    Also install pykakasi (pip install --user pykakasi), so kanji are shown in Latin letters too (SHIFT+'). Optional:
+    pykakasi is GPL-3.0 and not part of Mousiki; it is downloaded from pypi.org and run as a separate program.
+
 .PARAMETER NoInstall
     Don't create the launchers. By default the commands "mousiki" and "lala"
     are created in %LOCALAPPDATA%\Mousiki\bin, which is added to your user
@@ -42,7 +47,8 @@ param(
     [ValidateSet('Release','Debug')]
     [string]$BuildType = 'Release',
     [switch]$NoInstall,
-    [switch]$NoUpgrade
+    [switch]$NoUpgrade,
+    [switch]$WithKanji
 )
 
 $ErrorActionPreference = 'Stop'
@@ -111,6 +117,18 @@ if (-not $SkipDeps) {
     # session inherited the old one. Refresh it in-process so the checks below
     # and the build itself can see them without a new shell.
     Update-SessionPath
+
+    if ($WithKanji) {
+        Write-Step "Installing pykakasi (optional: kanji readings for the Latin letters display)"
+        $pyCmd = if (Test-Command py) { @('py','-3') } elseif (Test-Command python3) { @('python3') } elseif (Test-Command python) { @('python') } else { $null }
+        if ($pyCmd) {
+            $pyRest = if ($pyCmd.Count -gt 1) { $pyCmd[1..($pyCmd.Count-1)] } else { @() }
+            & $pyCmd[0] @pyRest -m pip install --user pykakasi
+            if ($LASTEXITCODE -ne 0) { Write-Warning "pykakasi could not be installed -- Mousiki works without it (kanji just stay as they are)." }
+        } else {
+            Write-Warning "No Python found -- pykakasi was skipped."
+        }
+    }
 
     # --- retro formats: FFmpeg needs libopenmpt (tracker modules) and libgme (console music) ---
     if ((Test-Command ffmpeg) -and -not $NoUpgrade -and (Test-Command winget) -and

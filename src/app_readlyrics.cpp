@@ -301,6 +301,7 @@ void App::handle_readlyrics_key(int key) {
     if (rd_opts_open_) { readlyrics_options_key(key); return; }
     if (rd_search_open_) { readlyrics_search_key(key); return; }
     const bool arrow = last_key_was_arrow();
+    if (!arrow && key_is("HKeyTranslit", key)) { toggle_latin_letters(); return; }   // Latin letters on / off, also here
     if (key == kKeyCtrlS && !rd_confirm_del_) { readlyrics_search_open(); return; }
     if (rd_confirm_del_) {   // "delete this translation?" -- only y confirms
         if (!arrow && (key == 'y' || key == 'Y')) readlyrics_delete_translation();
@@ -651,11 +652,11 @@ void App::build_readlyrics_screen(std::ostringstream& frame, int W, int target_h
     auto lower = [](std::string s) { for (auto& ch : s) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); return s; };
     for (size_t i = 0; i < rd_lines_.size(); ++i) {
         if (rd_lines_[i].empty()) { rows.push_back({std::string(), 2}); continue; }
-        for (auto& w : wrap_lines(rd_lines_[i], wrap_w, 8)) rows.push_back({w, 0});
+        for (auto& w : wrap_lines(shown_text(rd_lines_[i]), wrap_w, 8)) rows.push_back({w, 0});
         if (show) {
             const std::string& t = rd_trans_[i];
             if (!t.empty() && lower(t) != lower(rd_lines_[i]))
-                for (auto& w : wrap_lines("(" + t + ")", wrap_w, 8)) rows.push_back({w, 1});
+                for (auto& w : wrap_lines("(" + shown_text(t) + ")", wrap_w, 8)) rows.push_back({w, 1});
         }
     }
     if (rd_lines_.empty()) {

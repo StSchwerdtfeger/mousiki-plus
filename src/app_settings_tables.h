@@ -32,6 +32,7 @@ inline const RefHotkeyRow kRefRows[] = {
     {nullptr, "HKeyClearFilter", "Clear Filter"},
     {nullptr, "HKeyCycleSortMode", "Cycle Sort Mode"},
     {nullptr, "HKeyToggleMetaOnly", "Show Metadata Only"}, // list rows: metadata instead of filename
+    {nullptr, "HKeyTranslit", "Latin Letters On/Off"},     // Japanese / Korean / Chinese text in Latin letters
     {nullptr, "HKeyToggleWaveform", "Toggle Waveform"},
     {nullptr, "HKeyFolderOverlay", "Big Folder Overlay"}, // folder tree of the library, `f` shows a folder in the list
     {nullptr, "HKeyConvertOverlay", "File Conversion Overlay"}, // convert high resolution files to MP3 / AAC / Opus
@@ -72,6 +73,7 @@ inline const RefHotkeyRow kRefRows[] = {
     {"PLAYLISTS", "HKeyPlaylist", "Open Playlist Editor"}, // opens the playlist create/manage screen
     // --- Meta editor ---
     {"META EDITOR", "HKeyMetaEditor", "Open Meta Editor"}, // edit file names/tags, AcoustID fetch
+    {nullptr, "HKeyCoverFetch", "Open Cover Fetch"},       // fetch album covers (MusicBrainz / Cover Art Archive)
     {nullptr, "HKeyFetchTags", "Fetch Missing Tags"}, // the hovered title; also inside the meta editor
     // --- Listening history ---
     {"HISTORY", "HKeyHistory", "Open Listening History"}, // HISTORY / TOP TRACKS / TOP PLAYLISTS / HABITS overlay
@@ -115,7 +117,7 @@ enum SetId {
     kSidVizField, kSidDisk, kSidDummy, kSidQueue, kSidWave, kSidLyricsEngine, kSidLyricViz, kSidVisualizer, kSidNoLyricsViz,
     kSidStereo, kSidNormalize, kSidMetaOnly, kSidEmoji, kSidMarquee, kSidUseLyrics, kSidUseOsci, kSidUseSpectro, kSidUseSphere,
     kSidOrder1, kSidOrder2, kSidOrder3, kSidOrder4,
-    kSidPlayback, kSidStartMode, kSidBlackBg, kSidShareProfiles, kSidRemoteApp, kSidUpdateCheck, kSidMediaKeys, kSidTrackBuffer,
+    kSidPlayback, kSidStartMode, kSidBlackBg, kSidShareProfiles, kSidRemoteApp, kSidUpdateCheck, kSidMediaKeys, kSidLatinLookup, kSidLatinMacrons, kSidLatinWo, kSidLyricsVariants, kSidTrackBuffer,
     kSidVisFluidity, kSidWaveStyle, kSidDiskSpeed, kSidVisDegr, kSidVisVisc, kSidLyrAlign, kSidLyrAnim,
     kSidVolIndicator,
     kSidUseModePlayer, kSidUseModeRadio, kSidUseModeBook, kSidModeOrder1, kSidModeOrder2, kSidModeOrder3, kSidBookAsk, kSidBookCover, kSidBookCoverWave,
@@ -131,9 +133,12 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidPlayback, "Playback"}, {false, kSidStartMode, "Start Mode"}, {false, kSidBlackBg, "Black Background"}, {false, kSidShareProfiles, "Share Profiles"},
         {false, kSidRemoteApp, "Remote App"}, {false, kSidUpdateCheck, "Update Notice"}, {false, kSidMediaKeys, "Media Keys"},
         {true, -1, ""},
-        {true, -1, "MODE SWITCH"},   // SHIFT and + / SHIFT and - walk through the modes that are on, in this order
+        {true, -1, "UI MODE SWITCH"},   // SHIFT and + / SHIFT and - walk through the modes that are on, in this order
         {false, kSidUseModePlayer, "Use Music Player"}, {false, kSidUseModeRadio, "Use Radio"}, {false, kSidUseModeBook, "Use Audio Books"},
         {false, kSidModeOrder1, "Mode Order 1"}, {false, kSidModeOrder2, "Mode Order 2"}, {false, kSidModeOrder3, "Mode Order 3"},
+        {true, -1, ""},
+        {true, -1, "TRANSLITERATION (JAP./KOR./CHIN.)"},
+        {false, kSidLatinMacrons, "Latin Macrons"}, {false, kSidLatinWo, "Latin Wo"}, {false, kSidLatinLookup, "Latin Name Lookup"}, {false, kSidLyricsVariants, "Lyrics Name Variants"},
         {true, -1, ""},
         {true, -1, "MAIN UI / AUDIO"},
         {false, kSidDisk, "Eliment Disk / Cover"}, {false, kSidAlbumCover, "Album Cover"}, {false, kSidCoverMode, "Cover Mode"}, {false, kSidCoverContrast, "Cover Contrast"}, {false, kSidCoverSearch, "Cover Search"},
@@ -175,7 +180,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidStartMode, "Start Mode"}, {false, kSidBlackBg, "Black Background"}, {false, kSidShareProfiles, "Share Profiles"},
         {false, kSidRemoteApp, "Remote App"}, {false, kSidUpdateCheck, "Update Notice"}, {false, kSidMediaKeys, "Media Keys"},
         {true, -1, ""},
-        {true, -1, "MODE SWITCH"},
+        {true, -1, "UI MODE SWITCH"},
         {false, kSidUseModePlayer, "Use Music Player"}, {false, kSidUseModeRadio, "Use Radio"}, {false, kSidUseModeBook, "Use Audio Books"},
         {false, kSidModeOrder1, "Mode Order 1"}, {false, kSidModeOrder2, "Mode Order 2"}, {false, kSidModeOrder3, "Mode Order 3"},
         {true, -1, ""},
@@ -183,7 +188,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidBookAsk, "Ask for Bookmark"},
         {true, -1, ""},
         {true, -1, "MAIN UI / AUDIO"},
-        {false, kSidBookCover, "Book Cover"}, {false, kSidBookCoverWave, "Book Gradient Wave"}, {false, kSidDummy, "Dummy Buttons"}, {false, kSidQueue, "Chapter Display"},
+        {false, kSidBookCover, "Book Cover"}, {false, kSidBookCoverWave, "Book Gradient Wave"}, {false, kSidCoverContrast, "Cover Contrast"}, {false, kSidDummy, "Dummy Buttons"},
         {false, kSidWave, "Progress Waveform"}, {false, kSidVolIndicator, "Volume Indicator"}, {false, kSidVisualizer, "Spectrum Bars"},
         {false, kSidStereo, "Stereo Sound"}, {false, kSidNormalize, "Normalize Volume"}, {false, kSidTrackBuffer, "Track Buffer (MB)"},
         {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},

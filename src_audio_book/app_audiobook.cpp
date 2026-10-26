@@ -452,7 +452,7 @@ struct CoverData {
 };
 
 // A cover scaled to a size, for the wave (grey) or in its own colours (240 colours, median cut), kept until the size changes.
-struct CoverScaled {
+struct BookCoverScaled {
     std::string key;
     int w = 0, h = 0;
     std::vector<unsigned char> grey;      // wave mode
@@ -508,14 +508,20 @@ void quantize_colours(const std::vector<unsigned char>& rgb, const std::vector<u
         if (alpha[i] >= 3) hue[i] = of_bin[(static_cast<size_t>(rgb[i * 3] >> 3) << 10) | (static_cast<size_t>(rgb[i * 3 + 1] >> 3) << 5) | (rgb[i * 3 + 2] >> 3)];
 }
 
-const CoverScaled& scaled_cover(const CoverData& c, int max_w, int max_h, bool colour) {
-    static CoverScaled cs;
-    const std::string key = c.dir + "|" + std::to_string(max_w) + "x" + std::to_string(max_h) + (colour ? "c" : "g");
+const BookCoverScaled& scaled_cover(const CoverData& c, int max_w, int max_h, bool colour, int contrast) {
+    static BookCoverScaled cs;
+    contrast = std::clamp(contrast, 0, 100);
+    const std::string key = c.dir + "|" + std::to_string(max_w) + "x" + std::to_string(max_h) + (colour ? "c" : "g") + std::to_string(contrast);
+    // more contrast: values move away from the middle (0 % = unchanged, 100 % = 2.5 times the distance from the middle grey)
+    const double factor = 1.0 + contrast / 100.0 * 1.5;
+    auto punch = [&](unsigned char v) { return static_cast<unsigned char>(std::clamp(static_cast<int>(std::lround((v - 127.5) * factor + 127.5)), 0, 255)); };
     if (cs.key == key) return cs;
-    cs = CoverScaled();
+    cs = BookCoverScaled();
     cs.key = key;
     if (!colour) {
         cs.grey = BookArt::scale_grey(c.level, c.w, c.h, max_w, max_h, cs.w, cs.h);
+        if (contrast > 0)
+            for (unsigned char& v : cs.grey) if (v) v = std::max<unsigned char>(1, punch(v));
         return cs;
     }
     const size_t n = static_cast<size_t>(c.w) * c.h;
@@ -529,7 +535,7 @@ const CoverScaled& scaled_cover(const CoverData& c, int max_w, int max_h, bool c
     cs.w = ow; cs.h = oh;
     const size_t m = static_cast<size_t>(ow) * oh;
     std::vector<unsigned char> rgb(m * 3);
-    for (size_t i = 0; i < m; ++i) for (int k = 0; k < 3; ++k) rgb[i * 3 + static_cast<size_t>(k)] = chn[k][i];
+    for (size_t i = 0; i < m; ++i) for (int k = 0; k < 3; ++k) rgb[i * 3 + static_cast<size_t>(k)] = contrast > 0 ? punch(chn[k][i]) : chn[k][i];
     cs.level = chn[3];
     quantize_colours(rgb, cs.level, 240, cs.pal, cs.hue);
     return cs;
@@ -722,7 +728,7 @@ bool App::book_picture_gfx(int col, int cols, int rows) const {
     const CoverData* cover = settings_.book_cover ? current_cover(book_dir_) : nullptr;
     const bool direct = cover && !settings_.book_cover_wave;   // the cover in its own colours, no wave
     const std::vector<unsigned char>* picp;
-    const CoverScaled* cs = nullptr;
+    const BookCoverScaled* cs = nullptr;
     int ox, oy;
     // Book Cover on, the book's cover is still being read: nothing yet (not the standard picture, which would then have to be wiped)
     bool waiting = false;
@@ -734,7 +740,7 @@ bool App::book_picture_gfx(int col, int cols, int rows) const {
     static const std::vector<unsigned char> nothing;
     if (waiting) { picp = &nothing; pw = ph = 0; ox = oy = 0; }
     else if (cover) {
-        cs = &scaled_cover(*cover, std::max(8, w - 2 * cws), std::max(8, h - 2 * chs), direct);
+        cs = &scaled_cover(*cover, std::max(8, w - 2 * cws), std::max(8, h - 2 * chs), direct, direct ? 0 : settings_.cover_contrast);   // (contrast only with the gradient wave)
         pw = cs->w; ph = cs->h;
         picp = direct ? &cs->level : &cs->grey;
         ox = (w - pw) / 2; oy = (h - ph) / 2;
@@ -744,7 +750,7 @@ bool App::book_picture_gfx(int col, int cols, int rows) const {
     }
     const std::vector<unsigned char>& pic = *picp;
     static std::string last_src;
-    const std::string src = cover ? book_dir_ + (direct ? "|c" : "|g") : waiting ? std::string("|w") : std::string();
+    const std::string src = cover ? book_dir_ + (direct ? "|c" : "|g") + std::to_string(direct ? 0 : settings_.cover_contrast) : waiting ? std::string("|w") : std::string();
     const bool changed_src = src != last_src;
     last_src = src;
     const bool resized = changed_src || g.w != w || g.h != h || g.level.size() != static_cast<size_t>(w) * h || !g.plain || g.id != 0 || g.col != col || g.cols != cols;
@@ -895,7 +901,7 @@ std::vector<std::string> App::book_phone_picture(int& cols, int& rows) const {
     // The cover as braille dots: the dot field is cols*2 x rows*4, a dot is lit where the brightness beats an ordered-dither
     // threshold; a cell takes the average colour of the pixels in it (or, with the wave on, the wave's colour as in the standard picture).
     const bool wave = settings_.book_cover_wave;
-    const CoverScaled& cs = scaled_cover(*cover, cols * 2, rows * 4, !wave);
+    const BookCoverScaled& cs = scaled_cover(*cover, cols * 2, rows * 4, !wave, wave ? settings_.cover_contrast : 0);
     const int fw = cols * 2, fh = rows * 4;
     const int ox = std::max(0, (fw - cs.w) / 2), oy = std::max(0, (fh - cs.h) / 2);
     int sr = 255, sg = 255, sb = 255, er = 255, eg = 255, eb = 255;
@@ -970,7 +976,7 @@ const std::string* App::book_phone_png(std::string& key) const {
         if (g_cover_note.empty() || g_cover_note_dir != book_dir_) return nullptr;
     }
     const bool direct = cover && !settings_.book_cover_wave;
-    key = (cover ? book_dir_ + (direct ? "|c" : "|g") : std::string("standard")) + "|" + settings_.disk_color + "|" +
+    key = (cover ? book_dir_ + (direct ? "|c" : "|g") + std::to_string(direct ? 0 : settings_.cover_contrast) : std::string("standard")) + "|" + settings_.disk_color + "|" +
           (settings_.disk_color_gradient ? settings_.disk_color_end : std::string());
     if (key == cache_key && !cache_png.empty()) return &cache_png;
     int sr = 255, sg = 255, sb = 255, er = 255, eg = 255, eb = 255;
@@ -980,9 +986,9 @@ const std::string* App::book_phone_png(std::string& key) const {
     if (gradient && !try_parse_rgb(settings_.disk_color_end, er, eg, eb)) { er = sr; eg = sg; eb = sb; }
     int pw = 0, ph = 0;
     const std::vector<unsigned char>* lv = nullptr;
-    const CoverScaled* cs = nullptr;
+    const BookCoverScaled* cs = nullptr;
     if (cover) {
-        cs = &scaled_cover(*cover, 640, 640, direct);
+        cs = &scaled_cover(*cover, 640, 640, direct, direct ? 0 : settings_.cover_contrast);
         pw = cs->w; ph = cs->h;
         lv = direct ? &cs->level : &cs->grey;
     } else {

@@ -723,7 +723,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidShareProfiles: v = settings_.share_profiles; break;
             case kSidBookAsk: v = settings_.book_ask_bookmark; break;
             case kSidAlbumCover: v = settings_.album_cover; break;
-            case kSidCoverMode: return settings_.cover_mode == 0 ? "Just Cover" : settings_.cover_mode == 1 ? "Cover with Gradient" : settings_.cover_mode == 4 ? "Cover behind Disk (Full Anima)" : settings_.cover_mode == 3 ? "Cover behind Disk v2" : "Cover behind Disk";
+            case kSidCoverMode: return settings_.cover_mode == 0 ? "Just Cover" : settings_.cover_mode == 1 ? "Cover with Gradient" : settings_.cover_mode == 4 ? "Cover behind Disk (Full Anima)" : settings_.cover_mode == 5 ? "Cover ASCII" : settings_.cover_mode == 6 ? "Cover ASCII with Gradient" : settings_.cover_mode == 3 ? "Cover behind Disk v2" : "Cover behind Disk";
             case kSidCoverContrast: return std::to_string(std::clamp(settings_.cover_contrast, 0, 100)) + "%";
             case kSidCoverSearch: {
                 static const char* names[] = {"Default", "Folder First", "Within File First", "Image in Folder Only", "Within File Only"};
@@ -733,6 +733,10 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidBookCoverWave: v = settings_.book_cover_wave; break;
             case kSidUpdateCheck: v = settings_.update_check; break;
             case kSidMediaKeys: v = settings_.media_keys; break;
+            case kSidLatinLookup: v = settings_.latin_lookup; break;
+            case kSidLatinMacrons: v = settings_.latin_macrons; break;
+            case kSidLatinWo: v = settings_.latin_wo; break;
+            case kSidLyricsVariants: v = settings_.lyrics_name_variants; break;
             case kSidRemoteApp: return settings_.remote_app ? "on   [ENTER] settings" : "off  [ENTER] settings";   // opens the REMOTE APP overlay
             case kSidNormalize: v = settings_.normalize; break;
             case kSidMetaOnly: v = settings_.meta_only; break;
@@ -826,7 +830,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
                 return o;
             }
             case kSidVolIndicator: return {kVolIndicatorNames[0], kVolIndicatorNames[1], kVolIndicatorNames[2], kVolIndicatorNames[3], kVolIndicatorNames[4]};
-            case kSidCoverMode: return {"Just Cover", "Cover with Gradient", "Cover behind Disk", "Cover behind Disk v2", "Cover behind Disk (Full Anima)"};
+            case kSidCoverMode: return {"Just Cover", "Cover with Gradient", "Cover behind Disk", "Cover behind Disk v2", "Cover behind Disk (Full Anima)", "Cover ASCII", "Cover ASCII with Gradient"};
             case kSidCoverContrast: { std::vector<std::string> o; for (int i = 0; i <= 100; i += 5) o.push_back(std::to_string(i) + "%"); return o; }
             case kSidCoverSearch: return {"Default", "Folder First", "Within File First", "Image in Folder Only", "Within File Only"};
             case kSidTrackBuffer: return {};   // a number (ENTER types it) and a "Set back to default" button (RIGHT, then ENTER)
@@ -921,7 +925,7 @@ void App::settings_commit_edit_impl() {
                 queue_reset_lap();
                 return;
             case kSidCoverMode:
-                settings_.cover_mode = v == "just cover" ? 0 : v == "cover with gradient" ? 1 : v == "cover behind disk" ? 2 : v == "cover behind disk v2" ? 3 : v == "cover behind disk (full anima)" ? 4 : settings_.cover_mode;
+                settings_.cover_mode = v == "just cover" ? 0 : v == "cover with gradient" ? 1 : v == "cover behind disk" ? 2 : v == "cover behind disk v2" ? 3 : v == "cover behind disk (full anima)" ? 4 : v == "cover ascii" ? 5 : v == "cover ascii with gradient" ? 6 : settings_.cover_mode;
                 return;
             case kSidCoverContrast: {
                 std::string d = v;
@@ -997,6 +1001,10 @@ void App::settings_commit_edit_impl() {
             case kSidBookCoverWave: settings_.book_cover_wave = is_true; break;
             case kSidUpdateCheck: settings_.update_check = is_true; break;   // read at the next start
             case kSidMediaKeys: settings_.media_keys = is_true; break;       // read at the next start
+            case kSidLatinLookup: settings_.latin_lookup = is_true; name_lookup_broken_ = false; break;
+            case kSidLatinMacrons: settings_.latin_macrons = is_true; translit_set_style(settings_.latin_macrons, settings_.latin_wo); force_redraw_ = true; break;
+            case kSidLyricsVariants: settings_.lyrics_name_variants = is_true; set_lyrics_name_variants(is_true); break;
+            case kSidLatinWo: settings_.latin_wo = is_true; translit_set_style(settings_.latin_macrons, settings_.latin_wo); force_redraw_ = true; break;
             case kSidRemoteApp:
                 settings_.remote_app = is_true;
                 if (is_true && settings_.remote_pin.empty()) settings_.remote_pin = remote::net::make_pin();
@@ -1235,6 +1243,11 @@ void App::settings_cycle(int dir) {
                                                                       : "ask for bookmark: off -- only SHIFT+b sets a bookmark";
     if (id == kSidUpdateCheck) status_line_ = settings_.update_check ? "update notice: on -- at start-up Mousiki looks once a day for a newer release and tells you once (nothing is installed)"
                                                                      : "update notice: off -- no check for a newer release";
+    if (id == kSidLatinLookup) status_line_ = settings_.latin_lookup ? "latin name lookup: on -- artists written in Chinese characters are looked up on MusicBrainz in the background (their name is sent to musicbrainz.org, one at a time)"
+                                                                    : "latin name lookup: off -- nothing is sent anywhere";
+    if (id == kSidLatinMacrons) status_line_ = settings_.latin_macrons ? "latin macrons: on -- Japanese long vowels as macrons (koohii -> kōhī, ou -> ō)" : "latin macrons: off -- Japanese long vowels spelled out (ou, uu, koohii)";
+    if (id == kSidLyricsVariants) status_line_ = settings_.lyrics_name_variants ? "lyrics name variants: on -- a search that finds nothing also tries the Latin spelling, the title / artist without their Latin or Japanese part, and the title alone" : "lyrics name variants: off -- only the title and artist as they are";
+    if (id == kSidLatinWo) status_line_ = settings_.latin_wo ? "latin wo: on -- the particle を is written \"wo\"" : "latin wo: off -- the particle を is written \"o\"";
     if (id == kSidMediaKeys) status_line_ = settings_.media_keys ? "media keys: on -- Mousiki shows in the system's now-playing and answers its media keys (from the next start)"
                                                                  : "media keys: off -- Mousiki stays out of the system's media controls (from the next start)";
     if (id == kSidRemoteApp) {
@@ -1473,6 +1486,14 @@ void App::handle_settings_key(int key) {
         return;
     }
 
+    // SHIFT+up / down: a page, on every tab that scrolls
+    if ((key == 'A' || key == 'B') && last_key_was_arrow() && last_key_was_shifted()) {
+        const int visible = std::max(1, std::max(term_rows_ - 2, 11) - 3);
+        const int page = std::max(1, visible - 1);
+        settings_row_ = std::clamp(settings_row_ + (key == 'A' ? -page : page), 0, settings_max_row());
+        if (settings_tab_ != 0) settings_col_ = 0;
+        return;
+    }
     if (key == kKeyCtrlShiftU) { ref_undo_pop(); return; }   // undo the last key change (up to 5, newest first)
     if (key == kKeyDelete && settings_tab_ == 4 && settings_row_ >= kRefStart && settings_row_ < kRefEnd) {
         ref_reset_keys(settings_row_);                           // the default key of this row
@@ -2373,9 +2394,9 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
     pos(y, 1, legend_colored(settings_, truncate_str(mode_ == Mode::ColorEdit
         ? "[ENTER] Apply  [ESC] Cancel  [\u2190\u2192] Cursor  [SHIFT+\u2190\u2192] Mark  [HOME/END] Jump  [Ctrl+C/X/V] Copy/Cut/Paste"
         : settings_tab_ == 4
-        ? "[TAB] Switch  [ENTER] Change  [DEL] Default  [Ctrl+Shift+U] Undo  [s] Save settings  [ESC/q] Discard"
-        : settings_tab_ == 0 ? "[TAB] Switch  [ENTER] Edit  [e] Edit/Save current state  [SHIFT+e/i] Ex-/Import theme  [s] Save settings  [ESC/q] Discard"
-        : "[TAB] Switch  [ENTER] Edit  [s] Save settings  [ESC/q] Discard", std::max(1, W - 1))) + "\x1b[0m");
+        ? "[TAB] Switch  [ENTER] Change  [DEL] Default  [Ctrl+Shift+U] Undo  [s] Save settings  [SHIFT+\u2191\u2193] Page  [ESC/q] Discard"
+        : settings_tab_ == 0 ? "[TAB] Switch  [ENTER] Edit  [e] Edit/Save current state  [SHIFT+e/i] Ex-/Import theme  [s] Save settings  [SHIFT+\u2191\u2193] Page  [ESC/q] Discard"
+        : "[TAB] Switch  [ENTER] Edit  [s] Save settings  [SHIFT+\u2191\u2193] Page  [ESC/q] Discard", std::max(1, W - 1))) + "\x1b[0m");
     y++;
     // The log/status line lives here now -- render_frame() deliberately no
     // longer prints it under the Browse list (an untruncated message there
@@ -2384,7 +2405,10 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
     // and shift the whole UI left by a column). This row sits on the panel's
     // own last screen line, so it is truncated to the panel width: a long
     // path or error message just ends early instead of wrapping.
-    if (settings_dirty_) pos(y, 1, "\x1b[32mUnsaved changes! Save with `s` or discard with `ESC`.\x1b[0m");
+    // (a message of the last change is shown even when there are unsaved changes: the notice used to hide it, so a change
+    // that made the settings differ from the saved ones never showed its message)
+    if (settings_dirty_ && status_line_.empty()) pos(y, 1, "\x1b[32mUnsaved changes! Save with `s` or discard with `ESC`.\x1b[0m");
+    else if (settings_dirty_) pos(y, 1, "\x1b[32m" + truncate_str(status_line_, std::max(1, W - 2 - 11)) + "\x1b[0m\x1b[33m (unsaved)\x1b[0m");
     else if (!status_line_.empty()) pos(y, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + "\x1b[0m");
 
     // 4. In-place text editing cursor placement.

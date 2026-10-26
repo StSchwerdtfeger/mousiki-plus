@@ -505,6 +505,10 @@ int win_poll_key() {
             g_last_key_was_arrow = false;
             return kKeyAltL;
         }
+        if ((st & LEFT_ALT_PRESSED) != 0 && !ctrl && k.wVirtualKeyCode == 'C') {   // Alt+C: the cover fetch overlay
+            g_last_key_was_arrow = false;
+            return kKeyAltC;
+        }
     }
 
     // Ctrl+C / Ctrl+X / Ctrl+V -- the clipboard keys of the single-line text

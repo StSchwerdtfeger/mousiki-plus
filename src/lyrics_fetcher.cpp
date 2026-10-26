@@ -3,6 +3,7 @@
 #include "path_utf8.h"
 #include "process_util.h"
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <chrono>
 #include <cmath>
@@ -514,6 +515,9 @@ static bool load_embedded_result(const fs::path& track_path, double track_second
     return true;
 }
 
+static std::atomic<bool> g_name_variants{true};
+void set_lyrics_name_variants(bool on) { g_name_variants.store(on); }
+
 LyricsResult fetch_synced_lyrics(const std::string& title, const std::string& artist,
                                   const std::string& helper_script_path, const fs::path& track_path,
                                   bool force_network, double track_seconds) {
@@ -561,6 +565,13 @@ LyricsResult fetch_synced_lyrics(const std::string& title, const std::string& ar
 
     std::string cmd = python + " " + shell_quote(helper_script_path) +
                        " " + shell_quote(title) + " " + shell_quote(artist);
+    if (g_name_variants.load()) {
+        cmd += " --variants";
+        // the Latin spelling (made here: the script has no tables): only passed when it differs
+        const std::string lt = transliterate(title), la = transliterate(artist);
+        if (!lt.empty() && lt != title) cmd += " --alt-title " + shell_quote(lt);
+        if (!la.empty() && la != artist) cmd += " --alt-artist " + shell_quote(la);
+    }
     ProcResult r = run_capture(cmd, /*merge_stderr=*/false);
 
     if (r.exit_code < 0) {
@@ -601,12 +612,15 @@ LyricsResult fetch_synced_lyrics(const std::string& title, const std::string& ar
     bool enhanced = json_get_bool(r.out, "enhanced", false);
     json_get_string(r.out, "lrc", lrc);
     json_get_string(r.out, "source", source);
+    std::string variant;
+    json_get_string(r.out, "variant", variant);
 
     result.lines = parse_lrc(lrc, enhanced);
     result.status = LyricsStatus::Ok;
     result.source = source.empty() ? "better-lyrics" : source;
     result.raw_lrc = lrc;
-    result.message = (enhanced ? "word-synced lyrics" : "line-synced lyrics") + std::string(" (") + result.source + ")";
+    result.message = (enhanced ? "word-synced lyrics" : "line-synced lyrics") + std::string(" (") + result.source + ")" +
+                     (variant.empty() ? std::string() : " found with: " + variant);
 
     // A refetch never loses work: the copy in use is put aside as an older version first when its text differs from the
     // new one OR when its saved timing offset differs from the offset of the new one. Only a copy with the same text

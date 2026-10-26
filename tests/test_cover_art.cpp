@@ -1,6 +1,8 @@
 // The album cover of the music player: where it is looked for (cover_art.cpp) and the settings that choose it.
 #include "test_framework.h"
 #include "cover_art.h"
+#include "cover_store.h"
+#include "path_utf8.h"
 #include "settings.h"
 
 #include <filesystem>
@@ -113,4 +115,103 @@ TEST(cover_contrast_is_saved_in_steps_of_five) {
     s.cover_contrast = 35;
     save_settings(s);
     CHECK_EQ(load_settings().cover_contrast, 35);
+}
+
+TEST(cover_store_names_and_candidates) {
+    mt::TempHome home;
+    CHECK_EQ(cover_name_key("Abbey_Road!"), std::string("abbey road"));
+    CHECK_EQ(cover_file_name("AC/DC: Back in Black?"), std::string("AC_DC_ Back in Black_"));
+    const fs::path d = home.path() / "album";
+    fs::create_directories(d / kFetchedCoversDir);
+    touch(d / "song.mp3");
+    touch(d / "front.jpg");
+    touch(d / kFetchedCoversDir / "Thriller.jpg");
+    const auto c = cover_candidates(d / "song.mp3", true);
+    CHECK_EQ(c.size(), static_cast<size_t>(3));
+    CHECK(c[0].kind == CoverCandidate::Embedded);
+    CHECK(c[1].kind == CoverCandidate::Folder);
+    CHECK(c[2].kind == CoverCandidate::Fetched);
+    CHECK(find_fetched_cover(d, "thriller").filename() == "Thriller.jpg");
+    CHECK(find_fetched_cover(d, "Bad").empty());
+    // a close name is also found in the fetched covers folder
+    CHECK(pick_folder_picture(d, {"Thriller"}, false, false, true).filename() == "Thriller.jpg");
+    CHECK(pick_folder_picture(d, {"Thriller"}, false, false, false).empty());
+    // ... but only by the ALBUM's name: a track title that resembles another album's fetched cover must not pick it
+    CHECK(pick_folder_picture(d, {"4REAL", "Thriller"}, false, false, true).empty());
+}
+
+TEST(cover_choices_are_kept_and_deleting_removes_them) {
+    mt::TempHome home;
+    const unsigned rev = cover_store_revision();
+    set_cover_track_choice("/m/a.mp3", "/m/x.jpg");
+    set_cover_album_choice("Abbey Road", "/m/y.jpg");
+    CHECK_EQ(cover_track_choice("/m/a.mp3"), std::string("/m/x.jpg"));
+    CHECK_EQ(cover_album_choice("abbey_road"), std::string("/m/y.jpg"));   // the album name is a key
+    CHECK(cover_store_revision() > rev);
+    const fs::path d = home.path() / "alb";
+    fs::create_directories(d);
+    touch(d / "a.jpg");
+    CoverCandidate c{CoverCandidate::Folder, d / "a.jpg", "a.jpg"};
+    set_cover_track_choice("/m/b.mp3", path_utf8(c.file));
+    CHECK(delete_cover_candidate(c));
+    CHECK(!fs::exists(d / "a.jpg"));
+    CHECK_EQ(cover_track_choice("/m/b.mp3"), std::string());
+    CoverCandidate e{CoverCandidate::Embedded, d / "x.mp3", "inside the file"};
+    std::string why;
+    CHECK(!delete_cover_candidate(e, &why));
+    CHECK(!why.empty());
+    set_cover_track_choice("/m/a.mp3", "");
+    set_cover_album_choice("Abbey Road", "");
+}
+
+TEST(cover_fetch_answer_line_is_parsed) {
+    const CoverFetchResult ok = parse_cover_fetch_line("{\"ok\": true, \"file\": \"/m/fetched_covers/A.jpg\", \"release\": \"A\", \"artist\": \"B\", \"match\": 0.93}");
+    CHECK(ok.ok);
+    CHECK_EQ(ok.file, std::string("/m/fetched_covers/A.jpg"));
+    CHECK(ok.match > 0.9);
+    const CoverFetchResult bad = parse_cover_fetch_line("{\"ok\": false, \"error\": \"no release called like that on MusicBrainz\"}");
+    CHECK(!bad.ok);
+    CHECK(bad.error.find("MusicBrainz") != std::string::npos);
+    CHECK(!parse_cover_fetch_line("garbage").ok);
+}
+
+TEST(cover_source_follows_track_choice_before_album_choice_before_search) {
+    mt::TempHome home;
+    const fs::path d = home.path() / "alb2";
+    fs::create_directories(d);
+    touch(d / "song.mp3");
+    touch(d / "one.jpg");
+    touch(d / "two.jpg");
+    CoverRequest rq;
+    rq.path = path_utf8(d / "song.mp3");
+    rq.title = "song";
+    rq.album = "Nowhere Album";
+    rq.search = 0;
+    set_cover_album_choice("Nowhere Album", path_utf8(d / "one.jpg"));
+    rq.store_rev = cover_store_revision();
+    CoverSource a = resolve_cover_source(rq);
+    CHECK(a.chosen);
+    CHECK_EQ(a.file, path_utf8(d / "one.jpg"));
+    set_cover_track_choice(rq.path, path_utf8(d / "two.jpg"));       // the track beats the album
+    rq.store_rev = cover_store_revision();
+    CHECK_EQ(resolve_cover_source(rq).file, path_utf8(d / "two.jpg"));
+    set_cover_track_choice(rq.path, kCoverNone);                      // "no cover"
+    rq.store_rev = cover_store_revision();
+    CHECK(resolve_cover_source(rq).none);
+    set_cover_track_choice(rq.path, "");
+    set_cover_album_choice("Nowhere Album", "");
+}
+
+TEST(album_covers_lists_each_picture_once) {
+    mt::TempHome home;
+    const fs::path d = home.path() / "alb3";
+    fs::create_directories(d / kFetchedCoversDir);
+    touch(d / "t.mp3");
+    touch(d / "Nice Album.jpg");
+    touch(d / kFetchedCoversDir / "Nice Album.jpg");
+    touch(d / "unrelated.jpg");
+    AlbumCovers ac = album_covers(d, "Nice Album", d / "t.mp3", false, false);
+    CHECK_EQ(static_cast<int>(ac.files.size()), 2);
+    AlbumCovers none = album_covers(d, "Other", d / "t.mp3", false, false);
+    CHECK_EQ(none.count(), 0);
 }

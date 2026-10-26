@@ -108,3 +108,153 @@ TEST(fuzzy_separators_fold_to_spaces) {
 TEST(fuzzy_earlier_position_ranks_higher) {
     CHECK(fuzzy_score("love", "love me do") > fuzzy_score("love", "all you need is love"));
 }
+
+TEST(fuzzy_run_together_words_find_the_file) {
+    CHECK(fuzzy_score("testcover", "test_song-cover3") > 0.0);        // test + cover, "song" skipped
+    CHECK(fuzzy_score("testcov", "test_song-cover3") > 0.0);
+    CHECK(fuzzy_score("test cov", "test_song-cover3") > 0.0);         // a word typed only as far as it goes
+    CHECK(fuzzy_score("testcover", "test cover") > fuzzy_score("testcover", "test_song-cover3"));   // fewer skipped words rank higher
+    CHECK(fuzzy_score("testcover", "Another Love") < 0.0);
+    CHECK(fuzzy_score("bohrhap", "Bohemian Rhapsody") > 0.0);
+}
+
+TEST(fuzzy_accents_and_swaps) {
+    CHECK(fuzzy_score("arzte", "Die Ärzte") >= 900.0);                 // an umlaut is its plain letter
+    CHECK(fuzzy_score("beyonce", "Beyoncé - Halo") >= 900.0);
+    CHECK(fuzzy_score("strasse", "Straße") >= 900.0);                  // ß = ss
+    CHECK(fuzzy_score("teh beatles", "The Beatles") > 0.0);            // swapped letters
+}
+
+#include "translit.h"
+TEST(translit_japanese_styles) {
+    translit_set_style(false, false);
+    CHECK_EQ(transliterate("こえ を きかせて"), std::string("koe o kikasete"));
+    CHECK_EQ(transliterate("コーヒー"), std::string("koohii"));
+    translit_set_style(true, true);
+    CHECK_EQ(transliterate("こえ を きかせて"), std::string("koe wo kikasete"));
+    CHECK_EQ(transliterate("コーヒー"), std::string("k\xC5\x8Dh\xC4\xAB"));
+    CHECK_EQ(transliterate("きえぬよう"), std::string("kienuy\xC5\x8D"));
+    CHECK_EQ(transliterate("おおきい"), std::string("\xC5\x8Dkii"));
+    translit_set_style(false, false);
+}
+TEST(translit_japanese_kana_to_hepburn) {
+    CHECK_EQ(transliterate("さくら"), std::string("sakura"));
+    CHECK_EQ(transliterate("ありがとう"), std::string("arigatou"));
+    CHECK_EQ(transliterate("きょう"), std::string("kyou"));
+    CHECK_EQ(transliterate("シャンプー"), std::string("shanpuu"));
+    CHECK_EQ(transliterate("ラーメン"), std::string("raamen"));
+    CHECK_EQ(transliterate("がっこう"), std::string("gakkou"));
+    CHECK_EQ(transliterate("まっちゃ"), std::string("matcha"));
+    CHECK_EQ(transliterate("しんあい"), std::string("shin'ai"));
+    CHECK_EQ(transliterate("ファイト"), std::string("faito"));
+    CHECK_EQ(transliterate("ティー"), std::string("tii"));
+    CHECK_EQ(transliterate("Hello ひかり 2"), std::string("Hello hikari 2"));
+}
+
+TEST(translit_hangul_to_revised_romanization) {
+    CHECK_EQ(transliterate("안녕하세요"), std::string("annyeonghaseyo"));
+    CHECK_EQ(transliterate("한국어"), std::string("hangugeo"));
+    CHECK_EQ(transliterate("사랑해"), std::string("saranghae"));
+    CHECK_EQ(transliterate("김치"), std::string("gimchi"));
+}
+
+TEST(translit_chinese_to_pinyin_and_kanji_stay) {
+    CHECK_EQ(transliterate("谢谢你"), std::string("xi\xC3\xA8 xi\xC3\xA8 n\xC7\x90"));   // xiè xiè nǐ (simplified-only characters: Chinese)
+    CHECK_EQ(transliterate("周杰伦 Jay"), std::string("zh\xC5\x8Du ji\xC3\xA9 l\xC3\xBAn Jay"));   // (伦 is simplified-only)
+    CHECK_EQ(transliterate("你好"), std::string("你好"));                             // the same in every writing: left alone without a hint
+    CHECK_EQ(transliterate("愛してる"), std::string("\xE6\x84\x9B shiteru"));      // Japanese text: the kanji stays
+    CHECK_EQ(transliterate("plain ascii"), std::string("plain ascii"));
+    CHECK_EQ(with_latin_spelling("さくら"), std::string("さくら sakura"));
+    CHECK_EQ(with_latin_spelling("abc"), std::string("abc"));
+    CHECK(fuzzy_score("sakura", with_latin_spelling("さくら")) >= 900.0);
+    CHECK(fuzzy_score("zhou jielun", with_latin_spelling("周杰伦")) > 0.0);   // (Chinese: 伦 only exists in the simplified writing)
+}
+
+TEST(translit_script_is_told_from_the_characters_and_the_context) {
+    CHECK(script_of("さくら") == Script::Japanese);
+    CHECK(script_of("桜") == Script::Japanese);              // a character only Japanese uses
+    CHECK(script_of("爱 们 这") == Script::Chinese);          // simplified-only characters
+    CHECK(script_of("東京") == Script::Unknown);             // the same in all writings
+    CHECK_EQ(transliterate("東京"), std::string("東京"));     // unknown: left alone
+    CHECK_EQ(transliterate("们"), std::string("men"));       // (pinyin without a tone: neutral tone)
+    // a track decides for its other tags: kana in the title makes the artist Japanese; the artist is remembered for other tracks
+    translit_learn("ありがとう", "周杰倫", "");
+    CHECK_EQ(transliterate("周杰倫"), std::string("周杰倫"));
+    translit_learn("", "李榮浩", "我们");                       // simplified-only 们 in the album: Chinese
+    CHECK_EQ(transliterate("李榮浩"), std::string("l\xC7\x90 r\xC3\xB3ng h\xC3\xA0o"));
+    // the reading dictionary and names written both ways
+    CHECK_EQ(transliterate("米津玄師"), std::string("Yonezu Kenshi"));
+    CHECK_EQ(transliterate("夜に駆ける - 米津玄師"), std::string("\xE5\xA4\x9C ni \xE9\xA7\x86 keru - Yonezu Kenshi"));
+    translit_learn("", "Fujii Kaze (藤井 風)", "");
+    CHECK_EQ(transliterate("Fujii Kaze (藤井 風)"), std::string("Fujii Kaze"));
+    CHECK_EQ(transliterate("藤井 風"), std::string("Fujii Kaze"));
+}
+
+#include "name_lookup.h"
+TEST(name_lookup_answer_lines_are_read) {
+    const NameLookupResult ok = parse_name_lookup_line("{\"ok\": true, \"latin\": \"Jay Chou\"}");
+    CHECK(ok.ok);
+    CHECK_EQ(ok.latin, std::string("Jay Chou"));
+    CHECK(!parse_name_lookup_line("{\"ok\": false, \"notfound\": true}").ok);
+    CHECK(parse_name_lookup_line("{\"ok\": false, \"notfound\": true}").notfound);
+    const NameLookupResult bad = parse_name_lookup_line("{\"ok\": false, \"error\": \"not reachable\"}");
+    CHECK(!bad.ok && !bad.notfound && !bad.error.empty());
+}
+
+TEST(translit_lookup_queue_and_answers) {
+    translit_learn("", "\xE9\x99\x88\xE5\xA5\x95\xE8\xBF\x85", "\xE4\xBB\xAC");   // 陈奕迅, simplified-only 们 in the album: Chinese
+    const auto pending = translit_take_pending(5);
+    bool found = false;
+    for (const auto& n : pending) found = found || n == "\xE9\x99\x88\xE5\xA5\x95\xE8\xBF\x85";
+    CHECK(found);
+    translit_lookup_found("\xE9\x99\x88\xE5\xA5\x95\xE8\xBF\x85", "Eason Chan");
+    CHECK_EQ(transliterate("\xE9\x99\x88\xE5\xA5\x95\xE8\xBF\x85"), std::string("Eason Chan"));
+}
+
+#include "settings.h"
+TEST(translit_with_the_font_map_does_not_recurse_on_kept_kanji) {
+    // kanji stay in Japanese text: the result still holds CJK bytes, and must not be converted again (that recursed forever)
+    set_translit_enabled(true);
+    const std::unordered_map<char, std::pair<std::string, std::string>> none;
+    CHECK_EQ(apply_font_map("\xE6\x84\x9B\xE3\x81\x97\xE3\x81\xA6\xE3\x82\x8B", none), std::string("\xE6\x84\x9B shiteru"));
+    set_translit_enabled(false);
+}
+
+TEST(translit_a_folder_shared_by_many_artists_names_none_of_them) {
+    for (int a = 0; a < 2; ++a) {
+        const std::string artist = a == 0 ? "\xE5\xAE\x87\xE5\xA4\x9A\xE7\x94\xB0" : "\xE5\xB9\xB3\xE4\xBA\x95";
+        for (int t = 0; t < 4; ++t)
+            translit_learn("x", artist, "", "/m/Youtube/f" + std::to_string(a * 10 + t) + ".mp3");
+    }
+    CHECK_EQ(transliterate("\xE5\xB9\xB3\xE4\xBA\x95"), std::string("\xE5\xB9\xB3\xE4\xBA\x95"));
+}
+
+TEST(translit_latin_name_beside_the_kana_name_shows_the_latin_one) {
+    CHECK_EQ(transliterate("Kaneko Ayano \xE3\x82\xAB\xE3\x83\x8D\xE3\x82\xB3\xE3\x82\xA2\xE3\x83\xA4\xE3\x83\x8E"), std::string("Kaneko Ayano"));
+    CHECK_EQ(transliterate("PARANMAUM \xE3\x83\x91\xE3\x83\xBC\xE3\x83\xA9\xE3\x83\xB3\xE3\x83\x9E\xE3\x82\xA6\xE3\x83\xA0"), std::string("PARANMAUM"));
+    CHECK_EQ(transliterate("HAKU \xE3\x83\x8F\xE3\x82\xAF\xE3\x80\x82 (Jap.)"), std::string("HAKU (Jap.)"));
+    // a translation that only sits beside a title is not a spelling of it
+    CHECK_EQ(transliterate("Mono No Aware \xE3\x81\x8B\xE3\x82\x80\xE3\x81\x8B\xE3\x82\x82\xE3\x81\x97\xE3\x81\x8B\xE3\x82\x82! I might stumble"), std::string("Mono No Aware kamukamoshikamo! I might stumble"));
+    // an artist tag with kanji: learned from the tag
+    translit_learn("x", "Anri \xE6\x9D\x8F\xE9\x87\x8C", "");
+    CHECK_EQ(transliterate("Anri \xE6\x9D\x8F\xE9\x87\x8C"), std::string("Anri"));
+    CHECK_EQ(transliterate("\xE6\x9D\x8F\xE9\x87\x8C"), std::string("Anri"));
+}
+
+TEST(translit_decomposed_kana_marks_and_particles) {
+    CHECK_EQ(transliterate("\xE3\x83\x88\xE3\x82\x99\xE3\x83\xAD\xE3\x83\x95\xE3\x82\x9A"), std::string("doropu"));   // ドロプ written as ト+゙ ロ フ+゚
+    CHECK_EQ(transliterate("\xE6\x97\xA5\xE6\x9C\xAC\xE3\x81\xAE\xE3\x82\xB7\xE3\x83\x86\xE3\x82\xA3"), std::string("\xE6\x97\xA5\xE6\x9C\xAC no shiti"));   // 日本のシティ
+}
+
+TEST(translit_kanji_in_japanese_text_is_offered_to_a_reader_and_its_answer_is_shown) {
+    const std::string t = "\xE5\xA4\x9C\xE3\x81\xAB\xE9\xA7\x86\xE3\x81\x91\xE3\x82\x8B \xE3\x83\x86\xE3\x82\xB9\xE3\x83\x88";   // 夜に駆ける テスト
+    transliterate(t);
+    const auto pending = translit_take_kanji_pending(50);
+    bool found = false;
+    for (const auto& n : pending) found = found || n == t;
+    CHECK(found);
+    translit_kanji_found(t, "yoru ni kakeru tesuto");
+    CHECK_EQ(transliterate(t), std::string("yoru ni kakeru tesuto"));
+    transliterate("\xE6\x9D\xB1\xE4\xBA\xAC");   // 東京 alone: could be Chinese, never offered
+    for (const auto& n : translit_take_kanji_pending(50)) CHECK(n != "\xE6\x9D\xB1\xE4\xBA\xAC");
+}

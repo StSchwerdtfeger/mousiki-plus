@@ -101,6 +101,7 @@ II MUSIC PLAYER MODE[[Header]]
     3.3.2 Fetch Meta Data (AcoustID/MusicBrainz)
    3.4 Playlist Editor/Creator (incl. Import/Export)
    3.5 File Conversion
+   3.6 Cover Fetch (Album Covers)
 
   4 Lyrics and Karaoke[[Header]]
    4.1 Synced Lyrics
@@ -218,9 +219,9 @@ the settings, oscilloscope parameter overlay etc.).
 MAIN PANE:[[Header]]
 Includes the Mousiki disk, meta data information, visualizations and
 lyrics (only music player mode). Several adjustments to this pane (e.g. turning visualizations
-on/off) can be made in the settings "ON/OFF" tab ([s] to open and save setting).
 )WIZ",
-R"WIZ(
+R"WIZ(on/off) can be made in the settings "ON/OFF" tab ([s] to open and save setting).
+
 PROGRESS BAR: [[Header]]
 Shows the progress of an audio file. Use [<-/->] to seek through a track (in steps of 5 s).
 
@@ -346,6 +347,36 @@ DIFFERENT SEARCH CAPABILITIES:[[Header]]
 [/f:]  +  query       your folders            live
 
 The local search is fuzzy: "X Files" also finds "X-Files".
+LATIN LETTERS: [SHIFT+'] on a US keyboard (the key is ["], German [SHIFT+2]) shows Japanese kana,
+Korean and Chinese text in Latin letters: titles, tags, file names, lyrics, karaoke, READ LYRICS.
+Kana become romaji (さくら = sakura), Hangul the Revised Romanization (한국어 = hangugeo), Chinese
+characters pinyin (谢谢 = xiè xiè) - but only when the text is known to be Chinese (a character only
+Chinese uses, or the artist's other tracks say so). Kanji in Japanese text (kana in the text or in
+another tag of the track) and characters that could be either (東京) stay as they are. A name written
+both ways ("Kenshi Yonezu (米津玄師)") is shown as its Latin part. Your own readings go into
+kanji_readings.txt next to config.txt ("米津玄師 = Yonezu Kenshi", "chinese: 周杰倫"); config.txt:
+With pykakasi installed (pip install pykakasi, optional, nothing is sent anywhere) kanji in Japanese
+text are read in the background and shown in Latin letters too (kanji_readings_cache.txt).
+Lyrics Name Variants (Settings > ON/OFF > TRANSLITERATION, on): a lyrics search that finds nothing tries the Latin
+spelling, the title/artist without their Latin or Japanese part, and the title alone.
+The Windows installer can download it for you (an unticked option); setup.sh --with-kanji / setup.ps1 -WithKanji too.
+Pairs are also learned from your folder and file names (3+ tracks agreeing) into
+kanji_readings_learned.txt. Japanese is spelled for easy reading (kienuyou, koe o); Settings > ON/OFF > TRANSLITERATION > Latin
+Macrons / Latin Wo (independent of each other) switch to macrons (kienuyō) and "wo".
+Settings > ON/OFF > TRANSLITERATION > Latin Name Lookup (off by default) asks
+MusicBrainz in the background for the Latin name of artists written in Chinese characters - it
+sends those artist names (and your IP) to musicbrainz.org, nothing else.
+LatinHanziDefault=chinese reads unknown characters as Chinese. The search finds such titles by
+their Latin spelling in any case.
+
+Messages like "Latin letters: on" are not shown on the main screen. Press t (console): the top pane
+is the log of what the program ran, the pane below it (8 rows) keeps the status messages of the
+last hours with their time, also those of Settings. TAB changes the pane, the arrow keys scroll it
+)WIZ",
+R"WIZ((SHIFT: a page), HOME goes to the oldest line, END back to the newest.
+Accents are ignored (arzte = Ärzte), swapped letters are forgiven, a word may be typed only as far
+as it goes (test cov), and run-together words find the words of a name in order (testcover finds
+test_song-cover3).
 It matches the file name, the artist, the title tags and the
 album, and ranks purely by how well things match.
 
@@ -395,8 +426,7 @@ the same file name and therefore does not rely on the history itself, but is bui
 to the history file that is created by yt-dlp using it outside Mousiki so duplicates are avoided.
 When using yt-dlp outside of Mousiki it is recommended to point the history file to the same folder
 Mousiki is creating inside the chosen download path as seen below (maybe create a shell profile
-)WIZ",
-R"WIZ(function for downloading songs and playlists from it). NOTE: When the download folder is changed in
+function for downloading songs and playlists from it). NOTE: When the download folder is changed in
 Mousiki, the history folder will be copied (not moved!) to avoid history amnesia on the yt-dlp side.
 
 YT-DLP COMMAND POINTING AT SHARED HISTORY FOLDER: [[Header]]
@@ -438,6 +468,7 @@ The order can be adjusted and queues can be saved as playlist.
 
 GENERAL: [[Header]]
 [SHIFT+k]       open the big queue overlay (full size queue list)
+                [/] there: search bar at the bottom, matches are marked ([UP/DOWN] jump)
 [SHIFT+l]       open the big list  overlay (full size list)
 [SHIFT+UP/DOWN] jump a whole page up/down
 
@@ -490,12 +521,24 @@ MOVING THROUGH LISTS:[[Header]]
 TRACKER FILES AND CHIPTUNES: what the file can hold is written into it (title of .mod .xm .s3m .it; title and
 artist of .sid). All other fields are saved in the folder "chip_tracker_meta data" next to the music.
 
+COVER IN THE EDIT PANE AND COVER OPTIONS:[[Header]]
+The cover of the highlighted track is shown under the fields. Move down to the button
+[ Cover Options ] and hit [ENTER]: choose a picture for THIS track (inside the file, in its
+folder, in its fetched_covers folder, the album's covers), "Automatic" (Settings -> Cover
+Search decides), "No cover", delete a picture from the disk ([DEL], not the one inside a file)
+or search pictures by file name ([TAB] or [/]). The choice goes before the album default of
+the cover fetch menu and before the Cover Search setting (except "Within File Only").
+
 SORT LIBRARY AND ADD TRACK TO FETCH META DATA TAB:[[Header]]
 Several sort options are available for the LIBRARY PANE:
 
 [a]         Add a track to the fetch list
 [SHIFT+f]   Add all searched tracks to the fetch list (the result of the search 
             in the library pane; the filtered overall list so to speak)
+[f]         Folder view: the pane grouped by folder (a header row per folder, its files numbered
+)WIZ",
+R"WIZ(            from 1 below it). On a folder header [a] adds the whole folder to the fetch list and
+            [ENTER] closes / opens the folder. [f] again returns to the plain list.
 [r]         Show edited tracks first (highlighted in the same color as headers)
 [n]         Show recently added tracks first (newest files on top)
             The pane title shows what is active, e.g. [EDITED FIRST + MISSING TITLE].
@@ -558,8 +601,7 @@ also fetches the year tag, since it is closely associated.
 
 ADD TO FETCH LIST AND FETCH ALL:[[Header]]
 Apply [a] to a highlighted track in the LIBRARY PANE[[Header]] to add a track to
-)WIZ",
-R"WIZ(the FETCH LIST PANE[[Header]]. For fetching data of all fetch listed tracks
+the FETCH LIST PANE[[Header]]. For fetching data of all fetch listed tracks
 at once hit [ENTER].
 The command [DEL] or [d] deletes a track from the fetch list.
 [SHIFT+d] or [SHIFT+DEL] empties the whole fetch list (after a question); the pending edits,
@@ -579,6 +621,8 @@ OPEN AND CHANGE TABS:[[Header]] Open via [SHIFT+p], change tabs via [<-/->]
 CREATE/EDIT TAB: [[Header]]
 NAME: Choose a name for a playlist.
 SEARCH AND ADD: Use the search function to search for titles and add via [ENTER]
+COLUMNS: Filename (narrow) | Title | Artist | Album, in the library and in the track list. On the
+hovering row every too long column scrolls (Settings -> ON/OFF -> Marquee Scrolling).
 SEARCH FOLDERS: Start the search with /f: (e.g. /f:abbey) to list the tracks of the matching folders.
 SORT: [SHIFT+t] cycles the library sort: folder order, Filenames A-Z, Title A-Z, Artist A-Z,
 Album A-Z, Recently added (also for search results). Use it before typing, or after leaving the box with [ESC].
@@ -629,6 +673,50 @@ Into the CONVERSION EXPORT PATH ([s] Settings[[Header]] ->> PATHS[[Header]]), by
 folder conversion-export inside the download folder, in the same sub folders as the originals.
 A file that already exists there is skipped. Tags and cover are copied (not to Opus).
 NOTE: Needs ffmpeg with libmp3lame and libopus; the installers provide it.[[Legend]]
+
+
+[[New Page]]
+3.6 COVER FETCH (ALBUM COVERS) [[Header]]
+
+Fetches the FRONT cover of albums from MusicBrainz / the Cover Art Archive.
+OPEN:[[Header]] [ALT+c] in the main music player ([SHIFT+c] is the conversion menu).
+WHY A MENU OF ITS OWN:[[Header]] MusicBrainz often misjudges album titles of loose files, so you
+look at the list first and send it deliberately, instead of fetching along with tag edits.
+)WIZ",
+R"WIZ(
+ALBUM LIBRARY TAB:[[Header]] Left the ALBUM LIBRARY, right the ALBUM ART. The search bar works like
+the meta editor's: f: lists folders (e.g. f:abbey), everything else searches the whole meta
+data. Results are folders, [ENTER]/[SPACE] opens one; inside it only the album names (once each)
+with the number of covers. Albums WITHOUT any cover (none inside a file, none fetched, none in
+the folder, none chosen) are drawn in the legend colour. Tracks without album tag are not listed.
+[t]          the cover as ASCII (braille dots) / in full resolution (Kitty / Sixel)
+             (full resolution is the default; also [t] in the meta editor)
+Dark covers behind the disk: dark dots are lifted a little (locally; bright parts stay).
+[r]          RECENTLY FETCHED albums (last 14 days - check their covers in the picture pane!)
+[x]          only albums with NO cover
+[o]          only albums with ONE cover
+[s]          only albums with SEVERAL covers
+[p]          Previous unsuccessful fetch: albums that were asked for without success are
+             remembered and listed ONLY here. HTTP 500/503 = the server is busy: not remembered, tried again
+             after the list (3 more times, pauses of 45/90/135 s). Titles are searched exact, then fuzzy
+             ([ESC] takes the filter off)
+[SHIFT+d]    remove the album TITLE of the album (asks first): pending, empty album tag of its tracks in
+             the meta data editor, saved there with [CTRL+s] - for wrong titles
+[SHIFT+r]    rescan the music folders; [ALT+c] closes the overlay again
+[a]          add the album (on a folder row: all its albums) to the fetch list
+[SHIFT+f]    add everything the search shows (and the filter keeps) to the fetch list
+[TAB]        focus: search bar -> library -> album art
+The ALBUM ART pane shows album title and artist (marquee when too long). In it: [up/down] preview, [ENTER] use as the cover of this ALBUM NAME, [n] no
+cover, [c] clear the choice, [DEL] delete the picture from the disk (not the one inside a file).
+A choice for a single track in the meta data editor goes before the album default!
+
+FETCH LIST TAB:[[Header]]
+[ENTER]      fetch (asks first: album + artist go to MusicBrainz; up to 3 song titles only as a fallback)
+[SHIFT+c]    stop the fetch          [DEL] remove one        [SHIFT+d] empty the list
+Every album is asked for ONCE, only the front cover is taken, a lightweight JPEG when the
+archive offers a choice. It is saved as fetched_covers/<album>.jpg in EVERY folder holding the
+album (copies, if the album is spread over folders). The Cover Search options of the Settings
+look into fetched_covers too, except "Within File Only". Needs Python 3 and internet.[[Legend]]
 
 
 [[New Page]]
@@ -696,8 +784,7 @@ so far and the translations and the text itseld. [TAB] switches between the two 
 the command [ENTER] fetches.
 [SHIFT+t] shows / cycles / hides translations, [d] or [DEL] deletes a translation.
 Fetching translations goes on in the background and may take a while; asking for another one 
-)WIZ",
-R"WIZ(meanwhile then only gives a warning.
+meanwhile then only gives a warning.
 
 
 [[New Page]]
@@ -717,7 +804,8 @@ MAKE THE LYRICS BIGGER: [[Header]]
 [*] / [_]   size 1 to 5      German keyboard: [SHIFT and +] / [SHIFT and -]
                              English keyboard: [SHIFT+8] / [SHIFT and -]
 Size 1 is normal terminal text. Sizes 2 to 5 use Mousiki's own pixel font drawn in braille dots
-(3 x 2, 6 x 4, 9 x 6 and 12 x 8 cells per letter). Only the lyrics change size, long lines wrap
+)WIZ",
+R"WIZ((3 x 2, 6 x 4, 9 x 6 and 12 x 8 cells per letter). Only the lyrics change size, long lines wrap
 between words. The bottom border shows the size for a moment, and it is saved when you close.
 The basic font covers Latin letters, digits, punctuation, umlauts and common accented letters.
 Another font for Japanese, Chinese, Korean, Cyrillic and Greek letters is also available but
@@ -837,8 +925,7 @@ Makes music out of a text, saves it as a WAV file, plays it and shows it in a fu
 
 OSCILLOSCOPE (XY): [[Header]]
 Left = x, right = y: the beam draws the outlines of your text again and again, 30 - 120 times a second.
-)WIZ",
-R"WIZ(
+
 SPECTROGRAM: [[Header]]
 The text is the spectrogram: time left to right, pitch bottom to top, brightness = loudness. Only the
 notes of a scale play (pentatonic minor by default), so it sounds like music.
@@ -857,7 +944,8 @@ In the preview [G] turns the scope grid on/off.
 MICROPHONE: [[Header]]
 Rows: Live view (Spectrogram = default, Oscilloscope XY, Oscilloscope YT), Scope grid, Start the microphone
 preview, Created files... In the big preview your microphone is shown live (a playing song stops and
-comes back afterwards): [ENTER] starts / stops a recording (mic_<date>_<time>.wav in the creator folder,
+)WIZ",
+R"WIZ(comes back afterwards): [ENTER] starts / stops a recording (mic_<date>_<time>.wav in the creator folder,
 max. 5 minutes), [V] changes the view, [G] the grid, [ESC] closes the preview (a running recording is saved) and returns to the overlay.
 A one-channel microphone gives the same signal left and right, so XY is a diagonal line: use YT or the
 spectrogram. If the microphone cannot be opened, the overlay says why (allow microphone access for your
@@ -1001,8 +1089,7 @@ Top 100       the year         Night          least: year
 HOW TO USE THEM: [[Header]]
 [2] (or [->])     go to TOP TRACKS
 [TAB]             move into the pane (a [◀] appears behind its title)
-)WIZ",
-R"WIZ(arrow keys        pick a list; while the pane has the focus [<-/->] move between the columns
+arrow keys        pick a list; while the pane has the focus [<-/->] move between the columns
 [ENTER]           add that list to the end of the queue
 [ESC] or [TAB]    back to the track list
 
@@ -1028,7 +1115,8 @@ MOVING AND EDITING: [[Header]]
 SAVING AND LEAVING: [[Header]]
 Every change is live: you see and hear it while you are still in the settings. But only [s] writes
 it to config.txt and closes. [ESC] or [q] discards. With unsaved changes the settings ask first:
-[s] save, [d] discard, [ESC] keep editing. Discarding puts every row back the way it was when you
+)WIZ",
+R"WIZ([s] save, [d] discard, [ESC] keep editing. Discarding puts every row back the way it was when you
 opened the settings, paths included. While there are unsaved changes a note says so.
 
 TEXT EDITING, IN EVERY FIELD: [[Header]]
@@ -1069,6 +1157,7 @@ built-in theme needs a new name. [ESC] with unsaved changes asks first, leaving 
 8.3 ON/OFF, ANIMA/VIZ AND PATHS [[Header]]
 
 ON/OFF TAB: [[Header]] every row is changed with [<-/->]
+On every Settings tab that scrolls, SHIFT+Up / SHIFT+Down moves a page.
 MODES: Playback (like [m]), Start Mode (player / radio / audiobook: which mode Mousiki opens with),
 Use Music Player / Use Radio / Use Audio Books (false: the mode is left out of the [SHIFT and +] cycle; one mode
 always stays on, the last one cannot be switched off), Mode Order 1..3 (the order of the cycle, like Viz Order 1..4:
@@ -1090,7 +1179,7 @@ the bar follows the disk animation, with the centre of the circle two cells in f
 Right of it: gradient / no gradient (gradient = the VIZ colours from left to right, like the
 oscilloscope). [<-] [->] switch between the two values of the row, [ENTER] changes the lit one
 ALBUM COVER (music player): Album Cover (false by default) shows the cover of the playing track in the
-disk's place; a track without a cover keeps the disk. Cover Mode chooses how it is shown (five ways):
+disk's place; a track without a cover keeps the disk. Cover Mode chooses how it is shown (seven ways):
   1. Just Cover - the cover in its own colours.
   2. Cover with Gradient - a grey version of the cover under the disk's gradient colours, a slow wave
      that moves diagonally over the picture, from the upper left to the lower right.
@@ -1103,8 +1192,13 @@ disk's place; a track without a cover keeps the disk. Cover Mode chooses how it 
   5. Cover behind Disk (Full Anima) - the same, but the dots follow the exact braille animation of
      the disk: rotated and rounded to the dot grid, some of them come and go as it turns (the effect of
      the disk look of the Volume Indicator).
-  With Kitty or Sixel the cover is a real picture, without them the same looks are drawn in braille dots.
-Cover Contrast (0% .. 100%, steps of 5%) adds contrast to the cover in every look; 0% = as it is.
+  6. Cover ASCII - the cover as braille dots in its own colours, also on Kitty / Sixel terminals.
+  7. Cover ASCII with Gradient - the same dots under the disk's moving gradient.
+  With Kitty or Sixel looks 1-5 are real pictures (the oscilloscope can be an image next to them), without
+  them the same looks are drawn in braille dots.
+Cover Contrast (0% .. 100%, steps of 5%) adds contrast to the cover, only where it is shown through the
+gradient or the disk (Cover with Gradient, ASCII with Gradient, Cover behind Disk looks; in the audio
+book mode with the Book Gradient Wave on). Just Cover and all previews stay as they are; 0% = as it is.
 Cover Search says where the cover is looked for. Default: first the picture inside the file (mp3 and the
 other formats that can carry one). If it has none, the folder of the file is searched for a picture whose
 name is close to the title of the track or to its album tag: a fuzzy match (case, punctuation and small
@@ -1117,8 +1211,7 @@ Picture formats (also for the audio book cover): jpg jpeg jpe jfif, png apng, we
 avif, heic heif, jxl, jp2, ico, tga, ppm pgm pnm, pcx (every regular format read by ffmpeg; avif, heic and jxl
 only if your ffmpeg can decode them; no camera RAW or other very large formats). The name only has to be close.
   Folder First - the folder first (close name, then cover.jpg and its like), the file's picture last
-)WIZ",
-R"WIZ(  Within File First - inside the file; then only a closely named picture of the folder (no cover.jpg)
+  Within File First - inside the file; then only a closely named picture of the folder (no cover.jpg)
   Image in Folder Only - never looks inside the files
   Within File Only - never looks in the folder
 MAIN UI VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
@@ -1127,7 +1220,8 @@ Use Lyrics Engine / Oscilloscope / Spectrogram / Sphere. False leaves that view 
 ANIMA/VIZ TAB: [[Header]]
 Lyrics Alignment and Lyrics Animation, Disk Speed (0.01 .. 1.00), Bars Fluidity / Degradation /
 Viscosity (1-10), Waveform Style (raw / smooth, like [w]), Lyrics/Viz Default, No-Lyrics Viz and
-Viz Order 1..4 (the order of the views in the [.] cycle).
+)WIZ",
+R"WIZ(Viz Order 1..4 (the order of the views in the [.] cycle).
 
 PATHS TAB: [[Header]]
 LOCAL PATH             the folders scanned for music (several, plus "+ new path")
@@ -1256,8 +1350,7 @@ SEARCHING YOUR OWN STATIONS: [[Header]]
 [ENTER] tunes the highlighted station and [ESC] clears the search.
 (a name, genre or country)   filters your stations
 [s:]                         back to searching stations
-)WIZ",
-R"WIZ([p:]                         your saved STATION LISTS; [ENTER] fills the pane with that list and tunes
+[p:]                         your saved STATION LISTS; [ENTER] fills the pane with that list and tunes
                              its first station
 While a list is shown the pane title reads STATIONS (LIST: name - ESC: all) and [n], [b] and [#] surf
 only inside that list. [ESC] clears a search still in the box; the next [ESC] returns to all stations.
@@ -1266,7 +1359,8 @@ The search is fuzzy and typo tolerant; the characters - _ . / count as spaces.
 FINDING NEW STATIONS: THE RADIO BROWSER: [[Header]]
 [SHIFT+s] searches the public directory radio-browser.info (needs curl).
 Fields: NAME, TAGS (comma separated, every tag has to match), COUNTRY (name or two-letter code), STATE,
-LANGUAGE, BITRATE (128 = at least 128, 64-192 = range, -192 = at most), then the RESULTS.
+)WIZ",
+R"WIZ(LANGUAGE, BITRATE (128 = at least 128, 64-192 = range, -192 = at most), then the RESULTS.
 [TAB]    NAME > TAGS > COUNTRY > STATE > LANGUAGE > BITRATE > RESULTS > NAME
 [ENTER]  in a field: search. In RESULTS: tune the station.
 [a]      in RESULTS: add it to your station list (a dot in front means you already have it)
@@ -1405,8 +1499,7 @@ Gradient wave speed and Pulse wave speed (the ON AIR sign), Bars Fluidity / Degr
 Osci/sphere (osci / sphere / spectro / off) and Osci style (braille / image).
 
 [[New Page]]
-)WIZ",
-R"WIZ(12.2 RADIO SETTINGS: PATHS, KEYS AND FILES [[Header]]
+12.2 RADIO SETTINGS: PATHS, KEYS AND FILES [[Header]]
 
 PATHS: [[Header]]
 Every path is a base folder; the radio makes its own sub folders below it:
@@ -1418,7 +1511,8 @@ AUDIO BOOK PATH      the player's audio book folder (kept in the player's config
 Changed folders are copied, never moved, and nothing is deleted. Playback stops and everything reloads.
 
 REFERENCE: REBINDING THE KEYS OF THE RADIO: [[Header]]
-The keys that are not hard coded, grouped like the player's: PLAYBACK, MENUS, TIMESHIFT and SYSTEM.
+)WIZ",
+R"WIZ(The keys that are not hard coded, grouped like the player's: PLAYBACK, MENUS, TIMESHIFT and SYSTEM.
 [ENTER]  on a row, then type one character (case matters) or SPACE / TAB / BACKSPACE
 [DEL]    restore the default of that key
 [CTRL+SHIFT+u]  undo the last five key changes
@@ -1534,8 +1628,7 @@ THREE KINDS OF TIME STAMPS: [[Header]]
 AUTO-MARK  where you stopped; written by itself every few seconds while you listen and when you leave
            (.cue: REM AUTOMARK). One per book.
 BOOKMARK   a place you set on purpose with [SHIFT+b]; a book and even a chapter may carry many. They are
-)WIZ",
-R"WIZ(           numbered automatically: Bookmark 1, Bookmark 2 ... (.cue: REM BOOKMARK).
+           numbered automatically: Bookmark 1, Bookmark 2 ... (.cue: REM BOOKMARK).
 NOTE       a bookmark with a text (SHIFT+n, below); without a title it is numbered: Note 1, Note 2 ...
 
 The chapter with the newest bookmark is lit in the header colour with a diamond.
@@ -1544,7 +1637,8 @@ Before the chapter changes ([n], [b], [ENTER] on another one), the mode switches
 question asks "Set a bookmark here?" with the exact time: [y]/[ENTER] yes, [n] no, [ESC] stay.
 The audio is paused while the question is open. Settings -> ON/OFF -> BOOKMARKS -> Ask for Bookmark 
 turns it off, since it can become annoying and auto-mark is always on anyways.
-
+)WIZ",
+R"WIZ(
 [ENTER] on a chapter that was left but not bookmarked asks "Do you want to continue where you left?":
   [y] Continue there (the only answer that starts the chapter)   
   [n] Leave, keep the auto-mark, nothing is played
@@ -1661,8 +1755,7 @@ THEME PREVIEW: [[Header]] in the CHOOSE THEME list [SHIFT+p] shows a still copy 
 14.2 THE REMOTE APP (PHONE) [[Header]]
 
 Settings -> ON/OFF -> MODES -> Remote App -> [ENTER] opens the REMOTE APP overlay (player or radio):
-)WIZ",
-R"WIZ(switch it ON, see the address and a QR code (scan it with the phone camera: the remote opens,
+switch it ON, see the address and a QR code (scan it with the phone camera: the remote opens,
 logged in), change the PORT or the PIN ([n] a new one). [ESC] back, [s] saves the settings.
 Works with your own build as well as with an installed Mousiki. The phone must be in the same network.
 
@@ -1673,7 +1766,8 @@ PHONE BROWSER: [[Header]] open the address and enter the PIN.
 The phone shows the disk, the meta data, the progress bar, the dummy buttons (working: seek,
 play/pause) and boxes for prev, random, next, volume, mute, playback mode, LISTS and manual --
 drawn by Mousiki in the colours of your theme. In the radio: the ON AIR sign, the station,
-prev/next station, pause, live, stop.
+)WIZ",
+R"WIZ(prev/next station, pause, live, stop.
 
 LISTS (player): on top the local list (tap a title: it plays), below the saved playlists (tap one: its titles
 go into the queue, starts it when nothing plays). A tap on the other list gives it the focus; UP / DOWN

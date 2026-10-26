@@ -1,5 +1,7 @@
+#include <set>
 #include "cover_art.h"
 #include "book_art.h"
+#include "cover_store.h"
 #include "console_log.h"
 #include "path_utf8.h"
 #include "process_util.h"
@@ -8,6 +10,7 @@
 #include <chrono>
 #include <cmath>
 #include <future>
+#include <map>
 #include <memory>
 #include <sstream>
 
@@ -198,11 +201,17 @@ bool is_picture_file(const fs::path& f) {
 
 } // namespace
 
-fs::path pick_folder_picture(const fs::path& dir, const std::vector<std::string>& names, bool generic, bool any) {
+fs::path pick_folder_picture(const fs::path& dir, const std::vector<std::string>& names, bool generic, bool any, bool fetched) {
     std::error_code ec;
     std::vector<fs::path> pics;
+    std::set<fs::path> from_fetched;   // pictures of fetched_covers: they belong to ONE album each, so only the album's name may pick them
     for (fs::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec))
         if (it->is_regular_file(ec) && is_picture_file(it->path())) pics.push_back(it->path());
+    if (fetched && !generic && !any) {   // the covers fetched for this folder (named like their album)
+        ec.clear();
+        for (fs::directory_iterator it(dir / kFetchedCoversDir, ec), end; !ec && it != end; it.increment(ec))
+            if (it->is_regular_file(ec) && is_picture_file(it->path())) { pics.push_back(it->path()); from_fetched.insert(it->path()); }
+    }
     if (pics.empty()) return {};
     std::sort(pics.begin(), pics.end());
     if (any) return pics.front();
@@ -220,8 +229,10 @@ fs::path pick_folder_picture(const fs::path& dir, const std::vector<std::string>
     double best_score = 0.0;
     for (const fs::path& f : pics) {
         const std::string stem = path_utf8(f.stem());
-        for (const std::string& n : names) {
-            if (n.empty()) continue;
+        const bool fetched_pic = from_fetched.count(f) > 0;
+        for (size_t ni = 0; ni < names.size(); ++ni) {
+            const std::string& n = names[ni];
+            if (n.empty() || (fetched_pic && ni != 0)) continue;   // (names[0] is the album; a track title must not pick another album's fetched cover)
             const double sc = name_closeness(stem, n);
             if (sc > best_score) { best_score = sc; best = f; }
         }
@@ -236,7 +247,8 @@ namespace {
 
 // ffmpeg writes the picture as one PAM image (a tiny header, then RGBA bytes) at most 640 x 640; the grey level of it is
 // 0.15 + 0.85 * luminance, times the alpha -- the same as the audio book cover's.
-bool decode_picture(const fs::path& file, bool embedded, CoverImage& d) {
+} // namespace
+bool decode_cover_file(const fs::path& file, bool embedded, CoverImage& d) {
     std::string cmd = "ffmpeg -v error -i " + shell_quote(path_utf8(file));
     if (embedded) cmd += " -an";
     cmd += " -vf scale=w=640:h=640:force_original_aspect_ratio=decrease -frames:v 1 -f image2pipe -vcodec pam -pix_fmt rgba -";
@@ -276,6 +288,20 @@ bool decode_picture(const fs::path& file, bool embedded, CoverImage& d) {
     return true;
 }
 
+namespace {
+// the names the folder's pictures are compared with: the album, the title and the file's own name without a track number
+std::vector<std::string> cover_search_names(const CoverRequest& rq, const fs::path& file) {
+    std::vector<std::string> names;
+    names.push_back(rq.album);
+    names.push_back(rq.title);
+    std::string stem = path_utf8(file.stem());
+    size_t i = 0;
+    while (i < stem.size() && (std::isdigit(static_cast<unsigned char>(stem[i])) || stem[i] == ' ' || stem[i] == '.' || stem[i] == '-' || stem[i] == '_')) ++i;
+    names.push_back(i < stem.size() ? stem.substr(i) : stem);
+    return names;
+}
+bool decode_picture(const fs::path& file, bool embedded, CoverImage& d) { return decode_cover_file(file, embedded, d); }
+
 CoverImage load_track_cover(CoverRequest rq, std::string key) {
     CoverImage d;
     d.key = key;
@@ -284,16 +310,35 @@ CoverImage load_track_cover(CoverRequest rq, std::string key) {
     d.dir = path_utf8(dir);
     d.album = rq.album;
     // the names the folder's pictures are compared with: the album, the title and the file's own name without a track number
-    std::vector<std::string> names;
-    names.push_back(rq.album);
-    names.push_back(rq.title);
-    {
-        std::string stem = path_utf8(file.stem());
-        size_t i = 0;
-        while (i < stem.size() && (std::isdigit(static_cast<unsigned char>(stem[i])) || stem[i] == ' ' || stem[i] == '.' || stem[i] == '-' || stem[i] == '_')) ++i;
-        names.push_back(i < stem.size() ? stem.substr(i) : stem);
-    }
+    const std::vector<std::string> names = cover_search_names(rq, file);
     std::string tried;
+    // What the user chose beats the search (except with "Within File Only", which looks at the files alone): first the picture chosen
+    // for this track, then the one chosen for its album name.
+    if (rq.search != 4) {
+        for (int pass = 0; pass < 2; ++pass) {
+            const std::string choice = pass == 0 ? cover_track_choice(rq.path) : cover_album_choice(rq.album);
+            if (choice.empty()) continue;
+            if (choice == kCoverNone) {   // "no cover": the disk
+                d.per_track = pass == 0;
+                d.note = "no cover chosen for this " + std::string(pass == 0 ? "track" : "album");
+                ConsoleLog::instance().log_basic("album cover: none (chosen) for " + rq.path);
+                return d;
+            }
+            CoverImage t;
+            t.key = key;
+            const bool emb = choice == kCoverEmbedded;
+            const fs::path pic = emb ? file : path_from_utf8(choice);
+            if (decode_picture(pic, emb, t)) {
+                d = std::move(t);
+                d.dir = path_utf8(dir); d.album = rq.album;
+                d.per_track = pass == 0;
+                d.source = emb ? path_utf8(file.filename()) + " (inside the file)" : path_utf8(pic.filename());
+                ConsoleLog::instance().log_basic("album cover: using the chosen " + std::string(emb ? "picture inside " : "") + rq.path + (emb ? "" : " -> " + path_utf8(pic)));
+                return d;
+            }
+            tried += "the chosen picture could not be read; ";
+        }
+    }
     for (CoverStep step : cover_steps(rq.search)) {
         CoverImage t;
         t.key = key;
@@ -307,7 +352,7 @@ CoverImage load_track_cover(CoverRequest rq, std::string key) {
             }
             tried += "no picture inside the file";
         } else {
-            const fs::path pic = pick_folder_picture(dir, names, step == CoverStep::FolderGeneric, step == CoverStep::FolderAny);
+            const fs::path pic = pick_folder_picture(dir, names, step == CoverStep::FolderGeneric, step == CoverStep::FolderAny, step == CoverStep::FolderClose);
             if (!pic.empty() && decode_picture(pic, false, t)) {
                 d = std::move(t);
                 d.dir = path_utf8(dir); d.album = rq.album;
@@ -327,7 +372,7 @@ CoverImage load_track_cover(CoverRequest rq, std::string key) {
 }
 
 std::string request_key(const CoverRequest& rq) {
-    return rq.path + "\n" + rq.title + "\n" + rq.album + "\n" + std::to_string(rq.search);
+    return rq.path + "\n" + rq.title + "\n" + rq.album + "\n" + std::to_string(rq.search) + "\n" + std::to_string(rq.store_rev);
 }
 
 // the single slot: the cover that is ready, and the one being read
@@ -358,7 +403,7 @@ const CoverImage* track_cover(const CoverRequest& rq) {
     }
     // the next track of the same album (in the same folder) is being read: the cover on screen is the one it will get
     const std::string dir = path_utf8(path_from_utf8(rq.path).parent_path());
-    if (s.have.ok && !rq.album.empty() && s.have.album == rq.album && s.have.dir == dir) return &s.have;
+    if (s.have.ok && !s.have.per_track && !rq.album.empty() && s.have.album == rq.album && s.have.dir == dir) return &s.have;
     return nullptr;
 }
 
@@ -371,6 +416,84 @@ std::string cover_note(const CoverRequest& rq) {
 std::string cover_source() {
     const TrackCoverState& s = state();
     return s.have.ok ? s.have.source : std::string();
+}
+
+// Which picture a track would get (the same order as load_track_cover, without decoding): for the overlays' previews.
+CoverSource resolve_cover_source(const CoverRequest& rq) {
+    CoverSource out;
+    const fs::path file = path_from_utf8(rq.path);
+    const fs::path dir = file.parent_path();
+    if (rq.search != 4) {
+        for (int pass = 0; pass < 2; ++pass) {
+            const std::string choice = pass == 0 ? cover_track_choice(rq.path) : cover_album_choice(rq.album);
+            if (choice.empty()) continue;
+            out.chosen = true;
+            if (choice == kCoverNone) { out.none = true; out.label = "no cover chosen"; return out; }
+            std::error_code ec;
+            if (choice == kCoverEmbedded) { out.file = rq.path; out.embedded = true; out.label = "inside the file (chosen)"; return out; }
+            if (fs::exists(path_from_utf8(choice), ec)) { out.file = choice; out.label = path_utf8(path_from_utf8(choice).filename()) + " (chosen)"; return out; }
+            out.chosen = false;
+        }
+    }
+    const std::vector<std::string> names = cover_search_names(rq, file);
+    for (CoverStep step : cover_steps(rq.search)) {
+        if (step == CoverStep::Embedded) {
+            if (has_embedded_picture(file)) { out.file = rq.path; out.embedded = true; out.label = "inside the file"; return out; }
+        } else {
+            const fs::path pic = pick_folder_picture(dir, names, step == CoverStep::FolderGeneric, step == CoverStep::FolderAny, step == CoverStep::FolderClose);
+            if (!pic.empty()) { out.file = path_utf8(pic); out.label = path_utf8(pic.filename()); return out; }
+        }
+    }
+    out.none = true;
+    out.label = "no cover found";
+    return out;
+}
+
+// ---- previews (the meta editor's cover pane, the cover overlays) ---------------------------------------------------------
+namespace {
+
+struct Preview {
+    std::shared_future<CoverImage> fut;
+};
+std::map<std::string, Preview>& previews() {
+    static std::map<std::string, Preview> m;
+    return m;
+}
+std::vector<std::string>& preview_order() {
+    static std::vector<std::string> v;
+    return v;
+}
+
+Preview& preview_slot(const std::string& file, bool embedded) {
+    const std::string key = std::string(embedded ? "E|" : "F|") + file;
+    auto& m = previews();
+    auto it = m.find(key);
+    if (it != m.end()) return it->second;
+    auto& order = preview_order();
+    if (order.size() >= 32) { m.erase(order.front()); order.erase(order.begin()); }   // (a running read keeps its own state alive)
+    order.push_back(key);
+    Preview p;
+    p.fut = std::async(std::launch::async, [file, embedded, key]() {
+        CoverImage d;
+        d.key = key;
+        decode_cover_file(path_from_utf8(file), embedded, d);
+        return d;
+    }).share();
+    return m.emplace(key, std::move(p)).first->second;
+}
+
+} // namespace
+
+const CoverImage* preview_cover(const std::string& file, bool embedded) {
+    Preview& p = preview_slot(file, embedded);
+    if (p.fut.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return nullptr;
+    const CoverImage& d = p.fut.get();
+    return d.ok ? &d : nullptr;
+}
+
+bool preview_cover_loading(const std::string& file, bool embedded) {
+    Preview& p = preview_slot(file, embedded);
+    return p.fut.wait_for(std::chrono::seconds(0)) != std::future_status::ready;
 }
 
 } // namespace muisc
