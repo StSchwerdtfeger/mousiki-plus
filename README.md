@@ -423,7 +423,7 @@ Keep the `scripts/` folder next to the binary if you move it, otherwise lyrics, 
 
 ### Uninstalling Mousiki Plus
 
-Every bundled dependency (e.g. FFmpeg) from the installers will be uninstalled. Note that the current setup does not automatically delete the .config/, .cache/ folders. Other folders such as audio_books, playlists, history that are placed / created inside set paths also remain after uninstalling Mousiki Plus, have to be deleted manually. 
+Every bundled dependency (e.g. FFmpeg) from the installers will be uninstalled. Note that the current setup does not automatically delete the .config/, .cache/ folders. Other folders such as audio_books/, playlists/, history/ that are placed / created inside set paths also remain after uninstalling Mousiki Plus, have to be deleted manually by choice in order to spare people accidentally deleting important files.  
 
 ## Verifying downloads
 
