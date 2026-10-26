@@ -1623,6 +1623,38 @@ def cmd_all(a):
         sys.exit("Not completed: " + ", ".join(failed))
 
 
+KANJI_PINS_FILE = HERE.parent / "scripts" / "kanji_pins.json"
+KANJI_PACKAGES = ("pykakasi", "jaconv", "deprecated", "wrapt")   # pykakasi and what it needs, all pure-Python wheels (one file for every platform)
+
+
+def pin_kanji_packages(work):
+    """The optional pykakasi download of the Windows installer (scripts/install_kanji_reader.py): the exact wheels and their
+    SHA-256, written to scripts/kanji_pins.json (shipped with the program). Only py3-none-any wheels, so there is one file per
+    package for every platform and Python version."""
+    out = {}
+    for name in KANJI_PACKAGES:
+        try:
+            req = urllib.request.Request("https://pypi.org/pypi/%s/json" % name, headers={"User-Agent": "mousiki-release-toolkit"})
+            with urllib.request.urlopen(req, timeout=60) as r:
+                info = json.loads(r.read().decode("utf-8"))
+            wheels = [f for f in info["urls"] if f["packagetype"] == "bdist_wheel" and f["filename"].endswith("none-any.whl") and not f.get("yanked")]
+            if not wheels:
+                raise RuntimeError("no pure-Python wheel")
+            f = wheels[0]
+            got = fetch(f["url"], work / f["filename"], True)
+            h = sha256_of(got)
+            if h != f["digests"]["sha256"].lower():
+                die("SHA-256 mismatch for %s (PyPI says %s, got %s)" % (f["filename"], f["digests"]["sha256"], h))
+            out[name] = {"file": f["filename"], "url": f["url"], "sha256": h}
+            log("pinned %-40s %s" % (f["filename"], h[:16] + "..."))
+        except (Exception, SystemExit) as e:
+            warn("%s: could not be pinned (%s) - keeping the old kanji pins" % (name, e))
+            return
+    write_text(KANJI_PINS_FILE, json.dumps({"_note": "written by release.py pin - review the diff before committing", "packages": out},
+                                           indent=2, sort_keys=True) + "\n")
+    log("Wrote %s - review the diff, then commit it." % KANJI_PINS_FILE)
+
+
 def cmd_pin(a):
     """Fix every bundled tool to one exact, versioned file and write its SHA-256 to pins.json. Run it when you want newer
     tools, read the diff, then commit the file. (The Python scripts use only the standard library: no PyPI packages.)"""
@@ -1694,6 +1726,7 @@ def cmd_pin(a):
             warn("%s: download failed - keeping the old pin" % name)
     for k, v in old.items():           # whatever could not be refreshed this time stays as it was
         files.setdefault(k, v)
+    pin_kanji_packages(work)
     write_text(PINS_FILE, json.dumps({"_note": "written by release.py pin - review the diff before committing", "files": files},
                                      indent=2, sort_keys=True) + "\n")
     log("Wrote %s - review the diff, then commit it." % PINS_FILE.name)

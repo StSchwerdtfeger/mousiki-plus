@@ -253,3 +253,5 @@ The Windows installer has an optional, unticked task that downloads pykakasi (an
 Lyrics searches that find nothing now try other spellings of the names (`LyricsNameVariants=`, Settings → ON/OFF → TRANSLITERATION (JAP./KOR./CHIN.), on by default): the Latin-letters spelling, the title / artist without the Latin or Japanese part, the title alone. The pykakasi task of the Windows installer is ticked by default; the README names the internet need of all dependency downloads.
 
 Settings: `SHIFT+↑/↓` pages through every scrollable tab (legend `[SHIFT+↑↓] Page`); the status message of a change is no longer hidden by the "Unsaved changes" notice (it shows with `(unsaved)` after it); new category TRANSLITERATION (JAP./KOR./CHIN.), MODE SWITCH renamed UI MODE SWITCH.
+
+The pykakasi download of the installer is pinned: `release.py pin` writes the exact wheels (pykakasi, jaconv, deprecated, wrapt - pure Python, one file each for every platform) and their SHA-256 to `scripts/kanji_pins.json`; `scripts/install_kanji_reader.py` accepts nothing else (without the file it falls back to the newest PyPI files with a warning).

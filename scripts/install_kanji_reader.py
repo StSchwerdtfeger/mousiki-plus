@@ -4,7 +4,10 @@
 usage: install_kanji_reader.py <target folder>        (the installer calls it with <install folder>\\pylib)
 
 Why a script and not `pip install`: the Python that comes with the Windows installer is the "embeddable" build, which has no pip.
-Only wheels from pypi.org are fetched, each checked against the SHA-256 that PyPI publishes, and unpacked (a wheel is a zip file).
+The files are the exact ones listed in kanji_pins.json (next to this script; made by `release.py pin`): pure-Python wheels, so
+the same four files for every platform. Each is checked against its pinned SHA-256 and any other file is refused. Without that
+file the newest wheels are taken from pypi.org instead, each checked only against the hash PyPI publishes (a warning says so).
+A wheel is a zip file; it is simply unpacked.
 pykakasi is licensed GPL-3.0-or-later and is NOT part of Mousiki: it is downloaded to your computer on request and run as a separate
 program by kanji_reading.py. Exit code 0 = installed, 1 = failed (the message says why; Mousiki then simply goes without readings).
 """
@@ -66,12 +69,49 @@ def pick(name):
     return files[0], requires
 
 
+def load_pins():
+    """{package: {url, sha256, file}} from kanji_pins.json next to this script, or None."""
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "kanji_pins.json"), encoding="utf-8") as fh:
+            pk = json.load(fh).get("packages")
+        return pk if pk else None
+    except (OSError, ValueError):
+        return None
+
+
+def unpack(data, name, target):
+    tmp = os.path.join(target, name)
+    with open(tmp, "wb") as fh:
+        fh.write(data)
+    with zipfile.ZipFile(tmp) as z:
+        for n in z.namelist():   # (no entry may leave the target folder)
+            if os.path.isabs(n) or ".." in n.replace("\\", "/").split("/"):
+                raise RuntimeError("%s: unsafe path in the archive" % name)
+        z.extractall(target)
+    os.remove(tmp)
+
+
 def main():
     if len(sys.argv) != 2:
         print(__doc__)
         return 1
     target = os.path.abspath(sys.argv[1])
     os.makedirs(target, exist_ok=True)
+    pins = load_pins()
+    if pins:   # the pinned files, nothing else
+        try:
+            for name, pin in sorted(pins.items()):
+                print("downloading %s (pinned)" % pin["file"])
+                data = fetch(pin["url"])
+                if hashlib.sha256(data).hexdigest() != pin["sha256"].lower():
+                    raise RuntimeError("%s: the checksum does not match the pinned one" % pin["file"])
+                unpack(data, pin["file"], target)
+        except Exception as e:   # noqa: BLE001 -- any failure just means "no readings"
+            print("kanji reader not installed: %s" % e)
+            return 1
+        print("pykakasi installed into %s" % target)
+        return 0
+    print("warning: kanji_pins.json is missing -- the newest files from pypi.org are used (checked against the hash PyPI publishes only)")
     done, queue = set(), list(WANT)
     try:
         while queue:
