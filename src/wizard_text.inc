@@ -20,7 +20,7 @@ add your music folders. Subdirectories of paths will be recognized
 automatically. More details on paths can be found in the Help Wizard
 page on MUSIC FILE PATHS[[Header]].
 
-HELP WIZARD TABLE OF CONTENT: [[Header]	]
+HELP WIZARD TABLE OF CONTENT: [[Header]]
 Use [->] to move on to the table of content or press [t] from anywhere
 you currently are in the Wizard. Apart from the Help Wizard, you can
 also use [?] to open the CHEAT SHEET[[Header]] for a plain overview of commands 
@@ -347,33 +347,34 @@ DIFFERENT SEARCH CAPABILITIES:[[Header]]
 [/f:]  +  query       your folders            live
 
 The local search is fuzzy: "X Files" also finds "X-Files".
-LATIN LETTERS: [SHIFT+'] on a US keyboard (the key is ["], German [SHIFT+2]) shows Japanese kana,
-Korean and Chinese text in Latin letters: titles, tags, file names, lyrics, karaoke, READ LYRICS.
-Kana become romaji (さくら = sakura), Hangul the Revised Romanization (한국어 = hangugeo), Chinese
-characters pinyin (谢谢 = xiè xiè) - but only when the text is known to be Chinese (a character only
-Chinese uses, or the artist's other tracks say so). Kanji in Japanese text (kana in the text or in
-another tag of the track) and characters that could be either (東京) stay as they are. A name written
-both ways ("Kenshi Yonezu (米津玄師)") is shown as its Latin part. Your own readings go into
-kanji_readings.txt next to config.txt ("米津玄師 = Yonezu Kenshi", "chinese: 周杰倫"); config.txt:
-With pykakasi installed (pip install pykakasi, optional, nothing is sent anywhere) kanji in Japanese
-text are read in the background and shown in Latin letters too (kanji_readings_cache.txt).
-Lyrics Name Variants (Settings > ON/OFF > TRANSLITERATION, on): a lyrics search that finds nothing tries the Latin
-spelling, the title/artist without their Latin or Japanese part, and the title alone.
-The Windows installer can download it for you (an unticked option); setup.sh --with-kanji / setup.ps1 -WithKanji too.
-Pairs are also learned from your folder and file names (3+ tracks agreeing) into
-kanji_readings_learned.txt. Japanese is spelled for easy reading (kienuyou, koe o); Settings > ON/OFF > TRANSLITERATION > Latin
-Macrons / Latin Wo (independent of each other) switch to macrons (kienuyō) and "wo".
-Settings > ON/OFF > TRANSLITERATION > Latin Name Lookup (off by default) asks
-MusicBrainz in the background for the Latin name of artists written in Chinese characters - it
-sends those artist names (and your IP) to musicbrainz.org, nothing else.
-LatinHanziDefault=chinese reads unknown characters as Chinese. The search finds such titles by
+LATIN LETTERS:[[Header]] [SHIFT+'] on a US keyboard (the key is ["], German [SHIFT+2]) shows Japanese kana, Korean
+and Chinese text in Latin letters: titles, tags, file names, lyrics, karaoke, READ LYRICS (it also works
+inside karaoke and READ LYRICS). Kana become romaji (さくら = sakura), Hangul the Revised Romanization
+(한국어 = hangugeo), Chinese characters pinyin (谢谢 = xiè xiè) - but only when the text is known to be
+Chinese (a character only Chinese uses, or the artist's other tracks say so). Kanji in Japanese text
+(kana in the text or in another tag of the track) and characters that could be either (東京) stay as
+they are. A name written both ways ("Kenshi Yonezu (米津玄師)") is shown as its Latin part.
+SPELLING:[[Header]] Japanese is spelled for easy reading (kienuyou, koe o). Settings > ON/OFF > TRANSLITERATION >
+Latin Macrons / Latin Wo (independent of each other) switch to macrons (kienuyō) and to "wo".
+KANJI:[[Header]] Your own readings go into kanji_readings.txt next to config.txt ("米津玄師 = Yonezu Kenshi",
+"chinese: 周杰倫"). Pairs are also learned from your folder and file names (3+ tracks agreeing) into
+kanji_readings_learned.txt. LatinHanziDefault=chinese in config.txt reads unknown characters as Chinese.
+With pykakasi installed (optional, nothing is sent anywhere) kanji in Japanese text are read in the
+background and shown in Latin letters too (kanji_readings_cache.txt). The Windows installer can download
+pykakasi for you (a ticked option); setup.sh --with-kanji / setup.ps1 -WithKanji do it for a source
+build.
+LATIN NAME LOOKUP:[[Header]] Settings > ON/OFF > TRANSLITERATION > Latin Name Lookup (off by default) asks
+MusicBrainz in the background for the Latin name of artists written in Chinese characters - it sends
+those artist names (and your IP) to musicbrainz.org, nothing else.
+LYRICS NAME VARIANTS:[[Header]] a lyrics search that finds nothing also tries the Latin spelling, the title /
+artist without their Latin or Japanese part, and the title alone (see 4.2). The search finds titles by
 their Latin spelling in any case.
 
 Messages like "Latin letters: on" are not shown on the main screen. Press t (console): the top pane
 is the log of what the program ran, the pane below it (8 rows) keeps the status messages of the
-last hours with their time, also those of Settings. TAB changes the pane, the arrow keys scroll it
 )WIZ",
-R"WIZ((SHIFT: a page), HOME goes to the oldest line, END back to the newest.
+R"WIZ(last hours with their time, also those of Settings. TAB changes the pane, the arrow keys scroll it
+(SHIFT: a page), HOME goes to the oldest line, END back to the newest.
 Accents are ignored (arzte = Ärzte), swapped letters are forgiven, a word may be typed only as far
 as it goes (test cov), and run-together words find the words of a name in order (testcover finds
 test_song-cover3).
@@ -535,9 +536,9 @@ Several sort options are available for the LIBRARY PANE:
 [a]         Add a track to the fetch list
 [SHIFT+f]   Add all searched tracks to the fetch list (the result of the search 
             in the library pane; the filtered overall list so to speak)
-[f]         Folder view: the pane grouped by folder (a header row per folder, its files numbered
 )WIZ",
-R"WIZ(            from 1 below it). On a folder header [a] adds the whole folder to the fetch list and
+R"WIZ([f]         Folder view: the pane grouped by folder (a header row per folder, its files numbered
+            from 1 below it). On a folder header [a] adds the whole folder to the fetch list and
             [ENTER] closes / opens the folder. [f] again returns to the plain list.
 [r]         Show edited tracks first (highlighted in the same color as headers)
 [n]         Show recently added tracks first (newest files on top)
@@ -681,9 +682,9 @@ NOTE: Needs ffmpeg with libmp3lame and libopus; the installers provide it.[[Lege
 Fetches the FRONT cover of albums from MusicBrainz / the Cover Art Archive.
 OPEN:[[Header]] [ALT+c] in the main music player ([SHIFT+c] is the conversion menu).
 WHY A MENU OF ITS OWN:[[Header]] MusicBrainz often misjudges album titles of loose files, so you
-look at the list first and send it deliberately, instead of fetching along with tag edits.
 )WIZ",
-R"WIZ(
+R"WIZ(look at the list first and send it deliberately, instead of fetching along with tag edits.
+
 ALBUM LIBRARY TAB:[[Header]] Left the ALBUM LIBRARY, right the ALBUM ART. The search bar works like
 the meta editor's: f: lists folders (e.g. f:abbey), everything else searches the whole meta
 data. Results are folders, [ENTER]/[SPACE] opens one; inside it only the album names (once each)
@@ -775,6 +776,14 @@ lyrics are loaded). The lines move live while you adjust, so you can judge the o
 A positive offset makes the lyrics appear later, so use it when they are too early. Saving writes
 a standard [offset:...] tag into the .lrc file, which other players understand too.
 
+LYRICS NAME VARIANTS:[[Header]]
+When a lyrics search finds nothing (the first fetch and every refetch), Mousiki tries other spellings of
+the names, one after the other, and the status line says which one worked: the Latin-letters spelling it
+shows in the lists, the title or artist without their Latin or without their Japanese part (Lemon
+(レモン) becomes Lemon or レモン), and the title alone. This often finds lyrics that a mixed Latin /
+Japanese spelling misses; it costs time only when the first search finds nothing. Settings > ON/OFF >
+TRANSLITERATION > Lyrics Name Variants (on by default) switches it off.
+
 READING AND TRANSLATING LYRICS:[[Header]]
 [CTRL+L] opens READ LYRICS (playing track, else the hovered one). It shows the lyrics fetched 
 so far and the translations and the text itseld. [TAB] switches between the two top panes, 
@@ -794,7 +803,8 @@ OPEN AND CLOSE:[[Header]] [k] opens the karaoke overlay, [ESC] or [k] close it.
 
 The lyrics are shown over the whole screen. The coloring behavior again matches the colors
 applied in the SETTING COLORS TAB[[Header]]. Lines are centered, with an empty row between them. On both sides a ASCII-Braille image saying "Karaoke" in Japanese is drawn in your disk colors, 
-with a wave running across it. On a narrow terminals the images are left out and the lyrics 
+)WIZ",
+R"WIZ(with a wave running across it. On a narrow terminals the images are left out and the lyrics 
 take the whole width...
 
 NOTE:[[Header]] The overlay always uses the lyrics engine, also when it is switched off on the main screen.
@@ -804,8 +814,7 @@ MAKE THE LYRICS BIGGER: [[Header]]
 [*] / [_]   size 1 to 5      German keyboard: [SHIFT and +] / [SHIFT and -]
                              English keyboard: [SHIFT+8] / [SHIFT and -]
 Size 1 is normal terminal text. Sizes 2 to 5 use Mousiki's own pixel font drawn in braille dots
-)WIZ",
-R"WIZ((3 x 2, 6 x 4, 9 x 6 and 12 x 8 cells per letter). Only the lyrics change size, long lines wrap
+(3 x 2, 6 x 4, 9 x 6 and 12 x 8 cells per letter). Only the lyrics change size, long lines wrap
 between words. The bottom border shows the size for a moment, and it is saved when you close.
 The basic font covers Latin letters, digits, punctuation, umlauts and common accented letters.
 Another font for Japanese, Chinese, Korean, Cyrillic and Greek letters is also available but
@@ -933,7 +942,8 @@ notes of a scale play (pentatonic minor by default), so it sounds like music.
 ROWS: [[Header]]
 Text ([|] = new line), Sound, Length (5 - 60 s), Invert, the options of the chosen sound, Scope grid
 (on/off), Create, save and preview, and Created files... (a list of the files made so far; [ENTER] opens one in the preview).
-
+)WIZ",
+R"WIZ(
 [UP]/[DOWN] pick a row, [<-/->] or [ENTER] change it, [ESC] closes.
 [SPACE] does nothing here (it only types a space in the text), so nothing is created by accident.
 The files are saved in <music folder>/creator (else ~/Music/creator).
@@ -944,8 +954,7 @@ In the preview [G] turns the scope grid on/off.
 MICROPHONE: [[Header]]
 Rows: Live view (Spectrogram = default, Oscilloscope XY, Oscilloscope YT), Scope grid, Start the microphone
 preview, Created files... In the big preview your microphone is shown live (a playing song stops and
-)WIZ",
-R"WIZ(comes back afterwards): [ENTER] starts / stops a recording (mic_<date>_<time>.wav in the creator folder,
+comes back afterwards): [ENTER] starts / stops a recording (mic_<date>_<time>.wav in the creator folder,
 max. 5 minutes), [V] changes the view, [G] the grid, [ESC] closes the preview (a running recording is saved) and returns to the overlay.
 A one-channel microphone gives the same signal left and right, so XY is a diagonal line: use YT or the
 spectrogram. If the microphone cannot be opened, the overlay says why (allow microphone access for your
@@ -1099,7 +1108,8 @@ Morning 7-11, Day 11-18, Evening 18-22, Night 22-7.
 REDISCOVER: [[Header]]
 Least played counts never-played tracks as 0 and shuffles ties every time, which makes it a good way
 to rediscover forgotten music.
-
+)WIZ",
+R"WIZ(
 Files that moved or were deleted are skipped, and the status line says how many tracks were queued.
 
 [[New Page]]
@@ -1115,8 +1125,7 @@ MOVING AND EDITING: [[Header]]
 SAVING AND LEAVING: [[Header]]
 Every change is live: you see and hear it while you are still in the settings. But only [s] writes
 it to config.txt and closes. [ESC] or [q] discards. With unsaved changes the settings ask first:
-)WIZ",
-R"WIZ([s] save, [d] discard, [ESC] keep editing. Discarding puts every row back the way it was when you
+[s] save, [d] discard, [ESC] keep editing. Discarding puts every row back the way it was when you
 opened the settings, paths included. While there are unsaved changes a note says so.
 
 TEXT EDITING, IN EVERY FIELD: [[Header]]
@@ -1156,91 +1165,147 @@ built-in theme needs a new name. [ESC] with unsaved changes asks first, leaving 
 [[New Page]]
 8.3 ON/OFF, ANIMA/VIZ AND PATHS [[Header]]
 
-ON/OFF TAB: [[Header]] every row is changed with [<-/->]
-On every Settings tab that scrolls, SHIFT+Up / SHIFT+Down moves a page.
-MODES: Playback (like [m]), Start Mode (player / radio / audiobook: which mode Mousiki opens with),
-Use Music Player / Use Radio / Use Audio Books (false: the mode is left out of the [SHIFT and +] cycle; one mode
-always stays on, the last one cannot be switched off), Mode Order 1..3 (the order of the cycle, like Viz Order 1..4:
-picking a mode for a place swaps it with the place that held it; [SHIFT and -] walks the same order backwards),
-Black Background (on: the terminal is black and plain text takes the list color while Mousiki runs; its own colors come back on exit)
-Share Profiles (on: the radio uses the player's oscilloscope/spectrogram settings; its own values are kept and come back when off)
-Remote App ([ENTER]: the REMOTE APP overlay -- on/off, address, QR code for the phone, port, PIN)
-Update Notice (a quiet once-a-day look for a newer release; a small window, once per version: [ESC] close, [o] open the release page)
-Media Keys (Windows: media pop-up/keys; Linux: MPRIS widgets/playerctl; macOS: Now Playing; the system media keys control Mousiki)
-MAIN UI / AUDIO: Eliment Disk / Cover, Album Cover, Cover Mode, Cover Contrast, Cover Search, Dummy Buttons, Queue Display,
-Progress Waveform, Spectrum Bars,
-Stereo Sound, Normalize Volume, Replace Emoji, Marquee Scrolling
-Track Buffer (MB) (default 256: a track whose decoded audio is smaller is held whole in RAM,
-  so seeking is instant; a bigger one uses a moving 2-minute window. [ENTER] types a number,
-  [->] then [ENTER] on [ Set back to default ] restores 256; applies to the next track)
-Volume Indicator: what the VOLUME BAR is drawn with: # or ⠶ or ⣿ or ⡾⣽ (a fixed row of braille
-characters that does not repeat) or two moving braille blocks = the braille effect of the disk:
-the bar follows the disk animation, with the centre of the circle two cells in from the left.
-Right of it: gradient / no gradient (gradient = the VIZ colours from left to right, like the
-oscilloscope). [<-] [->] switch between the two values of the row, [ENTER] changes the lit one
-ALBUM COVER (music player): Album Cover (false by default) shows the cover of the playing track in the
-disk's place; a track without a cover keeps the disk. Cover Mode chooses how it is shown (seven ways):
-  1. Just Cover - the cover in its own colours.
-  2. Cover with Gradient - a grey version of the cover under the disk's gradient colours, a slow wave
-     that moves diagonally over the picture, from the upper left to the lower right.
-  3. Cover behind Disk - the grey cover in full resolution behind the turning disk: the dots of the
-     disk are pinholes through which the cover shines at full brightness; the rest is the terminal
-     background, like a sheet of paper in front of the cover. The dots stay on their grid and only the
-     pattern of the disk turns. Transparent parts of a cover show a plain grey in the dots, so the whole
-     disk stays visible.
-  4. Cover behind Disk v2 - the same, but the dots themselves turn smoothly around the centre.
-  5. Cover behind Disk (Full Anima) - the same, but the dots follow the exact braille animation of
-     the disk: rotated and rounded to the dot grid, some of them come and go as it turns (the effect of
-     the disk look of the Volume Indicator).
-  6. Cover ASCII - the cover as braille dots in its own colours, also on Kitty / Sixel terminals.
-  7. Cover ASCII with Gradient - the same dots under the disk's moving gradient.
-  With Kitty or Sixel looks 1-5 are real pictures (the oscilloscope can be an image next to them), without
-  them the same looks are drawn in braille dots.
-Cover Contrast (0% .. 100%, steps of 5%) adds contrast to the cover, only where it is shown through the
-gradient or the disk (Cover with Gradient, ASCII with Gradient, Cover behind Disk looks; in the audio
-book mode with the Book Gradient Wave on). Just Cover and all previews stay as they are; 0% = as it is.
-Cover Search says where the cover is looked for. Default: first the picture inside the file (mp3 and the
-other formats that can carry one). If it has none, the folder of the file is searched for a picture whose
-name is close to the title of the track or to its album tag: a fuzzy match (case, punctuation and small
-typos do not matter), so a folder with tracks of different albums can hold one picture per album
-("Thriller.jpg" belongs to the tracks of the album Thriller). If none is close, a picture named cover,
-folder, front, albumart or album is taken.
-Last resort of every Cover Search value except Within File Only: when nothing else gave a picture, the first picture of the folder
-by name (alphabetical) is taken.
-Picture formats (also for the audio book cover): jpg jpeg jpe jfif, png apng, webp, bmp dib, gif, tif tiff,
-avif, heic heif, jxl, jp2, ico, tga, ppm pgm pnm, pcx (every regular format read by ffmpeg; avif, heic and jxl
-only if your ffmpeg can decode them; no camera RAW or other very large formats). The name only has to be close.
-  Folder First - the folder first (close name, then cover.jpg and its like), the file's picture last
-  Within File First - inside the file; then only a closely named picture of the folder (no cover.jpg)
-  Image in Folder Only - never looks inside the files
-  Within File Only - never looks in the folder
-MAIN UI VIZ/LYRICS FIELD: Viz/Lyrics Field (false = no field, the meta data take its place) and the switches
-Use Lyrics Engine / Oscilloscope / Spectrogram / Sphere. False leaves that view out of the [,/.] cycle.
+ON/OFF TAB:[[Header]] every row is changed with [<-/->]. On every Settings tab that scrolls, [SHIFT+UP] /
+[SHIFT+DOWN] moves a page.
 
-ANIMA/VIZ TAB: [[Header]]
-Lyrics Alignment and Lyrics Animation, Disk Speed (0.01 .. 1.00), Bars Fluidity / Degradation /
-Viscosity (1-10), Waveform Style (raw / smooth, like [w]), Lyrics/Viz Default, No-Lyrics Viz and
+MODES:[[Header]]
+Playback:              the play mode (like [m]).
+Start Mode:            player / radio / audiobook, the mode Mousiki opens with.
+Black Background:      on = the terminal is black and plain text takes the list color while Mousiki runs; 
+                       its own colors come back on exit.
+Share Profiles:        on = the radio uses the player's oscilloscope/spectrogram settings; its own values 
+                       are kept and come back when off.
+Remote App:            [ENTER] opens the REMOTE APP overlay (on/off, address, QR code for the phone, port, 
+                       and a PIN that can be set/changed).
+Update Notice:         a quiet once-a-day look for a newer release; a small window, once per version 
+                       ([ESC] close, [o] open the release page).
+Media Keys:            Windows media pop-up/keys, Linux MPRIS widgets/playerctl, macOS Now Playing; the 
+                       system media keys control Mousiki.
+
+UI MODE SWITCH:[[Header]]
+Use Music Player / Use Radio / Use Audio Books: 
+    false = the mode is left out of the [SHIFT and +] cycle;one mode always stays on, the last one 
+    can't be turned off.
+Mode Order 1-3:       the order of the cycle, like Viz Order 1..4. Picking a mode for a place swaps 
+                      it with the place that held it; [SHIFT and -] walks the same order backwards.
+
+TRANSLITERATION (JAP./KOR./CHIN.):[[Header]] 
+Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a German keyboard).
+Latin Macrons:         off (default) = Japanese long vowels spelled out (kienuyou, koohii); 
+                       on = with a macron (kienuyō, kōhī).
+Latin Wo:              off (default) = the particle を is written "o" (koe o); on = "wo". 
+                       Independent of Latin Macrons.
+Latin Name Lookup:     off by default. On = artists written in Chinese characters are looked up on
+                       MusicBrainz in the background; their NAME (and your IP) is sent to 
+                       musicbrainz.org, nothing else.
+Lyrics Name Variants:  on by default, see 4.2.
+
+MAIN UI / AUDIO:[[Header]]
+
+GIVEN OPTIONS[[Header]] (SOME EXPLAINED BELOW, IF NOT SELF EXPLAINABLE):[[Header]]
+Eliment Disk / Cover, Album Cover, Cover Mode, Cover Contrast, Cover Search, Dummy Buttons, Queue
+  Display, Progress Waveform, Spectrum Bars, Stereo Sound, Normalize Volume, Replace Emoji, Marquee
+  Scrolling (all on/off, the cover rows and the Volume Indicator pick a value).
+
+Track Buffer (MB):    default = 256: a track whose decoded audio is smaller is held whole in RAM,
+                      so seeking is instant; a bigger one uses a moving 2-minute window. 
+                      [ENTER] types a number, [->] then [ENTER] on [ Set back to default ] 
+                      restores 256; applies to the next track)
+Volume Indicator:     what the VOLUME BAR is drawn with: # or ⠶ or ⣿ or ⡾⣽ (a fixed row of braille 
+                      characters that does not repeat) or two moving braille blocks = the braille 
+                      effect of the disk: the bar follows the disk animation, with the centre of 
+                      the circle two cells in from the left. Right of it: gradient / no gradient 
+                      (gradient = the VIZ colours from left to right, like the oscilloscope). 
+                      [<-/->] switch between the two values of the row, [ENTER] changes the lit one
+Album Cover (music player): Album Cover (false by default) shows the cover of the playing track in the
+                            disk's place; a track without a cover keeps the disk. 
+Cover Mode:                 chooses how it is shown (seven ways):
+                              1. Just Cover - the cover in its own colours.
+                              2. Cover with Gradient - a grey version of the cover under the disk's 
+                                 gradient colours, a slow wave that moves diagonally over the picture, 
+                                 from the upper left to the lower right.
+                              3. Cover behind Disk - the grey cover in full resolution behind the turning 
+                                 disk: the dots of the disk are pinholes through which the cover shines 
+                                 at full brightness; the rest is the terminal background, like a sheet 
+                                 of paper in front of the cover. The dots stay on their grid and only the 
+                                 pattern of the disk turns. Transparent parts of a cover show a plain grey 
+                                 in the dots, so the whole disk stays visible.
+                              4. Cover behind Disk v2 - the same, but the dots themselves turn smoothly 
+                                 around the centre.
+                              5. Cover behind Disk (Full Anima) - the same, but the dots follow the exact 
+                                 braille animation of the disk: rotated and rounded to the dot grid, some 
 )WIZ",
-R"WIZ(Viz Order 1..4 (the order of the views in the [.] cycle).
+R"WIZ(                                 of them come and go as it turns (the effect of the disk look of the Volume                      
+                                 Indicator).
+                              6. Cover ASCII - the cover as braille dots in its own colours, also on 
+                                 Kitty / Sixel terminals.
+                              7. Cover ASCII with Gradient - the same dots under the disk's moving gradient.
+                                 With Kitty or Sixel looks 1-5 are real pictures (the oscilloscope can be an 
+                                 image next to them), without them the same looks are drawn in braille dots.
+Cover Contrast:                  0% .. 100% in steps of 5%. Adds contrast to the cover, only where it is 
+                                 shown through the gradient or the disk (Cover with Gradient, ASCII with 
+                                 Gradient, Cover behind Disk looks; in the audio book mode with the Book 
+                                 Gradient Wave on). Just Cover and all previews stay as they are; 0% = as 
+                                 it is.
+Cover Search:                    says where the cover is looked for. 
+                                   Default: first the picture inside the file (mp3 and the other formats 
+                                            that can carry one). If it has none, the folder of the file 
+                                            is searched for a picture whose name is close to the title of 
+                                            the track or to its album tag: a fuzzy match (case, punctuation 
+                                            and small typos do not matter), so a folder with tracks of 
+                                            different albums can hold one picture per album ("Eclipse.jpg" 
+                                            belongs to the tracks of the album Eclipse). If none is close, 
+                                            a picture Eclipse named cover, folder, front, albumart or album 
+                                            is taken.
+                                   Folder First: the folder first (close name, then cover.jpg and its like), 
+                                                 the file's picture last
+                                   Within File First: inside the file; then only a closely named picture of 
+                                                      the folder (no cover.jpg)
+                                   Image in Folder Only: never looks inside the files
+                                   Within File Only: never looks in the folder
+Last search resort: of every Cover Search value except Within File Only: when nothing else gave a picture, 
+                    the first picture of the folder by name (alphabetical) is taken.
+Picture formats:    (also for the audio book cover) jpg jpeg jpe jfif, png apng, webp, bmp dib, gif, 
+                    tif tiff, avif, heic heif, jxl, jp2, ico, tga, ppm pgm pnm, pcx: every regular format 
+                    read by ffmpeg; avif, heic and jxl only if your ffmpeg can decode them; no camera RAW 
+                    or other very large formats. The name only has to be close.
+MAIN UI VIZ/LYRICS FIELD:[[Header]] turn on/offthe field right of the meta data.
+Viz/Lyrics Field: false = no field, the meta data take its place.
+Use Lyrics Engine / Use Oscilloscope / Use Spectrogram / Use Sphere:[[Header]] 
+                                                            false leaves that view out of the [,/.] cycle.
 
-PATHS TAB: [[Header]]
-LOCAL PATH             the folders scanned for music (several, plus "+ new path")
-DOWNLOAD PATH          where [y] saves streams
-PLAYLIST PATH          one folder for all playlists
-PLAYLIST EXPORT PATH   where [e] writes M3U8 / M3U
-HISTORY PATH           holds history.json
-CONVERSION EXPORT PATH where converted files go
-AUDIO BOOK PATH        (last row) one folder; every folder in it with audio files is one book. A .cue file
-                       beside each book keeps its narrator, publisher and year. The player's library
-                       leaves these files out (also from its searches): the book folder may lie INSIDE a
-                       music folder, but may not BE one (a conflict message says so).
-In the audio book mode the ON/OFF and ANIMA/VIZ tabs only show what a book needs (no lyrics, no disk
-speed). The audio book mode has its own look: colours and theme, elements, visualizations,
-borders, play mode and sound are kept in audiobook_config.txt, apart from the player and the radio. Paths,
-hotkeys, the mode switches and the like are the same in all three modes (config.txt).
-Changing LOCAL PATH rescans at once. Changing the playlist or history folder copies what is there;
-nothing is moved or deleted. Changed folders only stick when you save with [s]. A warning will
-appear in case you unsaved changes are present. 
+ANIMA/VIZ TAB:[[Header]] 
+LYRICS:                          Lyrics Alignment (left / center / right), Lyrics Animation (full, 
+                                 word by word, letter by letter, active line only, active word only, 
+                                 line by line).
+DISK:                            Disk Speed (0.01 .. 1.00).
+SPECTRUM BARS:[[Header]]         Bars Fluidity, Bars Degradation, Bars Viscosity (1-10).
+PROGRESS WAVEFORM:[[Header]]     Waveform Style (raw / smooth, like [w]).
+WHAT THE FIELD SHOWS:[[Header]]  Lyrics/Viz Default, No-Lyrics Viz.
+VIZ/LYRICS ORDER:[[Header]]      Viz Order 1..4, the order of the views in the [.] cycle.
+
+PATHS TAB:[[Header]]
+LOCAL PATH[[Header]]             the folders scanned for music (several, plus "+ new path")
+DOWNLOAD PATH[[Header]]          where [y] saves streams
+PLAYLIST PATH[[Header]]          one folder for all playlists
+PLAYLIST EXPORT PATH[[Header]]   where [e] writes M3U8 / M3U
+HISTORY PATH[[Header]]           holds history.json
+CONVERSION EXPORT PATH[[Header]] where converted files go
+AUDIO BOOK PATH[[Header]]        (last row) one folder; every folder in it with audio files is one book. A .cue file
+                       beside each book keeps its narrator, publisher and year. The player's library leaves
+                       these files out (also from its searches): the book folder may lie INSIDE a music
+                       folder, but may not BE one (a conflict message says so).
+
+BOOKMARKS:[[Header]] (audio book mode only) Ask for Bookmark: on = leaving a chapter, the mode or the program asks
+first whether to set a bookmark (the audio pauses meanwhile); off = only [SHIFT+b] sets one.
+
+In the audio book mode the ON/OFF and ANIMA/VIZ tabs only show what a book needs (no lyrics, no disk speed,
+no TRANSLITERATION category). The audio book mode has its own look: colours and theme, elements,
+visualizations, borders, play mode and sound are kept in audiobook_config.txt, apart from the player and the
+radio. Paths, hotkeys, the mode switches and the like are the same in all three modes (config.txt).
+Changing LOCAL PATH rescans at once. Changing the playlist or history folder copies what is there; nothing
+is moved or deleted. Changed folders only stick when you save with [s]. A warning will appear in case you
+have unsaved changes.
 
 
 [[New Page]]
@@ -1283,7 +1348,8 @@ WHAT THE RADIO SHARES WITH THE PLAYER: [[Header]]
 Equalizer [SHIFT+e], oscilloscope [SHIFT+o] / [SHIFT+0], spectrogram [SHIFT+i] / [SHIFT+u], scope and
 spectrogram windows [)] / [(], loudness normalization [v] / [SHIFT+v], sleep timer [SHIFT+z], text fields,
 the cheat sheet [?] and this wizard [SHIFT+w] work with the same keys and overlays as described in
-chapters 5 to 8. Differences: the radio keeps its own equalizer curve, oscilloscope values and
+)WIZ",
+R"WIZ(chapters 5 to 8. Differences: the radio keeps its own equalizer curve, oscilloscope values and
 settings in radio_config.txt; the sleep timer stops the stream (no "Stop after current song"); the
 visualization field is the scope block right of the station info and [,/.] cycles oscilloscope,
 sphere and spectrogram (there are no lyrics).
@@ -1359,8 +1425,7 @@ The search is fuzzy and typo tolerant; the characters - _ . / count as spaces.
 FINDING NEW STATIONS: THE RADIO BROWSER: [[Header]]
 [SHIFT+s] searches the public directory radio-browser.info (needs curl).
 Fields: NAME, TAGS (comma separated, every tag has to match), COUNTRY (name or two-letter code), STATE,
-)WIZ",
-R"WIZ(LANGUAGE, BITRATE (128 = at least 128, 64-192 = range, -192 = at most), then the RESULTS.
+LANGUAGE, BITRATE (128 = at least 128, 64-192 = range, -192 = at most), then the RESULTS.
 [TAB]    NAME > TAGS > COUNTRY > STATE > LANGUAGE > BITRATE > RESULTS > NAME
 [ENTER]  in a field: search. In RESULTS: tune the station.
 [a]      in RESULTS: add it to your station list (a dot in front means you already have it)
@@ -1431,7 +1496,8 @@ RECORD, INCLUDING THE MINUTES BEFORE YOU PRESSED: [[Header]]
 A row says "only m:ss" when the buffer does not reach that far back and then starts at the oldest audio.
 
 [UP]/[DOWN] choose   [ENTER] or [y] start   [ESC] cancel   [y] again while it runs: stop
-While it runs the footer of the dial shows REC mm:ss.
+)WIZ",
+R"WIZ(While it runs the footer of the dial shows REC mm:ss.
 
 WHAT YOU GET: [[Header]]
 The recording is written from the buffer as a WAV, which ffmpeg then converts in the background to
@@ -1511,8 +1577,7 @@ AUDIO BOOK PATH      the player's audio book folder (kept in the player's config
 Changed folders are copied, never moved, and nothing is deleted. Playback stops and everything reloads.
 
 REFERENCE: REBINDING THE KEYS OF THE RADIO: [[Header]]
-)WIZ",
-R"WIZ(The keys that are not hard coded, grouped like the player's: PLAYBACK, MENUS, TIMESHIFT and SYSTEM.
+The keys that are not hard coded, grouped like the player's: PLAYBACK, MENUS, TIMESHIFT and SYSTEM.
 [ENTER]  on a row, then type one character (case matters) or SPACE / TAB / BACKSPACE
 [DEL]    restore the default of that key
 [CTRL+SHIFT+u]  undo the last five key changes
@@ -1571,7 +1636,8 @@ THE DEFAULT PICTURE: [[Header]]
 An image of a women rading a book (a grey version of a colour picture) takes the place of the disk. 
 It is drawn as small braille dots (a 60 x 60 dot field) and stays still; the colour wave of the 
 radio's ON AIR sign runs over it diagonally, from the upper left to the lower right. In a terminal 
-with Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm ...) it is a real transparent 
+)WIZ",
+R"WIZ(with Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm ...) it is a real transparent 
 image at full pixel resolution instead of braille dots (a terminal without them gets the braille 
 version, which does not look nice though, to be honest). The original of the beautiful default 
 image is done by Kamara Rahmat (iyaniyan; taken from Unsplash).
@@ -1637,8 +1703,7 @@ Before the chapter changes ([n], [b], [ENTER] on another one), the mode switches
 question asks "Set a bookmark here?" with the exact time: [y]/[ENTER] yes, [n] no, [ESC] stay.
 The audio is paused while the question is open. Settings -> ON/OFF -> BOOKMARKS -> Ask for Bookmark 
 turns it off, since it can become annoying and auto-mark is always on anyways.
-)WIZ",
-R"WIZ(
+
 [ENTER] on a chapter that was left but not bookmarked asks "Do you want to continue where you left?":
   [y] Continue there (the only answer that starts the chapter)   
   [n] Leave, keep the auto-mark, nothing is played
@@ -1693,7 +1758,8 @@ book, chapter, time; the newest first, notes last.
 BIG LIBRARY OVERLAY [SHIFT+s]: [[Header]] 
 It has a search pane on top ([/] types, the words narrow the list) and the audio book pane below it.
 [ENTER] / [->] on a book opens it and inserts its chapters below it, [<-] or [ESC] closes it; 
-               a diamond marks a bookmark.
+)WIZ",
+R"WIZ(               a diamond marks a bookmark.
 [ENTER]        on a chapter plays it (the bookmark question first), [CTRL+p] plays it from its start 
                and the overlay stays,
 [f]            opens the book in the chapter pane.
@@ -1766,8 +1832,7 @@ PHONE BROWSER: [[Header]] open the address and enter the PIN.
 The phone shows the disk, the meta data, the progress bar, the dummy buttons (working: seek,
 play/pause) and boxes for prev, random, next, volume, mute, playback mode, LISTS and manual --
 drawn by Mousiki in the colours of your theme. In the radio: the ON AIR sign, the station,
-)WIZ",
-R"WIZ(prev/next station, pause, live, stop.
+prev/next station, pause, live, stop.
 
 LISTS (player): on top the local list (tap a title: it plays), below the saved playlists (tap one: its titles
 go into the queue, starts it when nothing plays). A tap on the other list gives it the focus; UP / DOWN

@@ -23,7 +23,7 @@ namespace {
 // small helpers
 // ---------------------------------------------------------------------------------------------------
 
-// One UTF-8 character per element (a column each: the wizard text only uses narrow characters).
+// One UTF-8 character per element (a wide character gets a second, empty cell in parse_cells(): a cell is a column).
 std::vector<std::string> utf8_chars(const std::string& s) {
     std::vector<std::string> out;
     for (size_t i = 0; i < s.size();) {
@@ -35,6 +35,17 @@ std::vector<std::string> utf8_chars(const std::string& s) {
         i += n;
     }
     return out;
+}
+
+// Is this UTF-8 character two columns wide (Chinese / Japanese / Korean letters, full-width forms)?
+bool wide_char(const std::string& ch) {
+    if (ch.size() < 3) return false;
+    const unsigned char c0 = static_cast<unsigned char>(ch[0]);
+    char32_t cp = 0;
+    if (c0 >= 0xF0 && ch.size() >= 4) cp = ((c0 & 0x07) << 18) | ((static_cast<unsigned char>(ch[1]) & 0x3F) << 12) | ((static_cast<unsigned char>(ch[2]) & 0x3F) << 6) | (static_cast<unsigned char>(ch[3]) & 0x3F);
+    else if (c0 >= 0xE0) cp = ((c0 & 0x0F) << 12) | ((static_cast<unsigned char>(ch[1]) & 0x3F) << 6) | (static_cast<unsigned char>(ch[2]) & 0x3F);
+    return (cp >= 0x1100 && cp <= 0x115F) || (cp >= 0x2E80 && cp <= 0xA4CF) || (cp >= 0xAC00 && cp <= 0xD7A3) || (cp >= 0xF900 && cp <= 0xFAFF)
+        || (cp >= 0xFE30 && cp <= 0xFE6F) || (cp >= 0xFF00 && cp <= 0xFF60) || (cp >= 0xFFE0 && cp <= 0xFFE6) || (cp >= 0x20000 && cp <= 0x3FFFD);
 }
 
 int cp_len(const std::string& s) {
@@ -135,7 +146,7 @@ void apply_marker(std::vector<Cell>& cells, size_t seg_start, Role role, bool to
         const bool title_case = c0 >= 'A' && c0 <= 'Z';
         bool take = false, stop_after = false;
         if (first) { take = !has_lower || title_case; stop_after = has_lower; }   // "WIZARD !!!" or a single "Settings"
-        else take = !has_lower && has_alnum;
+        else take = !has_lower && (has_alnum || (end - begin == 1 && (cells[begin].ch == "/" || cells[begin].ch == "&" || cells[begin].ch == "+")));   // "MAIN UI / AUDIO"
         if (!take) break;
         for (size_t k = begin; k < end; ++k) cells[k].role = role;
         end = begin;
@@ -152,7 +163,10 @@ std::vector<Cell> parse_cells(const std::string& line_in, bool toc_page) {
     const bool whole_kind = starts_with(lead, "=>") || starts_with(lead, "NOTE:");
     bool header_line = false;                      // [[Header_line]] somewhere in the line: all of it in the header colour
     auto push = [&](const std::string& text, Role r) {
-        for (const std::string& ch : utf8_chars(text)) cells.push_back({ch, r});
+        for (const std::string& ch : utf8_chars(text)) {
+            cells.push_back({ch, r});
+            if (wide_char(ch)) cells.push_back({"", r});   // (a wide letter takes two columns: one cell for each)
+        }
     };
     for (size_t i = 0; i < line.size();) {
         if (line.compare(i, 2, "[[") == 0) {
@@ -186,6 +200,7 @@ std::vector<Cell> parse_cells(const std::string& line_in, bool toc_page) {
         if (c >= 0xF0) n = 4; else if (c >= 0xE0) n = 3; else if (c >= 0xC0) n = 2;
         n = std::min(n, line.size() - i);
         cells.push_back({line.substr(i, n), Role::Text});
+        if (wide_char(line.substr(i, n))) cells.push_back({"", Role::Text});
         i += n;
     }
     while (!cells.empty() && cells.back().ch == " ") cells.pop_back();
@@ -455,7 +470,10 @@ Row to_row(const std::vector<Cell>& cells) {
 
 int row_width(const Row& r) {
     int w = 0;
-    for (const Span& s : r) w += cp_len(s.text);
+    for (const Span& s : r) {
+        w += cp_len(s.text);
+        for (const std::string& ch : utf8_chars(s.text)) if (wide_char(ch)) ++w;   // (a wide letter is two columns)
+    }
     return w;
 }
 
