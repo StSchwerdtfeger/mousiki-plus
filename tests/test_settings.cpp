@@ -4,6 +4,7 @@
 #include "themes.h"
 #include "app_internal.h"
 #include "scripts_env.h"
+#include "keyboard_layout.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -181,9 +182,14 @@ TEST(settings_terminal_size_defaults_and_round_trip) {
 TEST(settings_mode_keys_are_read_from_the_config) {
     mt::TempHome home;
     Settings s = load_settings();
-    CHECK_EQ(s.hotkeys["HKeyModeNext"], std::string("*"));
-    CHECK_EQ(s.hotkeys["HKeyModePrev"], std::string("_"));
-    CHECK_EQ(read_mode_config().key_next, static_cast<int>('*'));
+    // the default depends on the keyboard layout of the machine (' ; on US-style layouts, * _ elsewhere): whatever the
+    // layout is, the settings and the radio's reader agree, and the pair is one of the two documented ones
+    const std::string next = default_size_mode_key(true), prev = default_size_mode_key(false);
+    CHECK((next == "*" && prev == "_") || (next == "'" && prev == ";"));
+    CHECK_EQ(s.hotkeys["HKeyModeNext"], next);
+    CHECK_EQ(s.hotkeys["HKeyModePrev"], prev);
+    CHECK_EQ(read_mode_config().key_next, static_cast<int>(static_cast<unsigned char>(next[0])));
+    CHECK_EQ(read_mode_config().key_prev, static_cast<int>(static_cast<unsigned char>(prev[0])));
     s.hotkeys["HKeyModeNext"] = "J";
     s.hotkeys["HKeyModePrev"] = "";
     save_settings(s);

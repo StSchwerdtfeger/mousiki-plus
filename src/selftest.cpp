@@ -4,6 +4,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <cerrno>
+#include <cstdint>
 #if defined(_WIN32)
 #include <process.h>
 #else

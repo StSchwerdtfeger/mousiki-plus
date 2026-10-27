@@ -24,7 +24,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-USER_AGENT = "MousikiPlus/4.6 (https://github.com/StSchwerdtfeger/mousiki-plus; artist name lookup)"
+USER_AGENT = "MousikiPlus/4.7 (https://github.com/StSchwerdtfeger/mousiki-plus; artist name lookup)"
 MB_API = "https://musicbrainz.org/ws/2/artist/"
 TIMEOUT = 25
 
