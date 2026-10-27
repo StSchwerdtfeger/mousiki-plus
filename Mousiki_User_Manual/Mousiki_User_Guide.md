@@ -1,4 +1,4 @@
-# Mousiki User Guide v4.7.0 (Windows · Linux · macOS) – music player, radio and audio book player
+# Mousiki User Guide v4.7.1 (Windows · Linux · macOS) – music player, radio and audio book player
 
 ## Welcome: a quick tour
 
@@ -164,7 +164,7 @@ The key shown for each command is the **default binding**. Your own bindings may
 - **[15. Upgrades and your settings](#15-upgrades-and-your-settings)**
 - **[About this app](#about-this-app)**
   - [Original developer of v1.0](#original-developer-of-v10)
-  - [Windows port, incl. extensive modifications up to v4.7.0 (including the radio and audio book modes)](#windows-port-incl-extensive-modifications-up-to-v470-including-the-radio-and-audio-book-modes)
+  - [Windows port, incl. extensive modifications up to v4.7.1 (including the radio and audio book modes)](#windows-port-incl-extensive-modifications-up-to-v471-including-the-radio-and-audio-book-modes)
   - [Third-party software and licences](#third-party-software-and-licences)
   
 ---
@@ -2406,7 +2406,7 @@ In the radio, a live station has no length, so the position slider is off; the s
 
 ## 15. Upgrades and your settings
 
-**New version notice.** With **Update Notice** on (Settings -> ON/OFF -> MODES, `UpdateCheck=true`, the default), Mousiki asks the project's releases page once a day, in the background, whether a newer version exists and tells you **once per version** with a small window (*Mousiki 4.7.0 is out. You are using 4.6.0.* and the address of the release, plus the note that your configuration stays the same when you update by installing the newer version (a new command whose default key you already use for something else is left unbound, see Settings -> REFERENCE); for the portable versions the note says: unzip the new version over the old folder, or copy your `data` folder into the new one, and keep `portable.txt` next to the launcher (without it the configs in `data` are not found); `ESC` Close, `o` Go to release). It appears as soon as the main screen is showing (not on top of a menu or the help wizard). It never installs anything -- how to update depends on how you installed Mousiki (`winget upgrade`, `scoop update`, `brew upgrade`, the installer or the `.deb`). The answer is kept in `update_check.txt` in the config folder.
+**New version notice.** With **Update Notice** on (Settings -> ON/OFF -> MODES, `UpdateCheck=true`, the default), Mousiki asks the project's releases page once a day, in the background, whether a newer version exists and tells you **once per version** with a small window (*Mousiki 4.7.1 is out. You are using 4.6.0.* and the address of the release, plus the note that your configuration stays the same when you update by installing the newer version (a new command whose default key you already use for something else is left unbound, see Settings -> REFERENCE); for the portable versions the note says: unzip the new version over the old folder, or copy your `data` folder into the new one, and keep `portable.txt` next to the launcher (without it the configs in `data` are not found); `ESC` Close, `o` Go to release). It appears as soon as the main screen is showing (not on top of a menu or the help wizard). It never installs anything -- how to update depends on how you installed Mousiki (`winget upgrade`, `scoop update`, `brew upgrade`, the installer or the `.deb`). The answer is kept in `update_check.txt` in the config folder.
 
 Installing a new version never deletes your settings (`config.txt`, `radio_config.txt` ... live in the config folder, not in the program folder). The first time a new version saves a settings file, the previous file is kept as **`config.txt.bak`** / **`radio_config.txt.bak`** next to it (one backup, replaced at the next upgrade), so you can go back if something looks wrong. The files carry a `# Written by Mousiki v...` line for that.
 
@@ -2422,12 +2422,12 @@ Installing a new version never deletes your settings (`config.txt`, `radio_confi
 | **Email** | itz.ender5820@gmail.com | **Version** | original and final v1.0 |
 | | | **Licence** | Apache Licence 2.0 |
 
-### Windows port, incl. extensive modifications up to v4.7.0 (including the radio and audio book modes)
+### Windows port, incl. extensive modifications up to v4.7.1 (including the radio and audio book modes)
 
 | | | | |
 |---|---|---|---|
 | **Developer** | Steffen Schwerdtfeger | **GitHub** | [StSchwerdtfeger](https://github.com/StSchwerdtfeger) |
-| **Email** | fanti.blub@gmail.com | **Version** | current v4.7.0 |
+| **Email** | fanti.blub@gmail.com | **Version** | current v4.7.1 |
 | | | **Licence** | Apache Licence 2.0 |
 
 ### Third-party software and licences
