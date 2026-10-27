@@ -325,6 +325,12 @@ private:
     bool queue_find_edit_ = false;                 // the caret is in the bar
     static constexpr int kQueueSearchRows = 3;     // the bar's box
     bool queue_find_match(const std::string& query, size_t idx) const;
+    // Every tag of the queue's local files (also the ones no screen shows), read by ffprobe in the background once the search
+    // starts; queue_find_match() looks in it as soon as a file's tags are in.
+    void queue_all_tags_resolve();
+    mutable std::unordered_map<std::string, std::string> queue_all_tags_;   // path -> all tag values (guarded by row_meta_mutex_)
+    std::unordered_set<std::string> queue_all_tags_asked_;                   // paths already handed to the thread (UI thread only)
+    std::atomic<bool> queue_all_tags_busy_{false};
     void queue_find_jump(int dir);                 // dir 0: the first match from the cursor on, 1 next, -1 previous (wraps)
     int queue_find_count() const;
     void queue_find_key(int key);

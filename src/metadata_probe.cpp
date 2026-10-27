@@ -178,6 +178,27 @@ static TrackMetadata probe_metadata_impl(const fs::path& file, const std::string
 }
 
 // Tracker modules and chiptunes: what the side file next to them holds is put over what the file itself reports.
+std::string probe_all_tag_text(const fs::path& file) {
+    // no names after format_tags / stream_tags: ffprobe prints every tag it finds (stream tags too: Ogg / Opus keep them there)
+    const std::string cmd = "ffprobe -v error -show_entries format_tags:stream_tags -of default=noprint_wrappers=1 " + shell_quote(path_utf8(file));
+    const ProcResult r = run_capture(cmd);
+    std::string all;
+    std::istringstream stream(r.out);
+    std::string line;
+    while (std::getline(stream, line)) {
+        const auto eq = line.find('=');
+        if (eq == std::string::npos || line.compare(0, 4, "TAG:") != 0) continue;
+        std::string val = line.substr(eq + 1);
+        if (!val.empty() && val.back() == '\r') val.pop_back();
+        if (val.empty() || val == "N/A" || val.size() > 400) continue;   // (a whole lyrics text is not worth searching here)
+        val = clean_tag_text(val);
+        if (val.empty()) continue;
+        if (!all.empty()) all += " | ";
+        all += val;
+    }
+    return all;
+}
+
 RowMeta probe_row_meta(const fs::path& file) {
     RowMeta rm = probe_row_meta_impl(file);
     chipmeta::overlay(file, rm.artist, rm.title, rm.album, rm.year);

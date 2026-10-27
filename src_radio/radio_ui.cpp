@@ -3914,7 +3914,7 @@ std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus&
             hits.push_back({vis(tabs), static_cast<int>(name.size()), m == 1 ? "" : (i == (mypos + 1) % 3 ? "1" : "-1")});
             tabs += ansi_fg(m == 1 ? cfg.tab_current : cfg.tab_other) + name + kReset;
         }
-        const std::string hint = s.legend + "[*] switch" + kReset;
+        const std::string hint = s.legend + "Switch >>" + kReset;
         row(tabs + spaces(inner - vis(tabs) - vis(hint)) + hint);
         const int ty = static_cast<int>(out.size()) - 1;
         for (const Tab& t : hits) if (*t.arg) zones.push_back({2 + t.x, ty, t.w, 1, "switch-mode", t.arg});

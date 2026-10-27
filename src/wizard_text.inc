@@ -448,7 +448,8 @@ The order can be adjusted and queues can be saved as playlist.
 
 GENERAL: [[Header]]
 [SHIFT+k]       open the big queue overlay (full size queue list)
-                [/] there: search bar at the bottom, matches are marked ([UP/DOWN] jump)
+                [/] there: search bar at the bottom, matches are marked ([UP/DOWN] jump);
+                it searches all tags of the files, also those no screen shows
 [SHIFT+l]       open the big list  overlay (full size list)
 [SHIFT+UP/DOWN] jump a whole page up/down  (or [PgUp] / [PgDn])
 
@@ -540,9 +541,9 @@ FETCHING META DATA OF SINGLE TRACKS (POSSIBLE IN BOTH TABS)[[Header]]
 GENERAL BEHAVIOR OF META DATA EDITOR:[[Header]]
 Every change goes into a pending edit session, autosaved after each keystroke.
 Closing the editor, quitting, even a crash keeps it. Edited fields and their
-library rows are drawn in the header colour, so you can see what will be written.
 )WIZ",
-R"WIZ(Also, when fetching takes a while and you exit the meta data menu, fetching does
+R"WIZ(library rows are drawn in the header colour, so you can see what will be written.
+Also, when fetching takes a while and you exit the meta data menu, fetching does
 not stop, will continue in the background.
 Only [CTRL+s] writes to the files, and it asks if you want to keep changes. Same
 goes for [CTRL+SHIFT+x] for discarding changes (not only the recent but all

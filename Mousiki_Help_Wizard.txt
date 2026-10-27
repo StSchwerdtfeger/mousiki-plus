@@ -444,7 +444,8 @@ The order can be adjusted and queues can be saved as playlist.
 
 GENERAL: [[Header]]
 [SHIFT+k]       open the big queue overlay (full size queue list)
-                [/] there: search bar at the bottom, matches are marked ([UP/DOWN] jump)
+                [/] there: search bar at the bottom, matches are marked ([UP/DOWN] jump);
+                it searches all tags of the files, also those no screen shows
 [SHIFT+l]       open the big list  overlay (full size list)
 [SHIFT+UP/DOWN] jump a whole page up/down  (or [PgUp] / [PgDn])
 

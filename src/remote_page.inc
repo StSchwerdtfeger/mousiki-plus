@@ -75,7 +75,8 @@ buildPalette();
 // ---- terminal text -> cells ------------------------------------------------------------------------------------------
 // display width of a code point (0 = joins the previous cell, 2 = takes two cells), close to what Mousiki counts
 function cpWidth(cp) {
-  if (cp === 0x200D || (cp >= 0x300 && cp <= 0x36F) || (cp >= 0xFE00 && cp <= 0xFE0F) || cp === 0x20E3) return 0;
+  if (cp === 0x200D || (cp >= 0x300 && cp <= 0x36F) || (cp >= 0xFE00 && cp <= 0xFE0F) || cp === 0x20E3 ||
+      (cp >= 0x302A && cp <= 0x302D) || cp === 0x3099 || cp === 0x309A) return 0;   // the kana voiced marks of decomposed (NFD) Japanese join the cell before
   if ((cp >= 0x1100 && cp <= 0x115F) || (cp >= 0x2E80 && cp <= 0x303E) || (cp >= 0x3041 && cp <= 0x33FF) ||
       (cp >= 0x3400 && cp <= 0x4DBF) || (cp >= 0x4E00 && cp <= 0x9FFF) || (cp >= 0xA000 && cp <= 0xA4CF) ||
       (cp >= 0xAC00 && cp <= 0xD7A3) || (cp >= 0xF900 && cp <= 0xFAFF) || (cp >= 0xFE30 && cp <= 0xFE4F) ||
@@ -121,7 +122,12 @@ function parseLine(s) {
     i += len;
     if (ch < 0x20) continue;
     const w = cpWidth(ch);
-    if (w === 0) { if (cells.length) cells[cells.length - 1].ch += String.fromCodePoint(ch); continue; }
+    if (w === 0) {   // joins the character before it (after a wide one the last entry is its empty second half)
+      let k = cells.length - 1;
+      while (k >= 0 && !cells[k]) k--;
+      if (k >= 0) cells[k].ch += String.fromCodePoint(ch);
+      continue;
+    }
     cells.push({ ch: String.fromCodePoint(ch), cp: ch, fg, bg, bold, dim, ul, inv, wide: w === 2 });
     if (w === 2) cells.push(null);                    // the second half of a wide character
   }
@@ -133,12 +139,12 @@ const box = document.getElementById("box");
 const cv = document.getElementById("c");
 const ctx = cv.getContext("2d");
 let cols = BASE_COLS, rows = MIN_ROWS, cw = 9, ch = 18, ox = 0, oy = 0, dpr = 1, fontPx = 14, fontYOff = 0;
-let screen = null;        // the last screen from Mousiki: {rev, mode, cols, rows, lines, zones}
+)WEB",
+R"WEB(let screen = null;        // the last screen from Mousiki: {rev, mode, cols, rows, lines, zones}
 let grid = [];            // its cells
 let overlay = null;       // a panel of this page on top of the screen (PIN, menu, connection lost)
 let shown = null;         // the last picture that finished loading (kept while the next, turning one is fetched)
-)WEB",
-R"WEB(let picture = null;       // the picture of the screen (the audio book cover): {key, img, x, y, w, h}
+let picture = null;       // the picture of the screen (the audio book cover): {key, img, x, y, w, h}
 let flash = null;         // the tapped zone, lit for a moment
 
 function layout() {
@@ -299,15 +305,15 @@ function draw() {
   }
   if (flash && !overlay) {
     ctx.fillStyle = "rgba(255,255,255,0.22)";
-    ctx.fillRect(ox + flash.x * cw, oy + flash.y * ch, flash.w * cw, flash.h * ch);
+)WEB",
+R"WEB(    ctx.fillRect(ox + flash.x * cw, oy + flash.y * ch, flash.w * cw, flash.h * ch);
   }
   if (overlay) paintCells(overlay.cells, false);
 }
 
 // ---- panels of this page (drawn with the same look) -----------------------------------------------------------------
 const C = { border: "\x1b[38;5;170m", bottom: "\x1b[38;5;104m", head: "\x1b[1;38;5;10m", legend: "\x1b[38;5;8m",
-)WEB",
-R"WEB(            text: "\x1b[38;5;7m", field: "\x1b[38;5;15;48;5;238m", warn: "\x1b[38;5;203m", R: "\x1b[0m" };
+            text: "\x1b[38;5;7m", field: "\x1b[38;5;15;48;5;238m", warn: "\x1b[38;5;203m", R: "\x1b[0m" };
 function plainWidth(s) { return parseLine(s).length; }
 // a centred panel: title + lines (each "text" or {t: text, cmd: "..."}); returns {cells, zones}
 function panel(title, items, wantW) {
@@ -497,7 +503,8 @@ cv.addEventListener("pointerup", e => {
     return;
   }
   if (APP && APP.haptic) APP.haptic(); else if (navigator.vibrate) navigator.vibrate(8);
-  if (!overlay && !z.cmd.startsWith("@")) {
+)WEB",
+R"WEB(  if (!overlay && !z.cmd.startsWith("@")) {
     flash = z; draw();
     setTimeout(() => { flash = null; draw(); }, 140);
   }
@@ -506,8 +513,7 @@ cv.addEventListener("pointerup", e => {
 // long press anywhere: the remote's own settings
 let pressTimer = 0;
 cv.addEventListener("pointerdown", () => { clearTimeout(pressTimer); pressTimer = setTimeout(() => { if (!overlay) showMenu(); }, 700); });
-)WEB",
-R"WEB(["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, () => clearTimeout(pressTimer)));
+["pointerup", "pointercancel", "pointerleave"].forEach(ev => cv.addEventListener(ev, () => clearTimeout(pressTimer)));
 
 document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 window.addEventListener("resize", layout);

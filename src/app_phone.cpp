@@ -282,7 +282,7 @@ std::vector<std::string> App::build_phone_screen(int W, int H, std::vector<remot
             hits.push_back({vis(tabs), static_cast<int>(name.size()), m == me ? "" : (i == (mypos + 1) % 3 ? "1" : (i == (mypos + 2) % 3 ? "-1" : "1"))});
             tabs += (m == me ? cur : other) + name + kR;
         }
-        const std::string hint = legend + "[" + hotkey_text("HKeyModeNext", "*") + "] switch" + kR;
+        const std::string hint = legend + "Switch >>" + kR;   // a tap target: the computer's key (SHIFT and +) means nothing on a phone
         row(tabs + blanks(inner - vis(tabs) - vis(hint)) + hint);
         const int ty = static_cast<int>(out.size()) - 1;
         for (const Tab& t : hits) if (*t.arg) zones.push_back({2 + t.x, ty, t.w, 1, "switch-mode", t.arg});

@@ -46,6 +46,10 @@ struct RowMeta {
 };
 RowMeta probe_row_meta(const fs::path& file);
 
+// EVERY tag of the file (title, artist, album artist, genre, composer, comment, label, ... whatever the container holds, also
+// the ones no screen shows) as one text, the values separated by " | ". One ffprobe call; "" when there is none. For the queue search.
+std::string probe_all_tag_text(const fs::path& file);
+
 TrackMetadata probe_metadata(const fs::path& file, const std::string& fallback_name,
                               const std::string& fallback_artist, const std::string& location_label);
 

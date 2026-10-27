@@ -107,12 +107,46 @@ void App::queue_overlay_close() {
 }
 
 // ---- the search bar of the queue overlay ---------------------------------------------------------------------------
-// A queue entry matches when its title + artist match the query (the same typo tolerant search as the library's).
+// A queue entry matches when the query is found (the same typo tolerant search as the library's) in its title, artist, album,
+// year, file name, the names of its folders, the tags the program has read for the lists and EVERY other tag of the file
+// (album artist, genre, composer, comment, ...: also the ones no screen shows; read in the background, see queue_all_tags_resolve()).
 bool App::queue_find_match(const std::string& query, size_t idx) const {
     if (idx >= queue_.size() || query.empty()) return false;
     const auto& q = queue_[idx];
-    const std::string title = q.is_local ? list_row_title(q.local_path, q.title) : q.title;
-    return fuzzy_score(query, with_latin_spelling(title + " " + q.artist)) > 0.0;
+    std::string hay = (q.is_local ? list_row_title(q.local_path, q.title) : q.title) + " " + q.artist;
+    if (q.is_local) {
+        const std::string key = path_utf8(q.local_path);
+        {
+            std::lock_guard<std::mutex> lk(row_meta_mutex_);
+            const auto it = row_meta_cache_.find(key);
+            if (it != row_meta_cache_.end()) hay += " " + it->second.artist + " " + it->second.title + " " + it->second.album + " " + it->second.year;
+            const auto all = queue_all_tags_.find(key);
+            if (all != queue_all_tags_.end()) hay += " " + all->second;
+        }
+        hay += " " + path_utf8(q.local_path.stem());
+        const fs::path dir = q.local_path.parent_path();
+        hay += " " + path_utf8(dir.filename()) + " " + path_utf8(dir.parent_path().filename());
+    }
+    return fuzzy_score(query, with_latin_spelling(hay)) > 0.0;
+}
+
+void App::queue_all_tags_resolve() {
+    auto paths = std::make_shared<std::vector<fs::path>>();
+    for (const auto& q : queue_) {
+        if (!q.is_local) continue;
+        if (queue_all_tags_asked_.insert(path_utf8(q.local_path)).second) paths->push_back(q.local_path);
+    }
+    if (paths->empty()) return;
+    std::thread([this, paths]() { run_guarded("queue tags", [&] {
+        for (const fs::path& p : *paths) {
+            std::string text = probe_all_tag_text(p);
+            {
+                std::lock_guard<std::mutex> lk(row_meta_mutex_);
+                queue_all_tags_[path_utf8(p)] = std::move(text);
+            }
+            row_meta_tags_version_.fetch_add(1, std::memory_order_relaxed);   // the screen is drawn again with the new matches
+        }
+    }); }).detach();
 }
 
 int App::queue_find_count() const {
@@ -149,7 +183,10 @@ void App::queue_find_key(int key) {
     if (arrow && (key == 'A' || key == 'B')) { queue_find_jump(key == 'A' ? -1 : 1); return; }
     edit_focus("queue-find", queue_find_);
     text_engage("queue-find");
-    if (edit_text_key(queue_find_, edit_caret_, edit_anchor_, key, 120, &status_line_)) queue_find_jump(0);
+    if (edit_text_key(queue_find_, edit_caret_, edit_anchor_, key, 120, &status_line_)) {
+        if (!queue_find_.empty()) queue_all_tags_resolve();   // (every tag of the queue's files, once)
+        queue_find_jump(0);
+    }
 }
 
 // One page up/down; same behaviour as list_overlay_page(): the cursor keeps

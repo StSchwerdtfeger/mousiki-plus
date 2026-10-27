@@ -73,7 +73,8 @@ buildPalette();
 // ---- terminal text -> cells ------------------------------------------------------------------------------------------
 // display width of a code point (0 = joins the previous cell, 2 = takes two cells), close to what Mousiki counts
 function cpWidth(cp) {
-  if (cp === 0x200D || (cp >= 0x300 && cp <= 0x36F) || (cp >= 0xFE00 && cp <= 0xFE0F) || cp === 0x20E3) return 0;
+  if (cp === 0x200D || (cp >= 0x300 && cp <= 0x36F) || (cp >= 0xFE00 && cp <= 0xFE0F) || cp === 0x20E3 ||
+      (cp >= 0x302A && cp <= 0x302D) || cp === 0x3099 || cp === 0x309A) return 0;   // the kana voiced marks of decomposed (NFD) Japanese join the cell before
   if ((cp >= 0x1100 && cp <= 0x115F) || (cp >= 0x2E80 && cp <= 0x303E) || (cp >= 0x3041 && cp <= 0x33FF) ||
       (cp >= 0x3400 && cp <= 0x4DBF) || (cp >= 0x4E00 && cp <= 0x9FFF) || (cp >= 0xA000 && cp <= 0xA4CF) ||
       (cp >= 0xAC00 && cp <= 0xD7A3) || (cp >= 0xF900 && cp <= 0xFAFF) || (cp >= 0xFE30 && cp <= 0xFE4F) ||
@@ -119,7 +120,12 @@ function parseLine(s) {
     i += len;
     if (ch < 0x20) continue;
     const w = cpWidth(ch);
-    if (w === 0) { if (cells.length) cells[cells.length - 1].ch += String.fromCodePoint(ch); continue; }
+    if (w === 0) {   // joins the character before it (after a wide one the last entry is its empty second half)
+      let k = cells.length - 1;
+      while (k >= 0 && !cells[k]) k--;
+      if (k >= 0) cells[k].ch += String.fromCodePoint(ch);
+      continue;
+    }
     cells.push({ ch: String.fromCodePoint(ch), cp: ch, fg, bg, bold, dim, ul, inv, wide: w === 2 });
     if (w === 2) cells.push(null);                    // the second half of a wide character
   }
