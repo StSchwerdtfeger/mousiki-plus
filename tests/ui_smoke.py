@@ -101,7 +101,12 @@ class Session:
                 self.stream.feed(data)
 
     def send(self, keys, wait=0.8):
-        os.write(self.fd, keys if isinstance(keys, bytes) else keys.encode())
+        try:
+            os.write(self.fd, keys if isinstance(keys, bytes) else keys.encode())
+        except OSError:
+            # the program has just ended and closed its terminal (macOS reports EIO on the write; the quit test
+            # sends a key while the program is on its way out): nothing left to send to
+            return
         self.pump(wait)
 
     def text(self):
@@ -176,14 +181,25 @@ def kitty_cover_options(binary, home, scripts):
             sess.send(b"\x1b[B", 0.15)
         sess.send(b"\r", 1.5)
         check("COVER OPTIONS" in sess.text(), "kitty cover options: the overlay opens")
+        def picture_after(mark, wait):
+            """True when a picture (Kitty graphics transmit) arrives within `wait` seconds after `mark`: the preview is
+            decoded in the background, so on a slow machine it comes late."""
+            end = time.time() + wait
+            while time.time() < end:
+                if b"\x1b_Ga=T" in sess.raw[mark:]:
+                    return True
+                sess.pump(0.25)
+            return b"\x1b_Ga=T" in sess.raw[mark:]
+
         mark = len(sess.raw)
         sess.send(b"\x1b[B", 0.5)
         sess.send(b"\x1b[B", 0.8)   # automatic -> no cover -> cover.png
-        shows_picture = b"\x1b_Ga=T" in sess.raw[mark:]
+        shows_picture = picture_after(mark, 10.0)
+        check(shows_picture, "kitty cover options: the preview of a picture is a real picture")
         for _ in range(3):           # every [t] flips between picture and braille
             mark = len(sess.raw)
-            sess.send("t", 1.5)
-            now = b"\x1b_Ga=T" in sess.raw[mark:]
+            sess.send("t", 0.5)
+            now = picture_after(mark, 10.0 if not shows_picture else 2.5)   # expecting a picture: wait for it; braille: nothing may come
             check(now != shows_picture,
                   "kitty cover options: [t] switches the preview to %s" % ("braille (ASCII)" if shows_picture else "a picture"))
             shows_picture = now
@@ -395,7 +411,11 @@ def karaoke_timing(binary, root, scripts):
                 break
             sess.pump(0.5)
         check("KARAOKE" in sess.text() and "lyric line" in sess.text(), "karaoke timing: the karaoke screen shows the lyrics")
-        sess.send(b"\x1bl", 1.5)
+        for _ in range(6):   # the key is ignored until the lyrics are loaded: try again for a few seconds
+            sess.send(b"\x1bl", 1.5)
+            if "Lyrics Timing" in sess.text():
+                break
+            sess.pump(1.0)
         check("Lyrics Timing" in sess.text() and "KARAOKE" in sess.text(), "karaoke timing: ALT+L opens the timing overlay on top of the karaoke screen")
         sess.send(b"\x1b", 1.5)
         check("KARAOKE" in sess.text() and "Lyrics Timing" not in sess.text(), "karaoke timing: ESC closes the overlay and the karaoke screen is back")

@@ -297,3 +297,7 @@ Karaoke: the lyrics timing overlay (`HKeyLyricsTiming`, default `ALT+L`; `SHIFT+
 - **Security hardening (CodeQL findings).** `mousiki --selftest-fetch` no longer builds a shell command line: Python is started directly with an argument list (fork/exec, `_spawnvp` on Windows), so neither the script path nor an option can inject a command. The `MOUSIKI_SCRIPTS_DIR` override (player and radio) is now checked before use: it has to be an absolute path to an existing folder without `..` parts, and the script has to be a regular file in it (`src/scripts_env.h`); a relative value is refused.
 
 - **Test fix (CI).** `settings_mode_keys_are_read_from_the_config` expected `*` / `_` as the mode keys, but the default is `'` / `;` on a US-style keyboard layout, which the GitHub runners have: the test now compares with the layout's own default (`default_size_mode_key`).
+
+- **Test fix (macOS CI).** `tests/ui_smoke.py`: writing a key to the pseudo terminal of a program that had just ended raised `OSError: Input/output error` on macOS (the quit test sends a "y" while the program is on its way out); the harness now treats that as "nothing left to send to".
+
+- **Test fix (CI timing).** `tests/ui_smoke.py`: the Kitty cover options check waits up to 10 s for the preview picture instead of 1.5 s (the picture is decoded in the background and a slow runner missed it), and the karaoke timing check retries the key until the lyrics are loaded.
