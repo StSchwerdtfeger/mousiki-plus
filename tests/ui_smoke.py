@@ -380,13 +380,22 @@ def paging_and_translit_row(binary, root, scripts):
             sess.send(b"\x1b[B", 0.1)   # down to Translit. Kanji (rows 10 .. 17)
         def row():
             return find("Translit. Kanji")
+        def settle(word, limit=8.0):   # a slow machine draws the row a moment after the key: wait for it (up to `limit` s)
+            end = time.time() + limit
+            while word not in row() and time.time() < end:
+                sess.pump(0.3)
+        settle("Leave")
         check("Leave" in row(), "translit kanji: the row exists and reads Leave by default")
         sess.send(b"\x1b[C", 0.8)
+        settle("Chin.")
         check("Chin." in row(), "translit kanji: RIGHT cycles to Chin.")
         sess.send(b"\x1b[C", 0.8)
+        settle("Jap.")
         check("Jap." in row(), "translit kanji: RIGHT again cycles to Jap.")
         sess.send(b"\x1b[D", 0.8)
+        settle("Chin.")
         sess.send(b"\x1b[D", 0.8)
+        settle("Leave")
         check("Leave" in row(), "translit kanji: LEFT twice is back at Leave")
         sess.send(b"\x1b[6~", 0.8)   # PgDn in the settings: a page, like SHIFT+down
         check(sess.alive(), "paging: PgDn in the settings does not crash")
