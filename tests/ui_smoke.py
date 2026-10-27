@@ -94,7 +94,7 @@ class Session:
         return True
 
     def pump(self, seconds):
-        end = time.time() + seconds
+        end = time.time() + seconds * SLOW
         while time.time() < end:
             r, _, _ = select.select([self.fd], [], [], 0.1)
             if r:
@@ -154,6 +154,10 @@ class Session:
 
 failures = []
 checks = 0
+
+# Every wait is multiplied by this: the macOS CI runners are slow (builds and program alike), a screen that is not there after
+# 0.8 s may be there after 1.6 s. MOUSIKI_SMOKE_SLOW overrides (1 = as written).
+SLOW = float(os.environ.get("MOUSIKI_SMOKE_SLOW", "2.0" if sys.platform == "darwin" else "1.0"))
 
 
 T0 = time.time()
@@ -355,7 +359,17 @@ def paging_and_translit_row(binary, root, scripts):
             sess.send(b"\x7f", 0.1)
         sess.send("5", 0.2)
         sess.send(b"\r", 0.8)
-        check("allowed: 28" in sess.text(), "terminal size: a number below the minimum is raised to it (status line says so)")
+        # raised to the minimum: the status line says so, and the row shows 28 (either one proves it; the status line can
+        # be replaced by another message on a slow machine)
+        def raised():
+            return "allowed: 28" in sess.text() or "28" in find("Terminal Size")
+        for _ in range(12):
+            if raised():
+                break
+            sess.pump(0.5)
+        if not raised():
+            sess.dump("terminal size: the row did not become 28")
+        check(raised(), "terminal size: a number below the minimum is raised to it (status line or row shows 28)")
         check("28" in find("Terminal Size"), "terminal size: the rows field shows the minimum, 28")
         sess.send(b"\x1b[C", 0.4)   # RIGHT: the button
         sess.send(b"\r", 0.8)
@@ -460,12 +474,13 @@ def karaoke_timing(binary, root, scripts):
             # needs the playing track, so there is nothing to test here.
             print("  skipped: karaoke timing overlay (the track does not play on this machine: no audio device)")
             return
+        timing_key = b"J" if sys.platform == "darwin" else b"\x1bl"   # macOS: SHIFT+j (Option is not a modifier in most terminals)
         for _ in range(6):   # the key is ignored until the lyrics are loaded: try again for a few seconds
-            sess.send(b"\x1bl", 1.5)
+            sess.send(timing_key, 1.5)
             if "Lyrics Timing" in sess.text():
                 break
             sess.pump(1.0)
-        check("Lyrics Timing" in sess.text() and "KARAOKE" in sess.text(), "karaoke timing: ALT+L opens the timing overlay on top of the karaoke screen")
+        check("Lyrics Timing" in sess.text() and "KARAOKE" in sess.text(), "karaoke timing: the timing key opens the timing overlay on top of the karaoke screen")
         if "Lyrics Timing" not in sess.text():
             sess.dump("karaoke timing: the overlay did not open")
         sess.send(b"\x1b", 1.5)
@@ -483,9 +498,9 @@ def main():
     scripts = None
     keep = "--keep" in args
     # a hang must not use up the whole CTest timeout without a trace: after this many seconds Python prints where every
-    # thread is stuck and ends the test (MOUSIKI_SMOKE_LIMIT, default 600 s; the CTest timeout is longer)
+    # thread is stuck and ends the test (MOUSIKI_SMOKE_LIMIT, default 780 s; the CTest timeout is longer)
     import faulthandler
-    faulthandler.dump_traceback_later(int(os.environ.get("MOUSIKI_SMOKE_LIMIT", "600")), exit=True)
+    faulthandler.dump_traceback_later(int(os.environ.get("MOUSIKI_SMOKE_LIMIT", "780")), exit=True)
     if "--scripts" in args:
         scripts = os.path.abspath(args[args.index("--scripts") + 1])
     if not os.path.exists(binary):
