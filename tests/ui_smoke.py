@@ -16,6 +16,7 @@ Needs Linux or macOS and the Python package `pyte` (pip install pyte). Without t
 """
 import os
 import re
+import select
 import shutil
 import signal
 import struct
@@ -129,11 +130,26 @@ class Session:
         print("---- end of screen (alive=%s) ----" % self.alive())
 
     def kill(self):
+        # A blocking waitpid hung on macOS: the dying program can wait for its terminal output to be read (the pty buffer
+        # is full), so keep draining the master side while waiting, and give up after 10 s.
         try:
             os.kill(self.pid, signal.SIGKILL)
-            os.waitpid(self.pid, 0)
         except Exception:
-            pass
+            return
+        end = time.time() + 10
+        while time.time() < end:
+            try:
+                pid, _ = os.waitpid(self.pid, os.WNOHANG)
+                if pid:
+                    return
+            except Exception:
+                return
+            try:
+                if select.select([self.fd], [], [], 0.1)[0]:
+                    os.read(self.fd, 65536)
+            except Exception:
+                time.sleep(0.1)
+        print("warning: the program did not end after SIGKILL")
 
 
 failures = []

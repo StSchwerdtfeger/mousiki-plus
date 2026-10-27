@@ -70,17 +70,17 @@ TEST(wizard_search_finds_chapters_and_opens_them) {
     wizard::render(st, 120, 26, disk);
 }
 
-// A chapter without a page of its own that opens a part (9 "The Radio Main UI", 13 "The Audio Book Player") leads to the part's intro
-// page that stands right in front of its first page, not to 9.1 / 13.1 right away.
+// A chapter without a page of its own that opens a part (3.1 "The Radio Main UI", 4.1 "The Audio Book Player") leads to the part's intro
+// page that stands right in front of its first page, not to 3.1.1 / 4.1.1 right away.
 TEST(wizard_chapter_of_a_part_opens_the_part_page) {
     wizard::State st;
     wizard::open(st, false);
     const std::vector<std::string> disk;
     wizard::handle_key(st, wizard::Key::Contents);
     wizard::render(st, 120, 26, disk);
-    for (int i = 0; i < 41; ++i) wizard::handle_key(st, wizard::Key::Down);   // entry 41 = "9 The Radio Main UI"
+    for (int i = 0; i < 41; ++i) wizard::handle_key(st, wizard::Key::Down);   // entry 41 = "3.1 The Radio Main UI"
     wizard::handle_key(st, wizard::Key::Enter);
     const wizard::View v = wizard::render(st, 120, 26, disk);
-    CHECK(v.title.find("9.1") == std::string::npos);
+    CHECK(v.title.find("3.1.1") == std::string::npos);
     CHECK(v.title.find("RADIO PLAYER MODE") != std::string::npos);
 }

@@ -80,89 +80,89 @@ Version 1.0 — Apache 2.0 license
 [[New Page]]
 TABLE OF CONTENT: [[Header]]
 
-I Overview of the Capabilities of Mousiki Plus [[Header]]
+1 Overview of the Capabilities of Mousiki Plus [[Header]]
 
-II MUSIC PLAYER MODE[[Header]]
+2 MUSIC PLAYER MODE[[Header]]
 
-  1 Main UI [[Header]]
-   1.1 The Main Music Player UI and its Screen Panes
-   1.2 Music File Paths
-    1.2.1 Supported Formats
+  2.1 Main UI [[Header]]
+   2.1.1 The Main Music Player UI and its Screen Panes
+   2.1.2 Music File Paths
+    2.1.2.1 Supported Formats
 
-  2 Search, Filter and Download[[Header]]
-   2.1 Search and Filtering Capabilities
-   2.2 Download (Music Player)
+  2.2 Search, Filter and Download[[Header]]
+   2.2.1 Search and Filtering Capabilities
+   2.2.2 Download (Music Player)
 
-  3 Curating Your Files[[Header]]
-   3.1 Playback Modes
-   3.2 Building a Queue
-   3.3 Meta Data Editor (Edit / Fetch)
-    3.3.1 Edit Tab
-    3.3.2 Fetch Meta Data (AcoustID/MusicBrainz)
-   3.4 Playlist Editor/Creator (incl. Import/Export)
-   3.5 File Conversion
-   3.6 Cover Fetch (Album Covers)
+  2.3 Curating Your Files[[Header]]
+   2.3.1 Playback Modes
+   2.3.2 Building a Queue
+   2.3.3 Meta Data Editor (Edit / Fetch)
+    2.3.3.1 Edit Tab
+    2.3.3.2 Fetch Meta Data (AcoustID/MusicBrainz)
+   2.3.4 Playlist Editor/Creator (incl. Import/Export)
+   2.3.5 File Conversion
+   2.3.6 Cover Fetch (Album Covers)
 
-  4 Lyrics and Karaoke[[Header]]
-   4.1 Synced Lyrics
-   4.2 Lyrics Retry, Timing and Reading
-   4.3 Karaoke Mode
+  2.4 Lyrics and Karaoke[[Header]]
+   2.4.1 Synced Lyrics
+   2.4.2 Lyrics Retry, Timing and Reading
+   2.4.3 Karaoke Mode
 
-  5 Visualizations[[Header]]
-   5.1 The Visualization Field
-   5.2 Oscilloscope
-   5.3 Spectrogram and Extra Windows
-   5.4 Creator
+  2.5 Visualizations[[Header]]
+   2.5.1 The Visualization Field
+   2.5.2 Oscilloscope
+   2.5.3 Spectrogram and Extra Windows
+   2.5.4 Creator
 
-  6 Sound and Sleep Timer[[Header]]
-   6.1 Equalizer
-   6.2 Loudness Normalization and Stereo/Mono
-   6.3 Sample Rate and Playback Engine
-   6.4 Sleep Timer
+  2.6 Sound and Sleep Timer[[Header]]
+   2.6.1 Equalizer
+   2.6.2 Loudness Normalization and Stereo/Mono
+   2.6.3 Sample Rate and Playback Engine
+   2.6.4 Sleep Timer
 
-  7 History[[Header]]
-   7.1 Listening History
-   7.2 Smart History Lists
+  2.7 History[[Header]]
+   2.7.1 Listening History
+   2.7.2 Smart History Lists
 
-  8 Settings and Color Themes[[Header]]
-   8.1 Settings Basics
-   8.2 Colors and Color Themes
-   8.3 ON/OFF, ANIMA/VIZ and PATHS
-   8.4 Hotkeys, Reference and About
+  2.8 Settings and Color Themes[[Header]]
+   2.8.1 Settings Basics
+   2.8.2 Colors and Color Themes
+   2.8.3 ON/OFF, ANIMA/VIZ and PATHS
+   2.8.4 Hotkeys, Reference and About
 
-III RADIO PLAYER MODE[[Header]]
+3 RADIO PLAYER MODE[[Header]]
 
-  9 The Radio Main UI[[Header]]
-   9.1 The Radio Screen and its Keys
-   9.2 Presets
+  3.1 The Radio Main UI[[Header]]
+   3.1.1 The Radio Screen and its Keys
+   3.1.2 Presets
 
-  10 Finding Stations[[Header]]
-   10.1 Searching Stations and the Radio Browser
-   10.2 Station Lists
+  3.2 Finding Stations[[Header]]
+   3.2.1 Searching Stations and the Radio Browser
+   3.2.2 Station Lists
 
-  11 Timeshift, Recording and History[[Header]]
-   11.1 Timeshift
-   11.2 Recording
-   11.3 Radio History
+  3.3 Timeshift, Recording and History[[Header]]
+   3.3.1 Timeshift
+   3.3.2 Recording
+   3.3.3 Radio History
 
-  12 Radio Settings[[Header]]
-   12.1 Radio Settings: Colors, ON/OFF and ANIMA/VIZ
-   12.2 Radio Settings: Paths, Keys and Files
+  3.4 Radio Settings[[Header]]
+   3.4.1 Radio Settings: Colors, ON/OFF and ANIMA/VIZ
+   3.4.2 Radio Settings: Paths, Keys and Files
 
-IV AUDIO BOOK MODE[[Header]]
+4 AUDIO BOOK MODE[[Header]]
 
-  13 The Audio Book Player[[Header]]
-   13.1 The Audio Book Screen and its Keys
-   13.2 Book Tags
-   13.3 Bookmarks and Notes
-   13.4 List of Time Stamps, Library and Reading History
-   13.5 Chapter Marks and Cutting
+  4.1 The Audio Book Player[[Header]]
+   4.1.1 The Audio Book Screen and its Keys
+   4.1.2 Book Tags
+   4.1.3 Bookmarks and Notes
+   4.1.4 List of Time Stamps, Library and Reading History
+   4.1.5 Chapter Marks and Cutting
 
-V REMOTE CONTROL[[Header]]
+5 REMOTE CONTROL[[Header]]
 
-  14 Remote Control[[Header]]
-   14.1 Remote Control and Key Bindings
-   14.2 The Remote App (Phone)
+  5.1 Remote Control[[Header]]
+   5.1.1 Remote Control and Key Bindings
+   5.1.2 The Remote App (Phone)
 
 [[New Page]]
 
@@ -199,7 +199,7 @@ Version 1.0 — Apache 2.0 license
 
 
 [[New Page]]
-1.1 THE MAIN MUSIC PLAYER UI AND ITS SCREEN PANES [[Header]]
+2.1.1 THE MAIN MUSIC PLAYER UI AND ITS SCREEN PANES [[Header]]
 
 MODE CHANGE:[[Header]] [SHIFT and +] (German keyboard) or ['] (English keyboard) switches to the
 next mode, [SHIFT and -] (German) or [;] (English) to the previous one: music player, radio and
@@ -216,12 +216,12 @@ song in list and [b] song before current song in a list (with the focus in a LOC
 plays the previously played queue song), [p] play/pause, [+/-] change
 volume, [x] mute, [SHIFT+n] to toggle if either the filename or the meta data track name
 is shown in the track lists, as well as all commands that open certain overlays (such as
-the settings, oscilloscope parameter overlay etc.).
+)WIZ",
+R"WIZ(the settings, oscilloscope parameter overlay etc.).
 
 MAIN PANE:[[Header]]
 Includes the Mousiki disk, meta data information, visualizations and
-)WIZ",
-R"WIZ(lyrics (only music player mode). Several adjustments to this pane (e.g. turning visualizations
+lyrics (only music player mode). Several adjustments to this pane (e.g. turning visualizations
 on/off) can be made in the settings "ON/OFF" tab ([s] to open and save setting).
 
 PROGRESS BAR: [[Header]]
@@ -269,7 +269,7 @@ items in front of it go to the end in their order, as if they had been played).
 
 
 [[NEW PAGE]]
-1.2 MUSIC FILE PATHS [[Header]]
+2.1.2 MUSIC FILE PATHS [[Header]]
 
 ADDING/CHANGING PATHS: [[Header]]
 
@@ -295,7 +295,7 @@ will also see a warning message appear when you try to do so...
 See the chapter on SETTINGS AND COLOR THEMES[[Header]] for details on all the paths that can be set.
 
 [[NEW PAGE]]
-1.2.1 SUPPORTED FORMATS[[HEADER]]
+2.1.2.1 SUPPORTED FORMATS[[HEADER]]
 
 Supported are the usual formats, including some unusual ones.
 
@@ -336,7 +336,7 @@ with a default of 180s.
 
 
 [[NEW PAGE]]
-2.1 SEARCH AND FILTERING CAPABILITIES [[Header]]
+2.2.1 SEARCH AND FILTERING CAPABILITIES [[Header]]
 
 DIFFERENT SEARCH CAPABILITIES:[[Header]]
 [/]  open/focus the search bar. The prefix picks the source:
@@ -375,7 +375,7 @@ the results, which is why it takes a few seconds longer to search...
 
 
 [[NEW PAGE]]
-2.2 DOWNLOAD (MUSIC PLAYER) [[Header]]
+2.2.2 DOWNLOAD (MUSIC PLAYER) [[Header]]
 
 SAVING WHAT YOU STREAM:[[Header]]
 [y] saves the streamed track that is playing right now
@@ -393,12 +393,12 @@ DOWNLOAD LOCATION:[[HEADER]]
 Set download PATH at [s] Settings[[Header]]  ->>  PATHS[[LEGEND]]  ->>  DOWNLOAD PATH [[Header]]
 Default download path is inside the cache folder (~/.cache/mousiki).
 The download folder is scanned automatically, so you never have to repeat it as a
-local path. The radio puts its recordings in the same folder by default.
+)WIZ",
+R"WIZ(local path. The radio puts its recordings in the same folder by default.
 
 SHARED DOWNLOAD HISTORY OF MOUSIKI AND YT-DLP:[[Header]]
 When using yt-dlp it places a downloaded_history.txt file inside the chosen download path. This
-)WIZ",
-R"WIZ(can lead to the case that the history file is accidentally moved and when e.g. downloading a playlist
+can lead to the case that the history file is accidentally moved and when e.g. downloading a playlist
 to which you may have added new files, it will not download the new files only, but all of them again.
 To avoid this the history is placed inside a folder called "history" which is placed within the
 download path that was chosen in the setting. Mousiki avoids duplicates by checking for files with
@@ -414,7 +414,7 @@ yt-dlp -x -P "<download folder>" --download-archive "<download folder>/history/d
 
 
 [[New Page]]
-3.1 PLAYBACK MODES [[Header]]
+2.3.1 PLAYBACK MODES [[Header]]
 
 DIFFERENT PLAYBACK MODES:[[Header]]
 
@@ -441,7 +441,7 @@ Plays through the tracks in the queue and then stops.
 
 
 [[NEW PAGE]]
-3.2 BUILDING A QUEUE [[Header]]
+2.3.2 BUILDING A QUEUE [[Header]]
 
 Tracks can be added to a queue from the local audio files pane.
 The order can be adjusted and queues can be saved as playlist. 
@@ -475,7 +475,7 @@ QUEUE related commands, no matter the focus: [[Header]]
 
 
 [[NEW PAGE]]
-3.3.1[[Header]] META DATA EDITOR[[Header]] —[[Header]] EDIT TAB[[HEADER]]
+2.3.3.1[[Header]] META DATA EDITOR[[Header]] —[[Header]] EDIT TAB[[HEADER]]
 
 OPEN AND CHANGE TAB:[[HEADER]] Open via [SHIFT+m] and use [<-/->] to change tabs
 
@@ -541,18 +541,18 @@ GENERAL BEHAVIOR OF META DATA EDITOR:[[Header]]
 Every change goes into a pending edit session, autosaved after each keystroke.
 Closing the editor, quitting, even a crash keeps it. Edited fields and their
 library rows are drawn in the header colour, so you can see what will be written.
-Also, when fetching takes a while and you exit the meta data menu, fetching does
+)WIZ",
+R"WIZ(Also, when fetching takes a while and you exit the meta data menu, fetching does
 not stop, will continue in the background.
 Only [CTRL+s] writes to the files, and it asks if you want to keep changes. Same
-)WIZ",
-R"WIZ(goes for [CTRL+SHIFT+x] for discarding changes (not only the recent but all
+goes for [CTRL+SHIFT+x] for discarding changes (not only the recent but all
 currently autosaved changes!).
 NOTE: Saving a high number of titles can take a few seconds!!![[Legend]]
 
 
 
 [[NEW PAGE]]
-3.3.2[[Header]] META DATA EDITOR[[Header]] —[[Header]] FETCH META DATA [[Header]]
+2.3.3.2[[Header]] META DATA EDITOR[[Header]] —[[Header]] FETCH META DATA [[Header]]
 
 USING ACOUSTID: [[Header]]
 Meta data can be fetched via AcoustID using a locally created fingerprint via
@@ -596,7 +596,7 @@ quitting a process.
 
 
 [[NEW PAGE]]
-3.4 PLAYLIST EDITOR/CREATOR [[Header]]
+2.3.4 PLAYLIST EDITOR/CREATOR [[Header]]
 
 OPEN AND CHANGE TABS:[[Header]] Open via [SHIFT+p], change tabs via [<-/->]
 
@@ -626,7 +626,7 @@ created with Mousiki are stored in its own format, but they can be exported in M
 DELETE PLAYLIST: Use [DEL/d] to delete a playlist.
 
 [[New Page]]
-3.5 FILE CONVERSION [[Header]]
+2.3.5 FILE CONVERSION [[Header]]
 
 Turns high resolution files into lighter ones, e.g. 24 bit / 96 kHz FLAC into MP3 for your phone.
 
@@ -658,7 +658,7 @@ NOTE: Needs ffmpeg with libmp3lame and libopus; the installers provide it.[[Lege
 
 
 [[New Page]]
-3.6 COVER FETCH (ALBUM COVERS) [[Header]]
+2.3.6 COVER FETCH (ALBUM COVERS) [[Header]]
 
 Fetches the FRONT cover of albums from MusicBrainz / the Cover Art Archive.
 OPEN:[[Header]] [ALT+c] (macOS: [SHIFT+q]) in the main music player ([SHIFT+c] is the conversion menu).
@@ -682,11 +682,11 @@ Dark covers behind the disk: dark dots are lifted a little (locally; bright part
              after the list (3 more times, pauses of 45/90/135 s). Titles are searched exact, then fuzzy
              ([ESC] takes the filter off)
 [SHIFT+d]    remove the album TITLE of the album (asks first): pending, empty album tag of its tracks in
-             the meta data editor, saved there with [CTRL+s] - for wrong titles
+)WIZ",
+R"WIZ(             the meta data editor, saved there with [CTRL+s] - for wrong titles
 [SHIFT+r]    rescan the music folders; [ALT+c] / macOS [SHIFT+q] closes the overlay again
 [a]          add the album (on a folder row: all its albums) to the fetch list
-)WIZ",
-R"WIZ([SHIFT+f]    add everything the search shows (and the filter keeps) to the fetch list
+[SHIFT+f]    add everything the search shows (and the filter keeps) to the fetch list
 [TAB]        focus: search bar -> library -> album art
 The ALBUM ART pane shows album title and artist (marquee when too long). In it: [up/down] preview, [ENTER] use as the cover of this ALBUM NAME, [n] no
 cover, [c] clear the choice, [DEL] delete the picture from the disk (not the one inside a file).
@@ -702,7 +702,7 @@ look into fetched_covers too, except "Within File Only". Needs Python 3 and inte
 
 
 [[New Page]]
-4.1 SYNCED LYRICS [[Header]]
+2.4.1 SYNCED LYRICS [[Header]]
 
 When the lyrics engine is on, Mousiki fetches the lyrics of the playing track and follows along
 line by line, and word by word where the source has word timings (depends on the structure of the 
@@ -729,7 +729,7 @@ The setting No-Lyrics Viz (tab ANIMA/VIZ) decides what is shown while the lyrics
 lyrics: sphere, oscilloscope, spectrogram or nothing. 
 
 [[New Page]]
-4.2 LYRICS RETRY, TIMING AND READING [[Header]]
+2.4.2 LYRICS RETRY, TIMING AND READING [[Header]]
 
 WRONG MATCH? RETRY:[[Header]]
 In case the lyrics don't fit, e.g. given a different version of a song witch alternative
@@ -782,7 +782,7 @@ meanwhile then only gives a warning.
 
 
 [[New Page]]
-4.3 KARAOKE MODE [[Header]]
+2.4.3 KARAOKE MODE [[Header]]
 
 OPEN AND CLOSE:[[Header]] [k] opens the karaoke overlay, [ESC] or [k] close it.
 
@@ -802,18 +802,18 @@ Size 1 is normal terminal text. Sizes 2 to 5 use Mousiki's own pixel font drawn 
 (3 x 2, 6 x 4, 9 x 6 and 12 x 8 cells per letter). Only the lyrics change size, long lines wrap
 between words. The bottom border shows the size for a moment, and it is saved when you close.
 The basic font covers Latin letters, digits, punctuation, umlauts and common accented letters.
-Another font for Japanese, Chinese, Korean, Cyrillic and Greek letters is also available but
+)WIZ",
+R"WIZ(Another font for Japanese, Chinese, Korean, Cyrillic and Greek letters is also available but
 may have different sizing options.
 
 KEYS THAT KEEP WORKING IN KARAOKE: [[Header]]
 [p] play/pause   [n] / [b] next / previous   [#] shuffle   [<-/->] seek   [+/-] volume
-)WIZ",
-R"WIZ([x] mute   [m] mode   [v] normalization
+[x] mute   [m] mode   [v] normalization
 [ALT+L] (macOS [SHIFT+j]) the lyrics timing overlay, right over the big lyrics: easiest to judge an offset
 
 
 [[New Page]]
-5.1 THE VISUALIZATION FIELD [[Header]]
+2.5.1 THE VISUALIZATION FIELD [[Header]]
 
 Three visualizations, one key. The music player shows them in the field right of the meta data
 (where the lyrics are), the radio in the scope block right of the station info.
@@ -839,7 +839,7 @@ TUNING AND EXTRA VIEWS: [[Header]]
 [SHIFT+(/)] extra window mode for each.
 
 [[New Page]]
-5.2 OSCILLOSCOPE [[Header]]
+2.5.2 OSCILLOSCOPE [[Header]]
 
 THE XY OSCILLOSCOPE: [[Header]]
 Like a real scope in X-Y mode. Wide stereo fills the area, a phase-shifted tone draws an ellipse.
@@ -881,7 +881,7 @@ signal (full scale in Osci music mode).
 
 
 [[New Page]]
-5.3 SPECTROGRAM AND EXTRA WINDOWS [[Header]]
+2.5.3 SPECTROGRAM AND EXTRA WINDOWS [[Header]]
 
 THE SPECTROGRAM: [[Header]]
 Made the way Audacity makes its spectrogram view, with Audacity's defaults (2048-sample Hann window,
@@ -910,7 +910,7 @@ Position and size are remembered, and the windows stay open when you switch play
 NOTE: They need SDL2 (Windows packages include it; Linux: libsdl2-2.0-0, macOS: brew install sdl2).[[Legend]]
 
 [[New Page]]
-5.4 CREATOR [[Header]]
+2.5.4 CREATOR [[Header]]
 
 OPEN:[[Header]] [^] (on a German keyboard: [^] then [SPACE]) opens the creator. The first row picks the
 mode: Text to sound, or Microphone.
@@ -941,19 +941,19 @@ Rows: Live view (Spectrogram = default, Oscilloscope XY, Oscilloscope YT), Scope
 preview, Created files... In the big preview your microphone is shown live (a playing song stops and
 comes back afterwards): [ENTER] starts / stops a recording (mic_<date>_<time>.wav in the creator folder,
 max. 5 minutes), [V] changes the view, [G] the grid, [ESC] closes the preview (a running recording is saved) and returns to the overlay.
-A one-channel microphone gives the same signal left and right, so XY is a diagonal line: use YT or the
+)WIZ",
+R"WIZ(A one-channel microphone gives the same signal left and right, so XY is a diagonal line: use YT or the
 spectrogram. If the microphone cannot be opened, the overlay says why (allow microphone access for your
 terminal on macOS / Windows).
 
 PREVIEW: [[Header]]
-)WIZ",
-R"WIZ(The file plays in a loop and the XY scope (oscilloscope music) or the spectrogram shows it. It has its
+The file plays in a loop and the XY scope (oscilloscope music) or the spectrogram shows it. It has its
 own settings and does not change your [SHIFT+o] / [SHIFT+i] settings.
 [ESC] closes the preview and returns to the overlay; the song that played before comes back (from its start). [SPACE] pauses.
 
 
 [[New Page]]
-6.1 EQUALIZER [[Header]]
+2.6.1 EQUALIZER [[Header]]
 
 OPEN:[[Header]] [SHIFT+e] opens the 10-band equalizer; the sound changes while you listen.
 The bands are 31, 62, 125, 250, 500 Hz and 1, 2, 4, 8, 16 kHz, each from -12 to +12 dB.
@@ -978,7 +978,7 @@ NOTE:[[Header]] The radio keeps its own curve and its own presets (in radio_conf
 
 
 [[New Page]]
-6.2 LOUDNESS NORMALIZATION AND STEREO/MONO [[Header]]
+2.6.2 LOUDNESS NORMALIZATION AND STEREO/MONO [[Header]]
 
 LOUDNESS NORMALIZATION: [[Header]]
 Plays every track at the same perceived loudness, so a quiet album does not disappear after a loud one.
@@ -1001,7 +1001,7 @@ In the radio the footer of the dial then reads MONO.
 
 
 [[New Page]]
-6.3 SAMPLE RATE AND PLAYBACK ENGINE [[Header]]
+2.6.3 SAMPLE RATE AND PLAYBACK ENGINE [[Header]]
 
 SAMPLE RATE: NOTHING IS CONVERTED ON THE WAY: [[Header]]
 Every file plays at its own sample rate (44.1, 48, 88.2, 96 kHz ...): it is decoded at that rate and
@@ -1024,7 +1024,7 @@ the sphere use the (mono) mix of a track so they use the end signal of the above
 
 
 [[New Page]]
-6.4 SLEEP TIMER [[Header]]
+2.6.4 SLEEP TIMER [[Header]]
 
 OPEN:[[Header]] [SHIFT+z] opens the sleep timer overlay (the playback keeps running).
 
@@ -1048,7 +1048,7 @@ changes the play mode, and it is gone after a restart.
 
 
 [[New Page]]
-7.1 LISTENING HISTORY [[Header]]
+2.7.1 LISTENING HISTORY [[Header]]
 
 OPEN: [[Header]] [SHIFT+h] opens the history; [ESC], [q] or [SHIFT+h] close it.
 Jump to a tab with [1] - [4] or move with [<-/->].
@@ -1072,7 +1072,7 @@ per title, including the day and the time of day of every play, so the period an
 stay exact over years. It lives in history.json, in [s] Settings[[Header]] ->> PATHS[[Header]] ->> HISTORY PATH[[Header]].
 
 [[New Page]]
-7.2 SMART HISTORY LISTS [[Header]]
+2.7.2 SMART HISTORY LISTS [[Header]]
 
 ADD SMART HISTORY TO QUEUE: [[Header]]
 Under the TOP TRACKS list sits a pane with sixteen ready-made lists in four columns:
@@ -1100,7 +1100,7 @@ to rediscover forgotten music.
 Files that moved or were deleted are skipped, and the status line says how many tracks were queued.
 
 [[New Page]]
-8.1 SETTINGS BASICS [[Header]]
+2.8.1 SETTINGS BASICS [[Header]]
 
 OPEN:[[Header]] [s] opens the settings, always on the first tab. Six tabs:
 COLORS; ON/OFF; ANIMA/VIZ; PATHS; REFERENCE; ABOUT APP ([TAB] steps through them)
@@ -1113,18 +1113,18 @@ SAVING AND LEAVING: [[Header]]
 Every change is live: you see and hear it while you are still in the settings. But only [s] writes
 it to config.txt and closes. [ESC] or [q] discards. With unsaved changes the settings ask first:
 [s] save, [d] discard, [ESC] keep editing. Discarding puts every row back the way it was when you
-opened the settings, paths included. While there are unsaved changes a note says so.
+)WIZ",
+R"WIZ(opened the settings, paths included. While there are unsaved changes a note says so.
 
 TEXT EDITING, IN EVERY FIELD: [[Header]]
 [<-/->] caret            [SHIFT+<-/->] mark          [HOME] [END] jump
-)WIZ",
-R"WIZ([DEL] [BACKSPACE] delete [CTRL+c] [CTRL+x] [CTRL+v]  copy, cut, paste
+[DEL] [BACKSPACE] delete [CTRL+c] [CTRL+x] [CTRL+v]  copy, cut, paste
 [ENTER] confirm          [ESC] cancel the edit
 [TAB] and the arrows never leave a field that is being edited.
 
 
 [[New Page]]
-8.2 COLORS AND COLOR THEMES [[Header]]
+2.8.2 COLORS AND COLOR THEMES [[Header]]
 
 THE COLORS TAB: [[Header]]
 A THEME row and the color rows, each with one or two value cells, a swatch and a live preview.
@@ -1155,7 +1155,7 @@ any key goes back.
 
 
 [[New Page]]
-8.3 ON/OFF, ANIMA/VIZ AND PATHS [[Header]]
+2.8.3 ON/OFF, ANIMA/VIZ AND PATHS [[Header]]
 
 ON/OFF TAB:[[Header]]  
 Most of the rows are changed with [<-/->] to set the respective value to either true/false or
@@ -1245,12 +1245,12 @@ Latin Wo:[[Legend]]              off (default) = the particle を is written "o"
 
 Translit. Kanji:[[Legend]]       Leave (default) = characters that could be Japanese or Chinese (東京) stay as 
                        they are; Chin. = read as Chinese (pinyin); Jap. = read as Japanese (kept
-                       unless the optional kanji reader knows them). Same as LatinHanziDefault in the
+)WIZ",
+R"WIZ(                       unless the optional kanji reader knows them). Same as LatinHanziDefault in the
                        config.txt.
 
 Latin Name Lookup:[[Legend]]     off by default. On = artists written in Chinese characters are looked up on
-)WIZ",
-R"WIZ(                       MusicBrainz in the background; their NAME (and your IP) is sent to 
+                       MusicBrainz in the background; their NAME (and your IP) is sent to 
                        musicbrainz.org, nothing else.
 
 Lyrics Name Variants:[[Legend]]  on by default and adjusts the lyrics fetching function in case of 
@@ -1346,12 +1346,12 @@ Use[[Legend]] Lyrics[[Legend]] Engine[[Legend]] /[[Legend]] Use Oscilloscope[[Le
 ANIMA/VIZ TAB:[[Header]] 
 
 LYRICS:[[Header]]                          Lyrics Alignment[[Legend]] (left / center / right), Lyrics Animation[[Legend]] (full, 
-                                 word by word, letter by letter, active line only, active word only, 
+)WIZ",
+R"WIZ(                                 word by word, letter by letter, active line only, active word only, 
                                  line by line).
 
 DISK:[[Header]]                            Disk[[Legend]] Speed:[[Legend]] with range between 0.01 - 1.00.
-)WIZ",
-R"WIZ(
+
 SPECTRUM BARS:[[Header]]         Concerns the visualization under the meta data field. 
                                  Bars[[Legend]] Fluidity:[[Legend]] sets the stiffness/friction of the bars moving up,
                                  where a low value means the bars snap upwards instantly. The 
@@ -1399,7 +1399,7 @@ have unsaved changes.
 
 
 [[New Page]]
-8.4 HOTKEYS, REFERENCE AND ABOUT [[Header]]
+2.8.4 HOTKEYS, REFERENCE AND ABOUT [[Header]]
 
 REFERENCE TAB: [[Header]]
 The longest tab. It lists every rebindable command, grouped like the cheat sheet (PLAYBACK,
@@ -1438,7 +1438,7 @@ WHAT THE RADIO SHARES WITH THE PLAYER: [[Header]]
 Equalizer [SHIFT+e], oscilloscope [SHIFT+o] / [SHIFT+0], spectrogram [SHIFT+i] / [SHIFT+u], scope and
 spectrogram windows [)] / [(], loudness normalization [v] / [SHIFT+v], sleep timer [SHIFT+z], text fields,
 the cheat sheet [?] and this wizard [SHIFT+w] work with the same keys and overlays as described in
-chapters 5 to 8. Differences: the radio keeps its own equalizer curve, oscilloscope values and
+chapters 2.5 to 2.8. Differences: the radio keeps its own equalizer curve, oscilloscope values and
 settings in radio_config.txt; the sleep timer stops the stream (no "Stop after current song"); the
 visualization field is the scope block right of the station info and [,/.] cycles oscilloscope,
 sphere and spectrogram (there are no lyrics).
@@ -1447,7 +1447,7 @@ LETTERS ARE MORE OFTEN CASE SENSITIVE IN THE RADIO: [[Header]]
 [r] recalls a preset slot, [R] reconnects the station.
 
 [[New Page]]
-9.1 THE RADIO SCREEN AND ITS KEYS [[Header]]
+3.1.1 THE RADIO SCREEN AND ITS KEYS [[Header]]
 
 FROM TOP TO BOTTOM: [[Header]]
 
@@ -1482,16 +1482,16 @@ THE BIG STATIONS OVERLAY: [[Header]]
 [SHIFT+l] shows the STATIONS pane over the whole screen plus a PRESET NAME column.
 [a] adds a station by its stream URL ([TAB] switches URL <-> NAME; an empty name becomes the host name).
 [SHIFT+c] gives the hovered station a preset name: a shorter second name shown in the PRESETS pane, 
-which only has little space so it gives you the possibility to specify it by your own demands.
+)WIZ",
+R"WIZ(which only has little space so it gives you the possibility to specify it by your own demands.
 
 [[New Page]]
-9.2 PRESETS [[Header]]
+3.1.2 PRESETS [[Header]]
 
 A preset is a named set of 16 station slots on the keys:
 
 1  2  3  4  5  6  7  8  9  0  e  r  t  d  f  g
-)WIZ",
-R"WIZ(
+
 Press one on the main screen to recall that slot. [SHIFT+<-/->] switches to the previous / next
 preset. The name of the active preset list is in the pane title: e.g. PRESETS (Morning).
 
@@ -1517,7 +1517,7 @@ instead of duplicating it.[[Legend]]
 
 
 [[New Page]]
-10.1 SEARCHING STATIONS AND THE RADIO BROWSER [[Header]]
+3.2.1 SEARCHING STATIONS AND THE RADIO BROWSER [[Header]]
 
 SEARCHING YOUR OWN STATIONS: [[Header]]
 [/] opens the search box under the frequency band. The STATIONS pane filters live as you type; 
@@ -1547,7 +1547,7 @@ LANGUAGE, BITRATE (128 = at least 128, 64-192 = range, -192 = at most), then the
 Every search hides broken streams, sorts by clicks and returns at most 200 results.
 
 [[New Page]]
-10.2 STATION LISTS [[Header]]
+3.2.2 STATION LISTS [[Header]]
 
 Named, ordered collections of stations (a "jazz" list, a "morning" list), built exactly like the
 playlist editor of the music player.
@@ -1575,7 +1575,7 @@ USE A LIST: [[Header]]
 Type [p:] in the search box on the main screen. [n], [b] and [#] then surf only inside that list.
 
 [[New Page]]
-11.1 TIMESHIFT [[Header]]
+3.3.1 TIMESHIFT [[Header]]
 
 From the moment you tune a station the radio keeps the last minutes of it in a rolling buffer on
 disk, so live radio can be treated like a recording.
@@ -1602,7 +1602,7 @@ from the oldest audio that is still there.
 
 
 [[New Page]]
-11.2 RECORDING [[Header]]
+3.3.2 RECORDING [[Header]]
 
 RECORD, INCLUDING THE MINUTES BEFORE YOU PRESSED: [[Header]]
 [y] opens the RECORD overlay. It freezes the moment you pressed, so no time is lost while you choose:
@@ -1626,7 +1626,7 @@ your local library.
 
 
 [[New Page]]
-11.3 RADIO HISTORY [[Header]]
+3.3.3 RADIO HISTORY [[Header]]
 
 THE RADIO'S OWN HISTORY: [[Header]]
 [h] opens it; [ESC], [q] or [h] close it. [1] [2] [3], [<-/->] or [TAB] switch the tab, [UP]/[DOWN]
@@ -1646,16 +1646,16 @@ download folder (yt-dlp, opus), [TAB] edits the search query, [ESC] closes. A re
 [ok] done, [..] downloading, [!!] failed.
 This is the online search of the music player reached from the radio, so a song you only heard once
 on air ends up in your local library (after a rescan with [SHIFT+r] in the player).
-
+)WIZ",
+R"WIZ(
 
 [[New Page]]
-12.1 RADIO SETTINGS: COLORS, ON/OFF AND ANIMA/VIZ [[Header]]
+3.4.1 RADIO SETTINGS: COLORS, ON/OFF AND ANIMA/VIZ [[Header]]
 
 OPEN:[[Header]] 
 As usual [s] opens the radio settings. Same frame, tab strip and editing keys as the other:
 [TAB] next tab, [UP]/[DOWN] rows, [<-/->] or [ENTER] change a value, [s] saves and closes,
-)WIZ",
-R"WIZ([ESC] / [q] discards (asks first when something changed).
+[ESC] / [q] discards (asks first when something changed).
 
 The settings are stored in radio_config.txt, separate from the config.txt of the player. 
 Colors are not carried over between the two modes: the radio has its own palette and its 
@@ -1684,7 +1684,7 @@ Gradient wave speed and Pulse wave speed (the ON AIR sign), Bars Fluidity / Degr
 Osci/sphere (osci / sphere / spectro / off) and Osci style (braille / image).
 
 [[New Page]]
-12.2 RADIO SETTINGS: PATHS, KEYS AND FILES [[Header]]
+3.4.2 RADIO SETTINGS: PATHS, KEYS AND FILES [[Header]]
 
 PATHS: [[Header]]
 Every path is a base folder; the radio makes its own sub folders below it:
@@ -1734,7 +1734,7 @@ the first row [<- ..] ENTER goes back up or hitting [ESC]. A search shows all bo
 
 
 [[New Page]]
-13.1 THE AUDIO BOOK SCREEN AND ITS KEYS [[Header]]
+4.1.1 THE AUDIO BOOK SCREEN AND ITS KEYS [[Header]]
 
 PANES: [[Header]]
 BOOKS (left)      only folders: one row per book with its number of chapters. [ENTER] opens the book.
@@ -1780,19 +1780,19 @@ The converter [SHIFT+c] works on the audio books and searches folders with [/f:]
 
 
 [[New Page]]
-13.2 BOOK TAGS [[Header]]
+4.1.2 BOOK TAGS [[Header]]
 
 [SHIFT+m] opens the tag editor of the audio book player. It only edits, nothing is fetched in this
 mode, which makes the meta data editor much more light weight and simple. 
 It shows one chapter at a time: 
 File name, Book title, Author, Narrator, Chapter, Publisher, Year and Genre.
-
+)WIZ",
+R"WIZ(
 [UP]/[DOWN]   pick a row, [ENTER] types into it (a second [ENTER] puts the cursor away), 
 [<-]/[->]     go to the other chapters (unsaved changes have to be saved with [s] or dropped 
               with [d] first). A changed row is drawn in the header colour) 
 [s]           writes this chapter's changes. The audio is copied bit for bit (ffmpeg -c copy). 
-)WIZ",
-R"WIZ(              The File name row edits the name only; the ending (.mp3 ...) stays.
+              The File name row edits the name only; the ending (.mp3 ...) stays.
 [a]           writes the changed book rows (book title, author, narrator, publisher + year, genre) 
               to every chapter of the book; the chapter title stays each chapter's own. The chapter 
               number always goes in FRONT of the name (01 Dune, 02 Dune ...): the folder is sorted 
@@ -1807,7 +1807,7 @@ The narrator is stored as composer and narrator tag, the book title as album, th
 publisher and year are also written to the book's .cue file (REM NARRATOR / PUBLISHER / DATE) and read from it first, so a WAV file keeps them too.
 
 [[New Page]]
-13.3 BOOKMARKS AND NOTES [[Header]]
+4.1.3 BOOKMARKS AND NOTES [[Header]]
 
 THREE KINDS OF TIME STAMPS: [[Header]]
 AUTO-MARK  where you stopped; written by itself every few seconds while you listen and when you leave
@@ -1858,7 +1858,7 @@ Export / import of notes is possible and use the folder <book folder>/notes.
 Again, a note shows itself in the field (for 20 seconds) when playback passes its time.
 
 [[New Page]]
-13.4 LIST OF TIME STAMPS, LIBRARY AND READING HISTORY [[Header]]
+4.1.4 LIST OF TIME STAMPS, LIBRARY AND READING HISTORY [[Header]]
 
 A book has an auto-mark, any number of bookmarks and notes. Three big windows:
 
@@ -1892,7 +1892,7 @@ Given tabs are HISTORY, TOP CHAPTERS, TOP BOOKS, HABITS.
 [ENTER] on a chapter opens its book and plays it. [ESC] closes.
 
 [[New Page]]
-13.5 CHAPTER MARKS AND CUTTING [[Header]]
+4.1.5 CHAPTER MARKS AND CUTTING [[Header]]
 
 A book is sometimes one long file. [ALT+l] (macOS: [SHIFT+j]) opens the chapter marks of the chapter
 that plays (else the chapter under the cursor starts). The window shows where you are and the marks: number, time, 
@@ -1910,12 +1910,12 @@ The marks are saved in the book's .cue after every change (REM CHAPTER lines).
 
 [c] CUTS THE FILE: [[Header]] 
 after one question ffmpeg copies the parts without re-encoding (-c copy) into the book folder 
-as "01 Chapter 1.wav", "02 The Storm.wav" ... with the chapter title as title tag. If anything 
+)WIZ",
+R"WIZ(as "01 Chapter 1.wav", "02 The Storm.wav" ... with the chapter title as title tag. If anything 
 fails, the new files are removed and the original is untouched. Answer the question with [t] 
 instead of [y] to also trim blank audio at the edges of the parts to 2 seconds (bookmarks, 
 auto-mark and notes are moved accordingly).
-)WIZ",
-R"WIZ(
+
 THE BACKUP: [[Header]] 
 The original becomes "Dune.wav.mousiki-backup" in the book folder (not listed as a chapter) and 
 stays until you delete it on purpose: [SHIFT+d] in this window shows how much space it takes...
@@ -1926,7 +1926,7 @@ with the time inside that part (a note at 0:25:00, a chapter starting at 0:10:00
 of the new chapter).
 
 [[New Page]]
-14.1 REMOTE CONTROL AND KEY BINDINGS [[Header]]
+5.1.1 REMOTE CONTROL AND KEY BINDINGS [[Header]]
 
 A running player or radio can be controlled with the same program:
   mousiki --cmd next | prev | play-pause | pause | stop | shuffle | mute | live  
@@ -1946,7 +1946,7 @@ macOS:     Shortcuts app (Run Shell Script) or skhd
 
 
 [[New Page]]
-14.2 THE REMOTE APP (PHONE) [[Header]]
+5.1.2 THE REMOTE APP (PHONE) [[Header]]
 
 Settings -> ON/OFF -> MODES -> Remote App -> [ENTER] opens the REMOTE APP overlay (player or radio):
 switch it ON, see the address and a QR code (scan it with the phone camera: the remote opens,

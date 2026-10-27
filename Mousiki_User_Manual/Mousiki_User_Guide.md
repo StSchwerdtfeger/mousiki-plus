@@ -299,7 +299,7 @@ It starts with a **welcome page** (with the spinning disk) and a **table of cont
 | `ENTER` | On the welcome page: to the table of content. On the table of content: open the highlighted entry. |
 | `SHIFT+s` | **Search the whole wizard** via a search function (see below) |
 
-- The **top border** names the chapter: `MOUSIKI PLUS HELP WIZARD ─ II MUSIC PLAYER MODE ─ 3 CURATING YOUR FILES`; the bottom border lists the keys that work on the current page. Every page starts and ends with an empty line to make it look nicer, so don't confuse this as the text ending at one page (scrollbars also indicate the length of a page since later version)
+- The **top border** names the chapter: `MOUSIKI PLUS HELP WIZARD ─ 2 MUSIC PLAYER MODE ─ 2.3 CURATING YOUR FILES`; the bottom border lists the keys that work on the current page. Every page starts and ends with an empty line to make it look nicer, so don't confuse this as the text ending at one page (scrollbars also indicate the length of a page since later version)
 - Colours: headings use the **header colour**, everything in `[square brackets]` (the keys) uses the **legend colour**, the rest the list colour. 
 - The keys the wizard names are the **shipped defaults**, like the cheat sheet's. A key you rebound yourself is shown under **Settings → REFERENCE**.
 - Playback keeps running while it is open. The wizard takes every key until you close it, like the cheat sheet (`?`), which stays the quick, scrollable list of every key command and needs you to exit the wizard first in order to access.
@@ -1825,7 +1825,7 @@ All of them are also in the radio's own cheat sheet (`?`, categorized and scroll
 | `SHIFT+l` | Big STATIONS overlay |
 | `h` | Listening history |
 | `s` | Settings |
-| `SHIFT+w` | [Help wizard](#the-help-wizard-shiftw): the same wizard, with the radio chapters (III) at its end |
+| `SHIFT+w` | [Help wizard](#the-help-wizard-shiftw): the same wizard, with the radio chapters (3) at its end |
 | `?` | Cheat sheet |
 | `<` (German; English `SHIFT+,`) | Menus index: every menu and overlay of the radio by category with its key (`↑↓←→` select, `ENTER` opens, `ESC` closes; rebindable as *Menus / Overlays Index*) |
 | `*` (German `SHIFT` and `+`, English `'`) | Switch to the music player |

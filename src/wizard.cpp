@@ -100,17 +100,17 @@ struct Page {
     std::vector<std::string> raw;                 // as written (trailing blanks removed)
     std::vector<std::vector<Cell>> lines;         // parsed
     std::vector<int> line_entry;                  // toc pages: the entry of each line, else -1
-    std::string number;                           // "1.1" / "II" / ""
+    std::string number;                           // "2.1.1" / ""
     std::string norm_title;                       // upper-case letters and digits of the first line, without the number
     std::string border_parent, border_main;       // the chapter titles of the top border
-    std::string group;                            // the main chapter: "0" = welcome + contents, "3" for 3.x, "I" / "III" for a roman page
+    std::string group;                            // the main chapter: "0" = welcome + contents, "2.3" for 2.3.x
     bool welcome = false;                         // one of the two welcome pages (drawn with the disk)
 };
 
 struct Entry {
     int page = 0;           // the contents page it is written on
     int line = 0;
-    std::string key;        // "1.2.1" / "II"
+    std::string key;        // "2.1.2" / "2"
     std::string text;       // "Supported Formats"
     bool roman = false;
     int target = -1;        // page it leads to
@@ -236,7 +236,15 @@ bool is_roman_token(const std::string& t) {
     return true;
 }
 
-// "1.2.1 Supported Formats" -> number "1.2.1", rest "Supported Formats"; "II MUSIC PLAYER MODE" -> "II", "MUSIC PLAYER MODE".
+// "2.1.2 Supported Formats" -> number "2.1.2", rest "Supported Formats"; "2 MUSIC PLAYER MODE" (or "II ...") -> a part, roman = true.
+// "2.1.2" -> "2.1": the chapter a page number belongs to.
+std::string chapter_key(const std::string& number) {
+    const size_t a = number.find('.');
+    if (a == std::string::npos) return number;
+    const size_t b = number.find('.', a + 1);
+    return b == std::string::npos ? number : number.substr(0, b);
+}
+
 bool split_number(const std::string& text, std::string& number, std::string& rest, bool& roman) {
     const size_t sp = text.find(' ');
     if (sp == std::string::npos) return false;
@@ -245,7 +253,8 @@ bool split_number(const std::string& text, std::string& number, std::string& res
     if (r.empty()) return false;
     if (is_number_token(tok)) {
         if (tok.back() == '.') tok.pop_back();
-        number = tok; rest = r; roman = false;
+        number = tok; rest = r;
+        roman = number.find('.') == std::string::npos;     // "2 MUSIC PLAYER MODE": a part; "2.1 Main UI": a chapter; "2.1.1 ...": a page
         return true;
     }
     if (is_roman_token(tok)) { number = tok; rest = r; roman = true; return true; }
@@ -333,7 +342,7 @@ void build_doc(Doc& d, const std::string& text) {
     for (size_t i = 0; i < d.entries.size(); ++i) own[i] = d.entries[i].target >= 0;
     for (int i = static_cast<int>(d.entries.size()) - 2; i >= 0; --i)
         if (d.entries[static_cast<size_t>(i)].target < 0) d.entries[static_cast<size_t>(i)].target = d.entries[static_cast<size_t>(i) + 1].target;
-    // A chapter without a page of its own (9 "The Radio Main UI") is the first chapter of a part whose intro page ("RADIO PLAYER MODE")
+    // A chapter without a page of its own (3.1 "The Radio Main UI") is the first chapter of a part whose intro page ("RADIO PLAYER MODE")
     // sits right in front of the chapter's first page: choosing the chapter shows that intro page, not 9.1 right away.
     for (size_t i = 1; i < d.entries.size(); ++i) {
         Entry& e = d.entries[i];
@@ -341,13 +350,13 @@ void build_doc(Doc& d, const std::string& text) {
         if (!own[i] && !e.roman && prev.roman && own[i - 1] && e.target >= 1 && prev.target == e.target - 1) e.target = prev.target;
     }
 
-    // the chapter titles of the top border: "II MUSIC PLAYER MODE" and "1 MAIN UI" for a page numbered 1.x
+    // the chapter titles of the top border: "2 MUSIC PLAYER MODE" and "2.1 MAIN UI" for a page numbered 2.1.x
     for (size_t pi = 0; pi < d.pages.size(); ++pi) {
         Page& p = d.pages[pi];
         if (p.toc) continue;
         int main_entry = -1;
         if (!p.number.empty()) {
-            const std::string main_key = p.number.substr(0, p.number.find('.'));
+            const std::string main_key = chapter_key(p.number);
             for (size_t k = 0; k < d.entries.size(); ++k)
                 if (!d.entries[k].roman && d.entries[k].key == main_key) { main_entry = static_cast<int>(k); break; }
         } else {
@@ -373,7 +382,7 @@ void build_doc(Doc& d, const std::string& text) {
         Page& p = d.pages[pi];
         p.welcome = pi < 2 && !p.toc;
         if (p.toc || static_cast<int>(pi) <= last_toc) p.group = "0";
-        else if (!p.number.empty()) p.group = p.number.substr(0, p.number.find('.'));
+        else if (!p.number.empty()) p.group = chapter_key(p.number);
         else if (!p.border_main.empty()) p.group = p.border_main.substr(0, p.border_main.find(' '));
         else p.group = (prev_group.empty() || prev_group == "0") ? "p" + std::to_string(pi) : prev_group;
         prev_group = p.group;

@@ -21,10 +21,10 @@
 //   page 1                  the greeting shown at the very first start after an installation (with the spinning disk)
 //   page 2                  the greeting shown when the wizard is opened for the first time in a session
 //   a page whose first line starts with TABLE OF CONTENT is a contents page: its numbered lines
-//                           ("II MUSIC PLAYER MODE", "1 Main UI", "1.1 Music File Paths") can be selected
+//                           ("2 MUSIC PLAYER MODE", "2.1 Main UI", "2.1.2 Music File Paths") can be selected
 //                           with UP / DOWN and opened with ENTER
-//   a page whose first line starts with a number ("1.1 MUSIC FILE PATHS") belongs to that chapter; the
-//                           main chapter ("1") and its roman-numeral part ("II") are named in the top border
+//   a page whose first line starts with a number ("2.1.2 MUSIC FILE PATHS") belongs to that chapter; the
+//                           chapter ("2.1") and its part ("2") are named in the top border
 //   [[Header]] / [[Legend]] colours the capitalised words (or number) in front of it in the header / legend
 //                           colour. At the end of a line that starts with => or NOTE: it colours the whole
 //                           line, and on a contents page it always colours the whole line.
