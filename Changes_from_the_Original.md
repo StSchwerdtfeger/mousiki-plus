@@ -307,3 +307,5 @@ Karaoke: the lyrics timing overlay (`HKeyLyricsTiming`, default `ALT+L`; `SHIFT+
 - **Test harness (CI, found with the new screen dump).** `tests/ui_smoke.py`: the Kitty cover options check assumed the first track of the list is the one with the cover, but the list follows the file system's directory order (on the CI runner `さくら` came first); every test folder now has a `cover.png`. The karaoke timing check is skipped, with a note, on a machine where nothing plays (no audio device: the timing overlay needs the playing track).
 
 - **Test harness (CI).** `tests/ui_smoke.py`: the Kitty picture checks need `ffmpeg` (it decodes the pictures; without it the preview says "the picture cannot be read", as on the CI runner) and are skipped, with a note, when it is not installed.
+
+- **Test harness (macOS CI hang).** `tests/ui_smoke.py` prints a flushed, timestamped line for every section and, if the whole test runs longer than `MOUSIKI_SMOKE_LIMIT` seconds (default 600), prints where Python is stuck (`faulthandler`) and ends - the macOS runner had used up the full 900 s CTest timeout without any output.

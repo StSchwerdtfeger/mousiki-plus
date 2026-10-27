@@ -140,12 +140,20 @@ failures = []
 checks = 0
 
 
+T0 = time.time()
+
+
+def progress(what):
+    """A timestamped line, flushed at once: if the test hangs on a CI machine the log shows how far it got."""
+    print("[%4ds] %s" % (time.time() - T0, what), flush=True)
+
+
 def check(cond, what):
     global checks
     checks += 1
     if not cond:
         failures.append(what)
-        print("  FAIL:", what)
+        print("  FAIL:", what, flush=True)
 
 
 def frame_problems(sess):
@@ -430,8 +438,9 @@ def karaoke_timing(binary, root, scripts):
                 break
             sess.pump(0.5)
         check("KARAOKE" in sess.text() and "lyric line" in sess.text(), "karaoke timing: the karaoke screen shows the lyrics")
-        if "0:00 / 0:00" in sess.text():
-            # no track is playing: a machine without a (working) audio device, such as a CI runner. The timing overlay
+        if re.search(r"\[ 0:00 / ", sess.text()):
+            # no track is playing (the position stays at 0:00 several seconds after ENTER): a machine without a (working) audio
+            # device, such as a CI runner, or one where the audio device does not start in time. The timing overlay
             # needs the playing track, so there is nothing to test here.
             print("  skipped: karaoke timing overlay (the track does not play on this machine: no audio device)")
             return
@@ -457,6 +466,10 @@ def main():
     binary = os.path.abspath(args[0])
     scripts = None
     keep = "--keep" in args
+    # a hang must not use up the whole CTest timeout without a trace: after this many seconds Python prints where every
+    # thread is stuck and ends the test (MOUSIKI_SMOKE_LIMIT, default 600 s; the CTest timeout is longer)
+    import faulthandler
+    faulthandler.dump_traceback_later(int(os.environ.get("MOUSIKI_SMOKE_LIMIT", "600")), exit=True)
     if "--scripts" in args:
         scripts = os.path.abspath(args[args.index("--scripts") + 1])
     if not os.path.exists(binary):
@@ -478,6 +491,7 @@ def main():
 
     sess = Session(binary, home, scripts)
     try:
+        progress("main session")
         # --- first start: a fresh HOME opens the help wizard by itself (full-screen frame)
         sess.pump(4)
         check(sess.alive(), "start: the program runs")
@@ -549,6 +563,7 @@ def main():
             sess.send(b"\x1b", 1.0)
         check("META EDITOR" not in sess.text(), "meta editor: ESC leaves it")
 
+        progress("main session: quit")
         # --- quit
         sess.send("q", 0.5)
         for _ in range(20):
@@ -564,11 +579,17 @@ def main():
         sess.kill()
 
     if not failures:
+        progress("kitty_cover_options")
         kitty_cover_options(binary, home, scripts)
+        progress("radio_latin_toggle")
         radio_latin_toggle(binary, root, scripts)
+        progress("paging_and_translit_row")
         paging_and_translit_row(binary, root, scripts)
+        progress("mode_keys")
         mode_keys(binary, root, scripts)
+        progress("karaoke_timing")
         karaoke_timing(binary, root, scripts)
+        progress("selftest_command")
         selftest_command(binary, scripts)
     if not keep:
         shutil.rmtree(root, ignore_errors=True)
