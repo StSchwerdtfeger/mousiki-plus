@@ -3,8 +3,11 @@
 #include "settings.h"
 #include "themes.h"
 #include "app_internal.h"
+#include "scripts_env.h"
 
 #include <algorithm>
+#include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <vector>
@@ -320,4 +323,32 @@ TEST(book_profile_keeps_a_picked_theme_exactly) {
             if (la.compare(0, 5, "Color") == 0 && la != lb) { std::cerr << t.name << ": " << la << " != " << lb << "\n"; CHECK(false); }
         }
     }
+}
+
+TEST(scripts_dir_override_accepts_only_a_checked_absolute_folder) {
+    namespace fs = std::filesystem;
+    mt::TempHome home;
+    const fs::path dir = fs::path(std::getenv("HOME")) / "scripts_override";
+    fs::create_directories(dir);
+    { std::ofstream(dir / "tool.py") << "print(1)\n"; }
+    fs::create_directories(dir / "sub.py");
+    auto set_env = [](const std::string& v) {
+#if defined(_WIN32)
+        _putenv_s("MOUSIKI_SCRIPTS_DIR", v.c_str());
+#else
+        if (v.empty()) unsetenv("MOUSIKI_SCRIPTS_DIR"); else setenv("MOUSIKI_SCRIPTS_DIR", v.c_str(), 1);
+#endif
+    };
+    set_env(dir.string());
+    CHECK(!scripts_file_from_env("tool.py").empty());                     // a regular file in an absolute folder
+    CHECK(scripts_file_from_env("missing.py").empty());                   // not there
+    CHECK(scripts_file_from_env("sub.py").empty());                       // a folder is not a script
+    CHECK(scripts_file_from_env("../tool.py").empty());                   // the name is a plain file name
+    CHECK(scripts_file_from_env("a/tool.py").empty());
+    set_env("scripts_override");
+    CHECK(scripts_file_from_env("tool.py").empty());                      // relative: refused
+    set_env((dir / ".." / "scripts_override").string());
+    CHECK(scripts_file_from_env("tool.py").empty());                      // ".." parts: refused
+    set_env("");
+    CHECK(scripts_file_from_env("tool.py").empty());                      // not set
 }

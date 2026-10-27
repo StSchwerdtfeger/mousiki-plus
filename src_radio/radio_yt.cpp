@@ -2,6 +2,7 @@
 #include "online_source.h"
 #include "youtube_source.h"
 #include "path_utf8.h"
+#include "scripts_env.h"
 #include <atomic>
 #include <condition_variable>
 #include <cstdlib>
@@ -21,9 +22,9 @@ namespace {
 // then falls back to yt-dlp's own search.
 fs::path find_search_script() {
     const std::string name = "fast_yt_search.py";
-    if (const char* env = std::getenv("MOUSIKI_SCRIPTS_DIR")) {
-        fs::path p = path_from_utf8(env) / name;
-        if (fs::exists(p)) return p;
+    {
+        fs::path p = muisc::scripts_file_from_env(name);   // MOUSIKI_SCRIPTS_DIR, checked (see scripts_env.h)
+        if (!p.empty()) return p;
     }
     fs::path c = fs::path("scripts") / name;
     if (fs::exists(c)) return c;

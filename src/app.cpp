@@ -21,6 +21,7 @@
 #include "mic_capture.h"
 #include "process_util.h"
 #include "app_internal.h"
+#include "scripts_env.h"
 #include "update_check.h"
 #include "open_url.h"
 #include "app_settings_tables.h"
@@ -431,9 +432,9 @@ namespace {
 // (env override, cwd, exe-relative at one/two/three levels up to cover a
 // multi-config MSVC build), only the filename differs.
 fs::path find_scripts_file(const std::string& filename) {
-    if (const char* env = std::getenv("MOUSIKI_SCRIPTS_DIR")) {
-        fs::path p = path_from_utf8(env) / filename;
-        if (fs::exists(p)) return p;
+    {
+        fs::path p = scripts_file_from_env(filename);   // MOUSIKI_SCRIPTS_DIR, checked (see scripts_env.h)
+        if (!p.empty()) return p;
     }
     fs::path cwd_candidate = fs::path("scripts") / filename;
     if (fs::exists(cwd_candidate)) return cwd_candidate;
