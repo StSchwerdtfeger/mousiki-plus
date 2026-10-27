@@ -305,3 +305,5 @@ Karaoke: the lyrics timing overlay (`HKeyLyricsTiming`, default `ALT+L`; `SHIFT+
 - **Test harness (CI).** `tests/ui_smoke.py`: the terminal size is now set in the child before the program starts (it was set by the parent after the fork, which a slow machine could lose), a failed Kitty-picture or karaoke-timing check prints the screen for the log, and the ui_smoke test's CTest timeout is 900 s (a slow macOS runner needed more than 300 s).
 
 - **Test harness (CI, found with the new screen dump).** `tests/ui_smoke.py`: the Kitty cover options check assumed the first track of the list is the one with the cover, but the list follows the file system's directory order (on the CI runner `さくら` came first); every test folder now has a `cover.png`. The karaoke timing check is skipped, with a note, on a machine where nothing plays (no audio device: the timing overlay needs the playing track).
+
+- **Test harness (CI).** `tests/ui_smoke.py`: the Kitty picture checks need `ffmpeg` (it decodes the pictures; without it the preview says "the picture cannot be read", as on the CI runner) and are skipped, with a note, when it is not installed.

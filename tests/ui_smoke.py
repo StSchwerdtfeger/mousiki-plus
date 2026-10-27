@@ -203,6 +203,10 @@ def kitty_cover_options(binary, home, scripts):
                 sess.pump(0.25)
             return b"\x1b_Ga=T" in sess.raw[mark:]
 
+        if shutil.which("ffmpeg") is None:
+            # pictures are decoded by ffmpeg: without it the preview says "(the picture cannot be read)" (a CI runner)
+            print("  skipped: kitty cover options, the picture checks (ffmpeg is not installed on this machine)")
+            return
         mark = len(sess.raw)
         sess.send(b"\x1b[B", 0.5)
         sess.send(b"\x1b[B", 0.8)   # automatic -> no cover -> cover.png
