@@ -426,6 +426,11 @@ def karaoke_timing(binary, root, scripts):
                 break
             sess.pump(0.5)
         check("KARAOKE" in sess.text() and "lyric line" in sess.text(), "karaoke timing: the karaoke screen shows the lyrics")
+        if "0:00 / 0:00" in sess.text():
+            # no track is playing: a machine without a (working) audio device, such as a CI runner. The timing overlay
+            # needs the playing track, so there is nothing to test here.
+            print("  skipped: karaoke timing overlay (the track does not play on this machine: no audio device)")
+            return
         for _ in range(6):   # the key is ignored until the lyrics are loaded: try again for a few seconds
             sess.send(b"\x1bl", 1.5)
             if "Lyrics Timing" in sess.text():
@@ -463,6 +468,7 @@ def main():
     make_png(os.path.join(lib, "Alpha Artist", "First Album", "cover.png"))
     make_wav(os.path.join(lib, "Misc", "さくら.wav"))
     make_wav(os.path.join(lib, "Misc", "사랑해.wav"))
+    make_png(os.path.join(lib, "Misc", "cover.png"))   # (the first track of the list depends on the file system's directory order: any of them has a cover)
     with open(os.path.join(home, ".config", "mousiki", "config.txt"), "w", encoding="utf-8") as f:
         f.write("LocalMusicPath=%s\n" % lib)
 
