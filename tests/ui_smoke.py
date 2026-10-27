@@ -468,6 +468,11 @@ def karaoke_timing(binary, root, scripts):
                 break
             sess.pump(0.5)
         check("KARAOKE" in sess.text() and "lyric line" in sess.text(), "karaoke timing: the karaoke screen shows the lyrics")
+        if shutil.which("ffprobe") is None:
+            # without ffmpeg / ffprobe the track is not loaded properly (the screen shows no length, "/ 0:00 ]"), so the overlay,
+            # which needs a loaded track with its lyrics, cannot open: the same reason the Kitty picture checks are skipped
+            print("  skipped: karaoke timing overlay (ffmpeg / ffprobe is not installed on this machine)")
+            return
         if re.search(r"\[ 0:00 / ", sess.text()):
             # no track is playing (the position stays at 0:00 several seconds after ENTER): a machine without a (working) audio
             # device, such as a CI runner, or one where the audio device does not start in time. The timing overlay
