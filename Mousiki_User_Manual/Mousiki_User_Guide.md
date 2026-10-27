@@ -459,7 +459,7 @@ Each press moves to the next mode in this order: **list → repeat → shuffle �
 
 ## 3. Navigation & view, lyrics and visualizations (main UI)
 
-The cheat sheet splits these keys into groups: **NAVIGATION & VIEW** (the lists and what they show), **FILE CONVERSION** (the conversion overlay and its keys), **LYRICS & KARAOKE** and **VISUALIZATIONS** (oscilloscope and spectrogram). The loudness normalization and sleep timer overlays are listed under **PLAYBACK** (chapter 2); their detailed descriptions follow further down in this chapter.
+The cheat sheet splits these keys into groups: **NAVIGATION & VIEW** (the lists and what they show), **FILE CONVERSION** (the conversion overlay and its keys), **LYRICS & KARAOKE** and **VISUALIZATIONS** (oscilloscope and spectrogram). The loudness normalization and sleep timer overlays are listed under **SOUND** and **SLEEP TIMER** (chapter 2); their detailed descriptions follow further down in this chapter. The big list, queue and folder overlays have their own group, **BIG OVERLAYS**.
 
 **Navigation & view** (cheat sheet: NAVIGATION & VIEW)
 

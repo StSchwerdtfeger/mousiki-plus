@@ -350,42 +350,15 @@ DIFFERENT SEARCH CAPABILITIES:[[Header]]
 
 The local search is fuzzy: "X Files" also finds "X-Files". It also looks at the Latin spelling of Japanese,
 Korean and Chinese titles: "sakura" finds さくら. The radio's station search does the same.
-LATIN LETTERS:[[Header]] [SHIFT+'] on a US keyboard (the key is ["], German [SHIFT+2]) shows Japanese kana, Korean
-and Chinese text in Latin letters: titles, tags, file names, lyrics, karaoke, READ LYRICS (it also works
-inside karaoke and READ LYRICS). Kana become romaji (さくら = sakura), Hangul the Revised Romanization
-(한국어 = hangugeo), Chinese characters pinyin (谢谢 = xiè xiè) - but only when the text is known to be
-Chinese (a character only Chinese uses, or the artist's other tracks say so). Kanji in Japanese text
-(kana in the text or in another tag of the track) and characters that could be either (東京) stay as
-they are. A name written both ways ("Kenshi Yonezu (米津玄師)") is shown as its Latin part.
+
+TRANSLITERATION TAKEN INTO ACCOUNT:[[Header]] [SHIFT+'] on a US keyboard (the key is ["], 
+German [SHIFT+2]) shows Japanese kana, Korean and Chinese text in Latin letters: titles, 
+tags, file names, lyrics, karaoke, READ LYRICS (it also works inside karaoke and READ LYRICS). 
+Transliteration is taken into account for the search, but does not apply to searches for the
+Radio station browser or other online searches.
+
 RADIO:[[Header]] The radio mode has the same key: station names, the title that plays now, the lists and the
 menus switch too (the setting is shared with the music player).
-SPELLING:[[Header]] Japanese is spelled for easy reading (kienuyou, koe o). Settings > ON/OFF > TRANSLITERATION >
-Latin Macrons / Latin Wo (independent of each other) switch to macrons (kienuyō) and to "wo".
-Translit. Kanji (Leave / Chin. / Jap.) decides about characters like 東京 that could be either.
-KANJI:[[Header]] Your own readings go into kanji_readings.txt next to config.txt ("米津玄師 = Yonezu Kenshi",
-"chinese: 周杰倫"). Pairs are also learned from your folder and file names (3+ tracks agreeing) into
-kanji_readings_learned.txt. LatinHanziDefault (config.txt): leave / chinese / japanese for unclear kanji.
-With pykakasi installed (optional, nothing is sent anywhere) kanji in Japanese text are read in the
-background and shown in Latin letters too (kanji_readings_cache.txt). The Windows installer can download
-pykakasi for you (a ticked option); setup.sh --with-kanji / setup.ps1 -WithKanji do it for a source
-build.
-LATIN NAME LOOKUP:[[Header]] Settings > ON/OFF > TRANSLITERATION > Latin Name Lookup (off by default) asks
-MusicBrainz in the background for the Latin name of artists written in Chinese characters - it sends
-)WIZ",
-R"WIZ(those artist names (and your IP) to musicbrainz.org, nothing else.
-LYRICS NAME VARIANTS:[[Header]] a lyrics search that finds nothing also tries the Latin spelling, the title /
-artist without their Latin or Japanese part, and the title alone (see 4.2). The search finds titles by
-their Latin spelling in any case.
-
-Messages like "Latin letters: on" are not shown on the main screen. Press t (console): the top pane
-is the log of what the program ran, the pane below it (8 rows) keeps the status messages of the
-last hours with their time, also those of Settings. TAB changes the pane, the arrow keys scroll it
-(SHIFT: a page), HOME goes to the oldest line, END back to the newest.
-Accents are ignored (arzte = Ärzte), swapped letters are forgiven, a word may be typed only as far
-as it goes (test cov), and run-together words find the words of a name in order (testcover finds
-test_song-cover3).
-It matches the file name, the artist, the title tags and the
-album, and ranks purely by how well things match.
 
 GENERAL:[[HEADER]]
 [UP] / [DOWN] while typing, then [ENTER] plays the highlighted result
@@ -399,7 +372,6 @@ On a folder row (/f:) [ENTER] opens that folder in the list, like [f].
 Online searches only run on [ENTER], never per keystroke.
 SoundCloud's 30-second previews and unplayable tracks are left out of
 the results, which is why it takes a few seconds longer to search...
-
 
 
 [[NEW PAGE]]
@@ -425,7 +397,8 @@ local path. The radio puts its recordings in the same folder by default.
 
 SHARED DOWNLOAD HISTORY OF MOUSIKI AND YT-DLP:[[Header]]
 When using yt-dlp it places a downloaded_history.txt file inside the chosen download path. This
-can lead to the case that the history file is accidentally moved and when e.g. downloading a playlist
+)WIZ",
+R"WIZ(can lead to the case that the history file is accidentally moved and when e.g. downloading a playlist
 to which you may have added new files, it will not download the new files only, but all of them again.
 To avoid this the history is placed inside a folder called "history" which is placed within the
 download path that was chosen in the setting. Mousiki avoids duplicates by checking for files with
@@ -533,8 +506,7 @@ artist of .sid). All other fields are saved in the folder "chip_tracker_meta dat
 COVER IN THE EDIT PANE AND COVER OPTIONS:[[Header]]
 The cover of the highlighted track is shown under the fields. Move down to the button
 [ Cover Options ] and hit [ENTER]: choose a picture for THIS track (inside the file, in its
-)WIZ",
-R"WIZ(folder, in its fetched_covers folder, the album's covers), "Automatic" (Settings -> Cover
+folder, in its fetched_covers folder, the album's covers), "Automatic" (Settings -> Cover
 Search decides), "No cover", delete a picture from the disk ([DEL], not the one inside a file)
 or search pictures by file name ([TAB] or [/]). The choice goes before the album default of
 the cover fetch menu and before the Cover Search setting (except "Within File Only").
@@ -572,7 +544,8 @@ library rows are drawn in the header colour, so you can see what will be written
 Also, when fetching takes a while and you exit the meta data menu, fetching does
 not stop, will continue in the background.
 Only [CTRL+s] writes to the files, and it asks if you want to keep changes. Same
-goes for [CTRL+SHIFT+x] for discarding changes (not only the recent but all
+)WIZ",
+R"WIZ(goes for [CTRL+SHIFT+x] for discarding changes (not only the recent but all
 currently autosaved changes!).
 NOTE: Saving a high number of titles can take a few seconds!!![[Legend]]
 
@@ -676,8 +649,7 @@ START: [[Header]]
 [ENTER] converts the marked files (the highlighted one when nothing is marked!), [c] cancels a
 running conversion, [CTRL+p] plays the highlighted file. [ESC] closes the overlay; a running
 conversion goes on in the background and reports on the status line.
-)WIZ",
-R"WIZ(
+
 WHERE THE FILES GO: [[Header]]
 Into the CONVERSION EXPORT PATH ([s] Settings[[Header]] ->> PATHS[[Header]]), by default the 
 folder conversion-export inside the download folder, in the same sub folders as the originals.
@@ -713,7 +685,8 @@ Dark covers behind the disk: dark dots are lifted a little (locally; bright part
              the meta data editor, saved there with [CTRL+s] - for wrong titles
 [SHIFT+r]    rescan the music folders; [ALT+c] / macOS [SHIFT+q] closes the overlay again
 [a]          add the album (on a folder row: all its albums) to the fetch list
-[SHIFT+f]    add everything the search shows (and the filter keeps) to the fetch list
+)WIZ",
+R"WIZ([SHIFT+f]    add everything the search shows (and the filter keeps) to the fetch list
 [TAB]        focus: search bar -> library -> album art
 The ALBUM ART pane shows album title and artist (marquee when too long). In it: [up/down] preview, [ENTER] use as the cover of this ALBUM NAME, [n] no
 cover, [c] clear the choice, [DEL] delete the picture from the disk (not the one inside a file).
@@ -794,8 +767,7 @@ TRANSLITERATION > Lyrics Name Variants (on by default) switches it off.
 FETCH CHECK:[[Header]] If lyrics, covers or the update notice stop working, run  mousiki --selftest-fetch
 in a terminal: it tests the lyrics sources, MusicBrainz / Cover Art Archive, GitHub, ffmpeg / yt-dlp and
 the pinned downloads and says OK / WARN / FAIL for each (--offline, --verify-pins and
-)WIZ",
-R"WIZ(--only lyrics,cover,update,tools,pins,scripts narrow it).
+--only lyrics,cover,update,tools,pins,scripts narrow it).
 
 READING AND TRANSLATING LYRICS:[[Header]]
 [CTRL+L] opens READ LYRICS (playing track, else the hovered one). It shows the lyrics fetched 
@@ -835,7 +807,8 @@ may have different sizing options.
 
 KEYS THAT KEEP WORKING IN KARAOKE: [[Header]]
 [p] play/pause   [n] / [b] next / previous   [#] shuffle   [<-/->] seek   [+/-] volume
-[x] mute   [m] mode   [v] normalization
+)WIZ",
+R"WIZ([x] mute   [m] mode   [v] normalization
 [ALT+L] (macOS [SHIFT+j]) the lyrics timing overlay, right over the big lyrics: easiest to judge an offset
 
 
@@ -930,8 +903,7 @@ refresh rate (60, 120, 165 Hz ...):
 [)]   scope window            German keyboard SHIFT+9, English keyboard SHIFT+0
 [(]   spectrogram window      German keyboard SHIFT+8, English keyboard SHIFT+9
 In the window: [F] or [F11] switches to fullscreen, [T] always on top, [ESC] or [Q] close.
-)WIZ",
-R"WIZ(Each window is a separate process that gets the audio through a pipe, so a graphics driver
+Each window is a separate process that gets the audio through a pipe, so a graphics driver
 problem can only close the window, never stall the music or the terminal.
 Position and size are remembered, and the windows stay open when you switch player <-> radio.
 
@@ -974,7 +946,8 @@ spectrogram. If the microphone cannot be opened, the overlay says why (allow mic
 terminal on macOS / Windows).
 
 PREVIEW: [[Header]]
-The file plays in a loop and the XY scope (oscilloscope music) or the spectrogram shows it. It has its
+)WIZ",
+R"WIZ(The file plays in a loop and the XY scope (oscilloscope music) or the spectrogram shows it. It has its
 own settings and does not change your [SHIFT+o] / [SHIFT+i] settings.
 [ESC] closes the preview and returns to the overlay; the song that played before comes back (from its start). [SPACE] pauses.
 
@@ -1094,8 +1067,7 @@ Nothing you do in here changes your music.
 
 GOOD TO KNOW: [[Header]]
 A play counts for a playlist when it was queued from a saved playlist ([ENTER] or [a] on a playlist
-)WIZ",
-R"WIZ(row). The history keeps the newest 1000 plays one by one and folds older ones into lifetime totals
+row). The history keeps the newest 1000 plays one by one and folds older ones into lifetime totals
 per title, including the day and the time of day of every play, so the period and time-of-day lists
 stay exact over years. It lives in history.json, in [s] Settings[[Header]] ->> PATHS[[Header]] ->> HISTORY PATH[[Header]].
 
@@ -1145,7 +1117,8 @@ opened the settings, paths included. While there are unsaved changes a note says
 
 TEXT EDITING, IN EVERY FIELD: [[Header]]
 [<-/->] caret            [SHIFT+<-/->] mark          [HOME] [END] jump
-[DEL] [BACKSPACE] delete [CTRL+c] [CTRL+x] [CTRL+v]  copy, cut, paste
+)WIZ",
+R"WIZ([DEL] [BACKSPACE] delete [CTRL+c] [CTRL+x] [CTRL+v]  copy, cut, paste
 [ENTER] confirm          [ESC] cancel the edit
 [TAB] and the arrows never leave a field that is being edited.
 
@@ -1237,8 +1210,7 @@ UI MODE SWITCH:[[Header]]
 Use Music Player / Use Radio / Use Audio Books:[[Legend]] 
     false = the mode is left out of the [SHIFT and +] cycle; one mode always stays on, the remaining 
     mode set to true, when all others are turned off, can't be turned off...
-)WIZ",
-R"WIZ(
+
 Mode Order 1-3:[[Legend]]       sets the order of the cycle, just like Viz Order 1-4. Picking a mode for a 
                       place swaps it with the place that held it; [SHIFT and +/-] walks cycles 
                       through the set order.
@@ -1277,7 +1249,8 @@ Translit. Kanji:[[Legend]]       Leave (default) = characters that could be Japa
                        config.txt.
 
 Latin Name Lookup:[[Legend]]     off by default. On = artists written in Chinese characters are looked up on
-                       MusicBrainz in the background; their NAME (and your IP) is sent to 
+)WIZ",
+R"WIZ(                       MusicBrainz in the background; their NAME (and your IP) is sent to 
                        musicbrainz.org, nothing else.
 
 Lyrics Name Variants:[[Legend]]  on by default and adjusts the lyrics fetching function in case of 
@@ -1344,8 +1317,7 @@ Cover Search:[[Legend]]                    says where the cover is looked for:
                                             different albums can hold one picture per album ("Eclipse.jpg" 
                                             belongs to the tracks of the album Eclipse). If none is close, 
                                             a picture Eclipse named cover, folder, front, albumart or album 
-)WIZ",
-R"WIZ(                                            is taken.
+                                            is taken.
                                    Folder First: the folder first (close name, then cover.jpg and its like), 
                                                  the file's picture last
                                    Within File First: inside the file; then only a closely named picture of 
@@ -1378,7 +1350,8 @@ LYRICS:[[Header]]                          Lyrics Alignment[[Legend]] (left / ce
                                  line by line).
 
 DISK:[[Header]]                            Disk[[Legend]] Speed:[[Legend]] with range between 0.01 - 1.00.
-
+)WIZ",
+R"WIZ(
 SPECTRUM BARS:[[Header]]         Concerns the visualization under the meta data field. 
                                  Bars[[Legend]] Fluidity:[[Legend]] sets the stiffness/friction of the bars moving up,
                                  where a low value means the bars snap upwards instantly. The 
@@ -1468,8 +1441,7 @@ the cheat sheet [?] and this wizard [SHIFT+w] work with the same keys and overla
 chapters 5 to 8. Differences: the radio keeps its own equalizer curve, oscilloscope values and
 settings in radio_config.txt; the sleep timer stops the stream (no "Stop after current song"); the
 visualization field is the scope block right of the station info and [,/.] cycles oscilloscope,
-)WIZ",
-R"WIZ(sphere and spectrogram (there are no lyrics).
+sphere and spectrogram (there are no lyrics).
 
 LETTERS ARE MORE OFTEN CASE SENSITIVE IN THE RADIO: [[Header]]
 [r] recalls a preset slot, [R] reconnects the station.
@@ -1518,7 +1490,8 @@ which only has little space so it gives you the possibility to specify it by you
 A preset is a named set of 16 station slots on the keys:
 
 1  2  3  4  5  6  7  8  9  0  e  r  t  d  f  g
-
+)WIZ",
+R"WIZ(
 Press one on the main screen to recall that slot. [SHIFT+<-/->] switches to the previous / next
 preset. The name of the active preset list is in the pane title: e.g. PRESETS (Morning).
 
@@ -1636,8 +1609,7 @@ RECORD, INCLUDING THE MINUTES BEFORE YOU PRESSED: [[Header]]
 -> From now on (when this opened)
 -> The last 1 / 5 / 10 / 15 / 30 minutes
 -> Everything buffered
-)WIZ",
-R"WIZ(A row says "only m:ss" when the buffer does not reach that far back and then starts at the oldest audio.
+A row says "only m:ss" when the buffer does not reach that far back and then starts at the oldest audio.
 
 [UP]/[DOWN] choose   [ENTER] or [y] start   [ESC] cancel   [y] again while it runs: stop
 While it runs the footer of the dial shows REC mm:ss.
@@ -1682,7 +1654,8 @@ on air ends up in your local library (after a rescan with [SHIFT+r] in the playe
 OPEN:[[Header]] 
 As usual [s] opens the radio settings. Same frame, tab strip and editing keys as the other:
 [TAB] next tab, [UP]/[DOWN] rows, [<-/->] or [ENTER] change a value, [s] saves and closes,
-[ESC] / [q] discards (asks first when something changed).
+)WIZ",
+R"WIZ([ESC] / [q] discards (asks first when something changed).
 
 The settings are stored in radio_config.txt, separate from the config.txt of the player. 
 Colors are not carried over between the two modes: the radio has its own palette and its 
@@ -1779,8 +1752,7 @@ PLAYBACK: [[Header]]
              so a long book can be crossed quickly. [p] pause, volume, mute and the sleep timer as always.
 
 THE DEFAULT PICTURE: [[Header]] 
-)WIZ",
-R"WIZ(An image of a women rading a book (a grey version of a colour picture) takes the place of the disk. 
+An image of a women rading a book (a grey version of a colour picture) takes the place of the disk. 
 It is drawn as small braille dots (a 60 x 60 dot field) and stays still; the colour wave of the 
 radio's ON AIR sign runs over it diagonally, from the upper left to the lower right. In a terminal 
 with Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm ...) it is a real transparent 
@@ -1819,7 +1791,8 @@ File name, Book title, Author, Narrator, Chapter, Publisher, Year and Genre.
 [<-]/[->]     go to the other chapters (unsaved changes have to be saved with [s] or dropped 
               with [d] first). A changed row is drawn in the header colour) 
 [s]           writes this chapter's changes. The audio is copied bit for bit (ffmpeg -c copy). 
-              The File name row edits the name only; the ending (.mp3 ...) stays.
+)WIZ",
+R"WIZ(              The File name row edits the name only; the ending (.mp3 ...) stays.
 [a]           writes the changed book rows (book title, author, narrator, publisher + year, genre) 
               to every chapter of the book; the chapter title stays each chapter's own. The chapter 
               number always goes in FRONT of the name (01 Dune, 02 Dune ...): the folder is sorted 
@@ -1900,8 +1873,7 @@ book, chapter, time; the newest first, notes last.
 [SHIFT+b]  turns an auto-mark into a regular bookmark.
 [SHIFT+t]  sorting: by the date the stamp was set (newest first), by book (A-Z, the highest chapter 
            and the furthest mark first).
-)WIZ",
-R"WIZ([ESC]      back to the date sorting, and closes.
+[ESC]      back to the date sorting, and closes.
 [CTRL+SHIFT+u] brings the last discarded one back.
 [ESC]      closes/clears sorting.
 
@@ -1942,7 +1914,8 @@ as "01 Chapter 1.wav", "02 The Storm.wav" ... with the chapter title as title ta
 fails, the new files are removed and the original is untouched. Answer the question with [t] 
 instead of [y] to also trim blank audio at the edges of the parts to 2 seconds (bookmarks, 
 auto-mark and notes are moved accordingly).
-
+)WIZ",
+R"WIZ(
 THE BACKUP: [[Header]] 
 The original becomes "Dune.wav.mousiki-backup" in the book folder (not listed as a chapter) and 
 stays until you delete it on purpose: [SHIFT+d] in this window shows how much space it takes...

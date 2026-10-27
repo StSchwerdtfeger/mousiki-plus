@@ -176,7 +176,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "HKeyCheatsheet", "This cheatsheet"},
         {nullptr, "HKeyMenus", "The MENUS index: every menu and overlay by category with its key (UP/DOWN/LEFT/RIGHT select, ENTER opens, ESC closes)"},
         {nullptr, "HKeyQuit", "Quit"},
-        {nullptr, "#ESC", "Close setting / overlay / menu"},
+        {"BASIC KEYS (MAIN UI)", "#ESC", "Close setting / overlay / menu"},
         {nullptr, "#ENTER", "Confirm / select"},
         {nullptr, "#ARROW KEYS", "Navigate (context-dependent)"},
         {nullptr, "#Y / N", "Confirm or cancel a prompt"},
@@ -215,12 +215,12 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "HKeyIncreaseVolume", "Volume up"},
         {nullptr, "HKeyDecreaseVolume", "Volume down"},
         {nullptr, "HKeyToggleMute", "Mute (without pausing)"},
-        {nullptr, "HKeyToggleNormalize", "Toggle loudness normalization"},
+        {"SOUND (MAIN UI)", "HKeyToggleNormalize", "Toggle loudness normalization"},
         {nullptr, "HKeyNormMenu", "Normalization overlay: on/off, target level, max boost live (toggle)"},
         {nullptr, "#UP/DOWN  LEFT/RIGHT", "Normalization overlay: pick a value / change it   [SPACE] on/off   [R] reset   [ESC] close"},
-        {nullptr, "HKeySleepTimer", "Sleep timer overlay: pause after 15/30/60/90/120 min (optional fade-out over the last 10 %) or stop after this song (toggle)"},
+        {"SLEEP TIMER (MAIN UI)", "HKeySleepTimer", "Sleep timer overlay: pause after 15/30/60/90/120 min (optional fade-out over the last 10 %) or stop after this song (toggle)"},
         {nullptr, "#UP/DOWN  ENTER", "Sleep timer overlay: pick an entry / set it ('Fade out' toggles the fade)   [ESC] close (the Stop play mode is left alone)"},
-        {nullptr, "HKeyCreator", "Creator overlay: turn a text or a picture into oscilloscope music (XY scope) or a spectrogram sound, saved as a WAV in <music folder>/creator and played (toggle)"},
+        {"CREATOR (MAIN UI)", "HKeyCreator", "Creator overlay: turn a text or a picture into oscilloscope music (XY scope) or a spectrogram sound, saved as a WAV in <music folder>/creator and played (toggle)"},
         {nullptr, "#UP/DOWN  LEFT/RIGHT", "Creator overlay: pick a row / change it   [ENTER] on 'Create' renders, saves and plays   [ESC] close"},
         // --- Navigation & View: moving around the lists and what they show ---
         {"NAVIGATION & VIEW (MAIN UI)", "HKeyNavigateUp", "Explore list (up)"},
@@ -232,7 +232,8 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "HKeyToggleMetaOnly", "Toggle metadata-only track list (no filename)"},
         {nullptr, "HKeyTranslit", "Latin letters on / off: Japanese kana, Korean and Chinese text (titles, tags, lyrics, karaoke) shown in Latin letters (SHIFT+' on a US keyboard; the radio has the same key; the search finds such titles by their Latin spelling in any case)"},
         {nullptr, "HKeyToggleWaveform", "Toggle waveform style (raw/smooth)"},
-        {nullptr, "HKeyFolderOverlay", "Big folder overlay: tree of the library's folders (ENTER opens, f shows the folder in the list, / searches)"},
+        {nullptr, "HKeyRefreshUi", "Refresh UI (redraw)"},
+        {"BIG OVERLAYS (MAIN UI)", "HKeyFolderOverlay", "Big folder overlay: tree of the library's folders (ENTER opens, f shows the folder in the list, / searches)"},
         {nullptr, "HKeyListOverlay", "Big list overlay: larger LOCAL AUDIO FILES pane (toggle)"},
         {nullptr, "HKeyQueueOverlay", "Big queue overlay: larger QUEUE pane (toggle; replaces the list overlay)"},
         {nullptr, "#SHIFT+UP/DOWN", "Every list and scrolling page (also the big overlays): previous / next page (faster scrolling)"},
@@ -241,7 +242,6 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "#ENTER, LEFT/RIGHT", "Big folder overlay: open / close the hovered folder (LEFT on a closed one jumps to its parent)"},
         {nullptr, "#CTRL+p", "Big folder / conversion overlay: play the hovered file (the overlay stays open)"},
         {nullptr, "#/", "Big folder overlay: search the folder tree (ENTER or ESC leaves the search field)"},
-        {nullptr, "HKeyRefreshUi", "Refresh UI (redraw)"},
         // --- File conversion: its own category ---
         {"FILE CONVERSION (MAIN UI)", "HKeyConvertOverlay", "File conversion overlay: turn high resolution files into MP3 / AAC / Opus (marked files go to the CONVERSION EXPORT PATH, the originals stay untouched)"},
         {nullptr, "#SPACE, a", "Conversion overlay: mark / unmark the hovered file / mark or unmark everything shown"},
@@ -317,7 +317,6 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         // --- Meta editor -- same deal: HKeyMetaEditor opens it, everything
         // else is build_meta_screen()'s own fixed legend (both tabs).
         {"META EDITOR", "HKeyMetaEditor", "Meta editor: edit file name / artist / title / album / year; the cover of the track below the tags, [Cover Options] to choose / delete / search a cover"},
-        {nullptr, "HKeyCoverFetch", "Cover fetch overlay: album library (missing / one / several covers), fetch the front covers from MusicBrainz / Cover Art Archive into fetched_covers folders (an extra overlay, because MusicBrainz often misjudges album titles)"},
         {nullptr, "#LEFT/RIGHT", "Switch tab (Edit vs Fetch List); in the search field after typing and in the field editor: move the caret"},
         {nullptr, "#ESC", "Leave the search field / field editor; outside a field: close (pending edits are kept)"},
         {nullptr, "#" MUISC_ALT_NAME_UC "+LEFT/RIGHT", "Switch tab from anywhere, also while typing"},
@@ -326,23 +325,25 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "#ENTER", "Edit the hovering field (Fetch List tab: fetch the full list; fetched field with several options: choose)"},
         {nullptr, "#SHIFT+LEFT/RIGHT", "Mark text (search field / field editor)"},
         {nullptr, "#CTRL+C/X/V", "Copy / cut / paste text (search field / field editor)"},
-        {nullptr, "#a", "Meta editor: add the hovering file (folder view: the hovering folder) to the fetch list"},
-        {nullptr, "#SHIFT+f", "Meta editor (library pane): add the full list -- every title the pane shows now (search and missing-tag filter applied) -- to the fetch list"},
-                {nullptr, "#TAB  LEFT/RIGHT  SPACE (Fetch List)", "Meta editor, Fetch List tab: TAB moves between the list and the fetch option line; LEFT/RIGHT move over the boxes, SPACE ticks one (missing only / all exclude the rest; the tag boxes combine); ENTER fetches the full list"},
-        {nullptr, "#UP/DOWN  ENTER  DEL/d  ESC", "Meta editor choice overlay: select / take it / discard the fetched value and all options / close"},
-        {nullptr, "#f", "Meta editor (library pane): folder view on / off -- files grouped by folder, numbered per folder; [a] on a folder header adds the whole folder to the fetch list, ENTER closes / opens it"},
+        {nullptr, "#CTRL+s", "Apply the meta editor's pending edits to the files (asks first)"},
+        {nullptr, "#CTRL+SHIFT+x", "Discard the meta editor's pending edits (fetched tags included) and empty the fetch list"},
+        // --- Cover fetch: opened with its own key, runs in the same two-tab frame ---
+        {"COVER FETCH (MAIN UI)", "HKeyCoverFetch", "Cover fetch overlay: album library (missing / one / several covers), fetch the front covers from MusicBrainz / Cover Art Archive into fetched_covers folders (an extra overlay, because MusicBrainz often misjudges album titles)"},
+        {"META EDITOR: LIBRARY PANE", "#f", "Meta editor (library pane): folder view on / off -- files grouped by folder, numbered per folder; [a] on a folder header adds the whole folder to the fetch list, ENTER closes / opens it"},
         {nullptr, "#r", "Meta editor: toggle edited files on top of the library pane"},
         {nullptr, "#n", "Meta editor (library pane): toggle recently added files first"},
         {nullptr, "#x, SHIFT+/t/a/l/y", "Filter + sort the library pane by missing metadata: x = missing any, SHIFT+t = title, SHIFT+a = artist, SHIFT+l = album, SHIFT+y = year (same order as the fields)"},
         {nullptr, "#SHIFT+p", "Meta editor (library pane / fetch list): start the hovering track"},
+        {"META EDITOR: FETCH LIST AND TAGS", "#a", "Meta editor: add the hovering file (folder view: the hovering folder) to the fetch list"},
+        {nullptr, "#SHIFT+f", "Meta editor (library pane): add the full list -- every title the pane shows now (search and missing-tag filter applied) -- to the fetch list"},
+                {nullptr, "#TAB  LEFT/RIGHT  SPACE (Fetch List)", "Meta editor, Fetch List tab: TAB moves between the list and the fetch option line; LEFT/RIGHT move over the boxes, SPACE ticks one (missing only / all exclude the rest; the tag boxes combine); ENTER fetches the full list"},
+        {nullptr, "#UP/DOWN  ENTER  DEL/d  ESC", "Meta editor choice overlay: select / take it / discard the fetched value and all options / close"},
         {nullptr, "HKeyFetchTags", "Meta editor / main list: fetch the missing tags (empty ones only) of the hovered title (AcoustID)"},
         {nullptr, "#SHIFT+n", "Meta editor (library pane / fetch list): fetch ALL tags of the hovered title, overwriting existing ones"},
         {nullptr, "#SHIFT+c", "Meta editor, Fetch List tab: cancel the running AcoustID fetch (what had arrived stays as pending edits, the rest stays on the list). Leaving the editor does not stop a fetch; quitting does"},
         {nullptr, "HKeyRescan", "Rescan the library (new files); also in the meta data editor (library pane / fetch list focused)"},
         {nullptr, "#DEL / d", "Remove hovering track from the fetch list"},
         {nullptr, "#SHIFT+d / SHIFT+DEL", "Empty the whole fetch list (asks first); pending edits, fetched tags included, are kept"},
-        {nullptr, "#CTRL+s", "Apply the meta editor's pending edits to the files (asks first)"},
-        {nullptr, "#CTRL+SHIFT+x", "Discard the meta editor's pending edits (fetched tags included) and empty the fetch list"},
         // --- Settings ---
         {"SETTINGS", "#TAB", "Next tab (not while a field is being edited)"},
         {nullptr, "#UP/DOWN  LEFT/RIGHT", "Previous / next row  |  cycle a switch or choice / pick the first or second colour cell"},
@@ -379,23 +380,26 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {"DOWNLOADS", "HKeyDownloadStream", "Save stream to the download folder (Settings > Download Path, else .cache/mousiki)"},
     };
 
-    // The table of this mode: the audio book player only lists what it can do (its own category first, then the parts of the
-    // other categories that work in it); every other mode shows the whole table.
+    // The table of this mode: the audio book player lists only what it can do (its own category first, then the parts of the
+    // other categories that work in it); the music player lists everything except the audio book category. (The radio has
+    // its own cheat sheet, built in radio_ui.cpp, with the radio's keys only.)
     std::vector<CheatRow> rows;
     {
         const char* pending = nullptr;
         std::string cat;
         for (const CheatRow& r : all_rows) {
             if (r.header) { cat = r.header; pending = r.header; }
-            const std::string act = r.action, desc = r.desc;
+            const std::string act = r.action;
+            if (!audiobook_ && cat == "AUDIO BOOK MODE") continue;
             if (audiobook_) {
                 bool keep = false;
-                if (cat == "SYSTEM (MAIN UI)" || cat == "AUDIO BOOK MODE" || cat == "FILE CONVERSION (MAIN UI)" || cat == "SETTINGS" ||
-                    cat == "SETTINGS (REFERENCE TAB)" || cat == "EQUALIZER") keep = true;
+                if (cat == "SYSTEM (MAIN UI)" || cat == "BASIC KEYS (MAIN UI)" || cat == "AUDIO BOOK MODE" || cat == "FILE CONVERSION (MAIN UI)" ||
+                    cat == "SETTINGS" || cat == "SETTINGS (REFERENCE TAB)" || cat == "EQUALIZER" || cat == "SOUND (MAIN UI)" ||
+                    cat == "SLEEP TIMER (MAIN UI)") keep = true;
                 else if (cat == "PLAYBACK (MAIN UI)") {
                     static const char* const drop[] = {"HKeyPlay", "HKeyPlayNextSong", "HKeyPlayPreviousSong", "HKeyShuffleNext", "HKeyCyclePlayMode",
-                                                       "HKeySeekForward", "HKeySeekBackward", "HKeyCreator"};
-                    keep = desc.rfind("Creator overlay", 0) != 0;
+                                                       "HKeySeekForward", "HKeySeekBackward"};
+                    keep = true;
                     for (const char* d : drop) if (act == d) keep = false;
                 } else if (cat == "NAVIGATION & VIEW (MAIN UI)") keep = act == "HKeyNavigateUp" || act == "HKeyNavigateDown" || act == "HKeyRefreshUi";
                 else if (cat == "VISUALIZATIONS AND LYRICS (MAIN UI)") keep = act != "HKeyToggleLyrics" && act != "HKeyToggleLyricsBack";

@@ -263,6 +263,13 @@ def paging_and_translit_row(binary, root, scripts):
         check(sess.text() == first, "paging: PgUp scrolls it back")
         sess.send(b"\x1b[1;2B", 0.8)
         check(sess.text() == paged, "paging: SHIFT+down does the same as PgDn")
+        # the music player's cheat sheet lists its own categories only: no audio book rows
+        seen = sess.text()
+        for _ in range(40):
+            sess.send(b"\x1b[6~", 0.3)
+            seen += "\n" + sess.text()
+        check("SOUND (MAIN UI)" in seen and "AUDIO BOOK" not in seen,
+              "cheat sheet: music player shows its categories, none of the audio book mode")
         sess.send(b"\x1b", 0.8)
         check("Alpha Song" in sess.text(), "paging: ESC leaves the cheat sheet")
 
