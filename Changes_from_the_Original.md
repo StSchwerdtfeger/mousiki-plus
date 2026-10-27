@@ -301,3 +301,5 @@ Karaoke: the lyrics timing overlay (`HKeyLyricsTiming`, default `ALT+L`; `SHIFT+
 - **Test fix (macOS CI).** `tests/ui_smoke.py`: writing a key to the pseudo terminal of a program that had just ended raised `OSError: Input/output error` on macOS (the quit test sends a "y" while the program is on its way out); the harness now treats that as "nothing left to send to".
 
 - **Test fix (CI timing).** `tests/ui_smoke.py`: the Kitty cover options check waits up to 10 s for the preview picture instead of 1.5 s (the picture is decoded in the background and a slow runner missed it), and the karaoke timing check retries the key until the lyrics are loaded.
+
+- **Test harness (CI).** `tests/ui_smoke.py`: the terminal size is now set in the child before the program starts (it was set by the parent after the fork, which a slow machine could lose), a failed Kitty-picture or karaoke-timing check prints the screen for the log, and the ui_smoke test's CTest timeout is 900 s (a slow macOS runner needed more than 300 s).

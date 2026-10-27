@@ -71,6 +71,12 @@ class Session:
         env.update(env_extra or {})
         self.pid, self.fd = pty.fork()
         if self.pid == 0:
+            # the size is set here, before the program starts: set only afterwards (by the parent, below) a slow machine
+            # could start the program first and let it read a 0 x 0 terminal
+            try:
+                fcntl.ioctl(0, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
+            except OSError:
+                pass
             os.execve(binary, [binary], env)
         fcntl.ioctl(self.fd, termios.TIOCSWINSZ, struct.pack("HHHH", ROWS, COLS, 0, 0))
         self.screen = pyte.Screen(COLS, ROWS)
@@ -115,6 +121,12 @@ class Session:
     def row_cells(self, y):
         row = self.screen.buffer[y]
         return [row[x].data for x in range(COLS)]
+
+    def dump(self, why):
+        """What the screen shows (for the log of a failed check: a CI run cannot be looked at)."""
+        print("---- screen at: %s ----" % why)
+        print("\n".join("%2d %s" % (i, l.rstrip()) for i, l in enumerate(self.screen.display) if l.strip()))
+        print("---- end of screen (alive=%s) ----" % self.alive())
 
     def kill(self):
         try:
@@ -196,6 +208,9 @@ def kitty_cover_options(binary, home, scripts):
         sess.send(b"\x1b[B", 0.8)   # automatic -> no cover -> cover.png
         shows_picture = picture_after(mark, 10.0)
         check(shows_picture, "kitty cover options: the preview of a picture is a real picture")
+        if not shows_picture:
+            sess.dump("kitty cover options: no picture arrived")
+            print("graphics commands seen so far: %d, TERM=%s" % (sess.raw.count(b"\x1b_G"), "xterm-kitty"))
         for _ in range(3):           # every [t] flips between picture and braille
             mark = len(sess.raw)
             sess.send("t", 0.5)
@@ -417,6 +432,8 @@ def karaoke_timing(binary, root, scripts):
                 break
             sess.pump(1.0)
         check("Lyrics Timing" in sess.text() and "KARAOKE" in sess.text(), "karaoke timing: ALT+L opens the timing overlay on top of the karaoke screen")
+        if "Lyrics Timing" not in sess.text():
+            sess.dump("karaoke timing: the overlay did not open")
         sess.send(b"\x1b", 1.5)
         check("KARAOKE" in sess.text() and "Lyrics Timing" not in sess.text(), "karaoke timing: ESC closes the overlay and the karaoke screen is back")
     finally:
