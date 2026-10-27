@@ -17,5 +17,10 @@ std::string mode_switch_back_label();   // the same for the key that goes back t
 // "(" and ")" (the spectrogram / scope window keys) as printed on THIS keyboard: SHIFT+8 / SHIFT+9 on German, Austrian,
 // Spanish and Italian layouts, SHIFT+9 / SHIFT+0 on US / UK ones; any other key (or layout) as it is.
 std::string symbol_key_label(const std::string& key);
+// A mode-switch key as set in config.txt (HKeyModeNext / HKeyModePrev; the typed character, 0 = none) as the cheat sheets show it.
+std::string mode_key_label(int ch);
+// The DEFAULT keys of "next mode" / "karaoke bigger" (next=true) and "previous mode" / "karaoke smaller": '*' and '_' (side by side on
+// German-style keyboards), but "'" and ";" on US / UK style ones (] [ { } are the radio's timeshift keys), where '*' is SHIFT+8. Only fresh configs get them; a saved key stays.
+std::string default_size_mode_key(bool next);
 
 } // namespace muisc

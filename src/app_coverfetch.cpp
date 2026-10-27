@@ -539,7 +539,9 @@ void App::handle_cf_key(int key) {
         text_disengage();
         mode_ = Mode::Browse;
     };
-    if (key_is("HKeyCoverFetch", key)) { close_menu(); return; }   // ALT+c opens the menu and closes it again (also from the search field)
+    // The key opens the menu and closes it again (ALT+c also from the search field; a plain letter such as the macOS default
+    // SHIFT+q is text there, ESC leaves the field first).
+    if (key_is("HKeyCoverFetch", key) && !(in_text && key >= 32 && key < 127)) { close_menu(); return; }
     // SHIFT+r: read the folders again (new, removed or changed files / albums)
     if (key_is("HKeyRescan", key) && !in_text && (cf_tab_ == 1 || cf_focus_ != 0)) {
         if (cf_fetch_running_.load()) { cf_status_ = "a fetch is running: rescan after it"; return; }

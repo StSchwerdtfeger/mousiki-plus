@@ -126,6 +126,16 @@ TEST(lyrics_sanitizer_removes_the_hangul_filler_only) {
     CHECK_EQ(sanitize_lyric_text(filler), std::string());
 }
 
+TEST(lyrics_plain_lines_word_tags_without_spaces_still_separate_the_words) {
+    // enhanced LRC as some services write it: <time>word<time>word, no space anywhere
+    const std::vector<std::string> lines = lyrics_plain_lines(
+        "[00:34.279]<00:34.279>Talking<00:35.429>away\n"
+        "[00:51.514]<00:51.514>Take<00:52.914>on<00:54.330>me<00:55.697>(Take<00:56.297>on<00:56.849>me)\n");
+    CHECK_EQ(lines.size(), static_cast<size_t>(2));
+    CHECK_EQ(lines[0], std::string("Talking away"));
+    CHECK_EQ(lines[1], std::string("Take on me (Take on me)"));
+}
+
 TEST(lyrics_plain_lines_strip_timestamps_tags_and_blank_runs) {
     const std::string lrc =
         "[ar:Some Artist]\n[ti:Some Title]\n[offset:+250]\n"

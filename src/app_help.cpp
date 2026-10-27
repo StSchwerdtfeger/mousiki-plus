@@ -168,8 +168,8 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         // --- System -- listed first. Besides the rebindable system hotkeys
         // this also carries the literal keys used across multiple overlays
         // (not tied to one editor's own legend below). ---
-        {"SYSTEM (MAIN UI)", "#@SWITCHKEY", "Switch to the next mode (music player, radio, audio books; the order and the modes that are on are set in Settings -> ON/OFF -> MODES). Playback pauses and the mode waits in the background"},
-        {nullptr, "#@SWITCHBACK", "Switch to the previous mode"},
+        {"SYSTEM (MAIN UI)", "HKeyModeNext", "Switch to the next mode (music player, radio, audio books; the order and the modes that are on are set in Settings -> ON/OFF -> MODES). Playback pauses and the mode waits in the background"},
+        {nullptr, "HKeyModePrev", "Switch to the previous mode"},
         {nullptr, "HKeySetting", "Open Settings panel, hit again to save and quit"},
         {nullptr, "HKeyConsole", "Console: logs and status messages (TAB pane, arrows scroll)"},
         {nullptr, "HKeyWizard", "Help wizard: the user guide as tutorial pages (arrow keys turn them)"},
@@ -207,7 +207,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {"PLAYBACK (MAIN UI)", "HKeyPlay", "Play the selected track"},
         {nullptr, "HKeyTogglePlayPause", "Play / pause"},
         {nullptr, "HKeyPlayNextSong", "Play next in list/queue"},
-        {nullptr, "HKeyPlayPreviousSong", "Play previous in list"},
+        {nullptr, "HKeyPlayPreviousSong", "Play previous in list (queue pane, locked queue: previous queue song)"},
         {nullptr, "HKeyShuffleNext", "Shuffle to a random next track"},
         {nullptr, "HKeyCyclePlayMode", "Cycle play mode (list/repeat/shuffle/stop/queue then stop)"},
         {nullptr, "HKeySeekForward", "Seek forward 5s"},
@@ -230,12 +230,13 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "HKeyClearFilter", "Clear filter"},
         {nullptr, "HKeyCycleSortMode", "Cycle local list sort mode (folder order / title A-Z / artist A-Z / recently added, newest first)"},
         {nullptr, "HKeyToggleMetaOnly", "Toggle metadata-only track list (no filename)"},
-        {nullptr, "HKeyTranslit", "Latin letters on / off: Japanese kana, Korean and Chinese text (titles, tags, lyrics, karaoke) shown in Latin letters (SHIFT+' on a US keyboard; the search finds such titles by their Latin spelling in any case)"},
+        {nullptr, "HKeyTranslit", "Latin letters on / off: Japanese kana, Korean and Chinese text (titles, tags, lyrics, karaoke) shown in Latin letters (SHIFT+' on a US keyboard; the radio has the same key; the search finds such titles by their Latin spelling in any case)"},
         {nullptr, "HKeyToggleWaveform", "Toggle waveform style (raw/smooth)"},
         {nullptr, "HKeyFolderOverlay", "Big folder overlay: tree of the library's folders (ENTER opens, f shows the folder in the list, / searches)"},
         {nullptr, "HKeyListOverlay", "Big list overlay: larger LOCAL AUDIO FILES pane (toggle)"},
         {nullptr, "HKeyQueueOverlay", "Big queue overlay: larger QUEUE pane (toggle; replaces the list overlay)"},
-        {nullptr, "#SHIFT+UP/DOWN", "Big list / queue / folder / conversion overlay: previous / next page (faster scrolling)"},
+        {nullptr, "#SHIFT+UP/DOWN", "Every list and scrolling page (also the big overlays): previous / next page (faster scrolling)"},
+        {nullptr, "#PGUP/PGDN", "The same as SHIFT+UP/DOWN. Not every keyboard has them without FN: SHIFT+UP/DOWN works everywhere"},
         {nullptr, "#ESC", "Big list / queue / folder / conversion overlay: close (playback, queue and list keys keep working)"},
         {nullptr, "#ENTER, LEFT/RIGHT", "Big folder overlay: open / close the hovered folder (LEFT on a closed one jumps to its parent)"},
         {nullptr, "#CTRL+p", "Big folder / conversion overlay: play the hovered file (the overlay stays open)"},
@@ -271,7 +272,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "#CTRL+s", "READ LYRICS: search EVERY lyrics file by name (all lyrics folders of the library) instead of the playing track's lyrics: type to filter, UP/DOWN pick, ENTER shows the file, ESC closes the search (CTRL+L opens the playing track's lyrics again)"},
         {nullptr, "#LEFT/RIGHT  TAB  UP/DOWN  t  SHIFT+t  d", "READ LYRICS: choose the file / translation, TAB switches the pane, scroll (SPACE, b, HOME, END too)   [t] translate overlay (ENTER fetches)   [SHIFT+t] show / next / hide translations   [d] delete a translation   [ESC] close"},
         {nullptr, "HKeyKaraoke", "Karaoke overlay: the lyrics over the whole screen, sung words highlighted (toggle; fetches the lyrics even with the lyrics engine off; playback keys keep working)"},
-        {nullptr, "#@KARAOKESIZE", "Karaoke overlay: lyrics bigger / smaller, sizes 1-5 (the characters * and _; saved when the overlay closes)"},
+        {nullptr, "#@KARAOKESIZE", "Karaoke overlay: lyrics bigger / smaller, sizes 1-5 (saved when the overlay closes)"},
         // --- Search ---
         {"SEARCH LOCAL (MAIN UI)", "HKeySearch", "Search the local library (title, artist and album; type to filter live, ENTER keeps the result)"},
         {nullptr, "#/r:", "Search ARTISTS only: type r: first (e.g. r:beatles) -- only the artist tag / folder name is matched"},
@@ -423,6 +424,10 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         if (std::string(r.action) == "#@VIZKEYS") {   // the two keys of the notes / visualizations switch
             auto one = [&](const char* a) { auto it = settings_.hotkeys.find(a); return it != settings_.hotkeys.end() && !it->second.empty() ? pretty_key(it->second) : std::string("-"); };
             return one("HKeyToggleLyrics") + " / " + one("HKeyToggleLyricsBack");
+        }
+        if (std::string(r.action) == "#@KARAOKESIZE") {   // the two size keys of the karaoke overlay
+            auto one = [&](const char* a) { auto it = settings_.hotkeys.find(a); return it != settings_.hotkeys.end() && !it->second.empty() ? pretty_key(it->second) : std::string("-"); };
+            return one("HKeyKaraokeBigger") + " / " + one("HKeyKaraokeSmaller");
         }
         if (r.action[0] == '#') return pretty_key(std::string(r.action + 1));
         auto it = settings_.hotkeys.find(r.action);
@@ -593,7 +598,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
     while (shown < visible) { frame << box_line("", W, border) << "\n"; ++shown; }
 
     std::string bottom = "[" + hotkey_text("HKeyCheatsheet", "?") + " / ESC] close  [SHIFT+s] search";
-    if (max_scroll > 0) bottom += "  [\u2191\u2193] scroll " + std::to_string(cheatsheet_scroll_ + 1) + "/"
+    if (max_scroll > 0) bottom += "  [\u2191\u2193] scroll  [SHIFT+\u2191\u2193] Page  " + std::to_string(cheatsheet_scroll_ + 1) + "/"
                                 + std::to_string(total);
     frame << box_bottom(W, bottom, border) << "\n";
 }

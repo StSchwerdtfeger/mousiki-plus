@@ -84,7 +84,7 @@ bool same_stream_url(const std::string& a, const std::string& b) {
     return pa.query == pb.query;          // both have one: what is left after dropping tracking parameters must agree
 }
 
-static std::string trim(std::string s) {
+static std::string trim(const std::string& s) {
     size_t a = s.find_first_not_of(" \t\r\n");
     if (a == std::string::npos) return "";
     size_t b = s.find_last_not_of(" \t\r\n");

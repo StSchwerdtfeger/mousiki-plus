@@ -81,6 +81,7 @@ bool win_last_key_was_arrow();
 // True while the key win_poll_key() just returned was Up/Down with Shift
 // held (the value is still 'A'/'B'). See last_key_was_shifted().
 bool win_last_key_was_shifted();
+bool win_last_key_was_page();
 bool win_last_key_was_ctrl();   // Up / Down with CTRL held
 
 // Text-entry mode. While `on`, ENABLE_PROCESSED_INPUT is cleared from the
@@ -99,6 +100,11 @@ void win_set_text_entry(bool on);
 std::string win_clipboard_get();
 void win_clipboard_set(const std::string& utf8);
 
+// The screen in characters, a rough estimate from its pixels (8 x 16 per character) for the largest size the terminal may be asked for.
+bool win_screen_chars_estimate(int& cols, int& rows);
+// Full screen on / off for the terminal window this console belongs to: presses its F11 (Windows Terminal) -- only while that window is
+// in front, and only when it is not already in the wanted state. False: nothing was done.
+bool win_set_fullscreen(bool want);
 int win_term_rows();
 int win_term_cols();
 

@@ -981,11 +981,13 @@ void note_erase_sel(std::vector<std::string>& L, NoteCur& c) {
     note_order(c, r1, c1, r2, c2);
     std::string& first = L[static_cast<size_t>(r1)];
     const std::string tail = L[static_cast<size_t>(r2)].substr(std::min(c2, L[static_cast<size_t>(r2)].size()));
-    first = first.substr(0, std::min(c1, first.size())) + tail;
+    first.resize(std::min(c1, first.size()));
+    first += tail;
     if (r1 == 0 && first.size() > 120) first.resize(utf8_prev_cut(first, 121));   // the title is short
+    const size_t first_len = first.size();   // (taken before the erase: the rows after r1 go, `first` itself stays)
     L.erase(L.begin() + r1 + 1, L.begin() + r2 + 1);
     c.row = c.arow = r1;
-    c.col = c.acol = std::min(c1, first.size());
+    c.col = c.acol = std::min(c1, first_len);
 }
 void note_insert(std::vector<std::string>& L, NoteCur& c, const std::string& text) {
     note_erase_sel(L, c);
@@ -1008,7 +1010,8 @@ void note_insert(std::vector<std::string>& L, NoteCur& c, const std::string& tex
         c.col += one.size();
     } else {
         const std::string post = cur.substr(c.col);
-        cur = cur.substr(0, c.col) + piece[0];
+        cur.resize(c.col);
+        cur += piece[0];
         if (piece.size() == 1) { c.col = cur.size(); cur += post; }
         else {
             int at = c.row;
@@ -1107,6 +1110,11 @@ bool App::book_note_key(int key) {
         if (to + 1 < target.size() && off >= b) off = utf8_prev_cut(l, b);
         c.row = row; c.col = off;
     };
+    if (arrow && last_key_was_page() && (key == 'A' || key == 'B')) {   // PgUp / PgDn: a page of rows (SHIFT+arrow marks instead)
+        for (int i = 0; i < 10; ++i) vertical(key == 'A' ? -1 : +1);
+        collapse(false);
+        return done();
+    }
     const bool shift_arrow = arrow && last_key_was_shifted();
     // the keys that move the caret (SHIFT keeps the other end where it was: that marks)
     if (arrow && key == 'A') { vertical(-1); collapse(shift_arrow); return done(); }
@@ -1602,7 +1610,8 @@ std::vector<std::string> App::build_book_notes_panel(int panel_w, int panel_h) c
         int used = 0;
         if (book_notes_mode_ == 1 || book_notes_mode_ == 2) {
             const std::string label = book_notes_mode_ == 1 ? "Export to: " : "Import from: ";
-            size_t c = book_notes_path_.size(), a = book_notes_path_.size();
+            size_t c = book_notes_path_.size();
+            size_t a = c;
             if (edit_owner_ == "booknotespath") { c = edit_caret_; a = edit_anchor_; }
             const EditPaint p = paint_edit_field(book_notes_path_, c, a, std::max(4, inner - display_width(label)), change_sgr(settings_), true);
             body_s = head + label + change_sgr(settings_) + p.s;

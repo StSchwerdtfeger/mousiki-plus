@@ -11,6 +11,9 @@ constexpr int kExitSwitchMode = 77;
 // (Settings -> ON/OFF -> MODES: Mode Order), SHIFT and - ('_') to the previous one. A mode that returns kExitSwitchMode
 // says which way in this variable (+1 forward, -1 back); main() picks the next mode with it.
 inline int g_mode_switch_dir = 1;
+// The keys of the switch, read from config.txt when a mode starts (HKeyModeNext / HKeyModePrev, Settings -> REFERENCE; 0 = none).
+inline int g_mode_key_next = '*';
+inline int g_mode_key_prev = '_';
 
 // The radio mode (src_radio/radio_main.cpp). Returns 0 on a normal quit, kExitSwitchMode for the mode switch ('*').
 int radio_main(int argc, char** argv);

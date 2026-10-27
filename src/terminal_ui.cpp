@@ -185,6 +185,99 @@ void terminal_default_text(const std::string& palette) {
 }
 void terminal_background_restore() { terminal_black_background(false); }
 
+// --- the terminal's size at start (see terminal_ui.h) ---
+static int g_screen_cols = 0, g_screen_rows = 0;   // the screen in characters, as the terminal / the system tells (0: unknown)
+static bool g_fullscreen_applied = false;
+
+#if !defined(_WIN32)
+// ESC [ 19 t: "report the size of the screen in characters", answered as ESC [ 9 ; rows ; cols t by xterm, VTE, iTerm2 ...
+// Terminals that do not know it say nothing: the read gives up after a tenth of a second.
+static bool query_screen_chars(int& cols, int& rows) {
+    if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO)) return false;
+    struct termios orig;
+    if (tcgetattr(STDIN_FILENO, &orig) != 0) return false;
+    struct termios raw = orig;
+    raw.c_lflag &= ~(ECHO | ICANON);
+    raw.c_cc[VMIN] = 0;
+    raw.c_cc[VTIME] = 1;   // one read waits at most 0.1 s
+    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+    const char q[] = "\x1b[19t";
+    ssize_t w = ::write(STDOUT_FILENO, q, sizeof q - 1);
+    (void)w;
+    std::string buf;
+    while (buf.size() < 40) {
+        char ch = 0;
+        if (::read(STDIN_FILENO, &ch, 1) != 1) break;
+        buf.push_back(ch);
+        if (ch == 't') break;
+    }
+    tcsetattr(STDIN_FILENO, TCSANOW, &orig);
+    const size_t at = buf.find("\x1b[9;");
+    int r = 0, c = 0;
+    if (at == std::string::npos || std::sscanf(buf.c_str() + at, "\x1b[9;%d;%dt", &r, &c) != 2) return false;
+    if (r < 10 || c < 20 || r > 2000 || c > 2000) return false;
+    rows = r; cols = c;
+    return true;
+}
+#endif
+
+void terminal_probe_screen() {
+    static bool done = false;
+    if (done) return;
+    done = true;
+#if defined(_WIN32)
+    int c = 0, r = 0;
+    if (win_screen_chars_estimate(c, r)) { g_screen_cols = c; g_screen_rows = r; }
+#else
+    int c = 0, r = 0;
+    if (query_screen_chars(c, r)) { g_screen_cols = c; g_screen_rows = r; }
+#endif
+}
+
+TerminalLimits terminal_size_limits() {
+    TerminalLimits L;
+    if (g_screen_cols > 0 && g_screen_rows > 0) { L.max_cols = g_screen_cols; L.max_rows = g_screen_rows; L.screen_known = true; }
+    L.max_cols = std::max(L.max_cols, L.min_cols);
+    L.max_rows = std::max(L.max_rows, L.min_rows);
+    return L;
+}
+
+void terminal_apply_size(int cols, int rows, bool fullscreen) {
+#if defined(_WIN32)
+    const bool tty = true;
+#else
+    const bool tty = isatty(STDOUT_FILENO) != 0;
+#endif
+    if (!tty) return;
+    if (fullscreen) {
+        if (g_fullscreen_applied) return;
+        std::cout << "\x1b[10;1t" << std::flush;   // xterm: full screen
+#if defined(_WIN32)
+        win_set_fullscreen(true);                   // Windows Terminal: its F11
+#endif
+        g_fullscreen_applied = true;
+        return;
+    }
+    if (g_fullscreen_applied) {
+        std::cout << "\x1b[10;0t" << std::flush;
+#if defined(_WIN32)
+        win_set_fullscreen(false);
+#endif
+        g_fullscreen_applied = false;
+    }
+    if (cols <= 0 || rows <= 0) return;
+    const TerminalLimits L = terminal_size_limits();
+    cols = std::clamp(cols, L.min_cols, L.max_cols);
+    rows = std::clamp(rows, L.min_rows, L.max_rows);
+#if defined(_WIN32)
+    if (win_term_cols() == cols && win_term_rows() == rows) return;   // already that size: leave the window alone
+#else
+    struct winsize ws{};
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0 && ws.ws_col == cols && ws.ws_row == rows) return;
+#endif
+    std::cout << "\x1b[8;" << rows << ";" << cols << "t" << std::flush;
+}
+
 static bool g_alt_screen_held = false;
 void terminal_hold_alt_screen() { g_alt_screen_held = true; }
 void terminal_release_alt_screen() {
@@ -298,6 +391,8 @@ bool last_key_was_arrow() { return g_last_key_was_arrow; }
 
 // See last_key_was_shifted() in terminal_ui.h. Cleared at the top of every
 // poll_key() call, so it can only ever be true for the key just returned.
+static bool g_last_key_was_page = false;
+bool last_key_was_page() { return g_last_key_was_page; }
 static bool g_last_key_was_shifted = false;
 bool last_key_was_shifted() { return g_last_key_was_shifted; }
 static bool g_last_key_was_ctrl = false;
@@ -453,12 +548,14 @@ void clipboard_set(const std::string& utf8) {
 int TerminalIO::poll_key() {
     reassert_raw_mode();
     g_last_key_was_shifted = false;
+    g_last_key_was_page = false;
     g_last_key_was_ctrl = false;
 #if defined(_WIN32)
     int key = win_poll_key();
     g_last_key_was_ctrl = win_last_key_was_ctrl();
     g_last_key_was_arrow = win_last_key_was_arrow();
     g_last_key_was_shifted = win_last_key_was_shifted();
+    g_last_key_was_page = win_last_key_was_page();
     return key;
 #else
     unsigned char c = 0;
@@ -518,6 +615,16 @@ int TerminalIO::poll_key() {
                     if (read(STDIN_FILENO, &tail, 1) != 1) break;
                     if (tail >= 0x40 && tail <= 0x7E) break; // final byte of the sequence
                     body.push_back(static_cast<char>(tail));
+                }
+                // PgUp / PgDn ("ESC [ 5 ~" / "ESC [ 6 ~", with a modifier "ESC [ 5 ; <mod> ~"): reported exactly like SHIFT+Up /
+                // SHIFT+Down (a plain 'A' / 'B' arrow with the shift flag), so every page that turns a page on SHIFT+arrow
+                // turns it on PgUp / PgDn too. (SHIFT+arrow stays as the key for keyboards that have no PgUp / PgDn.)
+                if (tail == '~') {
+                    int pg = 0;
+                    if (std::sscanf(body.c_str(), "%d", &pg) == 1 && (pg == 5 || pg == 6)) {
+                        g_last_key_was_arrow = true; g_last_key_was_shifted = true; g_last_key_was_page = true;
+                        return pg == 5 ? 'A' : 'B';
+                    }
                 }
                 // "27;<mod>;<code>~" or "<code>;<mod>u"
                 int code = 0, mod = 0;

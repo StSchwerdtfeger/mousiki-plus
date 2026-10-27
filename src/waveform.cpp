@@ -484,7 +484,7 @@ void analyse_track(const fs::path& file_path, StreamingPcm& pcm, const std::func
     pcm.analysis_done.store(true, std::memory_order_release);
 }
 
-int native_sample_rate(const fs::path& file_path, const std::string& sampling_hint, double duration_sec) {
+int native_sample_rate(const fs::path& file_path, const std::string& sampling_hint, double duration_sec, bool cap_96k) {
     int rate = 0;
     ma_decoder decoder;
     ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 0, 0);   // native format: only the header is read
@@ -501,7 +501,7 @@ int native_sample_rate(const fs::path& file_path, const std::string& sampling_hi
     // Above 96 kHz it is brought down to that, which is still far beyond hearing and the scope. (Long tracks keep
     // their own rate too: they are held a window at a time -- see StreamingPcm's windowed mode.)
     (void)duration_sec;
-    if (rate > 96000) rate = 96000;
+    if (cap_96k && rate > 96000) rate = 96000;   // (Settings -> ON/OFF -> PLAYBACK -> Rate Cap at 96 kHz)
     return rate;
 }
 

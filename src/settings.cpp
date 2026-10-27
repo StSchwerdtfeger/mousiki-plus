@@ -1,4 +1,5 @@
 #include "settings.h"
+#include "keyboard_layout.h"
 #include "translit.h"
 #include "lyrics_fetcher.h"
 #include "path_utf8.h"
@@ -322,6 +323,13 @@ void apply_default_hotkeys(Settings& s) {
             // "k" opens the karaoke overlay; Refresh UI moved to "r" (v3.1.0, migrated below).
             {"HKeyRefreshUi",                   "r"},
             {"HKeyKaraoke",                     "k"},
+            // The mode switch (SHIFT and + / SHIFT and - on a German keyboard: the characters '*' and '_') and the karaoke
+            // overlay's lyrics size keys. The two pairs share their characters on purpose: they work in different places
+            // (the size keys only inside the karaoke overlay).
+            {"HKeyModeNext",                    default_size_mode_key(true)},    // "*" / "_", on a US / UK keyboard "'" / ";"
+            {"HKeyModePrev",                    default_size_mode_key(false)},
+            {"HKeyKaraokeBigger",               default_size_mode_key(true)},
+            {"HKeyKaraokeSmaller",              default_size_mode_key(false)},
             {"HKeyConsole",                     "t"},
             {"HKeyToggleMute",                  "x"},
             {"HKeyCheatsheet",                  "?"},
@@ -422,9 +430,17 @@ void apply_default_hotkeys(Settings& s) {
             // "ALT" is the OPTION key.
             {"HKeyRescan",                      "R"},             // SHIFT+r: look for new files
             {"HKeyFetchTags",                   "B"},             // SHIFT+b: AcoustID lookup of the hovered title
+#if defined(__APPLE__)
+            {"HKeyLyricsTiming",                "J"},             // lyrics timing overlay (SHIFT+j on a Mac: no OPTION key, which types special characters there)
+#else
             {"HKeyLyricsTiming",                "ALT+L"},         // lyrics timing overlay
+#endif
             {"HKeyTranslit",                    "\""},           // SHIFT+' (US keyboard): Japanese / Korean / Chinese text in Latin letters on / off
+#if defined(__APPLE__)
+            {"HKeyCoverFetch",                  "Q"},             // cover fetch overlay (SHIFT+q on a Mac: no OPTION key, which types special characters there)
+#else
             {"HKeyCoverFetch",                  "ALT+C"},         // cover fetch overlay (MusicBrainz / Cover Art Archive)
+#endif
             {"HKeyReadLyrics",                  "CTRL+L"},        // READ LYRICS overlay
             {"HKeyQueueUndoClear",              "CTRL+SHIFT+Z"},  // bring back the queue that was just cleared
             {"HKeyQueueToPlaylist",             "CTRL+SHIFT+U"},  // save the queue as a playlist
@@ -489,7 +505,7 @@ void apply_default_hotkeys(Settings& s) {
             // Only fill actions that are entirely absent from the config.
             // A key explicitly set to "" (user unbound it on purpose) is
             // left alone rather than silently re-bound.
-            if (s.hotkeys.find(action) == s.hotkeys.end()) { s.hotkeys[action] = key; added_now.push_back(action); }
+            if (s.hotkeys.try_emplace(action, key).second) added_now.push_back(action);
         }
         // The wizard's "W" is the one default that can land on an occupied
         // key: the migration above leaves an old HKeyScopeWindow on "W" when
@@ -663,6 +679,8 @@ std::string read_audiobook_path() {
 
 ModeConfig read_mode_config() {
     ModeConfig mc;
+    mc.key_next = static_cast<unsigned char>(default_size_mode_key(true)[0]);
+    mc.key_prev = static_cast<unsigned char>(default_size_mode_key(false)[0]);
     std::ifstream in(config_path());
     std::string line;
     while (std::getline(in, line)) {
@@ -673,6 +691,10 @@ ModeConfig read_mode_config() {
         else if (key == "UseModeRadio") mc.use[1] = parse_bool(val);
         else if (key == "UseModeAudiobook") mc.use[2] = parse_bool(val);
         else if (key == "ModeOrder") parse_mode_order(val, mc.order);
+        else if (key == "HKeyModeNext" || key == "HKeyModePrev") {   // one typed character (empty: no key)
+            const std::string v = trim(unquote(val));
+            if (v.size() <= 1) (key == "HKeyModeNext" ? mc.key_next : mc.key_prev) = v.empty() ? 0 : static_cast<unsigned char>(v[0]);
+        }
     }
     if (!mc.use[0] && !mc.use[1] && !mc.use[2]) mc.use[0] = true;
     return mc;
@@ -908,8 +930,8 @@ static Settings load_from_config(const fs::path& path) {
         if (key == "LatinHanziDefault") {
             std::string v = trim(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-            s.latin_hanzi_chinese = (v == "chinese" || v == "pinyin");
-            translit_set_default_chinese(s.latin_hanzi_chinese);
+            s.latin_hanzi = (v == "chinese" || v == "pinyin") ? 1 : (v == "japanese" || v == "kanji") ? 2 : 0;
+            translit_set_default_hanzi(s.latin_hanzi);
             continue;
         }
         if (key == "LatinLetters") {
@@ -967,6 +989,22 @@ static Settings load_from_config(const fs::path& path) {
         }
         if (key == "TrackBufferMB") {
             try { s.track_buffer_mb = std::clamp(std::stoi(trim(unquote(value))), Settings::kTrackBufferMinMB, Settings::kTrackBufferMaxMB); } catch (...) {}
+            continue;
+        }
+        if (key == "TerminalCols" || key == "TerminalRows") {
+            try { (key == "TerminalCols" ? s.terminal_cols : s.terminal_rows) = std::max(0, std::min(2000, std::stoi(trim(unquote(value))))); } catch (...) {}
+            continue;
+        }
+        if (key == "FullScreen" || key == "UseTerminalSettings") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            (key == "FullScreen" ? s.full_screen : s.use_terminal_settings) = (v == "true" || v == "1" || v == "on" || v == "yes");
+            continue;
+        }
+        if (key == "RateCap96") {
+            std::string v = trim(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.rate_cap_96 = !(v == "false" || v == "0" || v == "off" || v == "no");
             continue;
         }
         if (key == "MediaKeys") {
@@ -1596,6 +1634,26 @@ bool write_player_viz(const VizPrefs& v) {
     return true;
 }
 
+bool write_latin_letters(bool on) {
+    const std::string want = std::string("LatinLetters=") + (on ? "true" : "false");
+    const fs::path p = config_path();
+    std::error_code ec;
+    if (!fs::exists(p, ec)) return false;   // the player owns config.txt: nothing to keep yet
+    std::vector<std::string> lines;
+    {
+        std::ifstream in(p);
+        std::string line;
+        while (std::getline(in, line)) lines.push_back(line);
+    }
+    bool done = false;
+    for (auto& l : lines) if (!done && l.compare(0, 13, "LatinLetters=") == 0) { l = want; done = true; }
+    if (!done) lines.push_back(want);
+    std::ofstream out(p, std::ios::trunc);
+    if (!out.is_open()) return false;
+    for (const auto& l : lines) out << l << "\n";
+    return out.good();
+}
+
 bool write_start_mode(const std::string& mode) {
     const std::string want = std::string("StartMode=") + (mode == "radio" ? "radio" : "player");
     const fs::path p = config_path();
@@ -1762,7 +1820,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "LatinMacrons=" << tf(s.latin_macrons) << "\n## true , false -- Latin letters (SHIFT+'): Japanese long vowels with a macron (koohii -> koohii off, kōhī on; ou -> ō); off = spelled out (ou, uu)\n";
     out << "LatinWo=" << tf(s.latin_wo) << "\n## true , false -- Latin letters (SHIFT+'): the particle を as \"wo\" (on) or \"o\" (off)\n";
     out << "LatinNameLookup=" << tf(s.latin_lookup) << "\n## true , false -- the artists whose name is written in Chinese characters are looked up on MusicBrainz in the background to get their Latin name (sends the NAME of the artist, one at a time, to musicbrainz.org; the answers are kept in kanji_readings_learned.txt; needs Python 3)\n";
-    out << "LatinHanziDefault=" << (s.latin_hanzi_chinese ? "chinese" : "leave") << "\n## leave , chinese -- Latin letters (SHIFT+'): Chinese characters of which nothing says whether the text is Japanese or Chinese (the same in both writings, e.g. 東京): leave them, or read them as Chinese (pinyin)\n";
+    out << "LatinHanziDefault=" << (s.latin_hanzi == 1 ? "chinese" : s.latin_hanzi == 2 ? "japanese" : "leave") << "\n## leave , chinese , japanese -- Latin letters (SHIFT+'): Chinese characters of which nothing says whether the text is Japanese or Chinese (the same in both writings, e.g. 東京): leave them, read them as Chinese (pinyin), or as Japanese (they stay as they are unless the optional kanji reader, see the manual, knows their reading)\n";
     out << "AlbumCover=" << tf(s.album_cover) << "\n## true , false -- music player: the cover of the playing track takes the disk's place (needs ElimentDisk=true; where a track has no cover the disk is shown)\n";
     out << "CoverMode=" << (s.cover_mode == 0 ? "cover" : s.cover_mode == 1 ? "gradient" : s.cover_mode == 3 ? "disk2" : s.cover_mode == 4 ? "full" : s.cover_mode == 5 ? "ascii" : s.cover_mode == 6 ? "ascii2" : "disk") << "\n## cover (just the cover) , gradient (the cover in the disk's gradient colours, as a wave moving diagonally from the upper left to the lower right) , disk (the cover behind the disk: the disk's dots are pinholes that let the full cover shine through; the dots stay on their grid, only the pattern turns) , disk2 (the same, but the dots themselves turn) , full (the disk's full animation, the dots that come and go as it turns) , ascii (the cover as braille dots in its own colours, also where the terminal could show a picture) , ascii2 (the same in the disk's gradient)\n";
     out << "CoverContrast=" << s.cover_contrast << "\n## 0 .. 100 (percent, steps of 5) -- more contrast for the album cover (0 = the cover as it is)\n";
@@ -1831,6 +1889,10 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "BookCover=" << (s.book_cover ? "true" : "false") << "\n## true , false -- audio book mode: false = the standard picture (a woman reading), true = the cover image found in the book's folder (cover / folder / front / albumart .jpg .png ..., or the only picture there); the colour wave runs over either one\n";
     out << "UpdateCheck=" << (s.update_check ? "true" : "false") << "\n## true , false -- at start-up Mousiki looks (at most once a day, in the background) whether a newer release exists and tells you once per version; nothing is installed and nothing about you is sent (needs Python 3)\n";
     out << "TrackBufferMB=" << s.track_buffer_mb << "\n## 64 - 16384 (default 256) -- a track whose decoded audio is bigger than this many MB (about 10 MB per minute of CD-quality stereo, double at 96 kHz) is not held whole in RAM but in a moving 2-minute window; seeking inside the window is instant, a jump outside it takes a moment. A bigger value = fast seeking in longer tracks, more RAM in use\n";
+    out << "TerminalCols=" << s.terminal_cols << "\nTerminalRows=" << s.terminal_rows << "\n## columns and rows (default 120 x 32; at least 100 x 28, at most what fits on the screen; 0 in either = leave the terminal as it is) -- Mousiki asks the terminal for this size when it starts and when you change it in Settings -> ON/OFF -> MODES -> Terminal Size. Terminals decide for themselves: xterm, GNOME Terminal, iTerm2, Terminal.app and recent versions of Windows Terminal usually obey, others (Konsole, kitty, Alacritty, tmux, tiling window managers) ignore it\n";
+    out << "UseTerminalSettings=" << (s.use_terminal_settings ? "true" : "false") << "\n## true , false -- true: Mousiki leaves the terminal as it is (its own window size and full screen), whatever TerminalCols / TerminalRows / FullScreen say\n";
+    out << "FullScreen=" << (s.full_screen ? "true" : "false") << "\n## true , false -- ask the terminal for full screen when Mousiki starts (overrides TerminalCols / TerminalRows while on)\n";
+    out << "RateCap96=" << (s.rate_cap_96 ? "true" : "false") << "\n## true , false (default true) -- a track above 96 kHz (e.g. 176.4 / 192 kHz) is brought down to 96 kHz; false plays it at its own rate: more RAM (the decoded audio grows with the rate, see TrackBufferMB) and the audio device must accept the rate. The next track that is loaded uses it\n";
     out << "MediaKeys=" << (s.media_keys ? "true" : "false") << "\n## true , false -- the system's media controls: Windows shows Mousiki in the media pop-up and its media keys work, Linux shows it in the desktop's media widgets (MPRIS; playerctl works), macOS shows Now Playing and handles the media keys (read at the next start; player and radio)\n";
     out << "PlaybackMode=" << play_mode_name(s.play_mode) << "\n## list , loop , shuffle , stop , queue then stop\n"
         << "## shuffle never reorders the queue: n and the end of a track play its next title, only # picks a random one of it\n";

@@ -221,7 +221,9 @@ def verify_sha256(dest, checksum_url, filename=None):
     got = sha256_of(dest)
     if got != want:
         dest.unlink()
-        die("SHA-256 mismatch for %s (expected %s, got %s) - the download was deleted" % (dest.name, want, got))
+        die("SHA-256 mismatch for %s (expected %s, got %s) - the download was deleted.\n"
+            "  A damaged download fixes itself: run the build again. If it repeats, the file on the server is not the pinned one:\n"
+            "  find out why it changed, then update the pin with 'release.py pin' (never skip the check)." % (dest.name, want, got))
     log("SHA-256 verified: " + dest.name)
     return True
 
@@ -232,7 +234,9 @@ def verify_pinned_sha256(dest, want):
     got = sha256_of(dest)
     if got != want.lower():
         dest.unlink()
-        die("SHA-256 mismatch for %s (expected %s, got %s) - the download was deleted" % (dest.name, want, got))
+        die("SHA-256 mismatch for %s (expected %s, got %s) - the download was deleted.\n"
+            "  A damaged download fixes itself: run the build again. If it repeats, the file on the server is not the pinned one:\n"
+            "  find out why it changed, then update the pin with 'release.py pin' (never skip the check)." % (dest.name, want, got))
     log("SHA-256 verified: " + dest.name)
 
 

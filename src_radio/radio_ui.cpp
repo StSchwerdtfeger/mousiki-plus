@@ -5,8 +5,10 @@
 #include "scope_big.h"
 #include "scope_window.h"
 #include "keyboard_layout.h"
+#include "mode_switch.h"
 #include "help_search.h"
 #include "text_edit.h"
+#include "translit.h"   // shown_text(): Latin letters on / off (the same switch as in the music player)
 #include <algorithm>
 #include <cstring>
 #include <cctype>
@@ -500,8 +502,8 @@ std::vector<std::string> build_meta(const Style& s, const RadioStatus& st, const
     const std::string country = st.info.country;
 
     if (have) {
-        kv("Station", in.station);
-        kv("Title", in.title, 2);
+        kv("Station", shown_text(in.station));
+        kv("Title", shown_text(in.title), 2);
         kv("Artist", in.artist);
         kv("Genre", in.genre);
         kv("Bitrate", bitrate);
@@ -804,7 +806,7 @@ std::vector<std::string> build_tuner(const Style& s, const UiModel& m, const Rad
             const int x = dial_x(st.dial_mhz, span);
             const std::string needle = s.onair_at(0.0f);
             marks.put(x, "\u25B2", needle);
-            const std::string label = fmt_mhz(st.dial_mhz) + "  " + utf8_take(st.tuned_name, 28);
+            const std::string label = fmt_mhz(st.dial_mhz) + "  " + utf8_take(shown_text(st.tuned_name), 28);
             const int lw = display_width(label);
             const int lx = (x + 2 + lw <= inner) ? x + 2 : x - 1 - lw;
             // label text: names can be non-ASCII, so write it as one run via per-cell put of display columns
@@ -979,7 +981,7 @@ std::vector<std::string> build_lists(const Style& s, const UiModel& m, const Rad
             const std::string cnt = std::to_string(l.items.size()) + (l.items.size() == 1 ? " station" : " stations");
             const int cw = 13;
             const int nw = std::max(5, inner - 3 - (2 * display_width(s.c.list_separator) + 3) - cw);
-            const std::string text = pad_right(std::to_string(li + 1), 3) + s.c.list_separator + " " + pad_right(truncate_str(l.name, nw), nw)
+            const std::string text = pad_right(std::to_string(li + 1), 3) + s.c.list_separator + " " + pad_right(truncate_str(shown_text(l.name), nw), nw)
                                    + " " + s.c.list_separator + " " + pad_right(cnt, cw);
             const bool hov = li == lcursor && m.search_focus;
             left.push_back(box_line(s, seg_line({{hov ? s.list_cursor : s.list, text}}, inner), s.border));
@@ -993,8 +995,8 @@ std::vector<std::string> build_lists(const Style& s, const UiModel& m, const Rad
         if (stn.bitrate_hint > 0) tail = std::to_string(stn.bitrate_hint) + "k " + stn.codec_hint;
         const std::string sep = s.c.list_separator;
         const bool hovered = vi == cursor;   // also while searching: Up/Down move it there and ENTER tunes it
-        const std::string name_shown = hovered ? marquee_or_truncate(m.marquee_row, m.marquee_since, m.t_sec, stn.name, name_w, idx)
-                                               : pad_right(truncate_str(stn.name, name_w), name_w);
+        const std::string name_shown = hovered ? marquee_or_truncate(m.marquee_row, m.marquee_since, m.t_sec, shown_text(stn.name), name_w, idx)
+                                               : pad_right(truncate_str(shown_text(stn.name), name_w), name_w);
         // Number left-aligned and padded on the right, like the player ("5  |"), no leading blanks.
         int number = idx + 1;
         if (shown_list) {
@@ -1013,7 +1015,7 @@ std::vector<std::string> build_lists(const Style& s, const UiModel& m, const Rad
 
     // PRESETS (16 keys), filled row by row; as many columns as the box height needs (4 rows -> 4 columns).
     std::vector<std::string> right;
-    right.push_back(box_top(s, right_w, "PRESETS (" + utf8_take(active_preset_name(m), std::max(1, right_w - 16)) + ")", s.border));
+    right.push_back(box_top(s, right_w, "PRESETS (" + utf8_take(shown_text(active_preset_name(m)), std::max(1, right_w - 16)) + ")", s.border));
     const int pinner = right_w - 4;
     const int ncols = (kPresetCount + list_rows - 1) / list_rows;
     bool tuned_scrolls = false;
@@ -1030,7 +1032,7 @@ std::vector<std::string> build_lists(const Style& s, const UiModel& m, const Rad
             const std::string& body = on ? s.list_playing : s.list;
             cols.push_back({s.preset_key + ansi_bg(s.c.list_bg), key});     // key letter in PRESETS KEY, station title like the list
             // the preset name (SHIFT+c) if the station has one; the tuned entry scrolls when it does not fit
-            const std::string& lbl = stations[static_cast<size_t>(idx)].preset_label();
+            const std::string lbl = shown_text(stations[static_cast<size_t>(idx)].preset_label());
             const int lw = std::max(1, colw - 3);
             std::string shown;
             if (on && display_width(lbl) > lw) { shown = marquee_or_truncate(m.pmarquee_row, m.pmarquee_since, m.t_sec, lbl, lw, slot); tuned_scrolls = true; }
@@ -1095,7 +1097,7 @@ std::vector<std::string> build_preset_pane(const Style& s, const UiModel& m, int
             const PresetBank& b = m.banks[static_cast<size_t>(bi)];
             std::string style = (bi == m.bank_active) ? s.list_playing : s.list;
             if (hover_on && vi == cursor) style = s.list_cursor;
-            cells.push_back({style, pad_right(truncate_str(b.name, shown_w), shown_w)});
+            cells.push_back({style, pad_right(truncate_str(shown_text(b.name), shown_w), shown_w)});
             if (c < C - 1) cells.push_back({"", " "});
         }
         out.push_back(box_line(s, seg_line(cells, inner), s.border));
@@ -1243,8 +1245,8 @@ std::vector<std::string> build_menu(const Style& s, const UiModel& m, const Radi
             std::string tail = stn.codec_hint;
             if (stn.bitrate_hint > 0) tail = std::to_string(stn.bitrate_hint) + "k " + stn.codec_hint;
             const bool hovered = vi == cursor && stations_hover;
-            const std::string name_shown = hovered ? marquee_or_truncate(mn.marquee_row, mn.marquee_since, m.t_sec, stn.name, name_w, idx)
-                                                   : pad_right(truncate_str(stn.name, name_w), name_w);
+            const std::string name_shown = hovered ? marquee_or_truncate(mn.marquee_row, mn.marquee_since, m.t_sec, shown_text(stn.name), name_w, idx)
+                                                   : pad_right(truncate_str(shown_text(stn.name), name_w), name_w);
             const int slot = preset_slot_of(m.presets, idx);
             const std::string key = slot >= 0 ? std::string(1, kPresetKeys[slot]) : " ";
             const std::string text = pad_right(std::to_string(idx + 1), idx_w) + sep + " " + name_shown + " " + sep + " "
@@ -1261,7 +1263,7 @@ std::vector<std::string> build_menu(const Style& s, const UiModel& m, const Radi
 
     // --- PRESETS: one line per key (the ACTIVE preset) -----------------------------------------
     std::vector<std::string> right;
-    right.push_back(box_top(s, right_w, "PRESETS (" + utf8_take(active_preset_name(m), std::max(1, right_w - 16)) + ")", s.border));
+    right.push_back(box_top(s, right_w, "PRESETS (" + utf8_take(shown_text(active_preset_name(m)), std::max(1, right_w - 16)) + ")", s.border));
     {
         const int inner = right_w - 4;
         const int flex = std::max(8, inner - (1 + 3 * sepw + 5 + tail_w));
@@ -1278,7 +1280,7 @@ std::vector<std::string> build_menu(const Style& s, const UiModel& m, const Radi
             const Station& stn = stations[static_cast<size_t>(idx)];
             std::string tail = stn.codec_hint;
             if (stn.bitrate_hint > 0) tail = std::to_string(stn.bitrate_hint) + "k " + stn.codec_hint;
-            const std::string text = sep + " " + pad_right(truncate_str(stn.name, name_w), name_w) + " " + sep + " "
+            const std::string text = sep + " " + pad_right(truncate_str(shown_text(stn.name), name_w), name_w) + " " + sep + " "
                                    + pad_right(truncate_str(stn.genre, genre_w), genre_w) + " " + sep + " "
                                    + pad_right(truncate_str(tail, tail_w), tail_w);
             const bool on = idx == st.tuned_index && st.state != StreamState::Idle;
@@ -1399,8 +1401,8 @@ std::vector<std::string> lists_station_pane(const Style& s, const UiModel& m, co
         if (stn.bitrate_hint > 0) tail = std::to_string(stn.bitrate_hint) + "k " + stn.codec_hint;
         const bool hovered = hover && vi == cursor;
         any_hover = any_hover || hovered;
-        const std::string name_shown = hovered ? marquee_or_truncate(mq_row, mq_since, m.t_sec, stn.name, name_w, numbers ? idx : vi)
-                                               : pad_right(truncate_str(stn.name, name_w), name_w);
+        const std::string name_shown = hovered ? marquee_or_truncate(mq_row, mq_since, m.t_sec, shown_text(stn.name), name_w, numbers ? idx : vi)
+                                               : pad_right(truncate_str(shown_text(stn.name), name_w), name_w);
         const bool in_list = marks && std::find(marks->begin(), marks->end(), idx) != marks->end();
         const std::string text = pad_right(std::to_string(numbers ? idx + 1 : vi + 1), idx_w) + sep + " " + name_shown + " " + sep + " "
                                + pad_right(truncate_str(stn.genre, genre_w), genre_w) + " " + sep + " "
@@ -1510,8 +1512,8 @@ std::vector<std::string> build_lists_menu(const Style& s, const UiModel& m, cons
             const StationList& l = m.lists[static_cast<size_t>(lm.mvisible[static_cast<size_t>(vi)])];
             const bool hovered = vi == cursor;
             any_hover = any_hover || hovered;
-            const std::string name_shown = hovered ? marquee_or_truncate(lm.marquee_row, lm.marquee_since, m.t_sec, l.name, name_w, vi)
-                                                   : pad_right(truncate_str(l.name, name_w), name_w);
+            const std::string name_shown = hovered ? marquee_or_truncate(lm.marquee_row, lm.marquee_since, m.t_sec, shown_text(l.name), name_w, vi)
+                                                   : pad_right(truncate_str(shown_text(l.name), name_w), name_w);
             const std::string count = std::to_string(l.items.size()) + (l.items.size() == 1 ? " station" : " stations");
             const std::string text = pad_right(std::to_string(vi + 1), idx_w) + sep + " " + name_shown + " " + sep + " " + pad_right(count, count_w);
             std::string style = s.list;
@@ -1632,8 +1634,8 @@ std::vector<std::string> build_browse(const Style& s, const UiModel& m, const Ra
             const BrowseStation& b = res[static_cast<size_t>(vi)];
             const bool hovered = vi == cursor && results_focus;
             any_hover = any_hover || hovered;
-            const std::string name_shown = hovered ? marquee_or_truncate(bm.marquee_row, bm.marquee_since, m.t_sec, b.name, name_w, vi)
-                                                   : pad_right(truncate_str(b.name, name_w), name_w);
+            const std::string name_shown = hovered ? marquee_or_truncate(bm.marquee_row, bm.marquee_since, m.t_sec, shown_text(b.name), name_w, vi)
+                                                   : pad_right(truncate_str(shown_text(b.name), name_w), name_w);
             std::string tail = b.codec;
             if (b.bitrate > 0) tail = std::to_string(b.bitrate) + "k " + b.codec;
             const bool listed = is_listed(b);
@@ -1676,7 +1678,7 @@ std::vector<std::string> build_browse(const Style& s, const UiModel& m, const Ra
             std::string rate = b.bitrate > 0 ? std::to_string(b.bitrate) + " kbps" : "";
             if (!b.codec.empty()) rate += (rate.empty() ? "" : " ") + b.codec;
             if (b.hls) rate += " (HLS)";
-            kv("Name", b.name, 2);
+            kv("Name", shown_text(b.name), 2);
             kv("Country", country);
             kv("State", b.state);
             kv("Language", b.language);
@@ -1724,10 +1726,10 @@ std::vector<std::string> build_browse(const Style& s, const UiModel& m, const Ra
         if (st.state == StreamState::Idle || st.tuned_name.empty()) {
             row.push_back({s.header, "nothing"});
         } else {
-            row.push_back({s.val, st.tuned_name});
+            row.push_back({s.val, shown_text(st.tuned_name)});
             row.push_back({"", "  (" + state_txt + ")"});
             const std::string np = st.info.artist.empty() ? st.info.title : st.info.artist + " - " + st.info.title;
-            if (!np.empty()) row.push_back({s.header, "  \u266A " + np});
+            if (!np.empty()) row.push_back({s.header, "  \u266A " + shown_text(np)});
         }
         out.push_back(seg_line(row, W));
     }
@@ -1747,8 +1749,8 @@ std::vector<std::string> build_browse(const Style& s, const UiModel& m, const Ra
 // How a key is shown in the cheat sheet and on the REFERENCE tab: a capital letter is a Shift press, so "T" reads
 // "SHIFT+t" (the binding itself stays "T"); labels such as "SHIFT+t" / "CTRL+SHIFT+u" get the lower-case letter too.
 std::string pretty_key(const std::string& k) {
-    if (k == "@SWITCHKEY") return muisc::mode_switch_key_label();   // named for this keyboard (keyboard_layout.h)
-    if (k == "@SWITCHBACK") return muisc::mode_switch_back_label();
+    if (k == "@SWITCHKEY") return muisc::mode_key_label(g_mode_key_next);   // the key set in the player's REFERENCE tab, named for this keyboard
+    if (k == "@SWITCHBACK") return muisc::mode_key_label(g_mode_key_prev);
     if (k == "(" || k == ")") return muisc::symbol_key_label(k);   // SHIFT+8 / SHIFT+9 on a German keyboard
     if (k.size() == 1 && k[0] >= 'A' && k[0] <= 'Z') return std::string("SHIFT+") + static_cast<char>(k[0] + 32);
     std::string o = k;
@@ -1837,6 +1839,7 @@ const CheatRow kCheatRows[] = {
     // --- Navigation ---
     {"NAVIGATION (MAIN UI)", "UP / DOWN", "Move the cursor in the STATIONS list"},
     {nullptr, "SHIFT+t", "Toggle the STATIONS sort: list order <-> name A-Z (also for the search results)"},
+    {nullptr, "\"", "Latin letters on / off: Japanese kana, Korean and Chinese station names and titles shown in Latin letters (the same switch as in the music player; SHIFT+' on a US keyboard)"},
     // --- Presets ---
     {"PRESETS (MAIN UI)", "1 2 3 4 5 6 7 8 9 0", "Tune slot 1-10 of the active preset"},
     {nullptr, "E R T D F G", "Tune slot 11-16 of the active preset (lowercase)"},
@@ -2148,7 +2151,7 @@ std::vector<std::string> build_cheatsheet(const Style& s, const UiModel& m, int 
     while (shown < visible) { out.push_back(box_line(s, spaces(inner), s.border)); ++shown; }
 
     std::string bottom = "[? / ESC] close  [SHIFT+s] search";
-    if (max_scroll > 0) bottom += "  [\u2191\u2193] scroll " + std::to_string(m.cheat_scroll + 1) + "/" + std::to_string(total);
+    if (max_scroll > 0) bottom += "  [\u2191\u2193] scroll  [SHIFT+\u2191\u2193] Page  " + std::to_string(m.cheat_scroll + 1) + "/" + std::to_string(total);
     out.push_back(box_bottom(s, W, bottom, s.border_bottom));
     return out;
 }
@@ -2195,7 +2198,7 @@ std::vector<std::string> build_stations_overlay(const Style& s, const UiModel& m
             const StationList& l = m.lists[static_cast<size_t>(m.lvisible[static_cast<size_t>(li)])];
             const std::string cnt = std::to_string(l.items.size()) + (l.items.size() == 1 ? " station" : " stations");
             const int nw = std::max(5, inner - 3 - (2 * display_width(sep) + 3) - 13);
-            const std::string text = pad_right(std::to_string(li + 1), 3) + sep + " " + pad_right(truncate_str(l.name, nw), nw) + " " + sep + " " + pad_right(cnt, 13);
+            const std::string text = pad_right(std::to_string(li + 1), 3) + sep + " " + pad_right(truncate_str(shown_text(l.name), nw), nw) + " " + sep + " " + pad_right(cnt, 13);
             out.push_back(box_line(s, seg_line({{li == lcursor && m.search_focus ? s.list_cursor : s.list, text}}, inner), s.border));
         }
         out.push_back(box_bottom(s, W, std::max(0, total - (first + body)) > 0 ? "( " + std::to_string(total - (first + body)) + " more )" : "", s.border_bottom));
@@ -2215,8 +2218,8 @@ std::vector<std::string> build_stations_overlay(const Style& s, const UiModel& m
             std::string tail = stn.codec_hint;
             if (stn.bitrate_hint > 0) tail = std::to_string(stn.bitrate_hint) + "k " + stn.codec_hint;
             const bool hovered = vi == cursor;   // also while searching (Up/Down move it, ENTER tunes it)
-            const std::string name_shown = hovered ? marquee_or_truncate(so.marquee_row, so.marquee_since, m.t_sec, stn.name, name_w, idx)
-                                                   : pad_right(truncate_str(stn.name, name_w), name_w);
+            const std::string name_shown = hovered ? marquee_or_truncate(so.marquee_row, so.marquee_since, m.t_sec, shown_text(stn.name), name_w, idx)
+                                                   : pad_right(truncate_str(shown_text(stn.name), name_w), name_w);
             int number = idx + 1;
             if (shown_list) number = static_cast<int>(std::find(shown_list->items.begin(), shown_list->items.end(), idx) - shown_list->items.begin()) + 1;
             const std::string text = pad_right(std::to_string(number), idx_w) + sep + " " + name_shown + " " + sep + " " + pad_right(truncate_str(stn.preset_name, pre_w), pre_w) + " " + sep + " "
@@ -2306,7 +2309,7 @@ std::vector<std::string> build_history_menu(const Style& s, const UiModel& m, in
     struct Line { std::string text; int style = 0; };        // 0 plain, 1 header, 2 section header, 3 rule
     std::vector<Line> lines;
     int cursor = -1;
-    auto T = [](const std::string& str, int n) { return pad_right(truncate_str(str, n), n); };
+    auto T = [](const std::string& str, int n) { return pad_right(truncate_str(shown_text(str), n), n); };
     auto R = [](const std::string& str, int n) { return pad_left(truncate_str(str, n), n); };
     // Marks the plain-text cells with spaces so the columns line up; colouring is only done per whole line.
     if (hm.tab == 0) {
@@ -3353,8 +3356,8 @@ std::vector<std::string> build_spectro_full(const Style& s, const UiModel& m, co
         if (l.first >= 0 && l.first < rows) lab[static_cast<size_t>(l.first)] = l.second;
     std::string title = "SPECTROGRAM";
     const std::string name = st.tuned_name.empty() ? st.info.station : st.tuned_name;
-    if (!name.empty()) title += " - " + name;
-    if (!st.info.title.empty()) title += ": " + (st.info.artist.empty() ? st.info.title : st.info.artist + " - " + st.info.title);
+    if (!name.empty()) title += " - " + shown_text(name);
+    if (!st.info.title.empty()) title += ": " + shown_text(st.info.artist.empty() ? st.info.title : st.info.artist + " - " + st.info.title);
     const std::string bar = s.border + c.box_vertical + kReset;
     std::vector<std::string> out;
     out.push_back(box_top(s, W, truncate_str(title, W - 6), s.border));
@@ -3530,8 +3533,8 @@ std::vector<std::string> build_scope_big(const Style& s, const UiModel& m, const
     const std::vector<std::string> body = scope_big_compose(g, inner, avail, left, right, s.legend, grid_ansi, info);
     std::string title = "OSCILLOSCOPE";
     const std::string name = st.tuned_name.empty() ? st.info.station : st.tuned_name;
-    if (!name.empty()) title += " - " + name;
-    if (!st.info.title.empty()) title += ": " + (st.info.artist.empty() ? st.info.title : st.info.artist + " - " + st.info.title);
+    if (!name.empty()) title += " - " + shown_text(name);
+    if (!st.info.title.empty()) title += ": " + shown_text(st.info.artist.empty() ? st.info.title : st.info.artist + " - " + st.info.title);
     const std::string bar = s.border + c.box_vertical + kReset;
     std::vector<std::string> out;
     out.push_back(box_top(s, W, truncate_str(title, W - 6), s.border));
@@ -3874,7 +3877,7 @@ std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus&
             const Station& stn = all[static_cast<size_t>(k)];
             const bool on = k == st.tuned_index && tuned;
             const std::string name_col = on ? s.list_playing : s.val;
-            row(s.key + pad_right(std::to_string(k + 1), 4) + kReset + name_col + truncate_str((on ? "\u25b6 " : "") + stn.name, inner - 4) + kReset);
+            row(s.key + pad_right(std::to_string(k + 1), 4) + kReset + name_col + truncate_str((on ? "\u25b6 " : "") + shown_text(stn.name), inner - 4) + kReset);
             std::string info = stn.genre;
             const std::string codec = (stn.bitrate_hint > 0 ? std::to_string(stn.bitrate_hint) + "k " : std::string()) + stn.codec_hint;
             if (!codec.empty()) info += (info.empty() ? "" : "  |  ") + codec;
@@ -3938,8 +3941,8 @@ std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus&
         };
         if (st.state != StreamState::Idle) {
             const StreamInfo& in = st.info;
-            kv("Station", in.station);
-            kv("Title", in.title);
+            kv("Station", shown_text(in.station));
+            kv("Title", shown_text(in.title));
             kv("Artist", in.artist);
             kv("Genre", in.genre);
             std::string bitrate = in.bitrate_kbps > 0 ? std::to_string(in.bitrate_kbps) + " kbps" + (in.codec.empty() ? "" : " " + in.codec) : in.codec;

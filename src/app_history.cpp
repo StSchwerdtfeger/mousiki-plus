@@ -328,13 +328,13 @@ void App::handle_history_key(int key) {
         ? static_cast<int>(std::min<size_t>(100, history_.plays().size()))
         : static_cast<int>(history_top_view_.size());
     if (arrow && key == 'A') {
-        if (scroll_tab) { if (history_scroll_ > 0) --history_scroll_; }
-        else if (history_selected_ > 0) --history_selected_;
+        if (scroll_tab) history_scroll_ = std::max(0, history_scroll_ - (last_key_was_shifted() ? 10 : 1));   // SHIFT+arrow / PgUp / PgDn: a page of 10
+        else history_selected_ = std::max(0, history_selected_ - (last_key_was_shifted() ? 10 : 1));
         return;
     }
     if (arrow && key == 'B') {
-        if (scroll_tab) ++history_scroll_; // clamped against the real content while drawing
-        else if (history_selected_ + 1 < total) ++history_selected_;
+        if (scroll_tab) history_scroll_ += (last_key_was_shifted() ? 10 : 1); // clamped against the real content while drawing
+        else history_selected_ = std::max(0, std::min(total - 1, history_selected_ + (last_key_was_shifted() ? 10 : 1)));
         return;
     }
 
@@ -385,12 +385,12 @@ void App::build_history_screen(std::ostringstream& frame, int W, int target_heig
     const std::string hint = (history_tab_ == 1 && history_pane_ == 1)
         ? "[\u2191\u2193\u2190\u2192] Pick a list  [ENTER] Add it to the queue  [TAB] Track list  [ESC] Leave the pane"
         : (history_tab_ == 1 && audiobook_)
-        ? "[\u2190\u2192] Switch Tab  [1-4] Tab  [\u2191\u2193] Move  [ENTER] Play the chapter  [r] Flip sort  [ESC] Exit"
+        ? "[\u2190\u2192] Switch Tab  [1-4] Tab  [\u2191\u2193] Move  [SHIFT+\u2191\u2193] Page  [ENTER] Play the chapter  [r] Flip sort  [ESC] Exit"
         : (history_tab_ == 1)
-        ? "[\u2190\u2192] Switch Tab  [1-4] Tab  [TAB] Smart history pane  [\u2191\u2193] Move  [ENTER] Play  [r] Flip sort  [ESC] Exit"
+        ? "[\u2190\u2192] Switch Tab  [1-4] Tab  [TAB] Smart history pane  [\u2191\u2193] Move  [SHIFT+\u2191\u2193] Page  [ENTER] Play  [r] Flip sort  [ESC] Exit"
         : (history_tab_ == kHistTabPlaylists || history_tab_ == kHistTabHabits)
-        ? "[\u2190\u2192] Switch Tab  [1-4] Tab  [\u2191\u2193] Scroll  [ESC] Exit"
-        : "[\u2190\u2192] Switch Tab  [1-4] Tab  [\u2191\u2193] Move  [ENTER] Play  [ESC] Exit";
+        ? "[\u2190\u2192] Switch Tab  [1-4] Tab  [\u2191\u2193] Scroll  [SHIFT+\u2191\u2193] Page  [ESC] Exit"
+        : "[\u2190\u2192] Switch Tab  [1-4] Tab  [\u2191\u2193] Move  [SHIFT+\u2191\u2193] Page  [ENTER] Play  [ESC] Exit";
     std::vector<std::string> hint_lines(1);
     size_t pos = 0;
     for (;;) {

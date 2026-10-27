@@ -25,7 +25,7 @@ struct Settings : VizPrefs {
     // --- element visibility toggles (config.txt: "Eliment_*") ----------
     bool element_disk = true;
     // Album cover in the disk's place (music player; config.txt AlbumCover / CoverMode / CoverSearch).
-    bool latin_hanzi_chinese = false;    // Latin letters: Chinese characters without any hint are read as Chinese (else left alone)
+    int latin_hanzi = 0;                 // Latin letters: Chinese characters without any hint: 0 leave alone, 1 read as Chinese, 2 read as Japanese
     bool latin_macrons = false;          // Latin letters: long vowels as macrons (ō ū) instead of ou / uu (LatinMacrons=)
     bool latin_wo = false;               // Latin letters: the particle を as "wo" instead of "o" (LatinWo=)
     bool lyrics_name_variants = true;    // a lyrics search that finds nothing tries other spellings of the names (LyricsNameVariants=)
@@ -300,8 +300,20 @@ struct Settings : VizPrefs {
     // config.txt: TrackBufferMB. Default 256.
     static constexpr int kTrackBufferDefaultMB = 256, kTrackBufferMinMB = 64, kTrackBufferMaxMB = 16384;
     int track_buffer_mb = kTrackBufferDefaultMB;
+    // The terminal is resized to this many columns x rows when Mousiki starts (and when it is changed in the settings); 0 in either:
+    // the terminal is left as it is. FullScreen asks the terminal for full screen and overrides the size. Terminals decide whether
+    // they obey (see terminal_ui.h); config.txt: TerminalCols, TerminalRows, FullScreen.
+    static constexpr int kTermColsDefault = 120, kTermRowsDefault = 32;
+    int terminal_cols = kTermColsDefault;
+    int terminal_rows = kTermRowsDefault;
+    bool full_screen = false;
+    // true: Mousiki leaves the terminal alone whatever Terminal Size / Full Screen say (they stay as they are); UseTerminalSettings.
+    bool use_terminal_settings = false;
     // The desktop's media controls (Linux: MPRIS; macOS: Now Playing + media keys); config.txt: MediaKeys=true|false.
     bool media_keys = true;
+    // true (the default): a track above 96 kHz is brought down to 96 kHz; false: it plays at its own rate (up to 768 kHz). The next track
+    // that is loaded uses it. config.txt: RateCap96=true|false.
+    bool rate_cap_96 = true;
     // The remote app (phone): a small web server inside Mousiki, off by default. One value for both programs (config.txt:
     // RemoteApp=, RemoteAppPort=, RemoteAppPin=); see remote_server.h.
     bool remote_app = false;
@@ -508,7 +520,7 @@ std::string read_start_mode();   // "player", "radio" or "audiobook" -- already 
 // The modes: names as written in config.txt, and the shared switches (UseMode*= and ModeOrder= lines of config.txt).
 inline const char* const kModeNames[3] = {"player", "radio", "audiobook"};
 int mode_index(const std::string& name);                      // 0..2, or -1 for an unknown name
-struct ModeConfig { bool use[3] = {true, true, true}; int order[3] = {0, 1, 2}; };
+struct ModeConfig { bool use[3] = {true, true, true}; int order[3] = {0, 1, 2}; int key_next = '*', key_prev = '_'; };   // (the keys: 0 = none)
 // Are `a` and `b` the same folder (written differently, trailing slash, "." parts; not case sensitive on Windows)? Empty never matches.
 bool same_folder_path(const std::string& a, const std::string& b);
 // Is `book` (the AUDIO BOOK PATH) one of the music folders? The two must not be the same folder: a book folder INSIDE a music folder
@@ -540,6 +552,8 @@ bool read_player_viz(VizPrefs& out);
 bool write_player_viz(const VizPrefs& v);
 // Writes that one line into config.txt and leaves the rest of the file alone (the radio's settings screen uses it).
 bool write_start_mode(const std::string& mode);
+// The radio's Latin letters switch (the quote key): LatinLetters= in config.txt, the rest of the file is kept.
+bool write_latin_letters(bool on);
 Settings load_settings();
 // Upgrade safety: config.txt / radio_config.txt carry "# Written by Mousiki v<version>". Before a version other than the
 // one that wrote the file rewrites it, the old file is copied to <name>.bak (one backup, replaced at the next upgrade).

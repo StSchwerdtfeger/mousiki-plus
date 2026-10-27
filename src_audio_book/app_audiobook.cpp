@@ -695,7 +695,7 @@ std::string App::book_cover_report() const {
     { std::lock_guard<std::mutex> lk(g_cover_note_mutex); note = g_cover_note; nd = g_cover_note_dir; src = g_cover_src; }
     if (!note.empty() && nd == book_dir_) {
         if (note.compare(0, 12, "book cover: ") == 0) note.erase(0, 12);
-        if (note.size() > 60) note = note.substr(0, 57) + "...";
+        if (note.size() > 60) { note.resize(57); note += "..."; }
         return proto + " | no cover: " + note;
     }
     if (current_cover(book_dir_)) {
@@ -1126,7 +1126,7 @@ App::BookTagVals App::book_read_tags(const fs::path& file) {
     v[3] = first_of({"narrator", "composer", "performer"});
     v[4] = first_of({"title"});
     std::string year = first_of({"date", "year", "originaldate"});
-    if (year.size() > 4) year = year.substr(0, 4);
+    if (year.size() > 4) year.resize(4);
     const std::string pub = first_of({"publisher", "label", "copyright"});
     v[5] = pub.empty() ? year : year.empty() ? pub : pub + ", " + year;
     v[6] = first_of({"genre"});
@@ -1570,7 +1570,8 @@ std::vector<std::string> App::build_book_tags_panel(int panel_w) const {
         int used;
         if (hov && book_ov_editing_) {
             const std::string owner = "booktag" + std::to_string(i);
-            size_t c = val_raw.size(), a = val_raw.size();
+            size_t c = val_raw.size();
+            size_t a = c;
             if (edit_owner_ == owner) { c = edit_caret_; a = edit_anchor_; }
             const std::string restore = change_sgr(settings_);
             const EditPaint p = paint_edit_field(val_raw, c, a, val_w, restore, true);

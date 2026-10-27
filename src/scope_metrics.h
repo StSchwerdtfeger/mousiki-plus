@@ -146,7 +146,7 @@ inline std::vector<std::pair<std::string, bool>> scope_metric_panel_rows(const S
         const std::string label = pad(std::string(r == sel ? "> " : "  ") + scope_metric_label(r), 20);
         std::string v = scope_metric_value(m, r);
         const int room = std::max(0, inner - static_cast<int>(label.size()));
-        if (static_cast<int>(v.size()) > room) v = v.substr(0, static_cast<size_t>(room));
+        if (static_cast<int>(v.size()) > room) v.resize(static_cast<size_t>(room));
         out.emplace_back(label + std::string(static_cast<size_t>(room - static_cast<int>(v.size())), ' ') + v, r == sel);
     }
     return out;

@@ -11,12 +11,21 @@
 #include "update_check.h"
 #include "media_session.h"
 #include "app_internal.h"
+#include "selftest.h"
+#include "terminal_ui.h"
 
 #if defined(_WIN32)
 #include "win_compat.h"
 #endif
 
 int main(int argc, char** argv) {
+    // `mousiki --selftest-fetch`: the fetch health check (lyrics sources, cover archive, update check, tools, pinned downloads).
+    if (argc > 1 && std::string(argv[1]) == "--selftest-fetch") {
+#if defined(_WIN32)
+        muisc::win_bootstrap_env();
+#endif
+        return muisc::selftest_fetch_main(argc, argv);
+    }
     // `mousiki --cmd next`, `mousiki --status`: remote control of a running Mousiki (src/remote_control.h). No terminal, no audio.
     if (muisc::remote::is_client_call(argc, argv)) {
 #if defined(_WIN32)
@@ -97,6 +106,10 @@ int main(int argc, char** argv) {
     // differ in their look (colours, theme, elements, visualizations ...: audio book mode in audiobook_config.txt) and are
     // brought in line in everything else (paths, hotkeys, sound ...) whenever the other one starts to run (sync_shared).
     muisc::Settings shared_settings = muisc::load_settings();
+    // The terminal is asked for the wanted size / full screen once, here (a mode switch does not repeat it); see terminal_ui.h.
+    muisc::terminal_probe_screen();
+    if (!shared_settings.use_terminal_settings)
+        muisc::terminal_apply_size(shared_settings.terminal_cols, shared_settings.terminal_rows, shared_settings.full_screen);
     bool book_default_theme = false;
     muisc::Settings book_settings = muisc::load_book_settings(shared_settings, &book_default_theme);
     if (book_default_theme) muisc::apply_book_default_theme(book_settings);   // no look of its own yet: Rose Pine

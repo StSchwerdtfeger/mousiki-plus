@@ -96,7 +96,8 @@ void reader_main(Shared* S) {
             ++S->cfg_gen;
         } else if (head[0] == 2) {
             const size_t n = len / (2 * sizeof(float));
-            const float* f = reinterpret_cast<const float*>(payload.data());
+            std::vector<float> f(2 * n);   // (copied: the byte buffer is not guaranteed to be aligned for floats)
+            if (n > 0) std::memcpy(f.data(), payload.data(), f.size() * sizeof(float));
             std::lock_guard<std::mutex> lk(S->m);
             for (size_t i = 0; i < n; ++i) {
                 const size_t at = static_cast<size_t>((S->total + i) & (kRing - 1));

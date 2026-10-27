@@ -32,8 +32,13 @@ jobs:
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DMOUSIKI_BUILD_TESTS=ON
 
-      - name: Build the tests
-        run: cmake --build build --config Release --target mousiki_tests --parallel 4
+      # the player itself too: the UI smoke test (tests/ui_smoke.py) runs it in a pseudo terminal (Linux / macOS)
+      - name: Build the tests and the player
+        run: cmake --build build --config Release --target mousiki_tests mousiki --parallel 4
+
+      - name: Install pyte (terminal emulator for the UI smoke test)
+        if: runner.os != 'Windows'
+        run: python3 -m pip install --break-system-packages pyte || python3 -m pip install pyte
 
       - name: Run the tests
         run: ctest --test-dir build -C Release --output-on-failure

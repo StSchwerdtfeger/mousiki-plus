@@ -38,7 +38,7 @@ jobs:
         run: |
           cppcheck --std=c++17 --enable=warning,performance,portability --inline-suppr --quiet \
             --suppress=missingIncludeSystem --suppress=unusedFunction \
-            -i third_party -I src -I src_radio -I src_audio_book \
+            -i third_party --suppress='*:*third_party*' -I src -I src_radio -I src_audio_book \
             --template='{file}:{line}: [{severity}] {id}: {message}' \
             src src_radio src_audio_book 2> cppcheck.txt || true
           echo "cppcheck findings: $(grep -c '^src' cppcheck.txt || true)"
@@ -49,7 +49,7 @@ jobs:
           FILES=$(ls src/*.cpp src_radio/*.cpp src_audio_book/*.cpp | grep -v -e 'miniaudio_impl' )
           clang-tidy -p build --quiet \
             --checks='-*,bugprone-*,-bugprone-easily-swappable-parameters,-bugprone-narrowing-conversions,performance-*,clang-analyzer-*,-clang-analyzer-optin.performance.Padding,-performance-enum-size,-bugprone-empty-catch,-bugprone-switch-missing-default-case' \
-            --header-filter='^.*/(src|src_radio|src_audio_book)/.*$' $FILES > clang-tidy.txt 2>&1 || true
+            --header-filter='^.*/(src|src_radio|src_audio_book)/[A-Za-z0-9_]+\.h$' $FILES > clang-tidy.txt 2>&1 || true
           echo "clang-tidy warnings: $(grep -c 'warning:' clang-tidy.txt || true)"
       - name: Summary
         run: |

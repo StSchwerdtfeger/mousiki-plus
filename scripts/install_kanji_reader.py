@@ -9,12 +9,14 @@ the same four files for every platform. Each is checked against its pinned SHA-2
 file the newest wheels are taken from pypi.org instead, each checked only against the hash PyPI publishes (a warning says so).
 A wheel is a zip file; it is simply unpacked.
 pykakasi is licensed GPL-3.0-or-later and is NOT part of Mousiki: it is downloaded to your computer on request and run as a separate
-program by kanji_reading.py. Exit code 0 = installed, 1 = failed (the message says why; Mousiki then simply goes without readings).
+program by kanji_reading.py. Exit code 0 = installed, 1 = failed (the message says why; Mousiki then simply goes without readings), 3 = a checksum did not match
+(a damaged download is tried twice; nothing is installed then).
 """
 import hashlib
 import json
 import os
 import re
+import shutil
 import sys
 import sysconfig
 import urllib.request
@@ -91,23 +93,57 @@ def unpack(data, name, target):
     os.remove(tmp)
 
 
+class ChecksumError(RuntimeError):
+    """A download that is not the file that was pinned (or not the one PyPI publishes)."""
+
+
+def fetch_checked(url, want, label, kind="pinned", tries=2):
+    """Downloads `url` and compares its SHA-256 with `want`. A damaged download is tried once more; a second mismatch
+    stops everything with a message that says what was expected, what came, and what to do."""
+    got = ""
+    for attempt in range(tries):
+        data = fetch(url)
+        got = hashlib.sha256(data).hexdigest()
+        if got == want.lower():
+            return data
+        if attempt + 1 < tries:
+            print("%s: the checksum does not match (download damaged?) -- trying once more" % label)
+    raise ChecksumError(
+        "%s: the SHA-256 checksum does not match.\n"
+        "  expected (%s): %s\n"
+        "  received:        %s\n"
+        "  address:         %s\n"
+        "  Nothing was installed. A damaged download usually fixes itself: try again later. If it happens again, the file on the\n"
+        "  server is not the one this version of Mousiki was built with: do not install it by hand, update Mousiki instead\n"
+        "  (or report it at github.com/StSchwerdtfeger/mousiki-plus/issues). Mousiki works without kanji readings.\n"
+        "  Check: mousiki --selftest-fetch --only pins --verify-pins" % (label, kind, want.lower(), got, url))
+
+
 def main():
     if len(sys.argv) != 2:
         print(__doc__)
         return 1
     target = os.path.abspath(sys.argv[1])
+    existed = os.path.isdir(target)
     os.makedirs(target, exist_ok=True)
     pins = load_pins()
-    if pins:   # the pinned files, nothing else
+    if pins:   # the pinned files, nothing else: all are downloaded and checked first, only then is anything unpacked
         try:
+            files = []
             for name, pin in sorted(pins.items()):
                 print("downloading %s (pinned)" % pin["file"])
-                data = fetch(pin["url"])
-                if hashlib.sha256(data).hexdigest() != pin["sha256"].lower():
-                    raise RuntimeError("%s: the checksum does not match the pinned one" % pin["file"])
-                unpack(data, pin["file"], target)
+                files.append((pin["file"], fetch_checked(pin["url"], pin["sha256"], pin["file"])))
+            for fname, data in files:
+                unpack(data, fname, target)
+        except ChecksumError as e:
+            print("kanji reader NOT installed -- checksum failure\n%s" % e)
+            if not existed:
+                shutil.rmtree(target, ignore_errors=True)
+            return 3
         except Exception as e:   # noqa: BLE001 -- any failure just means "no readings"
             print("kanji reader not installed: %s" % e)
+            if not existed:
+                shutil.rmtree(target, ignore_errors=True)
             return 1
         print("pykakasi installed into %s" % target)
         return 0
@@ -121,9 +157,7 @@ def main():
             done.add(name)
             f, requires = pick(name)
             print("downloading %s" % f["filename"])
-            data = fetch(f["url"])
-            if hashlib.sha256(data).hexdigest() != f["digests"]["sha256"]:
-                raise RuntimeError("%s: the checksum does not match what PyPI publishes" % f["filename"])
+            data = fetch_checked(f["url"], f["digests"]["sha256"], f["filename"], kind="published by PyPI")
             tmp = os.path.join(target, f["filename"])
             with open(tmp, "wb") as fh:
                 fh.write(data)
@@ -134,6 +168,9 @@ def main():
                 z.extractall(target)
             os.remove(tmp)
             queue.extend(requires)
+    except ChecksumError as e:
+        print("kanji reader NOT installed -- checksum failure\n%s" % e)
+        return 3
     except Exception as e:   # noqa: BLE001 -- any failure just means "no readings"
         print("kanji reader not installed: %s" % e)
         return 1

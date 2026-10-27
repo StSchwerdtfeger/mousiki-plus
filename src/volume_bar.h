@@ -12,6 +12,7 @@
 //
 // Every cell of the filled part is one terminal column wide in all styles; the empty rest of the bar stays "-".
 // ---------------------------------------------------------------------------
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -103,7 +104,7 @@ inline std::vector<std::string> volume_bar_cells(int style, int n, double angle 
         "\xE2\xA3\xBE", "\xE2\xA3\xB3", "\xE2\xA2\xAF", "\xE2\xA1\xBF", "\xE2\xA3\xB7", "\xE2\xA3\x9F", "\xE2\xA1\xBE",
         "\xE2\xA3\xBD", "\xE2\xA2\xAF", "\xE2\xA3\x9F", "\xE2\xA1\xBE", "\xE2\xA3\x9F", "\xE2\xA1\xBE", "\xE2\xA3\xBD",
         "\xE2\xA2\xAF", "\xE2\xA3\x9F", "\xE2\xA1\xBE", "\xE2\xA3\xBD", "\xE2\xA3\xB3", "\xE2\xA3\xBB"};   // ⣾⣳⢯⡿⣷⣟⡾⣽⢯⣟⡾⣟⡾⣽⢯⣟⡾⣽⣳⣻
-    n = n < 0 ? 0 : n > kVolBarCells ? kVolBarCells : n;
+    n = std::clamp(n, 0, static_cast<int>(kVolBarCells));
     std::vector<std::string> out;
     out.reserve(static_cast<size_t>(n));
     if (style == kVolStyleDisk) {

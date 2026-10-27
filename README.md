@@ -143,7 +143,7 @@ Everything below is in the current version (v4.6.0) and works the same on Window
 
 <p align="center"><img width="850" alt="The playlist editor" src="readme_images/changes_09.png" /></p>
 
-- **Latin letters** (`"`, i.e. `SHIFT+'` on a US keyboard): shows Japanese, Korean and Chinese titles, tags, file names, lyrics and karaoke in Latin letters (romaji, Revised Romanization, pinyin) and back. Kanji are only converted when the text is known to be Chinese; a name written both ways (`Kaneko Ayano カネコアヤノ`) shows its Latin part; pairs are learned from your own folder and file names, and the search finds such titles by their Latin spelling. Optional and local: with the separate `pykakasi` package installed, kanji in Japanese text are read too; an opt-in setting (Settings → ON/OFF → MODES → *Latin Name Lookup*, off by default) asks MusicBrainz for the Latin name of artists written in Chinese characters (it sends those artist names, and so your IP address, to musicbrainz.org - nothing else).
+- **Latin letters** (`"`, i.e. `SHIFT+'` on a US keyboard; in the radio mode too, for station names and titles): shows Japanese, Korean and Chinese titles, tags, file names, lyrics and karaoke in Latin letters (romaji, Revised Romanization, pinyin) and back. Kanji are only converted when the text is known to be Chinese; a name written both ways (`Kaneko Ayano カネコアヤノ`) shows its Latin part; pairs are learned from your own folder and file names, and the search finds such titles by their Latin spelling. Optional and local: with the separate `pykakasi` package installed, kanji in Japanese text are read too; an opt-in setting (Settings → ON/OFF → MODES → *Latin Name Lookup*, off by default) asks MusicBrainz for the Latin name of artists written in Chinese characters (it sends those artist names, and so your IP address, to musicbrainz.org - nothing else).
 - **Meta data editor** (`SHIFT+m`): edit tags, rename files, and **fetch missing tags by audio fingerprint** (AcoustID / MusicBrainz) for one title or a whole list.
   
 <p align="center"><img width="850" alt="The meta data editor, fetch list" src="readme_images/changes_11.png" /></p>
@@ -160,7 +160,7 @@ Everything below is in the current version (v4.6.0) and works the same on Window
 
 ### Radio player
 
-The radio is part of the same program: `*` (`SHIFT` and `+` on a German keyboard, `SHIFT+8` on an English one) goes to the next mode, `_` (`SHIFT` and `-`) to the previous one.
+The radio is part of the same program: `*` (`SHIFT` and `+` on a German keyboard, the `'` key on an English one) goes to the next mode, `_` (`SHIFT` and `-`; the `;` key on an English one) to the previous one.
 
 - An **ON AIR / OFF AIR sign** with a colour wave, a tuning-dial frequency band, its own oscilloscope, spectrogram and equalizer.
 - **Radio Browser** search through tens of thousands of stations, **16 presets** in several preset lists, **station lists**, a big stations overlay.
@@ -231,7 +231,7 @@ Three themes are made for colour vision deficiencies: **Colorblind Deuteranopia*
 
 > Note: downloading dependencies (ffmpeg, yt-dlp, Python, pykakasi) during a setup needs an internet connection; see [Dependencies and security](#dependencies-and-security).
 
-Windows (installer, portable zip), Linux (`.deb`, portable) and macOS (`.pkg`, portable) from the [latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest), or build it yourself (below). Release files are signed (GPG) and come with build-provenance attestations; an installer upgrades an existing version and keeps your settings. **Portable versions:** unzip the new version over the old folder (or copy your `data/` folder into the new one) and keep `portable.txt` next to the launcher: it makes Mousiki keep settings, cache, playlists and history in `data/`; without it they are not found. Automated tests (146; run on Linux, macOS and Windows by a GitHub workflow): `cmake -DMOUSIKI_BUILD_TESTS=ON`.
+Windows (installer, portable zip), Linux (`.deb`, portable) and macOS (`.pkg`, portable) from the [latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest), or build it yourself (below). Release files are signed (GPG) and come with build-provenance attestations; an installer upgrades an existing version and keeps your settings. **Portable versions:** unzip the new version over the old folder (or copy your `data/` folder into the new one) and keep `portable.txt` next to the launcher: it makes Mousiki keep settings, cache, playlists and history in `data/`; without it they are not found. Automated tests (202 unit tests on Linux, macOS and Windows, plus a screen test that runs the real program in a pseudo terminal on Linux and macOS, run by a GitHub workflow): `cmake -DMOUSIKI_BUILD_TESTS=ON`. `mousiki --selftest-fetch` checks that lyrics, covers, the update check and the pinned downloads still work.
 
 ### Build it yourself (Windows)
 
@@ -339,13 +339,12 @@ LocalMusicPath=C:\Users\you\Music
 LocalMusicPath=~/Music
 ```
 Playlists folder (optional, **one** `PlaylistsPath=` line; further lines are ignored; changing it in the settings copies the existing playlists there). The listening history folder works the same way (`HistoryPath=`: an existing `history.json` in the new folder is used, otherwise the current one is copied). Without it, playlists live in `<first LocalMusicPath>\playlists`. Listing, loading, saving and deleting all use that single folder.
-You can also add folders in the settings (`s`). Same goes for the (single) download folder (`DownloadFolder=`, default is `%USERPROFILE%\.cache\mousiki`), which is automatically added to the local music path(s).
+You can also add folders in the settings (`s`). Same goes for the (single) download folder (`DownloadFolder=`, default is `%USERPROFILE%\.cache\mousiki`), which is automatically added to the local music paths.
 
 ```
 PlaylistsPath=C:\Users\YOUR NAME !!!!!!!\Music\playlists
 DownloadFolder=D:\Downloads\mousiki
 ```
-
 
 ### Build it yourself (Linux / macOS)
 
@@ -420,10 +419,6 @@ Keep the `scripts/` folder next to the binary if you move it, otherwise lyrics, 
 | Radio stations, presets, station lists | `~/.config/mousiki/` — `stations.txt`, `presets.txt`, `stationlists.txt`, `preset_names.txt` (defaults, changeable in the radio's Settings → PATHS) |
 | Radio listening history | `~/.config/mousiki/radio_history/` — `history_radio.txt`, `archive_radio.txt` |
 | Radio recordings / downloads | the player's download folder by default, otherwise `<path>/radio_downloads/` (`~/Music/radio_downloads` if the toggle is off and the path empty) |
-
-### Uninstalling Mousiki Plus
-
-Every bundled dependency (e.g. FFmpeg) from the installers will be uninstalled. Note that the current setup does not automatically delete the .config/, .cache/ folders. Other folders such as audio_books/, playlists/, history/ that are placed / created inside set paths also remain after uninstalling Mousiki Plus, have to be deleted manually by choice in order to spare people accidentally deleting important files.  
 
 ## Verifying downloads
 

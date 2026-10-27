@@ -329,8 +329,17 @@ void build_doc(Doc& d, const std::string& text) {
         for (size_t pi = 0; pi < d.pages.size() && e.target < 0; ++pi)
             if (!d.pages[pi].toc && d.pages[pi].number.empty() && !want.empty() && d.pages[pi].norm_title == want) e.target = static_cast<int>(pi);
     }
+    std::vector<char> own(d.entries.size(), 0);   // the entries that found a page of their own
+    for (size_t i = 0; i < d.entries.size(); ++i) own[i] = d.entries[i].target >= 0;
     for (int i = static_cast<int>(d.entries.size()) - 2; i >= 0; --i)
         if (d.entries[static_cast<size_t>(i)].target < 0) d.entries[static_cast<size_t>(i)].target = d.entries[static_cast<size_t>(i) + 1].target;
+    // A chapter without a page of its own (9 "The Radio Main UI") is the first chapter of a part whose intro page ("RADIO PLAYER MODE")
+    // sits right in front of the chapter's first page: choosing the chapter shows that intro page, not 9.1 right away.
+    for (size_t i = 1; i < d.entries.size(); ++i) {
+        Entry& e = d.entries[i];
+        const Entry& prev = d.entries[i - 1];
+        if (!own[i] && !e.roman && prev.roman && own[i - 1] && e.target >= 1 && prev.target == e.target - 1) e.target = prev.target;
+    }
 
     // the chapter titles of the top border: "II MUSIC PLAYER MODE" and "1 MAIN UI" for a page numbered 1.x
     for (size_t pi = 0; pi < d.pages.size(); ++pi) {

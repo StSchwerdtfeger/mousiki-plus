@@ -733,9 +733,14 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidBookCoverWave: v = settings_.book_cover_wave; break;
             case kSidUpdateCheck: v = settings_.update_check; break;
             case kSidMediaKeys: v = settings_.media_keys; break;
+            case kSidRateCap: v = settings_.rate_cap_96; break;
+            case kSidFullScreen: v = settings_.full_screen; break;
+            case kSidUseTermSettings: v = settings_.use_terminal_settings; break;
+            case kSidTermSize: return col == 1 ? std::to_string(settings_.terminal_rows) : std::to_string(settings_.terminal_cols);   // "cols x rows": two fields
             case kSidLatinLookup: v = settings_.latin_lookup; break;
             case kSidLatinMacrons: v = settings_.latin_macrons; break;
             case kSidLatinWo: v = settings_.latin_wo; break;
+            case kSidLatinHanzi: return settings_.latin_hanzi == 1 ? "Chin." : settings_.latin_hanzi == 2 ? "Jap." : "Leave";
             case kSidLyricsVariants: v = settings_.lyrics_name_variants; break;
             case kSidRemoteApp: return settings_.remote_app ? "on   [ENTER] settings" : "off  [ENTER] settings";   // opens the REMOTE APP overlay
             case kSidNormalize: v = settings_.normalize; break;
@@ -836,6 +841,8 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidTrackBuffer: return {};   // a number (ENTER types it) and a "Set back to default" button (RIGHT, then ENTER)
             case kSidRemoteApp: return {};   // not a switch: ENTER / LEFT / RIGHT open the REMOTE APP overlay
             case kSidVisFluidity: case kSidVisDegr: case kSidVisVisc: return {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
+            case kSidLatinHanzi: return {"Leave", "Chin.", "Jap."};
+            case kSidTermSize: return {};   // two typed numbers (ENTER types the one that is lit)
             case kSidWaveStyle: return {"raw", "smooth"};
             case kSidDiskSpeed: return {"0.01", "0.05", "0.10", "0.17", "0.25", "0.50", "0.75", "1.00"};
             case kSidLyrAlign: return {"left", "center", "right"};
@@ -937,6 +944,30 @@ void App::settings_commit_edit_impl() {
                 settings_.cover_search = v == "default" ? 0 : v == "folder first" ? 1 : v == "within file first" ? 2
                                        : v == "image in folder only" ? 3 : v == "within file only" ? 4 : settings_.cover_search;
                 return;
+            case kSidTermSize: {   // typed "columns" / "rows" (the field that is lit); 0 = leave the terminal as it is
+                const bool is_cols = settings_col_ == 0;
+                const TerminalLimits L = terminal_size_limits();
+                try {
+                    std::string d = buf;
+                    d.erase(std::remove_if(d.begin(), d.end(), [](unsigned char ch) { return std::isspace(ch) != 0; }), d.end());
+                    const int typed = d.empty() ? 0 : std::stoi(d);
+                    const int lo = is_cols ? L.min_cols : L.min_rows, hi = is_cols ? L.max_cols : L.max_rows;
+                    const int use = typed <= 0 ? 0 : std::clamp(typed, lo, hi);
+                    (is_cols ? settings_.terminal_cols : settings_.terminal_rows) = use;
+                    status_line_ = std::string("terminal ") + (is_cols ? "columns" : "rows") + ": " + (use == 0 ? "0 -- the terminal is left as it is" : std::to_string(use));
+                    if (use != 0 && use != typed) status_line_ += " (allowed: " + std::to_string(lo) + " - " + std::to_string(hi) + (L.screen_known ? ", what fits on the screen)" : ")");
+                    if (settings_.terminal_cols > 0 && settings_.terminal_rows > 0 && !settings_.full_screen && !settings_.use_terminal_settings) {
+                        terminal_apply_size(settings_.terminal_cols, settings_.terminal_rows, false);
+                        status_line_ += " -- asked the terminal for " + std::to_string(settings_.terminal_cols) + " x " + std::to_string(settings_.terminal_rows) + " (it may refuse)";
+                    }
+                } catch (...) { status_line_ = "terminal size: type a number (0 = leave the terminal as it is)"; }
+                return;
+            }
+            case kSidLatinHanzi:   // Chinese characters that could be Japanese or Chinese (東京): leave / pinyin / kanji reading
+                settings_.latin_hanzi = v == "chin." ? 1 : v == "jap." ? 2 : v == "leave" ? 0 : settings_.latin_hanzi;
+                translit_set_default_hanzi(settings_.latin_hanzi);
+                force_redraw_ = true;
+                return;
             case kSidStartMode: { const int m = mode_index(v); if (m >= 0 && settings_.use_mode[m]) settings_.start_mode = kModeNames[m]; return; }
             case kSidVolIndicator:
                 settings_.volume_indicator = std::max(0, volume_style_from_name(v));
@@ -1000,7 +1031,15 @@ void App::settings_commit_edit_impl() {
             case kSidBookCover: settings_.book_cover = is_true; break;
             case kSidBookCoverWave: settings_.book_cover_wave = is_true; break;
             case kSidUpdateCheck: settings_.update_check = is_true; break;   // read at the next start
+            case kSidRateCap: settings_.rate_cap_96 = is_true; break;        // the next track that is loaded uses it
             case kSidMediaKeys: settings_.media_keys = is_true; break;       // read at the next start
+            case kSidFullScreen: settings_.full_screen = is_true; if (!settings_.use_terminal_settings) terminal_apply_size(settings_.terminal_cols, settings_.terminal_rows, is_true); force_redraw_ = true; break;
+            case kSidUseTermSettings:   // true: the terminal is left alone (full screen is given back); false: Terminal Size / Full Screen apply again
+                settings_.use_terminal_settings = is_true;
+                if (is_true) terminal_apply_size(0, 0, false);
+                else terminal_apply_size(settings_.terminal_cols, settings_.terminal_rows, settings_.full_screen);
+                force_redraw_ = true;
+                break;
             case kSidLatinLookup: settings_.latin_lookup = is_true; name_lookup_broken_ = false; break;
             case kSidLatinMacrons: settings_.latin_macrons = is_true; translit_set_style(settings_.latin_macrons, settings_.latin_wo); force_redraw_ = true; break;
             case kSidLyricsVariants: settings_.lyrics_name_variants = is_true; set_lyrics_name_variants(is_true); break;
@@ -1247,7 +1286,16 @@ void App::settings_cycle(int dir) {
                                                                     : "latin name lookup: off -- nothing is sent anywhere";
     if (id == kSidLatinMacrons) status_line_ = settings_.latin_macrons ? "latin macrons: on -- Japanese long vowels as macrons (koohii -> kōhī, ou -> ō)" : "latin macrons: off -- Japanese long vowels spelled out (ou, uu, koohii)";
     if (id == kSidLyricsVariants) status_line_ = settings_.lyrics_name_variants ? "lyrics name variants: on -- a search that finds nothing also tries the Latin spelling, the title / artist without their Latin or Japanese part, and the title alone" : "lyrics name variants: off -- only the title and artist as they are";
+    if (id == kSidLatinHanzi) status_line_ = settings_.latin_hanzi == 1 ? "translit. kanji: Chin. -- Chinese characters that could be Japanese or Chinese (東京) are read as Chinese (pinyin)"
+                                           : settings_.latin_hanzi == 2 ? "translit. kanji: Jap. -- such characters are read as Japanese (they stay as they are unless the optional kanji reader knows their reading)"
+                                           : "translit. kanji: Leave -- such characters are left as they are (Japanese kana and Korean are still converted)";
     if (id == kSidLatinWo) status_line_ = settings_.latin_wo ? "latin wo: on -- the particle を is written \"wo\"" : "latin wo: off -- the particle を is written \"o\"";
+    if (id == kSidUseTermSettings) status_line_ = settings_.use_terminal_settings ? "use terminal settings: true -- Mousiki leaves the terminal as it is; Terminal Size and Full Screen are ignored (they keep their values)"
+                                                                                   : "use terminal settings: false -- the terminal gets the Terminal Size / Full Screen below";
+    if (id == kSidFullScreen) status_line_ = settings_.full_screen ? "full screen: on -- the terminal is asked for full screen (now and at every start); Terminal Size is ignored meanwhile (the terminal may refuse)"
+                                                                 : "full screen: off -- the terminal gets the Terminal Size";
+    if (id == kSidRateCap) status_line_ = settings_.rate_cap_96 ? "rate cap at 96 kHz: on -- a track above 96 kHz is brought down to 96 kHz (the next track that is loaded)"
+                                                                 : "rate cap at 96 kHz: off -- a track plays at its own rate: more RAM, and the audio device has to accept it (the next track that is loaded)";
     if (id == kSidMediaKeys) status_line_ = settings_.media_keys ? "media keys: on -- Mousiki shows in the system's now-playing and answers its media keys (from the next start)"
                                                                  : "media keys: off -- Mousiki stays out of the system's media controls (from the next start)";
     if (id == kSidRemoteApp) {
@@ -1384,8 +1432,8 @@ void App::handle_settings_key(int key) {
                     (!color_edit_buffer_.empty() && hotkey_string_to_key(color_edit_buffer_) == 0)
                         ? std::string("NOT A KEY -- one character, or ENTER TAB SPACE BACKSPACE ARROW_KEY_UP/DOWN/LEFT/RIGHT; "
                                       "press the combination itself for ") + pretty_key("ALT+L") + " / CTRL+l / CTRL+SHIFT+u / z"
-                    : (color_edit_buffer_ == "*" || color_edit_buffer_ == "ESC")
-                        ? std::string("\"") + color_edit_buffer_ + "\" IS RESERVED (" + (color_edit_buffer_ == "*" ? "switches to the radio mode" : "back to the home view") + ") -- try another key"
+                    : color_edit_buffer_ == "ESC"
+                        ? std::string("\"ESC\" IS RESERVED (back to the home view) -- try another key")
                         : std::string();
                 if (!reject.empty()) {
                     status_line_ = reject;
@@ -1408,7 +1456,8 @@ void App::handle_settings_key(int key) {
             // Path commits write their own status (which path changed, that
             // the library was rescanned) -- don't bury it under the generic
             // "UPDATED".
-            bool wrote_own_status = (settings_tab_ == 3 && path_row_is_text(settings_row_));
+            bool wrote_own_status = (settings_tab_ == 3 && path_row_is_text(settings_row_)) ||
+                                    (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTermSize);
             if (!key_name.empty()) ref_undo_push(settings_row_);
             const auto hk_before = settings_.hotkeys;
             settings_commit_edit();
@@ -1454,7 +1503,8 @@ void App::handle_settings_key(int key) {
             // the same cap typing enforces below.
             const int limit = ((theme_ui_ == 2 && theme_row_ < 0) || (theme_ui_ == 4 && theme_io_row_ == 0)) ? themes::kMaxNameLen
                               : (theme_ui_ == 4 || theme_ui_ == 5) ? 240
-                              : (settings_tab_ == 3 && path_row_is_text(settings_row_)) ? 240 : 18;
+                              : (settings_tab_ == 3 && path_row_is_text(settings_row_)) ? 240
+                              : (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTrackBuffer) ? 6 : 18;
             le_paste(color_edit_buffer_, edit_caret_, edit_anchor_, clipboard_get(), static_cast<size_t>(limit));
             status_line_ = "PASTED";
             return;
@@ -1478,7 +1528,8 @@ void App::handle_settings_key(int key) {
         // A path needs far more room than a color/hotkey field does.
         const int edit_limit = ((theme_ui_ == 2 && theme_row_ < 0) || (theme_ui_ == 4 && theme_io_row_ == 0)) ? themes::kMaxNameLen
                              : (theme_ui_ == 4 || theme_ui_ == 5) ? 240
-                             : (settings_tab_ == 3 && path_row_is_text(settings_row_)) ? 240 : 18;
+                             : (settings_tab_ == 3 && path_row_is_text(settings_row_)) ? 240
+                             : (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTrackBuffer) ? 6 : 18;   // Track Buffer (MB): 6 digits at most
         if (is_text_key(key)) {
             le_insert(color_edit_buffer_, edit_caret_, edit_anchor_, static_cast<char>(key),
                       static_cast<size_t>(edit_limit));
@@ -1560,6 +1611,17 @@ void App::handle_settings_key(int key) {
                 return;
             }
         }
+        if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTermSize && settings_col_ == 2) {   // "Set back to default"
+            settings_.terminal_cols = Settings::kTermColsDefault;
+            settings_.terminal_rows = Settings::kTermRowsDefault;
+            settings_col_ = 0;
+            status_line_ = "terminal size: back to the default, " + std::to_string(Settings::kTermColsDefault) + " x " + std::to_string(Settings::kTermRowsDefault);
+            if (!settings_.full_screen && !settings_.use_terminal_settings) {
+                terminal_apply_size(settings_.terminal_cols, settings_.terminal_rows, false);
+                status_line_ += " -- asked the terminal for it (it may refuse)";
+            }
+            return;
+        }
         if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTrackBuffer && settings_col_ == 1) {   // "Set back to default"
             settings_.track_buffer_mb = Settings::kTrackBufferDefaultMB;
             settings_col_ = 0;
@@ -1591,6 +1653,11 @@ void App::handle_settings_key(int key) {
     if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidVolIndicator && (key == 'C' || key == 'D')) {
         settings_col_ = key == 'C' ? 1 : 0;   // the look | gradient / no gradient
         status_line_ = "[ENTER] changes the value that is lit; [<-] [->] switch between the look and the gradient";
+        return;
+    }
+    if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTermSize && (key == 'C' || key == 'D')) {
+        settings_col_ = std::clamp(settings_col_ + (key == 'C' ? 1 : -1), 0, 2);   // the columns | the rows | the "Set back to default" button
+        status_line_ = "[ENTER] types the number that is lit (or sets the size back to the default); [<-] [->] switch between columns, rows and the button; 0 = leave the terminal as it is";
         return;
     }
     if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTrackBuffer && (key == 'C' || key == 'D')) {
@@ -2114,11 +2181,24 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
                 pos(y, 6, pad(L.text, 25)); pos(y, 32, ":");
                 const bool buf_row = settings_tab_ == 1 && settings_item_id(1, r) == kSidTrackBuffer;
                 const bool vol_row = settings_tab_ == 1 && settings_item_id(1, r) == kSidVolIndicator;   // two values: the look | gradient or not
+                const bool term_row = settings_tab_ == 1 && settings_item_id(1, r) == kSidTermSize;       // two typed numbers: columns x rows
                 std::string shown = settings_get_value(r, 0);
                 // the "disk" look of the Volume Indicator is shown as two braille blocks of the animation itself
                 if (settings_tab_ == 1 && settings_item_id(1, r) == kSidVolIndicator && settings_.volume_indicator == kVolStyleDisk)
                     shown = volume_disk_snippet(volume_clock_angle());
                 std::string v = ed ? edit_paint(edit_field_width()).s : pad(shown, 20);
+                if (term_row) {   // "[ 120 ] x [ 30 ]": the field that is lit is the one ENTER types into (LEFT / RIGHT switch)
+                    const std::string c0 = settings_get_value(r, 0), c1 = settings_get_value(r, 1);
+                    auto field = [&](int which, const std::string& val) {
+                        const bool mine = r == settings_row_ && settings_col_ == which;
+                        if (ed && mine) return change_sgr(settings_) + edit_paint(5).s + R;
+                        return std::string(mine && sel ? HI : "") + pad(val == "0" ? "off" : val, 5) + R;
+                    };
+                    pos(y, 35, field(0, c0));
+                    pos(y, 41, "x");
+                    pos(y, 43, field(1, c1));
+                    pos(y, 57, ((sel && settings_col_ == 2) ? HI : legend_sgr(settings_)) + "[ Set back to default ]" + R);   // (right of the two numbers)
+                } else
                 pos(y, 35, ((sel && !(buf_row && settings_col_ == 1) && !(vol_row && settings_col_ == 1)) ? HI : "") + (ed ? change_sgr(settings_) : "") + (vol_row ? pad(shown, 9) : v) + R);
                 if (vol_row) {   // right of the look: "gradient" / "no gradient" (LEFT / RIGHT switch between the two, ENTER changes the one that is lit)
                     pos(y, 45, ((sel && settings_col_ == 1) ? HI : "") + (settings_.volume_gradient ? "gradient   " : "no gradient") + R);

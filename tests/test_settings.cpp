@@ -105,6 +105,12 @@ TEST(settings_default_hotkeys_do_not_collide) {
     for (const auto& [action, key] : s.hotkeys) {
         if (key.empty()) continue;
         const auto [it, fresh] = owner.emplace(key, action);
+        // The karaoke size keys work only inside the karaoke overlay, the mode keys outside it: each pair shares its keys.
+        auto pair = [](const std::string& x, const std::string& y) {
+            return (x == "HKeyModeNext" && y == "HKeyKaraokeBigger") || (x == "HKeyKaraokeBigger" && y == "HKeyModeNext") ||
+                   (x == "HKeyModePrev" && y == "HKeyKaraokeSmaller") || (x == "HKeyKaraokeSmaller" && y == "HKeyModePrev");
+        };
+        if (!fresh && pair(it->second, action)) continue;
         if (!fresh) ::mt::fail(__FILE__, __LINE__, "key '" + key + "' is bound to both " + it->second + " and " + action);
     }
     CHECK(owner.size() > 40);
@@ -139,6 +145,47 @@ TEST(settings_update_check_and_media_keys_default_on_and_round_trip) {
     CHECK(!back.media_keys);
     CHECK(!read_update_check());
     CHECK(!read_media_keys());
+}
+
+TEST(settings_rate_cap_defaults_on_and_round_trips) {
+    mt::TempHome home;
+    Settings s = load_settings();
+    CHECK(s.rate_cap_96);
+    s.rate_cap_96 = false;
+    save_settings(s);
+    CHECK(!load_settings().rate_cap_96);
+}
+
+TEST(settings_terminal_size_defaults_and_round_trip) {
+    mt::TempHome home;
+    Settings s = load_settings();
+    CHECK_EQ(s.terminal_cols, 120);
+    CHECK_EQ(s.terminal_rows, 32);
+    CHECK(!s.full_screen);
+    CHECK(!s.use_terminal_settings);
+    s.terminal_cols = 0;
+    s.terminal_rows = 55;
+    s.full_screen = true;
+    s.use_terminal_settings = true;
+    save_settings(s);
+    const Settings back = load_settings();
+    CHECK_EQ(back.terminal_cols, 0);
+    CHECK_EQ(back.terminal_rows, 55);
+    CHECK(back.full_screen);
+    CHECK(back.use_terminal_settings);
+}
+
+TEST(settings_mode_keys_are_read_from_the_config) {
+    mt::TempHome home;
+    Settings s = load_settings();
+    CHECK_EQ(s.hotkeys["HKeyModeNext"], std::string("*"));
+    CHECK_EQ(s.hotkeys["HKeyModePrev"], std::string("_"));
+    CHECK_EQ(read_mode_config().key_next, static_cast<int>('*'));
+    s.hotkeys["HKeyModeNext"] = "J";
+    s.hotkeys["HKeyModePrev"] = "";
+    save_settings(s);
+    CHECK_EQ(read_mode_config().key_next, static_cast<int>('J'));
+    CHECK_EQ(read_mode_config().key_prev, 0);
 }
 
 // ---- the three modes: which are on, in which order, where Mousiki starts, the audio book path ----

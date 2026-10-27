@@ -1720,11 +1720,8 @@ private:
     // read back with the lyrics), ESC / Alt+L = cancel (the value from before the
     // overlay opened comes back). Opens only while synced lyrics are loaded.
     double lyrics_edit_orig_delay_ = 0.0;               // delay when the overlay opened (ESC restores it)
-    // Alt+L works inside the karaoke overlay too: the timing is easiest to judge
-    // while the big lyrics are on screen. Set when the overlay was opened from
-    // there, so closing it (save or cancel) goes back to karaoke instead of the
-    // main screen.
-    bool lyrics_edit_from_karaoke_ = false;
+    bool lyrics_edit_from_karaoke_ = false;             // opened over the karaoke screen: it is drawn on it and closing returns to it
+    void lyrics_edit_open_over_karaoke();   // the lyrics timing overlay over the karaoke screen
     void karaoke_ensure_lyrics();   // the karaoke overlay fetches the lyrics itself when the engine is off
     // SHIFT+w (HKeyWizard): the Mousiki Plus Help Wizard (Mode::Wizard), a full-screen help book. src/wizard.{h,cpp}
     // holds the text, the page / part / contents state and the key handling; this class only draws it (the radio draws
@@ -1809,7 +1806,7 @@ private:
     fs::path lyrics_path_;                              // track path the current lyrics belong to (sidecar location)
     static constexpr int kLyricsEditPanelWidth = 60;
     void lyrics_edit_open();
-    void lyrics_edit_close();                           // back to karaoke or the main screen, see lyrics_edit_from_karaoke_
+    void lyrics_edit_close();                           // back to the main screen
     void lyrics_edit_adjust(double step);
     std::vector<std::string> build_lyrics_edit_panel() const;
     // Shift+E (HKeyEqualizer): the equaliser overlay (Mode::Equalizer), a

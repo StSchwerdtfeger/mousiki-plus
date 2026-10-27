@@ -363,13 +363,16 @@ bool g_last_key_was_arrow = false;
 // only by the VK_UP/VK_DOWN cases below.
 bool g_last_key_was_shifted = false;
 bool g_last_key_was_ctrl = false;   // Ctrl held on an Up/Down press
+bool g_last_key_was_page = false;   // the key was PgUp / PgDn (reported as SHIFT+Up / SHIFT+Down)
 } // namespace
 
 bool win_last_key_was_arrow() { return g_last_key_was_arrow; }
 bool win_last_key_was_shifted() { return g_last_key_was_shifted; }
 bool win_last_key_was_ctrl() { return g_last_key_was_ctrl; }
+bool win_last_key_was_page() { return g_last_key_was_page; }
 
 int win_poll_key() {
+    g_last_key_was_page = false;
     g_last_key_was_shifted = false;
     g_last_key_was_ctrl = false;
     if (!g_pending_key_bytes.empty()) {
@@ -472,6 +475,8 @@ int win_poll_key() {
                        if (shifted) { g_last_key_was_arrow = false; return kKeyShiftLeft; }
                        if (alt_held) { g_last_key_was_arrow = false; return kKeyAltLeft; }
                        g_last_key_was_arrow = true; return 'D';
+        case VK_PRIOR: g_last_key_was_arrow = true; g_last_key_was_shifted = true; g_last_key_was_page = true; return 'A';   // PgUp / PgDn: the same as SHIFT+Up / SHIFT+Down (a page)
+        case VK_NEXT:  g_last_key_was_arrow = true; g_last_key_was_shifted = true; g_last_key_was_page = true; return 'B';
         case VK_HOME:  g_last_key_was_arrow = false; return kKeyHome;
         case VK_END:   g_last_key_was_arrow = false; return kKeyEnd;
         case VK_DELETE: g_last_key_was_arrow = false; g_last_key_was_shifted = shifted; return kKeyDelete;   // SHIFT+DEL: empty the fetch list
@@ -577,6 +582,33 @@ int win_poll_key() {
     if (utf8.empty()) return 0; // conversion failure -- shouldn't happen for a valid code unit
     g_pending_key_bytes.assign(utf8.begin() + 1, utf8.end());
     return static_cast<unsigned char>(utf8[0]);
+}
+
+bool win_screen_chars_estimate(int& cols, int& rows) {
+    const int w = GetSystemMetrics(SM_CXSCREEN), h = GetSystemMetrics(SM_CYSCREEN);
+    if (w <= 0 || h <= 0) return false;
+    cols = w / 8;
+    rows = h / 16;
+    return true;
+}
+
+bool win_set_fullscreen(bool want) {
+    HWND con = GetConsoleWindow();
+    HWND top = con ? GetAncestor(con, GA_ROOTOWNER) : nullptr;   // under Windows Terminal: its window
+    if (!top || top != GetForegroundWindow()) return false;       // never press a key into another program
+    RECT r{};
+    if (!GetWindowRect(top, &r)) return false;
+    MONITORINFO mi{};
+    mi.cbSize = sizeof mi;
+    if (!GetMonitorInfoW(MonitorFromWindow(top, MONITOR_DEFAULTTONEAREST), &mi)) return false;
+    const bool is_full = r.left <= mi.rcMonitor.left && r.top <= mi.rcMonitor.top && r.right >= mi.rcMonitor.right && r.bottom >= mi.rcMonitor.bottom;
+    if (is_full == want) return true;
+    INPUT in[2] = {};
+    in[0].type = INPUT_KEYBOARD;
+    in[0].ki.wVk = VK_F11;
+    in[1] = in[0];
+    in[1].ki.dwFlags = KEYEVENTF_KEYUP;
+    return SendInput(2, in, sizeof(INPUT)) == 2;
 }
 
 int win_term_rows() {

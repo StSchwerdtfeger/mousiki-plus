@@ -17,6 +17,7 @@
 // Later this becomes a mode of the main app: App would own a RadioEngine and call
 // render_radio_frame() instead of its own panels while radio mode is on. Nothing in
 // radio/ depends on App or Player, so that hook is the only coupling.
+#include "translit.h"
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -104,6 +105,10 @@ bool edit_limited(std::string& text, EditState& e, int key, size_t max_chars, st
     return text != before;
 }
 
+// The text for searching: itself, and behind it its Latin spelling when it holds Kanji / kana / Cyrillic ... (translit.h, the same
+// as the music player's search): "米津玄師" is found by typing "yonezu".
+static std::string search_text(const std::string& s) { return translit_possible(s) ? with_latin_spelling(s) : s; }
+
 struct Ui {
     std::vector<Station> stations;
     UiModel model;
@@ -118,10 +123,10 @@ struct Ui {
             if (i < 0 || i >= static_cast<int>(stations.size())) continue;
             if (query.empty()) { out.push_back(i); continue; }
             const auto& s = stations[static_cast<size_t>(i)];
-            double sc = fuzzy_score(query, s.name);
-            sc = std::max(sc, fuzzy_score(query, s.preset_name));
-            sc = std::max(sc, fuzzy_score(query, s.genre));
-            sc = std::max(sc, fuzzy_score(query, s.country));
+            double sc = fuzzy_score(query, search_text(s.name));
+            sc = std::max(sc, fuzzy_score(query, search_text(s.preset_name)));
+            sc = std::max(sc, fuzzy_score(query, search_text(s.genre)));
+            sc = std::max(sc, fuzzy_score(query, search_text(s.country)));
             if (sc > 0.0) scored.emplace_back(sc, i);
         }
         if (!query.empty()) {
@@ -136,7 +141,7 @@ struct Ui {
         std::vector<std::pair<double, int>> scored;
         for (size_t i = 0; i < names.size(); ++i) {
             if (query.empty()) { out.push_back(static_cast<int>(i)); continue; }
-            const double sc = fuzzy_score(query, names[i]);
+            const double sc = fuzzy_score(query, search_text(names[i]));
             if (sc > 0.0) scored.emplace_back(sc, static_cast<int>(i));
         }
         std::stable_sort(scored.begin(), scored.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
@@ -287,6 +292,7 @@ void print_plain(const std::vector<std::string>& frame) {
 } // namespace
 
 int radio_main(int argc, char** argv) {
+    {   const muisc::ModeConfig mk = muisc::read_mode_config(); g_mode_key_next = mk.key_next; g_mode_key_prev = mk.key_prev; }
     // (Windows console set-up and the locale are done once by main() / radio_standalone.cpp.)
     const std::string mode = argc > 1 ? argv[1] : "";
     std::string cfg_source;
@@ -1364,8 +1370,8 @@ int radio_main(int argc, char** argv) {
                 if (!arrow && k == 'S') { set_text_entry(true); um.cheat_searching = true; um.cheat_query.clear(); um.cheat_qcaret = um.cheat_qanchor = 0; um.cheat_sel = um.cheat_first = 0; continue; }
                 if (k == 3 || k == kKeyCtrlC) running = false;
                 else if (arrow) {
-                    if (k == 'A') --ui.model.cheat_scroll;        // up; the renderer clamps both ends
-                    else if (k == 'B') ++ui.model.cheat_scroll;   // down
+                    if (k == 'A') ui.model.cheat_scroll -= (last_key_was_shifted() ? 10 : 1);        // up (SHIFT / PgUp: a page); the renderer clamps both ends
+                    else if (k == 'B') ui.model.cheat_scroll += (last_key_was_shifted() ? 10 : 1);   // down
                 } else if (k == '?' || k == 27) ui.model.cheat_open = false;
                 else if (k == 'j') ++ui.model.cheat_scroll;
                 else if (k == 'k') --ui.model.cheat_scroll;
@@ -1800,8 +1806,8 @@ int radio_main(int argc, char** argv) {
                 int& cur = hm.tab == 1 ? hm.top_cursor : hm.tab == 0 ? hm.cursor : hm.scroll;
                 const int last = hm.tab == 0 ? nh - 1 : hm.tab == 1 ? nt - 1 : 1000000;
                 auto move = [&](int d) { cur = std::clamp(cur + d, 0, std::max(0, last)); };
-                if ((arrow && k == 'A') || (!arrow && k == 'k')) { move(-1); continue; }
-                if ((arrow && k == 'B') || (!arrow && k == 'j')) { move(+1); continue; }
+                if ((arrow && k == 'A') || (!arrow && k == 'k')) { move(arrow && last_key_was_shifted() ? -10 : -1); continue; }
+                if ((arrow && k == 'B') || (!arrow && k == 'j')) { move(arrow && last_key_was_shifted() ? +10 : +1); continue; }
                 if (k == kKeyHome || (!arrow && k == 'g')) { cur = 0; continue; }
                 if (k == kKeyEnd || (!arrow && k == 'G')) { cur = std::max(0, last); continue; }
                 if (!arrow && k == 'r' && hm.tab == 1) { hm.most_first = !hm.most_first; hm.top_cursor = 0; continue; }
@@ -2055,8 +2061,8 @@ int radio_main(int argc, char** argv) {
                 }
                 if (arrow && (k == 'A' || k == 'B')) {
                     if (!in_field) {                                       // RESULTS: move the cursor
-                        if (k == 'A') bm.cursor = std::max(0, bm.cursor - 1);
-                        else bm.cursor = std::min(std::max(0, nres - 1), bm.cursor + 1);
+                        if (k == 'A') bm.cursor = std::max(0, bm.cursor - (last_key_was_shifted() ? 10 : 1));
+                        else bm.cursor = std::min(std::max(0, nres - 1), bm.cursor + (last_key_was_shifted() ? 10 : 1));
                     } else if (k == 'A') { if (fi >= 2) browse_focus(static_cast<BrowseFocus>(fi - 2)); }   // up one pane row
                     else browse_focus(fi + 2 >= kBrowseFields ? BrowseFocus::Results : static_cast<BrowseFocus>(fi + 2));
                     continue;
@@ -2124,7 +2130,7 @@ int radio_main(int argc, char** argv) {
                     // --- tab 2: SAVED STATION LISTS
                     if (k == 9) { lm_mfocus(lm.mfocus == ListManageFocus::Search ? ListManageFocus::List : ListManageFocus::Search); continue; }
                     if (arrow && (k == 'A' || k == 'B')) {
-                        lm.mcursor = k == 'A' ? std::max(0, lm.mcursor - 1) : std::min(std::max(0, nman - 1), lm.mcursor + 1);
+                        lm.mcursor = k == 'A' ? std::max(0, lm.mcursor - (last_key_was_shifted() ? 10 : 1)) : std::min(std::max(0, nman - 1), lm.mcursor + (last_key_was_shifted() ? 10 : 1));
                         continue;
                     }
                     if (lm.mfocus == ListManageFocus::Search) {
@@ -2159,7 +2165,7 @@ int radio_main(int argc, char** argv) {
                 }
                 if (lm.focus == ListFocus::Search) {
                     if (arrow && (k == 'A' || k == 'B')) {      // Up/Down keep walking the results while the box has the keyboard
-                        lm.cursor = k == 'A' ? std::max(0, lm.cursor - 1) : std::min(std::max(0, nstat - 1), lm.cursor + 1);
+                        lm.cursor = k == 'A' ? std::max(0, lm.cursor - (last_key_was_shifted() ? 10 : 1)) : std::min(std::max(0, nstat - 1), lm.cursor + (last_key_was_shifted() ? 10 : 1));
                         continue;
                     }
                     if (k == 13 || k == 10) { lm_add(); continue; }
@@ -2171,7 +2177,7 @@ int radio_main(int argc, char** argv) {
                 }
                 if (lm.focus == ListFocus::Stations) {
                     if (arrow && (k == 'A' || k == 'B')) {
-                        lm.cursor = k == 'A' ? std::max(0, lm.cursor - 1) : std::min(std::max(0, nstat - 1), lm.cursor + 1);
+                        lm.cursor = k == 'A' ? std::max(0, lm.cursor - (last_key_was_shifted() ? 10 : 1)) : std::min(std::max(0, nstat - 1), lm.cursor + (last_key_was_shifted() ? 10 : 1));
                         continue;
                     }
                     if (k == 'j') { lm.cursor = std::min(std::max(0, nstat - 1), lm.cursor + 1); continue; }
@@ -2466,8 +2472,8 @@ int radio_main(int argc, char** argv) {
                 }
                 if (!arrow && k == key_of(cfg, "Stations")) { so.open = false; so.flash.clear(); continue; }
                 if (um.search_lists && arrow) {   // the pane lists the station lists
-                    if (k == 'A') um.lcursor = std::max(0, um.lcursor - 1);
-                    else if (k == 'B') um.lcursor = std::min(std::max(0, nl - 1), um.lcursor + 1);
+                    if (k == 'A') um.lcursor = std::max(0, um.lcursor - (last_key_was_shifted() ? 10 : 1));
+                    else if (k == 'B') um.lcursor = std::min(std::max(0, nl - 1), um.lcursor + (last_key_was_shifted() ? 10 : 1));
                     continue;
                 }
                 if (um.search_lists && (k == 13 || k == 10)) {
@@ -2507,12 +2513,12 @@ int radio_main(int argc, char** argv) {
             }
             if (k == kKeyShiftLeft || k == kKeyShiftRight) { ui.step_bank(k == kKeyShiftRight ? +1 : -1); continue; }   // main UI: previous / next preset
             if (arrow) {   // Left / Right do nothing in the main UI any more (channels: n / b / # / presets)
-                if (k == 'A') ui.model.cursor = std::max(0, ui.model.cursor - 1);
-                else if (k == 'B') ui.model.cursor = std::min(std::max(0, nvis - 1), ui.model.cursor + 1);
+                if (k == 'A') ui.model.cursor = std::max(0, ui.model.cursor - (last_key_was_shifted() ? 10 : 1));   // SHIFT+arrow / PgUp / PgDn: a page
+                else if (k == 'B') ui.model.cursor = std::min(std::max(0, nvis - 1), ui.model.cursor + (last_key_was_shifted() ? 10 : 1));
                 continue;
             }
-            if (k == '*' || k == '_') {   // SHIFT and the + key ('*' on a German keyboard): the next mode; SHIFT and - ('_'): the previous one
-                const int dir = k == '*' ? 1 : -1;
+            if ((g_mode_key_next != 0 && k == g_mode_key_next) || (g_mode_key_prev != 0 && k == g_mode_key_prev)) {   // SHIFT and the + key ('*' on a German keyboard): the next mode; SHIFT and - ('_'): the previous one (keys: the player's REFERENCE tab)
+                const int dir = (g_mode_key_next != 0 && k == g_mode_key_next) ? 1 : -1;
                 if (muisc::next_mode_in(muisc::read_mode_config(), 1, dir) == 1) {
                     ui.model.scope_notice = "the radio is the only mode switched on (Settings -> ON/OFF -> MODES)";
                     ui.model.scope_notice_until = ui.model.t_sec + 4;
@@ -2637,6 +2643,14 @@ int radio_main(int argc, char** argv) {
                     break;
                 case 'S': browse_open(); break;   // Shift+S: the RADIO BROWSER search menu
                 case 'K': lm_open(); break;       // Shift+K: the STATION LISTS menu
+                case '"': {                        // SHIFT+2 on a German keyboard: Latin letters on / off (the same switch as in the music player)
+                    const bool on = !muisc::translit_enabled();
+                    muisc::set_translit_enabled(on);
+                    muisc::write_latin_letters(on);   // config.txt: kept for the next start and for the player
+                    ui.model.notice = on ? "Latin letters: on (Japanese kana, Korean and Chinese text in Latin letters)" : "Latin letters: off";
+                    notice_until = ui.model.t_sec + 4;
+                    break;
+                }
                 case 'T': ui.toggle_sort(); break; // Shift+T: STATIONS sort, list order <-> name A-Z (search results too)
                 case 'P': ui.model.menu.open = true; ui.model.menu.focus = MenuFocus::Search; ui.model.menu.target = SearchTarget::Stations;
                           ui.model.menu.flash.clear(); ui.model.menu.name = NameOverlay{};

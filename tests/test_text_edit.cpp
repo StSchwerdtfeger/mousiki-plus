@@ -137,6 +137,17 @@ TEST(translit_japanese_styles) {
     CHECK_EQ(transliterate("おおきい"), std::string("\xC5\x8Dkii"));
     translit_set_style(false, false);
 }
+TEST(translit_hanzi_default_modes) {
+    // 東京 is the same in Japanese and Chinese: LatinHanziDefault decides
+    translit_set_default_hanzi(0);
+    CHECK_EQ(transliterate("\xE6\x9D\xB1\xE4\xBA\xAC"), std::string("\xE6\x9D\xB1\xE4\xBA\xAC"));   // leave
+    translit_set_default_hanzi(1);
+    CHECK(transliterate("\xE6\x9D\xB1\xE4\xBA\xAC") != std::string("\xE6\x9D\xB1\xE4\xBA\xAC"));  // pinyin
+    translit_set_default_hanzi(2);
+    CHECK_EQ(transliterate("\xE6\x9D\xB1\xE4\xBA\xAC"), std::string("\xE6\x9D\xB1\xE4\xBA\xAC"));   // Japanese: stays without a kanji reader
+    CHECK_EQ(transliterate("\xE6\x9D\xB1\xE4\xBA\xAC\xE3\x81\xAE\xE7\xA9\xBA"), std::string("\xE6\x9D\xB1\xE4\xBA\xAC no \xE7\xA9\xBA"));   // kana in the text: Japanese in every mode
+    translit_set_default_hanzi(0);
+}
 TEST(translit_japanese_kana_to_hepburn) {
     CHECK_EQ(transliterate("さくら"), std::string("sakura"));
     CHECK_EQ(transliterate("ありがとう"), std::string("arigatou"));

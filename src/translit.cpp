@@ -114,7 +114,11 @@ char32_t to_hira(char32_t c) {
     return 0;
 }
 
-const char* hira_romaji(char32_t h) { return (h >= 0x3041 && h <= 0x3096) ? kHira[h - 0x3041] : ""; }
+const char* hira_romaji(char32_t h) {
+    if (h == 0x3095) return "ka";   // small ka / ke (ゕ ゖ) are not in the table
+    if (h == 0x3096) return "ke";
+    return (h >= 0x3041 && h <= 0x3094) ? kHira[h - 0x3041] : "";
+}
 
 bool is_vowel_char(char c) { return c == 'a' || c == 'i' || c == 'u' || c == 'e' || c == 'o'; }
 
@@ -172,7 +176,7 @@ const Final kFinal[28] = {
 };
 
 // ---- the switch -------------------------------------------------------------------------------------------------------------
-std::atomic<bool> g_default_chinese{false};
+std::atomic<int> g_default_hanzi{0};   // 0 leave, 1 read as Chinese (pinyin), 2 read as Japanese (the kanji reader is asked)
 std::atomic<bool> g_macrons{false};
 std::atomic<bool> g_wo{false};
 std::mutex g_mu;
@@ -402,16 +406,16 @@ bool latin_cjk_agree(const LatinCjk& p) {
 // The screens ask for the same few hundred strings every frame: answers are kept until a reading / language hint changes.
 static std::unordered_map<std::string, std::string> g_cache;
 static unsigned g_cache_for = 0;
-static bool g_cache_chinese = false;
+static int g_cache_hanzi = 0;
 static int g_cache_style = 0;
 
 std::string transliterate(const std::string& text) {
     if (!translit_possible(text)) return text;
     std::lock_guard<std::mutex> lock(g_mu);
     ensure_builtin_locked();
-    const bool zh = g_default_chinese.load();
+    const int zh = g_default_hanzi.load();
     const int style = (g_macrons.load() ? 1 : 0) | (g_wo.load() ? 2 : 0);
-    if (g_cache_for != g_cache_version || g_cache_chinese != zh || g_cache_style != style || g_cache.size() > 6000) { g_cache.clear(); g_cache_for = g_cache_version; g_cache_chinese = zh; g_cache_style = style; }
+    if (g_cache_for != g_cache_version || g_cache_hanzi != zh || g_cache_style != style || g_cache.size() > 6000) { g_cache.clear(); g_cache_for = g_cache_version; g_cache_hanzi = zh; g_cache_style = style; }
     const auto hit = g_cache.find(text);
     if (hit != g_cache.end()) return hit->second;
     std::string r;
@@ -450,7 +454,11 @@ static std::string transliterate_impl(const std::string& text) {
             const auto it = g_hints.find(trimmed(text));
             if (it != g_hints.end()) sc = it->second;
         }
-        if (sc == Script::Unknown && g_default_chinese.load()) sc = Script::Chinese;
+        if (sc == Script::Unknown) {   // LatinHanziDefault: what Chinese characters without any hint are
+            const int d = g_default_hanzi.load();
+            if (d == 1) sc = Script::Chinese;
+            else if (d == 2) sc = Script::Japanese;   // the characters stay, but the kanji reader (if installed) reads them
+        }
         hanzi_as_pinyin = sc == Script::Chinese;
         japanese_ctx = sc == Script::Japanese;
     }
@@ -737,7 +745,8 @@ void translit_lookup_retry(const std::string& cjk) {
     if (g_pending_set.insert(cjk).second) g_pending.push_back(cjk);
 }
 
-void translit_set_default_chinese(bool chinese) { g_default_chinese.store(chinese); }
+void translit_set_default_chinese(bool chinese) { g_default_hanzi.store(chinese ? 1 : 0); }
+void translit_set_default_hanzi(int mode) { g_default_hanzi.store(mode == 1 || mode == 2 ? mode : 0); }
 void translit_set_style(bool macrons, bool wo) { g_macrons.store(macrons); g_wo.store(wo); }
 
 std::string with_latin_spelling(const std::string& s) {

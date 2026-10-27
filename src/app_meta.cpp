@@ -719,7 +719,8 @@ std::vector<std::string> App::build_meta_fields_panel(int total_width, int heigh
             // set against exactly this (file, field) pair -- see the field
             // editor in handle_meta_key().
             const std::string owner = path + "#" + std::to_string(i);
-            size_t c = val_raw.size(), a = val_raw.size();
+            size_t c = val_raw.size();
+            size_t a = c;
             if (edit_owner_ == owner) { c = edit_caret_; a = edit_anchor_; }
             const std::string restore = change_sgr(settings_) + (edited ? header_sgr(settings_) : std::string());
             EditPaint p = paint_edit_field(val_raw, c, a, val_w, restore, /*block=*/true);

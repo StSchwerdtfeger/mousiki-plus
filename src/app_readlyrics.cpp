@@ -219,10 +219,9 @@ void App::readlyrics_translate() {
 }
 
 void App::readlyrics_poll() {
-    if (!rd_result_ready_) return;
     LyricsTranslation t;
     {
-        std::lock_guard<std::mutex> lk(rd_mutex_);
+        std::lock_guard<std::mutex> lk(rd_mutex_);   // (the flag is written by the worker thread under this lock: never read it without)
         if (!rd_result_ready_) return;
         t = std::move(rd_result_);
         rd_result_ = LyricsTranslation{};

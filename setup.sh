@@ -252,11 +252,21 @@ build_sidplayfp_from_source() {
     local tmp url="https://github.com/libsidplayfp/sidplayfp/releases/download/v${SIDPLAYFP_VERSION}/sidplayfp-${SIDPLAYFP_VERSION}.tar.gz"
     tmp="$(mktemp -d)" || return 1
     if [ "$PM" = "brew" ]; then pkg_install libsidplayfp pkgconf || { rm -rf "$tmp"; return 1; }; fi
-    curl -fsSL -o "$tmp/sid.tar.gz" "$url" || { rm -rf "$tmp"; warn "could not download $url"; return 1; }
-    local got=""
-    if have sha256sum; then got="$(sha256sum "$tmp/sid.tar.gz" | cut -d' ' -f1)"; else got="$(shasum -a 256 "$tmp/sid.tar.gz" | cut -d' ' -f1)"; fi
+    local got="" try
+    for try in 1 2; do   # a damaged download gets one more try
+        curl -fsSL -o "$tmp/sid.tar.gz" "$url" || { rm -rf "$tmp"; warn "could not download $url"; return 1; }
+        if have sha256sum; then got="$(sha256sum "$tmp/sid.tar.gz" | cut -d' ' -f1)"; else got="$(shasum -a 256 "$tmp/sid.tar.gz" | cut -d' ' -f1)"; fi
+        [ "$got" = "$SIDPLAYFP_SHA256" ] && break
+        [ "$try" = 1 ] && warn "checksum of sidplayfp-${SIDPLAYFP_VERSION}.tar.gz does not match (damaged download?) -- trying once more"
+    done
     if [ "$got" != "$SIDPLAYFP_SHA256" ]; then
-        rm -rf "$tmp"; warn "SHA-256 mismatch for sidplayfp-${SIDPLAYFP_VERSION}.tar.gz (got $got) -- not building it"; return 1
+        rm -rf "$tmp"
+        warn "SHA-256 mismatch for sidplayfp-${SIDPLAYFP_VERSION}.tar.gz -- NOT built. The SID player is optional; everything else works."
+        warn "  expected: $SIDPLAYFP_SHA256"
+        warn "  received: $got"
+        warn "  A damaged download fixes itself: run this script again later. If it stays, the file at $url is not the pinned one:"
+        warn "  do not build it by hand; update Mousiki or report it at github.com/StSchwerdtfeger/mousiki-plus/issues"
+        return 1
     fi
     ( cd "$tmp" && tar xzf sid.tar.gz && cd "sidplayfp-${SIDPLAYFP_VERSION}" &&
       ./configure --prefix="$HOME/.local" >"$tmp/configure.log" 2>&1 &&

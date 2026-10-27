@@ -244,7 +244,14 @@ if ($SkipDeps) {
         Write-Step "Fetching SDL2 $sdlVersion (scope and spectrogram windows)"
         Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/libsdl-org/SDL/releases/download/release-$sdlVersion/$sdlZipName" -OutFile $sdlZip
         $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $sdlZip).Hash.ToLowerInvariant()
-        if ($hash -ne $sdlSha256) { throw "SHA-256 mismatch for $sdlZipName (got $hash)" }
+        if ($hash -ne $sdlSha256) {
+            Write-Warning "A damaged download is possible: trying once more."
+            Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/libsdl-org/SDL/releases/download/release-$sdlVersion/$sdlZipName" -OutFile $sdlZip
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $sdlZip).Hash.ToLowerInvariant()
+        }
+        if ($hash -ne $sdlSha256) {
+            throw "SHA-256 mismatch for $sdlZipName - expected $sdlSha256, received $hash. NOT installed: the file at that address is not the pinned one (run setup again later; if it stays, update Mousiki or report it at github.com/StSchwerdtfeger/mousiki-plus/issues)"
+        }
         $sdlDir = Join-Path ([IO.Path]::GetTempPath()) "mousiki-sdl2-$sdlVersion"
         Expand-Archive -LiteralPath $sdlZip -DestinationPath $sdlDir -Force
         Copy-Item -LiteralPath (Join-Path $sdlDir 'SDL2.dll') -Destination $exe.DirectoryName -Force

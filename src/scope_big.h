@@ -192,7 +192,7 @@ inline std::vector<std::string> scope_ylabels(int rows, int lab, int div = 4) {
         if (ty < 0 || ty >= rows) continue;
         if (out[static_cast<size_t>(ty)].find_first_not_of(' ') != std::string::npos) continue;
         std::string t = scope_value_text(pct);
-        if (static_cast<int>(t.size()) > lab - 1) t = t.substr(0, static_cast<size_t>(lab - 1));
+        if (static_cast<int>(t.size()) > lab - 1) t.resize(static_cast<size_t>(lab - 1));
         out[static_cast<size_t>(ty)] = std::string(static_cast<size_t>(lab - 1 - static_cast<int>(t.size())), ' ') + t + " ";
     }
     return out;

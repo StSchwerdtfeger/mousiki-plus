@@ -88,7 +88,9 @@ void reader_main(Shared* S) {
             ++S->cfg_gen;
         } else if (head[0] == 2) {
             const size_t n = len / (2 * sizeof(float));
-            spectro().push(reinterpret_cast<const float*>(payload.data()), n, S->rate.load());
+            std::vector<float> f(2 * n);   // (copied: the byte buffer is not guaranteed to be aligned for floats)
+            if (n > 0) std::memcpy(f.data(), payload.data(), f.size() * sizeof(float));
+            spectro().push(f.data(), n, S->rate.load());
         }
     }
     S->eof.store(true);

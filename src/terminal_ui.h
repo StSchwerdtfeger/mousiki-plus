@@ -185,6 +185,27 @@ private:
 // step with what it returned.
 bool last_key_was_arrow();
 
+// ---------------------------------------------------------------------------
+// Terminal size at start (Settings -> ON/OFF -> MODES -> Terminal Size / Full Screen)
+// ---------------------------------------------------------------------------
+// Mousiki ASKS the terminal to resize itself (the xterm window sequence ESC [ 8 ; rows ; cols t, ESC [ 10 ; 1 t for full
+// screen); whether the window really changes is the terminal's decision. xterm, GNOME Terminal (VTE), iTerm2, Terminal.app and
+// recent Windows Terminal versions usually obey; Konsole, kitty, Alacritty, tmux and tiling window managers ignore it, and
+// nothing happens then (the program works with whatever size it gets, as before). On Windows full screen is the F11 key
+// of the terminal window, pressed for you while the window is in front.
+struct TerminalLimits {
+    int min_cols = 100, min_rows = 28;   // below this the screens do not fit
+    int max_cols = 300, max_rows = 100;  // what the screen holds, in characters (the terminal tells; a rough estimate otherwise)
+    bool screen_known = false;           // max_* come from the terminal / the system, not from the fallback
+};
+// Asks the terminal how big the screen is (once; ESC [ 19 t, which only some terminals answer). Call before the first
+// terminal_size_limits().
+void terminal_probe_screen();
+TerminalLimits terminal_size_limits();
+// Brings the terminal to cols x rows (clamped to the limits; 0 in either: leave it alone) or, with fullscreen, to full screen.
+// Switching full screen off again puts the window back (and then the size). Safe to call when output is not a terminal.
+void terminal_apply_size(int cols, int rows, bool fullscreen);
+
 // True while the key most recently returned by poll_key() was an Up/Down
 // arrow pressed WITH Shift held. The value itself stays a plain 'A'/'B'
 // (and last_key_was_arrow() stays true), so every screen that doesn't care
@@ -192,6 +213,9 @@ bool last_key_was_arrow();
 // only the list overlay (SHIFT+l) asks this, to turn them into page jumps.
 // (SHIFT+Left/Right have their own sentinels, see kKeyShiftLeft/Right.)
 bool last_key_was_shifted();
+// True when the key just returned was PgUp ('A') or PgDn ('B'). Reported like SHIFT+Up / SHIFT+Down (arrow + shift flag), so
+// every page that turns on SHIFT+arrow turns on these too; a text editor, where SHIFT+arrow marks text, asks this to tell them apart.
+bool last_key_was_page();
 // True when the key just returned was Up / Down pressed with CTRL held (still reported as the plain arrow, like SHIFT+arrow):
 // the lists use it to jump to the first / last row.
 bool last_key_was_ctrl();

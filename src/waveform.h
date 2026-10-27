@@ -83,6 +83,6 @@ void analyse_track(const fs::path& file_path, StreamingPcm& pcm, const std::func
 
 // The rate a track is decoded and played at: its own (read from the file header; `sampling_hint` is ffprobe's value
 // as a fallback), so playback never resamples it -- up to 96 kHz. 44100 when it cannot be found out.
-int native_sample_rate(const fs::path& file_path, const std::string& sampling_hint, double duration_sec);
+int native_sample_rate(const fs::path& file_path, const std::string& sampling_hint, double duration_sec, bool cap_96k = true);
 
 } // namespace muisc

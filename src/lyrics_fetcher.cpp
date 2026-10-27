@@ -718,7 +718,9 @@ std::vector<std::string> lyrics_plain_lines(const std::string& raw) {
         while (!line.empty() && (line.back() == '\r' || line.back() == '\n')) line.pop_back();
         if (std::regex_match(line, tag_re)) continue;
         line = std::regex_replace(line, stamp_re, "");
-        line = std::regex_replace(line, word_re, "");
+        // A word tag stands between two words ("<00:34.2>Talking<00:35.4>away", no spaces in the file), so it becomes a space -- the same
+        // boundary the karaoke view makes -- and the collapse below keeps one of them.
+        line = std::regex_replace(line, word_re, " ");
         // collapse the spaces the removed tags leave behind, trim both ends
         std::string t;
         bool space = false;

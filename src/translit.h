@@ -64,6 +64,9 @@ void translit_load_readings(const std::string& path);
 
 // Chinese characters without any hint: false = leave them (the default), true = read them as Chinese.
 void translit_set_default_chinese(bool chinese);
+// LatinHanziDefault: 0 = leave Chinese characters of unknown language alone, 1 = read them as Chinese (pinyin), 2 = read them as Japanese
+// (they stay as they are unless the optional kanji reader knows them).
+void translit_set_default_hanzi(int mode);
 // Spelling of Japanese: `macrons` = long vowels with a macron (ō ū ī, kōhī), else spelled out (ou, uu, koohii);
 // `wo` = the particle を as "wo", else "o". Defaults: both false (the easiest to read for English / German readers).
 void translit_set_style(bool macrons, bool wo);

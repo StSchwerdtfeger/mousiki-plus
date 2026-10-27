@@ -201,6 +201,10 @@ bool App::book_cm_key(int key) {
     }
 
     // the list. The playback keys work as everywhere: Left / Right seek (held down: faster and faster), SPACE pauses.
+    if (arrow && (key == 'A' || key == 'B') && last_key_was_shifted()) {   // SHIFT+arrow / PgUp / PgDn: a page (no wrapping)
+        if (n) book_cm_sel_ = std::clamp(book_cm_sel_ + (key == 'A' ? -10 : 10), 0, n - 1);
+        return true;
+    }
     if (arrow && key == 'A') { if (n) book_cm_sel_ = (book_cm_sel_ + n - 1) % n; return true; }
     if (arrow && key == 'B') { if (n) book_cm_sel_ = (book_cm_sel_ + 1) % n; return true; }
     if (arrow && key == 'C') { book_seek(1); return true; }
@@ -553,7 +557,8 @@ std::vector<std::string> App::build_book_cm_panel(int panel_w, int panel_h) cons
         const std::string ask_sgr = hb.empty() ? std::string("\x1b[7m") : hb + "\x1b[30m";
         if (book_cm_mode_ >= 1 && book_cm_mode_ <= 3) {
             const std::string label = book_cm_mode_ == 1 ? "Title: " : book_cm_mode_ == 2 ? "Time (h:mm:ss): " : "New mark at (h:mm:ss): ";
-            size_t c = book_cm_text_.size(), a = book_cm_text_.size();
+            size_t c = book_cm_text_.size();
+            size_t a = c;
             if (edit_owner_ == "bookcm") { c = edit_caret_; a = edit_anchor_; }
             const EditPaint p = paint_edit_field(book_cm_text_, c, a, std::max(4, inner - display_width(label)), change_sgr(settings_), true);
             body_s = head + label + change_sgr(settings_) + p.s;

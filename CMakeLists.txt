@@ -176,8 +176,8 @@ elseif(WIN32)
     # characters baked into the UI get re-encoded to the build machine's ANSI
     # code page and render as mojibake at runtime.
     target_compile_options(mousiki PRIVATE /utf-8 /EHsc /W3
-                           # app.cpp is ~3500 lines and exceeds the default
-                           # section limit in debug builds.
+                           # the app_*.cpp files are big and full of templates / string tables and exceed the
+                           # default section limit in debug builds.
                            /bigobj)
   endif()
 elseif(APPLE)
@@ -312,4 +312,17 @@ if(MOUSIKI_BUILD_TESTS)
   target_compile_options(mousiki_tests PRIVATE $<TARGET_PROPERTY:mousiki,COMPILE_OPTIONS>)
   target_link_libraries(mousiki_tests PRIVATE $<TARGET_PROPERTY:mousiki,LINK_LIBRARIES>)
   add_test(NAME mousiki_tests COMMAND mousiki_tests)
+
+  # Python tests (Linux / macOS; need `pip install pyte` for the UI test, else CTest reports them as skipped).
+  # Build the player too (cmake --build ... --target mousiki mousiki_tests) so the UI test has a program to run.
+  find_package(Python3 COMPONENTS Interpreter QUIET)
+  if(Python3_Interpreter_FOUND AND NOT WIN32)
+    add_test(NAME ui_smoke COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/ui_smoke.py" $<TARGET_FILE:mousiki>
+             --scripts "${CMAKE_SOURCE_DIR}/scripts")
+    set_tests_properties(ui_smoke PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
+  endif()
+  if(Python3_Interpreter_FOUND)
+    add_test(NAME installer_checksum COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_install_kanji_reader.py" "${CMAKE_SOURCE_DIR}/scripts")
+    add_test(NAME fetch_selftest_offline COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/scripts/selftest_fetch.py" --offline --only scripts,pins)
+  endif()
 endif()

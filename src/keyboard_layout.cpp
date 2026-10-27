@@ -125,6 +125,20 @@ std::string mode_switch_back_label() {
     return up == "*" ? "_" : up == "SHIFT and +" ? "SHIFT and -" : "SHIFT+-";
 }
 
+std::string default_size_mode_key(bool next) {
+    const std::string c = keyboard_layout_code();
+    if (c == "us" || c == "gb" || c == "ie" || c == "au" || c == "ca" || c == "en" || c == "nz") return next ? "'" : ";";   // ] [ { } are the radio's timeshift keys; ; and ' sit side by side on a US keyboard
+    return next ? "*" : "_";
+}
+
+std::string mode_key_label(int ch) {
+    if (ch == 0) return "-";
+    if (ch == '*') return mode_switch_key_label();
+    if (ch == '_') return mode_switch_back_label();
+    if (ch >= 'A' && ch <= 'Z') return std::string("SHIFT+") + static_cast<char>(ch + 32);
+    return std::string(1, static_cast<char>(ch));
+}
+
 std::string symbol_key_label(const std::string& key) {
     if (key != "(" && key != ")" && key != "=" && key != "<") return key;
     const std::string c = keyboard_layout_code();

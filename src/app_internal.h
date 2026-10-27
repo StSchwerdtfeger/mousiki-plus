@@ -1,5 +1,6 @@
 #pragma once
-// Helpers that app.cpp and the files split out of it (app_meta.cpp, app_history.cpp, app_readlyrics.cpp) both use.
+// Helpers that app.cpp and the files split out of it (app_meta.cpp, app_history.cpp, app_readlyrics.cpp, app_library.cpp, app_playback.cpp,
+// app_panels.cpp, app_playlist.cpp, app_keys.cpp, app_render.cpp, ... -- every app_*.cpp is a part of class App) both use.
 // Only for those files: nothing here is part of the program's interface. The functions are defined in app.cpp
 // (n_files_label in app_history.cpp).
 #include <algorithm>
@@ -14,6 +15,10 @@
 #include "settings.h"
 #include "themes.h"
 #include "terminal_ui.h"
+#include "text_edit.h"
+#include "oscilloscope_visualizer.h"
+#include "meta_editor.h"
+#include "metadata_probe.h"
 
 namespace muisc {
 
@@ -137,5 +142,95 @@ inline std::string clock_text(double sec) {
     else std::snprintf(b, sizeof b, "%02lld:%02lld", t / 60, t % 60);
     return b;
 }
+
+
+// ---- small helpers shared by the files that were split out of app.cpp ----
+inline bool contains_ci(const std::string& hay, const std::string& needle) {
+    return lower(hay).find(lower(needle)) != std::string::npos;
+}
+
+inline std::string fmt_mmss(double seconds) {
+    if (seconds < 0) return "--:--";
+    int total = static_cast<int>(seconds);
+    std::ostringstream oss;
+    oss.width(2); oss.fill('0'); oss << (total / 60) << ":";
+    oss.width(2); oss.fill('0'); oss << (total % 60);
+    return oss.str();
+}
+
+// Center-aligns plain (no-ANSI) text within `width` visual columns.
+inline std::string center_pad(const std::string& text, int width) {
+    std::string t = truncate_str(text, width);
+    int pad = std::max(0, width - display_width(t));
+    int left = pad / 2;
+    int right = pad - left;
+    return std::string(left, ' ') + t + std::string(right, ' ');
+}
+
+// Visualizer bars use ONLY this glyph set (per explicit instruction) —
+// distinct from WaveformQuantizer's 6-level top/mid/bot triples used by
+// the progress bar.
+inline const char* fft_glyph(int level) {
+    switch (std::clamp(level, 0, 4)) {
+        case 0: return " ";
+        case 1: return "\u28C0"; // ⣀
+        case 2: return "\u28E4"; // ⣤
+        case 3: return "\u28F6"; // ⣶
+        default: return "\u28FF"; // ⣿
+    }
+}
+
+// "/r:" searches the ARTIST only, "/a:" the ALBUM only (the plain "/" search looks at title, artist and album).
+// Returns 0 (all fields), 1 (artist) or 2 (album) and the query without the prefix.
+inline int local_query_scope(const std::string& query, std::string& rest) {
+    size_t i = 0;
+    while (i < query.size() && query[i] == ' ') ++i;
+    rest = query.substr(i);
+    int scope = 0;
+    if (rest.size() >= 2 && rest[1] == ':') {
+        const char c = static_cast<char>(std::tolower(static_cast<unsigned char>(rest[0])));
+        scope = c == 'r' ? 1 : c == 'a' ? 2 : 0;
+        if (scope) {
+            rest.erase(0, 2);
+            while (!rest.empty() && rest.front() == ' ') rest.erase(rest.begin());
+        }
+    }
+    return scope;
+}
+
+// Called on every keystroke while typing in the search box, before
+// Enter is pressed — this is the "incremental search" behavior: the
+// list updates live as you type instead of only after confirming. Local
+// queries get filtered+ranked immediately via the same fuzzy logic
+// submit_search() will commit on Enter. An "s:" (online search) prefix
+// is left alone here — firing a network request on every keystroke
+// would be wasteful and slow, so online search still only fires on
+// Enter — but the view is reset back to whatever it was before '/' was
+// pressed so a stale local preview doesn't linger behind the search box
+// while an online query is being typed.
+// The online search prefixes: "s:" YouTube, "sc:" SoundCloud, "b:" Bandcamp. Returns the source (0 / 1 / 2) and the
+// prefix length, or -1 when `buf` starts with none of them.
+inline int online_prefix(const std::string& buf, size_t& len) {
+    std::string l = buf.substr(0, 3);
+    for (char& c : l) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    if (l.compare(0, 3, "sc:") == 0) { len = 3; return 1; }
+    if (l.compare(0, 2, "s:") == 0) { len = 2; return 0; }
+    if (l.compare(0, 2, "b:") == 0) { len = 2; return 2; }
+    return -1;
+}
+
+// Oscilloscope / spectrogram colours and parameters (app_panels.cpp)
+void osci_palette_rgb(const Settings& s, int id, float t, int& r, int& g, int& b);
+void spectro_gradient_from(const Settings& st);
+std::string osci_rgb_seq(int r, int g, int b, float k);
+std::string osci_dim_ansi(const std::string& ansi, float k);
+OscilloscopeVisualizer::Params osci_scope_params(const Settings& s, double dt, int style = -1);   // style: 0 braille, 1 image, -1 the one in use
+// The pending meta-editor edits laid over the metadata of a file (app_panels.cpp); the tags of one file read without ffprobe (app_rowmeta.cpp)
+void overlay_meta_entry(TrackMetadata& md, const MetaEditEntry& e, const fs::path& cur);
+RowMeta try_native_row_meta(const fs::path& path);
+// The folder overlay's path helpers (app_overlays.cpp)
+bool fo_is_under(const fs::path& dir, const fs::path& root);
+fs::path fo_normal_root(const std::string& s);
+std::string fo_name_of(const std::string& p);
 
 } // namespace muisc

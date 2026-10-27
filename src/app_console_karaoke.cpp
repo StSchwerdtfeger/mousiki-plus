@@ -477,13 +477,13 @@ void App::build_karaoke_screen(std::ostringstream& frame, int W, int H) {
     if (std::chrono::steady_clock::now() < karaoke_flash_until_)
         footer += std::string(footer.empty() ? "" : "  ") + "[ lyrics size " + std::to_string(size) + " / 5 ]";
     frame << box_bottom(W, footer, border_bottom) << "\n";
-    const std::string up = mode_switch_key_label();
-    const std::string down = up == "*" ? "_" : up == "SHIFT and +" ? "SHIFT and -" : "SHIFT+-";
-    const std::string size_keys = up == "SHIFT and +" ? "SHIFT and +/-" : up + " / " + down;   // "[SHIFT and +/-]" rather than "[SHIFT and + / SHIFT and -]"
+    const std::string up = hotkey_text("HKeyKaraokeBigger", "*");
+    const std::string down = hotkey_text("HKeyKaraokeSmaller", "_");
+    const std::string size_keys = (up == "SHIFT and +" && down == "SHIFT and -") ? "SHIFT and +/-" : up + " / " + down;   // "[SHIFT and +/-]" rather than "[SHIFT and + / SHIFT and -]"
     // The legend takes the last TWO terminal rows (no information line here): this overlay's own keys first, then
     // what still works from the main player underneath.
     std::vector<LegendGroup> groups = {
-        {"Overlay", {"[ESC/" + hotkey_text("HKeyKaraoke", "k") + "] Close", "[" + size_keys + "] Lyrics size\001Size", "[" + hotkey_text("HKeyLyricsTiming", "ALT+L") + "] Timing"}},
+        {"Overlay", {"[ESC/" + hotkey_text("HKeyKaraoke", "k") + "] Close", "[" + size_keys + "] Lyrics size\001Size", "[" + hotkey_text("HKeyLyricsTiming", "ALT+L") + "] Lyrics timing\001Timing"}},
         {"Player", {"[" + hotkey_text("HKeyTogglePlayPause", "p") + "] Play/Pause", "[" + hotkey_text("HKeyPlayNextSong", "n") + "/" + hotkey_text("HKeyPlayPreviousSong", "b") + "] Next/Prev",
                     "[\u2190\u2192] Seek", "[" + hotkey_text("HKeyIncreaseVolume", "+") + "/" + hotkey_text("HKeyDecreaseVolume", "-") + "] Volume", "[" + hotkey_text("HKeyToggleMute", "x") + "] Mute"}},
     };

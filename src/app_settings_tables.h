@@ -40,12 +40,14 @@ inline const RefHotkeyRow kRefRows[] = {
     {nullptr, "HKeyQueueOverlay", "Big Queue Overlay"}, // larger QUEUE pane floated over the main UI
     {nullptr, "HKeyRefreshUi", "Refresh UI"},
     // --- Lyrics & karaoke ---
-    {"LYRICS & KARAOKE", "HKeyToggleLyrics", "Lyrics Cycle Forward"},
-    {nullptr, "HKeyToggleLyricsBack", "Lyrics Cycle Backward"},
+    {"VIZ, LYRICS & KARAOKE", "HKeyToggleLyrics", "Viz./Lyrics Cycle Forward"},
+    {nullptr, "HKeyToggleLyricsBack", "Viz./Lyrics Cycle Backward"},
     {nullptr, "HKeyRetryLyrics", "Retry Lyrics"},
     {nullptr, "HKeyKaraoke", "Karaoke Overlay"},
     {nullptr, "HKeyLyricsTiming", "Lyrics Timing Overlay"},   // shift synced lyrics earlier / later
     {nullptr, "HKeyReadLyrics", "Read Lyrics Overlay"},       // saved lyrics as text, files + translations
+    {nullptr, "HKeyKaraokeBigger", "Karaoke Lyrics Bigger"},  // inside the karaoke overlay (size 1-5)
+    {nullptr, "HKeyKaraokeSmaller", "Karaoke Lyrics Smaller"},
     // --- Visualizations ---
     {"VISUALIZATIONS", "HKeyOscMenu", "Oscilloscope Tuning"},  // the SHIFT+o overlay, live
     {nullptr, "HKeySpectroMenu", "Spectrogram Options"},
@@ -84,6 +86,8 @@ inline const RefHotkeyRow kRefRows[] = {
     // --- System ---
     {"LIBRARY", "HKeyRescan", "Rescan Library"},   // pick up files that were added while the app runs
     {"SYSTEM", "HKeySetting", "Open Settings"},
+    {nullptr, "HKeyModeNext", "Next Mode"},      // music player -> radio -> audio books (SHIFT and + on a German keyboard)
+    {nullptr, "HKeyModePrev", "Previous Mode"},
     {nullptr, "HKeyConsole", "Console / Logs"},
     {nullptr, "HKeyWizard", "Help Wizard"},
     {nullptr, "HKeyCheatsheet", "Cheatsheet"},
@@ -117,7 +121,7 @@ enum SetId {
     kSidVizField, kSidDisk, kSidDummy, kSidQueue, kSidWave, kSidLyricsEngine, kSidLyricViz, kSidVisualizer, kSidNoLyricsViz,
     kSidStereo, kSidNormalize, kSidMetaOnly, kSidEmoji, kSidMarquee, kSidUseLyrics, kSidUseOsci, kSidUseSpectro, kSidUseSphere,
     kSidOrder1, kSidOrder2, kSidOrder3, kSidOrder4,
-    kSidPlayback, kSidStartMode, kSidBlackBg, kSidShareProfiles, kSidRemoteApp, kSidUpdateCheck, kSidMediaKeys, kSidLatinLookup, kSidLatinMacrons, kSidLatinWo, kSidLyricsVariants, kSidTrackBuffer,
+    kSidPlayback, kSidStartMode, kSidBlackBg, kSidShareProfiles, kSidRemoteApp, kSidUpdateCheck, kSidMediaKeys, kSidUseTermSettings, kSidTermSize, kSidFullScreen, kSidLatinLookup, kSidLatinMacrons, kSidLatinWo, kSidLatinHanzi, kSidLyricsVariants, kSidRateCap, kSidTrackBuffer,
     kSidVisFluidity, kSidWaveStyle, kSidDiskSpeed, kSidVisDegr, kSidVisVisc, kSidLyrAlign, kSidLyrAnim,
     kSidVolIndicator,
     kSidUseModePlayer, kSidUseModeRadio, kSidUseModeBook, kSidModeOrder1, kSidModeOrder2, kSidModeOrder3, kSidBookAsk, kSidBookCover, kSidBookCoverWave,
@@ -132,19 +136,21 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {true, -1, "MODES"},
         {false, kSidPlayback, "Playback"}, {false, kSidStartMode, "Start Mode"}, {false, kSidBlackBg, "Black Background"}, {false, kSidShareProfiles, "Share Profiles"},
         {false, kSidRemoteApp, "Remote App"}, {false, kSidUpdateCheck, "Update Notice"}, {false, kSidMediaKeys, "Media Keys"},
+        {false, kSidUseTermSettings, "Use Terminal Settings"}, {false, kSidTermSize, "Terminal Size"}, {false, kSidFullScreen, "Full Screen"},
         {true, -1, ""},
         {true, -1, "UI MODE SWITCH"},   // SHIFT and + / SHIFT and - walk through the modes that are on, in this order
         {false, kSidUseModePlayer, "Use Music Player"}, {false, kSidUseModeRadio, "Use Radio"}, {false, kSidUseModeBook, "Use Audio Books"},
         {false, kSidModeOrder1, "Mode Order 1"}, {false, kSidModeOrder2, "Mode Order 2"}, {false, kSidModeOrder3, "Mode Order 3"},
         {true, -1, ""},
         {true, -1, "TRANSLITERATION (JAP./KOR./CHIN.)"},
-        {false, kSidLatinMacrons, "Latin Macrons"}, {false, kSidLatinWo, "Latin Wo"}, {false, kSidLatinLookup, "Latin Name Lookup"}, {false, kSidLyricsVariants, "Lyrics Name Variants"},
+        {false, kSidLatinMacrons, "Latin Macrons"}, {false, kSidLatinWo, "Latin Wo"}, {false, kSidLatinHanzi, "Translit. Kanji"}, {false, kSidLatinLookup, "Latin Name Lookup"}, {false, kSidLyricsVariants, "Lyrics Name Variants"},
         {true, -1, ""},
         {true, -1, "MAIN UI / AUDIO"},
         {false, kSidDisk, "Eliment Disk / Cover"}, {false, kSidAlbumCover, "Album Cover"}, {false, kSidCoverMode, "Cover Mode"}, {false, kSidCoverContrast, "Cover Contrast"}, {false, kSidCoverSearch, "Cover Search"},
         {false, kSidDummy, "Dummy Buttons"}, {false, kSidQueue, "Queue Display"},
         {false, kSidWave, "Progress Waveform"}, {false, kSidVolIndicator, "Volume Indicator"}, {false, kSidVisualizer, "Spectrum Bars"},   // the braille waveform in the progress bar / the bars under the meta data
         {false, kSidStereo, "Stereo Sound"}, {false, kSidNormalize, "Normalize Volume"}, {false, kSidTrackBuffer, "Track Buffer (MB)"},
+        {false, kSidRateCap, "Rate Cap at 96 kHz"},
         {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},
         {true, -1, ""},
         {true, -1, "MAIN UI VIZ/LYRICS FIELD"},   // the field right of the meta data
@@ -179,6 +185,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {true, -1, "MODES"},
         {false, kSidStartMode, "Start Mode"}, {false, kSidBlackBg, "Black Background"}, {false, kSidShareProfiles, "Share Profiles"},
         {false, kSidRemoteApp, "Remote App"}, {false, kSidUpdateCheck, "Update Notice"}, {false, kSidMediaKeys, "Media Keys"},
+        {false, kSidUseTermSettings, "Use Terminal Settings"}, {false, kSidTermSize, "Terminal Size"}, {false, kSidFullScreen, "Full Screen"},
         {true, -1, ""},
         {true, -1, "UI MODE SWITCH"},
         {false, kSidUseModePlayer, "Use Music Player"}, {false, kSidUseModeRadio, "Use Radio"}, {false, kSidUseModeBook, "Use Audio Books"},
@@ -191,6 +198,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidBookCover, "Book Cover"}, {false, kSidBookCoverWave, "Book Gradient Wave"}, {false, kSidCoverContrast, "Cover Contrast"}, {false, kSidDummy, "Dummy Buttons"},
         {false, kSidWave, "Progress Waveform"}, {false, kSidVolIndicator, "Volume Indicator"}, {false, kSidVisualizer, "Spectrum Bars"},
         {false, kSidStereo, "Stereo Sound"}, {false, kSidNormalize, "Normalize Volume"}, {false, kSidTrackBuffer, "Track Buffer (MB)"},
+        {false, kSidRateCap, "Rate Cap at 96 kHz"},
         {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},
         {true, -1, ""},
         {true, -1, "MAIN UI VIZ/NOTES FIELD"},
