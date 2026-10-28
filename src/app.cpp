@@ -1,3 +1,6 @@
+// Shared drawing helpers of the music player's App: search field and focus colours, box lines, and the
+// text-field pieces the panels and overlays use. The rest of App lives in the app_*.cpp files next to
+// this one, grouped by topic.
 #include "app.h"
 #include "text_edit.h"
 #include "overlay_common.h"
@@ -160,9 +163,9 @@ std::string strip_csi(const std::string& s) {
 }
 
 std::string App::box_top(const std::string& label_in, int total_width, const std::string& border_ansi) const {
-    // A title wider than the pane used to push the top border past the pane's edge, and the line then broke at the
-    // terminal's right edge and shifted everything below it (a long file name plus a 3-digit "206/843" in the meta editor).
-    // The text part is cut with "..." instead; a focus indicator at the end of the title (" " + colour + "◀") is kept.
+    // A title wider than the pane is cut with "..." so the top border keeps its width. A wider line
+    // would reach the terminal's right edge and shift everything below it. A focus indicator at the end
+    // of the title (" " + colour + "◀") is kept.
     std::string label = label_in;
     bool back_to_border = false;   // the title ends with a focus indicator: the border colour comes back right before the dashes
     for (size_t at = label.find('\001'); at != std::string::npos; at = label.find('\001')) { label.erase(at, 1); back_to_border = true; }
@@ -355,9 +358,7 @@ std::vector<std::string> render_lyric_line_wrapped(const LyricLine& line, double
         // hasn't) and render just that one underlined on top of the
         // normal active-word color -- gives the highlight a moving
         // "leading edge" instead of every already-sung word looking
-        // identical. (A continuous per-frame pulse used to live here too,
-        // applied to whole line-synced-only lines with no way to turn it
-        // off -- removed; that wasn't requested and had no toggle.)
+        // identical.
         int currently_singing = -1;
         for (size_t i = 0; i < row.size(); ++i) {
             if (is_active && row[i].has_ts && row[i].t <= elapsed) currently_singing = static_cast<int>(i);
@@ -593,18 +594,10 @@ App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(sh
     export_fpcalc_to_scripts(); // ...and the fpcalc it runs (see why there)
 
     if (!audiobook_) {   // (the audio book player only looks at the AUDIO BOOK PATH: library_roots())
-    // BUGFIX: the cache-dir injection below used to push_back()
-    // unconditionally, every single launch -- and since save_settings()
-    // (called on every quit) writes settings_.local_music_paths back to
-    // config.txt verbatim, *including* this appended entry, the cache
-    // directory accumulated one more duplicate line in config.txt every
-    // session. Harmless for correctness -- LocalSource::scan()'s
-    // dedup-by-canonical-path already prevents the same file being
-    // counted twice -- but wasteful: dozens of redundant directory
-    // existence checks and walks on every startup, and a config.txt that
-    // silently grows without bound over months of use. Deduping the whole
-    // list first (in case manual edits introduced other repeats too),
-    // order preserved so the saved file doesn't get needlessly reshuffled.
+    // The cache folder is added to the library paths here, once per launch. The list is saved back to
+    // config.txt on quit, so it must not gain a duplicate entry each time: the whole list is de-duplicated
+    // first (order kept, so the saved file does not get reshuffled). LocalSource::scan() also skips
+    // files it has already seen.
     {
         std::vector<std::string> deduped;
         deduped.reserve(settings_.local_music_paths.size());
@@ -745,17 +738,14 @@ void App::log_event(const std::string& msg) {
 // Tab layout: 0=Colors, 1=On/Off, 2=Animation, 3=Paths, 4=Reference, 5=About App.
 //
 // The Paths tab holds the LOCAL PATH / DOWNLOAD PATH / PLAYLIST PATH
-// sections (editable path rows -- see build_path_rows(); they used to sit
-// on the ON/OFF tab).
+// sections (editable path rows -- see build_path_rows()).
 //
 // The Reference tab opens with a one-line read-only note pointing at the
 // cheat sheet ('?') for the full command list, then every rebindable hotkey
 // (kRefRows), grouped into categories via the optional `header` field -- set
 // only on a category's first row, and rendered as a section title above it --
-// and finally the read-only font-mapping table loaded from config.txt. (The
-// loudness normalization values used to be editable here as well; they now
-// live in the SHIFT+v overlay of the main UI, see build_norm_menu_panel().
-// Only the on/off toggle remains on the ON/OFF tab.) This tab
+// and finally the read-only font-mapping table loaded from config.txt. Loudness normalisation is set in the SHIFT+v overlay of the main UI (see build_norm_menu_panel()),
+// not here. This tab
 // deliberately does NOT also list the app's literal/non-rebindable key
 // commands (ESC, Y/N, the playlist and meta editors' own fixed navigation
 // and text-editing keys, and so on): there is nothing to configure for
@@ -877,9 +867,7 @@ std::string paint_legend(const Settings& s, const std::vector<LegendRow>& rows, 
 // in-place text edit across the Settings panel (a path row, a hex colour
 // value, a hotkey) and, now, the meta editor's tag fields. The Colors
 // tab's CHANGE row (settings_.change_text_color / change_bg_color);
-// defaults to "7"/"1" (palette white on red) -- the same white-on-red
-// this used to be hardcoded as everywhere it appears, before it had a
-// name of its own in the Colors tab.
+// defaults to "7"/"1" (palette white on red).
 std::string change_sgr(const Settings& s) {
     return ansi_for(s.change_text_color, false) + bg_ansi_for(s.change_bg_color);
 }
@@ -1123,7 +1111,7 @@ int App::run() {
         }
 
         // A layout bug on some odd terminal size (a negative width reaching a
-        // std::string, a vector sized from a negative row count, ...) used to
+        // std::string, a vector sized from a negative row count, ...) would
         // throw out of render_frame(), through run(), and end the program --
         // which is exactly what a window being dragged smaller looks like from
         // the outside. Skip that one frame instead (the next resize event or

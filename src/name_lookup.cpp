@@ -1,3 +1,5 @@
+// Artist and Japanese name lookup: runs the helper script and parses its JSON replies (romanised names
+// and kanji readings).
 #include "name_lookup.h"
 
 #include <chrono>
@@ -40,15 +42,12 @@ NameLookupResult lookup_artist_name(const fs::path& script, const std::string& n
     NameLookupResult r;
     std::error_code ec;
     if (!fs::exists(script, ec)) { r.script_missing = true; r.error = "script not found: " + path_utf8(script); return r; }
-#if defined(_WIN32)
-    const std::string python = win_python_command();
-    if (python.empty()) { r.python_missing = true; r.error = "python not found (Python 3 is required)"; return r; }
-#else
-    const std::string python = "python3";
-#endif
-    std::string cmd = python + " " + shell_quote(path_utf8(script)) + " " + shell_quote(name);
+    Args cmd = python_command();
+    if (cmd.empty()) { r.python_missing = true; r.error = "python not found (Python 3 is required)"; return r; }
+    cmd.push_back(path_utf8(script));
+    cmd.push_back(name);
     auto child = spawn_capture(cmd, /*merge_stderr=*/false);
-    if (!child) { r.error = "could not start " + python; return r; }
+    if (!child) { r.error = "could not start " + command_text(cmd); return r; }
     std::string buffer;
     char chunk[2048];
     for (;;) {
@@ -68,12 +67,8 @@ KanjiReadResult read_kanji(const fs::path& script, const std::vector<std::string
     KanjiReadResult r;
     std::error_code ec;
     if (!fs::exists(script, ec)) { r.missing = true; r.error = "script not found: " + path_utf8(script); return r; }
-#if defined(_WIN32)
-    const std::string python = win_python_command();
-    if (python.empty()) { r.missing = true; r.error = "python not found (Python 3 is required)"; return r; }
-#else
-    const std::string python = "python3";
-#endif
+    Args cmd = python_command();
+    if (cmd.empty()) { r.missing = true; r.error = "python not found (Python 3 is required)"; return r; }
     const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
     const fs::path req = fs::temp_directory_path(ec) / path_from_utf8("mousiki_kanji_" + std::to_string(stamp) + ".txt");
     {
@@ -81,8 +76,10 @@ KanjiReadResult read_kanji(const fs::path& script, const std::vector<std::string
         if (!f) { r.error = "could not write a temporary file"; return r; }
         for (const std::string& t : texts) f << t << "\n";
     }
-    auto child = spawn_capture(python + " " + shell_quote(path_utf8(script)) + " " + shell_quote(path_utf8(req)), /*merge_stderr=*/false);
-    if (!child) { fs::remove(req, ec); r.error = "could not start " + python; return r; }
+    cmd.push_back(path_utf8(script));
+    cmd.push_back(path_utf8(req));
+    auto child = spawn_capture(cmd, /*merge_stderr=*/false);
+    if (!child) { fs::remove(req, ec); r.error = "could not start " + command_text(cmd); return r; }
     std::string buffer;
     char chunk[4096];
     for (;;) {

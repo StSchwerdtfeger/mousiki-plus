@@ -1,3 +1,5 @@
+// In-process header parsing (see native_duration.cpp): duration and tag probes for common formats,
+// used before falling back to ffprobe.
 #pragma once
 #include <cstdint>
 #include <filesystem>

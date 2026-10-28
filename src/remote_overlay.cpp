@@ -1,3 +1,5 @@
+// The remote control's overlay: draws the status and the QR code of the remote app in a box on the
+// main screen.
 #include "remote_overlay.h"
 
 #include <algorithm>

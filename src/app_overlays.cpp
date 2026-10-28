@@ -351,7 +351,7 @@ void App::folder_overlay_build_tree() {
         }
     }
     auto by_name = [](const std::string& a, const std::string& b) {
-        const std::string x = lower(fo_name_of(a)), y = lower(fo_name_of(b));
+        const std::string x = ascii_lower_str(fo_name_of(a)), y = ascii_lower_str(fo_name_of(b));
         return x != y ? x < y : a < b;
     };
     for (auto& kv : sub) {

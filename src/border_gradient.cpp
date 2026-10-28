@@ -1,3 +1,5 @@
+// Colours the frame borders with a gradient: finds the border glyphs in a rendered line (box
+// characters and their markers) and recolours them, keeping the text as it is.
 #include "border_gradient.h"
 
 #include <algorithm>

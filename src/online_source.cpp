@@ -1,5 +1,8 @@
+// Online search: runs the search through yt-dlp or the helper script and parses the results into
+// OnlineResult entries.
 #include "online_source.h"
 #include "process_util.h"
+#include "tiny_json.h"
 #include <cctype>
 #include <sstream>
 #if defined(_WIN32)
@@ -7,63 +10,6 @@
 #endif
 
 namespace muisc {
-
-// Same tiny flat-JSON string extractor used in lyrics_fetcher.cpp — kept
-// local here since yt-dlp's per-line JSON objects are the only thing that
-// needs it in this file, not worth a shared JSON dependency for two spots.
-static bool json_get_string(const std::string& json, const std::string& key, std::string& out) {
-    std::string needle = "\"" + key + "\"";
-    size_t kpos = json.find(needle);
-    if (kpos == std::string::npos) return false;
-    size_t colon = json.find(':', kpos + needle.size());
-    if (colon == std::string::npos) return false;
-    size_t qstart = json.find('"', colon);
-    if (qstart == std::string::npos) return false;
-    size_t i = qstart + 1;
-    std::string raw;
-    while (i < json.size()) {
-        if (json[i] == '\\' && i + 1 < json.size()) { raw += json[i]; raw += json[i + 1]; i += 2; continue; }
-        if (json[i] == '"') break;
-        raw += json[i];
-        ++i;
-    }
-    // unescape the common cases
-    std::string clean;
-    for (size_t j = 0; j < raw.size(); ++j) {
-        if (raw[j] == '\\' && j + 1 < raw.size()) {
-            char n = raw[j + 1];
-            if (n == 'n') { clean += ' '; ++j; continue; }
-            if (n == '"' || n == '\\' || n == '/') { clean += n; ++j; continue; }
-        }
-        clean += raw[j];
-    }
-    out = clean;
-    return true;
-}
-
-// Bare (unquoted) numeric field, e.g. "duration": 213.0 or "duration": 213.
-// yt-dlp's flat-playlist listings include this for most extractors, but
-// not all -- false/untouched `out` just means "unknown", not an error.
-static bool json_get_number(const std::string& json, const std::string& key, double& out) {
-    std::string needle = "\"" + key + "\"";
-    size_t kpos = json.find(needle);
-    if (kpos == std::string::npos) return false;
-    size_t colon = json.find(':', kpos + needle.size());
-    if (colon == std::string::npos) return false;
-    size_t i = colon + 1;
-    while (i < json.size() && (json[i] == ' ' || json[i] == '\t')) ++i;
-    if (i >= json.size() || json[i] == 'n') return false; // null / nothing there
-    size_t start = i;
-    while (i < json.size() && (std::isdigit(static_cast<unsigned char>(json[i])) || json[i] == '-' ||
-                                json[i] == '+' || json[i] == '.' || json[i] == 'e' || json[i] == 'E')) ++i;
-    if (i == start) return false;
-    try {
-        out = std::stod(json.substr(start, i - start));
-    } catch (...) {
-        return false;
-    }
-    return true;
-}
 
 // Shared by both search paths -- yt-dlp's flat-playlist -j output and
 // fast_yt_search.py's output are both one JSON object per line, and
@@ -75,42 +21,35 @@ static std::vector<OnlineResult> parse_json_lines(const std::string& out) {
     std::string line;
     while (std::getline(stream, line)) {
         if (line.empty() || line[0] != '{') continue;
+        tinyjson::Value obj;
+        if (!tinyjson::parse(line, obj) || obj.type != tinyjson::Type::Object) continue;
         OnlineResult item;
-        std::string uploader;
-        json_get_string(line, "id", item.video_id);
-        json_get_string(line, "title", item.title);
-        if (!json_get_string(line, "uploader", uploader)) {
-            json_get_string(line, "channel", uploader);
-        }
+        item.video_id = tinyjson::string_field(obj, "id");
+        item.title = tinyjson::string_field(obj, "title");
+        std::string uploader = tinyjson::string_field(obj, "uploader");
+        if (uploader.empty()) uploader = tinyjson::string_field(obj, "channel");
         item.uploader = uploader;
-        json_get_number(line, "duration", item.duration_sec);
+        item.duration_sec = tinyjson::number_field(obj, "duration", item.duration_sec);
         if (!item.video_id.empty() && !item.title.empty()) results.push_back(std::move(item));
     }
     return results;
 }
 
 static std::vector<OnlineResult> search_via_ytdlp(const std::string& query, int count) {
-    // The query is user-typed text, so it goes through shell_quote() like every
-    // other interpolated argument. Wrapped in plain double quotes (as before) a
-    // POSIX shell would still expand $VAR, $(...), backticks and backslashes
-    // inside it -- a search for `cost $5` or `"Heroes" (live)` ran a different
-    // query than the one typed, and a crafted one could run a command.
-    std::string cmd = "yt-dlp -4 --no-warnings --match-filters \"categories *= 'Music' & duration >= 90\" --flat-playlist -j " +
-                       shell_quote("ytsearch" + std::to_string(count) + ":" + query);
-    ProcResult r = run_capture(cmd);
+    // The query is user-typed text. It is passed as one argument, so no shell
+    // ever sees it: `cost $5` or `"Heroes" (live)` is searched exactly as typed.
+    ProcResult r = run_capture({"yt-dlp", "-4", "--no-warnings", "--match-filters", "categories *= 'Music' & duration >= 90",
+                                "--flat-playlist", "-j", "ytsearch" + std::to_string(count) + ":" + query});
     return parse_json_lines(r.out);
 }
 
 static std::vector<OnlineResult> search_via_fast_script(const std::string& query, int count,
                                                           const std::string& script_path) {
-#if defined(_WIN32)
-    const std::string& python = win_python_command();
-    if (python.empty()) return {};
-#else
-    const std::string python = "python3";
-#endif
-    std::string cmd = python + " " + shell_quote(script_path) +
-                       " " + shell_quote(query) + " " + std::to_string(count);
+    Args cmd = python_command();
+    if (cmd.empty()) return {};
+    cmd.push_back(script_path);
+    cmd.push_back(query);
+    cmd.push_back(std::to_string(count));
     ProcResult r = run_capture(cmd);
     return parse_json_lines(r.out);
 }
@@ -135,13 +74,16 @@ static std::vector<OnlineResult> parse_url_lines(const std::string& out) {
     std::string line;
     while (std::getline(stream, line)) {
         if (line.empty() || line[0] != '{') continue;
+        tinyjson::Value obj;
+        if (!tinyjson::parse(line, obj) || obj.type != tinyjson::Type::Object) continue;
         OnlineResult item;
-        std::string url, uploader;
-        if (!json_get_string(line, "webpage_url", url) || url.find("://") == std::string::npos) json_get_string(line, "url", url);
-        json_get_string(line, "title", item.title);
-        if (!json_get_string(line, "uploader", uploader)) json_get_string(line, "artist", uploader);
+        std::string url = tinyjson::string_field(obj, "webpage_url");
+        if (url.find("://") == std::string::npos) url = tinyjson::string_field(obj, "url");
+        item.title = tinyjson::string_field(obj, "title");
+        std::string uploader = tinyjson::string_field(obj, "uploader");
+        if (uploader.empty()) uploader = tinyjson::string_field(obj, "artist");
         item.uploader = uploader;
-        json_get_number(line, "duration", item.duration_sec);
+        item.duration_sec = tinyjson::number_field(obj, "duration", item.duration_sec);
         if (url.find("://") == std::string::npos || item.title.empty()) continue;
         item.video_id = url;
         results.push_back(std::move(item));
@@ -172,8 +114,7 @@ std::vector<OnlineResult> OnlineSource::search_soundcloud(const std::string& que
     // whole track (the duration shown is the full one either way). Somewhat slower; a few more results are asked
     // for, since previews are dropped.
     const int ask = count + count / 2;
-    std::string cmd = "yt-dlp --no-warnings --ignore-errors -j " + shell_quote("scsearch" + std::to_string(ask) + ":" + query);
-    ProcResult r = run_capture(cmd);
+    ProcResult r = run_capture({"yt-dlp", "--no-warnings", "--ignore-errors", "-j", "scsearch" + std::to_string(ask) + ":" + query});
     std::string kept;
     std::istringstream stream(r.out);
     std::string line;
@@ -186,13 +127,11 @@ std::vector<OnlineResult> OnlineSource::search_soundcloud(const std::string& que
 
 std::vector<OnlineResult> OnlineSource::search_bandcamp(const std::string& query, int count, const std::string& script_path) {
     if (script_path.empty()) return {};
-#if defined(_WIN32)
-    const std::string& python = win_python_command();
-    if (python.empty()) return {};
-#else
-    const std::string python = "python3";
-#endif
-    std::string cmd = python + " " + shell_quote(script_path) + " " + shell_quote(query) + " " + std::to_string(count);
+    Args cmd = python_command();
+    if (cmd.empty()) return {};
+    cmd.push_back(script_path);
+    cmd.push_back(query);
+    cmd.push_back(std::to_string(count));
     ProcResult r = run_capture(cmd);
     return parse_url_lines(r.out);
 }
@@ -217,8 +156,7 @@ std::vector<OnlineResult> OnlineSource::list_playlist(const std::string& url, st
     // approach as search() above. Works for a playlist URL (many
     // entries) and degrades gracefully to a single entry for a plain
     // video URL.
-    std::string cmd = "yt-dlp -4 --no-warnings --flat-playlist -j " + shell_quote(trimmed);
-    ProcResult r = run_capture(cmd);
+    ProcResult r = run_capture({"yt-dlp", "-4", "--no-warnings", "--flat-playlist", "-j", trimmed});
     if (!r.ok() || r.out.empty()) {
         if (error_out) *error_out = "yt-dlp couldn't list that link (exit " + std::to_string(r.exit_code) + ")";
         return results;
@@ -228,15 +166,15 @@ std::vector<OnlineResult> OnlineSource::list_playlist(const std::string& url, st
     std::string line;
     while (std::getline(stream, line)) {
         if (line.empty() || line[0] != '{') continue;
+        tinyjson::Value obj;
+        if (!tinyjson::parse(line, obj) || obj.type != tinyjson::Type::Object) continue;
         OnlineResult item;
-        std::string uploader;
-        json_get_string(line, "id", item.video_id);
-        json_get_string(line, "title", item.title);
-        if (!json_get_string(line, "uploader", uploader)) {
-            json_get_string(line, "channel", uploader);
-        }
+        item.video_id = tinyjson::string_field(obj, "id");
+        item.title = tinyjson::string_field(obj, "title");
+        std::string uploader = tinyjson::string_field(obj, "uploader");
+        if (uploader.empty()) uploader = tinyjson::string_field(obj, "channel");
         item.uploader = uploader;
-        json_get_number(line, "duration", item.duration_sec);
+        item.duration_sec = tinyjson::number_field(obj, "duration", item.duration_sec);
         if (!item.video_id.empty()) {
             if (item.title.empty()) item.title = item.video_id;
             results.push_back(std::move(item));

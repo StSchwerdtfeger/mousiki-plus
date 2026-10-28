@@ -1,3 +1,6 @@
+// Platform audio context: picks the miniaudio backend for this platform (WASAPI on Windows, OpenSL ES
+// on Android, the default elsewhere). It is used for decoding, not for speaker output (that is the
+// player's job).
 #include "audio_backend.h"
 #include <cstddef>
 

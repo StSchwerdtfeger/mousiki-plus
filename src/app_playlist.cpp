@@ -130,7 +130,7 @@ void App::playlist_refresh_lib_view() {
                 else if (playlist_edit_sort_ == 2) k = (it != row_meta_cache_.end() && !it->second.title.empty()) ? it->second.title : t.title;
                 else if (playlist_edit_sort_ == 3) k = (it != row_meta_cache_.end() && !it->second.artist.empty()) ? it->second.artist : t.folder_artist;
                 else if (it != row_meta_cache_.end()) k = it->second.album;
-                keyed.push_back({{k.empty(), lower(k)}, i});   // no album / artist: after the others
+                keyed.push_back({{k.empty(), ascii_lower_str(k)}, i});   // no album / artist: after the others
             }
         }
         std::stable_sort(keyed.begin(), keyed.end(), [](const auto& a, const auto& b) {
@@ -857,8 +857,8 @@ void App::handle_playlist_key(int key) {
             return;
         }
         // DEL, Backspace, or 'd' (lowercase only -- a typed capital C/D
-        // used to be intercepted above as the Left/Right arrow and now
-        // only reaches here as a genuine arrow, which does nothing).
+        // is intercepted above as the Left/Right arrow, so it only reaches
+        // here as a genuine arrow, which does nothing).
         if (key == kKeyDelete || key == 127 || key == 8 || key == 'd') { playlist_remove_hovering_track(); return; }
         // 4/5 move the hovering track up/down -- same keys as the main
         // queue's HKeyQueueMoveUp/Down, kept as literal codes (like the
@@ -1250,8 +1250,7 @@ void App::build_playlist_screen(std::ostringstream& frame, int W, int target_hei
     frame << box_bottom(W, "", border_bottom) << "\n";
 
     // Sized to the room the terminal has (via target_height) with an 8-row
-    // floor on short terminals. It used to be capped at 22 rows, which left
-    // blank lines under the menu once the window was maximised.
+    // floor on short terminals. It has no fixed cap, so a maximised window is filled to the bottom.
     // Sized against BOTH bounds that matter (same reasoning as
     // build_meta_screen()): target_height is player_view_height(), but
     // clamp_output_rows() keeps term_rows_ - 1 lines and a full-width
@@ -1286,7 +1285,7 @@ void App::build_playlist_screen(std::ostringstream& frame, int W, int target_hei
         for (auto& l : build_playlist_library_panel(W, lib_rows)) frame << l << "\n";
         for (auto& l : build_playlist_tracks_panel(W, track_rows)) frame << l << "\n";
     } else {
-        // The SEARCH PLAYLISTS pane takes 3 lines (it used to be one row inside this pane), so the list
+        // The SEARCH PLAYLISTS pane takes 3 lines, so the list
         // gives up two rows net and the screen keeps its height.
         for (auto& l : build_playlist_manage_search_panel(W)) frame << l << "\n";
         for (auto& l : build_playlist_manage_panel(W, panel_h - 3)) frame << l << "\n";

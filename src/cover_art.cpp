@@ -1,3 +1,5 @@
+// Album covers: finds the best picture for a track (inside the file or a close-named picture in its
+// folder), decodes it with ffmpeg, quantises the colours and scales it to the disk's place.
 #include <set>
 #include "cover_art.h"
 #include "book_art.h"
@@ -249,9 +251,10 @@ namespace {
 // 0.15 + 0.85 * luminance, times the alpha -- the same as the audio book cover's.
 } // namespace
 bool decode_cover_file(const fs::path& file, bool embedded, CoverImage& d) {
-    std::string cmd = "ffmpeg -v error -i " + shell_quote(path_utf8(file));
-    if (embedded) cmd += " -an";
-    cmd += " -vf scale=w=640:h=640:force_original_aspect_ratio=decrease -frames:v 1 -f image2pipe -vcodec pam -pix_fmt rgba -";
+    Args cmd = {"ffmpeg", "-v", "error", "-i", path_utf8(file)};
+    if (embedded) cmd.push_back("-an");
+    cmd.insert(cmd.end(), {"-vf", "scale=w=640:h=640:force_original_aspect_ratio=decrease", "-frames:v", "1",
+                           "-f", "image2pipe", "-vcodec", "pam", "-pix_fmt", "rgba", "-"});
     std::string o;   // (read straight from the process: run_capture would write the picture's bytes into the console log)
     if (std::unique_ptr<ChildProcess> child = spawn_capture(cmd, false)) {
         std::vector<char> buf(1 << 16);

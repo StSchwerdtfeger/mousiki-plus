@@ -1,3 +1,5 @@
+// Translations of lyrics: saves and loads a translation per track, lyric version and target language,
+// identified by a fingerprint of the original lines so it is dropped when the lyrics change.
 #include "lyrics_translate.h"
 #include "path_utf8.h"
 #include "process_util.h"
@@ -131,12 +133,8 @@ LyricsTranslation translate_lyrics_lines(const std::vector<std::string>& plain, 
     res.service = request.service;
     std::error_code ec;
     if (!fs::exists(script, ec)) { res.error = "translation script not found: " + path_utf8(script); return res; }
-#if defined(_WIN32)
-    const std::string python = win_python_command();
+    Args python = python_command();
     if (python.empty()) { res.error = "Python 3 not found on PATH -- translation unavailable"; return res; }
-#else
-    const std::string python = "python3";
-#endif
     const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
     const fs::path req = fs::temp_directory_path(ec) / path_from_utf8("mousiki_translate_" + std::to_string(stamp) + ".json");
     {
@@ -151,7 +149,10 @@ LyricsTranslation translate_lyrics_lines(const std::vector<std::string>& plain, 
         if (!o.is_open()) { res.error = "could not write " + path_utf8(req); return res; }
         o << write(root);
     }
-    const ProcResult r = run_capture(python + " " + shell_quote(path_utf8(script)) + " " + shell_quote(path_utf8(req)), false);
+    Args cmd = python;
+    cmd.push_back(path_utf8(script));
+    cmd.push_back(path_utf8(req));
+    const ProcResult r = run_capture(cmd, false);
     fs::remove(req, ec);
     if (r.exit_code < 0) { res.error = "python3 not found on PATH -- translation unavailable"; return res; }
     Value v;

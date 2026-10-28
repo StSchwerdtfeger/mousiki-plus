@@ -1187,6 +1187,9 @@ Remote App:[[Legend]]            [ENTER] opens the REMOTE APP overlay (on/off, a
 Update Notice:[[Legend]]         a quiet once-a-day look for a newer release; a small window, once per version 
                        ([ESC] close, [o] open the Github release page).
 
+Check Update:[[Legend]]          [ENTER] on this row asks GitHub for the newest release now and writes the
+                       answer on this screen (needs Python 3 and a network connection). Nothing is installed.
+
 Media Keys:[[Legend]]            Windows media pop-up/keys, Linux MPRIS widgets/playerctl, macOS Now Playing; the 
                        system media keys control Mousiki. Has not been tested well for every OS.
                        Feel free to report issues on Github!
@@ -1243,11 +1246,11 @@ Latin Macrons:[[Legend]]         off (default) = Japanese long vowels spelled ou
 
 Latin Wo:[[Legend]]              off (default) = the particle を is written "o" (koe o); on = "wo". 
                        This option is independent of Latin Macrons.
-
+)WIZ",
+R"WIZ(
 Translit. Kanji:[[Legend]]       Leave (default) = characters that could be Japanese or Chinese (東京) stay as 
                        they are; Chin. = read as Chinese (pinyin); Jap. = read as Japanese (kept
-)WIZ",
-R"WIZ(                       unless the optional kanji reader knows them). Same as LatinHanziDefault in the
+                       unless the optional kanji reader knows them). Same as LatinHanziDefault in the
                        config.txt.
 
 Latin Name Lookup:[[Legend]]     off by default. On = artists written in Chinese characters are looked up on
@@ -1342,13 +1345,13 @@ Use[[Legend]] Lyrics[[Legend]] Engine[[Legend]] /[[Legend]] Use Oscilloscope[[Le
                                  When a Viz. is set to false it leaves that view out of 
                                  the [,/.] cycle entirely. The oscilloscope/spectrogram,
                                  overlays and their extra window modes remain functional!
-
+)WIZ",
+R"WIZ(
 
 ANIMA/VIZ TAB:[[Header]] 
 
 LYRICS:[[Header]]                          Lyrics Alignment[[Legend]] (left / center / right), Lyrics Animation[[Legend]] (full, 
-)WIZ",
-R"WIZ(                                 word by word, letter by letter, active line only, active word only, 
+                                 word by word, letter by letter, active line only, active word only, 
                                  line by line).
 
 DISK:[[Header]]                            Disk[[Legend]] Speed:[[Legend]] with range between 0.01 - 1.00.
@@ -1481,10 +1484,10 @@ KEYS ON THE MAIN SCREEN: [[Header]]
 
 THE BIG STATIONS OVERLAY: [[Header]]
 [SHIFT+l] shows the STATIONS pane over the whole screen plus a PRESET NAME column.
-[a] adds a station by its stream URL ([TAB] switches URL <-> NAME; an empty name becomes the host name).
-[SHIFT+c] gives the hovered station a preset name: a shorter second name shown in the PRESETS pane, 
 )WIZ",
-R"WIZ(which only has little space so it gives you the possibility to specify it by your own demands.
+R"WIZ([a] adds a station by its stream URL ([TAB] switches URL <-> NAME; an empty name becomes the host name).
+[SHIFT+c] gives the hovered station a preset name: a shorter second name shown in the PRESETS pane, 
+which only has little space so it gives you the possibility to specify it by your own demands.
 
 [[New Page]]
 3.1.2 PRESETS [[Header]]
@@ -1645,10 +1648,10 @@ The radio writes down the artist and title the stream sends. On the HISTORY tab 
 overlay that searches YouTube for "artist title". [ENTER] downloads the hovered result into the
 download folder (yt-dlp, opus), [TAB] edits the search query, [ESC] closes. A result is marked
 [ok] done, [..] downloading, [!!] failed.
-This is the online search of the music player reached from the radio, so a song you only heard once
-on air ends up in your local library (after a rescan with [SHIFT+r] in the player).
 )WIZ",
-R"WIZ(
+R"WIZ(This is the online search of the music player reached from the radio, so a song you only heard once
+on air ends up in your local library (after a rescan with [SHIFT+r] in the player).
+
 
 [[New Page]]
 3.4.1 RADIO SETTINGS: COLORS, ON/OFF AND ANIMA/VIZ [[Header]]
@@ -1784,11 +1787,11 @@ The converter [SHIFT+c] works on the audio books and searches folders with [/f:]
 4.1.2 BOOK TAGS [[Header]]
 
 [SHIFT+m] opens the tag editor of the audio book player. It only edits, nothing is fetched in this
-mode, which makes the meta data editor much more light weight and simple. 
+)WIZ",
+R"WIZ(mode, which makes the meta data editor much more light weight and simple. 
 It shows one chapter at a time: 
 File name, Book title, Author, Narrator, Chapter, Publisher, Year and Genre.
-)WIZ",
-R"WIZ(
+
 [UP]/[DOWN]   pick a row, [ENTER] types into it (a second [ENTER] puts the cursor away), 
 [<-]/[->]     go to the other chapters (unsaved changes have to be saved with [s] or dropped 
               with [d] first). A changed row is drawn in the header colour) 
@@ -1906,13 +1909,13 @@ title, length. You set them while listening:
 [x]        deletes the mark.                                              
 [ENTER]    plays from the mark.
 [<-]/[->]  seek: 5 seconds, faster and faster the longer the key is held, up to minutes. [p] pauses.
-
+)WIZ",
+R"WIZ(
 The marks are saved in the book's .cue after every change (REM CHAPTER lines).
 
 [c] CUTS THE FILE: [[Header]] 
 after one question ffmpeg copies the parts without re-encoding (-c copy) into the book folder 
-)WIZ",
-R"WIZ(as "01 Chapter 1.wav", "02 The Storm.wav" ... with the chapter title as title tag. If anything 
+as "01 Chapter 1.wav", "02 The Storm.wav" ... with the chapter title as title tag. If anything 
 fails, the new files are removed and the original is untouched. Answer the question with [t] 
 instead of [y] to also trim blank audio at the edges of the parts to 2 seconds (bookmarks, 
 auto-mark and notes are moved accordingly).

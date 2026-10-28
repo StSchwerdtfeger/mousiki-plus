@@ -1,4 +1,8 @@
+// Settings: reads and writes config.txt, converts colour names to terminal codes, and holds the
+// defaults and the key bindings of the program.
 #include "settings.h"
+#include "utf8_util.h"
+#include "string_util.h"
 #include "keyboard_layout.h"
 #include "translit.h"
 #include "lyrics_fetcher.h"
@@ -169,8 +173,7 @@ std::string parse_ansi256_brightness(const std::string& value) {
     // Legacy-settings.txt-migration format: "index,brightness" (e.g.
     // "39,100"). The rest of the app now only understands bare 256-color
     // indices ("0".."255"), so brightness scaling can't be preserved here
-    // the way it used to (that required emitting a truecolor SGR string,
-    // which is no longer a valid stored value) -- this just recovers the
+    // the way a truecolor SGR string would (that form is not a valid stored value) -- this just recovers the
     // base index and drops the brightness scaling.
     auto comma = value.find(',');
     if (comma == std::string::npos) return value;
@@ -306,9 +309,8 @@ void apply_default_hotkeys(Settings& s) {
             {"HKeyPlayPreviousSong",            "b"},
             {"HKeySeekForward",                 "ARROW_KEY_RIGHT"},
             {"HKeySeekBackward",                "ARROW_KEY_LEFT"},
-            // "+" / "-" = volume, the same keys as in the radio mode.
-            // (Before v3.1.0 they were "1" / "2" and "+" cycled the lyrics
-            // area -- that one is "." now; old configs are migrated below.)
+            // "+" / "-" = volume, the same keys as in the radio mode. Older configs
+            // (volume on "1" / "2", lyrics cycle on "+") are migrated below.
             {"HKeyIncreaseVolume",              "+"},
             {"HKeyDecreaseVolume",              "-"},
             {"HKeyAddHoveringSongToQueue",      "a"},
@@ -320,7 +322,7 @@ void apply_default_hotkeys(Settings& s) {
             {"HKeyClearFilter",                 "c"},
             {"HKeyQuit",                        "q"},
             {"HKeyDownloadStream",              "y"},
-            // "k" opens the karaoke overlay; Refresh UI moved to "r" (v3.1.0, migrated below).
+            // "k" opens the karaoke overlay; Refresh UI is on "r" (migrated below).
             {"HKeyRefreshUi",                   "r"},
             {"HKeyKaraoke",                     "k"},
             // The mode switch (SHIFT and + / SHIFT and - on a German keyboard: the characters '*' and '_') and the karaoke
@@ -334,9 +336,8 @@ void apply_default_hotkeys(Settings& s) {
             {"HKeyToggleMute",                  "x"},
             {"HKeyCheatsheet",                  "?"},
             {"HKeyMenus",                       "<"},   // the index of all menus and overlays
-            // The help wizard. "W" (SHIFT+w) was free: it used to be the
-            // scope window's key, which moved to ")" in v3.1.0 (see the
-            // migration below), and plain "w" stays Toggle Waveform.
+            // The help wizard. "W" (SHIFT+w) is free: the scope window uses ")" (see the migration below),
+            // and plain "w" stays Toggle Waveform.
             {"HKeyWizard",                      "W"},
             {"HKeyRetryLyrics",                 "l"},
             {"HKeyShuffleNext",                 "#"},
@@ -378,8 +379,8 @@ void apply_default_hotkeys(Settings& s) {
             // plain "f" is HKeyFilterForFolder.
             {"HKeyFolderOverlay",               "F"},
             // Shift+C: the file conversion overlay (high resolution files -> MP3 and other lighter formats).
-            // Uppercase on purpose; the arrow-key collision this key used to have (Shift+c was read as Right =
-            // seek forward) is gone, see App::resolve_hotkey_action().
+            // Uppercase on purpose: a lowercase "c" would collide with the arrow-key codes (Shift+c was read as Right =
+            // seek forward). See App::resolve_hotkey_action().
             {"HKeyConvertOverlay",              "C"},
             // Shift+K: the big queue overlay (a larger QUEUE pane floated
             // over the main UI). Uppercase on purpose -- plain "k" is
@@ -417,7 +418,7 @@ void apply_default_hotkeys(Settings& s) {
             {"HKeyCreator",                     "^"},
             // Queue additions. "e" = add the hovering track to the END of the
             // queue ("a" adds it as NEXT, see App::queue_add_selected()); "e"
-            // used to be the never-wired HKeyResetPreference, which is migrated
+            // Formerly the never-wired HKeyResetPreference; that setting is migrated
             // away below. "!" locks the queue (played tracks stay in it).
             // "$" / "%" are SHIFT+4 / SHIFT+5 on both US and German layouts:
             // move the hovering queue item to the top / bottom.
@@ -425,7 +426,7 @@ void apply_default_hotkeys(Settings& s) {
             {"HKeyQueueLock",                   "!"},
             {"HKeyQueueMoveTop",                "$"},
             {"HKeyQueueMoveBottom",             "%"},
-            // v3.1.x: keys that used to be fixed in the code and are now rebindable (Settings -> REFERENCE). The
+            // Keys that were fixed in the code and are now rebindable (Settings -> REFERENCE). The
             // modifier combinations are written as names (ALT+L, CTRL+L, CTRL+SHIFT+Z, CTRL+SHIFT+U); on a Mac
             // "ALT" is the OPTION key.
             {"HKeyRescan",                      "R"},             // SHIFT+r: look for new files
@@ -459,7 +460,7 @@ void apply_default_hotkeys(Settings& s) {
         s.hotkeys.erase("HKeySearchOnline");
         s.hotkeys.erase("HKeySearchPlaylist");
         s.hotkeys.erase("HKeySearchFolder");
-        // v3.1.0: volume moved from "1" / "2" to "+" / "-", and the lyrics
+        // Migration: volume moved from "1" / "2" to "+" / "-", and the lyrics
         // area cycle from "+" to ".". A config that still carries the old
         // trio exactly as it was shipped is moved over as a whole; a user
         // who rebound any of the three keeps their own keys. The move is
@@ -478,7 +479,7 @@ void apply_default_hotkeys(Settings& s) {
                 if (!taken) { up->second = "+"; down->second = "-"; lyr->second = "."; }
             }
         }
-        // v3.1.0: "k" is the karaoke overlay now and Refresh UI moved to "r".
+        // Migration: "k" is the karaoke overlay and Refresh UI is on "r".
         // A config from before (Refresh UI still on "k", no karaoke key yet)
         // is moved over -- unless the user has put something else on "r".
         if (s.hotkeys.find("HKeyKaraoke") == s.hotkeys.end()) {
@@ -491,7 +492,7 @@ void apply_default_hotkeys(Settings& s) {
                 else s.hotkeys["HKeyKaraoke"] = "";   // no free default: left unbound (rebind it under Settings -> REFERENCE)
             }
         }
-        // v3.1: the scope window moved from SHIFT+w ("W") to SHIFT+9 (")"), next to the spectrogram window on SHIFT+8.
+        // Migration: the scope window moved from SHIFT+w ("W") to SHIFT+9 (")"), next to the spectrogram window on SHIFT+8.
         {
             auto sw = s.hotkeys.find("HKeyScopeWindow");
             if (sw != s.hotkeys.end() && sw->second == "W") {
@@ -564,19 +565,13 @@ static fs::path legacy_settings_path() {
 // Parsing helpers
 // =====================================================================
 
-static std::string trim(const std::string& s) {
-    size_t a = s.find_first_not_of(" \t\r\n");
-    if (a == std::string::npos) return "";
-    size_t b = s.find_last_not_of(" \t\r\n");
-    return s.substr(a, b - a + 1);
-}
 
 // Strip surrounding quotes: "value" -> value
 static std::string unquote(const std::string& s) {
-    std::string t = trim(s);
+    std::string t = trim_ws(s);
     if (!t.empty() && t.back() == ';') {
         t.pop_back();
-        t = trim(t);
+        t = trim_ws(t);
     }
     if (t.size() >= 2 && t.front() == '"' && t.back() == '"') {
         return t.substr(1, t.size() - 2);
@@ -587,13 +582,13 @@ static std::string unquote(const std::string& s) {
 static const char* viz_default_name(int v) { return v == 0 ? "sphere" : v == 1 ? "osci" : v == 2 ? "spectro" : v == 3 ? "lyrics" : "last"; }
 
 static bool parse_bool(const std::string& v) {
-    std::string s = trim(v);
+    std::string s = trim_ws(v);
     for (auto& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     return s == "yes" || s == "true" || s == "1";
 }
 
 int mode_index(const std::string& name) {
-    std::string n = trim(name);
+    std::string n = trim_ws(name);
     for (auto& c : n) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
     if (n == "audio book" || n == "audio-book" || n == "book") n = "audiobook";
     if (n == "music" || n == "music player") n = "player";
@@ -667,8 +662,8 @@ std::string read_audiobook_path() {
     while (std::getline(in, line)) {
         const size_t eq = line.find('=');
         if (eq == std::string::npos || line.empty() || line[0] == '#') continue;
-        if (trim(line.substr(0, eq)) != "AudioBookPath") continue;
-        path = trim(unquote(line.substr(eq + 1)));
+        if (trim_ws(line.substr(0, eq)) != "AudioBookPath") continue;
+        path = trim_ws(unquote(line.substr(eq + 1)));
         if (!path.empty() && path[0] == '~') {
             const char* home = std::getenv("HOME");
             if (home) path = std::string(home) + path.substr(1);
@@ -686,13 +681,13 @@ ModeConfig read_mode_config() {
     while (std::getline(in, line)) {
         const size_t eq = line.find('=');
         if (eq == std::string::npos || line[0] == '#') continue;
-        const std::string key = trim(line.substr(0, eq)), val = line.substr(eq + 1);
+        const std::string key = trim_ws(line.substr(0, eq)), val = line.substr(eq + 1);
         if (key == "UseModePlayer") mc.use[0] = parse_bool(val);
         else if (key == "UseModeRadio") mc.use[1] = parse_bool(val);
         else if (key == "UseModeAudiobook") mc.use[2] = parse_bool(val);
         else if (key == "ModeOrder") parse_mode_order(val, mc.order);
         else if (key == "HKeyModeNext" || key == "HKeyModePrev") {   // one typed character (empty: no key)
-            const std::string v = trim(unquote(val));
+            const std::string v = trim_ws(unquote(val));
             if (v.size() <= 1) (key == "HKeyModeNext" ? mc.key_next : mc.key_prev) = v.empty() ? 0 : static_cast<unsigned char>(v[0]);
         }
     }
@@ -714,13 +709,13 @@ int next_mode_in(const ModeConfig& mc, int cur, int dir) {
 static void parse_font_block(std::ifstream& in, Settings& s) {
     std::string line;
     while (std::getline(in, line)) {
-        std::string t = trim(line);
+        std::string t = trim_ws(line);
         if (t.empty() || t[0] == '#') continue;
         if (t.find("};") != std::string::npos || t == "}") break;
         // Expected: A={A,a},  or  A={𝓐,𝓪},
         size_t eq = t.find('=');
         if (eq == std::string::npos) continue;
-        std::string letter_str = trim(t.substr(0, eq));
+        std::string letter_str = trim_ws(t.substr(0, eq));
         if (letter_str.empty()) continue;
         char letter = static_cast<char>(std::toupper(static_cast<unsigned char>(letter_str[0])));
         // Parse {upper,lower}
@@ -730,8 +725,8 @@ static void parse_font_block(std::ifstream& in, Settings& s) {
         std::string inner = t.substr(ob + 1, cb - ob - 1);
         size_t comma = inner.find(',');
         if (comma == std::string::npos) continue;
-        std::string upper_glyph = trim(inner.substr(0, comma));
-        std::string lower_glyph = trim(inner.substr(comma + 1));
+        std::string upper_glyph = trim_ws(inner.substr(0, comma));
+        std::string lower_glyph = trim_ws(inner.substr(comma + 1));
         if (!upper_glyph.empty() && !lower_glyph.empty()) {
             s.font_map[letter] = {upper_glyph, lower_glyph};
         }
@@ -743,7 +738,7 @@ static void parse_font_block(std::ifstream& in, Settings& s) {
 static void skip_about_app_block(std::ifstream& in) {
     std::string line;
     while (std::getline(in, line)) {
-        std::string t = trim(line);
+        std::string t = trim_ws(line);
         if (t == "};" || t == "}") break;
     }
 }
@@ -788,7 +783,7 @@ static Settings load_from_config(const fs::path& path) {
 
     std::string line;
     while (std::getline(in, line)) {
-        std::string t = trim(line);
+        std::string t = trim_ws(line);
         if (t.empty() || t[0] == '#') continue;
 
         // Font block
@@ -813,16 +808,16 @@ static Settings load_from_config(const fs::path& path) {
 
         if (eq2 != std::string::npos && (colon == std::string::npos || eq2 < colon)) {
             // "key == value" format
-            key = trim(t.substr(0, eq2));
-            value = trim(t.substr(eq2 + 2));
+            key = trim_ws(t.substr(0, eq2));
+            value = trim_ws(t.substr(eq2 + 2));
         } else if (colon != std::string::npos && (eq1 == std::string::npos || colon < eq1)) {
             // "key : value" format
-            key = trim(t.substr(0, colon));
-            value = trim(t.substr(colon + 1));
+            key = trim_ws(t.substr(0, colon));
+            value = trim_ws(t.substr(colon + 1));
         } else if (eq1 != std::string::npos) {
             // "key=value" or 'key="value"' format
-            key = trim(t.substr(0, eq1));
-            value = trim(t.substr(eq1 + 1));
+            key = trim_ws(t.substr(0, eq1));
+            value = trim_ws(t.substr(eq1 + 1));
         } else {
             continue;
         }
@@ -874,47 +869,47 @@ static Settings load_from_config(const fs::path& path) {
         }
         // These two don't map onto an existing key 1:1 (string enum ->
         // bool / int), so they're handled directly instead of aliased.
-        if (key == "ColorCodes") { s.colors_palette = trim(unquote(value)) == "palette"; continue; }   // the marker: colour numbers are palette numbers
+        if (key == "ColorCodes") { s.colors_palette = trim_ws(unquote(value)) == "palette"; continue; }   // the marker: colour numbers are palette numbers
         if (key == "VolumeGradient") { s.volume_gradient = parse_bool(value); continue; }
         if (key == "VolumeIndicator") {   // "#", "⠶", "⣿" or "⡾⣽"; anything else keeps the default
-            const int st = volume_style_from_name(trim(unquote(value)));
+            const int st = volume_style_from_name(trim_ws(unquote(value)));
             if (st >= 0) s.volume_indicator = st;
             continue;
         }
         if (key == "WaveformStyle") { s.waveform_smooth = (value == "smooth"); continue; }
         if (key == "BlackBackground") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
             s.black_background = !(v == "false" || v == "0" || v == "off" || v == "no");
             continue;
         }
         if (key == "ShareProfiles") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.share_profiles = (v == "true" || v == "1" || v == "on" || v == "yes");
             continue;
         }
         if (key == "BookmarkAsk") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.book_ask_bookmark = !(v == "false" || v == "0" || v == "off" || v == "no");
             continue;
         }
         if (key == "BookCoverWave") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.book_cover_wave = !(v == "false" || v == "0" || v == "off" || v == "no");
             continue;
         }
         if (key == "LyricsNameVariants") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.lyrics_name_variants = !(v == "false" || v == "0" || v == "off" || v == "no");
             set_lyrics_name_variants(s.lyrics_name_variants);
             continue;
         }
         if (key == "LatinMacrons" || key == "LatinWo") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             const bool on = (v == "true" || v == "1" || v == "on" || v == "yes");
             (key == "LatinMacrons" ? s.latin_macrons : s.latin_wo) = on;
@@ -922,33 +917,33 @@ static Settings load_from_config(const fs::path& path) {
             continue;
         }
         if (key == "LatinNameLookup") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.latin_lookup = (v == "true" || v == "1" || v == "on" || v == "yes");
             continue;
         }
         if (key == "LatinHanziDefault") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.latin_hanzi = (v == "chinese" || v == "pinyin") ? 1 : (v == "japanese" || v == "kanji") ? 2 : 0;
             translit_set_default_hanzi(s.latin_hanzi);
             continue;
         }
         if (key == "LatinLetters") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.latin_letters = (v == "true" || v == "1" || v == "on" || v == "yes");
             set_translit_enabled(s.latin_letters);
             continue;
         }
         if (key == "AlbumCover") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.album_cover = (v == "true" || v == "1" || v == "on" || v == "yes");
             continue;
         }
         if (key == "CoverMode") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             if (v == "1" || v == "cover" || v == "just cover") s.cover_mode = 0;
             else if (v == "2" || v == "gradient" || v == "cover with gradient") s.cover_mode = 1;
@@ -960,13 +955,13 @@ static Settings load_from_config(const fs::path& path) {
             continue;
         }
         if (key == "CoverContrast") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             if (!v.empty() && v.back() == '%') v.pop_back();
             s.cover_contrast = std::clamp((std::atoi(v.c_str()) + 2) / 5 * 5, 0, 100);
             continue;
         }
         if (key == "CoverSearch") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             if (v == "default") s.cover_search = 0;
             else if (v == "folder first") s.cover_search = 1;
@@ -976,53 +971,53 @@ static Settings load_from_config(const fs::path& path) {
             continue;
         }
         if (key == "BookCover") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.book_cover = (v == "true" || v == "1" || v == "on" || v == "yes");
             continue;
         }
         if (key == "UpdateCheck") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.update_check = !(v == "false" || v == "0" || v == "off" || v == "no");
             continue;
         }
         if (key == "TrackBufferMB") {
-            try { s.track_buffer_mb = std::clamp(std::stoi(trim(unquote(value))), Settings::kTrackBufferMinMB, Settings::kTrackBufferMaxMB); } catch (...) {}
+            try { s.track_buffer_mb = std::clamp(std::stoi(trim_ws(unquote(value))), Settings::kTrackBufferMinMB, Settings::kTrackBufferMaxMB); } catch (...) {}
             continue;
         }
         if (key == "TerminalCols" || key == "TerminalRows") {
-            try { (key == "TerminalCols" ? s.terminal_cols : s.terminal_rows) = std::max(0, std::min(2000, std::stoi(trim(unquote(value))))); } catch (...) {}
+            try { (key == "TerminalCols" ? s.terminal_cols : s.terminal_rows) = std::max(0, std::min(2000, std::stoi(trim_ws(unquote(value))))); } catch (...) {}
             continue;
         }
         if (key == "FullScreen" || key == "UseTerminalSettings") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             (key == "FullScreen" ? s.full_screen : s.use_terminal_settings) = (v == "true" || v == "1" || v == "on" || v == "yes");
             continue;
         }
         if (key == "RateCap96") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.rate_cap_96 = !(v == "false" || v == "0" || v == "off" || v == "no");
             continue;
         }
         if (key == "MediaKeys") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.media_keys = !(v == "false" || v == "0" || v == "off" || v == "no");
             continue;
         }
         if (key == "RemoteApp") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.remote_app = (v == "true" || v == "1" || v == "on" || v == "yes");
             continue;
         }
-        if (key == "RemoteAppPort") { const int pt = std::atoi(trim(unquote(value)).c_str()); if (pt >= 1024 && pt <= 65535) s.remote_port = pt; continue; }
-        if (key == "RemoteAppPin") { s.remote_pin = trim(unquote(value)); continue; }
+        if (key == "RemoteAppPort") { const int pt = std::atoi(trim_ws(unquote(value)).c_str()); if (pt >= 1024 && pt <= 65535) s.remote_port = pt; continue; }
+        if (key == "RemoteAppPin") { s.remote_pin = trim_ws(unquote(value)); continue; }
         if (key == "StartMode") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
             s.start_mode = (v == "radio") ? "radio" : (v == "audiobook") ? "audiobook" : "player";
             continue;
@@ -1033,7 +1028,7 @@ static Settings load_from_config(const fs::path& path) {
         if (key == "UseModeAudiobook") { s.use_mode[2] = parse_bool(value); continue; }
         if (key == "ModeOrder") { parse_mode_order(value, s.mode_order); continue; }
         if (key == "AudioBookPath") {
-            std::string path = trim(unquote(value));
+            std::string path = trim_ws(unquote(value));
             if (!path.empty() && path[0] == '~') {
                 const char* home = std::getenv("HOME");
                 if (home) path = std::string(home) + path.substr(1);
@@ -1068,7 +1063,7 @@ static Settings load_from_config(const fs::path& path) {
             // a short or damaged list never loses a view.
             std::vector<int> order;
             std::string item;
-            std::string v = trim(unquote(value)) + ",";
+            std::string v = trim_ws(unquote(value)) + ",";
             for (char ch : v) {
                 if (ch != ',' && ch != ' ' && ch != '>' && ch != ';') { item += static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); continue; }
                 if (item.empty()) continue;
@@ -1278,7 +1273,7 @@ static Settings load_from_config(const fs::path& path) {
             const size_t bar = value.find('|');
             if (bar == std::string::npos) continue;
             const std::string gains_part = value.substr(0, bar);
-            std::string name = trim(value.substr(bar + 1));
+            std::string name = trim_ws(value.substr(bar + 1));
             if (name.empty() || eq_name_reserved(name)) continue;
             if (s.eq_custom_presets.size() >= kEqMaxCustomPresets) continue;
             bool dup = false;
@@ -1304,21 +1299,21 @@ static Settings load_from_config(const fs::path& path) {
         if (key == "SleepFade") { s.sleep_fade = parse_bool(value); continue; }
         if (key == "WizardSeen") { s.wizard_seen = parse_bool(value); continue; }
         if (key == "SidPlayLength") {
-            try { s.sid_play_length = std::clamp(std::stoi(trim(unquote(value))), 10, 1800); } catch (...) {}
+            try { s.sid_play_length = std::clamp(std::stoi(trim_ws(unquote(value))), 10, 1800); } catch (...) {}
             continue;
         }
         if (key == "KaraokeLyricsSize") {
-            try { s.karaoke_lyrics_size = std::clamp(std::stoi(trim(unquote(value))), 1, 5); } catch (...) {}
+            try { s.karaoke_lyrics_size = std::clamp(std::stoi(trim_ws(unquote(value))), 1, 5); } catch (...) {}
             continue;
         }
         if (key == "TranslateService") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             if (v == "google" || v == "mymemory") s.translate_service = v;   // (LibreTranslate was dropped: it needs a paid API key)
             continue;
         }
         if (key == "TranslateTo" || key == "TranslateFrom") {
-            std::string v = trim(unquote(value));
+            std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             if (!v.empty() && v.size() <= 8) (key == "TranslateTo" ? s.translate_to : s.translate_from) = v;
             if (s.translate_to == "auto") s.translate_to = "en";
@@ -1358,7 +1353,7 @@ static Settings load_from_config(const fs::path& path) {
         // A leading ~ is expanded to $HOME so users can write:
         //   LocalMusicPath=~/Music/Rock
         if (key == "LocalMusicPath" || key == "local_music_path") {
-            std::string path = trim(unquote(value));
+            std::string path = trim_ws(unquote(value));
             if (!path.empty()) {
                 if (path[0] == '~') {
                     const char* home = std::getenv("HOME");
@@ -1375,7 +1370,7 @@ static Settings load_from_config(const fs::path& path) {
         // saved/deleted; all of them are searched when listing/loading).
         // Same ~ expansion as LocalMusicPath, above.
         if (key == "PlaylistsPath" || key == "playlists_path") {
-            std::string path = trim(unquote(value));
+            std::string path = trim_ws(unquote(value));
             if (!path.empty() && path[0] == '~') {
                 const char* home = std::getenv("HOME");
                 if (home) path = std::string(home) + path.substr(1);
@@ -1392,7 +1387,7 @@ static Settings load_from_config(const fs::path& path) {
         // default take effect without rewriting anyone's config.txt.
         // Same ~ expansion as LocalMusicPath, above.
         if (key == "PlaylistExportPath" || key == "playlist_export_path") {
-            std::string path = trim(unquote(value));
+            std::string path = trim_ws(unquote(value));
             if (!path.empty() && path[0] == '~') {
                 const char* home = std::getenv("HOME");
                 if (home) path = std::string(home) + path.substr(1);
@@ -1401,7 +1396,7 @@ static Settings load_from_config(const fs::path& path) {
             continue;
         }
         if (key == "ConversionExportPath" || key == "conversion_export_path") {
-            std::string path = trim(unquote(value));
+            std::string path = trim_ws(unquote(value));
             if (!path.empty() && path[0] == '~') {
                 const char* home = std::getenv("HOME");
                 if (home) path = std::string(home) + path.substr(1);
@@ -1410,7 +1405,7 @@ static Settings load_from_config(const fs::path& path) {
             continue;
         }
         if (key == "HistoryPath" || key == "history_path") {
-            std::string path = trim(unquote(value));
+            std::string path = trim_ws(unquote(value));
             if (!path.empty() && path[0] == '~') {
                 const char* home = std::getenv("HOME");
                 if (home) path = std::string(home) + path.substr(1);
@@ -1419,7 +1414,7 @@ static Settings load_from_config(const fs::path& path) {
             continue;
         }
         if (key == "DownloadFolder" || key == "download_folder") {
-            std::string path = trim(unquote(value));
+            std::string path = trim_ws(unquote(value));
             if (!path.empty() && path[0] == '~') {
                 const char* home = std::getenv("HOME");
                 if (home) path = std::string(home) + path.substr(1);
@@ -1460,7 +1455,7 @@ static Settings load_from_legacy(const fs::path& path) {
     while (std::getline(in, line)) {
         auto eq = line.find('=');
         if (eq == std::string::npos) continue;
-        kv[trim(line.substr(0, eq))] = trim(line.substr(eq + 1));
+        kv[trim_ws(line.substr(0, eq))] = trim_ws(line.substr(eq + 1));
     }
 
     auto get = [&](const char* key, std::string& field) { if (kv.count(key)) field = kv[key]; };
@@ -1504,7 +1499,7 @@ std::string read_start_mode() {
     std::string line, mode = "player";
     while (std::getline(in, line)) {
         if (line.compare(0, 10, "StartMode=") != 0) continue;
-        std::string v = trim(unquote(line.substr(10)));
+        std::string v = trim_ws(unquote(line.substr(10)));
         for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         mode = (v == "radio") ? "radio" : (v == "audiobook") ? "audiobook" : "player";
     }
@@ -1520,7 +1515,7 @@ bool read_black_background() {
     std::string line;
     while (std::getline(in, line)) {
         if (line.compare(0, 16, "BlackBackground=") != 0) continue;
-        std::string v = trim(line.substr(16));
+        std::string v = trim_ws(line.substr(16));
         for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         return !(v == "false" || v == "0" || v == "off" || v == "no");
     }
@@ -1534,8 +1529,8 @@ RemoteAppConfig read_remote_app() {
     while (std::getline(in, line)) {
         const size_t eq = line.find('=');
         if (line.empty() || line[0] == '#' || eq == std::string::npos) continue;
-        const std::string k = trim(line.substr(0, eq));
-        std::string v = trim(unquote(line.substr(eq + 1)));
+        const std::string k = trim_ws(line.substr(0, eq));
+        std::string v = trim_ws(unquote(line.substr(eq + 1)));
         if (k == "RemoteApp") {
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             rc.enabled = v == "true" || v == "1" || v == "on" || v == "yes";
@@ -1569,7 +1564,7 @@ bool write_remote_app(RemoteAppConfig& rc) {
         bool done = false;
         for (auto& l : lines) {
             const size_t eq = l.find('=');
-            if (!done && !l.empty() && l[0] != '#' && eq != std::string::npos && trim(l.substr(0, eq)) == k) { l = k + "=" + v; done = true; }
+            if (!done && !l.empty() && l[0] != '#' && eq != std::string::npos && trim_ws(l.substr(0, eq)) == k) { l = k + "=" + v; done = true; }
         }
         if (!done) lines.push_back(k + "=" + v);
     }
@@ -1586,7 +1581,7 @@ bool read_share_profiles() {
     std::string line;
     while (std::getline(in, line)) {
         if (line.compare(0, 14, "ShareProfiles=") != 0) continue;
-        std::string v = trim(unquote(line.substr(14)));
+        std::string v = trim_ws(unquote(line.substr(14)));
         for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
         return v == "true" || v == "1" || v == "on" || v == "yes";
     }
@@ -1598,7 +1593,7 @@ bool read_update_check() {
     std::string line;
     while (std::getline(in, line)) {
         if (line.compare(0, 12, "UpdateCheck=") != 0) continue;
-        std::string v = trim(unquote(line.substr(12)));
+        std::string v = trim_ws(unquote(line.substr(12)));
         for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
         return !(v == "false" || v == "0" || v == "off" || v == "no");
     }
@@ -1610,7 +1605,7 @@ bool read_media_keys() {
     std::string line;
     while (std::getline(in, line)) {
         if (line.compare(0, 10, "MediaKeys=") != 0) continue;
-        std::string v = trim(unquote(line.substr(10)));
+        std::string v = trim_ws(unquote(line.substr(10)));
         for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
         return !(v == "false" || v == "0" || v == "off" || v == "no");
     }
@@ -2170,10 +2165,10 @@ static std::string look_text(const Settings& s) {
     std::istringstream in(settings_to_text(s));
     std::string line, out;
     while (std::getline(in, line)) {
-        const std::string t = trim(line);
+        const std::string t = trim_ws(line);
         if (t.empty() || t[0] == '#') continue;
         const size_t cut = t.find_first_of("=:");
-        if (cut != std::string::npos && is_look_key(trim(t.substr(0, cut)))) out += t + "\n";
+        if (cut != std::string::npos && is_look_key(trim_ws(t.substr(0, cut)))) out += t + "\n";
     }
     return out;
 }
@@ -2231,11 +2226,11 @@ static void save_book_profile(const Settings& s) {
             std::istringstream in(all.str());
             std::string line;
             while (std::getline(in, line)) {
-                const std::string t = trim(line);
+                const std::string t = trim_ws(line);
                 if (t.empty() || t[0] == '#') continue;
                 const size_t cut = t.find_first_of("=:");
                 if (cut == std::string::npos) continue;
-                if (is_look_key(trim(t.substr(0, cut)))) out << line << "\n";
+                if (is_look_key(trim_ws(t.substr(0, cut)))) out << line << "\n";
             }
         }
     }

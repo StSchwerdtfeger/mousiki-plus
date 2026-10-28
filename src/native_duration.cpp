@@ -1,3 +1,5 @@
+// In-process header parsing: reads the duration and the basic tags of MP3, FLAC, Ogg/Opus and MP4
+// files without starting ffprobe, so the lists fill in without blocking the screen.
 #include "native_duration.h"
 #include "path_utf8.h"
 #include "utf8_util.h"

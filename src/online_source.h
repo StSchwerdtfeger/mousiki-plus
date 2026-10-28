@@ -1,3 +1,5 @@
+// Online search (see online_source.cpp): OnlineResult is one search hit and OnlineSource runs the
+// search.
 #pragma once
 #include <string>
 #include <vector>

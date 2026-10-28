@@ -379,8 +379,8 @@ void App::build_history_screen(std::ostringstream& frame, int W, int target_heig
     // Footer first, because the panel takes exactly the rows it leaves: the
     // legend (as many rows as it needs at this width -- one on a 120-column
     // terminal) plus a status row ONLY while a message is showing. Nothing is
-    // reserved to sit blank any more (there used to be three fixed rows, two
-    // of them empty on a normal terminal); while a message is up the list
+    // reserved to sit blank (only the legend and, while a message is up, one status row are shown);
+    // while a message is up the list
     // simply gives up one row for it, the way Browse does for its prompt.
     const std::string hint = (history_tab_ == 1 && history_pane_ == 1)
         ? "[\u2191\u2193\u2190\u2192] Pick a list  [ENTER] Add it to the queue  [TAB] Track list  [ESC] Leave the pane"

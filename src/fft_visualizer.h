@@ -1,3 +1,5 @@
+// The spectrum analyser (see fft_visualizer.cpp): FftVisualizer collects samples and returns the bar
+// heights for the spectrogram.
 #pragma once
 #include <array>
 #include <mutex>

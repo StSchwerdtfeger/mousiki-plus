@@ -1,7 +1,10 @@
+// Running external programs (ffmpeg, ffprobe, yt-dlp, the helper scripts): quoting of arguments,
+// capturing output, and child processes that can be read and killed.
 #include "process_util.h"
 #include "console_log.h"
 
 #include <array>
+#include <cstdlib>
 #include <csignal>
 #include <cstring>
 #include <sstream>
@@ -27,7 +30,9 @@ extern char** environ;
 
 namespace muisc {
 
-std::string shell_quote(const std::string& s) {
+// Quotes one argument for display only: plain words are left alone, anything else gets single quotes.
+static std::string quote_for_log(const std::string& s) {
+    if (!s.empty() && s.find_first_of(" \t\"'\\$`;&|<>()*?[]{}!#~") == std::string::npos) return s;
     std::string out = "'";
     for (char c : s) {
         if (c == '\'') out += "'\\''";
@@ -35,6 +40,26 @@ std::string shell_quote(const std::string& s) {
     }
     out += "'";
     return out;
+}
+
+std::string command_text(const Args& args) {
+    std::string out;
+    for (const std::string& a : args) {
+        if (!out.empty()) out += ' ';
+        out += quote_for_log(a);
+    }
+    return out;
+}
+
+Args python_command() {
+#if defined(_WIN32)
+    const std::string& p = win_python_command();
+    if (p.empty()) return {};
+    if (p == "py -3") return {"py", "-3"};
+    return {p};
+#else
+    return {"python3"};
+#endif
 }
 
 // =====================================================================
@@ -82,7 +107,12 @@ int ChildProcess::wait() {
 // hang forever the next time it needs that lock -- intermittently, depending
 // on timing. posix_spawn() is specified to be safe to call from a
 // multithreaded process, which is why this uses it instead.
-std::unique_ptr<ChildProcess> spawn_capture(const std::string& cmd, bool merge_stderr) {
+//
+// The program is started directly from the argument list, with no shell in
+// between: arguments reach it byte for byte, so no quoting is needed or
+// interpreted.
+std::unique_ptr<ChildProcess> spawn_capture(const Args& args, bool merge_stderr) {
+    if (args.empty() || args[0].empty()) return nullptr;
     int out_pipe[2];
     if (pipe(out_pipe) != 0) return nullptr;
 
@@ -101,18 +131,20 @@ std::unique_ptr<ChildProcess> spawn_capture(const std::string& cmd, bool merge_s
     }
     posix_spawn_file_actions_addclose(&actions, out_pipe[1]);
 
-    // posix_spawnp (not posix_spawn) + a bare "sh" resolves through PATH
-    // instead of assuming /bin/sh exists -- Termux's filesystem lives under
-    // its own prefix, not the standard FHS layout.
-    const char* argv[] = {"sh", "-c", cmd.c_str(), nullptr};
+    // posix_spawnp resolves a bare program name through PATH (Termux keeps its
+    // programs under its own prefix, not the standard FHS layout).
+    std::vector<char*> argv;
+    argv.reserve(args.size() + 1);
+    for (const std::string& a : args) argv.push_back(const_cast<char*>(a.c_str()));
+    argv.push_back(nullptr);
     pid_t pid = -1;
-    int rc = posix_spawnp(&pid, "sh", &actions, nullptr, const_cast<char* const*>(argv), environ);
+    int rc = posix_spawnp(&pid, args[0].c_str(), &actions, nullptr, argv.data(), environ);
     posix_spawn_file_actions_destroy(&actions);
     close(out_pipe[1]);
 
     if (rc != 0) {
         close(out_pipe[0]);
-        ConsoleLog::instance().log_command(cmd, std::string("spawn failed: ") + std::strerror(rc), -1);
+        ConsoleLog::instance().log_command(command_text(args), std::string("spawn failed: ") + std::strerror(rc), -1);
         return nullptr;
     }
 
@@ -128,55 +160,6 @@ std::unique_ptr<ChildProcess> spawn_capture(const std::string& cmd, bool merge_s
 #else
 
 namespace {
-
-// sh-compatible word splitting. The command strings this codebase builds use
-// exactly three quoting constructs -- bare words, '...' from shell_quote(),
-// and hand-written "..." around things like yt-dlp's --match-filters
-// expression -- so that is all this needs to understand. There is no
-// globbing, no redirection and no pipeline anywhere in the call sites, which
-// is why no shell is needed on this platform at all.
-//
-// Going through cmd.exe /c instead would be actively worse: yt-dlp's
-// --match-filters value contains '&', which cmd would try to parse as a
-// command separator, and cmd's own quoting rules do not compose with the
-// POSIX ones the rest of the codebase already speaks.
-std::vector<std::string> tokenize(const std::string& cmd) {
-    std::vector<std::string> args;
-    std::string cur;
-    bool have_cur = false;
-    enum class Q { None, Single, Double } q = Q::None;
-
-    for (size_t i = 0; i < cmd.size(); ++i) {
-        char c = cmd[i];
-        if (q == Q::None) {
-            if (c == ' ' || c == '\t' || c == '\n' || c == '\r') {
-                if (have_cur) { args.push_back(cur); cur.clear(); have_cur = false; }
-                continue;
-            }
-            have_cur = true;
-            if (c == '\'')      { q = Q::Single; continue; }
-            if (c == '"')       { q = Q::Double; continue; }
-            // Backslash escapes the next character. In practice this only
-            // fires for the '\'' sequence shell_quote() emits for an embedded
-            // apostrophe -- Windows path separators always arrive inside
-            // single quotes, where a backslash is literal.
-            if (c == '\\' && i + 1 < cmd.size()) { cur += cmd[++i]; continue; }
-            cur += c;
-        } else if (q == Q::Single) {
-            if (c == '\'') { q = Q::None; continue; }
-            cur += c;
-        } else {
-            if (c == '"') { q = Q::None; continue; }
-            if (c == '\\' && i + 1 < cmd.size() && (cmd[i + 1] == '"' || cmd[i + 1] == '\\')) {
-                cur += cmd[++i];
-                continue;
-            }
-            cur += c;
-        }
-    }
-    if (have_cur) args.push_back(cur);
-    return args;
-}
 
 // The inverse: CommandLineToArgvW's quoting rules, which are what
 // CreateProcessW hands the child. Backslashes are only special immediately
@@ -334,16 +317,15 @@ int ChildProcess::wait() {
     return impl_->exit_code;
 }
 
-std::unique_ptr<ChildProcess> spawn_capture(const std::string& cmd, bool merge_stderr) {
-    std::vector<std::string> args = tokenize(cmd);
-    if (args.empty()) return nullptr;
+std::unique_ptr<ChildProcess> spawn_capture(const Args& args, bool merge_stderr) {
+    if (args.empty() || args[0].empty()) return nullptr;
 
     // CreateProcess only ever appends ".exe" when resolving a bare name, so a
     // yt-dlp installed by pipx or scoop as a .cmd shim would otherwise look
     // like "yt-dlp is not installed".
     std::string exe = win_find_executable(args[0]);
     if (exe.empty()) {
-        ConsoleLog::instance().log_command(cmd, "spawn failed: '" + args[0] + "' not found on PATH", -1);
+        ConsoleLog::instance().log_command(command_text(args), "spawn failed: '" + args[0] + "' not found on PATH", -1);
         return nullptr;
     }
 
@@ -432,7 +414,7 @@ std::unique_ptr<ChildProcess> spawn_capture(const std::string& cmd, bool merge_s
     if (!ok) {
         CloseHandle(out_read);
         ConsoleLog::instance().log_command(
-            cmd, "spawn failed: CreateProcess error " + std::to_string(GetLastError()), -1);
+            command_text(args), "spawn failed: CreateProcess error " + std::to_string(GetLastError()), -1);
         return nullptr;
     }
     CloseHandle(pi.hThread);
@@ -445,14 +427,53 @@ std::unique_ptr<ChildProcess> spawn_capture(const std::string& cmd, bool merge_s
 
 #endif // _WIN32
 
+#if !defined(_WIN32)
+int run_with_stdin_file(const Args& args, const std::string& stdin_path) {
+    if (args.empty() || args[0].empty()) return -1;
+    posix_spawn_file_actions_t actions;
+    posix_spawn_file_actions_init(&actions);
+    posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, stdin_path.c_str(), O_RDONLY, 0);
+    posix_spawn_file_actions_addopen(&actions, STDOUT_FILENO, "/dev/null", O_WRONLY, 0);
+    posix_spawn_file_actions_addopen(&actions, STDERR_FILENO, "/dev/null", O_WRONLY, 0);
+    std::vector<char*> argv;
+    argv.reserve(args.size() + 1);
+    for (const std::string& a : args) argv.push_back(const_cast<char*>(a.c_str()));
+    argv.push_back(nullptr);
+    pid_t pid = -1;
+    const int rc = posix_spawnp(&pid, args[0].c_str(), &actions, nullptr, argv.data(), environ);
+    posix_spawn_file_actions_destroy(&actions);
+    if (rc != 0) return -1;
+    int status = 0;
+    if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status)) return -1;
+    return WEXITSTATUS(status);
+}
+
+bool program_on_path(const std::string& name) {
+    if (name.empty()) return false;
+    if (name.find('/') != std::string::npos) return access(name.c_str(), X_OK) == 0;
+    const char* path = std::getenv("PATH");
+    if (!path) return false;
+    std::string dirs = path;
+    size_t start = 0;
+    while (start <= dirs.size()) {
+        size_t end = dirs.find(':', start);
+        if (end == std::string::npos) end = dirs.size();
+        const std::string dir = start == end ? std::string(".") : dirs.substr(start, end - start);
+        if (access((dir + "/" + name).c_str(), X_OK) == 0) return true;
+        start = end + 1;
+    }
+    return false;
+}
+#endif
+
 // =====================================================================
 // Shared
 // =====================================================================
 
-ProcResult run_capture(const std::string& cmd, bool merge_stderr) {
+ProcResult run_capture(const Args& args, bool merge_stderr) {
     ProcResult result;
 
-    std::unique_ptr<ChildProcess> child = spawn_capture(cmd, merge_stderr);
+    std::unique_ptr<ChildProcess> child = spawn_capture(args, merge_stderr);
     if (!child) {
         result.exit_code = -1;
         return result;   // spawn_capture already logged the reason
@@ -467,7 +488,7 @@ ProcResult run_capture(const std::string& cmd, bool merge_stderr) {
     result.out = oss.str();
     result.exit_code = child->wait();
 
-    ConsoleLog::instance().log_command(cmd, result.out, result.exit_code);
+    ConsoleLog::instance().log_command(command_text(args), result.out, result.exit_code);
     return result;
 }
 

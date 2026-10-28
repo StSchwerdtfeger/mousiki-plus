@@ -1,7 +1,10 @@
+// Synced lyrics: finds the lyrics of a track, reads and writes the .lrc sidecar next to the audio
+// file, and keeps earlier versions of the lyrics as separate files.
 #include "lyrics_fetcher.h"
 #include "TextSanitizer.h"
 #include "path_utf8.h"
 #include "process_util.h"
+#include "tiny_json.h"
 #include <algorithm>
 #include <atomic>
 #include <cctype>
@@ -90,51 +93,32 @@ static fs::path existing_sidecar_file(const fs::path& track_path) {
     return {};
 }
 
-static std::string json_unescape(const std::string& s);   // below
-
 // Lyrics written into the audio file (USLT / SYLT / LYRICS / UNSYNCEDLYRICS ... tags), as ffprobe sees them. A value
 // with timestamps wins over plain text; otherwise the longest one. Empty when the file has none (or no ffprobe).
 static std::string read_embedded_lyrics(const fs::path& track_path) {
     if (track_path.empty()) return {};
-    const ProcResult r = run_capture("ffprobe -v error -of json -show_entries format_tags:stream_tags " +
-                                     shell_quote(path_utf8(track_path)), false);
-    if (!r.ok() || r.out.empty()) return {};
-    const std::string& j = r.out;
-    auto read_string = [&](size_t& i, std::string& out) -> bool {   // i on the opening quote
-        if (i >= j.size() || j[i] != '"') return false;
-        size_t k = i + 1;
-        std::string raw;
-        while (k < j.size() && j[k] != '"') {
-            if (j[k] == '\\' && k + 1 < j.size()) { raw += j[k]; raw += j[k + 1]; k += 2; continue; }
-            raw += j[k++];
-        }
-        if (k >= j.size()) return false;
-        out = json_unescape(raw);
-        i = k + 1;
-        return true;
-    };
+    const ProcResult r = run_capture({"ffprobe", "-v", "error", "-of", "json", "-show_entries", "format_tags:stream_tags",
+                                      path_utf8(track_path)}, false);
+    tinyjson::Value root;
+    if (!r.ok() || !tinyjson::parse(r.out, root)) return {};
+    // The tags sit under "format" and under each entry of "streams".
+    std::vector<const tinyjson::Value*> tag_sets;
+    if (const tinyjson::Value* f = root.find("format")) if (const tinyjson::Value* t = f->find("tags")) tag_sets.push_back(t);
+    if (const tinyjson::Value* streams = root.find("streams"))
+        for (const tinyjson::Value& st : streams->arr) if (const tinyjson::Value* t = st.find("tags")) tag_sets.push_back(t);
     static const std::regex ts_re(R"(\[\d+:\d+(?:\.\d+)?\])");
     std::string best_synced, best_plain;
-    size_t i = 0;
-    while (i < j.size()) {
-        if (j[i] != '"') { ++i; continue; }
-        std::string key;
-        if (!read_string(i, key)) break;
-        size_t k = i;
-        while (k < j.size() && std::isspace(static_cast<unsigned char>(j[k]))) ++k;
-        if (k >= j.size() || j[k] != ':') continue;     // a string that is a value or inside an array, not a key
-        ++k;
-        while (k < j.size() && std::isspace(static_cast<unsigned char>(j[k]))) ++k;
-        if (k >= j.size() || j[k] != '"') continue;     // the value is an object / number
-        std::string val;
-        if (!read_string(k, val)) break;
-        i = k;
-        std::string lk = key;
-        for (auto& c : lk) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-        if (lk.find("lyrics") == std::string::npos && lk.find("lyr") == std::string::npos) continue;
-        if (val.size() < 8) continue;
-        if (std::regex_search(val, ts_re)) { if (val.size() > best_synced.size()) best_synced = val; }
-        else if (val.size() > best_plain.size()) best_plain = val;
+    for (const tinyjson::Value* tags : tag_sets) {
+        for (const auto& [key, value] : tags->obj) {
+            if (value.type != tinyjson::Type::String) continue;
+            std::string lk = key;
+            for (auto& c : lk) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (lk.find("lyr") == std::string::npos) continue;
+            const std::string& val = value.str;
+            if (val.size() < 8) continue;
+            if (std::regex_search(val, ts_re)) { if (val.size() > best_synced.size()) best_synced = val; }
+            else if (val.size() > best_plain.size()) best_plain = val;
+        }
     }
     return !best_synced.empty() ? best_synced : best_plain;
 }
@@ -230,129 +214,6 @@ static void archive_current_sidecar(const fs::path& track_path) {
     // keep the ten newest
     auto all = list_archived(track_path);
     for (size_t i = 10; i < all.size(); ++i) fs::remove(all[i].file, ec);
-}
-
-// --- minimal JSON field extraction -----------------------------------
-// The helper script's output shape is fixed and simple (see
-// scripts/fetch_lyrics.py), so a tiny hand-rolled extractor avoids
-// pulling in a JSON dependency for one flat object.
-
-static bool json_get_bool(const std::string& json, const std::string& key, bool fallback) {
-    std::regex re("\"" + key + "\"\\s*:\\s*(true|false)");
-    std::smatch m;
-    if (std::regex_search(json, m, re)) return m[1] == "true";
-    return fallback;
-}
-
-static int hex_val(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    return -1;
-}
-
-// Parses 4 hex digits starting at s[pos]; false (out untouched) if out
-// of range or non-hex.
-static bool parse_hex4(const std::string& s, size_t pos, uint32_t& out) {
-    if (pos + 4 > s.size()) return false;
-    uint32_t v = 0;
-    for (int k = 0; k < 4; ++k) {
-        int h = hex_val(s[pos + k]);
-        if (h < 0) return false;
-        v = (v << 4) | static_cast<uint32_t>(h);
-    }
-    out = v;
-    return true;
-}
-
-static void append_utf8(std::string& out, uint32_t cp) {
-    if (cp <= 0x7F) {
-        out += static_cast<char>(cp);
-    } else if (cp <= 0x7FF) {
-        out += static_cast<char>(0xC0 | (cp >> 6));
-        out += static_cast<char>(0x80 | (cp & 0x3F));
-    } else if (cp <= 0xFFFF) {
-        out += static_cast<char>(0xE0 | (cp >> 12));
-        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-        out += static_cast<char>(0x80 | (cp & 0x3F));
-    } else {
-        out += static_cast<char>(0xF0 | (cp >> 18));
-        out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
-        out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
-        out += static_cast<char>(0x80 | (cp & 0x3F));
-    }
-}
-
-static std::string json_unescape(const std::string& s) {
-    std::string out;
-    out.reserve(s.size());
-    for (size_t i = 0; i < s.size(); ++i) {
-        if (s[i] == '\\' && i + 1 < s.size()) {
-            char n = s[i + 1];
-            if (n == 'n') { out += '\n'; ++i; continue; }
-            if (n == 't') { out += '\t'; ++i; continue; }
-            if (n == 'r') { out += '\r'; ++i; continue; }
-            if (n == '"' || n == '\\' || n == '/') { out += n; ++i; continue; }
-            if (n == 'u') {
-                // \uXXXX -- was falling through untouched before (only
-                // n/t/"/\/ were handled), which is exactly why non-ASCII
-                // lyrics (CJK titles, curly quotes, em-dashes, etc --
-                // anything Python's json.dumps escapes as \uXXXX by
-                // default) rendered as literal "\u4f5c"-style text
-                // instead of the actual characters.
-                uint32_t cp;
-                if (parse_hex4(s, i + 2, cp)) {
-                    if (cp >= 0xD800 && cp <= 0xDBFF) {
-                        // High surrogate -- must be immediately followed
-                        // by a low surrogate to form one real codepoint
-                        // (characters outside the BMP, e.g. some emoji).
-                        uint32_t low;
-                        if (i + 7 < s.size() && s[i + 6] == '\\' && s[i + 7] == 'u' &&
-                            parse_hex4(s, i + 8, low) && low >= 0xDC00 && low <= 0xDFFF) {
-                            uint32_t combined = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00);
-                            append_utf8(out, combined);
-                            i += 11; // consumed \uXXXX\uXXXX (12 chars; loop's ++i covers the 12th)
-                            continue;
-                        }
-                        // Unpaired high surrogate -- fall through and
-                        // emit the raw escape rather than a broken codepoint.
-                    } else {
-                        append_utf8(out, cp);
-                        i += 5; // consumed \uXXXX (6 chars; loop's ++i covers the 6th)
-                        continue;
-                    }
-                }
-            }
-        }
-        out += s[i];
-    }
-    return out;
-}
-
-static bool json_get_string(const std::string& json, const std::string& key, std::string& out) {
-    // Finds "key":"....(possibly escaped)...."
-    std::string needle = "\"" + key + "\"";
-    size_t kpos = json.find(needle);
-    if (kpos == std::string::npos) return false;
-    size_t colon = json.find(':', kpos + needle.size());
-    if (colon == std::string::npos) return false;
-    size_t qstart = json.find('"', colon);
-    if (qstart == std::string::npos) return false;
-    size_t i = qstart + 1;
-    std::string raw;
-    while (i < json.size()) {
-        if (json[i] == '\\' && i + 1 < json.size()) {
-            raw += json[i];
-            raw += json[i + 1];
-            i += 2;
-            continue;
-        }
-        if (json[i] == '"') break;
-        raw += json[i];
-        ++i;
-    }
-    out = json_unescape(raw);
-    return true;
 }
 
 // --- "[offset:+500]" tag --------------------------------------------------
@@ -544,33 +405,30 @@ LyricsResult fetch_synced_lyrics(const std::string& title, const std::string& ar
     // 2) Python helper (scripts/fetch_lyrics.py): Better Lyrics first
     //    (word-level enhanced LRC from TTML), falling back to LRCLIB
     //    (line-synced only) -- see scripts/lrc.py for the actual fetch
-    //    logic. Paxsenix and syncedlyrics used to sit in this chain but
-    //    were dropped: Paxsenix for being unreliable, syncedlyrics in
-    //    favor of calling Better Lyrics/LRCLIB directly.
+    //    logic. Paxsenix and syncedlyrics are not in this chain: Paxsenix
+    //    was unreliable, and syncedlyrics is replaced by calling Better
+    //    Lyrics/LRCLIB directly.
     // Windows has no "python3" binary. Which invocation actually works
     // depends on how Python was installed, and the default-enabled Microsoft
     // Store alias means a bare "python" may resolve to a stub that opens the
-    // Store instead of running anything. win_python_command() sorts that out
-    // once; everywhere else this is still plain "python3".
-#if defined(_WIN32)
-    const std::string& python = win_python_command();
-    if (python.empty()) {
+    // Store instead of running anything. python_command() sorts that out
+    // (on Windows it is "py -3" or a full path; elsewhere "python3").
+    Args cmd = python_command();
+    if (cmd.empty()) {
         result.status = LyricsStatus::PythonMissing;
         result.message = "Python 3 not found on PATH -- lyrics unavailable";
         return result;
     }
-#else
-    const std::string python = "python3";
-#endif
 
-    std::string cmd = python + " " + shell_quote(helper_script_path) +
-                       " " + shell_quote(title) + " " + shell_quote(artist);
+    cmd.push_back(helper_script_path);
+    cmd.push_back(title);
+    cmd.push_back(artist);
     if (g_name_variants.load()) {
-        cmd += " --variants";
+        cmd.push_back("--variants");
         // the Latin spelling (made here: the script has no tables): only passed when it differs
         const std::string lt = transliterate(title), la = transliterate(artist);
-        if (!lt.empty() && lt != title) cmd += " --alt-title " + shell_quote(lt);
-        if (!la.empty() && la != artist) cmd += " --alt-artist " + shell_quote(la);
+        if (!lt.empty() && lt != title) { cmd.push_back("--alt-title"); cmd.push_back(lt); }
+        if (!la.empty() && la != artist) { cmd.push_back("--alt-artist"); cmd.push_back(la); }
     }
     ProcResult r = run_capture(cmd, /*merge_stderr=*/false);
 
@@ -590,10 +448,11 @@ LyricsResult fetch_synced_lyrics(const std::string& title, const std::string& ar
         return result;
     }
 
-    if (!json_get_bool(r.out, "ok", false)) {
-        std::string err, detail;
-        json_get_string(r.out, "error", err);
-        json_get_string(r.out, "detail", detail);
+    tinyjson::Value answer;
+    tinyjson::parse_answer(r.out, answer);
+    if (!tinyjson::bool_field(answer, "ok", false)) {
+        const std::string err = tinyjson::string_field(answer, "error");
+        const std::string detail = tinyjson::string_field(answer, "detail");
 
         if (err == "MODULE_MISSING") {
             result.status = LyricsStatus::ModuleMissing;
@@ -608,12 +467,10 @@ LyricsResult fetch_synced_lyrics(const std::string& title, const std::string& ar
         return result;
     }
 
-    std::string lrc, source;
-    bool enhanced = json_get_bool(r.out, "enhanced", false);
-    json_get_string(r.out, "lrc", lrc);
-    json_get_string(r.out, "source", source);
-    std::string variant;
-    json_get_string(r.out, "variant", variant);
+    const std::string lrc = tinyjson::string_field(answer, "lrc");
+    const std::string source = tinyjson::string_field(answer, "source");
+    const bool enhanced = tinyjson::bool_field(answer, "enhanced", false);
+    const std::string variant = tinyjson::string_field(answer, "variant");
 
     result.lines = parse_lrc(lrc, enhanced);
     result.status = LyricsStatus::Ok;

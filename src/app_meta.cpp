@@ -713,8 +713,8 @@ std::vector<std::string> App::build_meta_fields_panel(int total_width, int heigh
             // marked range is drawn in reverse video, and the caret itself
             // is the block glyph this panel uses for a cursor (it renders
             // whole frames, so there is no real terminal cursor to move --
-            // which is also why an arrow press used to be free to switch
-            // tabs while the text still had nowhere to go).
+            // which is also why an arrow press in the caret row is free to switch
+            // tabs while the text still has nowhere to go).
             // The caret only belongs to this row if the offsets were last
             // set against exactly this (file, field) pair -- see the field
             // editor in handle_meta_key().

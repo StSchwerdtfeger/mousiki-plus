@@ -1,3 +1,5 @@
+// Loudness meter (EBU R128 style): measures the momentary and integrated loudness of the playing
+// audio, used by loudness normalisation.
 #pragma once
 #include <algorithm>
 #include <array>

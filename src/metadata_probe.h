@@ -1,3 +1,5 @@
+// Track metadata (see metadata_probe.cpp): TrackMetadata for the panel, RowMeta for the lists, and the
+// probe functions that fill them.
 #pragma once
 #include <filesystem>
 #include <string>
@@ -22,15 +24,14 @@ struct TrackMetadata {
 
 // Runs `ffprobe` once against `file` and fills in what it can. Missing
 // tags are left as "-" rather than failing the whole probe.
-// Fast, narrow probe for just the duration (used to render the mm:ss
-// column in file lists without paying for a full metadata probe per row).
+// Fast, narrow probe for just the duration (the mm:ss column of the file lists,
+// without a full metadata probe per row).
 // Returns -1 on failure.
 double probe_duration_seconds(const fs::path& file);
 
-// One ffprobe call for duration plus the real artist/title/album tags —
-// used to populate the file list's Artist column properly instead of
-// guessing from the parent folder name, and to let search match against
-// actual embedded metadata rather than just the filename.
+// One ffprobe call for duration plus the real artist/title/album tags. It fills the Artist column of
+// the file lists (instead of a guess from the parent folder name) and lets search match the embedded
+// tags, not only the file name.
 struct RowMeta {
     std::string artist; // empty if untagged
     std::string title;  // embedded title tag, empty if untagged/absent

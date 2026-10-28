@@ -1,3 +1,5 @@
+// Listening history (see history.cpp): the play record, the aggregated top lists and statistics, and
+// the HistoryStore that keeps them on disk.
 #pragma once
 #include <array>
 #include <map>
@@ -150,7 +152,7 @@ public:
     // shows the current track too.
     const std::vector<HistoryPlay>& plays() const { return plays_; }
 
-    // Scratch accessors for the current play's identity (used to build the
+    // Accessors for the current play's identity (used to build the
     // "completed" verdict when a track is handed over to its successor).
     const HistoryPlay* live_play() const;
 

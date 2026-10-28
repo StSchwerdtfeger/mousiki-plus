@@ -90,7 +90,7 @@ std::vector<std::string> App::build_phone_screen(int W, int H, std::vector<remot
     const std::string pending = ansi_for(settings_.progress_remaining_color);
 
     // ---- how many rows each part gets ----
-    // fixed: top, tabs, disk, separator, separator, 3 waveform rows, bottom = disk + 8; buttons 3, volume 1, 3 x 3 boxes = 13
+    // Fixed rows: top, tabs, disk, separator, separator, 3 waveform rows, bottom = disk + 8; buttons 3, volume 1, 3 x 3 boxes = 13
     const int disk_h = disk_.height();
     int meta_rows = 5, gap = 1, disk_pad = 1;
     auto need = [&]() { return 1 + 1 + disk_pad * 2 + disk_h + 1 + meta_rows + 1 + 3 + 1 + gap + 3 + 1 + gap + 9; };

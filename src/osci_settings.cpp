@@ -1,4 +1,7 @@
+// Oscilloscope settings: the palette names, trace length and resolution steps, and the mapping between
+// the settings' text values and their indices.
 #include "settings.h"
+#include "utf8_util.h"
 #include "viz_prefs.h"
 
 #include <algorithm>
@@ -27,7 +30,6 @@ template <class T, size_t N> int index_of(const T (&arr)[N], const std::string& 
     return def;
 }
 int step_in(int idx, int n, int dir) { return std::clamp(idx + (dir > 0 ? 1 : -1), 0, n - 1); }
-std::string lower(std::string s) { for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); return s; }
 }
 
 const char* osci_res_name(int scale) { return scale >= 3 ? "third" : scale == 2 ? "half" : "full"; }
@@ -155,7 +157,7 @@ void osci_adjust(Settings& s, int row, int dir) {
 
 namespace {
 bool as_bool(const std::string& v, bool def) {
-    const std::string l = lower(v);
+    const std::string l = ascii_lower_str(v);
     if (l == "true" || l == "1" || l == "yes" || l == "on") return true;
     if (l == "false" || l == "0" || l == "no" || l == "off") return false;
     return def;
@@ -170,7 +172,7 @@ int fps_snap(int fr) { return fr >= 143 ? 165 : fr >= 105 ? 120 : fr >= 75 ? 90 
 }
 
 bool osci_config_key(VizPrefs& s, const std::string& key_in, const std::string& value) {
-    const std::string key = lower(key_in);   // the radio's config reader hands over lower-case keys
+    const std::string key = ascii_lower_str(key_in);   // the radio's config reader hands over lower-case keys
     // Per style: braille = Osci<name> (the keys the player always had), image = OsciImage<name>.
     for (int st = 0; st < 2; ++st) {
         const std::string P = st == 0 ? "osci" : "osciimage";
@@ -183,12 +185,12 @@ bool osci_config_key(VizPrefs& s, const std::string& key_in, const std::string& 
         else if (n == "interpolation") o.interp = as_bool(value, o.interp);
         else if (n == "zaxis") o.z = as_bool(value, o.z);
         else if (n == "zdepth") o.z_depth = as_float(value, o.z_depth, 0.0f, 1.0f);
-        else if (n == "zsource") o.z_source = lower(value) == "level" ? 1 : 0;
+        else if (n == "zsource") o.z_source = ascii_lower_str(value) == "level" ? 1 : 0;
         else if (n == "tracelength") o.trace = as_int(value, o.trace, 128, 8192);
         else if (n == "rotate") o.rotate = as_bool(value, o.rotate);
         else if (n == "monophase") o.mono_phase = as_bool(value, o.mono_phase);
         else if (n == "glow") o.glow = as_float(value, o.glow, 0.0f, 1.0f);
-        else if (n == "palette") { const std::string l = lower(value); for (int i = 0; i < kOsciPaletteCount; ++i) if (l == kOsciPaletteNames[i] || (i == 8 && (l == "green" || l == "classic"))) o.palette = i; }
+        else if (n == "palette") { const std::string l = ascii_lower_str(value); for (int i = 0; i < kOsciPaletteCount; ++i) if (l == kOsciPaletteNames[i] || (i == 8 && (l == "green" || l == "classic"))) o.palette = i; }
         // frame rate and music mode per style; the braille line (written first) also sets the image style, so a config
         // from before (one value for both) gives both styles that value -- the image line that follows overrides it
         else if (n == "framerate") { const int fr = fps_snap(as_int(value, o.frame_rate, 30, 165)); o.frame_rate = fr; if (st == 0) s.osci_set[1].frame_rate = fr; }
@@ -200,15 +202,15 @@ bool osci_config_key(VizPrefs& s, const std::string& key_in, const std::string& 
         else continue;
         return true;
     }
-    if (key == "oscimode") { const std::string l = lower(value); s.osci_mode = l == "yt" ? 1 : (l == "overlap" || l == "both" || l == "xy+yt") ? 2 : (l == "row" || l == "rows") ? 3 : (l == "col" || l == "cols" || l == "column" || l == "columns") ? 4 : 0; return true; }
+    if (key == "oscimode") { const std::string l = ascii_lower_str(value); s.osci_mode = l == "yt" ? 1 : (l == "overlap" || l == "both" || l == "xy+yt") ? 2 : (l == "row" || l == "rows") ? 3 : (l == "col" || l == "cols" || l == "column" || l == "columns") ? 4 : 0; return true; }
     if (key == "scopegrid") { s.scope_grid = as_bool(value, s.scope_grid); return true; }
     if (key == "scopevalues") { s.scope_values = as_bool(value, s.scope_values); return true; }
     if (key == "scopegridcolor") { s.scope_grid_color = value; return true; }
     if (scope_metric_parse(s.scope_metrics, key_in, value)) return true;
-    if (key == "oscistyle") { s.osci_style = lower(value) == "image" ? 1 : 0; return true; }
-    if (key == "osciimageprotocol") { s.gfx_protocol = lower(value); return true; }
+    if (key == "oscistyle") { s.osci_style = ascii_lower_str(value) == "image" ? 1 : 0; return true; }
+    if (key == "osciimageprotocol") { s.gfx_protocol = ascii_lower_str(value); return true; }
     if (key == "osciimageresolution") { s.image_scale = osci_res_parse(value, s.image_scale); return true; }
-    if (key == "osciimagedetail") { s.image_detail = lower(value) == "high" ? 1 : 0; return true; }
+    if (key == "osciimagedetail") { s.image_detail = ascii_lower_str(value) == "high" ? 1 : 0; return true; }
     if (key == "framerate") {   // up to v3.0.0 one value for both styles
         const int fr = fps_snap(as_int(value, 30, 30, 165));
         s.osci_set[0].frame_rate = s.osci_set[1].frame_rate = fr;

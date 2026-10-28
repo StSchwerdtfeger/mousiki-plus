@@ -1,3 +1,5 @@
+// The waveform (see waveform.cpp): BrailleColumn is one column of the envelope, WaveformQuantizer
+// builds the envelope from the audio.
 #pragma once
 #include <filesystem>
 #include <functional>
@@ -69,7 +71,7 @@ public:
 // Runs on the calling thread until done; callers run this on its own
 // background thread. Sets decode_done (and decode_failed on error) on
 // `pcm` when finished. `on_chunk`, if given, is called after each chunk
-// with the chunk that was just produced — used to feed the live FFT
+// with the chunk that was just produced — this feeds the live FFT
 // visualizer without it needing to touch `pcm` directly.
 void stream_decode_ffmpeg(const fs::path& file_path, StreamingPcm& pcm,
                            const std::function<void(const float*, size_t)>& on_chunk = nullptr);

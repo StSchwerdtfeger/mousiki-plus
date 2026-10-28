@@ -1,3 +1,5 @@
+// Transliteration: writes Japanese, Korean and Chinese text in Latin letters (romaji, romanised
+// Hangul, pinyin) for titles, tags and lyrics.
 #include "translit.h"
 
 #include <algorithm>

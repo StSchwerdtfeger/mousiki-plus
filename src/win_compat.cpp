@@ -1,3 +1,5 @@
+// Windows-specific code: wide-character and UTF-8 path conversion, the clipboard in UTF-16, console
+// handling and the Windows key and window helpers.
 #include "win_compat.h"
 #include "terminal_ui.h" // kKeyHome
 

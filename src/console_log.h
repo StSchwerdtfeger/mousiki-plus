@@ -1,3 +1,5 @@
+// The console log (see console_log.cpp): ConsoleLog keeps recent lines and writes them to a file at a
+// basic or verbose level.
 #pragma once
 #include <filesystem>
 #include <mutex>

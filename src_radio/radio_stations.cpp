@@ -1,4 +1,7 @@
+// Radio stations: the station list file, the built-in default stations, and the URL handling for
+// station streams.
 #include "radio_stations.h"
+#include "string_util.h"
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
@@ -84,12 +87,6 @@ bool same_stream_url(const std::string& a, const std::string& b) {
     return pa.query == pb.query;          // both have one: what is left after dropping tracking parameters must agree
 }
 
-static std::string trim(const std::string& s) {
-    size_t a = s.find_first_not_of(" \t\r\n");
-    if (a == std::string::npos) return "";
-    size_t b = s.find_last_not_of(" \t\r\n");
-    return s.substr(a, b - a + 1);
-}
 
 // PATHS-tab overrides (empty = the default layout).
 static std::string g_stations_file, g_lists_file, g_presets_file;
@@ -137,7 +134,7 @@ static void apply_preset_names(std::vector<Station>& v) {
         if (line.empty() || line[0] == '#') continue;
         const size_t tab = line.find('\t');
         if (tab == std::string::npos) continue;
-        const std::string url = line.substr(0, tab), name = trim(line.substr(tab + 1));
+        const std::string url = line.substr(0, tab), name = trim_ws(line.substr(tab + 1));
         for (auto& st : v) if (st.url == url) st.preset_name = name;
     }
 }
@@ -157,14 +154,14 @@ static std::vector<Station> parse_file(const fs::path& p) {
     if (!in) return out;
     std::string line;
     while (std::getline(in, line)) {
-        line = trim(line);
+        line = trim_ws(line);
         if (line.empty() || line[0] == '#') continue;
         // name | genre | country | codec | bitrate | url | [*] | [dial MHz]
         std::vector<std::string> f;
         size_t pos = 0;
         while (true) {
             size_t bar = line.find('|', pos);
-            f.push_back(trim(line.substr(pos, bar == std::string::npos ? std::string::npos : bar - pos)));
+            f.push_back(trim_ws(line.substr(pos, bar == std::string::npos ? std::string::npos : bar - pos)));
             if (bar == std::string::npos) break;
             pos = bar + 1;
         }
@@ -204,7 +201,7 @@ std::vector<Station> load_stations(std::string* source_out) {
 // ---- saving stations -----------------------------------------------------------------------------
 static std::string clean_field(std::string v) {
     for (auto& c : v) if (c == '|' ) c = '/'; else if (static_cast<unsigned char>(c) < 32) c = ' ';
-    return trim(v);
+    return trim_ws(v);
 }
 
 static std::string station_line(const Station& s) {
@@ -274,12 +271,12 @@ static std::string clean_name(const std::string& raw, int max_chars) {
         else if (ch == '|') out += '/';
         else out += static_cast<char>(ch);
     }
-    out = trim(out);
+    out = trim_ws(out);
     int chars = 0;
     for (size_t i = 0; i < out.size(); ++i) {
         if ((static_cast<unsigned char>(out[i]) & 0xC0) != 0x80 && ++chars > max_chars) { out.resize(i); break; }
     }
-    return trim(out);
+    return trim_ws(out);
 }
 
 std::string clean_preset_name(const std::string& raw) { return clean_name(raw, kPresetNameMax); }
@@ -290,7 +287,7 @@ static std::vector<std::string> split_bar(const std::string& line) {
     size_t pos = 0;
     while (true) {
         size_t bar = line.find('|', pos);
-        f.push_back(trim(line.substr(pos, bar == std::string::npos ? std::string::npos : bar - pos)));
+        f.push_back(trim_ws(line.substr(pos, bar == std::string::npos ? std::string::npos : bar - pos)));
         if (bar == std::string::npos) break;
         pos = bar + 1;
     }
@@ -313,7 +310,7 @@ std::vector<StationList> load_station_lists(const std::vector<Station>& stations
     std::string line;
     StationList* cur = nullptr;
     while (std::getline(in, line)) {
-        line = trim(line);
+        line = trim_ws(line);
         if (line.empty() || line[0] == '#') continue;
         if (line.front() == '[' && line.back() == ']') {
             StationList l;
@@ -368,17 +365,17 @@ PresetStore load_presets(const std::vector<Station>& stations) {
             std::ifstream pre(p);
             std::string l;
             while (std::getline(pre, l)) {
-                l = trim(l);
-                if (l.rfind("@keys", 0) == 0) { file_keys = trim(l.substr(5)); break; }
+                l = trim_ws(l);
+                if (l.rfind("@keys", 0) == 0) { file_keys = trim_ws(l.substr(5)); break; }
             }
         }
         std::ifstream in(p);
         std::string line, active_name;
         PresetBank* cur = nullptr;
         while (std::getline(in, line)) {
-            line = trim(line);
+            line = trim_ws(line);
             if (line.empty() || line[0] == '#') continue;
-            if (line.rfind("@active", 0) == 0) { active_name = trim(line.substr(7)); continue; }
+            if (line.rfind("@active", 0) == 0) { active_name = trim_ws(line.substr(7)); continue; }
             if (line.rfind("@keys", 0) == 0) continue;
             if (line.front() == '[' && line.back() == ']') {
                 PresetBank b;

@@ -151,36 +151,13 @@ private:
     static constexpr int kListVisibleRows = 8; // initial list height before the first frame; from then on the list/queue panes take ALL the rows the terminal leaves (render_frame()), so a maximised window is filled instead of ending in blank lines
 
     // --- terminal-height awareness --------------------------------------
-    // The render loop used to only ever look at term.cols() (see the
-    // comment on the width clamp in render_frame()) and unconditionally
-    // emitted a fixed-height frame — metadata panel + progress + search
-    // bar + a hardcoded kListVisibleRows-row list/queue panel + status
-    // line — redrawn purely with "\x1b[H" + "\x1b[0J" and no alternate-
-    // screen buffer. On a terminal shorter than that fixed height, each
-    // frame overflows the viewport and scrolls; the next frame's
-    // "\x1b[H" then homes to the top of the *new* scrolled-into-view
-    // position rather than the top of the previous frame, so it draws a
-    // fresh copy further down, which overflows again, forever — visible
-    // as the panel endlessly re-duplicating itself downward.
-    //
-    // term_rows_ is the real, current terminal row count (from
-    // TerminalIO::rows(), which does read the OS via ioctl(TIOCGWINSZ)
-    // correctly -- it just wasn't being consulted anywhere). Refreshed
-    // once per frame at the top of render_frame(). list_visible_rows_ is
-    // how many list/queue rows *actually* fit this frame -- clamped
-    // between 0 and kListVisibleRows based on how much room term_rows_
-    // leaves after the fixed chrome (metadata/progress/search bar/status
-    // line) -- 0 and UP: since the cap was lifted the panes grow with the
-    // terminal, so going full screen no longer leaves unused rows below the
-    // main UI, and every overlay that mirrors the main UI's height
-    // (player_view_height()) follows. Every place that used to scroll-clamp or size against the
-    // kListVisibleRows constant now uses this instead, so what's
-    // rendered and what the scroll math thinks is visible never
-    // disagree. render_frame() also applies a hard line-count safety net
-    // (see clamp_output_rows()) on top of this, so even a terminal too
-    // short for the fixed chrome alone (metadata+progress+search bar)
-    // still can never scroll — the two mechanisms are independent, not
-    // "either/or".
+    // The frame is sized to the terminal, so it never scrolls. term_rows_ is the current terminal
+    // row count, read on every frame in render_frame(). list_visible_rows_ is how many list and queue
+    // rows fit in the room that is left after the fixed parts (metadata, progress bar, search bar,
+    // status line). It can grow with a maximised window and has no upper cap. Anything that scrolls
+    // or sizes a list uses it, so what is drawn and what the scroll math assumes stay the same.
+    // render_frame() also clamps the line count (clamp_output_rows()), so even a very short terminal
+    // cannot scroll the screen.
     int term_rows_ = 24;
     int list_visible_rows_ = kListVisibleRows;
 
@@ -1048,9 +1025,8 @@ private:
     void build_console_screen(std::ostringstream& frame, int W, int target_height) const;
 
     // --- cheatsheet overlay (HKeyCheatsheet) ----------------------------
-    // Scroll position within the key table -- the table is longer than a
-    // small terminal can show at once, and (unlike Settings' Reference tab)
-    // this overlay used to just silently drop whatever didn't fit. Mutable
+    // Scroll position within the key table (the table is longer than a small terminal can show,
+    // so the overlay scrolls instead of dropping rows). Mutable
     // because build_cheatsheet_screen() is const and clamps it against the
     // rows that actually fit as it draws.
     mutable int cheatsheet_scroll_ = 0;
@@ -1291,12 +1267,9 @@ private:
     void poll_pending_search();
 
     // --- settings panel (6 tabs: Colors, On/Off, Animation, Paths, Reference, About App) ---
-    // Rendering uses absolute cursor positioning (\x1b[y;xH) rather than
-    // building padded strings line by line -- each field goes exactly
-    // where it's told regardless of what else is on that row, which is
-    // what actually fixes the truncation-corrupts-everything fragility
-    // class of bug (a mis-sized pad on one row used to bleed into
-    // whatever the next escape code was).
+    // Rendering uses absolute cursor positioning (\x1b[y;xH) rather than building padded strings
+    // line by line: each field is placed where it belongs, so a wrong width on one row cannot shift
+    // the escape sequences of the next one.
     Settings& settings_;
     static constexpr int kSettingsTabCount = 6; // Colors, On/Off, Animation, Paths, Reference, About App
     int settings_tab_ = 0;
@@ -1398,9 +1371,7 @@ private:
     int settings_max_row() const; // last valid row index for the current tab
     std::vector<std::string> settings_anima_note(int W) const;   // the note at the bottom of the ANIMA/VIZ tab
     int settings_tab_first_line(int W, int visible) const;       // first layout line shown on tab 1 / 2 (scrolling)
-    // (main_frame_height() was removed -- see the comment where it used to
-    // live in app.cpp, right before build_settings_screen(). Every overlay
-    // now sizes off term_rows_ directly instead.)
+    // Every overlay sizes itself from term_rows_ directly.
     void build_settings_screen(std::ostringstream& frame, int W, int player_h) const;
     void handle_settings_key(int key);
 
@@ -1479,11 +1450,8 @@ private:
     std::string marquee_or_truncate(const std::string& text, int width, int row_idx,
                                      int& tracked_idx, std::chrono::steady_clock::time_point& since) const;
 
-    // Re-runs LocalSource::scan() over the current
-    // settings_.local_music_paths and rebuilds local_view_ -- called when
-    // a path is edited in the PATHS tab, so a path change takes effect
-    // immediately instead of only on the next launch (config.txt's own
-    // comment used to say "there's no live rescan"; there is now).
+    // Scans the music folders again (LocalSource::scan()) and rebuilds local_view_. It runs when a
+    // path is changed in the PATHS tab, so the change takes effect at once.
     void rescan_library();
 
     // Max row count per tab (set in build_settings_screen)

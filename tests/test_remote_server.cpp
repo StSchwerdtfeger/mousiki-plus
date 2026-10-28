@@ -3,6 +3,7 @@
 #include "remote_server.h"
 #include "remote_control.h"
 #include "terminal_ui.h"
+#include "tiny_json.h"
 
 #include <algorithm>
 #include <chrono>
@@ -77,9 +78,9 @@ TEST(remote_server_parses_request_lines) {
 }
 
 TEST(remote_server_json_escape) {
-    CHECK_EQ(net::json_escape("a\"b\\c\n"), std::string("a\\\"b\\\\c\\n"));
-    CHECK_EQ(net::json_escape("\x1b[0m"), std::string("\\u001b[0m"));      // colour escapes survive as \u001b
-    CHECK_EQ(net::json_escape("M\xc3\xbcsik"), std::string("M\xc3\xbcsik")); // UTF-8 passes unchanged
+    CHECK_EQ(muisc::tinyjson::escape("a\"b\\c\n"), std::string("a\\\"b\\\\c\\n"));
+    CHECK_EQ(muisc::tinyjson::escape("\x1b[0m"), std::string("\\u001b[0m"));      // colour escapes survive as \u001b
+    CHECK_EQ(muisc::tinyjson::escape("M\xc3\xbcsik"), std::string("M\xc3\xbcsik")); // UTF-8 passes unchanged
 }
 
 TEST(remote_server_pin_rule) {

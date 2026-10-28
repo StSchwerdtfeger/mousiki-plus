@@ -1,3 +1,5 @@
+// The --selftest-fetch command: checks the helper scripts and the pinned downloads, offline or online,
+// and reports the result with an exit code.
 #include "selftest.h"
 #include "app_internal.h"
 #include <cstdio>

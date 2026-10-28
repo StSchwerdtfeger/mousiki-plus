@@ -180,7 +180,7 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
         pl.total_sec = duration > 0 ? static_cast<size_t>(duration) : 0;
 
         pl.pcm = std::make_shared<StreamingPcm>();
-        // the file's own sample rate: no resampling on the way to the device (it used to be 44.1 kHz for everything)
+        // the file's own sample rate: no resampling on the way to the device
         pl.pcm->reserve_for_seconds(duration > 0 ? duration : 300.0,
                                     native_sample_rate(decode_from, pl.metadata.sampling, duration, settings_.rate_cap_96), want_stereo ? 2 : 1,
                                     static_cast<double>(settings_.track_buffer_mb) * 1024.0 * 1024.0);
@@ -271,12 +271,9 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
     });
 }
 
-// Used to block here waiting for the previous track's fetch thread to
-// finish (join()) before starting a new one. That's a real main-thread
-// stall: whenever lyrics aren't quickly available (still mid network-call
-// chain) and the user skips to another track before it resolves,
-// switching songs would hang until the abandoned fetch finished.
-// Detaching instead, with an epoch guard so a late-arriving stale result
+// The previous track's fetch thread is detached, not joined: joining would block the main thread
+// until the abandoned fetch finished, so skipping to another track during a slow lookup would hang
+// the program. An epoch guard so a late-arriving stale result
 // just gets discarded rather than clobbering the new/retried track's
 // lyrics. Shared by the initial per-track fetch (poll_pending_load) and
 // the manual retry hotkey (handle_key's 'l' case).
@@ -299,9 +296,8 @@ void App::poll_pending_load() {
     PendingLoad pl;
     {
         std::lock_guard<std::mutex> lk(load_mutex_);
-        // BUG FIX #4: clear the flag while still holding load_mutex_ so
-        // the load thread cannot race-write pending_load_ again in the
-        // window between the copy and the flag reset.
+        // The flag is cleared while load_mutex_ is still held, so the load thread cannot write
+        // pending_load_ again between the copy and the reset.
         if (!load_ready_.load()) return; // re-check under lock (spurious wakeup guard)
         pl = std::move(pending_load_);   // moved, not copied: a copy left here kept the track's audio alive
         pending_load_ = PendingLoad{};
@@ -355,16 +351,13 @@ void App::poll_pending_load() {
     waveform_envelope_.clear();
     waveform_ready_ = false;
     waveform_pending_ready_ = false;
-    ++waveform_epoch_; // BUG FIX #5: invalidate any in-flight waveform from the previous track
+    ++waveform_epoch_; // any waveform still being computed for the previous track is now stale
     last_lyrics_status_.clear();
     fft_.reset(); // don't let the previous track's spectrum tail linger into this one's first frame
     scope_.reset(); // ...and don't let the previous track's waveform linger in the oscilloscope either
 
-    // "Lyrics Engine" (settings_.element_lyrics) used to only hide the
-    // panel -- fetch_synced_lyrics() still ran, still spawned Python, and
-    // still hit the network for every single track, whether or not
-    // anything was ever shown. Toggling it off now actually turns the
-    // feature off, matching what the settings label already claimed.
+    // "Lyrics Engine" (settings_.element_lyrics) off means no lyrics work at all: nothing is
+    // fetched, no Python is started and there is no network access.
     if (settings_.lyrics_on() && !audiobook_) {   // (no lyrics for audio books)
         launch_lyrics_fetch(pl.title, pl.artist, pl.path);
     } else {

@@ -1,4 +1,7 @@
+// Keyboard layout detection: finds the layout of this machine (Linux XKB and locale, macOS input
+// source, Windows keyboard layout) and names the mode-switch keys accordingly.
 #include "keyboard_layout.h"
+#include "utf8_util.h"
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -13,14 +16,10 @@
 namespace muisc {
 namespace {
 
-std::string lower(std::string s) {
-    for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return s;
-}
 
 // "de,us" / "de(nodeadkeys)" / "de_DE.UTF-8" -> "de"
 std::string first_code(const std::string& v) {
-    std::string s = lower(v);
+    std::string s = ascii_lower_str(v);
     size_t i = 0;
     while (i < s.size() && std::isspace(static_cast<unsigned char>(s[i]))) ++i;
     std::string out;
@@ -44,7 +43,7 @@ std::string value_after(const std::string& text, const std::string& key) {   // 
 
 // macOS: the layout NAME of the selected input source ("German", "U.S.", "British", "Austrian", ...)
 std::string mac_code(const std::string& text) {
-    const std::string t = lower(text);
+    const std::string t = ascii_lower_str(text);
     struct M { const char* name; const char* code; };
     static const M m[] = {{"german", "de"}, {"austrian", "at"}, {"swiss", "ch"}, {"spanish", "es"}, {"italian", "it"},
                           {"french", "fr"}, {"british", "gb"}, {"irish", "ie"}, {"australian", "au"}, {"canadian", "ca"},
@@ -75,15 +74,15 @@ std::string detect() {
     if (const char* e = std::getenv("MOUSIKI_KEYBOARD")) if (*e) return first_code(e);   // manual override, e.g. MOUSIKI_KEYBOARD=de
     if (const char* e = std::getenv("XKB_DEFAULT_LAYOUT")) if (*e) return first_code(e);
 #if defined(__APPLE__)
-    const ProcResult r = run_capture("defaults read com.apple.HIToolbox AppleSelectedInputSources 2>/dev/null");
+    const ProcResult r = run_capture({"defaults", "read", "com.apple.HIToolbox", "AppleSelectedInputSources"});  // stderr is discarded
     if (r.exit_code == 0) { const std::string c = mac_code(r.out); if (!c.empty()) return c; }
 #else
     {
-        const ProcResult r = run_capture("setxkbmap -query 2>/dev/null");
+        const ProcResult r = run_capture({"setxkbmap", "-query"});
         if (r.exit_code == 0) { const std::string v = value_after(r.out, "layout:"); if (!first_code(v).empty()) return first_code(v); }
     }
     {
-        const ProcResult r = run_capture("localectl status 2>/dev/null");
+        const ProcResult r = run_capture({"localectl", "status"});
         if (r.exit_code == 0) { const std::string v = value_after(r.out, "X11 Layout:"); if (!first_code(v).empty()) return first_code(v); }
     }
     {

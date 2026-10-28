@@ -1,7 +1,12 @@
+// Running external programs (see process_util.cpp): run_capture() for a short command, ChildProcess
+// for a long-running one. Programs are always started from an argument list (argv[0] is the program,
+// the rest are its arguments, passed as-is). No shell is involved on any platform, so file names and
+// URLs need no quoting and cannot be interpreted as shell syntax.
 #pragma once
 #include <cstddef>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace muisc {
 
@@ -11,19 +16,19 @@ struct ProcResult {
     bool ok() const { return exit_code == 0; }
 };
 
-// Runs `cmd` and captures stdout. Caller is responsible for quoting any
-// interpolated arguments (see shell_quote()).
-ProcResult run_capture(const std::string& cmd, bool merge_stderr = false);
+// The program and its arguments: args[0] is the program (a name on PATH or a path).
+using Args = std::vector<std::string>;
 
-// Wraps a string in single quotes, safely escaping any embedded quotes, so it
-// can be dropped into a command line.
-//
-// On Windows there is no shell involved (see process_util.cpp), but the same
-// POSIX single-quote convention is kept: the Windows implementation parses the
-// command string with sh-compatible word-splitting rules and then re-quotes
-// each resulting argument the way CommandLineToArgvW expects. Keeping one
-// convention means every call site in the codebase stays platform-agnostic.
-std::string shell_quote(const std::string& s);
+// Runs the program and captures its stdout. stderr is discarded unless merge_stderr is true.
+ProcResult run_capture(const Args& args, bool merge_stderr = false);
+
+// Text for logs and the console overlay only (arguments with spaces or special characters are quoted
+// so the line can be read back). It is never run.
+std::string command_text(const Args& args);
+
+// The Python 3 interpreter as an argument list ("python3", or on Windows "py -3" or a full path). Empty when Python
+// is not installed (Windows only; elsewhere the name is always returned and a missing binary shows up at spawn time).
+Args python_command();
 
 // ---------------------------------------------------------------------------
 // Streaming variant
@@ -55,18 +60,26 @@ public:
     int wait();
 
     // Ends the child right away (SIGKILL / TerminateProcess); wait() then returns. Safe to call from another thread than
-    // the one reading, and after the child has exited. On POSIX the command line should start with "exec " so the
-    // killed process is the program itself and not the shell that started it.
+    // the one reading, and after the child has exited.
     void kill();
 
 private:
     ChildProcess();
-    friend std::unique_ptr<ChildProcess> spawn_capture(const std::string&, bool);
+    friend std::unique_ptr<ChildProcess> spawn_capture(const Args&, bool);
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
 
 // Returns nullptr if the process could not be started at all.
-std::unique_ptr<ChildProcess> spawn_capture(const std::string& cmd, bool merge_stderr);
+std::unique_ptr<ChildProcess> spawn_capture(const Args& args, bool merge_stderr);
+
+#if !defined(_WIN32)
+// Runs the program with its stdin read from the file `stdin_path`, its stdout and stderr discarded, and waits for it.
+// Returns the exit code, or -1 if it could not be started. Used for the clipboard tools (POSIX only).
+int run_with_stdin_file(const Args& args, const std::string& stdin_path);
+
+// True when `name` is an executable found on PATH.
+bool program_on_path(const std::string& name);
+#endif
 
 } // namespace muisc

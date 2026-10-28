@@ -1,3 +1,5 @@
+// Radio YouTube search: finds the helper script (through MOUSIKI_SCRIPTS_DIR when it is set) and runs
+// the search for the radio's online station lookup.
 #include "radio_yt.h"
 #include "online_source.h"
 #include "youtube_source.h"

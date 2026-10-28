@@ -1,3 +1,5 @@
+// Font glyphs (see glyph_raster.cpp): RasterGlyph is one character as a dot grid, glyph_rasterize()
+// produces it from the chosen font.
 #pragma once
 #include <cstdint>
 #include <string>

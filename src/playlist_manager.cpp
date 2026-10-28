@@ -1,3 +1,5 @@
+// Saved playlists: lists, renames and removes the playlist files in the playlist folder and rewrites
+// track paths when files move.
 #include "playlist_manager.h"
 #include "path_utf8.h"
 #include <algorithm>

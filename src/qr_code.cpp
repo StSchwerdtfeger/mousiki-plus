@@ -1,3 +1,5 @@
+// QR code generator (used for the remote app's connect screen): builds a level M code of up to version
+// 10 as a matrix of modules.
 #include "qr_code.h"
 
 #include <algorithm>

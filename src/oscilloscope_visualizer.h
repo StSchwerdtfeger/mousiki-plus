@@ -1,3 +1,5 @@
+// The oscilloscope (see oscilloscope_visualizer.cpp): OscilloscopeVisualizer collects frames and
+// paints the trace into a grid of cells.
 #pragma once
 #include <array>
 #include <cstdint>

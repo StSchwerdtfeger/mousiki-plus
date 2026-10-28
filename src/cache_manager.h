@@ -1,3 +1,5 @@
+// Download cache (see cache_manager.cpp): where downloaded online tracks are stored, how their file
+// names are built, and whether a track is already cached.
 #pragma once
 #include <filesystem>
 #include <string>

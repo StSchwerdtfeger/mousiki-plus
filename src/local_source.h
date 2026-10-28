@@ -1,3 +1,5 @@
+// The local library (see local_source.cpp): LocalTrack describes one file, LocalSource scans the music
+// folders and finds tracks.
 #pragma once
 #include <filesystem>
 #include <optional>

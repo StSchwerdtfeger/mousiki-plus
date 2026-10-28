@@ -1,3 +1,5 @@
+// The Creator visualisation: renders text and pictures (PGM images, typed text) into a grey pixel
+// field and turns it into braille cells for the visualisation field.
 #include "creator.h"
 
 #include <algorithm>

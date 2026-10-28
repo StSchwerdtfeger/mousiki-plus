@@ -442,7 +442,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
         // Nothing loaded -- never started, playback stopped with no track,
         // or the file that was playing got deleted. The message sits centred
         // (both ways) in the metadata/visualizer column instead of being
-        // glued to its first row, where it used to hide behind the disk.
+        // glued to its first row, where it would hide behind the disk.
         meta_rows[std::max(0, panel_h / 2)] = center_pad(audiobook_ ? "Currently No Narrative Loaded" : "Currently No Track Loaded", meta_w);
     }
     for (int i = 0; i < static_cast<int>(meta_rows.size()); ++i) {
@@ -806,12 +806,9 @@ std::vector<std::string> App::build_progress_panel(int total_width) const {
     top_wave += color_reset; mid_wave += color_reset; bot_wave += color_reset;
 
     // Generic fallback bar for when the waveform element is switched
-    // off: a plain "[#####-------]" fill on the middle row, blank above
-    // and below it, instead of leaving the panel showing a stray braille
-    // waveform on two of its three rows (top_wave/mid_wave used to render
-    // unconditionally regardless of this setting -- only the bottom row
-    // respected the toggle, which is the "turning off waveform doesn't
-    // actually turn it off" bug).
+    // off: a plain "[#####-------]" fill on the middle row, blank above and below it. top_wave and
+    // mid_wave are drawn only when the waveform is on, so turning it off clears the whole band, not
+    // just the bottom row.
     std::string generic_blank(wave_w, ' ');
     std::string generic_bar;
     if (!settings_.element_waveform) {
@@ -999,8 +996,7 @@ std::vector<std::string> App::build_search_bar(int total_width) const {
     std::string bar = border_ansi + settings_.box_vertical + "\x1b[0m";
     std::string line;
     if (mode_ == Mode::Search) {
-        // Caret + selection + block cursor, where this used to be the query
-        // with a hard-coded block appended. This one row cannot go through
+        // Caret + selection + block cursor. This one row cannot go through
         // box_line(): that pads with display_width(), which counts the
         // reverse-video escapes of a marked range as columns, so every
         // highlighted character would over-pad the line -- pad against
@@ -1115,11 +1111,8 @@ std::vector<std::string> App::build_list_panel(int total_width, int height) cons
                 const int dur_w = 5;
                 int title_w = std::max(5, inner - idx_w - 2 - 2 - artist_w - 2 - dur_w);
                 double dur = -1;
-                // BUGFIX: this was always the parent-folder name, even
-                // though the metadata panel already reads the real ffprobe
-                // artist tag for the loaded track — now the list uses that
-                // same real tag (probed lazily for visible rows), falling
-                // back to the folder guess only until it's been probed.
+                // The artist comes from the file's own tag (probed lazily for visible rows, the same tag the
+                // metadata panel shows). The parent-folder name is used only until the tag has been read.
                 std::string artist = t.folder_artist;
                 {
                     std::lock_guard<std::mutex> lk(row_meta_mutex_);

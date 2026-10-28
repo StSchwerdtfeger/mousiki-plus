@@ -1178,6 +1178,9 @@ Remote App:[[Legend]]            [ENTER] opens the REMOTE APP overlay (on/off, a
 Update Notice:[[Legend]]         a quiet once-a-day look for a newer release; a small window, once per version 
                        ([ESC] close, [o] open the Github release page).
 
+Check Update:[[Legend]]          [ENTER] on this row asks GitHub for the newest release now and writes the
+                       answer on this screen (needs Python 3 and a network connection). Nothing is installed.
+
 Media Keys:[[Legend]]            Windows media pop-up/keys, Linux MPRIS widgets/playerctl, macOS Now Playing; the 
                        system media keys control Mousiki. Has not been tested well for every OS.
                        Feel free to report issues on Github!

@@ -1,3 +1,5 @@
+// The update check: asks the releases page once a day in the background and remembers the answer, so
+// the new-version notice is shown once per version.
 #include "update_check.h"
 
 #include <algorithm>
@@ -13,6 +15,8 @@
 #include "console_log.h"
 #include "process_util.h"
 #include "settings.h"
+#include "tiny_json.h"
+#include "time_util.h"
 #include "version.h"
 #if defined(_WIN32)
 #include "win_compat.h"
@@ -29,12 +33,69 @@ State g_state;
 bool g_have = false;          // g_state holds a usable answer
 bool g_announced = false;     // take_notice() has handed the text out
 std::atomic<bool> g_started{false};
+// The manual check ("Check Update" in Settings): it runs in its own thread and leaves its answer here for the screen.
+std::atomic<bool> g_check_running{false};
+std::mutex g_check_mu;
+CheckResult g_check_result;
+bool g_check_ready = false;
+
+void save_state(const State& s);
+
+// Writes the answer of a check to the stored state (the same record the start-up check keeps).
+void remember_latest(const std::string& tag, const std::string& url) {
+    State st;
+    st.checked = epoch_now();
+    st.latest = tag;
+    st.url = url.compare(0, 8, "https://") == 0 ? url : std::string();
+    {
+        std::lock_guard<std::mutex> lk(g_mu);
+        st.notified = g_state.notified;
+        g_state = st;
+        g_have = true;
+    }
+    save_state(st);
+}
+
+// The manual check: asks the same script and turns every failure into a sentence the settings screen can show.
+void run_check(fs::path script) {
+    CheckResult res;
+    res.current = MOUSIKI_VERSION;
+    try {
+        Args cmd = python_command();
+        if (cmd.empty()) {
+            res.error = "Python 3 was not found";
+        } else {
+            cmd.push_back(script.string());
+            const ProcResult r = run_capture(cmd, /*merge_stderr=*/false);
+            tinyjson::Value answer;
+            if (!tinyjson::parse_answer(r.out, answer)) {
+                res.error = "the check script gave no answer";
+            } else if (!tinyjson::bool_field(answer, "ok")) {
+                const std::string why = tinyjson::string_field(answer, "error");
+                if (why == "NETWORK") res.error = "GitHub could not be reached (" + tinyjson::string_field(answer, "detail") + ")";
+                else if (why == "MODULE_MISSING") res.error = "the lyrics helper module is missing -- reinstall Mousiki";
+                else if (why == "NO_RELEASE") res.error = "GitHub lists no release";
+                else res.error = "the check failed";
+            } else {
+                res.ok = true;
+                res.latest = tinyjson::string_field(answer, "tag");
+                res.url = tinyjson::string_field(answer, "url");
+                res.newer = is_newer(res.latest, MOUSIKI_VERSION);
+                remember_latest(res.latest, res.url);
+            }
+        }
+    } catch (...) {
+        res.error = "the check failed";
+    }
+    {
+        std::lock_guard<std::mutex> lk(g_check_mu);
+        g_check_result = res;
+        g_check_ready = true;
+    }
+    g_check_running = false;
+}
 
 fs::path state_file() { return config_path().parent_path() / "update_check.txt"; }
-
-long long now_epoch() {
-    return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
-}
 
 // "v4.5.0" / "4.5.0-beta" -> {4,5,0}; empty when no number is found
 std::vector<int> parse_version(const std::string& v) {
@@ -51,22 +112,6 @@ std::vector<int> parse_version(const std::string& v) {
     return out;
 }
 
-std::string json_string(const std::string& json, const std::string& key) {
-    const std::string pat = "\"" + key + "\"";
-    size_t p = json.find(pat);
-    if (p == std::string::npos) return "";
-    p = json.find(':', p + pat.size());
-    if (p == std::string::npos) return "";
-    p = json.find('"', p);
-    if (p == std::string::npos) return "";
-    std::string out;
-    for (++p; p < json.size() && json[p] != '"'; ++p) {
-        if (json[p] == '\\' && p + 1 < json.size()) { ++p; }
-        out += json[p];
-    }
-    return out;
-}
-
 void save_state(const State& s) {
     std::error_code ec;
     fs::create_directories(state_file().parent_path(), ec);
@@ -77,19 +122,17 @@ void save_state(const State& s) {
 void worker(fs::path script, State st, bool ask_network) {
     try {
         if (ask_network) {
-#if defined(_WIN32)
-            const std::string& python = win_python_command();
-            if (python.empty()) return;
-#else
-            const std::string python = "python3";
-#endif
-            const ProcResult r = run_capture(python + " " + shell_quote(script.string()), /*merge_stderr=*/false);
-            if (r.exit_code != 0 || r.out.find("\"ok\": true") == std::string::npos) return;
-            const std::string tag = json_string(r.out, "tag");
+            Args cmd = python_command();
+            if (cmd.empty()) return;
+            cmd.push_back(script.string());
+            const ProcResult r = run_capture(cmd, /*merge_stderr=*/false);
+            tinyjson::Value answer;
+            if (r.exit_code != 0 || !tinyjson::parse_answer(r.out, answer) || !tinyjson::bool_field(answer, "ok")) return;
+            const std::string tag = tinyjson::string_field(answer, "tag");
             if (parse_version(tag).empty()) return;
             st.latest = tag;
-            st.url = json_string(r.out, "url");
-            st.checked = now_epoch();
+            st.url = tinyjson::string_field(answer, "url");
+            st.checked = epoch_now();
             if (st.url.compare(0, 8, "https://") != 0) st.url.clear();
             std::lock_guard<std::mutex> lk(g_mu);
             st.notified = g_state.notified;
@@ -153,7 +196,7 @@ void start(const fs::path& script) {
         std::ifstream f(state_file(), std::ios::binary);
         if (f) { std::stringstream ss; ss << f.rdbuf(); st = state_from_text(ss.str()); }
     }
-    const long long age = now_epoch() - st.checked;
+    const long long age = epoch_now() - st.checked;
     const bool fresh = st.checked > 0 && age >= 0 && age < 24LL * 3600;
     {
         std::lock_guard<std::mutex> lk(g_mu);
@@ -162,6 +205,22 @@ void start(const fs::path& script) {
     }
     if (fresh) return;   // asked within the last day: the stored answer is used, no network
     std::thread(worker, script, st, true).detach();
+}
+
+bool check_now(const fs::path& script) {
+    if (g_check_running.exchange(true)) return false;
+    std::thread(run_check, script).detach();
+    return true;
+}
+
+bool check_busy() { return g_check_running.load(); }
+
+bool take_check_result(CheckResult& out) {
+    std::lock_guard<std::mutex> lk(g_check_mu);
+    if (!g_check_ready) return false;
+    out = g_check_result;
+    g_check_ready = false;
+    return true;
 }
 
 bool take(Notice& out) {

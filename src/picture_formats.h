@@ -1,3 +1,4 @@
+// The picture file extensions the program accepts for covers and pictures.
 #pragma once
 
 namespace muisc {

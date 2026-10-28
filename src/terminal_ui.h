@@ -1,3 +1,5 @@
+// Terminal handling (see terminal_ui.cpp): key codes, the screen interface, text width helpers and the
+// terminal size limits.
 #pragma once
 #include <string>
 #include <vector>
@@ -29,11 +31,8 @@ constexpr int kKeyDelete = 301;
 // sentinel values rather than through settings_.hotkeys. On Windows they
 // come from win_poll_key() reading dwControlKeyState; on POSIX from the
 // xterm modifyOtherKeys/CSI-u encoding of a modified key.
-// NOTE: the discard command used to be Ctrl+Shift+D, but on Windows
-// Terminal that combination is the built-in "duplicate tab" shortcut, which
-// intercepts the keystroke before it ever reaches this app -- pressing it
-// just opened a second terminal window instead of discarding anything.
-// Moved to Ctrl+Shift+X, which isn't a default Windows Terminal binding.
+// Ctrl+Shift+D is not used: Windows Terminal takes it for "duplicate tab" before the program
+// sees it. The discard command is Ctrl+Shift+X, which Windows Terminal does not bind.
 constexpr int kKeyCtrlShiftS = 302;
 constexpr int kKeyCtrlShiftX = 303;
 
@@ -70,8 +69,7 @@ constexpr int kKeyAltRight = 311;
 // Ctrl+Shift+U / Ctrl+Shift+Z -- the queue's "save the queue as a playlist"
 // and "undo the last clear" commands (main UI, incl. the big queue overlay).
 // Modifier combinations again, so sentinels like kKeyCtrlShiftS/X above.
-// (U rather than P: Windows Terminal binds Ctrl+Shift+P to its command
-// palette, which swallowed the keystroke before this app ever saw it.)
+// (U rather than P: Windows Terminal binds Ctrl+Shift+P to its command palette.)
 constexpr int kKeyCtrlShiftU = 312;
 constexpr int kKeyCtrlShiftZ = 313;
 // Alt+L -- the lyrics timing overlay (main UI). Another modifier combination,
@@ -91,8 +89,8 @@ constexpr int kKeyCtrlS = 316;
 // byte 0x10). Not rebindable.
 constexpr int kKeyCtrlP = 317;
 
-// Ctrl+L -- opens / closes the READ LYRICS overlay (control byte 0x0c). It used to be a second way to open the
-// lyrics timing overlay; that one is Alt+L only now. Not rebindable.
+// Ctrl+L -- opens / closes the READ LYRICS overlay (control byte 0x0c). Not rebindable. The lyrics
+// timing overlay is on Alt+L (SHIFT+j on macOS).
 constexpr int kKeyCtrlL = 318;
 
 // Ctrl+N -- audio book mode: the small note field and the big notes overlay swap the note that is being written (control byte 0x0e).

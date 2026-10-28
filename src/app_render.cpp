@@ -91,12 +91,10 @@ int App::player_view_height(int w) const {
 // Frame assembly
 // ---------------------------------------------------------------------
 
-// Full-screen modes (Settings, Console, Cheatsheet, Playlist, Meta editor,
-// History) build their frame with a leading "ESC[2J" -- erase the whole screen
-// -- and used to send it on EVERY frame, 25 times a second, even though they
-// are mostly static. Erasing and then repainting the screen 25x/s is exactly
-// what a terminal shows as flicker whenever it paints between the erase and
-// the repaint (WSL/ConPTY does this readily).
+// Full-screen modes (Settings, Console, Cheatsheet, Playlist, Meta editor, History) start their
+// frame with "ESC[2J" (erase the whole screen). Erasing and repainting 25 times a second makes
+// terminals flicker (WSL and ConPTY do this readily), so these modes repaint in place instead
+// and erase only once, when the mode changes.
 //
 // Once the mode is already on screen (see hard_clear in render_frame()) the
 // erase is not needed: this drops it and instead repaints in place, clearing
@@ -107,12 +105,9 @@ int App::player_view_height(int w) const {
 static std::string soften_fullscreen_frame(const std::string& frame, int cols) {
     static const std::string kClear = "\x1b[2J";
     // Only valid for frames that are painted top-to-bottom with plain newlines.
-    // A frame that places its content with absolute cursor moves ("ESC[row;colH",
-    // as the Settings screen does for every cell) neither overwrites the cells it
-    // no longer uses -- after a tab switch the old tab would show through -- nor
-    // ends with the cursor at the bottom, so the trailing "ESC[0J" would wipe
-    // part of the screen (a caret parked mid-screen while editing a value took
-    // everything below it along). Those keep their full clear.
+    // Frames that place their content with absolute cursor moves ("ESC[row;colH", as the Settings
+    // screen does) keep their full clear. Painted in place they would leave cells they no longer use
+    // on screen, and a trailing "ESC[0J" would wipe a caret parked mid-screen (while a value is edited).
     {
         size_t i = (frame.compare(0, kClear.size(), kClear) == 0) ? kClear.size() : 0;
         if (frame.compare(i, 3, "\x1b[H") == 0) i += 3; // the plain cursor-home that follows the clear
@@ -442,7 +437,7 @@ std::string App::render_frame(TerminalIO& term) {
     // budget asked for here is min(pvH, term_rows_ - 1): an overlay laid
     // out taller than the screen would have its own footer -- hint line
     // plus status line -- chopped off on every single frame, which is the
-    // same bug that used to hide Browse's status line entirely.
+    // same bug that would otherwise hide Browse's status line entirely.
     auto overlay_budget = [&](int w) {
         return std::min(player_view_height(w), std::max(1, term_rows_ - 1));
     };
@@ -621,44 +616,22 @@ std::string App::render_frame(TerminalIO& term) {
     // The ONLY things still drawn below the list box are the AcoustID
     // prompt (wrapped, so as many rows as it actually needs) or -- mutually
     // exclusive with it -- the live "resolving/downloading..." indicator.
-    // The log/status line that used to own this slot moved to the Settings
-    // screen, so when neither is present nothing is printed down there and
-    // therefore no row is reserved for it either: a row reserved only to
-    // sit blank adds an extra empty line under a frame that already ends at
-    // term_rows_ - 1, and it withholds a row the list/queue panes could
-    // show a track in. Since status_rows always equals the number of rows
-    // that will really be printed below the box (0, or the prompt's wrapped
-    // line count, or 1), the frame comes out term_rows_ - 1 tall in every
-    // case -- with or without a prompt/loading row, no jitter, no scroll.
-    // The resolving/downloading note lives in the search box's top border (build_search_bar), not down here.
+    // Nothing else is printed under the list box: the status line lives on the Settings screen. A
+    // row is reserved below the box only when the prompt or the live "resolving/downloading" note
+    // is shown (status_rows counts exactly the rows printed there). The frame is then term_rows_ - 1
+    // lines tall in every case, so there is no jitter and no scroll. The resolving/downloading note
+    // itself is shown in the search box's top border (build_search_bar).
     int status_rows = static_cast<int>(prompt_lines.size());
     int fixed_h = static_cast<int>(metadata_lines.size() + progress_lines.size() + search_lines.size())
                 + status_rows; // rows really drawn under the list box (0 when none are)
-    // Two things used to be missing from this budget, and together they made
-    // the frame exactly 2 lines too tall on EVERY terminal:
-    //   * build_list_panel()/build_queue_panel() draw a top and a bottom
-    //     border row around the `list_h` content rows they're handed, and
-    //   * there used to be a blank separator line before the status line.
-    // clamp_output_rows() keeps term_rows_ - 1 lines, so those last 2 lines
-    // -- blank + status/loading -- were chopped off every single frame: no
-    // Browse message ever reached the screen at all ("added to queue",
-    // "queued 3 tracks", the SHIFT+b AcoustID question, ...). The blank
-    // line is gone (the last row sits directly under the list box now),
-    // and the box's 2 border rows are subtracted from the room the list may
-    // use, so the frame ends up exactly term_rows_ - 1 lines tall with the
-    // prompt/loading row as its last one -- or, when there is no prompt and
-    // nothing is loading, with the list box's bottom border as its last one
-    // and the terminal's final row left blank. Ordinary status messages are
-    // no longer printed here at all -- see where that row is built below.
-    // -1 extra margin: leave the terminal's very last row untouched so a
-    // trailing '\n' after the final printed line can never itself force
-    // a scroll (see clamp_output_rows()'s comment for the same reasoning
-    // applied as a hard backstop).
+    // The budget counts the box's own top and bottom border rows (build_list_panel() and
+    // build_queue_panel() add them to the content rows they are given). clamp_output_rows() keeps
+    // term_rows_ - 1 lines, so the frame ends with the prompt or loading row, or with the list box's
+    // bottom border when there is none. The last terminal row stays blank, and a trailing newline on
+    // the final line can never scroll the screen.
     int available_for_list = term_rows_ - fixed_h - 1 - 2;
-    // No upper cap: the list/queue panes take every row the terminal leaves,
-    // so a maximised window is filled to its last row. (It used to be capped
-    // at kListVisibleRows = 8, which is exactly what a 30-row terminal has
-    // room for -- on a taller one the extra rows stayed blank.)
+    // No upper cap: the list and queue panes take every row the terminal leaves, so a maximised
+    // window is filled to its last row.
     list_visible_rows_ = std::max(0, available_for_list);
 
     ensure_visible_row_meta();
@@ -741,7 +714,7 @@ std::string App::render_frame(TerminalIO& term) {
     // It MUST be appended after the clamp above, not before: on a terminal
     // where the background already fills term_rows_ - 1 lines (any terminal
     // too short for the full-height list, e.g. 30 rows), clamp_output_rows()
-    // cuts everything after the last kept newline -- which used to include
+    // cuts everything after the last kept newline -- which would include
     // the panel, so it never appeared while the mode still swallowed keys.
     // The panel adds no '\n' (absolute moves only) and draw_floating_panel()
     // already keeps it inside the screen, so it cannot cause a scroll.

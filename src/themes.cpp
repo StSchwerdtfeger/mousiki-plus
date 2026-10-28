@@ -1,9 +1,16 @@
+// Colour themes: the palettes that set every colour of the program, how a theme is applied and
+// captured, and the separate radio keys of a theme.
 #include "themes.h"
+#include "utf8_util.h"
+#include "string_util.h"
 
 #include <algorithm>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
+
+using muisc::ascii_lower_str;
+using muisc::trim_ws;
 
 namespace fs = std::filesystem;
 
@@ -129,7 +136,7 @@ Theme expand(const Palette& p, bool v8 = false) {
 // into other colours (10 is yellow there, 8 and 1 pink) and whose default text colour is light blue. In another
 // terminal (CMD, a GNOME terminal ...) the same numbers look different: 10 is green, 8 grey, the default text grey.
 // Since v4.2.0 they only use the 240 fixed colours (16-255), which look the same in every terminal: the colours they
-// were made with. `v8` gives the old values (used to recognise a config.txt that still holds them).
+// were made with. `v8` gives the old values (recognises a config.txt that still holds them).
 std::string universal_color(const std::string& key, const std::string& v) {
     if (v == "10") return "227";   // yellow
     if (v == "8" || v == "1") return "199";   // pink
@@ -186,16 +193,7 @@ Theme meowershell(bool v8 = false) {
     return hand_made("MeowerShell", kv, sizeof kv / sizeof kv[0], v8);
 }
 
-std::string trim(const std::string& s) {
-    const size_t a = s.find_first_not_of(" \t\r\n");
-    if (a == std::string::npos) return "";
-    return s.substr(a, s.find_last_not_of(" \t\r\n") - a + 1);
-}
 
-std::string lower(std::string s) {
-    for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return s;
-}
 
 void write_theme(std::ostream& out, const Theme& t) {
     out << "[" << t.name << "]\n";
@@ -217,11 +215,11 @@ std::vector<Theme> parse_file(const fs::path& p) {
     if (!in) return out;
     std::string line;
     while (std::getline(in, line)) {
-        line = trim(line);
+        line = trim_ws(line);
         if (line.empty() || line[0] == '#') continue;
         if (line.front() == '[' && line.back() == ']') {
             Theme t;
-            t.name = trim(line.substr(1, line.size() - 2));
+            t.name = trim_ws(line.substr(1, line.size() - 2));
             if (t.name.empty()) t.name = "(unnamed)";
             out.push_back(t);
             continue;
@@ -229,7 +227,7 @@ std::vector<Theme> parse_file(const fs::path& p) {
         if (out.empty()) continue;
         const size_t eq = line.find('=');
         if (eq == std::string::npos) continue;
-        out.back().set(trim(line.substr(0, eq)), trim(line.substr(eq + 1)));
+        out.back().set(trim_ws(line.substr(0, eq)), trim_ws(line.substr(eq + 1)));
     }
     return out;
 }
@@ -239,10 +237,10 @@ int file_format(const fs::path& p) {
     std::ifstream in(p);
     std::string first;
     std::getline(in, first);
-    first = trim(first);
+    first = trim_ws(first);
     const std::string tag = "# format:";
     if (first.compare(0, tag.size(), tag) != 0) return 0;
-    try { return std::stoi(trim(first.substr(tag.size()))); } catch (...) { return 0; }
+    try { return std::stoi(trim_ws(first.substr(tag.size()))); } catch (...) { return 0; }
 }
 
 // Themes from before format 6 used 30-37 / 90-97 / 40-47 / 100-107 as plain 16-colour codes.
@@ -251,18 +249,18 @@ void convert_legacy(Theme& t) {
 }
 
 bool is_builtin_name(const std::string& n) {
-    if (lower(n) == lower(serious_meowershell().name) || lower(n) == lower(meowershell().name)) return true;
+    if (ascii_lower_str(n) == ascii_lower_str(serious_meowershell().name) || ascii_lower_str(n) == ascii_lower_str(meowershell().name)) return true;
     // names of earlier versions: the built-ins were renamed, so a copy in an old themes.txt is not a theme of the user's
-    if (lower(n) == "meowershell(default)" || lower(n) == "serious meowershell") return true;
-    for (const Palette& p : kPalettes) if (lower(p.name) == lower(n)) return true;
+    if (ascii_lower_str(n) == "meowershell(default)" || ascii_lower_str(n) == "serious meowershell") return true;
+    for (const Palette& p : kPalettes) if (ascii_lower_str(p.name) == ascii_lower_str(n)) return true;
     return false;
 }
 
 } // namespace
 
 int find_name(const std::vector<Theme>& all, const std::string& name) {
-    const std::string n = lower(sanitize_name(name));
-    for (size_t i = 0; i < all.size(); ++i) if (lower(all[i].name) == n) return static_cast<int>(i);
+    const std::string n = ascii_lower_str(sanitize_name(name));
+    for (size_t i = 0; i < all.size(); ++i) if (ascii_lower_str(all[i].name) == n) return static_cast<int>(i);
     return -1;
 }
 
@@ -301,9 +299,9 @@ fs::path file_path() {
 }
 
 std::string sanitize_name(const std::string& raw) {
-    std::string s = trim(raw);
+    std::string s = trim_ws(raw);
     s.erase(std::remove_if(s.begin(), s.end(), [](char c) { return c == '[' || c == ']' || c == '\n' || c == '\r'; }), s.end());
-    s = trim(s);
+    s = trim_ws(s);
     // Cut at 25 characters without splitting a UTF-8 sequence.
     int chars = 0;
     size_t i = 0;
@@ -339,16 +337,16 @@ std::vector<Theme> load_all() {
         std::ifstream in(path);
         std::string first;
         std::getline(in, first);
-        if (trim(first) != "# format: 10") {   // format 10: the built-ins have a visible text colour for the edited text (236); format 9: fixed colours only; format 8: ten more built-in themes
+        if (trim_ws(first) != "# format: 10") {   // format 10: the built-ins have a visible text colour for the edited text (236); format 9: fixed colours only; format 8: ten more built-in themes
             const int old_format = file_format(path);
             std::vector<Theme> mine;
             for (Theme& ft : parse_file(path)) {
                 if (old_format == 7 && is_builtin_name(ft.name)) {   // format 7 already had today's keys: keep edits made to a built-in theme
-                    for (Theme& t : all) if (lower(t.name) == lower(ft.name)) for (const auto& kvp : ft.kv) t.set(kvp.first, kvp.second);
+                    for (Theme& t : all) if (ascii_lower_str(t.name) == ascii_lower_str(ft.name)) for (const auto& kvp : ft.kv) t.set(kvp.first, kvp.second);
                     continue;
                 }
-                if (is_builtin_name(ft.name) || lower(ft.name) == "default") continue;
-                // format 6: every colour number is a palette number (30-37 / 90-97 / 40-47 / 100-107 used to be plain 16-colour codes)
+                if (is_builtin_name(ft.name) || ascii_lower_str(ft.name) == "default") continue;
+                // format 6: every colour number is a palette number (30-37 / 90-97 / 40-47 / 100-107 were plain 16-colour codes before)
                 if (old_format > 0 && old_format < 6) convert_legacy(ft);
                 // format 7: the built-ins were renamed (SeriousMeowerShell(Default) is index 0 now, MeowerShell the second theme)
                 // format 5: the new MeowerShell (default) and Serious MeowerShell values; format 4 added ColorFocus (the pane focus indicator): a theme of your own gets its header color
@@ -374,7 +372,7 @@ std::vector<Theme> load_all() {
     for (Theme& ft : parse_file(path)) {
         bool merged = false;
         for (Theme& t : all) {
-            if (lower(t.name) != lower(ft.name)) continue;
+            if (ascii_lower_str(t.name) != ascii_lower_str(ft.name)) continue;
             if (t.builtin) for (const auto& p : ft.kv) t.set(p.first, p.second);   // the file's edits win
             merged = true;
             break;
@@ -398,17 +396,17 @@ bool file_holds(const fs::path& config, const Theme& th, bool radio) {
     std::vector<std::pair<std::string, std::string>> raw;
     std::string line;
     while (std::getline(in, line)) {
-        line = trim(line);
+        line = trim_ws(line);
         if (line.empty() || line[0] == '#') continue;
         const size_t eq = line.find('=');
         if (eq == std::string::npos) continue;
-        raw.emplace_back(lower(trim(line.substr(0, eq))), trim(line.substr(eq + 1)));
+        raw.emplace_back(ascii_lower_str(trim_ws(line.substr(0, eq))), trim_ws(line.substr(eq + 1)));
     }
     int compared = 0;
     for (const auto& kvp : th.kv) {
         if (kvp.first.compare(0, 6, "Radio.") == 0) continue;
         const std::string* want = th.get(kvp.first, radio);
-        const std::string k = lower(kvp.first);
+        const std::string k = ascii_lower_str(kvp.first);
         for (const auto& [rk, rv] : raw) {
             if (rk != k) continue;
             if (rv != *want) return false;
@@ -455,12 +453,12 @@ std::vector<fs::path> list_theme_files(const fs::path& dir) {
     std::error_code ec;
     for (fs::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
         if (!it->is_regular_file(ec)) continue;
-        const std::string ext = lower(it->path().extension().string());
+        const std::string ext = ascii_lower_str(it->path().extension().string());
         if (ext != ".theme" && ext != ".txt") continue;
         if (it->path() == file_path()) continue;   // the theme store itself
         if (!read_theme_file(it->path()).empty()) out.push_back(it->path());
     }
-    std::sort(out.begin(), out.end(), [](const fs::path& a, const fs::path& b) { return lower(a.filename().string()) < lower(b.filename().string()); });
+    std::sort(out.begin(), out.end(), [](const fs::path& a, const fs::path& b) { return ascii_lower_str(a.filename().string()) < ascii_lower_str(b.filename().string()); });
     return out;
 }
 
@@ -470,7 +468,7 @@ std::string import_theme(Theme t, std::string& err) {
     if (base.empty()) base = "Imported";
     const std::vector<Theme> all = load_all();
     auto taken = [&](const std::string& n) {
-        for (const Theme& x : all) if (lower(x.name) == lower(n)) return true;
+        for (const Theme& x : all) if (ascii_lower_str(x.name) == ascii_lower_str(n)) return true;
         return false;
     };
     std::string name = base;
@@ -497,7 +495,7 @@ bool save_theme(const Theme& in_theme, std::string& err) {
         if (fs::exists(path, ec)) existing = parse_file(path);
     }
     bool replaced = false;
-    for (Theme& e : existing) if (lower(e.name) == lower(t.name)) { e = t; replaced = true; }
+    for (Theme& e : existing) if (ascii_lower_str(e.name) == ascii_lower_str(t.name)) { e = t; replaced = true; }
     if (!replaced) existing.push_back(t);
 
     std::error_code ec;
@@ -526,7 +524,7 @@ bool delete_theme(const std::string& name_in, std::string& err) {
     bool found = false;
     std::vector<Theme> keep;
     for (Theme& e : existing) {
-        if (lower(e.name) == lower(name)) { found = true; continue; }
+        if (ascii_lower_str(e.name) == ascii_lower_str(name)) { found = true; continue; }
         keep.push_back(e);
     }
     if (!found) { err = "\"" + name + "\" is not in " + path.string(); return false; }

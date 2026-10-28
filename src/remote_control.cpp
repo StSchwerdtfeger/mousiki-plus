@@ -1,3 +1,6 @@
+// The remote control's command channel: checks command names and arguments, and passes commands
+// between the running program and mousiki --cmd calls through small files in its control folder,
+// written atomically.
 #include "remote_control.h"
 
 #include <algorithm>

@@ -1,3 +1,5 @@
+// The spectrum analyser (the spectrogram): an FFT over the most recent samples, grouped into bars with
+// smoothing, fluidity and decay settings.
 #include "fft_visualizer.h"
 #include "kiss_fftr.h"
 #include <algorithm>
@@ -111,12 +113,9 @@ void FftVisualizer::compute_bands_locked(const std::array<float, kFftSize>& ring
 }
 
 void FftVisualizer::push_samples(const float* samples, size_t count, int sample_rate) {
-    // Deliberately cheap: just ring writes under a short lock. The actual
-    // FFT used to run right here, on the AUDIO CALLBACK thread — which is
-    // real-time-sensitive and gets invoked far more often than the ~80ms
-    // render tick actually needs fresh spectrum data. Moved the FFT work
-    // itself into compute_bars() (below), which runs on the render
-    // thread instead, so the audio thread never risks stalling on it.
+    // Deliberately cheap: just ring writes under a short lock. The FFT itself runs in compute_bars(),
+    // on the render thread. The audio callback is real-time sensitive and is called far more often
+    // than the render tick needs fresh spectrum data, so it must never do that work.
     std::lock_guard<std::mutex> lk(mtx_);
     sample_rate_ = sample_rate > 0 ? sample_rate : sample_rate_;
     for (size_t i = 0; i < count; ++i) {

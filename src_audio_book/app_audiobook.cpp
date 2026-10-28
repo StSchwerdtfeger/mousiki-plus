@@ -2,6 +2,7 @@
 // lists the books (folders), the right pane lists the chapters of the open book instead of the queue; next / previous and
 // the end of a chapter walk the chapters. Split out of app.cpp; the shared helpers are in app_internal.h.
 #include "app.h"
+#include "string_util.h"
 #include "text_edit.h"
 #include "overlay_common.h"
 #include "utf8_util.h"
@@ -58,17 +59,7 @@ bool natural_less(const std::string& a, const std::string& b) {
 
 namespace {
 
-std::string lower_ascii(std::string s) {
-    for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return s;
-}
 
-std::string trim_ws(const std::string& s) {
-    size_t a = 0, b = s.size();
-    while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
-    while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
-    return s.substr(a, b - a);
-}
 
 // "Penguin, 2019" -> publisher "Penguin", year "2019". A last part that is not a 4-digit year stays in the publisher.
 void split_publisher_year(const std::string& v, std::string& publisher, std::string& year) {
@@ -147,7 +138,7 @@ int detect_numbering(const std::vector<std::string>& stems) {
 std::string path_key(const fs::path& p) {
     std::string k = path_utf8(p);
 #ifdef _WIN32
-    k = lower_ascii(k);
+    k = ascii_lower_str(k);
 #endif
     return k;
 }
@@ -205,7 +196,7 @@ void App::book_build_view() {
     for (FolderSummary& s : self_rows) folder_view_.push_back(std::move(s));
     std::vector<FolderSummary> rest;
     for (auto& kv : kids) rest.push_back(std::move(kv.second));
-    std::stable_sort(rest.begin(), rest.end(), [](const FolderSummary& a, const FolderSummary& b) { return lower_ascii(a.name) < lower_ascii(b.name); });
+    std::stable_sort(rest.begin(), rest.end(), [](const FolderSummary& a, const FolderSummary& b) { return ascii_lower_str(a.name) < ascii_lower_str(b.name); });
     for (FolderSummary& k : rest) folder_view_.push_back(std::move(k));
 }
 
@@ -613,9 +604,10 @@ CoverData load_cover(const std::string& dir) {
     bool embedded = false;
     if (file.empty()) { file = first_audio_file(path_from_utf8(dir)); embedded = true; }   // no picture file: the audio file's own cover art
     if (file.empty()) { set_cover_note(dir, "book cover: no picture file and no audio file in the folder"); return d; }
-    std::string cmd = "ffmpeg -v error -i " + shell_quote(path_utf8(file));
-    if (embedded) cmd += " -an";
-    cmd += " -vf scale=w=640:h=640:force_original_aspect_ratio=decrease -frames:v 1 -f image2pipe -vcodec pam -pix_fmt rgba -";
+    Args cmd = {"ffmpeg", "-v", "error", "-i", path_utf8(file)};
+    if (embedded) cmd.push_back("-an");
+    cmd.insert(cmd.end(), {"-vf", "scale=w=640:h=640:force_original_aspect_ratio=decrease", "-frames:v", "1",
+                           "-f", "image2pipe", "-vcodec", "pam", "-pix_fmt", "rgba", "-"});
     // (read straight from the process: run_capture would write the picture's bytes into the console log)
     std::string o;
     if (std::unique_ptr<ChildProcess> child = spawn_capture(cmd, false)) {
@@ -1105,7 +1097,8 @@ const char* App::book_tag_label(int i) {
 App::BookTagVals App::book_read_tags(const fs::path& file) {
     BookTagVals v{};
     v[0] = path_utf8(file.stem());   // the file name without its ending: the ending is not editable
-    const ProcResult r = run_capture("ffprobe -v error -show_entries format_tags -of default=nw=1 " + shell_quote(path_utf8(file)), false);
+    const ProcResult r = run_capture({"ffprobe", "-v", "error", "-show_entries", "format_tags", "-of", "default=nw=1",
+                                      path_utf8(file)}, false);
     std::map<std::string, std::string> kv;
     std::istringstream in(r.out);
     std::string line;
@@ -1114,7 +1107,7 @@ App::BookTagVals App::book_read_tags(const fs::path& file) {
         if (line.rfind("TAG:", 0) != 0) continue;
         const size_t eq = line.find('=');
         if (eq == std::string::npos) continue;
-        const std::string key = lower_ascii(line.substr(4, eq - 4));
+        const std::string key = ascii_lower_str(line.substr(4, eq - 4));
         if (!kv.count(key)) kv[key] = line.substr(eq + 1);
     }
     auto first_of = [&](std::initializer_list<const char*> keys) {
@@ -1455,8 +1448,8 @@ void App::book_poll() {
     std::error_code ec;
     const std::string ext = path_utf8(file.extension());
     const fs::path tmp = file.parent_path() / (path_utf8(file.stem()) + ".mousiki-tmp" + ext);
-    std::string cmd = "ffmpeg -y -v error -i " + shell_quote(path_utf8(file)) + " -map 0 -map_metadata 0 -c copy";
-    auto meta = [&](const std::string& k, const std::string& v) { cmd += " -metadata " + shell_quote(k + "=" + v); };
+    Args cmd = {"ffmpeg", "-y", "-v", "error", "-i", path_utf8(file), "-map", "0", "-map_metadata", "0", "-c", "copy"};
+    auto meta = [&](const std::string& k, const std::string& v) { cmd.push_back("-metadata"); cmd.push_back(k + "=" + v); };
     if (ch[1].first) meta("album", ch[1].second);
     if (ch[2].first) { meta("artist", ch[2].second); meta("album_artist", ch[2].second); }
     if (ch[3].first) { meta("composer", ch[3].second); meta("narrator", ch[3].second); }
@@ -1468,7 +1461,7 @@ void App::book_poll() {
         meta("date", year);
     }
     if (ch[6].first) meta("genre", ch[6].second);
-    cmd += " " + shell_quote(path_utf8(tmp));
+    cmd.push_back(path_utf8(tmp));
     const ProcResult r = run_capture(cmd, true);
     if (!r.ok()) {
         fs::remove(tmp, ec);

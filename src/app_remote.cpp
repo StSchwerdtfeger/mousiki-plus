@@ -188,6 +188,17 @@ void App::act_prev() {
 void App::remote_poll() {
     const char* const mode_name = audiobook_ ? "audiobook" : "player";   // (the audio book is its own mode for the remote app)
     remote::tick(mode_name);
+    {   // the answer of a manual check ("Check Update" in Settings): one line on the settings screen
+        update_check::CheckResult cr;
+        if (update_check::take_check_result(cr)) {
+            std::string v = cr.latest;
+            while (!v.empty() && (v[0] == 'v' || v[0] == 'V')) v.erase(0, 1);
+            if (!cr.ok) status_line_ = "could not check for a newer release: " + cr.error;
+            else if (cr.newer) status_line_ = "a newer release is out: Mousiki " + v + " (you have " + cr.current + "): " + update_check::release_url({cr.latest, cr.current, cr.url});
+            else status_line_ = "Mousiki " + cr.current + " is the newest release (checked just now)";
+            force_redraw_ = true;
+        }
+    }
     {   // "a newer version is out": once; the popup waits until the main screen is showing
         update_check::Notice n;
         if (!update_pending_ && update_check::take(n)) {

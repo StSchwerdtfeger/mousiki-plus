@@ -1,3 +1,5 @@
+// YouTube lookups (see youtube_source.cpp): SongResult is one resolved track and YoutubeSource
+// resolves queries to it.
 #pragma once
 #include <filesystem>
 #include <optional>

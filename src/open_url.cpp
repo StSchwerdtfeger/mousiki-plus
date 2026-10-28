@@ -1,3 +1,5 @@
+// Opens a web address in the default browser. Only plain https addresses without spaces or control
+// characters are passed on.
 #include "open_url.h"
 
 #include <cstdint>
@@ -34,9 +36,9 @@ bool open_url(const std::string& url) {
     return reinterpret_cast<intptr_t>(ShellExecuteW(nullptr, L"open", w.c_str(), nullptr, nullptr, SW_SHOWNORMAL)) > 32;
 #else
 #if defined(__APPLE__)
-    const std::string cmd = "open " + shell_quote(url);
+    const Args cmd = {"open", url};
 #else
-    const std::string cmd = "xdg-open " + shell_quote(url);
+    const Args cmd = {"xdg-open", url};
 #endif
     std::thread([cmd] { run_capture(cmd, /*merge_stderr=*/false); }).detach();   // a browser that starts up may not return at once
     return true;

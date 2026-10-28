@@ -1,3 +1,5 @@
+// Pictures in the terminal: draws images with the Kitty graphics protocol (or falls back to text),
+// detected at start-up.
 #include "terminal_gfx.h"
 #include <algorithm>
 #include <array>

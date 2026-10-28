@@ -1,7 +1,7 @@
 #pragma once
 // The text of the ABOUT APP tab of the player and the radio.
-// It is deliberately hard coded (not read from config.txt): the config file used to carry it
-// as a ClassTextAboutApp={...}; block, and every save added blank lines around it.
+// It is deliberately hard coded, not read from config.txt: a copy in the config file would be
+// rewritten and padded with blank lines on every save.
 #include <string>
 #include <vector>
 #include "version.h"

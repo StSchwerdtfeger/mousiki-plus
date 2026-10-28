@@ -1,5 +1,6 @@
 // Spectrogram (see spectrogram.h): analysis like Audacity's spectrogram view, braille and picture output.
 #include "spectrogram.h"
+#include "utf8_util.h"
 
 #include <algorithm>
 #include <chrono>
@@ -118,7 +119,6 @@ template <size_t N> int step_list(const int (&list)[N], int cur, int dir) {
     i = std::clamp(i + (dir > 0 ? 1 : -1), 0, static_cast<int>(N) - 1);
     return list[i];
 }
-std::string lower(std::string v) { for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); return v; }
 int to_int(const std::string& v, int def) { char* e = nullptr; const long x = std::strtol(v.c_str(), &e, 10); return e && e != v.c_str() ? static_cast<int>(x) : def; }
 
 // dB values are kept as 8 bit: -140 .. +10 dB
@@ -183,10 +183,10 @@ void spectro_reset(SpectroSettings& s) {
 }
 
 bool spectro_config_key(SpectroSettings& s, const std::string& key, const std::string& value) {
-    const std::string lk = lower(key);
+    const std::string lk = ascii_lower_str(key);
     if (lk.compare(0, 7, "spectro") != 0) return false;
     const std::string n = lk.substr(7);
-    const std::string v = lower(value);
+    const std::string v = ascii_lower_str(value);
     auto pick = [&](const char* const* names, int count, int def) {
         for (int i = 0; i < count; ++i) if (v == names[i]) return i;
         return def;
@@ -798,7 +798,7 @@ std::string SpectroGfx::emit(int proto, const SpectroSettings& s, SpectroAnalyze
     const int W = cols * cell_w, H = rows * cell_h;
     // Which part of a tile an overlay covers: the rest of the tile is still drawn (pieces above, below, left and right
     // of it), so the spectrogram keeps running all around the overlay -- also in the columns of a tile that the overlay
-    // only partly covers (those used to stand still).
+    // only partly covers (those keep moving too).
     struct Piece { int r0, r1, c0, c1; };   // cells, relative to the tile
     auto pieces_of = [&](int t, std::vector<Piece>& ps) {
         const int c0 = t * kTileCols, cw = std::min(kTileCols, cols - c0);

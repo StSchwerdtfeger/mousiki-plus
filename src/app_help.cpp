@@ -416,7 +416,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
     // Same height as every other full-screen view: term_rows_ - 1 lines (the
     // terminal's last row stays untouched so a trailing newline can never
     // scroll), of which 2 are this overlay's own top/bottom border rows. It
-    // used to stop 3 lines short of that, leaving blank rows below the box
+    // would otherwise stop 3 lines short of that, leaving blank rows below the box
     // on every terminal size (120x30 included) -- there is no status/prompt
     // row here that would need them.
     int visible = std::max(1, term_rows_ - 3);

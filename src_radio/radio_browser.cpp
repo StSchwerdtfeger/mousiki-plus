@@ -1,4 +1,8 @@
+// Radio Browser client: searches the public station directory on the Radio Browser servers, with a
+// small JSON parser for the replies.
 #include "radio_browser.h"
+#include "utf8_util.h"
+#include "string_util.h"
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -15,17 +19,7 @@ const char* const kUserAgent = "Mousiki-Radio/2.5 (terminal music player; https:
 const char* const kServers[] = {"de1.api.radio-browser.info", "all.api.radio-browser.info",
                                 "nl1.api.radio-browser.info", "at1.api.radio-browser.info"};
 
-std::string trim(const std::string& s) {
-    size_t a = s.find_first_not_of(" \t\r\n");
-    if (a == std::string::npos) return "";
-    size_t b = s.find_last_not_of(" \t\r\n");
-    return s.substr(a, b - a + 1);
-}
 
-std::string lower(std::string s) {
-    for (auto& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return s;
-}
 
 // ---------------------------------------------------------------------------------------------
 // Minimal JSON reader: objects, arrays, strings (all escapes incl. \uXXXX and surrogate pairs),
@@ -163,7 +157,7 @@ private:
 std::string jstr(const J& o, const char* k) {
     const J* v = o.get(k);
     if (!v) return "";
-    if (v->t == J::Str) return trim(v->s);
+    if (v->t == J::Str) return trim_ws(v->s);
     if (v->t == J::Num) return std::to_string(static_cast<long long>(v->n));
     return "";
 }
@@ -179,7 +173,7 @@ double jnum(const J& o, const char* k) {
 // "128", "128+", ">=128", "64-192", "-192", "<=192" (+ optional k / kbps) -> min / max. false = unreadable.
 bool parse_bitrate(std::string t, int& mn, int& mx) {
     mn = 0; mx = 0;
-    t = lower(trim(t));
+    t = ascii_lower_str(trim_ws(t));
     if (t.empty()) return true;
     t.erase(std::remove(t.begin(), t.end(), ' '), t.end());
     for (const char* unit : {"kbps", "kb/s", "kbit", "k"}) {
@@ -227,24 +221,24 @@ std::string curl_error_text(int code, const std::string& host) {
 bool build_browse_args(const BrowseQuery& q, std::vector<std::pair<std::string, std::string>>& args, std::string* error) {
     args.clear();
     auto add = [&](const char* k, const std::string& v) { if (!v.empty()) args.emplace_back(k, v); };
-    add("name", trim(q.name));
+    add("name", trim_ws(q.name));
     // tags: comma separated -> tagList (every tag has to match)
     {
         std::string list, cur;
-        auto flush = [&]() { const std::string t = trim(cur); if (!t.empty()) list += (list.empty() ? "" : ",") + t; cur.clear(); };
+        auto flush = [&]() { const std::string t = trim_ws(cur); if (!t.empty()) list += (list.empty() ? "" : ",") + t; cur.clear(); };
         for (char c : q.tags) { if (c == ',') flush(); else cur += c; }
         flush();
         add("tagList", list);
     }
     // country: a 2-letter code goes to countrycode (exact), anything else to the (substring) country name
     {
-        const std::string c = trim(q.country);
+        const std::string c = trim_ws(q.country);
         const bool code = c.size() == 2 && std::isalpha(static_cast<unsigned char>(c[0])) && std::isalpha(static_cast<unsigned char>(c[1]));
         if (code) { std::string u = c; for (auto& ch : u) ch = static_cast<char>(std::toupper(static_cast<unsigned char>(ch))); add("countrycode", u); }
         else add("country", c);
     }
-    add("state", trim(q.state));
-    add("language", trim(q.language));
+    add("state", trim_ws(q.state));
+    add("language", trim_ws(q.language));
     int mn = 0, mx = 0;
     if (!parse_bitrate(q.bitrate, mn, mx)) {
         if (error) *error = "bitrate: use 128 (at least), 64-192 (range) or -192 (at most)";
@@ -301,7 +295,7 @@ Station browse_to_station(const BrowseStation& b) {
     {
         std::string g, cur;
         int n = 0;
-        auto flush = [&]() { const std::string t = trim(cur); cur.clear(); if (t.empty() || n >= 3) return; g += (g.empty() ? "" : " / ") + t; ++n; };
+        auto flush = [&]() { const std::string t = trim_ws(cur); cur.clear(); if (t.empty() || n >= 3) return; g += (g.empty() ? "" : " / ") + t; ++n; };
         for (char c : b.tags) { if (c == ',') flush(); else cur += c; }
         flush();
         s.genre = g;
@@ -332,9 +326,9 @@ namespace {
 // GET <base><path> with curl; query args via -G --data-urlencode. Output in `body`, curl's exit code returned.
 int curl_get(const std::string& base, const std::string& path,
              const std::vector<std::pair<std::string, std::string>>& args, std::string& body) {
-    std::string cmd = "curl -sS -f -L --connect-timeout 6 --max-time 25 -A " + muisc::shell_quote(kUserAgent)
-                    + " -G " + muisc::shell_quote(base + path);
-    for (const auto& kv : args) cmd += " --data-urlencode " + muisc::shell_quote(kv.first + "=" + kv.second);
+    muisc::Args cmd = {"curl", "-sS", "-f", "-L", "--connect-timeout", "6", "--max-time", "25", "-A", kUserAgent,
+                       "-G", base + path};
+    for (const auto& kv : args) { cmd.push_back("--data-urlencode"); cmd.push_back(kv.first + "=" + kv.second); }
     const muisc::ProcResult r = muisc::run_capture(cmd, false);
     body = r.out;
     return r.exit_code;

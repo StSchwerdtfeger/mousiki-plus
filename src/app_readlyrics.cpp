@@ -654,7 +654,7 @@ void App::build_readlyrics_screen(std::ostringstream& frame, int W, int target_h
         for (auto& w : wrap_lines(shown_text(rd_lines_[i]), wrap_w, 8)) rows.push_back({w, 0});
         if (show) {
             const std::string& t = rd_trans_[i];
-            if (!t.empty() && lower(t) != lower(rd_lines_[i]))
+            if (!t.empty() && ascii_lower_str(t) != ascii_lower_str(rd_lines_[i]))
                 for (auto& w : wrap_lines("(" + shown_text(t) + ")", wrap_w, 8)) rows.push_back({w, 1});
         }
     }

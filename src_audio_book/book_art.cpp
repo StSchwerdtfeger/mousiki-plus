@@ -1,3 +1,5 @@
+// Audio book pictures: decodes the built-in book artwork and draws it as braille dots when no cover is
+// available.
 #include "book_art.h"
 #include <algorithm>
 #include <cstring>

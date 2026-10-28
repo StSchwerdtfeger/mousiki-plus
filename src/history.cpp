@@ -1,3 +1,5 @@
+// Listening history: stores each play, aggregates it into the top lists and the habit statistics (by
+// day, weekday and hour), and writes the history archive as JSON.
 #include "history.h"
 
 #include "path_utf8.h"
@@ -656,10 +658,9 @@ HistoryStats history_stats(const std::vector<HistoryPlay>& plays, const HistoryA
         if (p.started_at <= 0) continue;
         long long p_end = p.started_at + static_cast<long long>(p.listened_sec + 0.5);
         // The gap is measured from the latest end seen so far to this (newer)
-        // play's start. (It used to be sess_start - p_end, which is only right
-        // when walking newest -> oldest; walking the other way it is always
-        // hugely negative, so no gap was ever detected and the whole history
-        // came out as ONE session.)
+        // play's start. The subtraction must use this order: the gap is only positive when walking
+        // newest -> oldest; walking the other way it is always hugely negative, so no gap would be
+        // detected and the whole history would come out as one session.
         if (!in_session || p.started_at - sess_end > kSessionGapSec) {
             if (in_session) {
                 ++sessions;

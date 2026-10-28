@@ -10,8 +10,10 @@
 // returning a Null-ish/empty result rather than throwing; a corrupt or
 // half-written snapshot.json should never crash the app, it should just
 // fail to restore.
+#include <cstdio>
 #include <map>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -53,6 +55,7 @@ struct Value {
 // Writer
 // ---------------------------------------------------------------------
 
+// Escapes a string for JSON. Control characters become \u00XX (what the remote page needs).
 inline std::string escape(const std::string& s) {
     std::string out;
     out.reserve(s.size() + 4);
@@ -64,8 +67,32 @@ inline std::string escape(const std::string& s) {
             case '\r': out += "\\r"; break;
             case '\t': out += "\\t"; break;
             default:
-                if (static_cast<unsigned char>(c) < 0x20) { /* skip other control chars */ }
-                else out += c;
+                if (static_cast<unsigned char>(c) < 0x20) {
+                    char b[8];
+                    std::snprintf(b, sizeof b, "\\u%04x", static_cast<unsigned>(static_cast<unsigned char>(c)));
+                    out += b;
+                } else {
+                    out += c;
+                }
+        }
+    }
+    return out;
+}
+
+// Escapes a string for a saved file. Control characters are left out, as the files always did: a control character in a
+// title or tag must not come back as a live terminal sequence when the file is read again.
+inline std::string escape_for_file(const std::string& s) {
+    std::string out;
+    out.reserve(s.size() + 4);
+    for (char c : s) {
+        switch (c) {
+            case '"': out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default:
+                if (static_cast<unsigned char>(c) >= 0x20) out += c;
         }
     }
     return out;
@@ -82,7 +109,7 @@ inline void dump(const Value& v, std::string& out, int indent) {
             else out += std::to_string(v.num);
             break;
         }
-        case Type::String: out += "\""; out += escape(v.str); out += "\""; break;
+        case Type::String: out += "\""; out += escape_for_file(v.str); out += "\""; break;
         case Type::Array: {
             if (v.arr.empty()) { out += "[]"; break; }
             out += "[\n";
@@ -100,7 +127,7 @@ inline void dump(const Value& v, std::string& out, int indent) {
             out += "{\n";
             for (size_t i = 0; i < v.obj.size(); ++i) {
                 pad(indent + 1);
-                out += "\""; out += escape(v.obj[i].first); out += "\": ";
+                out += "\""; out += escape_for_file(v.obj[i].first); out += "\": ";
                 dump(v.obj[i].second, out, indent + 1);
                 if (i + 1 < v.obj.size()) out += ",";
                 out += "\n";
@@ -191,6 +218,41 @@ private:
         return true;
     }
 
+    // Four hex digits at `pos`; false when they are missing or not hex.
+    bool read_hex4(size_t pos, uint32_t& out) const {
+        if (pos + 4 > s_.size()) return false;
+        uint32_t v = 0;
+        for (size_t k = 0; k < 4; ++k) {
+            const char c = s_[pos + k];
+            uint32_t h;
+            if (c >= '0' && c <= '9') h = static_cast<uint32_t>(c - '0');
+            else if (c >= 'a' && c <= 'f') h = static_cast<uint32_t>(c - 'a' + 10);
+            else if (c >= 'A' && c <= 'F') h = static_cast<uint32_t>(c - 'A' + 10);
+            else return false;
+            v = (v << 4) | h;
+        }
+        out = v;
+        return true;
+    }
+
+    static void append_utf8(std::string& out, uint32_t cp) {
+        if (cp <= 0x7F) {
+            out += static_cast<char>(cp);
+        } else if (cp <= 0x7FF) {
+            out += static_cast<char>(0xC0 | (cp >> 6));
+            out += static_cast<char>(0x80 | (cp & 0x3F));
+        } else if (cp <= 0xFFFF) {
+            out += static_cast<char>(0xE0 | (cp >> 12));
+            out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+            out += static_cast<char>(0x80 | (cp & 0x3F));
+        } else {
+            out += static_cast<char>(0xF0 | (cp >> 18));
+            out += static_cast<char>(0x80 | ((cp >> 12) & 0x3F));
+            out += static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+            out += static_cast<char>(0x80 | (cp & 0x3F));
+        }
+    }
+
     bool parse_raw_string(std::string& out) {
         if (peek() != '"') return false;
         ++i_;
@@ -203,9 +265,28 @@ private:
                     case 'n': out += '\n'; break;
                     case 'r': out += '\r'; break;
                     case 't': out += '\t'; break;
+                    case 'b': out += '\b'; break;
+                    case 'f': out += '\f'; break;
                     case '"': out += '"'; break;
                     case '\\': out += '\\'; break;
                     case '/': out += '/'; break;
+                    case 'u': {
+                        // \uXXXX; a high surrogate followed by a low one is one character outside the BMP (emoji ...).
+                        uint32_t cp = 0;
+                        if (!read_hex4(i_ + 2, cp)) { out += n; break; }
+                        size_t consumed = 6;
+                        if (cp >= 0xD800 && cp <= 0xDBFF && i_ + 11 < s_.size() && s_[i_ + 6] == '\\' && s_[i_ + 7] == 'u') {
+                            uint32_t low = 0;
+                            if (read_hex4(i_ + 8, low) && low >= 0xDC00 && low <= 0xDFFF) {
+                                cp = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00);
+                                consumed = 12;
+                            }
+                        }
+                        if (cp >= 0xD800 && cp <= 0xDFFF) cp = 0xFFFD;   // unpaired surrogate: not valid UTF-8, so a replacement character
+                        append_utf8(out, cp);
+                        i_ += consumed;
+                        continue;
+                    }
                     default: out += n; break;
                 }
                 i_ += 2;
@@ -250,6 +331,33 @@ private:
 inline bool parse(const std::string& text, Value& out) {
     Parser p(text);
     return p.parse(out);
+}
+
+// The JSON object a helper program printed. Helpers may print diagnostics before their answer, so when the whole text
+// is not one object, its last line that starts with '{' is used.
+inline bool parse_answer(const std::string& text, Value& out) {
+    if (parse(text, out) && out.type == Type::Object) return true;
+    std::string last;
+    std::istringstream in(text);
+    for (std::string line; std::getline(in, line);) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (!line.empty() && line[0] == '{') last = line;
+    }
+    return !last.empty() && parse(last, out) && out.type == Type::Object;
+}
+
+// Field readers for an object: the default when the key is missing or holds another type.
+inline std::string string_field(const Value& o, const std::string& key, const std::string& def = "") {
+    const Value* v = o.find(key);
+    return v ? v->as_string(def) : def;
+}
+inline bool bool_field(const Value& o, const std::string& key, bool def = false) {
+    const Value* v = o.find(key);
+    return v ? v->as_bool(def) : def;
+}
+inline double number_field(const Value& o, const std::string& key, double def = 0.0) {
+    const Value* v = o.find(key);
+    return v ? v->as_number(def) : def;
 }
 
 } // namespace tinyjson

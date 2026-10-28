@@ -1,3 +1,5 @@
+// Tags for retro music files (tracker modules, console music, SID): reads and writes their titles,
+// artists and years in a sidecar folder or inside the file, where the format allows it.
 #include "chip_meta.h"
 #include "chiptune.h"
 #include "path_utf8.h"

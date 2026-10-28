@@ -1,3 +1,5 @@
+// The sphere visualisation (see sphere_visualizer.cpp): SphereVisualizer renders one frame of text
+// rows from the bar heights.
 #pragma once
 #include <string>
 #include <vector>

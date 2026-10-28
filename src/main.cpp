@@ -1,3 +1,5 @@
+// Entry point: handles the command-line modes (the self-test, the remote client calls, the --cmd
+// options) and then starts the music player or the radio.
 #include <algorithm>
 #include <memory>
 #include <clocale>

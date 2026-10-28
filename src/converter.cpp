@@ -1,3 +1,6 @@
+// File conversion (the converter overlay): builds the ffmpeg command for each preset, probes the
+// input, estimates the output size and runs the conversions in a background thread that can be
+// cancelled.
 #include "converter.h"
 #include "path_utf8.h"
 #include "process_util.h"
@@ -31,36 +34,34 @@ double to_double(const std::string& s) {
     return end == s.c_str() ? 0.0 : v;
 }
 
-// ffmpeg command for one file. `cover` = carry the embedded picture over (MP3 / M4A only).
-std::string build_command(const ConvertItem& it, int preset, bool cover) {
+// ffmpeg command for one file, as an argument list. `cover` = carry the embedded picture over (MP3 / M4A only).
+Args build_command(const ConvertItem& it, int preset, bool cover) {
     const ConvertPreset& p = convert_preset(preset);
     const std::string ext = p.ext;
-    std::string cmd = "ffmpeg -nostdin -v error -y -progress pipe:1 -i " + shell_quote(path_utf8(it.src));
-    cmd += " -map 0:a:0";
+    Args cmd = {"ffmpeg", "-nostdin", "-v", "error", "-y", "-progress", "pipe:1", "-i", path_utf8(it.src),
+                "-map", "0:a:0"};
     const bool pic = cover && (ext == ".mp3" || ext == ".m4a");
-    if (pic) cmd += " -map 0:v:0? -c:v copy";
-    else cmd += " -vn";
-    cmd += " -map_metadata 0";
+    if (pic) cmd.insert(cmd.end(), {"-map", "0:v:0?", "-c:v", "copy"});
+    else cmd.push_back("-vn");
+    cmd.insert(cmd.end(), {"-map_metadata", "0"});
+    const std::string kbps = std::to_string(p.est_kbps) + "k";
     if (ext == ".mp3") {
-        cmd += " -c:a libmp3lame";
-        if (preset == 1) cmd += " -q:a 0"; else cmd += " -b:a " + std::to_string(p.est_kbps) + "k";
-        cmd += " -id3v2_version 3 -write_id3v1 1";
-        if (it.sample_rate > 48000) cmd += (it.sample_rate % 44100 == 0) ? " -ar 44100" : " -ar 48000";
-        if (it.channels > 2) cmd += " -ac 2";
+        cmd.insert(cmd.end(), {"-c:a", "libmp3lame"});
+        if (preset == 1) cmd.insert(cmd.end(), {"-q:a", "0"}); else cmd.insert(cmd.end(), {"-b:a", kbps});
+        cmd.insert(cmd.end(), {"-id3v2_version", "3", "-write_id3v1", "1"});
+        if (it.sample_rate > 48000) cmd.insert(cmd.end(), {"-ar", (it.sample_rate % 44100 == 0) ? "44100" : "48000"});
+        if (it.channels > 2) cmd.insert(cmd.end(), {"-ac", "2"});
     } else if (ext == ".m4a") {
-        cmd += " -c:a aac -b:a " + std::to_string(p.est_kbps) + "k";
-        if (pic) cmd += " -disposition:v:0 attached_pic";
-        if (it.sample_rate > 48000) cmd += (it.sample_rate % 44100 == 0) ? " -ar 44100" : " -ar 48000";
-        if (it.channels > 2) cmd += " -ac 2";
+        cmd.insert(cmd.end(), {"-c:a", "aac", "-b:a", kbps});
+        if (pic) cmd.insert(cmd.end(), {"-disposition:v:0", "attached_pic"});
+        if (it.sample_rate > 48000) cmd.insert(cmd.end(), {"-ar", (it.sample_rate % 44100 == 0) ? "44100" : "48000"});
+        if (it.channels > 2) cmd.insert(cmd.end(), {"-ac", "2"});
     } else {   // opus: libopus resamples to 48 kHz by itself
-        cmd += " -c:a libopus -b:a " + std::to_string(p.est_kbps) + "k";
-        if (it.channels > 2) cmd += " -ac 2";
+        cmd.insert(cmd.end(), {"-c:a", "libopus", "-b:a", kbps});
+        if (it.channels > 2) cmd.insert(cmd.end(), {"-ac", "2"});
     }
     const char* muxer = ext == ".mp3" ? "mp3" : ext == ".m4a" ? "ipod" : "opus";
-    cmd += std::string(" -f ") + muxer + " " + shell_quote(path_utf8(it.dst) + ".part");
-#if !defined(_WIN32)
-    cmd = "exec " + cmd;   // kill() must hit ffmpeg, not the shell that started it
-#endif
+    cmd.insert(cmd.end(), {"-f", muxer, path_utf8(it.dst) + ".part"});
     return cmd;
 }
 
@@ -83,9 +84,9 @@ bool codec_is_lossless(const std::string& c) {
 
 AudioInfo probe_audio_info(const fs::path& file) {
     AudioInfo a;
-    const ProcResult r = run_capture(
-        "ffprobe -v error -select_streams a:0 -show_entries stream=codec_name,sample_rate,channels,bits_per_raw_sample,bits_per_sample"
-        ":format=bit_rate,duration -of default=nw=1 " + shell_quote(path_utf8(file)), false);
+    const ProcResult r = run_capture({"ffprobe", "-v", "error", "-select_streams", "a:0",
+                                      "-show_entries", "stream=codec_name,sample_rate,channels,bits_per_raw_sample,bits_per_sample:format=bit_rate,duration",
+                                      "-of", "default=nw=1", path_utf8(file)}, false);
     if (!r.ok() || r.out.empty()) return a;
     std::istringstream in(r.out);
     std::string line;

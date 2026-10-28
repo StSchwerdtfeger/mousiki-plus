@@ -1,3 +1,5 @@
+// Lyric text cleanup: drops the characters that draw as nothing or break the line layout (for example
+// the Hangul filler U+3164) before lyrics are shown.
 #include "TextSanitizer.h"
 #include "utf8_util.h"
 #include <cstdint>

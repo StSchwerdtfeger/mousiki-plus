@@ -1,3 +1,5 @@
+// Session snapshot (see snapshot.cpp): SnapshotTrack and SnapshotData describe what is saved, and
+// load_snapshot() reads it back.
 #pragma once
 #include <filesystem>
 #include <string>

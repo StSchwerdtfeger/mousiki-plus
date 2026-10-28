@@ -1,3 +1,5 @@
+// The ASCII disk (see disk_art.cpp): DiskArt builds the rotating disk as text frames, cells or dot
+// patterns for a given angle.
 #pragma once
 #include <string>
 #include <vector>

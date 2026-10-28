@@ -1,3 +1,5 @@
+// The waveform: turns decoded audio into a braille envelope of the whole track, with columns drawn at
+// a chosen resolution.
 #include "waveform.h"
 #include "path_utf8.h"
 #include "process_util.h"
@@ -217,9 +219,9 @@ static bool stream_decode_miniaudio(const fs::path& file_path, StreamingPcm& pcm
 // Fallback for formats miniaudio's built-in decoders don't cover -- Opus
 // (yt-dlp's cache format) being the main one this project actually needs.
 //
-// The spawn itself now lives in process_util.cpp behind spawn_capture(), so
-// this function is identical on every platform: on POSIX it is still
-// posix_spawnp("sh"), on Windows it is CreateProcessW with no shell at all.
+// The spawn itself lives in process_util.cpp behind spawn_capture(), so
+// this function is identical on every platform: the program is started
+// directly from its argument list, with no shell on any platform.
 // The stdin-detachment that fixed the render-loop freeze (ffmpeg grabbing the
 // terminal for its interactive controls and leaving it in line-buffered mode
 // on exit) is part of that shared contract.
@@ -232,9 +234,9 @@ static void stream_decode_ffmpeg_fallback(const fs::path& file_path, StreamingPc
     // The buffer's rate is the file's own (see native_sample_rate()), so usually nothing is resampled; when it is
     // (a file above 96 kHz, or an unknown rate), with a long, sharp filter instead of ffmpeg's default one.
     const std::string sr = std::to_string(pcm.sample_rate);
-    std::string cmd = "ffmpeg -nostdin -v error -i " + shell_quote(path_utf8(file_path))
-                     + " -af aresample=" + sr + ":filter_size=64:phase_shift=10:cutoff=0.97"
-                     + " -f f32le -ac " + std::to_string(channels) + " -ar " + sr + " -";
+    const Args cmd = {"ffmpeg", "-nostdin", "-v", "error", "-i", path_utf8(file_path),
+                      "-af", "aresample=" + sr + ":filter_size=64:phase_shift=10:cutoff=0.97",
+                      "-f", "f32le", "-ac", std::to_string(channels), "-ar", sr, "-"};
 
     std::unique_ptr<ChildProcess> child = spawn_capture(cmd, /*merge_stderr=*/false);
     if (!child) {
@@ -415,10 +417,11 @@ private:
         const std::string sr = std::to_string(rate_);
         char ss[64];
         std::snprintf(ss, sizeof ss, "%.6f", static_cast<double>(frame) / rate_);
-        std::string cmd = "ffmpeg -nostdin -v error " + std::string(frame > 0 ? std::string("-ss ") + ss + " " : "") +
-                          "-i " + shell_quote(path_utf8(path_)) +
-                          " -af aresample=" + sr + ":filter_size=64:phase_shift=10:cutoff=0.97"
-                          " -f f32le -ac " + std::to_string(ch_) + " -ar " + sr + " -";
+        Args cmd = {"ffmpeg", "-nostdin", "-v", "error"};
+        if (frame > 0) cmd.insert(cmd.end(), {"-ss", ss});
+        cmd.insert(cmd.end(), {"-i", path_utf8(path_),
+                               "-af", "aresample=" + sr + ":filter_size=64:phase_shift=10:cutoff=0.97",
+                               "-f", "f32le", "-ac", std::to_string(ch_), "-ar", sr, "-"});
         child_ = spawn_capture(cmd, /*merge_stderr=*/false);
     }
     fs::path path_;

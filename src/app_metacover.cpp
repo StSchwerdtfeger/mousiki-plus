@@ -1,6 +1,7 @@
 // The cover in the meta data editor: the picture under the fields and the "Cover Options" overlay (choose a picture for the track,
 // "no cover", back to automatic, delete a fetched / folder picture, search pictures by file name). Member functions of App.
 #include "app.h"
+#include "utf8_util.h"
 #include "text_edit.h"
 #include "overlay_common.h"
 #include "path_utf8.h"
@@ -15,13 +16,9 @@ namespace muisc {
 
 namespace {
 
-std::string lower_ascii(std::string s) {
-    for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return s;
-}
 
 bool is_picture_name(const fs::path& p) {
-    const std::string e = lower_ascii(path_utf8(p.extension()));
+    const std::string e = ascii_lower_str(path_utf8(p.extension()));
     for (const char* x : kCoverPictureExtensions) if (e == x) return true;
     return false;
 }
@@ -89,7 +86,7 @@ void App::meta_cov_open() {
 
 void App::meta_cov_rebuild() {
     const fs::path track = path_from_utf8(meta_cov_track_);
-    const std::string q = lower_ascii(meta_cov_query_);
+    const std::string q = ascii_lower_str(meta_cov_query_);
     meta_cov_items_.clear();
     if (q.empty()) {
         meta_cov_items_.push_back({1, {}});
@@ -97,7 +94,7 @@ void App::meta_cov_rebuild() {
     }
     std::vector<fs::path> seen;
     auto add = [&](const CoverCandidate& c) {
-        if (!q.empty() && lower_ascii(c.label).find(q) == std::string::npos) return;
+        if (!q.empty() && ascii_lower_str(c.label).find(q) == std::string::npos) return;
         for (const auto& s : seen) if (s == c.file) return;
         seen.push_back(c.file);
         meta_cov_items_.push_back({0, c});
@@ -133,7 +130,7 @@ void App::meta_cov_rebuild() {
             std::error_code e2;
             if (!it->is_regular_file(e2) || !is_picture_name(it->path())) continue;
             const std::string name = path_utf8(it->path().filename());
-            if (lower_ascii(name).find(q) == std::string::npos) continue;
+            if (ascii_lower_str(name).find(q) == std::string::npos) continue;
             CoverCandidate c;
             c.file = it->path();
             c.kind = path_utf8(it->path().parent_path().filename()) == kFetchedCoversDir ? CoverCandidate::Fetched : CoverCandidate::Folder;

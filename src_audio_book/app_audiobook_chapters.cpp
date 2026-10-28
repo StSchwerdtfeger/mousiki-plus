@@ -4,6 +4,7 @@
 // file at the marks: ffmpeg copies the parts losslessly into the book folder, the original stays as <name>.<ending>.mousiki-backup
 // until it is deleted on purpose ([SHIFT+d]), and the bookmark and the notes are moved to the new files. Member functions of App.
 #include "app.h"
+#include "string_util.h"
 #include "text_edit.h"
 #include "utf8_util.h"
 #include "path_utf8.h"
@@ -25,12 +26,6 @@ namespace muisc {
 namespace {
 constexpr const char* kBackupEnding = ".mousiki-backup";
 
-std::string trim_text(const std::string& s) {
-    size_t a = 0, b = s.size();
-    while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
-    while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
-    return s.substr(a, b - a);
-}
 
 std::string size_text(unsigned long long b) {
     char buf[32];
@@ -61,7 +56,8 @@ void App::book_cm_open() {
         cue.load(BookCue::path_for(path_from_utf8(book_dir_)));
         book_cm_ = chapter_marks_of(cue, book_cm_file_);
         book_cm_dur_ = 0.0;
-        const ProcResult r = run_capture("ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 " + shell_quote(path_utf8(file)), false);
+        const ProcResult r = run_capture({"ffprobe", "-v", "error", "-show_entries", "format=duration",
+                                          "-of", "default=nw=1:nk=1", path_utf8(file)}, false);
         if (r.ok()) book_cm_dur_ = std::max(0.0, std::strtod(r.out.c_str(), nullptr));
         if (book_cm_dur_ <= 0.0 && idx == book_current_chapter()) book_cm_dur_ = static_cast<double>(total_sec_);
         book_cm_sel_ = 0;
@@ -143,7 +139,7 @@ bool App::book_cm_key(int key) {
             book_cm_mode_ = 0;
             text_disengage();
             if (mode == 1 && book_cm_edit_ >= 0 && book_cm_edit_ < n) {
-                const std::string t = trim_text(book_cm_text_);
+                const std::string t = trim_ws(book_cm_text_);
                 const double at = book_cm_[static_cast<size_t>(book_cm_edit_)].sec;
                 book_cm_[static_cast<size_t>(book_cm_edit_)].title = t;   // (empty: the standard title comes back)
                 order_marks(book_cm_);
@@ -319,7 +315,8 @@ void App::book_cut_start(bool trim) {
     job.active = true;
     if (trim) {   // ffmpeg looks for blank stretches first (in the background: a long file takes a while), the parts are trimmed with the result
         job.trim = job.detecting = true;
-        const std::string cmd = "ffmpeg -nostats -v info -i " + shell_quote(path_utf8(job.src)) + " -vn -af silencedetect=noise=-50dB:d=2.5 -f null -";
+        const Args cmd = {"ffmpeg", "-nostats", "-v", "info", "-i", path_utf8(job.src), "-vn",
+                          "-af", "silencedetect=noise=-50dB:d=2.5", "-f", "null", "-"};
         job.detect = std::async(std::launch::async, [cmd]() { return run_capture(cmd, true).out; });
     }
     book_cut_ = std::move(job);
@@ -342,12 +339,12 @@ void App::book_cut_step() {
     const fs::path out = path_from_utf8(job.dir) / path_from_utf8(p.file);
     char t[40];
     std::snprintf(t, sizeof t, "%.3f", p.start);
-    std::string cmd = "ffmpeg -y -v error -ss " + std::string(t) + " -i " + shell_quote(path_utf8(job.src));
-    if (p.end >= 0) { std::snprintf(t, sizeof t, "%.3f", p.end - p.start); cmd += std::string(" -t ") + t; }
-    cmd += " -map 0 -map_chapters -1 -map_metadata 0 -c copy";
-    cmd += " -metadata " + shell_quote("title=" + p.title);
-    cmd += " -metadata " + shell_quote("track=" + std::to_string(job.next + 1) + "/" + std::to_string(job.parts.size()));
-    cmd += " " + shell_quote(path_utf8(out));
+    Args cmd = {"ffmpeg", "-y", "-v", "error", "-ss", std::string(t), "-i", path_utf8(job.src)};
+    if (p.end >= 0) { std::snprintf(t, sizeof t, "%.3f", p.end - p.start); cmd.push_back("-t"); cmd.push_back(t); }
+    cmd.insert(cmd.end(), {"-map", "0", "-map_chapters", "-1", "-map_metadata", "0", "-c", "copy"});
+    cmd.insert(cmd.end(), {"-metadata", "title=" + p.title});
+    cmd.insert(cmd.end(), {"-metadata", "track=" + std::to_string(job.next + 1) + "/" + std::to_string(job.parts.size())});
+    cmd.push_back(path_utf8(out));
     const ProcResult r = run_capture(cmd, true);
     std::error_code ec;
     job.made.push_back(out);

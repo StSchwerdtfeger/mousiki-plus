@@ -4,6 +4,7 @@
 // Only for those files: nothing here is part of the program's interface. The functions are defined in app.cpp
 // (n_files_label in app_history.cpp).
 #include <algorithm>
+#include "utf8_util.h"
 #include <cstdio>
 #include <filesystem>
 #include <string>
@@ -146,7 +147,7 @@ inline std::string clock_text(double sec) {
 
 // ---- small helpers shared by the files that were split out of app.cpp ----
 inline bool contains_ci(const std::string& hay, const std::string& needle) {
-    return lower(hay).find(lower(needle)) != std::string::npos;
+    return ascii_lower_str(hay).find(ascii_lower_str(needle)) != std::string::npos;
 }
 
 inline std::string fmt_mmss(double seconds) {

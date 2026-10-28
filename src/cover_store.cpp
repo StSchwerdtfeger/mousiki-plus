@@ -1,3 +1,5 @@
+// Fetched album covers: saves covers downloaded for an album in a folder next to the music and finds
+// them again by the album name.
 #include "cover_store.h"
 
 #include <algorithm>
@@ -113,7 +115,8 @@ fs::path choices_file() {
     return base / ".cache" / "mousiki" / "covers" / "choices.txt";
 }
 
-// "T\t<track path>\t<choice>" / "A\t<album key>\t<choice>", one per line
+// Reads choices.txt once (later calls return at once). Each line is a tab-separated record with a one-letter tag:
+// T = track path -> choice, A = album key -> choice, R = successful fetch, F = failed fetch. Lines with a bad layout or an unknown tag are skipped.
 void load_locked(Choices& c) {
     if (c.loaded) return;
     c.loaded = true;
@@ -133,10 +136,11 @@ void load_locked(Choices& c) {
     }
 }
 
+// Rewrites the whole file from the in-memory maps (the same T/A/R/F records that load_locked() reads).
 void save_locked(Choices& c) {
     const fs::path p = choices_file();
     std::error_code ec;
-    fs::create_directories(p.parent_path(), ec);
+    fs::create_directories(p.parent_path(), ec);   // errors are ignored here; if the folder could not be created, the write below simply fails
     std::ofstream out(p, std::ios::binary | std::ios::trunc);
     for (const auto& kv : c.track) out << "T\t" << kv.first << "\t" << kv.second << "\n";
     for (const auto& kv : c.album) out << "A\t" << kv.first << "\t" << kv.second << "\n";
@@ -275,7 +279,7 @@ bool has_embedded_picture(const fs::path& audio_file) {
         const auto it = seen.find(key);
         if (it != seen.end()) return it->second;
     }
-    const ProcResult r = run_capture("ffprobe -v error -select_streams v -show_entries stream=codec_type -of csv=p=0 " + shell_quote(key), false);
+    const ProcResult r = run_capture({"ffprobe", "-v", "error", "-select_streams", "v", "-show_entries", "stream=codec_type", "-of", "csv=p=0", key}, false);
     const bool has = r.out.find("video") != std::string::npos;
     std::lock_guard<std::mutex> lk(mu);
     seen[key] = has;
@@ -289,14 +293,19 @@ AlbumCovers album_covers(const fs::path& folder, const std::string& album, const
         for (const fs::path& g : a.files) if (g == f) return;
         a.files.push_back(f);
     };
+    // Candidate order: embedded art (if probed), the fetched cover, then picture files whose names match the album.
     if (probe_embedded && !first_track.empty()) a.embedded = has_embedded_picture(first_track);
     add(find_fetched_cover(folder, album));
+    // A file counts as a match when its normalised name contains the album name or vice versa (at least 3
+    // characters, so short names do not match everything). Generic names such as "cover" or "folder" count only
+    // when the caller asked for album-level covers.
     const std::string want = cover_name_key(album);
     for (const fs::path& f : pictures_in(folder)) {
         const std::string stem = cover_name_key(path_utf8(f.stem()));
         if (!stem.empty() && !want.empty() && (stem == want || stem.find(want) != std::string::npos || want.find(stem) != std::string::npos) && stem.size() >= 3) add(f);
         else if (only_album && (stem == "cover" || stem == "folder" || stem == "front" || stem == "albumart" || stem == "album" || stem == "thumb")) add(f);
     }
+    // Choices the user made earlier (per track, then per album) are added last, if the file still exists.
     const std::string tc = first_track.empty() ? std::string() : cover_track_choice(path_utf8(first_track));
     const std::string ac = cover_album_choice(album);
     for (const std::string& c : {tc, ac})
@@ -305,6 +314,8 @@ AlbumCovers album_covers(const fs::path& folder, const std::string& album, const
 }
 
 // ---- fetching ---------------------------------------------------------------------------------------------------------------
+// Parses one JSON answer line from the cover fetch helper. Anything that is not a JSON object becomes an error result
+// rather than an exception, so a broken helper cannot crash the player.
 CoverFetchResult parse_cover_fetch_line(const std::string& line) {
     CoverFetchResult r;
     tinyjson::Value v;
@@ -330,20 +341,16 @@ CoverFetchResult fetch_album_cover(const fs::path& script, const std::string& al
     CoverFetchResult r;
     std::error_code ec;
     if (!fs::exists(script, ec)) { r.script_missing = true; r.error = "fetch script not found: " + path_utf8(script); return r; }
-#if defined(_WIN32)
-    const std::string python = win_python_command();
-    if (python.empty()) { r.python_missing = true; r.error = "python not found (Python 3 is required to fetch covers)"; return r; }
-#else
-    const std::string python = "python3";
-#endif
+    Args cmd = python_command();
+    if (cmd.empty()) { r.python_missing = true; r.error = "python not found (Python 3 is required to fetch covers)"; return r; }
     fs::create_directories(stem.parent_path(), ec);
-    std::string cmd = python + " " + shell_quote(path_utf8(script)) + " " + shell_quote(album) + " " + shell_quote(artist) + " " + shell_quote(path_utf8(stem));
-    for (const std::string& t : titles) if (!t.empty()) cmd += " " + shell_quote(t);   // song titles of the album: they confirm the right release
-#if !defined(_WIN32)
-    cmd = "exec " + cmd;   // a cancel must kill the script itself, not the shell that started it
-#endif
+    cmd.push_back(path_utf8(script));
+    cmd.push_back(album);
+    cmd.push_back(artist);
+    cmd.push_back(path_utf8(stem));
+    for (const std::string& t : titles) if (!t.empty()) cmd.push_back(t);   // song titles of the album: they confirm the right release
     auto child = spawn_capture(cmd, /*merge_stderr=*/false);
-    if (!child) { r.error = "could not start " + python; return r; }
+    if (!child) { r.error = "could not start " + command_text(cmd); return r; }
     if (cancel) cancel->attach(child.get());
     std::string buffer;
     char chunk[2048];

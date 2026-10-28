@@ -1,3 +1,5 @@
+// System media keys and now-playing info: the platform part is MPRIS on Linux and the macOS media
+// session; elsewhere a stub does nothing. Key presses from the system become player commands.
 #include "media_session.h"
 
 #include <algorithm>

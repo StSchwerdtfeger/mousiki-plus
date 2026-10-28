@@ -1,3 +1,5 @@
+// Indic scripts in the terminal: which code points are combining marks (they take no column of their
+// own) and how wide each Indic character is drawn.
 #include "indic_handler.h"
 
 namespace muisc {

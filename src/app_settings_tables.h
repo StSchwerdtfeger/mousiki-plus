@@ -126,6 +126,7 @@ enum SetId {
     kSidVolIndicator,
     kSidUseModePlayer, kSidUseModeRadio, kSidUseModeBook, kSidModeOrder1, kSidModeOrder2, kSidModeOrder3, kSidBookAsk, kSidBookCover, kSidBookCoverWave,
     kSidAlbumCover, kSidCoverMode, kSidCoverContrast, kSidCoverSearch,
+    kSidCheckUpdate,   // [ENTER] checks for a newer release now (an action row, no value to switch)
 };
 // True while the audio book player is the mode that runs (set by App::run()): its ON/OFF and ANIMA/VIZ tabs leave out what only
 // belongs to the music player and name the lyrics view "notes".
@@ -135,7 +136,8 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
     static const std::vector<SetLine> on_off = {
         {true, -1, "MODES"},
         {false, kSidPlayback, "Playback"}, {false, kSidStartMode, "Start Mode"}, {false, kSidBlackBg, "Black Background"}, {false, kSidShareProfiles, "Share Profiles"},
-        {false, kSidRemoteApp, "Remote App"}, {false, kSidUpdateCheck, "Update Notice"}, {false, kSidMediaKeys, "Media Keys"},
+        {false, kSidRemoteApp, "Remote App"}, {false, kSidUpdateCheck, "Update Notice"}, {false, kSidCheckUpdate, "Check Update"},
+        {false, kSidMediaKeys, "Media Keys"},
         {false, kSidUseTermSettings, "Use Terminal Settings"}, {false, kSidTermSize, "Terminal Size"}, {false, kSidFullScreen, "Full Screen"},
         {true, -1, ""},
         {true, -1, "UI MODE SWITCH"},   // SHIFT and + / SHIFT and - walk through the modes that are on, in this order
@@ -184,7 +186,8 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
     static const std::vector<SetLine> book_on_off = {
         {true, -1, "MODES"},
         {false, kSidStartMode, "Start Mode"}, {false, kSidBlackBg, "Black Background"}, {false, kSidShareProfiles, "Share Profiles"},
-        {false, kSidRemoteApp, "Remote App"}, {false, kSidUpdateCheck, "Update Notice"}, {false, kSidMediaKeys, "Media Keys"},
+        {false, kSidRemoteApp, "Remote App"}, {false, kSidUpdateCheck, "Update Notice"}, {false, kSidCheckUpdate, "Check Update"},
+        {false, kSidMediaKeys, "Media Keys"},
         {false, kSidUseTermSettings, "Use Terminal Settings"}, {false, kSidTermSize, "Terminal Size"}, {false, kSidFullScreen, "Full Screen"},
         {true, -1, ""},
         {true, -1, "UI MODE SWITCH"},

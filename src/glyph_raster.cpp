@@ -1,4 +1,7 @@
+// Font glyphs for the karaoke and big-lyric views: finds a system font that covers the characters and
+// rasterises single glyphs into dot grids.
 #include "glyph_raster.h"
+#include "utf8_util.h"
 
 #include <algorithm>
 #include <cctype>
@@ -54,10 +57,6 @@ struct State {
 
 State& st() { static State s; return s; }
 
-std::string lower(std::string s) {
-    for (auto& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return s;
-}
 
 // Higher = better. Bold sans faces first; serif / thin / mono faces last.
 int score_font(const std::string& file_lower) {
@@ -89,9 +88,9 @@ void scan_dir(const fs::path& dir, int depth, std::vector<std::pair<int, std::st
         const fs::path p = it->path();
         std::error_code e2;
         if (it->is_directory(e2)) { scan_dir(p, depth - 1, found); continue; }
-        const std::string ext = lower(path_utf8(p.extension()));
+        const std::string ext = ascii_lower_str(path_utf8(p.extension()));
         if (ext != ".ttc" && ext != ".otf" && ext != ".ttf" && ext != ".otc") continue;
-        const std::string name = lower(path_utf8(p.filename()));
+        const std::string name = ascii_lower_str(path_utf8(p.filename()));
         if (!wanted_font_name(name)) continue;
         found.emplace_back(score_font(name), path_utf8(p));
     }

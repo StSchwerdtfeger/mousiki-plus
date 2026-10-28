@@ -1,3 +1,5 @@
+// Microphone input for the visualisations: a lock-free stereo ring buffer that the capture thread
+// fills and the visualisers read.
 #include "mic_capture.h"
 
 #include <algorithm>

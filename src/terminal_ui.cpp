@@ -1,3 +1,5 @@
+// Terminal handling: raw input and key decoding, screen output, terminal size and colour support, text
+// width, and the clipboard. Everything the screen code sends to the terminal goes through here.
 #include "terminal_ui.h"
 #include "indic_handler.h"
 #include "utf8_util.h"
@@ -433,11 +435,7 @@ enum class ClipTool { Unknown, None, Pasteboard, Wayland, Xclip, Xsel, Termux };
 ClipTool g_clip_tool = ClipTool::Unknown;
 
 bool have_command(const char* name) {
-    std::unique_ptr<ChildProcess> child = spawn_capture(std::string("command -v ") + name, false);
-    if (!child) return false;
-    char buf[256];
-    std::ptrdiff_t n = child->read(buf, sizeof(buf));
-    return child->wait() == 0 && n > 0;
+    return program_on_path(name);
 }
 
 ClipTool detect_clip_tool() {
@@ -461,25 +459,26 @@ ClipTool clip_tool() {
     return g_clip_tool;
 }
 
-const char* clip_paste_command(ClipTool t) {
+// The tool's program and arguments; empty when there is no clipboard tool.
+Args clip_paste_command(ClipTool t) {
     switch (t) {
-        case ClipTool::Pasteboard: return "pbpaste";
-        case ClipTool::Wayland:    return "wl-paste --no-newline";
-        case ClipTool::Xclip:      return "xclip -selection clipboard -o";
-        case ClipTool::Xsel:       return "xsel --clipboard --output";
-        case ClipTool::Termux:     return "termux-clipboard-get";
-        default:                   return nullptr;
+        case ClipTool::Pasteboard: return {"pbpaste"};
+        case ClipTool::Wayland:    return {"wl-paste", "--no-newline"};
+        case ClipTool::Xclip:      return {"xclip", "-selection", "clipboard", "-o"};
+        case ClipTool::Xsel:       return {"xsel", "--clipboard", "--output"};
+        case ClipTool::Termux:     return {"termux-clipboard-get"};
+        default:                   return {};
     }
 }
 
-const char* clip_copy_command(ClipTool t) {
+Args clip_copy_command(ClipTool t) {
     switch (t) {
-        case ClipTool::Pasteboard: return "pbcopy";
-        case ClipTool::Wayland:    return "wl-copy";
-        case ClipTool::Xclip:      return "xclip -selection clipboard -i";
-        case ClipTool::Xsel:       return "xsel --clipboard --input";
-        case ClipTool::Termux:     return "termux-clipboard-set";
-        default:                   return nullptr;
+        case ClipTool::Pasteboard: return {"pbcopy"};
+        case ClipTool::Wayland:    return {"wl-copy"};
+        case ClipTool::Xclip:      return {"xclip", "-selection", "clipboard", "-i"};
+        case ClipTool::Xsel:       return {"xsel", "--clipboard", "--input"};
+        case ClipTool::Termux:     return {"termux-clipboard-set"};
+        default:                   return {};
     }
 }
 
@@ -490,8 +489,8 @@ std::string clipboard_get() {
 #if defined(_WIN32)
     return win_clipboard_get();
 #else
-    const char* cmd = clip_paste_command(clip_tool());
-    if (!cmd) return g_clipboard;
+    const Args cmd = clip_paste_command(clip_tool());
+    if (cmd.empty()) return g_clipboard;
     std::unique_ptr<ChildProcess> child = spawn_capture(cmd, false);
     if (!child) return g_clipboard;
     std::string out;
@@ -511,12 +510,12 @@ void clipboard_set(const std::string& utf8) {
     win_clipboard_set(utf8);
 #else
     g_clipboard = utf8;
-    const char* cmd = clip_copy_command(clip_tool());
-    if (!cmd) return;
-    // The text goes in through a file the tool reads on stdin: spawn_capture()
-    // detaches the child's stdin, and building the text into the command line
-    // would need quoting for arbitrary bytes. mkstemp() creates it 0600, so the
-    // clipboard text is never readable by other users while it exists.
+    const Args cmd = clip_copy_command(clip_tool());
+    if (cmd.empty()) return;
+    // The text goes in through a file the tool reads on stdin: building it into
+    // the argument list would pass arbitrary bytes on a command line. mkstemp()
+    // creates the file 0600, so the clipboard text is never readable by other
+    // users while it exists.
     std::error_code ec;
     std::string tmpl = (std::filesystem::temp_directory_path(ec) / "mousiki-clip-XXXXXX").string();
     if (ec) return;
@@ -530,16 +529,10 @@ void clipboard_set(const std::string& utf8) {
     }
     close(fd);
     if (off == utf8.size()) {
-        // Output goes to /dev/null so the pipe closes as soon as the shell exits:
-        // xclip, xsel and wl-copy fork into the background to keep serving the
-        // selection, and would otherwise hold the pipe open and block this read.
-        std::unique_ptr<ChildProcess> child =
-            spawn_capture(std::string(cmd) + " < " + shell_quote(tmpl) + " > /dev/null 2>&1", false);
-        if (child) {
-            char buf[256];
-            while (child->read(buf, sizeof(buf)) > 0) {}
-            child->wait();
-        }
+        // Output goes to /dev/null: xclip, xsel and wl-copy fork into the
+        // background to keep serving the selection, and would otherwise hold
+        // an output pipe open.
+        run_with_stdin_file(cmd, tmpl);
     }
     unlink(tmpl.c_str());
 #endif
@@ -700,7 +693,7 @@ int TerminalIO::poll_key() {
     if (c == 0x16) { g_last_key_was_arrow = false; return kKeyCtrlV; }
     if (c == 0x13) { g_last_key_was_arrow = false; return kKeyCtrlS; }   // Ctrl+S (IXON is off, see the constructor)
     if (c == 0x10) { g_last_key_was_arrow = false; return kKeyCtrlP; }   // Ctrl+P
-    // Ctrl+L = the READ LYRICS overlay (it used to be a second way to open the lyrics timing overlay, which is Alt+L only now).
+    // Ctrl+L = the READ LYRICS overlay (the lyrics timing overlay is Alt+L).
     if (c == 0x0c) { g_last_key_was_arrow = false; return kKeyCtrlL; }
     if (c == 0x0e) { g_last_key_was_arrow = false; return kKeyCtrlN; }   // Ctrl+N (audio book mode: small note field <-> big notes overlay)
     g_last_key_was_arrow = false;

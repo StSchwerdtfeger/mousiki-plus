@@ -1,3 +1,5 @@
+// The ASCII disk: draws the spinning disk of the player as braille dots, rotating it by an angle and
+// converting the dots to terminal cells.
 #include "disk_art.h"
 #include <algorithm>
 #include <cmath>

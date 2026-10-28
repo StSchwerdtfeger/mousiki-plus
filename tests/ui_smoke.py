@@ -344,8 +344,8 @@ def paging_and_translit_row(binary, root, scripts):
                 if label in line:
                     return line
             return ""
-        # MODES: 7 rows, then Use Terminal Settings, Terminal Size and Full Screen (rows 8, 9, 10)
-        for _ in range(7):
+        # MODES: 8 rows (Update Notice and Check Update included), then Use Terminal Settings, Terminal Size and Full Screen
+        for _ in range(8):
             sess.send(b"\x1b[B", 0.1)
         check("Use Terminal Settings" in find("Use Terminal Settings") and "false" in find("Use Terminal Settings"),
               "use terminal settings: the row exists and is false by default")

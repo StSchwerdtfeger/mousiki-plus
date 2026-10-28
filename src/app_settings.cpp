@@ -21,6 +21,7 @@
 #include "creator.h"
 #include "mic_capture.h"
 #include "process_util.h"
+#include "update_check.h"
 #include "app_internal.h"
 #include "app_settings_tables.h"
 #include <cstring>
@@ -743,6 +744,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidLatinHanzi: return settings_.latin_hanzi == 1 ? "Chin." : settings_.latin_hanzi == 2 ? "Jap." : "Leave";
             case kSidLyricsVariants: v = settings_.lyrics_name_variants; break;
             case kSidRemoteApp: return settings_.remote_app ? "on   [ENTER] settings" : "off  [ENTER] settings";   // opens the REMOTE APP overlay
+            case kSidCheckUpdate: return update_check::check_busy() ? std::string("checking ...") : std::string("[ENTER] to check");
             case kSidNormalize: v = settings_.normalize; break;
             case kSidMetaOnly: v = settings_.meta_only; break;
             case kSidEmoji: v = settings_.replace_emoji; break;
@@ -840,6 +842,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidCoverSearch: return {"Default", "Folder First", "Within File First", "Image in Folder Only", "Within File Only"};
             case kSidTrackBuffer: return {};   // a number (ENTER types it) and a "Set back to default" button (RIGHT, then ENTER)
             case kSidRemoteApp: return {};   // not a switch: ENTER / LEFT / RIGHT open the REMOTE APP overlay
+            case kSidCheckUpdate: return {};   // an action: ENTER asks GitHub (handle_settings_key)
             case kSidVisFluidity: case kSidVisDegr: case kSidVisVisc: return {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
             case kSidLatinHanzi: return {"Leave", "Chin.", "Jap."};
             case kSidTermSize: return {};   // two typed numbers (ENTER types the one that is lit)
@@ -1282,6 +1285,7 @@ void App::settings_cycle(int dir) {
                                                                       : "ask for bookmark: off -- only SHIFT+b sets a bookmark";
     if (id == kSidUpdateCheck) status_line_ = settings_.update_check ? "update notice: on -- at start-up Mousiki looks once a day for a newer release and tells you once (nothing is installed)"
                                                                      : "update notice: off -- no check for a newer release";
+    if (id == kSidCheckUpdate) status_line_ = "check update: [ENTER] asks GitHub for the newest release now (needs Python 3 and a network connection)";
     if (id == kSidLatinLookup) status_line_ = settings_.latin_lookup ? "latin name lookup: on -- artists written in Chinese characters are looked up on MusicBrainz in the background (their name is sent to musicbrainz.org, one at a time)"
                                                                     : "latin name lookup: off -- nothing is sent anywhere";
     if (id == kSidLatinMacrons) status_line_ = settings_.latin_macrons ? "latin macrons: on -- Japanese long vowels as macrons (koohii -> kōhī, ou -> ō)" : "latin macrons: off -- Japanese long vowels spelled out (ou, uu, koohii)";
@@ -1390,6 +1394,13 @@ void App::handle_settings_key(int key) {
             settings_update_dirty();
         }
         if (close) { remote_ov_ = remote_ui::State{}; status_line_ = settings_.remote_app ? "remote app on (s saves)" : "remote app off (s saves)"; }
+        force_redraw_ = true;
+        return;
+    }
+    if (mode_ == Mode::Settings && settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidCheckUpdate &&
+        (key == '\r' || key == '\n')) {
+        status_line_ = update_check::check_now(locate_script("check_update.py")) ? "checking for a newer release ..."
+                                                                                  : "a check is already running";
         force_redraw_ = true;
         return;
     }
@@ -1978,9 +1989,8 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
     // Width of the value field on the row currently being edited. The Colors
     // and non-path rows keep their fixed 7/20 columns; a path row is 20
     // columns minimum and grows with what has actually been typed, never
-    // past the panel's right edge -- it used to be painted at the full width
-    // all the time, so entering one drew a red bar to the far right even
-    // when it was still empty.
+    // past the panel's right edge. It is not drawn at full width when still empty, because that would show
+    // a red bar to the far right.
     auto edit_field_width = [&]() -> int {
         if (settings_tab_ == 0) return 7;
         if (settings_tab_ == 3 && path_row_is_text(settings_row_)) {
@@ -2208,7 +2218,7 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
                     pos(y, 57, ((sel && settings_col_ == 1) ? HI : legend_sgr(settings_)) + "[ Set back to default ]" + R);
                 } else
                 if (sel && !settings_options_for(settings_tab_, r).empty())
-                    // Right behind the value (a long value such as "Cover behind Disk (Full Anima)" used to run into a fixed column).
+                    // Right behind the value, so long values such as "Cover behind Disk (Full Anima)" do not run into a fixed column.
                     pos(y, std::max(57, 35 + static_cast<int>(display_width(shown)) + 2), ansi_for(settings_.tab_current_color, false) + "< \u2194 >\x1b[0m");
             }
             y++;
@@ -2485,8 +2495,8 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
     // and shift the whole UI left by a column). This row sits on the panel's
     // own last screen line, so it is truncated to the panel width: a long
     // path or error message just ends early instead of wrapping.
-    // (a message of the last change is shown even when there are unsaved changes: the notice used to hide it, so a change
-    // that made the settings differ from the saved ones never showed its message)
+    // (the message of the last change is shown even when there are unsaved changes, so a change that made
+    // the settings differ from the saved ones still shows its message)
     if (settings_dirty_ && status_line_.empty()) pos(y, 1, "\x1b[32mUnsaved changes! Save with `s` or discard with `ESC`.\x1b[0m");
     else if (settings_dirty_) pos(y, 1, "\x1b[32m" + truncate_str(status_line_, std::max(1, W - 2 - 11)) + "\x1b[0m\x1b[33m (unsaved)\x1b[0m");
     else if (!status_line_.empty()) pos(y, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + "\x1b[0m");

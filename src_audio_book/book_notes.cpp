@@ -1,5 +1,6 @@
 // The notes file of an audio book (see book_notes.h).
 #include "book_notes.h"
+#include "string_util.h"
 #include "path_utf8.h"
 #include <algorithm>
 #include <cctype>
@@ -14,12 +15,6 @@ namespace fs = std::filesystem;
 namespace book_notes {
 
 namespace {
-std::string trim(const std::string& s) {
-    size_t a = 0, b = s.size();
-    while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
-    while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
-    return s.substr(a, b - a);
-}
 } // namespace
 
 fs::path path_for(const fs::path& book_dir) {
@@ -36,7 +31,7 @@ std::string time_text(double sec) {
 }
 
 bool parse_time(const std::string& str, double& sec) {
-    const std::string s = trim(str);
+    const std::string s = trim_ws(str);
     if (s.empty()) return false;
     double total = 0.0;
     size_t pos = 0;
@@ -65,7 +60,7 @@ std::vector<BookNote> parse(const std::string& text) {
     bool open = false;
     auto close = [&]() {
         if (!open) return;
-        while (!cur.text.empty() && trim(cur.text.back()).empty()) cur.text.pop_back();   // the blank line between two notes
+        while (!cur.text.empty() && trim_ws(cur.text.back()).empty()) cur.text.pop_back();   // the blank line between two notes
         out.push_back(std::move(cur));
         cur = BookNote();
         open = false;
@@ -79,9 +74,9 @@ std::vector<BookNote> parse(const std::string& text) {
             double sec = 0;
             if (a != std::string::npos && b != std::string::npos && parse_time(line.substr(a + 3, b - a - 3), sec)) {
                 close();
-                cur.file = trim(line.substr(4, a - 4));
+                cur.file = trim_ws(line.substr(4, a - 4));
                 cur.sec = sec;
-                cur.title = trim(line.substr(b + 3));
+                cur.title = trim_ws(line.substr(b + 3));
                 const size_t m = cur.title.rfind(" {set=");   // the dates (written by format())
                 if (m != std::string::npos && cur.title.back() == '}') {
                     long long st = 0, ch = 0;

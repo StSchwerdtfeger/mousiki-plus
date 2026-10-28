@@ -1,3 +1,5 @@
+// Synced lyrics (see lyrics_fetcher.cpp): the LRC line and result types, fetching by title and artist,
+// and the list of stored lyric versions.
 #pragma once
 #include <filesystem>
 #include <string>

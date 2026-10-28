@@ -1,3 +1,5 @@
+// The sphere visualisation: projects a rotating sphere of points, lets the bars move its surface, and
+// draws the result as braille cells.
 #include "sphere_visualizer.h"
 #include <algorithm>
 #include <cmath>

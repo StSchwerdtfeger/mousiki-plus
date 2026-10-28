@@ -1,3 +1,5 @@
+// The 10-band equaliser: band frequencies and gain limits, the presets and custom curves, and the
+// biquad filter coefficients applied to the audio.
 #pragma once
 #include <algorithm>
 #include <array>

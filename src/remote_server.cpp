@@ -1,4 +1,7 @@
+// The remote app's web server: a small HTTP server on the local network that serves the phone page,
+// takes PIN-protected commands and returns the current screen as text.
 #include "remote_server.h"
+#include "tiny_json.h"
 
 #include <algorithm>
 #include <cctype>
@@ -202,24 +205,6 @@ std::string make_pin() {
     return b;
 }
 
-std::string json_escape(const std::string& s) {
-    std::string o;
-    o.reserve(s.size() + 8);
-    for (unsigned char c : s) {
-        switch (c) {
-            case '"': o += "\\\""; break;
-            case '\\': o += "\\\\"; break;
-            case '\n': o += "\\n"; break;
-            case '\r': o += "\\r"; break;
-            case '\t': o += "\\t"; break;
-            default:
-                if (c < 0x20) { char b[8]; std::snprintf(b, sizeof b, "\\u%04x", c); o += b; }
-                else o += static_cast<char>(c);
-        }
-    }
-    return o;
-}
-
 bool parse_request_line(const std::string& line, std::string& path, std::vector<std::pair<std::string, std::string>>& query) {
     path.clear();
     query.clear();
@@ -267,7 +252,7 @@ std::string handle_request(const std::string& request_line, const std::string& /
     g_bad_pins = 0;
 
     if (path == "/api/hello")
-        return json_reply(200, std::string("{\"ok\":true,\"version\":\"") + json_escape(MOUSIKI_VERSION) + "\",\"mode\":\"" + json_escape(g_mode) + "\"}");
+        return json_reply(200, std::string("{\"ok\":true,\"version\":\"") + tinyjson::escape(MOUSIKI_VERSION) + "\",\"mode\":\"" + tinyjson::escape(g_mode) + "\"}");
     if (path == "/api/status") return json_reply(200, g_status_json);
     if (path == "/api/screen") {
         const int cols = std::atoi(get(q, "cols").c_str()), rows = std::atoi(get(q, "rows").c_str());
@@ -519,13 +504,13 @@ void set_screen(const char* mode, int cols, int rows, const std::vector<std::str
     std::string j = "{\"rev\":";
     std::lock_guard<std::mutex> lk(g_mu);
     g_mode = mode;
-    j += std::to_string(++g_rev) + ",\"text\":\"" + json_escape(text_color) + "\",\"mode\":\"" + json_escape(mode) + "\",\"cols\":" + std::to_string(cols) + ",\"rows\":" + std::to_string(rows) + ",\"lines\":[";
-    for (size_t i = 0; i < lines.size(); ++i) j += (i ? ",\"" : "\"") + json_escape(lines[i]) + "\"";
+    j += std::to_string(++g_rev) + ",\"text\":\"" + tinyjson::escape(text_color) + "\",\"mode\":\"" + tinyjson::escape(mode) + "\",\"cols\":" + std::to_string(cols) + ",\"rows\":" + std::to_string(rows) + ",\"lines\":[";
+    for (size_t i = 0; i < lines.size(); ++i) j += (i ? ",\"" : "\"") + tinyjson::escape(lines[i]) + "\"";
     j += "],\"zones\":[";
     for (size_t i = 0; i < zones.size(); ++i) {
         const Zone& z = zones[i];
         j += (i ? "," : "") + std::string("{\"x\":") + std::to_string(z.x) + ",\"y\":" + std::to_string(z.y) + ",\"w\":" + std::to_string(z.w) +
-             ",\"h\":" + std::to_string(z.h) + ",\"cmd\":\"" + json_escape(z.cmd) + "\",\"arg\":\"" + json_escape(z.arg) + "\"}";
+             ",\"h\":" + std::to_string(z.h) + ",\"cmd\":\"" + tinyjson::escape(z.cmd) + "\",\"arg\":\"" + tinyjson::escape(z.arg) + "\"}";
     }
     j += "]" + g_pic_json + "}";
     g_pic_json.clear();   // (one screen only: the next one names its picture again)
@@ -546,13 +531,13 @@ void picture_store(const std::string& key, const std::string& png) {
 void set_picture(bool active, int x, int y, int w, int h, const std::string& key) {
     std::lock_guard<std::mutex> lk(g_mu);
     g_pic_json = active ? ",\"image\":{\"x\":" + std::to_string(x) + ",\"y\":" + std::to_string(y) + ",\"w\":" + std::to_string(w) +
-                              ",\"h\":" + std::to_string(h) + ",\"key\":\"" + json_escape(key) + "\"}"
+                              ",\"h\":" + std::to_string(h) + ",\"key\":\"" + tinyjson::escape(key) + "\"}"
                         : std::string();
 }
 
 void set_status(const std::vector<std::pair<std::string, std::string>>& kv) {
     std::string j = "{";
-    for (size_t i = 0; i < kv.size(); ++i) j += (i ? ",\"" : "\"") + json_escape(kv[i].first) + "\":\"" + json_escape(kv[i].second) + "\"";
+    for (size_t i = 0; i < kv.size(); ++i) j += (i ? ",\"" : "\"") + tinyjson::escape(kv[i].first) + "\":\"" + tinyjson::escape(kv[i].second) + "\"";
     j += "}";
     std::lock_guard<std::mutex> lk(g_mu);
     g_status_json.swap(j);

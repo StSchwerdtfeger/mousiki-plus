@@ -1,3 +1,5 @@
+// The local library: scans the music folders for audio files (including retro formats) and finds
+// tracks by name.
 #include "local_source.h"
 #include <map>
 #include "chiptune.h"
@@ -14,10 +16,8 @@
 namespace muisc {
 
 namespace {
-// This used to be a file-local helper. The same conversion is needed in a
-// dozen other translation units (every one of which was still calling the
-// throwing .string()), so it now lives in path_utf8.h; this alias keeps the
-// call sites below unchanged.
+// The UTF-8 conversion of a path lives in path_utf8.h, which the other files use too; this alias
+// keeps the call sites below short.
 inline std::string path_str(const fs::path& p) { return path_utf8(p); }
 } // namespace
 

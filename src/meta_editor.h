@@ -1,3 +1,5 @@
+// The meta data editor (see meta_editor.cpp): the editable fields, the per-file edit entry and the
+// fetch options.
 #pragma once
 #include <array>
 #include <filesystem>

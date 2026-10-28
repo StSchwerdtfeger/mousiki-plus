@@ -1,3 +1,5 @@
+// Retro formats (tracker modules, console music via libgme, Commodore 64 SID): recognises these files,
+// reads SID headers, renders them to WAV with ffmpeg and checks which decoders ffmpeg was built with.
 #include "chiptune.h"
 #include "path_utf8.h"
 #include "process_util.h"
@@ -83,9 +85,8 @@ bool render_sid_to_wav(const fs::path& sid, int seconds, fs::path& out_wav, std:
 
     const fs::path tmp = fs::path(out_wav).concat(".part");
     // -q: no time display, -t<sec>: play length, -w<file>: write a WAV instead of playing (as fast as the machine can).
-    const std::string cmd = "sidplayfp -q -t" + std::to_string(std::max(5, seconds)) + " -w" + shell_quote(path_utf8(tmp)) + " "
-                          + shell_quote(path_utf8(sid));
-    ProcResult r = run_capture(cmd, true);
+    ProcResult r = run_capture({"sidplayfp", "-q", "-t" + std::to_string(std::max(5, seconds)), "-w" + path_utf8(tmp),
+                                path_utf8(sid)}, true);
     if (!fs::exists(tmp, ec) || fs::file_size(tmp, ec) <= 44) {
         fs::remove(tmp, ec);
         if (err) {
@@ -109,7 +110,7 @@ bool ffmpeg_has_demuxer(const std::string& name) {
     std::lock_guard<std::mutex> lk(m);
     auto it = cache.find(name);
     if (it != cache.end()) return it->second;
-    if (!asked) { demuxers = run_capture("ffmpeg -hide_banner -demuxers", false).out; asked = true; }
+    if (!asked) { demuxers = run_capture({"ffmpeg", "-hide_banner", "-demuxers"}, false).out; asked = true; }
     std::istringstream in(demuxers);
     std::string line;
     bool found = false;

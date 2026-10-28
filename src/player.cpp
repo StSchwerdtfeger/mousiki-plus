@@ -1,3 +1,5 @@
+// The audio player: plays a StreamingPcm buffer through miniaudio, with volume, pause, seeking and a
+// soft limiter at the output.
 #include "player.h"
 #include "scope_window.h"
 #include "spectrogram.h"

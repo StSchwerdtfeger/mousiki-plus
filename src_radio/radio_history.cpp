@@ -1,3 +1,5 @@
+// The radio's listening history: records the lines and songs heard on the radio and aggregates them
+// into the same kind of statistics as the music player.
 #include "radio_history.h"
 #include <algorithm>
 #include <cmath>

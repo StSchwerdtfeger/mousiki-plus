@@ -26,6 +26,21 @@ std::string take_notice();
 // The page [o] opens: the release page, or the project's releases page when none is known.
 std::string release_url(const Notice& n);
 
+// The manual check (Settings -> ON/OFF -> MODES -> Check Update, [ENTER]). It runs in its own thread, asks the same script
+// as the start-up check and ignores the once-a-day rule and the UpdateCheck switch. Returns false when one is already running.
+bool check_now(const std::filesystem::path& script);
+bool check_busy();
+// The answer of the last manual check, once: false while it runs and after its answer was taken.
+struct CheckResult {
+    bool ok = false;        // the release list was read
+    bool newer = false;     // a release higher than the running version exists
+    std::string latest;     // "v4.7.1" (when ok)
+    std::string current;    // the running version, "4.7.1"
+    std::string url;        // the release page (when ok)
+    std::string error;      // why the check failed (when not ok)
+};
+bool take_check_result(CheckResult& out);
+
 // ---- helpers (exposed for the tests) ------------------------------------------------------------------------------------
 // True when `latest` ("v4.8.0", "4.8.0") is a higher version than `current` ("4.7.1"). Unreadable versions: false.
 bool is_newer(const std::string& latest, const std::string& current);

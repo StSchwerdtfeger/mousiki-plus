@@ -1,3 +1,5 @@
+// Radio settings (see radio_settings.cpp): the RadioSettings struct and the functions that read and
+// write it.
 #pragma once
 #include "themes.h"
 // Radio mode -- its OWN settings, separate from the music player's `Settings` / config.txt.

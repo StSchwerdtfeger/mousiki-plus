@@ -358,7 +358,7 @@ void App::apply_local_sort(std::vector<LocalTrack>& tracks) const {
         std::vector<std::pair<std::string, size_t>> keyed;
         keyed.reserve(tracks.size());
         for (size_t i = 0; i < tracks.size(); ++i)
-            keyed.emplace_back(lower(list_row_title(tracks[i].path, tracks[i].title)), i);
+            keyed.emplace_back(ascii_lower_str(list_row_title(tracks[i].path, tracks[i].title)), i);
         std::stable_sort(keyed.begin(), keyed.end(),
                          [](const auto& a, const auto& b) { return a.first < b.first; });
         std::vector<LocalTrack> sorted;
@@ -372,7 +372,7 @@ void App::apply_local_sort(std::vector<LocalTrack>& tracks) const {
                 auto it = row_meta_cache_.find(path_utf8(t.path));
                 return (it != row_meta_cache_.end() && !it->second.artist.empty()) ? it->second.artist : t.folder_artist;
             };
-            return lower(artist_of(a)) < lower(artist_of(b));
+            return ascii_lower_str(artist_of(a)) < ascii_lower_str(artist_of(b));
         });
     }
     else if (local_sort_mode_ == 3) {
@@ -437,10 +437,8 @@ void App::resort_local_view_keep_selection() {
 // Re-runs the local library scan over whatever settings_.local_music_paths
 // holds right now, then rebuilds the view on top of the result. This is
 // what makes a path edited in the PATHS tab take effect immediately --
-// config.txt used to promise "the library is scanned once at startup,
-// there's no live rescan", and editing a local path from Settings now IS
-// a live rescan (it still needs [S]/quit for the change to be written to
-// config.txt, of course).
+// Editing a local path in Settings rescans the library at once. The change is written to
+// config.txt when settings are saved ([S] or quit).
 // After a rescan the saved playlists are brought up to date as well, not only
 // when they are saved again: tracks whose file moved are pointed at the new
 // path (and the playlist file is rewritten), and the cached tags of every
@@ -562,7 +560,7 @@ void App::update_live_search_preview() {
 
     if (audiobook_) {   // the audio book player only searches its books (the folders): plain words, an "f:" in front is allowed
         std::string q = buf;
-        if (q.size() >= 2 && lower(q.substr(0, 2)) == "f:") q = q.substr(2);
+        if (q.size() >= 2 && ascii_lower_str(q.substr(0, 2)) == "f:") q = q.substr(2);
         while (!q.empty() && q.front() == ' ') q.erase(q.begin());
         list_source_ = ListSource::Folder;
         folder_view_ = filter_folders(q);
@@ -582,7 +580,7 @@ void App::update_live_search_preview() {
     // "p:" (playlist search) is local like a plain query -- no network
     // call to defer -- so unlike "s:" above, it's fine to actually run
     // the filter live on every keystroke rather than waiting for Enter.
-    if (buf.size() >= 2 && lower(buf.substr(0, 2)) == "p:") {
+    if (buf.size() >= 2 && ascii_lower_str(buf.substr(0, 2)) == "p:") {
         std::string q = buf.substr(2);
         while (!q.empty() && q.front() == ' ') q.erase(q.begin());
         list_source_ = ListSource::Playlist;
@@ -593,7 +591,7 @@ void App::update_live_search_preview() {
     }
 
     // "f:" (folder search) is local too -- filter the folder list live.
-    if (buf.size() >= 2 && lower(buf.substr(0, 2)) == "f:") {
+    if (buf.size() >= 2 && ascii_lower_str(buf.substr(0, 2)) == "f:") {
         std::string q = buf.substr(2);
         while (!q.empty() && q.front() == ' ') q.erase(q.begin());
         list_source_ = ListSource::Folder;
@@ -617,7 +615,7 @@ void App::submit_search() {
 
     if (audiobook_) {   // search the books (see update_live_search_preview())
         std::string q = buf;
-        if (q.size() >= 2 && lower(q.substr(0, 2)) == "f:") q = q.substr(2);
+        if (q.size() >= 2 && ascii_lower_str(q.substr(0, 2)) == "f:") q = q.substr(2);
         while (!q.empty() && q.front() == ' ') q.erase(q.begin());
         last_folder_query_ = q;
         list_source_ = ListSource::Folder;
@@ -638,7 +636,7 @@ void App::submit_search() {
             return;
         }
         launch_search_async(query.empty() ? "music" : query, src);
-    } else if (buf.size() >= 2 && lower(buf.substr(0, 2)) == "p:") {
+    } else if (buf.size() >= 2 && ascii_lower_str(buf.substr(0, 2)) == "p:") {
         std::string query = buf.substr(2);
         while (!query.empty() && query.front() == ' ') query.erase(query.begin());
         last_playlist_query_ = query;
@@ -647,7 +645,7 @@ void App::submit_search() {
         playlist_view_ = filter_playlists(query);
         selected_ = 0;
         scroll_ = 0;
-    } else if (buf.size() >= 2 && lower(buf.substr(0, 2)) == "f:") {
+    } else if (buf.size() >= 2 && ascii_lower_str(buf.substr(0, 2)) == "f:") {
         std::string query = buf.substr(2);
         while (!query.empty() && query.front() == ' ') query.erase(query.begin());
         last_folder_query_ = query;
@@ -705,7 +703,7 @@ std::vector<FolderSummary> App::filter_folders(const std::string& query) const {
         if (ok) out.push_back(f);
     }
     std::stable_sort(out.begin(), out.end(), [](const FolderSummary& a, const FolderSummary& b) {
-        return lower(a.name) < lower(b.name);
+        return ascii_lower_str(a.name) < ascii_lower_str(b.name);
     });
     return out;
 }
@@ -790,11 +788,11 @@ std::vector<PlaylistSummary> App::playlist_summaries() const {
     std::unordered_set<std::string> seen;
     for (const fs::path& dir : playlist_dirs()) {
         for (PlaylistSummary& s : PlaylistManager::list(dir)) {
-            if (seen.insert(lower(s.name)).second) merged.push_back(std::move(s));
+            if (seen.insert(ascii_lower_str(s.name)).second) merged.push_back(std::move(s));
         }
     }
     std::sort(merged.begin(), merged.end(),
-              [](const PlaylistSummary& a, const PlaylistSummary& b) { return lower(a.name) < lower(b.name); });
+              [](const PlaylistSummary& a, const PlaylistSummary& b) { return ascii_lower_str(a.name) < ascii_lower_str(b.name); });
     return merged;
 }
 

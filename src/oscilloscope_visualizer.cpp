@@ -1,3 +1,5 @@
+// The oscilloscope: keeps a ring of recent stereo frames, measures the signal (level, mono/side
+// energy, derivative) and paints the trace as braille cells.
 #include "oscilloscope_visualizer.h"
 #include <algorithm>
 #include <chrono>

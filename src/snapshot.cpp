@@ -1,3 +1,5 @@
+// Session snapshot: saves the queue and the playing position so they can be restored at the next
+// start, and keeps a previous snapshot.
 #include "snapshot.h"
 #include "path_utf8.h"
 #include "tiny_json.h"

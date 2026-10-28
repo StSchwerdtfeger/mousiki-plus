@@ -1,5 +1,6 @@
 // The .cue file of an audio book (see book_cue.h).
 #include "book_cue.h"
+#include "string_util.h"
 #include "path_utf8.h"
 #include <algorithm>
 #include <cctype>
@@ -13,12 +14,6 @@ namespace muisc {
 namespace fs = std::filesystem;
 
 namespace {
-std::string trim(const std::string& s) {
-    size_t a = 0, b = s.size();
-    while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
-    while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
-    return s.substr(a, b - a);
-}
 std::string upper(std::string s) {
     for (char& c : s) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
     return s;
@@ -50,7 +45,7 @@ bool BookCue::load(const fs::path& file) {
         while (!line.empty() && (line.back() == '\r' || line.back() == '\n')) line.pop_back();
         lines_.push_back(line);
     }
-    while (!lines_.empty() && trim(lines_.back()).empty()) lines_.pop_back();
+    while (!lines_.empty() && trim_ws(lines_.back()).empty()) lines_.pop_back();
     return true;
 }
 
@@ -70,7 +65,7 @@ size_t BookCue::header_end() const {
 
 // The line starts with `key` (case-insensitive) followed by a blank or the end: "REM NARRATOR" does not match "REM NARRATORS".
 bool BookCue::is_key(const std::string& line, const std::string& key) {
-    const std::string l = trim(line);
+    const std::string l = trim_ws(line);
     if (l.size() < key.size() || upper(l.substr(0, key.size())) != upper(key)) return false;
     return l.size() == key.size() || std::isspace(static_cast<unsigned char>(l[key.size()]));
 }
@@ -79,7 +74,7 @@ std::string BookCue::get(const std::string& key) const {
     const size_t end = header_end();
     for (size_t i = 0; i < end; ++i) {
         if (!is_key(lines_[i], key)) continue;
-        std::string v = trim(trim(lines_[i]).substr(key.size()));
+        std::string v = trim_ws(trim_ws(lines_[i]).substr(key.size()));
         if (v.size() >= 2 && v.front() == '"' && v.back() == '"') v = v.substr(1, v.size() - 2);
         return v;
     }
@@ -89,12 +84,12 @@ std::string BookCue::get(const std::string& key) const {
 std::string BookCue::get_raw(const std::string& key) const {
     const size_t end = header_end();
     for (size_t i = 0; i < end; ++i)
-        if (is_key(lines_[i], key)) return trim(trim(lines_[i]).substr(key.size()));
+        if (is_key(lines_[i], key)) return trim_ws(trim_ws(lines_[i]).substr(key.size()));
     return std::string();
 }
 
 void BookCue::set_raw(const std::string& key, const std::string& raw) {
-    const std::string v = trim(raw);
+    const std::string v = trim_ws(raw);
     const std::string line = key + " " + v;
     const size_t end = header_end();
     for (size_t i = 0; i < end; ++i) {
@@ -111,7 +106,7 @@ std::vector<std::string> BookCue::get_all_raw(const std::string& key) const {
     std::vector<std::string> out;
     const size_t end = header_end();
     for (size_t i = 0; i < end; ++i)
-        if (is_key(lines_[i], key)) out.push_back(trim(trim(lines_[i]).substr(key.size())));
+        if (is_key(lines_[i], key)) out.push_back(trim_ws(trim_ws(lines_[i]).substr(key.size())));
     return out;
 }
 
@@ -125,7 +120,7 @@ void BookCue::set_all_raw(const std::string& key, const std::vector<std::string>
     }
     if (at == std::string::npos) at = header_end();
     for (const std::string& v : values) {
-        const std::string t = trim(v);
+        const std::string t = trim_ws(v);
         if (t.empty()) continue;
         lines_.insert(lines_.begin() + static_cast<std::ptrdiff_t>(at), key + " " + t);
         ++at;
@@ -151,7 +146,7 @@ std::string format_bookmark(const BookMark& m) {
 }
 
 void BookCue::set(const std::string& key, const std::string& value) {
-    std::string v = trim(value);
+    std::string v = trim_ws(value);
     std::replace(v.begin(), v.end(), '"', '\'');   // CUE has no escape for a quote
     const bool is_date = upper(key) == "REM DATE";   // a year is written bare, like most taggers do
     const std::string line = key + " " + (is_date ? v : "\"" + v + "\"");

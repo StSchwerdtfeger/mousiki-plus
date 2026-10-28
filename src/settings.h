@@ -1,3 +1,5 @@
+// Settings (see settings.cpp): the Settings struct with every option of the music player, and the
+// functions that read and write them.
 #pragma once
 #include <filesystem>
 #include <iosfwd>
@@ -72,7 +74,7 @@ struct Settings : VizPrefs {
     bool use_lyrics = true;
     bool use_osci = true;
     bool use_spectro = true;
-    // "Use Sphere": false leaves the sphere out of the "." cycle as well (it used to be always there). config.txt: UseSphere=.
+    // "Use Sphere": false leaves the sphere out of the "." cycle as well. config.txt: UseSphere=.
     bool use_sphere = true;
     // The order of the views in the "." cycle (ON/OFF tab: "Viz Order 1..4"): a permutation of
     // 0 = sphere, 1 = oscilloscope, 2 = spectrogram, 3 = lyrics. config.txt: VizOrder=sphere,osci,spectro,lyrics.
@@ -575,7 +577,7 @@ fs::path book_config_path();   // audiobook_config.txt next to config.txt
 // (apply_book_default_theme, Rose Pine) before the mode starts.
 Settings load_book_settings(const Settings& player, bool* wants_default_theme = nullptr);
 void apply_book_default_theme(Settings& s);   // app_settings.cpp (the player's program only)
-// The text save_settings() would write would write (used to tell whether the settings screen changed anything).
+// The text save_settings() would write (used to tell whether the settings screen changed anything).
 std::string settings_to_text(const Settings& s);
 
 // ---- the SHIFT+o overlay: the shared rows are in viz_prefs.h; the player adds the "Display" row (what the lyrics area shows) ----

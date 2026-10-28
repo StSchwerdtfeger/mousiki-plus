@@ -69,7 +69,6 @@ void picture_store(const std::string& key, const std::string& png);
 void set_picture(bool active, int x, int y, int w, int h, const std::string& key);
 
 // ---- helpers (exposed for the tests) -------------------------------------------------------------------------------------
-std::string json_escape(const std::string& s);
 // Parses "GET /path?a=1&b=x%20y HTTP/1.1" into the path and the decoded query; false when it is not a GET/HEAD request line.
 bool parse_request_line(const std::string& line, std::string& path, std::vector<std::pair<std::string, std::string>>& query);
 // The answer to one request (status line, headers and body), without any socket: what the server thread sends back.

@@ -1,3 +1,5 @@
+// The console log behind the t console: keeps the last lines in memory, writes them to a log file, and
+// records commands with their output at the chosen verbosity.
 #include "console_log.h"
 #include "path_utf8.h"
 #include <chrono>

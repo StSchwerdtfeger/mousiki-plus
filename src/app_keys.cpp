@@ -703,8 +703,7 @@ void App::handle_key(int key) {
         // the caret keys because they are exactly the two arrow letters
         // edit_text_key() would otherwise drop ("nowhere to go vertically"),
         // and navigating the list you are filtering is worth more here than
-        // a second way to do nothing. Left/Right used to seek by 5 seconds
-        // from inside this box too; they are the caret keys now, since a
+        // a second way to do nothing. Left/Right are the caret keys in this box (they do not seek), since a
         // text field needs them more and seek still works from Browse.
         if (last_key_was_arrow() && (key == 'A' || key == 'B')) { // up / down
             search_nav_moved_ = true;
@@ -921,9 +920,7 @@ void App::handle_key(int key) {
             clamp_queue_selected();
         } else {
             if (list_len > 0) selected_ = std::min(static_cast<int>(list_len) - 1, selected_ + (paged ? std::max(1, list_nav_rows() - 1) : 1));
-            // BUGFIX: selection could move past the visible window without
-            // the window ever following it, leaving the highlighted row
-            // invisible below row 8 instead of the list scrolling up.
+            // Keep the selected row inside the visible window: the list scrolls to follow it.
             if (selected_ >= scroll_ + list_nav_rows()) scroll_ = selected_ - list_nav_rows() + 1;
         }
     } else if (action == "HKeySeekForward") {
@@ -1117,9 +1114,8 @@ void App::handle_key(int key) {
                 // else (see load_library()'s cache-dir injection and the
                 // Settings > PATHS tab's Download Path field): the
                 // configured path, or ~/.cache/mousiki when none is set --
-                // never settings_.local_music_paths[0]/$HOME/Music, which
-                // this used to fall back to and had nothing to do with the
-                // folder the user actually configured for downloads.
+                // never settings_.local_music_paths[0] or $HOME/Music: those have nothing to do with the
+                // folder the user configured for downloads.
                 std::string dest_dir = path_utf8(cache_.download_dir());
                 std::error_code ec;
                 fs::create_directories(path_from_utf8(dest_dir), ec);

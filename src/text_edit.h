@@ -10,12 +10,12 @@
 namespace muisc {
 
 // Every text-entry field below (search box, bulk-add link field, color
-// hex field, the retry-lyrics title/artist/type fields) used to only
-// accept key values 32-126 -- plain printable ASCII. That's not just a
+// hex field, the retry-lyrics title/artist/type fields) only accepted
+// key values 32-126 -- plain printable ASCII. This is not just a
 // Windows gap: a typed umlaut, accented letter, or any other non-ASCII
 // character arrives as a multi-byte UTF-8 sequence whose individual byte
 // values are all >= 0x80 (continuation bytes 0x80-0xBF, lead bytes
-// 0xC2-0xF4), every one of which used to fail this check and simply
+// 0xC2-0xF4), every one of which failed this check and simply
 // never reach the buffer -- on POSIX with a real UTF-8 terminal just as
 // much as on Windows. win_poll_key() (Windows) and the POSIX raw-input
 // path both hand such a keystroke over one UTF-8 byte per call already;
@@ -324,9 +324,6 @@ inline EditPaint paint_edit_field(const std::string& s, size_t caret, size_t anc
 }
 
 
-inline std::string lower(std::string s) {
-    return ascii_lower_str(std::move(s));
-}
 
 // Lowercases AND folds common word-separator punctuation (hyphen,
 // underscore, dot, slash) down to plain spaces. Used only for search
@@ -356,7 +353,7 @@ inline const char* const* latin_fold_table() {
 // The separators: without this, a tag/filename like "X-Files" is one glued-together token "x-files" as far as matching is
 // concerned, while a query typed as "X Files" is two separate words ["x", "files"].
 inline std::string normalize_for_search(std::string s) {
-    s = lower(std::move(s));
+    s = ascii_lower_str(std::move(s));
     std::string o;
     o.reserve(s.size());
     const char* const* tab = latin_fold_table();

@@ -1,3 +1,6 @@
+// Download cache: names and locates the files of online tracks (YouTube, SoundCloud, Bandcamp) in the
+// download folder, sanitises titles into safe file names, and records finished downloads in the
+// archive.
 #include "cache_manager.h"
 #include "path_utf8.h"
 #include "utf8_util.h"

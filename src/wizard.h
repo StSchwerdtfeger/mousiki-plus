@@ -1,3 +1,5 @@
+// The help wizard (see wizard.cpp): the page layout, the keys it takes and the State that is kept
+// while it is open.
 #pragma once
 #include <string>
 #include <vector>

@@ -1,3 +1,5 @@
+// Indic scripts (see indic_handler.cpp): tells whether a code point belongs to an Indic script and how
+// many columns it takes.
 #pragma once
 #include <cstdint>
 

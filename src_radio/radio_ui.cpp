@@ -1,3 +1,5 @@
+// The radio's screen: draws the station list, the player and the overlays, and handles the radio's
+// keys. It is the largest file of the radio mode.
 #include "radio_ui.h"
 #include "overlay_common.h"
 #include "about_text.h"
@@ -899,7 +901,7 @@ std::vector<std::string> build_side(const Style& s, const RadioStatus& st) {
 std::vector<std::string> build_search(const Style& s, const UiModel& m, const RadioStatus& st, int W) {
     const int w = W - 8; // then a 1-col gap and the 7-wide mode box ("S" shuffle / "L" list)
     const int inner = w - 4;
-    // The command legend that used to sit here lives in the cheat sheet now ('?'). Only the audio
+    // The command legend lives in the cheat sheet ('?'). Only the audio
     // error stays: that is a status the user has to see, not a key legend.
     std::string hint;
     if (!st.device_ok) hint = "audio: " + (st.device_error.empty() ? std::string("no output device") : st.device_error) + "  [?] cheatsheet  [q] quit";
@@ -1109,7 +1111,7 @@ std::vector<std::string> build_preset_pane(const Style& s, const UiModel& m, int
 
 // Replaces the visible columns [x, x + pw) of an ANSI-coloured line with `panel` (exactly pw columns wide).
 // What the line had set up to the panel's left edge (its colour, if no reset came since) and the escapes inside the covered part
-// are put back behind the panel, so the colours after it stay right (the border to the right of a panel used to turn white).
+// are put back behind the panel, so the colours after it stay right (without this the border to the right of a panel turns white).
 std::string splice_line(const std::string& base, int x, const std::string& panel, int pw) {
     std::string out, held, straddle_right, active;
     bool done = false;

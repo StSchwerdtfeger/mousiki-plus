@@ -1,3 +1,5 @@
+// The meta data editor: the field names and labels, the edit state per file, and the options of the
+// online meta fetch (which fields to fill in).
 #include "meta_editor.h"
 #include "chip_meta.h"
 #include "path_utf8.h"
@@ -338,17 +340,17 @@ bool apply_meta_entry(const MetaEditEntry& e, std::string* err, std::string* new
         // -map 0 keeps every stream (including embedded cover art); explicit
         // -map_metadata 0 copies the existing tags so only the keys passed
         // below are replaced -- an edit to ARTIST can't wipe the album.
-        std::string cmd = "ffmpeg -y -v error -i " + shell_quote(path_utf8(old_path)) +
-                          " -map 0 -map_metadata 0 -c copy";
+        Args cmd = {"ffmpeg", "-y", "-v", "error", "-i", path_utf8(old_path), "-map", "0", "-map_metadata", "0", "-c", "copy"};
         auto add_meta = [&](int field, const char* key) {
             if (!e.edited[field]) return;
-            cmd += " -metadata " + shell_quote(std::string(key) + "=" + e.value[field]);
+            cmd.push_back("-metadata");
+            cmd.push_back(std::string(key) + "=" + e.value[field]);
         };
         add_meta(static_cast<int>(MetaField::Artist), "artist");
         add_meta(static_cast<int>(MetaField::Title), "title");
         add_meta(static_cast<int>(MetaField::Album), "album");
         add_meta(static_cast<int>(MetaField::Year), "date"); // containers all call the year "date"
-        cmd += " " + shell_quote(path_utf8(tmp));
+        cmd.push_back(path_utf8(tmp));
 
         ProcResult r = run_capture(cmd, /*merge_stderr=*/true);
         if (!r.ok()) {
@@ -422,16 +424,12 @@ MetaFetchOutcome run_acoustid_fetch(const std::vector<MetaFetchRequest>& reqs,
     // it, the script reports that once for the whole batch instead of one
     // failure per queued file.
 
-#if defined(_WIN32)
-    const std::string python = win_python_command();
-    if (python.empty()) {
+    Args cmd = python_command();
+    if (cmd.empty()) {
         out.python_missing = true;
         out.error = "python not found (Python 3 is required for AcoustID lookups)";
         return out;
     }
-#else
-    const std::string python = "python3";
-#endif
 
     // One request file per batch: a plain argv-only interface keeps the whole
     // command line free of quoting/length problems, and titles with quotes,
@@ -462,15 +460,12 @@ MetaFetchOutcome run_acoustid_fetch(const std::vector<MetaFetchRequest>& reqs,
         outf << write(root);
     }
 
-    std::string cmd = python + " " + shell_quote(path_utf8(script)) +
-                      " " + shell_quote(path_utf8(req_file));
-#if !defined(_WIN32)
-    cmd = "exec " + cmd;   // a cancel must kill the script itself, not the shell that started it
-#endif
+    cmd.push_back(path_utf8(script));
+    cmd.push_back(path_utf8(req_file));
     auto child = spawn_capture(cmd, /*merge_stderr=*/true);
     if (!child) {
         fs::remove(req_file, ec);
-        out.error = "could not start " + python;
+        out.error = "could not start " + command_text(cmd);
         return out;
     }
 

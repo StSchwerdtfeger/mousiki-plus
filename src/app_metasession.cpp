@@ -63,16 +63,8 @@ namespace muisc {
 // Settings panel
 // ---------------------------------------------------------------------
 
-// main_frame_height() used to live here -- it estimated the Browse view's
-// total line count (from the fixed kListVisibleRows constant, among
-// other things) so the Settings/Console/Cheatsheet/BulkAdd overlays
-// could size themselves to "roughly the same height as the player
-// view". That was never actually tied to the real terminal size, which
-// is exactly what let all of those overlays overflow a short terminal
-// and scroll-duplicate just like the Browse view did (see term_rows_'s
-// comment in app.h). Every caller now sizes directly off term_rows_
-// (the real, current ioctl-reported row count) instead, so this
-// function no longer has a reason to exist.
+// The overlays (Settings, Console, Cheatsheet, BulkAdd) size themselves from term_rows_, the terminal's
+// current row count, so they fit the real window (see term_rows_ in app.h).
 
 // SGR prefix for the section titles drawn by the Settings panel itself:
 // bold plus settings_.header_color -- the Colors tab's HEADER row, a
@@ -365,7 +357,7 @@ void App::meta_set_field(const std::string& path, int field, const std::string& 
 // Current tags of one file for the editor. Uses the same cache the main list
 // uses, and the same in-process header parser as a render-thread-safe first
 // pass (no subprocess on the frame loop -- see ensure_visible_row_meta()'s
-// comment for why a stray ffprobe here used to freeze the whole UI). Files
+// comment for why a stray ffprobe must never run here). Files
 // that parser declines are finished off by the background sweep's ffprobe
 // pass, which now also reads the date tag, so YEAR arrives there too.
 RowMeta App::meta_row_meta(const fs::path& path) {

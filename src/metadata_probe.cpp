@@ -1,3 +1,5 @@
+// Track metadata via ffprobe: reads duration and tags (artist, title, album, year) for the lists and
+// the metadata panel, and every tag of a file for the queue search.
 #include "metadata_probe.h"
 #include "chiptune.h"
 #include "chip_meta.h"
@@ -17,9 +19,8 @@ static std::string to_upper(std::string s) {
 }
 
 double probe_duration_seconds(const fs::path& file) {
-    std::string cmd = "ffprobe -v error -show_entries format=duration -of csv=p=0 "
-                       + shell_quote(path_utf8(file));
-    ProcResult r = run_capture(cmd);
+    ProcResult r = run_capture({"ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+                                path_utf8(file)});
     if (r.out.empty()) return -1.0;
     try {
         return std::stod(r.out);
@@ -41,11 +42,9 @@ static RowMeta probe_row_meta_impl(const fs::path& file) {
     // ffmpeg-muxed .ogg/.opus files: format_tags is empty, stream_tags
     // has everything). Keeping format_tags too covers everything else
     // (MP3, FLAC, M4A, ...), where it's the one that's populated.
-    std::string cmd = "ffprobe -v error "
-                       "-show_entries format=duration:format_tags=artist,title,album,date:"
-                       "stream_tags=artist,title,album,date "
-                       "-of default=noprint_wrappers=1 " + shell_quote(path_utf8(file));
-    ProcResult r = run_capture(cmd);
+    ProcResult r = run_capture({"ffprobe", "-v", "error",
+                                "-show_entries", "format=duration:format_tags=artist,title,album,date:stream_tags=artist,title,album,date",
+                                "-of", "default=noprint_wrappers=1", path_utf8(file)});
     // A real probe attempt happened either way -- mark it resolved even on
     // an empty/failed result so callers don't keep retrying an untagged or
     // unreadable file forever. Only the fields actually parsed below get
@@ -134,11 +133,9 @@ static TrackMetadata probe_metadata_impl(const fs::path& file, const std::string
     // tags live on the audio stream, see probe_row_meta). The first value of a
     // kind wins, and the key is compared case-insensitively: Vorbis comments
     // come back as TAG:DATE / TAG:ALBUM, ID3 as TAG:date.
-    std::string cmd = "ffprobe -v error "
-                       "-show_entries format_tags=artist,date,year,title,album:"
-                       "stream_tags=artist,date,year,title,album:stream=sample_rate,codec_name "
-                       "-of default=noprint_wrappers=1 " + shell_quote(path_utf8(file));
-    ProcResult r = run_capture(cmd);
+    ProcResult r = run_capture({"ffprobe", "-v", "error",
+                                "-show_entries", "format_tags=artist,date,year,title,album:stream_tags=artist,date,year,title,album:stream=sample_rate,codec_name",
+                                "-of", "default=noprint_wrappers=1", path_utf8(file)});
     if (!r.ok() && r.out.empty()) return md;
 
     std::istringstream stream(r.out);
@@ -180,8 +177,8 @@ static TrackMetadata probe_metadata_impl(const fs::path& file, const std::string
 // Tracker modules and chiptunes: what the side file next to them holds is put over what the file itself reports.
 std::string probe_all_tag_text(const fs::path& file) {
     // no names after format_tags / stream_tags: ffprobe prints every tag it finds (stream tags too: Ogg / Opus keep them there)
-    const std::string cmd = "ffprobe -v error -show_entries format_tags:stream_tags -of default=noprint_wrappers=1 " + shell_quote(path_utf8(file));
-    const ProcResult r = run_capture(cmd);
+    const ProcResult r = run_capture({"ffprobe", "-v", "error", "-show_entries", "format_tags:stream_tags",
+                                      "-of", "default=noprint_wrappers=1", path_utf8(file)});
     std::string all;
     std::istringstream stream(r.out);
     std::string line;

@@ -18,6 +18,7 @@
 // render_radio_frame() instead of its own panels while radio mode is on. Nothing in
 // radio/ depends on App or Player, so that hook is the only coupling.
 #include "translit.h"
+#include "utf8_util.h"
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -170,7 +171,7 @@ struct Ui {
     void sort_by_name(std::vector<int>& v, bool az) const {
         if (!az) return;
         std::stable_sort(v.begin(), v.end(), [&](int a, int b) {
-            return lower(stations[static_cast<size_t>(a)].name) < lower(stations[static_cast<size_t>(b)].name);
+            return ascii_lower_str(stations[static_cast<size_t>(a)].name) < ascii_lower_str(stations[static_cast<size_t>(b)].name);
         });
     }
     void refilter() {
@@ -251,9 +252,9 @@ struct Ui {
         persist();
     }
     bool bank_name_taken(const std::string& name, int except) const {
-        const std::string l = lower(name);
+        const std::string l = ascii_lower_str(name);
         for (size_t i = 0; i < model.banks.size(); ++i)
-            if (static_cast<int>(i) != except && lower(model.banks[i].name) == l) return true;
+            if (static_cast<int>(i) != except && ascii_lower_str(model.banks[i].name) == l) return true;
         return false;
     }
 };
@@ -1068,7 +1069,7 @@ int radio_main(int argc, char** argv) {
         sl.name = nm; sl.items = lm.items;
         bool replaced = false;
         for (auto& l : ui.model.lists)
-            if (lower(l.name) == lower(nm)) { l = sl; replaced = true; break; }   // same name: overwritten, like the player's playlists
+            if (ascii_lower_str(l.name) == ascii_lower_str(nm)) { l = sl; replaced = true; break; }   // same name: overwritten, like the player's playlists
         if (!replaced) ui.model.lists.push_back(sl);
         if (lm.name != nm) { lm.name = nm; lm.name_edit.to_end(lm.name); }
         ui.refilter_saved_lists();
@@ -2356,7 +2357,7 @@ int radio_main(int argc, char** argv) {
                     if (!changed) continue;   // caret / marking / copy: the results stay exactly where they are
                     // "p:" typed into an empty box points the search at the presets, "s:" back at the stations
                     // (the older "/p:" and "/s:" still work)
-                    const std::string lq = lower(q);
+                    const std::string lq = ascii_lower_str(q);
                     if (lq == "p:" || lq == "s:" || lq == "/p:" || lq == "/s:") {
                         q.clear(); es.reset();
                         mn.target = lq.find('p') != std::string::npos ? SearchTarget::Presets : SearchTarget::Stations;
@@ -2449,7 +2450,7 @@ int radio_main(int argc, char** argv) {
                 } else if (edit_text_key(um.search, um.search_edit, k, kTextMax)) {
                     // "p:" typed into the empty box points it at the station lists, "s:" back at the stations
                     // (the older "/p:" and "/s:" spellings work too) -- same switch as the PRESETS menu
-                    const std::string lq = lower(um.search);
+                    const std::string lq = ascii_lower_str(um.search);
                     if (lq == "p:" || lq == "s:" || lq == "/p:" || lq == "/s:") {
                         um.search.clear(); um.search_edit.reset();
                         um.search_lists = lq.find('p') != std::string::npos;

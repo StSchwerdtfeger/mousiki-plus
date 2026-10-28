@@ -1,4 +1,8 @@
+// Radio settings: reads and writes the radio's own configuration, including its colours, the remote
+// app setting and the shared visualisation values.
 #include "radio_settings.h"
+#include "utf8_util.h"
+#include "string_util.h"
 #include "remote_server.h"
 #include "version.h"
 #include "about_text.h"
@@ -446,16 +450,7 @@ bool valid_color_value(const std::string& v) {
 // ===========================================================================================
 namespace {
 
-std::string trim(const std::string& s) {
-    const size_t a = s.find_first_not_of(" \t\r\n");
-    if (a == std::string::npos) return "";
-    return s.substr(a, s.find_last_not_of(" \t\r\n") - a + 1);
-}
 
-std::string lower(std::string s) {
-    for (auto& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return s;
-}
 
 fs::path home_config_path() {
     const char* home = std::getenv("HOME");
@@ -465,7 +460,7 @@ fs::path home_config_path() {
 }
 
 bool as_bool(const std::string& v, bool def) {
-    const std::string l = lower(v);
+    const std::string l = ascii_lower_str(v);
     if (l == "true" || l == "1" || l == "on" || l == "yes") return true;
     if (l == "false" || l == "0" || l == "off" || l == "no") return false;
     return def;
@@ -489,12 +484,12 @@ std::string player_download_folder() {
     std::ifstream in(radio_default_dir() / "config.txt");
     std::string line;
     while (std::getline(in, line)) {
-        line = trim(line);
+        line = trim_ws(line);
         if (line.empty() || line[0] == '#') continue;
         const size_t eq = line.find('=');
         if (eq == std::string::npos) continue;
-        const std::string key = lower(trim(line.substr(0, eq)));
-        if (key == "downloadfolder" || key == "download_folder") return trim(line.substr(eq + 1));
+        const std::string key = ascii_lower_str(trim_ws(line.substr(0, eq)));
+        if (key == "downloadfolder" || key == "download_folder") return trim_ws(line.substr(eq + 1));
     }
     return "";
 }
@@ -505,11 +500,11 @@ std::string player_config_value(const std::string& key_lower) {
     std::ifstream in(radio_default_dir() / "config.txt");
     std::string line;
     while (std::getline(in, line)) {
-        line = trim(line);
+        line = trim_ws(line);
         if (line.empty() || line[0] == '#') continue;
         const size_t eq = line.find('=');
         if (eq == std::string::npos) continue;
-        if (lower(trim(line.substr(0, eq))) == key_lower) return trim(line.substr(eq + 1));
+        if (ascii_lower_str(trim_ws(line.substr(0, eq))) == key_lower) return trim_ws(line.substr(eq + 1));
     }
     return "";
 }
@@ -523,9 +518,9 @@ bool set_player_config_value(const std::string& key, const std::string& value) {
     std::string line;
     bool found = false;
     while (std::getline(in, line)) {
-        const std::string t = trim(line);
+        const std::string t = trim_ws(line);
         const size_t eq = t.find('=');
-        if (!t.empty() && t[0] != '#' && eq != std::string::npos && lower(trim(t.substr(0, eq))) == lower(key)) {
+        if (!t.empty() && t[0] != '#' && eq != std::string::npos && ascii_lower_str(trim_ws(t.substr(0, eq))) == ascii_lower_str(key)) {
             if (!found) lines.push_back(key + "=" + value);
             found = true;
             continue;
@@ -543,7 +538,7 @@ bool set_player_config_value(const std::string& key, const std::string& value) {
 
 std::string player_start_mode() {
     // The start mode lives in the player's config.txt (StartMode=player|radio), one value for both programs.
-    const std::string v = lower(player_config_value("startmode"));
+    const std::string v = ascii_lower_str(player_config_value("startmode"));
     return v == "radio" ? "radio" : v == "audiobook" ? "audiobook" : "player";
 }
 
@@ -571,7 +566,7 @@ void save_player_mode_settings(const RadioSettings& s) {
 
 bool player_black_background() {
     // Black Background: one value for both programs, BlackBackground= in the player's config.txt (true when missing)
-    const std::string v = lower(player_config_value("blackbackground"));
+    const std::string v = ascii_lower_str(player_config_value("blackbackground"));
     return !(v == "false" || v == "0" || v == "off" || v == "no");
 }
 
@@ -580,7 +575,7 @@ bool set_player_black_background(bool on) {
 }
 
 bool player_share_profiles() {
-    const std::string v = lower(player_config_value("shareprofiles"));
+    const std::string v = ascii_lower_str(player_config_value("shareprofiles"));
     return v == "true" || v == "1" || v == "on" || v == "yes";
 }
 
@@ -609,12 +604,12 @@ WizardPalette player_wizard_palette() {
     std::ifstream in(radio_default_dir() / "config.txt");
     std::string line;
     while (std::getline(in, line)) {
-        line = trim(line);
+        line = trim_ws(line);
         if (line.empty() || line[0] == '#') continue;
         const size_t eq = line.find('=');
         if (eq == std::string::npos) continue;
-        const std::string key = lower(trim(line.substr(0, eq)));
-        const std::string val = trim(line.substr(eq + 1));
+        const std::string key = ascii_lower_str(trim_ws(line.substr(0, eq)));
+        const std::string val = trim_ws(line.substr(eq + 1));
         if      (key == "colorbordertop")         p.border      = val;
         else if (key == "colorborderbottom")      p.border_bot  = val;
         else if (key == "colorheader")            p.header      = val;
@@ -711,7 +706,7 @@ int key_translate(const RadioSettings& s, int typed) {
     if (typed <= 32 && typed != 9) return typed;
     if (typed >= 127) return typed;
     // the old aliases of + and - follow the volume actions while those keep their defaults
-    // ('=' used to be an alias of '+' as well; it is the big scope overlay's key now -- SHIFT+0 on a German keyboard)
+    // ('=' is not an alias of '+'; it is the big scope overlay's key -- SHIFT+0 on a German keyboard)
     if (typed == '_' && key_binding(s, 8) == "-") return '-';
     for (int i = 0; i < kKeyActionCount; ++i)
         if (key_code(key_binding(s, i)) == typed) return static_cast<unsigned char>(kKeyActions[i].def[0]);
@@ -788,19 +783,19 @@ RadioSettings load_radio_settings(std::string* source_out) {
     std::vector<std::string> eq_preset_lines;
     std::string line;
     while (std::getline(in, line)) {
-        line = trim(line);
+        line = trim_ws(line);
         if (line.empty() || line[0] == '#') continue;
         const size_t eq = line.find('=');
         if (eq == std::string::npos) continue;
-        kv[lower(trim(line.substr(0, eq)))] = trim(line.substr(eq + 1));
-        if (lower(trim(line.substr(0, eq))) == "equalizerpreset") eq_preset_lines.push_back(trim(line.substr(eq + 1)));   // repeated key
+        kv[ascii_lower_str(trim_ws(line.substr(0, eq)))] = trim_ws(line.substr(eq + 1));
+        if (ascii_lower_str(trim_ws(line.substr(0, eq))) == "equalizerpreset") eq_preset_lines.push_back(trim_ws(line.substr(eq + 1)));   // repeated key
     }
     auto col = [&](const char* key, std::string& field) {
-        const auto it = kv.find(lower(key));
+        const auto it = kv.find(ascii_lower_str(key));
         if (it != kv.end() && valid_color_value(it->second)) field = it->second;   // a bad value keeps the default
     };
     col("ColorBorderTop", s.border_top);          col("ColorBorderBottom", s.border_bottom);
-    if (const auto it = kv.find("bordergradient"); it != kv.end()) s.border_smooth = lower(it->second) != "rough";
+    if (const auto it = kv.find("bordergradient"); it != kv.end()) s.border_smooth = ascii_lower_str(it->second) != "rough";
     col("ColorOnAirUpperLeft", s.on_air_upper_left); col("ColorOnAirBottomRight", s.on_air_bottom_right);
     col("ColorMetadataKey", s.meta_key);          col("ColorMetadataVal", s.meta_val);
     col("ColorVizLeft", s.viz_left);              col("ColorVizCenter", s.viz_center);   col("ColorVizRight", s.viz_right);
@@ -820,7 +815,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     col("ColorFocus", s.focus);
 
     auto get = [&](const char* key) -> const std::string* {
-        const auto it = kv.find(lower(key));
+        const auto it = kv.find(ascii_lower_str(key));
         return it == kv.end() ? nullptr : &it->second;
     };
     if (auto v = get("StationListsPath")) s.stations_path = *v;
@@ -851,7 +846,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("DummyButtons")) s.dummy_buttons = as_bool(*v, s.dummy_buttons);
     if (auto v = get("VolumeGradient")) s.volume_gradient = as_bool(*v, s.volume_gradient);
     if (auto v = get("VolumeIndicator")) { const int st = muisc::volume_style_from_name(*v); if (st >= 0) s.volume_indicator = st; }
-    if (auto v = get("OsciSphere")) { const std::string l = lower(*v); s.scope_mode = l == "sphere" ? 1 : l == "off" ? 2 : (l == "spectro" || l == "spectrogram") ? 3 : 0; }
+    if (auto v = get("OsciSphere")) { const std::string l = ascii_lower_str(*v); s.scope_mode = l == "sphere" ? 1 : l == "off" ? 2 : (l == "spectro" || l == "spectrogram") ? 3 : 0; }
     for (const auto& [k, v] : kv) spectro_config_key(s.spectro, k, v);
     if (auto v = get("TuneNoise")) s.tune_noise = as_bool(*v, s.tune_noise);
     if (auto v = get("MarqueeScrolling")) s.marquee = as_bool(*v, s.marquee);
@@ -884,7 +879,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     for (const std::string& val : eq_preset_lines) {   // "<ten gains>|<name>"
         const size_t bar = val.find('|');
         if (bar == std::string::npos) continue;
-        const std::string name = trim(val.substr(bar + 1));
+        const std::string name = trim_ws(val.substr(bar + 1));
         if (name.empty() || eq_name_reserved(name) || s.eq_custom_presets.size() >= kEqMaxCustomPresets) continue;
         bool dup = false;
         for (const auto& cp : s.eq_custom_presets) if (eq_name_equal(cp.name, name)) { dup = true; break; }
@@ -895,7 +890,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     }
     if (auto v = get("GradientWaveSpeed")) try { s.gradient_wave_speed = std::clamp(std::stod(*v), 0.01, 1.0); } catch (...) {}
     if (auto v = get("PulseWaveSpeed")) try { s.pulse_wave_speed = std::clamp(std::stod(*v), 0.01, 1.0); } catch (...) {}
-    if (auto v = get("PlaybackMode")) s.playback_shuffle = lower(*v) != "list";
+    if (auto v = get("PlaybackMode")) s.playback_shuffle = ascii_lower_str(*v) != "list";
     s.start_mode = player_start_mode();
     load_player_mode_settings(s);
     s.black_background = player_black_background();
@@ -924,7 +919,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     // A radio_config.txt from before "ColorCodes=palette": 30-37 / 90-97 (text) and 40-47 / 100-107 (background) were plain 16-colour
     // codes. They become the palette numbers that look the same; the file is written once so that it carries the marker from now on.
     const auto cc = kv.find("colorcodes");
-    if (cc == kv.end() || lower(cc->second) != "palette") {
+    if (cc == kv.end() || ascii_lower_str(cc->second) != "palette") {
         for (const ThemeKey& k : kThemeKeys) s.*(k.p) = themes::legacy_to_palette(s.*(k.p), themes::role_of_key(k.key));
         save_radio_settings(s);
     }

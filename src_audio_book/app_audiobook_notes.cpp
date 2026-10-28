@@ -3,6 +3,8 @@
 // overlay with export and import). Member functions of App (declared in app.h); the helpers shared with app.cpp are in
 // app_internal.h.
 #include "overlay_common.h"
+#include "time_util.h"
+#include "string_util.h"
 #include "app.h"
 #include "text_edit.h"
 #include "utf8_util.h"
@@ -20,12 +22,6 @@ namespace muisc {
 
 namespace {
 
-std::string trim_ws(const std::string& s) {
-    size_t a = 0, b = s.size();
-    while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
-    while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
-    return s.substr(a, b - a);
-}
 
 } // namespace
 
@@ -39,8 +35,6 @@ int App::book_chapter_of(const std::string& file) const {
 }
 
 namespace {
-long long epoch_now() { return static_cast<long long>(std::time(nullptr)); }
-
 // The newest bookmark: the latest `when`, among equal ones (old files have none) the one written last.
 const BookMark* newest_of(const std::vector<BookMark>& v) {
     const BookMark* best = nullptr;

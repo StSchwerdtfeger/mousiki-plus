@@ -1,3 +1,5 @@
+// StreamingPcm: the decoded audio of a track while it is still being decoded, so playback can start
+// before the file is finished.
 #pragma once
 #include <algorithm>
 #include <atomic>

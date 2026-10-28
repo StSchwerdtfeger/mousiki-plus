@@ -1,3 +1,5 @@
+// The audio player (see player.cpp): Player plays decoded audio, reports the position and handles
+// pause, seek and volume.
 #pragma once
 #include <algorithm>
 #include <array>
@@ -128,8 +130,8 @@ private:
     // didn't overlap anything. NOT taken inside data_callback(): that runs
     // on miniaudio's own real-time audio thread, and ma_device_uninit() is
     // documented to block until that callback thread has fully stopped
-    // before returning -- by the time stop_locked() reassigns pcm_, the
-    // callback that used to read it is already provably not running, so
+    // before returning. By the time stop_locked() reassigns pcm_, the
+    // callback that reads it is already provably not running, so
     // there is nothing there for this mutex to protect, and taking it in
     // the callback would risk an audible stall if it ever had to wait on a
     // slow device_init() elsewhere.

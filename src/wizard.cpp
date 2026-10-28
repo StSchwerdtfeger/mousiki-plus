@@ -1,4 +1,8 @@
+// The help wizard: builds the pages from the text file, lays them out at the terminal width, and
+// handles the keys, the contents list and the search.
 #include "wizard.h"
+#include "utf8_util.h"
+#include "string_util.h"
 
 #include <algorithm>
 #include <cctype>
@@ -15,6 +19,9 @@
 // Generated from Mousiki_Help_Wizard.txt by tools/wizard_to_inc.py (several chunks because some compilers
 // limit the size of one string literal).
 #include "wizard_text.inc"
+
+using muisc::ascii_lower_str;
+using muisc::trim_ws;
 
 namespace wizard {
 namespace {
@@ -54,12 +61,6 @@ int cp_len(const std::string& s) {
     return n;
 }
 
-std::string trim(const std::string& s) {
-    size_t a = 0, b = s.size();
-    while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
-    while (b > a && std::isspace(static_cast<unsigned char>(s[b - 1]))) --b;
-    return s.substr(a, b - a);
-}
 
 std::string rtrim(const std::string& s) {
     size_t b = s.size();
@@ -67,10 +68,6 @@ std::string rtrim(const std::string& s) {
     return s.substr(0, b);
 }
 
-std::string lower(std::string s) {
-    for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    return s;
-}
 
 std::string upper(std::string s) {
     for (char& c : s) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
@@ -159,7 +156,7 @@ std::vector<Cell> parse_cells(const std::string& line_in, bool toc_page) {
     const std::string line = replace_all(line_in, "{VERSION}", MOUSIKI_VERSION);
     std::vector<Cell> cells;
     size_t seg_start = 0;
-    const std::string lead = trim(line);
+    const std::string lead = trim_ws(line);
     const bool whole_kind = starts_with(lead, "=>") || starts_with(lead, "NOTE:");
     bool header_line = false;                      // [[Header_line]] somewhere in the line: all of it in the header colour
     auto push = [&](const std::string& text, Role r) {
@@ -172,12 +169,12 @@ std::vector<Cell> parse_cells(const std::string& line_in, bool toc_page) {
         if (line.compare(i, 2, "[[") == 0) {
             const size_t e = line.find("]]", i + 2);
             if (e != std::string::npos) {
-                const std::string name_raw = trim(line.substr(i + 2, e - i - 2));
-                const std::string name = lower(name_raw);
+                const std::string name_raw = trim_ws(line.substr(i + 2, e - i - 2));
+                const std::string name = ascii_lower_str(name_raw);
                 if (name == "header_line" || name == "header line" || name == "headerline") {
                     header_line = true;
                 } else if (name == "header" || name == "legend") {
-                    const bool at_end = trim(line.substr(e + 2)).empty();
+                    const bool at_end = trim_ws(line.substr(e + 2)).empty();
                     apply_marker(cells, seg_start, name == "header" ? Role::Header : Role::Legend, toc_page, whole_kind && at_end);
                     seg_start = cells.size();
                 } else if (name != "new page") {
@@ -218,7 +215,7 @@ std::string plain_text(const std::string& line) {
         }
         out += line[i++];
     }
-    return trim(out);
+    return trim_ws(out);
 }
 
 bool is_number_token(const std::string& t) {
@@ -249,7 +246,7 @@ bool split_number(const std::string& text, std::string& number, std::string& res
     const size_t sp = text.find(' ');
     if (sp == std::string::npos) return false;
     std::string tok = text.substr(0, sp);
-    const std::string r = trim(text.substr(sp + 1));
+    const std::string r = trim_ws(text.substr(sp + 1));
     if (r.empty()) return false;
     if (is_number_token(tok)) {
         if (tok.back() == '.') tok.pop_back();
@@ -268,9 +265,9 @@ std::string normalise(const std::string& s) {
 }
 
 void finish_page(Doc& d, Page& p) {
-    while (!p.raw.empty() && trim(p.raw.back()).empty()) p.raw.pop_back();
+    while (!p.raw.empty() && trim_ws(p.raw.back()).empty()) p.raw.pop_back();
     size_t skip = 0;
-    while (skip < p.raw.size() && trim(p.raw[skip]).empty()) ++skip;
+    while (skip < p.raw.size() && trim_ws(p.raw[skip]).empty()) ++skip;
     p.raw.erase(p.raw.begin(), p.raw.begin() + static_cast<std::ptrdiff_t>(skip));
     d.pages.push_back(std::move(p));
     p = Page();
@@ -285,9 +282,9 @@ void build_doc(Doc& d, const std::string& text) {
     while (std::getline(in, line)) {
         while (!line.empty() && (line.back() == '\r' || line.back() == '\n')) line.pop_back();
         line = replace_all(line, "\t", "    ");
-        const std::string t = trim(line);
+        const std::string t = trim_ws(line);
         if (starts_with(t, "=>>>")) continue;                                 // a note to the author
-        if (lower(t) == "[[new page]]") {
+        if (ascii_lower_str(t) == "[[new page]]") {
             if (in_page) finish_page(d, cur);
             in_page = true;
             continue;
@@ -524,7 +521,7 @@ std::vector<std::vector<Cell>> wrap_cells(std::vector<Cell> cells, int width, in
 }
 
 struct Laid {
-    std::vector<int> line_row;      // the first row of each text line of the page (a normal page; used to scroll to a search hit)
+    std::vector<int> line_row;      // the first row of each text line of the page (a normal page; the scroll target for a search hit)
     std::vector<Row> rows;          // without margins
     int selected_row = -1;          // the cursor row of a contents page
     int wrapped = 0;
