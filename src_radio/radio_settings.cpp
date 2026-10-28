@@ -124,24 +124,39 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
     static const std::vector<SettingsLine> on_off = {
         {true, -1, "MODES"},
         {false, kRsPlayback, "Playback"}, {false, kRsStartMode, "Start Mode"},
+        {true, -1, ""},
+        {true, -1, "MODES ON/OFF AND ORDER"},
         {false, kRsUseModePlayer, "Use Music Player"}, {false, kRsUseModeRadio, "Use Radio"}, {false, kRsUseModeBook, "Use Audio Books"},
         {false, kRsModeOrder1, "Mode Order 1"}, {false, kRsModeOrder2, "Mode Order 2"}, {false, kRsModeOrder3, "Mode Order 3"},
-        {false, kRsBlackBg, "Black Background"}, {false, kRsShareProfiles, "Share Profiles"}, {false, kRsRemoteApp, "Remote App"},
         {true, -1, ""},
-        {true, -1, "ON/OFF"},
-        {false, kRsOnAir, "On air ascii"}, {false, kRsPulse, "Pulse wave"}, {false, kRsDummy, "Dummy buttons"}, {false, kRsVolIndicator, "Volume indicator"},
-        {false, kRsVisualizer, "Spectrum Bars"}, {false, kRsStereo, "Stereo sound"}, {false, kRsNormalize, "Normalize volume"},
-        {false, kRsTuneNoise, "Tuning noise"}, {false, kRsMarquee, "Marquee scrolling"}, {false, kRsTimeshift, "Timeshift buffer"},
+        {true, -1, "TERMINAL"},
+        {false, kRsBlackBg, "Black Background"},
+        {true, -1, ""},
+        {true, -1, "REMOTE / UPDATES"},
+        {false, kRsRemoteApp, "Remote App"},
+        {true, -1, ""},
+        {true, -1, "AUDIO"},
+        {false, kRsOnAir, "On air ascii"}, {false, kRsPulse, "Pulse wave"}, {false, kRsDummy, "Dummy buttons"},
+        {false, kRsStereo, "Stereo sound"}, {false, kRsNormalize, "Normalize volume"},
+        {false, kRsTuneNoise, "Tuning noise"}, {false, kRsTimeshift, "Timeshift buffer"},
         {false, kRsUseOsci, "Use oscilloscope"}, {false, kRsUseSpectro, "Use spectrogram"},   // false: not in the "." cycle (the window still works)
+        {true, -1, ""},
+        {true, -1, "TEXT"},
+        {false, kRsMarquee, "Marquee scrolling"},
     };
     static const std::vector<SettingsLine> anima = {
         {true, -1, "ON AIR SIGN"},
         {false, kRsGradSpeed, "Gradient wave speed"}, {false, kRsPulseSpeed, "Pulse wave speed"},
         {true, -1, ""},
+        {true, -1, "SEEK AND VOLUME"},
+        {false, kRsVolIndicator, "Volume indicator"},
+        {true, -1, ""},
         {true, -1, "SPECTRUM BARS"},   // the spectrum bars under the station info
+        {false, kRsVisualizer, "On/Off"},
         {false, kRsFluidity, "Bars Fluidity"}, {false, kRsDegr, "Bars Degradation"}, {false, kRsVisc, "Bars Viscosity"},
         {true, -1, ""},
-        {true, -1, "MODES"},
+        {true, -1, "OSCI/SPECTRO SETTINGS"},
+        {false, kRsShareProfiles, "Osci/Spectro Share Profile"},
         {false, kRsScope, "Osci/sphere"}, {false, kRsOsciStyle, "Osci style"},
     };
     return tab == 1 ? on_off : anima;
@@ -300,7 +315,7 @@ std::string osci_row_value(const RadioSettings& s, int row) {
 
 void osci_adjust(RadioSettings& s, int row, int dir) {
     if (row != kOrDisplay) { muisc::osci_adjust(static_cast<VizPrefs&>(s), row, dir); return; }
-    {   // osci -> sphere -> spectro (off only on the ON/OFF tab; switched-off ones are skipped)
+    {   // osci -> sphere -> spectro (off only on the GENERAL tab; switched-off ones are skipped)
             static const int order[3] = {0, 1, 3};
             int i = s.scope_mode == 1 ? 1 : s.scope_mode == 3 ? 2 : 0;
             for (int k = 0; k < 3; ++k) {
@@ -993,7 +1008,7 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "# Pane focus indicator: the little triangle after the title of the pane that has the keys\n"
          "ColorFocus=" << s.focus << "\n\n"
          "##-------------------------------------------\n"
-         "##              ON/OFF\n"
+         "##              AUDIO\n"
          "##-------------------------------------------\n\n"
          "OnAirAscii=" << (s.on_air_ascii ? "true" : "false") << "\n"
          "PulseWave=" << (s.pulse_wave ? "true" : "false") << "\n"

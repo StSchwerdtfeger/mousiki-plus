@@ -28,15 +28,6 @@ inline const std::vector<std::string>& about_app_text() {
             "Developer : ender                         Github   : itzender5820",
             "Email     : itz.ender5820@gmail.com",
             "Version   : original and final v1.0       Licence  : Apache licence 2.0",
-            "",
-            "Several features and modifications were added along the Win portation, the ",
-            "general design remained. Additions: radio mode, playlist menu, meta data ",
-            "editor incl. fetch meta data function via AcoustID, stereo mode, loudness ",
-            "normalization, listening history, big list/queue/folder overlays, equalizer, ",
-            "sleep timer, YX mode oscillator, spectrogram, color themes editor, file ",
-            "format conversion, new hot keys, help wizard and then some... ",
-            "See Readme.md/manual for full list of additions and changes along the ",
-            "Win native port. Done with the help of AI tools.",
         };
     }();
     return lines;

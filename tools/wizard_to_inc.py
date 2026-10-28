@@ -8,7 +8,7 @@ src/wizard_text.inc, which src/wizard.cpp includes:
 
 The text is cut into chunks of about 8000 bytes (at line ends) because some compilers limit the length of one string literal.
 
-Markup (see src/wizard.h): [[New Page]], [[Header]] / [[Legend]] (the capitalised words in front of it),
+Markup (see src/wizard.h): [[New Page]], [[Header]] / [[Legend]] (the capitalised words in front of it), [Text][[Legend]] (the text in the brackets, no brackets shown),
 [[Header_line]] (anywhere in a line: the whole line in the header color), [KEY], {VERSION}, =>>> notes.
 
 Usage:  python3 tools/wizard_to_inc.py [input.txt] [output.inc]
@@ -45,7 +45,8 @@ for ln in text.split("\n"):
         page.append(ln)
 for pi, pg in enumerate(pages[:2], 1):
     for ln in pg:
-        vis = re.sub(r"\[\[[^\]]*\]\]", "", ln).replace("{VERSION}", "9.9.9").rstrip()
+        vis = re.sub(r"\[([^\[\]]*)\]\[\[(?:legend|header)\]\]", r"\1", ln, flags=re.I)
+        vis = re.sub(r"\[\[[^\]]*\]\]", "", vis).replace("{VERSION}", "9.9.9").rstrip()
         if len(vis) > WELCOME_WIDTH:
             print("warning: welcome page %d: a line is %d columns wide (limit %d): %s" % (pi, len(vis), WELCOME_WIDTH, vis.strip()[:60]))
 if len(pages) < 3:

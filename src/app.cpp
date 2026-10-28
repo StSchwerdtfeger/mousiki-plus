@@ -917,7 +917,7 @@ int App::run() {
     g_settings_book_layout = audiobook_;   // (the settings screen shows this mode's rows)
     remote::start("player");
     if (resuming) sync_after_radio();
-    remote_app_apply();   // the remote app's web server (Settings -> ON/OFF -> MODES -> Remote App)   // the radio's settings may have changed some of ours meanwhile
+    remote_app_apply();   // the remote app's web server (Settings -> GENERAL -> REMOTE / UPDATES -> Remote App)   // the radio's settings may have changed some of ours meanwhile
     bool restored = false;
     if (!resuming) {
     ConsoleLog::instance().init(settings_.console_verbosity == 1 ? LogVerbosity::Verbose : LogVerbosity::Basic);
@@ -1117,7 +1117,7 @@ int App::run() {
         // the outside. Skip that one frame instead (the next resize event or
         // frame will usually lay out fine), log it, and force a full repaint
         // once rendering works again.
-        terminal_black_background(settings_.black_background);   // Settings -> ON/OFF -> MODES (only writes when it changes)
+        terminal_black_background(settings_.black_background);   // Settings -> GENERAL -> TERMINAL (only writes when it changes)
         terminal_default_text(settings_.list_color);              // text without a colour of its own: the list text colour
         std::string frame_str;
         try {

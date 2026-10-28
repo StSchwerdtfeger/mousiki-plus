@@ -2,7 +2,7 @@
 #include "picture_formats.h"
 // Album covers for the music player: where a track's cover comes from (the picture inside the file, a picture in its folder
 // whose name is close to the track's title or album), how it is decoded (ffmpeg, in the background) and how it is scaled for the
-// disk's place. Settings -> ON/OFF -> MAIN UI / AUDIO -> Album Cover / Cover Mode / Cover Search.
+// disk's place. Settings -> GENERAL -> AUDIO -> Album Cover / Cover Mode / Cover Search.
 #include <array>
 #include <cstdint>
 #include <filesystem>

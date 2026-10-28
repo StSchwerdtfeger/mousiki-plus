@@ -179,7 +179,7 @@ void usage(std::ostream& o) {
          "  mousiki --cmd <command> [value]     e.g.  mousiki --cmd next      mousiki --cmd volume 60      mousiki --cmd seek +10\n"
          "  mousiki --cmd --help                this list (also: mousiki --cmd help, mousiki --remote-help)\n"
          "  mousiki --status                    prints what is playing (state, title, artist, position, volume, mode ...)\n"
-         "  mousiki --remote-info               the address and PIN of the remote app (Settings -> ON/OFF -> MODES -> Remote App)\n\n"
+         "  mousiki --remote-info               the address and PIN of the remote app (Settings -> GENERAL -> REMOTE / UPDATES -> Remote App)\n\n"
          "Commands:\n"
          "  play-pause  play  pause  stop       toggle / start / pause (radio: timeshift pause) / stop\n"
          "  next  prev  shuffle                 next / previous track or station, shuffle next (radio: a random station);\n"
@@ -219,7 +219,7 @@ void general_help(std::ostream& o) {
 void remote_info(std::ostream& o) {
     const RemoteAppConfig rc = read_remote_app();
     if (!rc.enabled) {
-        o << "The remote app is off. Switch it on in Settings -> ON/OFF -> MODES -> Remote App (player or radio).\n";
+        o << "The remote app is off. Switch it on in Settings -> GENERAL -> REMOTE / UPDATES -> Remote App (player or radio).\n";
         return;
     }
     const std::string ip = net::lan_address();

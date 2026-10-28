@@ -336,7 +336,7 @@ def paging_and_translit_row(binary, root, scripts):
         sess.send(b"\x1b", 0.8)
         check("Alpha Song" in sess.text(), "paging: ESC leaves the cheat sheet")
 
-        # settings -> ON/OFF -> TRANSLITERATION -> Translit. Kanji
+        # settings -> GENERAL -> TRANSLITERATION -> Translit. Kanji
         sess.send("s", 1.5)
         sess.send(b"\t", 0.6)
         def find(label):
@@ -344,8 +344,9 @@ def paging_and_translit_row(binary, root, scripts):
                 if label in line:
                     return line
             return ""
-        # MODES: 8 rows (Update Notice and Check Update included), then Use Terminal Settings, Terminal Size and Full Screen
-        for _ in range(8):
+        # GENERAL tab: Playback, Start Mode, Display queue, MODES ON/OFF AND ORDER (6 rows), AUDIO (4 rows),
+        # TERMINAL: Black Background, then Use Terminal Settings (row 14)
+        for _ in range(14):
             sess.send(b"\x1b[B", 0.1)
         check("Use Terminal Settings" in find("Use Terminal Settings") and "false" in find("Use Terminal Settings"),
               "use terminal settings: the row exists and is false by default")
@@ -377,7 +378,7 @@ def paging_and_translit_row(binary, root, scripts):
         sess.send(b"\x1b[B", 0.2)
         check("Full Screen" in find("Full Screen") and "false" in find("Full Screen"), "full screen: the row exists and is off by default")
         for _ in range(9):
-            sess.send(b"\x1b[B", 0.1)   # down to Translit. Kanji (rows 10 .. 17)
+            sess.send(b"\x1b[B", 0.1)   # down to Translit. Kanji (past REMOTE / UPDATES; TEXT AND TRANSLITERATION is last)
         def row():
             return find("Translit. Kanji")
         def settle(word, limit=8.0):   # a slow machine draws the row a moment after the key: wait for it (up to `limit` s)

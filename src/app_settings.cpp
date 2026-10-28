@@ -649,17 +649,6 @@ void App::handle_theme_key(int key) {
     }
 }
 
-// The note at the bottom of the ANIMA/VIZ tab: where the oscilloscope and the spectrogram are tuned and opened.
-std::vector<std::string> App::settings_anima_note(int W) const {
-    const std::string text = "The oscilloscope/spectrogram are tuned live via an option overlay: [" + hotkey_text("HKeyOscMenu", "O") + "] oscilloscope [" +
-        hotkey_text("HKeySpectroMenu", "I") + "] spectrogram. [" + [&] {   // "SHIFT+u/0": the two keys of the big overlays
-            const std::string a = hotkey_text("HKeySpectroFull", "U"), b = hotkey_text("HKeyScopeBig", "=");
-            return a + "/" + (a.rfind("SHIFT+", 0) == 0 && b.rfind("SHIFT+", 0) == 0 ? b.substr(6) : b);
-        }() + "] opens a big overlay of both; " +
-        hotkey_text("HKeyScopeWindow", ")") + " and " + hotkey_text("HKeySpectroWindow", "(") + " open an extra window.";
-    return wrap_lines(text, std::max(20, W - 10), 4);
-}
-
 // Tabs 1 and 2 are a list of category headers and rows that can be longer than the panel: the first line shown is
 // chosen so that the selected row is in the middle (and its category header stays visible when it is right below it).
 int App::settings_tab_first_line(int W, int visible) const {
@@ -679,7 +668,7 @@ int App::settings_max_row() const {
     // track the actual font_map/about_app_text() content).
     switch (settings_tab_) {
         case 0: return 22; // THEME row + 21 colour rows + the SMOOTHNESS row (the extras are SEARCH, SEARCH INACTIVE, HEADER, LEGEND, TAB NAMES, CHANGE and FOCUS)
-        case 1: case 2: return settings_item_count(settings_tab_) - 1; // ON/OFF / ANIMA/VIZ: the rows of the layout
+        case 1: case 2: return settings_item_count(settings_tab_) - 1; // GENERAL / ANIMA/VIZ: the rows of the layout
         case 3: return path_row_count() - 1; // PATHS: every selectable path/"+ new path" row
         case 4: {
             int letters = 0;
@@ -860,7 +849,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
 // clamping. A bool/enum field that doesn't recognize the typed text
 // just leaves the setting unchanged, since there's no way to store
 // arbitrary text in a typed field the way the reference's string map can.
-// Every change on the ON/OFF and ANIMA/VIZ tabs goes through here: the value is stored, then the switches that depend on
+// Every change on the GENERAL and ANIMA/VIZ tabs goes through here: the value is stored, then the switches that depend on
 // each other are brought in line (enforce_visual_switches()), and the lyrics are fetched when they have just come back.
 void App::settings_commit_edit() {
     const bool rows_tab = settings_tab_ == 1 || settings_tab_ == 2;
@@ -889,7 +878,7 @@ void App::settings_commit_edit_impl() {
     } else if (settings_tab_ == 1 || settings_tab_ == 2) {
         const int id = settings_item_id(settings_tab_, settings_row_);
         std::string v = to_lower(buf);
-        // "Lyrics/Viz Default" and "No-Lyrics Viz" are picks among views (sphere / osci / spectro, plus lyrics or none), not
+        // "Lyrics/Viz Default" and "When No Lyrics Show" are picks among views (sphere / osci / spectro, plus lyrics or none), not
         // bools: they have to be handled BEFORE the true/false gate below, or their values would bounce off it and the row
         // would never change.
         if (id == kSidLyricViz || id == kSidNoLyricsViz) {
@@ -1274,8 +1263,8 @@ void App::settings_cycle(int dir) {
     if (id == kSidPlayback) status_line_ = std::string("playback: ") + play_mode_name(settings_.play_mode);
     if (id == kSidBlackBg) status_line_ = settings_.black_background ? "black background: on -- the terminal is black while Mousiki runs (given back on exit)"
                                                                      : "black background: off -- the terminal keeps its own background";
-    if (id == kSidShareProfiles) status_line_ = settings_.share_profiles ? "share profiles: on -- the radio uses these oscilloscope / spectrogram settings (its own come back when this is off)"
-                                                                         : "share profiles: off -- the radio keeps its own oscilloscope / spectrogram settings";
+    if (id == kSidShareProfiles) status_line_ = settings_.share_profiles ? "osci/spectro share profile: on -- the radio uses these oscilloscope / spectrogram settings (its own come back when this is off)"
+                                                                         : "osci/spectro share profile: off -- the radio keeps its own oscilloscope / spectrogram settings";
     if (id == kSidBookCover) status_line_ = settings_.book_cover ? "book cover: on"
                                                                  : "book cover: off -- the standard picture";
     if (id == kSidBookCoverWave) status_line_ = settings_.book_cover_wave ? "book gradient wave: true -- colour wave over the cover"
@@ -1639,7 +1628,7 @@ void App::handle_settings_key(int key) {
             status_line_ = "track buffer: back to the default, " + std::to_string(Settings::kTrackBufferDefaultMB) + " MB -- applies to the next track that is loaded";
             return;
         }
-        if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidVolIndicator) {   // ENTER changes the value that is lit
+        if ((settings_tab_ == 1 || settings_tab_ == 2) && settings_item_id(settings_tab_, settings_row_) == kSidVolIndicator) {   // ENTER changes the value that is lit
             if (settings_col_ == 1) {
                 settings_.volume_gradient = !settings_.volume_gradient;
                 status_line_ = settings_.volume_gradient ? "volume bar: gradient (the VIZ colours from left to right)" : "volume bar: no gradient (one colour)";
@@ -1661,7 +1650,7 @@ void App::handle_settings_key(int key) {
     }
     if (key == 'A') { if (settings_row_ > 0) --settings_row_; if (settings_tab_ != 0) settings_col_ = 0; return; }
     if (key == 'B') { if (settings_row_ < settings_max_row()) ++settings_row_; if (settings_tab_ != 0) settings_col_ = 0; return; }
-    if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidVolIndicator && (key == 'C' || key == 'D')) {
+    if ((settings_tab_ == 1 || settings_tab_ == 2) && settings_item_id(settings_tab_, settings_row_) == kSidVolIndicator && (key == 'C' || key == 'D')) {
         settings_col_ = key == 'C' ? 1 : 0;   // the look | gradient / no gradient
         status_line_ = "[ENTER] changes the value that is lit; [<-] [->] switch between the look and the gradient";
         return;
@@ -1915,7 +1904,7 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
         else if (i == 5 || i == 6 || (i >= 7 && i <= 15)) rt = bg_ansi_for(a1) + ansi_for(a0, false) + "THIS IS AN EXAMPLE TEXT" + R;
         else if (i == 16) { const std::string pr = sgr_params_for(a0); rt = (pr.empty() ? std::string("\x1b[1m") : "\x1b[1;" + pr + "m") + "SECTION HEADER" + R; }
         else if (i == 17) rt = ansi_for(a0, false) + "[ESC]" + R + ansi_for(a1, false) + " Close" + R + "  " + ansi_for(a0, false) + "[ENTER]" + R + ansi_for(a1, false) + " OK" + R;
-        else if (i == 18) rt = ansi_for(a0, false) + "[COLORS]" + R + "  " + ansi_for(a1, false) + "ON/OFF  ANIMA/VIZ" + R;
+        else if (i == 18) rt = ansi_for(a0, false) + "[COLORS]" + R + "  " + ansi_for(a1, false) + "GENERAL  ANIMA/VIZ" + R;
         else if (i == 19) rt = ansi_for(a0, false) + bg_ansi_for(a1) + "EDITING..." + R;
         else if (i == 20) { const std::string pr = sgr_params_for(a0); rt = ansi_for(settings_.list_color, false) + "LOCAL AUDIO FILES " + R + (pr.empty() ? std::string("\x1b[1m") : "\x1b[1;" + pr + "m") + "\u25c0" + R; }
         if (!rt.empty()) pos(y, 72, rt);
@@ -2013,7 +2002,7 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
         return p;
     };
 
-    static const char* kTabNames[] = {"COLORS", "ON/OFF", "ANIMA/VIZ", "PATHS", "REFERENCE", "ABOUT APP"};
+    static const char* kTabNames[] = {"COLORS", "GENERAL", "ANIMA/VIZ", "PATHS", "REFERENCE", "ABOUT APP"};
 
     // 1. Tab-wrap algorithm.
     std::vector<int> top_tabs, bot_tabs;
@@ -2154,7 +2143,7 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
                 // swatch shows the exact result (an unset color is plain text).
                 rt = ansi_for(valA, false) + "[ESC]" + R + ansi_for(valB, false) + " Close" + R + "  " + ansi_for(valA, false) + "[ENTER]" + R + ansi_for(valB, false) + " OK" + R;
             } else if (i == 18) {
-                rt = ansi_for(valA, false) + "[COLORS]" + R + "  " + ansi_for(valB, false) + "ON/OFF  ANIMA/VIZ" + R;
+                rt = ansi_for(valA, false) + "[COLORS]" + R + "  " + ansi_for(valB, false) + "GENERAL  ANIMA/VIZ" + R;
             } else if (i == 19) {
                 // Same construction change_sgr() gives the real activated
                 // field (a PATHS row, a meta editor tag, ...), so the swatch
@@ -2169,12 +2158,10 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
             y++;
         }
     } else if (settings_tab_ == 1 || settings_tab_ == 2) {
-        // ON/OFF and ANIMA/VIZ: category headers and their rows (settings_layout()). The list scrolls with the
-        // selected row when the terminal is too short for it; the ANIMA/VIZ note stays at the bottom.
+        // GENERAL and ANIMA/VIZ: category headers and their rows (settings_layout()). The list scrolls with the
+        // selected row when the terminal is too short for it.
         const auto& lay = settings_layout(settings_tab_);
-        const std::vector<std::string> note = settings_tab_ == 2 ? settings_anima_note(W) : std::vector<std::string>();
-        const int note_rows = note.empty() ? 0 : static_cast<int>(note.size()) + 1;   // + the blank line above it
-        const int visible = std::max(1, MAX_Y - 3 - note_rows);
+        const int visible = std::max(1, MAX_Y - 3);
         const int total = static_cast<int>(lay.size());
         const int first = settings_tab_first_line(W, visible);
         int row_of_line = 0;   // selectable row number of the line being drawn
@@ -2190,11 +2177,11 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
                 const bool ed = (r == settings_row_ && mode_ == Mode::ColorEdit);
                 pos(y, 6, pad(L.text, 25)); pos(y, 32, ":");
                 const bool buf_row = settings_tab_ == 1 && settings_item_id(1, r) == kSidTrackBuffer;
-                const bool vol_row = settings_tab_ == 1 && settings_item_id(1, r) == kSidVolIndicator;   // two values: the look | gradient or not
+                const bool vol_row = (settings_tab_ == 1 || settings_tab_ == 2) && settings_item_id(settings_tab_, r) == kSidVolIndicator;   // two values: the look | gradient or not
                 const bool term_row = settings_tab_ == 1 && settings_item_id(1, r) == kSidTermSize;       // two typed numbers: columns x rows
                 std::string shown = settings_get_value(r, 0);
                 // the "disk" look of the Volume Indicator is shown as two braille blocks of the animation itself
-                if (settings_tab_ == 1 && settings_item_id(1, r) == kSidVolIndicator && settings_.volume_indicator == kVolStyleDisk)
+                if ((settings_tab_ == 1 || settings_tab_ == 2) && settings_item_id(settings_tab_, r) == kSidVolIndicator && settings_.volume_indicator == kVolStyleDisk)
                     shown = volume_disk_snippet(volume_clock_angle());
                 std::string v = ed ? edit_paint(edit_field_width()).s : pad(shown, 20);
                 if (term_row) {   // "[ 120 ] x [ 30 ]": the field that is lit is the one ENTER types into (LEFT / RIGHT switch)
@@ -2224,14 +2211,6 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
             y++;
         }
         scrollbar(first, visible, total);   // there is more above / below
-        if (!note.empty()) {
-            int ny = MAX_Y - static_cast<int>(note.size());
-            for (const auto& ln : note) {
-                pos(ny, 1, B(ny) + "\u2502" + R); pos(ny, W, B(ny) + "\u2502" + R);
-                pos(ny, 4, legend_sgr(settings_) + ln + R);
-                ++ny;
-            }
-        }
     } else if (settings_tab_ == 3) {
         // PATHS tab: the LOCAL PATH / DOWNLOAD PATH / PLAYLIST PATH
         // sections (build_path_rows()) -- editable path rows, each list
@@ -2443,10 +2422,16 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
         int visible = std::max(1, MAX_Y - 3);
         int total = static_cast<int>(about_app_text().size());
         int scroll = std::clamp(settings_row_, 0, std::max(0, total - visible));
+        // the text is centred: each line in the middle of the box (by the longest line) and the block sits vertically in the
+        // middle of the rows, moved two rows up; a longer text scrolls as before (then it starts at the top)
+        int bw = 0;
+        for (const std::string& s : about_app_text()) bw = std::max(bw, display_width(s));
+        const int x0 = 2 + std::max(0, (W - 2 - bw) / 2);
+        const int top = total >= visible ? 0 : std::max(0, (visible - total) / 2 - 2);
         for (int r = 0; r < visible; ++r) {
             pos(y, 1, B(y) + "\u2502" + R); pos(y, W, B(y) + "\u2502" + R);
-            int idx = scroll + r;
-            if (idx < total) pos(y, 6, about_app_text()[idx]);
+            int idx = scroll + r - top;
+            if (r >= top && idx >= 0 && idx < total) pos(y, x0, about_app_text()[idx]);
             y++;
         }
         scrollbar(scroll, visible, total);
@@ -2521,9 +2506,8 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
             int cx = 35 + caret_col;
             if (settings_tab_ == 3) { const PathRow cr = path_row(settings_row_); (void)cr; }
             if (settings_tab_ == 1 || settings_tab_ == 2) {
-                // ON/OFF and ANIMA/VIZ scroll when the terminal is short: recompute the exact scroll the renderer used.
-                const int note_rows = settings_tab_ == 2 ? static_cast<int>(settings_anima_note(W).size()) + 1 : 0;
-                const int visible = std::max(1, MAX_Y - 3 - note_rows);
+                // GENERAL and ANIMA/VIZ scroll when the terminal is short: recompute the exact scroll the renderer used.
+                const int visible = std::max(1, MAX_Y - 3);
                 cy = 3 + (settings_item_line(settings_tab_, settings_row_) - settings_tab_first_line(W, visible));
             } else if (settings_tab_ == 3) {
                 // PATHS tab scrolls once its row list exceeds the visible

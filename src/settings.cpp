@@ -1806,7 +1806,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "\n";
 
     out << "##-------------------------------------------\n";
-    out << "##              PANEL 2: ON/OFF\n";
+    out << "##              PANEL 2: GENERAL\n";
     out << "##-------------------------------------------\n\n";
     auto tf = [](bool v) -> const char* { return v ? "true" : "false"; };
     out << "ElimentDisk=" << tf(s.element_disk) << "\n";
@@ -1848,7 +1848,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
         static const char* const viz_names[4] = {"sphere", "osci", "spectro", "lyrics"};
         out << "VizOrder=";
         for (int i = 0; i < 4; ++i) out << (i ? "," : "") << viz_names[std::clamp(s.viz_order[i], 0, 3)];
-        out << "\n## the order of the views when you press \".\" (sphere, osci, spectro, lyrics in any order); set it on Settings -> ON/OFF -> Viz Order 1..4\n";
+        out << "\n## the order of the views when you press \".\" (sphere, osci, spectro, lyrics in any order); set it on Settings -> ANIMA/VIZ -> Viz Order 1..4\n";
     }
     osci_config_write(out, s, "##");
     spectro_config_write(out, s.spectro, "##");
@@ -1868,12 +1868,12 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "WaveformStyle=" << (s.waveform_smooth ? "smooth" : "raw") << "\n## raw , smooth\n";
     out << "DiskRotationSpeed=" << s.disk_rotation_speed << "\n## 0.01x to 1.00x\n";
     out << "StartMode=" << (s.start_mode == "radio" ? "radio" : s.start_mode == "audiobook" ? "audiobook" : "player")
-        << "\n## player , radio , audiobook -- the mode Mousiki starts in (SHIFT and + / SHIFT and - switch while it runs; set in Settings -> ON/OFF -> MODES)\n";
+        << "\n## player , radio , audiobook -- the mode Mousiki starts in (SHIFT and + / SHIFT and - switch while it runs; set in Settings -> GENERAL -> MODES)\n";
     out << "UseModePlayer=" << tf(s.use_mode[0]) << "\n";
     out << "UseModeRadio=" << tf(s.use_mode[1]) << "\n";
     out << "UseModeAudiobook=" << tf(s.use_mode[2]) << "\n";
-    out << "## false = the mode is left out of the mode switch (one mode always stays on); set in Settings -> ON/OFF -> MODES\n";
-    out << "ModeOrder=" << mode_order_text(s.mode_order) << "\n## the order SHIFT and + walks through the modes (player, radio, audiobook in any order); SHIFT and - goes back; Settings -> ON/OFF -> MODES -> Mode Order 1..3\n";
+    out << "## false = the mode is left out of the mode switch (one mode always stays on); set in Settings -> GENERAL -> MODES\n";
+    out << "ModeOrder=" << mode_order_text(s.mode_order) << "\n## the order SHIFT and + walks through the modes (player, radio, audiobook in any order); SHIFT and - goes back; Settings -> GENERAL -> MODES -> Mode Order 1..3\n";
     out << "BlackBackground=" << (s.black_background ? "true" : "false") << "\n## true , false -- the terminal's background is black while Mousiki runs (given back on exit; player and radio)\n";
     out << "RemoteApp=" << (s.remote_app ? "true" : "false") << "\n## true , false -- the remote app (Android app or phone browser) can control Mousiki over the home network (off by default; player and radio)\n";
     out << "RemoteAppPort=" << s.remote_port << "\n## 1024 - 65535 -- the network port of the remote app (default 4747)\n";
@@ -1884,7 +1884,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "BookCover=" << (s.book_cover ? "true" : "false") << "\n## true , false -- audio book mode: false = the standard picture (a woman reading), true = the cover image found in the book's folder (cover / folder / front / albumart .jpg .png ..., or the only picture there); the colour wave runs over either one\n";
     out << "UpdateCheck=" << (s.update_check ? "true" : "false") << "\n## true , false -- at start-up Mousiki looks (at most once a day, in the background) whether a newer release exists and tells you once per version; nothing is installed and nothing about you is sent (needs Python 3)\n";
     out << "TrackBufferMB=" << s.track_buffer_mb << "\n## 64 - 16384 (default 256) -- a track whose decoded audio is bigger than this many MB (about 10 MB per minute of CD-quality stereo, double at 96 kHz) is not held whole in RAM but in a moving 2-minute window; seeking inside the window is instant, a jump outside it takes a moment. A bigger value = fast seeking in longer tracks, more RAM in use\n";
-    out << "TerminalCols=" << s.terminal_cols << "\nTerminalRows=" << s.terminal_rows << "\n## columns and rows (default 120 x 32; at least 100 x 28, at most what fits on the screen; 0 in either = leave the terminal as it is) -- Mousiki asks the terminal for this size when it starts and when you change it in Settings -> ON/OFF -> MODES -> Terminal Size. Terminals decide for themselves: xterm, GNOME Terminal, iTerm2, Terminal.app and recent versions of Windows Terminal usually obey, others (Konsole, kitty, Alacritty, tmux, tiling window managers) ignore it\n";
+    out << "TerminalCols=" << s.terminal_cols << "\nTerminalRows=" << s.terminal_rows << "\n## columns and rows (default 120 x 32; at least 100 x 28, at most what fits on the screen; 0 in either = leave the terminal as it is) -- Mousiki asks the terminal for this size when it starts and when you change it in Settings -> GENERAL -> TERMINAL -> Terminal Size. Terminals decide for themselves: xterm, GNOME Terminal, iTerm2, Terminal.app and recent versions of Windows Terminal usually obey, others (Konsole, kitty, Alacritty, tmux, tiling window managers) ignore it\n";
     out << "UseTerminalSettings=" << (s.use_terminal_settings ? "true" : "false") << "\n## true , false -- true: Mousiki leaves the terminal as it is (its own window size and full screen), whatever TerminalCols / TerminalRows / FullScreen say\n";
     out << "FullScreen=" << (s.full_screen ? "true" : "false") << "\n## true , false -- ask the terminal for full screen when Mousiki starts (overrides TerminalCols / TerminalRows while on)\n";
     out << "RateCap96=" << (s.rate_cap_96 ? "true" : "false") << "\n## true , false (default true) -- a track above 96 kHz (e.g. 176.4 / 192 kHz) is brought down to 96 kHz; false plays it at its own rate: more RAM (the decoded audio grows with the rate, see TrackBufferMB) and the audio device must accept the rate. The next track that is loaded uses it\n";
@@ -1942,7 +1942,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "## Each track is measured (LUFS) while it decodes and played at NormalizeTargetLufs.\n";
     out << "## Quiet tracks are raised (at most NormalizeMaxBoostDb), loud/compressed ones lowered.\n";
     out << "## -14 matches YouTube/Spotify; -16 leaves more headroom. Lower number = quieter overall.\n";
-    out << "## Tune all three live with SHIFT+v in the main UI (the on/off switch is also on the ON/OFF tab and the `v` key)\n";
+    out << "## Tune all three live with SHIFT+v in the main UI (the on/off switch is also on the ANIMA/VIZ tab and the `v` key)\n";
     out << "\n";
 
     out << "##-------------------------------------------\n";
@@ -2010,7 +2010,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "Horizontal=\"" << s.box_horizontal << "\";\n";
     out << "Seprator=\"" << s.meta_separator << "\"\n";
     out << "ListSeparator=\"" << s.list_separator << "\"\n";
-    out << "\n# General\n";
+    out << "\n# GENERAL\n";
     {
         std::string setting_key = s.hotkeys.count("HKeySetting") ? s.hotkeys.at("HKeySetting") : "s";
         out << "HKeySetting=\"" << setting_key << "\"\n";
@@ -2019,7 +2019,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     for (const auto& path : s.local_music_paths) {
         // Blank entries are skipped rather than written out as an empty
         // "LocalMusicPath=" line: an abandoned "+ new path" edit in the
-        // ON/OFF tab can leave one behind in memory, and the loader skips
+        // GENERAL tab can leave one behind in memory, and the loader skips
         // empty values anyway, so writing it would only litter the file.
         if (path.empty()) continue;
         out << "LocalMusicPath=" << path << "\n";

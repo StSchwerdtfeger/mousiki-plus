@@ -10,7 +10,7 @@ namespace muisc {
 
 // XY (Lissajous / vectorscope) oscilloscope for the lyrics panel -- the
 // time-domain alternative to SphereVisualizer, picked with Settings ->
-// ON/OFF -> "Lyrics/Viz".
+// ANIMA/VIZ -> "Lyrics/Viz".
 //
 // XY mode: the left channel drives the horizontal deflection, the right
 // channel the vertical one, exactly like a scope in X-Y mode. A mono

@@ -40,14 +40,14 @@ struct Settings : VizPrefs {
     bool element_dummy_buttons = true;
     bool element_queue = true;           // replaces the old queue_visible
     bool element_waveform = true;
-    // "Volume Indicator" (ON/OFF tab): what the VOLUME BAR is drawn with. 0 = "#", 1 = "⠶", 2 = "⣿", 3 = "⡾⣽" (a fixed row of
+    // "Volume Indicator" (GENERAL tab): what the VOLUME BAR is drawn with. 0 = "#", 1 = "⠶", 2 = "⣿", 3 = "⡾⣽" (a fixed row of
     // braille characters that is not repeating), 4 = "disk" (the dots of the disk animation, see volume_bar.h).
     // config.txt: VolumeIndicator=
     int volume_indicator = 0;
     // "gradient" (true) / "no gradient" (false), right of the Volume Indicator: the filled part of the bar takes the colours
     // of the VIZ gradient from left to right, like the oscilloscope does. config.txt: VolumeGradient=
     bool volume_gradient = false;
-    // "Viz/Lyrics Field" (ON/OFF tab): the field right of the meta data, where the lyrics and the sphere / oscilloscope /
+    // "Viz/Lyrics Field" (ANIMA/VIZ tab): the field right of the meta data, where the lyrics and the sphere / oscilloscope /
     // spectrogram are shown. false: no field at all, the meta data (and the spectrum bars) take its width, no lyrics are
     // fetched for it. config.txt: VizLyricsField.
     bool element_vizfield = true;
@@ -61,7 +61,7 @@ struct Settings : VizPrefs {
     // config.txt: LyricViz=sphere|osci. This replaces the old
     // element_lyrics_placeholder_ball on/off switch ("Lyric Ball") --
     // the panel now always shows one of the two and this row picks
-    // which, from the ON/OFF tab's "Lyrics/Viz" entry.
+    // which, from the ANIMA/VIZ tab's "Lyrics/Viz" entry.
     int lyric_viz = 1;                  // default: the oscilloscope (0 = sphere, 1 = oscilloscope, 2 = spectrogram)
     // What the lyrics area shows while the LYRICS view is selected but there are no lyrics to draw (nothing found /
     // fetch still running): 0 = sphere, 1 = oscilloscope, 2 = spectrogram. Before this existed the area showed
@@ -69,14 +69,14 @@ struct Settings : VizPrefs {
     // 3 = nothing (an empty field). Picking a visual that is switched off turns its "Use ..." switch on; switching a "Use ..."
     // off moves this pick to the next visual that is on (or to "none"): enforce_visual_switches().
     int nolyrics_viz = 1;
-    // Settings -> ON/OFF "Use Lyrics / Use Oscilloscope / Use Spectrogram": false leaves that one out entirely (no
+    // Settings -> ANIMA/VIZ "Use Lyrics / Use Oscilloscope / Use Spectrogram": false leaves that one out entirely (no
     // lyrics fetching, not in the "." cycle; the sphere is always there). The windows (SHIFT+8 / SHIFT+9) work anyway.
     bool use_lyrics = true;
     bool use_osci = true;
     bool use_spectro = true;
     // "Use Sphere": false leaves the sphere out of the "." cycle as well. config.txt: UseSphere=.
     bool use_sphere = true;
-    // The order of the views in the "." cycle (ON/OFF tab: "Viz Order 1..4"): a permutation of
+    // The order of the views in the "." cycle (ANIMA/VIZ tab: "Viz Order 1..4"): a permutation of
     // 0 = sphere, 1 = oscilloscope, 2 = spectrogram, 3 = lyrics. config.txt: VizOrder=sphere,osci,spectro,lyrics.
     int viz_order[4] = {0, 1, 2, 3};
     // The view the field starts with when Mousiki opens (ANIMA/VIZ tab: "Lyrics/Viz Default"): 0 = sphere, 1 = oscilloscope,
@@ -111,11 +111,11 @@ struct Settings : VizPrefs {
     //         the filename wherever a real tag is known (files without a
     //         title tag still fall back to their filename, so an untagged
     //         library doesn't turn into a blank list).
-    // Toggled from the ON/OFF tab ("Show meta data only") and with the
+    // Toggled from the GENERAL tab ("Show meta data only") and with the
     // HKeyToggleMetaOnly hotkey (Shift+N by default).
     bool meta_only = false;
     // Marquee scrolling of too-long names (list row under the cursor, Name/Artist/Album of the metadata block, playlist
-    // editor lists). false: cut with "..." instead. ON/OFF tab "Marquee Scrolling".
+    // editor lists). false: cut with "..." instead. GENERAL tab "Marquee Scrolling".
     bool marquee = true;
 
     // --- appearance / tuning -------------------------------------------
@@ -255,7 +255,7 @@ struct Settings : VizPrefs {
 
     // --- playback ------------------------------------------------------
     bool waveform_smooth = true;
-    // Which mode Mousiki starts in: "player" (the music player), "radio" or "audiobook". Settings -> ON/OFF -> MODES -> Start
+    // Which mode Mousiki starts in: "player" (the music player), "radio" or "audiobook". Settings -> GENERAL -> MODES -> Start
     // Mode (the radio's settings have the same row). config.txt: StartMode=player|radio|audiobook. main() reads it with
     // read_start_mode().
     std::string start_mode = "player";
@@ -280,10 +280,10 @@ struct Settings : VizPrefs {
     }
     // Makes the three values consistent: a permutation for the order, at least one mode on, a start mode that is on.
     void mode_normalize();
-    // Black Background (ON/OFF -> MODES): the terminal's background is black while Mousiki runs (OSC 11, restored on exit).
+    // Black Background (GENERAL -> TERMINAL): the terminal's background is black while Mousiki runs (OSC 11, restored on exit).
     // One value for the player and the radio, in config.txt (BlackBackground=true|false); the radio reads / writes that line.
     bool black_background = true;
-    // Settings -> ON/OFF -> MODES "Share Profiles": the radio uses the player's oscilloscope / spectrogram settings (the VizPrefs in
+    // Settings -> ANIMA/VIZ -> OSCI/SPECTRO SETTINGS \"Osci/Spectro Share Profile\": the radio uses the player's oscilloscope / spectrogram settings (the VizPrefs in
     // this config.txt) instead of its own; its own values wait in radio_config.txt and come back when this is turned off.
     // One value for both programs (config.txt: ShareProfiles=true|false); the radio reads / writes that line. Colours are never shared.
     bool share_profiles = false;

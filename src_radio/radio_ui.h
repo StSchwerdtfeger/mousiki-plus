@@ -5,7 +5,7 @@
 // with UiModel::browse.open it is the RADIO BROWSER search menu (Shift+S);
 // with UiModel::lmenu.open it is the STATION LISTS menu (Shift+K);
 // with UiModel::cheat_open it is the CHEATSHEET (wins over both menus).
-// with UiModel::settings.open it is the RADIO SETTINGS screen (key `s`; tabs COLORS and ON/OFF).
+// with UiModel::settings.open it is the RADIO SETTINGS screen (key `s`; tabs COLORS and GENERAL).
 // Every colour comes from the radio's own radio_config.txt (RadioSettings, radio_settings.h) -- nothing is read from
 // the music player's config.txt.
 #include "scope_window.h"
@@ -158,8 +158,8 @@ struct ListMenuModel {
 // themselves live in the RadioSettings that is passed to render_radio_frame().
 struct SettingsModel {
     bool open = false;
-    int tab = 0;                  // 0 = COLORS, 1 = ON/OFF, 2 = ANIMA/VIZ, 3 = PATHS
-    int row = 0;                  // COLORS: 0 .. kColorRowCount-1, ON/OFF: 0 .. kOnOffRowCount-1
+    int tab = 0;                  // 0 = COLORS, 1 = GENERAL, 2 = ANIMA/VIZ, 3 = PATHS
+    int row = 0;                  // COLORS: 0 .. kColorRowCount-1, GENERAL: 0 .. kOnOffRowCount-1
     int col = 0;                  // 0 = first cell of the row, 1 = second cell
     bool editing = false;
     std::string buffer;           // text of the cell being edited
@@ -169,7 +169,7 @@ struct SettingsModel {
     // --- colour themes (COLORS tab, last row: THEME | CREATE THEME) ---
     // theme_ui: 0 = the plain tab | 1 = pick a theme to apply | 2 = the CREATE THEME overlay | 3 = pick a template
     int theme_ui = 0;
-    muisc::remote_ui::State remote_ov;   // ON/OFF -> Remote App: the REMOTE APP overlay
+    muisc::remote_ui::State remote_ov;   // GENERAL -> REMOTE / UPDATES -> Remote App: the REMOTE APP overlay
     bool theme_peek = false;      // SHIFT+p in the picker: the main screen in the highlighted theme (any key closes it)
     std::vector<themes::Theme> theme_list;
     int theme_sel = 0;

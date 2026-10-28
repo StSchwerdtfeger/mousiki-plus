@@ -217,7 +217,7 @@ std::string App::overlay_cells(const std::string& line, int x, const std::string
 }
 
 // The karaoke overlay uses the lyrics engine whatever the main screen does: with the engine off there (".", Settings ->
-// ON/OFF, Use Lyrics) nothing was fetched for the playing track, so the overlay starts the fetch itself -- once per
+// ANIMA/VIZ, Use Lyrics) nothing was fetched for the playing track, so the overlay starts the fetch itself -- once per
 // track, also after a track change while it is open. The main screen's setting is left as it is.
 void App::karaoke_ensure_lyrics() {
     if (!has_track_ || current_path_.empty()) return;

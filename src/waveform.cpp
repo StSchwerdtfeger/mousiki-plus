@@ -504,7 +504,7 @@ int native_sample_rate(const fs::path& file_path, const std::string& sampling_hi
     // Above 96 kHz it is brought down to that, which is still far beyond hearing and the scope. (Long tracks keep
     // their own rate too: they are held a window at a time -- see StreamingPcm's windowed mode.)
     (void)duration_sec;
-    if (cap_96k && rate > 96000) rate = 96000;   // (Settings -> ON/OFF -> PLAYBACK -> Rate Cap at 96 kHz)
+    if (cap_96k && rate > 96000) rate = 96000;   // (Settings -> GENERAL -> AUDIO -> Rate Cap at 96 kHz)
     return rate;
 }
 

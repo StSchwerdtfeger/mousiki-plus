@@ -348,6 +348,10 @@ private:
     std::atomic<uint64_t> row_meta_tags_version_{0};
     uint64_t row_meta_tags_seen_ = 0; // main-thread only, no atomic needed
     std::chrono::steady_clock::time_point row_meta_refilter_at_{};   // throttle of poll_pending_row_meta_tags()
+    // Seeking with the arrow keys lights the << / >> labels of the buttons in BORDER_COLOR BOTTOM (build_progress_panel) for a moment.
+    std::chrono::steady_clock::time_point seek_flash_until_{};
+    int seek_flash_dir_ = 0;                                           // -1: the << button, 1: the >> button
+    void seek_flash(int dir);                                          // called by the seek keys
     void poll_pending_row_meta_tags();
 
     // --- queue ---
@@ -567,7 +571,7 @@ private:
     std::atomic<bool> cf_fetch_running_{false};
     MetaFetchCancel cf_fetch_cancel_;
     fs::path cf_script_;                        // scripts/fetch_cover.py
-    // --- the Latin name lookup (Settings -> ON/OFF -> MODES -> Latin Name Lookup): artists written in Chinese characters are asked
+    // --- the Latin name lookup (Settings -> GENERAL -> TRANSLITERATION -> Latin Name Lookup): artists written in Chinese characters are asked
     // for on MusicBrainz in the background, one at a time (scripts/lookup_artist_name.py); the answers are kept in kanji_readings_learned.txt
     struct NameLookupJob { std::atomic<bool> done{false}; std::string name; NameLookupResult result; };
     std::shared_ptr<NameLookupJob> name_job_;
@@ -896,7 +900,7 @@ private:
     static constexpr double kAngularVelocity = (2.0 * 3.14159265358979323846 / 48.0) / 0.035;
     mutable FftVisualizer fft_;
     mutable SphereVisualizer sphere_;
-    // The scope alternative to sphere_ (Settings -> ON/OFF -> "Lyrics/Viz"):
+    // The scope alternative to sphere_ (Settings -> ANIMA/VIZ -> "Lyrics/Viz"):
     // fed live by the audio callback via player_.play(..., &scope_), drawn
     // by whoever renders the lyrics panel. mutable, like sphere_, because
     // that renderer is const and the panel's visuals are animation state.
@@ -1369,7 +1373,6 @@ private:
     void settings_cycle(int dir);
     std::vector<std::string> settings_options_for(int tab, int row) const;
     int settings_max_row() const; // last valid row index for the current tab
-    std::vector<std::string> settings_anima_note(int W) const;   // the note at the bottom of the ANIMA/VIZ tab
     int settings_tab_first_line(int W, int visible) const;       // first layout line shown on tab 1 / 2 (scrolling)
     // Every overlay sizes itself from term_rows_ directly.
     void build_settings_screen(std::ostringstream& frame, int W, int player_h) const;
@@ -1377,7 +1380,7 @@ private:
 
     // --- PATHS tab (tab 3) --------------------------------------------------
     // The LOCAL PATH, DOWNLOAD PATH and PLAYLIST PATH sections (they used
-    // to live on the ON/OFF tab, which is now a plain list of toggles). Two
+    // to live on the GENERAL tab, which is now a plain list of toggles). Two
     // of them are editable path lists, each introduced by a section header
     // and ending in a "+ new path" row.
     // Headers are painted but never selectable, so this struct maps the
@@ -2081,7 +2084,7 @@ private:
     void phone_publish();
     std::vector<std::string> build_phone_screen(int W, int H, std::vector<remote::net::Zone>& zones) const;
     double phone_angle_ = 0.0;       // the phone's disk: its own turn at speed 0.10
-    remote_ui::State remote_ov_;     // Settings -> ON/OFF -> Remote App: the REMOTE APP overlay (address, QR code, port, PIN)
+    remote_ui::State remote_ov_;     // Settings -> GENERAL -> REMOTE / UPDATES -> Remote App: the REMOTE APP overlay (address, QR code, port, PIN)
     void remote_overlay_draw(std::ostringstream& frame, int W) const;
     std::chrono::steady_clock::time_point phone_last_{}, phone_built_{};
     int phone_view_ = 0;             // 0 the phone's main screen, 1 its LISTS screen

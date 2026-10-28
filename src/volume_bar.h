@@ -1,6 +1,6 @@
 #pragma once
 // ---------------------------------------------------------------------------
-// The looks of the VOLUME BAR ("Volume Indicator" on the ON/OFF tab of the music player and of the radio).
+// The looks of the VOLUME BAR ("Volume Indicator" on the GENERAL tab of the music player and of the radio).
 //
 //   0  "#"    1  "⠶"    2  "⣿"    repeat one character
 //   3  "⡾⣽"   a fixed row of 20 different braille characters (not repeating)

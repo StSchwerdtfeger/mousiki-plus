@@ -1,5 +1,5 @@
 #pragma once
-// The REMOTE APP overlay (Settings -> ON/OFF -> MODES -> Remote App, player and radio): switch the remote app on / off,
+// The REMOTE APP overlay (Settings -> GENERAL -> REMOTE / UPDATES -> Remote App, player and radio): switch the remote app on / off,
 // see the address and a QR code to scan with the phone, change the port and the PIN. One implementation for both modes;
 // each mode keeps the values in its own settings (player: Settings, radio: RadioSettings) and passes them in.
 #include <functional>

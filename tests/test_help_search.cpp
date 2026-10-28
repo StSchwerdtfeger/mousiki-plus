@@ -84,3 +84,27 @@ TEST(wizard_chapter_of_a_part_opens_the_part_page) {
     CHECK(v.title.find("3.1.1") == std::string::npos);
     CHECK(v.title.find("RADIO PLAYER MODE") != std::string::npos);
 }
+
+// [Text][[Legend]] in the help wizard: the text takes the legend colour, the square brackets are not shown.
+TEST(wizard_frame_label_is_legend_coloured_without_brackets) {
+    wizard::State st;
+    wizard::open(st, false);
+    wizard::handle_key(st, wizard::Key::Search);
+    for (char c : std::string("Start Mode")) wizard::search_key(st, c, false, false);
+    const std::vector<std::string> disk;
+    wizard::render(st, 120, 400, disk);
+    wizard::search_key(st, '\r', false, false);
+    const wizard::View v = wizard::render(st, 120, 400, disk);
+    bool found = false, bracket = false;
+    for (const auto& row : v.rows) {
+        std::string line;
+        for (const auto& sp : row) line += sp.text;
+        if (line.find("Start Mode:") == std::string::npos) continue;
+        for (const auto& sp : row) {
+            if ((sp.text == "Start Mode" || sp.text == "Start Mode:") && sp.role == wizard::Role::Legend) found = true;
+            if (sp.text.find('[') != std::string::npos || sp.text.find(']') != std::string::npos) bracket = true;
+        }
+    }
+    CHECK(found);
+    CHECK(!bracket);
+}

@@ -867,7 +867,7 @@ void App::handle_key(int key) {
         if (spectro_full_) scope_big_ = false;
         force_redraw_ = true;
         status_line_ = spectro_full_ ? "spectrogram: full screen (ESC or " + hotkey_text("HKeySpectroFull", "U") + " closes, " + hotkey_text("HKeySpectroMenu", "I") + " options)" : "";
-    } else if (action == "HKeyScopeWindow") { // SHIFT+9: the oscilloscope in its own window (always, even with it off on ON/OFF)
+    } else if (action == "HKeyScopeWindow") { // SHIFT+9: the oscilloscope in its own window (always, even with it off on ANIMA/VIZ)
         scope_window_toggle();
     } else if (action == "HKeySpectroWindow") { // SHIFT+8: the spectrogram in its own window (always)
         spectro_window_toggle();
@@ -924,9 +924,9 @@ void App::handle_key(int key) {
             if (selected_ >= scroll_ + list_nav_rows()) scroll_ = selected_ - list_nav_rows() + 1;
         }
     } else if (action == "HKeySeekForward") {
-        if (has_track_) player_.seek_relative(5.0);
+        if (has_track_) { player_.seek_relative(5.0); seek_flash(1); }
     } else if (action == "HKeySeekBackward") {
-        if (has_track_) player_.seek_relative(-5.0);
+        if (has_track_) { player_.seek_relative(-5.0); seek_flash(-1); }
     } else if (action == "HKeyQueueMoveUp") { // move the hovering queue item up (only meaningful once you've Tab'd into the queue)
         queue_move_hovering(-1);
     } else if (action == "HKeyQueueMoveDown") { // move the hovering queue item down (only meaningful once you've Tab'd into the queue)
@@ -986,21 +986,21 @@ void App::handle_key(int key) {
         else play_relative_random();
     } else if (action == "HKeyToggleLyrics" || action == "HKeyToggleLyricsBack") {   // "." forward, "," backward
         // Cycle the lyrics area without going through Settings > On/Off:
-        // sphere -> oscilloscope -> spectrogram -> lyrics ... (the order is Settings -> ON/OFF -> "Viz Order 1..4"). The visuals are
+        // sphere -> oscilloscope -> spectrogram -> lyrics ... (the order is Settings -> ANIMA/VIZ -> "Viz Order 1..4"). The visuals are
         // the lyrics engine's "off" states (element_lyrics=false, no network
         // fetching) with settings_.lyric_viz saying which one is drawn
         // (0 = sphere, 1 = osci, 2 = spectro), so the cycle is just a walk over those
         // settings. Returning to the lyrics needs a nudge though: the only
         // other place that starts a fetch is track load (poll_pending_load),
         // so without it the lyrics would not appear until the next track.
-        // Views switched off on the ON/OFF tab (Use Lyrics / Oscilloscope / Spectrogram / Sphere) are left out.
+        // Views switched off on the ANIMA/VIZ tab (Use Lyrics / Oscilloscope / Spectrogram / Sphere) are left out.
         const int cur = settings_.element_lyrics ? 3 : settings_.lyric_viz == 1 ? 1 : settings_.lyric_viz == 2 ? 2 : 0;
         const int next = settings_.viz_step(cur, action == "HKeyToggleLyricsBack" ? -1 : 1, false);
         static const char* const view_names[4] = {"sphere", "oscilloscope", "spectrogram", "lyrics"};
         if (!settings_.element_vizfield) {
-            status_line_ = "the Viz/Lyrics field is switched off (Settings > ON/OFF > Viz/Lyrics Field)";
+            status_line_ = "the Viz/Lyrics field is switched off (Settings > ANIMA/VIZ > Viz/Lyrics Field)";
         } else if (next == cur) {
-            status_line_ = std::string("lyrics area: ") + view_names[cur] + " (the other views are switched off on Settings -> ON/OFF)";
+            status_line_ = std::string("lyrics area: ") + view_names[cur] + " (the other views are switched off on Settings -> ANIMA/VIZ)";
         } else if (next == 3) {                    // -> lyrics
             settings_.element_lyrics = true;
             if (has_track_) {

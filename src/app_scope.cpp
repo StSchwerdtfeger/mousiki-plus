@@ -166,11 +166,11 @@ void App::spectro_window_sync(bool check_alive) {
 
 // The switches of the Viz/Lyrics field depend on each other. This brings them in line, so no combination is left
 // contradicting itself (called after every edit of such a row with its id, and every frame without one):
-//   * an explicit pick wins: choosing a view (Lyrics/Viz, No-Lyrics Viz, Lyrics Engine) that is switched off turns its
+//   * an explicit pick wins: choosing a view (Lyrics/Viz, When No Lyrics Show, Lyrics Engine) that is switched off turns its
 //     "Use ..." switch on;
 //   * a switch that is off takes its dependents with it, instead of being turned on again: "Use Lyrics" off turns the Lyrics
-//     Engine off; "Use Oscilloscope / Spectrogram / Sphere" off moves Lyrics/Viz and No-Lyrics Viz to the next visual that
-//     is on (No-Lyrics Viz to "none" when there is none; Lyrics/Viz to the lyrics when they are all that is left).
+//     Engine off; "Use Oscilloscope / Spectrogram / Sphere" off moves Lyrics/Viz and When No Lyrics Show to the next visual that
+//     is on (When No Lyrics Show to "none" when there is none; Lyrics/Viz to the lyrics when they are all that is left).
 // Returns a sentence about what was changed ("" = nothing), for the status line.
 std::string App::enforce_visual_switches(int changed) {
     static const char* const names[4] = {"sphere", "oscilloscope", "spectrogram", "lyrics"};
@@ -191,7 +191,7 @@ std::string App::enforce_visual_switches(int changed) {
     if (s.nolyrics_viz <= 2 && !s.viz_usable(s.nolyrics_viz)) {
         const int n = s.viz_step(s.nolyrics_viz, 1, true);
         s.nolyrics_viz = n != s.nolyrics_viz ? n : 3;
-        add(std::string("No-Lyrics Viz -> ") + (s.nolyrics_viz == 3 ? "none" : names[s.nolyrics_viz]));
+        add(std::string("When No Lyrics Show -> ") + (s.nolyrics_viz == 3 ? "none" : names[s.nolyrics_viz]));
     }
     if (s.lyric_viz <= 2 && !s.viz_usable(s.lyric_viz)) {
         const int n = s.viz_step(s.lyric_viz, 1, true);

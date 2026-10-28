@@ -339,6 +339,7 @@ void App::book_seek(int dir) {
     }
     book_seek_last_ = now;
     player_.seek_relative(dir * step);
+    seek_flash(dir);   // the << / >> labels light up in BORDER_COLOR BOTTOM (build_progress_panel)
 }
 
 // Keys of the audio book player. Called for every Browse key before the music player's own handling; returns true when the key
@@ -1060,7 +1061,7 @@ std::vector<std::string> App::build_chapter_panel(int total_width, int height) c
             if (marked) is_bookmark = idx == book_bookmark_chapter();
             std::string shown_name = apply_font_map(name, settings_.font_map);
             if (marked) shown_name = "\u25c6 " + shown_name;
-            // the chapter name scrolls when it is too long (Settings -> ON/OFF -> Marquee Scrolling): the chosen row, or while the pane
+            // the chapter name scrolls when it is too long (Settings -> GENERAL -> Marquee Scrolling): the chosen row, or while the pane
             // has no cursor the chapter that plays
             const bool scroll_row = is_hover || (!queue_focus_ && is_playing);
             const std::string name_cell = scroll_row ? marquee_or_truncate(shown_name, title_w, idx, marquee_ch_idx_, marquee_ch_since_)

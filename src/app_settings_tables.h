@@ -1,5 +1,5 @@
 #pragma once
-// The tables of the Settings screen (the REFERENCE tab's hotkey rows, the row ids and layouts of the ON/OFF and ANIMA/VIZ
+// The tables of the Settings screen (the REFERENCE tab's hotkey rows, the row ids and layouts of the GENERAL and ANIMA/VIZ
 // tabs). Shared by app.cpp and app_settings.cpp; nothing here is part of the program's interface.
 #include <string>
 #include <vector>
@@ -113,7 +113,7 @@ inline const char* const kRefNote = "KEYS NOT LISTED HERE ARE FIXED. SEE CHEAT S
 inline constexpr int kRefStart = 1;   // selectable row 0 is the "Reset All Keys To Default" line, right under the note
 inline constexpr int kRefEnd = kRefStart + kRefRowCount;
 
-// The ON/OFF tab (tab 1) and the ANIMA/VIZ tab (tab 2) are laid out as categories: a header line, then its rows. Every
+// The GENERAL tab (tab 1, formerly ON/OFF) and the ANIMA/VIZ tab (tab 2) are laid out as categories: a header line, then its rows. Every
 // selectable row has an id (SetId, the same numbers on both tabs); settings_row_ counts the selectable rows of the tab
 // only, so settings_item_id() turns it into the id that settings_get_value() / settings_options_for() /
 // settings_commit_edit() / settings_cycle() and the renderer work with. Adding a row = one id + one line in a layout.
@@ -128,100 +128,128 @@ enum SetId {
     kSidAlbumCover, kSidCoverMode, kSidCoverContrast, kSidCoverSearch,
     kSidCheckUpdate,   // [ENTER] checks for a newer release now (an action row, no value to switch)
 };
-// True while the audio book player is the mode that runs (set by App::run()): its ON/OFF and ANIMA/VIZ tabs leave out what only
+// True while the audio book player is the mode that runs (set by App::run()): its GENERAL and ANIMA/VIZ tabs leave out what only
 // belongs to the music player and name the lyrics view "notes".
 inline bool g_settings_book_layout = false;
 struct SetLine { bool header; int id; const char* text; };   // a category header, or a row (id + label)
 inline const std::vector<SetLine>& settings_layout(int tab) {
     static const std::vector<SetLine> on_off = {
         {true, -1, "MODES"},
-        {false, kSidPlayback, "Playback"}, {false, kSidStartMode, "Start Mode"}, {false, kSidBlackBg, "Black Background"}, {false, kSidShareProfiles, "Share Profiles"},
-        {false, kSidRemoteApp, "Remote App"}, {false, kSidUpdateCheck, "Update Notice"}, {false, kSidCheckUpdate, "Check Update"},
-        {false, kSidMediaKeys, "Media Keys"},
-        {false, kSidUseTermSettings, "Use Terminal Settings"}, {false, kSidTermSize, "Terminal Size"}, {false, kSidFullScreen, "Full Screen"},
+        {false, kSidPlayback, "Playback"}, {false, kSidStartMode, "Start Mode"}, {false, kSidQueue, "Display queue"},
         {true, -1, ""},
-        {true, -1, "UI MODE SWITCH"},   // SHIFT and + / SHIFT and - walk through the modes that are on, in this order
+        {true, -1, "MODES ON/OFF AND ORDER"},   // SHIFT and + / SHIFT and - walk through the modes that are on, in this order
         {false, kSidUseModePlayer, "Use Music Player"}, {false, kSidUseModeRadio, "Use Radio"}, {false, kSidUseModeBook, "Use Audio Books"},
         {false, kSidModeOrder1, "Mode Order 1"}, {false, kSidModeOrder2, "Mode Order 2"}, {false, kSidModeOrder3, "Mode Order 3"},
         {true, -1, ""},
-        {true, -1, "TRANSLITERATION (JAP./KOR./CHIN.)"},
-        {false, kSidLatinMacrons, "Latin Macrons"}, {false, kSidLatinWo, "Latin Wo"}, {false, kSidLatinHanzi, "Translit. Kanji"}, {false, kSidLatinLookup, "Latin Name Lookup"}, {false, kSidLyricsVariants, "Lyrics Name Variants"},
-        {true, -1, ""},
-        {true, -1, "MAIN UI / AUDIO"},
-        {false, kSidDisk, "Eliment Disk / Cover"}, {false, kSidAlbumCover, "Album Cover"}, {false, kSidCoverMode, "Cover Mode"}, {false, kSidCoverContrast, "Cover Contrast"}, {false, kSidCoverSearch, "Cover Search"},
-        {false, kSidDummy, "Dummy Buttons"}, {false, kSidQueue, "Queue Display"},
-        {false, kSidWave, "Progress Waveform"}, {false, kSidVolIndicator, "Volume Indicator"}, {false, kSidVisualizer, "Spectrum Bars"},   // the braille waveform in the progress bar / the bars under the meta data
+        {true, -1, "AUDIO"},
         {false, kSidStereo, "Stereo Sound"}, {false, kSidNormalize, "Normalize Volume"}, {false, kSidTrackBuffer, "Track Buffer (MB)"},
         {false, kSidRateCap, "Rate Cap at 96 kHz"},
+        {true, -1, ""},
+        {true, -1, "TERMINAL"},
+        {false, kSidBlackBg, "Black Background"}, {false, kSidUseTermSettings, "Use Terminal Settings"}, {false, kSidTermSize, "Terminal Size"},
+        {false, kSidFullScreen, "Full Screen"},
+        {true, -1, ""},
+        {true, -1, "REMOTE / UPDATES"},
+        {false, kSidRemoteApp, "Remote App"}, {false, kSidMediaKeys, "Media Keys"},
+        {false, kSidUpdateCheck, "Update Notice"}, {false, kSidCheckUpdate, "Check Update"},
+        {true, -1, ""},
+        {true, -1, "TEXT AND TRANSLITERATION (JAP./KOR./CHIN.)"},
         {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},
+        {false, kSidLatinMacrons, "Latin Macrons"}, {false, kSidLatinWo, "Latin Wo"}, {false, kSidLatinHanzi, "Translit. Kanji"}, {false, kSidLatinLookup, "Latin Name Lookup"}, {false, kSidLyricsVariants, "Lyrics Name Variants"},
+    };
+    // A header with an empty text is the blank line before the next header (every header but the first has one).
+    static const std::vector<SetLine> anima = {
+        {true, -1, "LYRICS/VIZ FIELD"},
+        {false, kSidLyricViz, "Lyrics/Viz Default"}, {false, kSidNoLyricsViz, "When No Lyrics Show"},
+        {true, -1, ""},
+        {true, -1, "LYRICS"},
+        {false, kSidLyrAlign, "Lyrics Alignment"}, {false, kSidLyrAnim, "Lyrics Animation"},
+        {true, -1, ""},
+        {true, -1, "DISK"},
+        {false, kSidDisk, "Eliment Disk / Cover"}, {false, kSidDiskSpeed, "Disk Speed"},
+        {false, kSidAlbumCover, "Album Cover"}, {false, kSidCoverMode, "Cover Mode"},
+        {false, kSidCoverContrast, "Cover Contrast"}, {false, kSidCoverSearch, "Cover Search"},
+        {true, -1, ""},
+        {true, -1, "SEEK AND VOLUME"},
+        {false, kSidDummy, "Dummy Seek Buttons"}, {false, kSidVolIndicator, "Volume Indicator"},
+        {true, -1, ""},
+        {true, -1, "SPECTRUM BARS"},   // the bars under the meta data
+        {false, kSidVisualizer, "On/Off"},
+        {false, kSidVisFluidity, "Bars Fluidity"}, {false, kSidVisDegr, "Bars Degradation"}, {false, kSidVisVisc, "Bars Viscosity"},
+        {true, -1, ""},
+        {true, -1, "PROGRESS WAVEFORM"},   // the braille waveform in the progress bar
+        {false, kSidWave, "On/Off"},
+        {false, kSidWaveStyle, "Waveform Style"},
+        {true, -1, ""},
+        {true, -1, "OSCI/SPECTRO SETTINGS"},
+        {false, kSidShareProfiles, "Osci/Spectro Share Profile"},
+        {true, -1, ""},
+        {true, -1, "VIZ/LYRICS ORDER"},
+        {false, kSidOrder1, "Viz Order 1"}, {false, kSidOrder2, "Viz Order 2"},
+        {false, kSidOrder3, "Viz Order 3"}, {false, kSidOrder4, "Viz Order 4"},
         {true, -1, ""},
         {true, -1, "MAIN UI VIZ/LYRICS FIELD"},   // the field right of the meta data
         {false, kSidVizField, "Viz/Lyrics Field"}, {false, kSidUseLyrics, "Use Lyrics Engine"},
         {false, kSidUseOsci, "Use Oscilloscope"},                                            // false: left out entirely
         {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"},    // (not in the "." cycle)
     };
-    // A header with an empty text is the blank line before the next header (every header but the first has one).
-    static const std::vector<SetLine> anima = {
-        {true, -1, "LYRICS"},
-        {false, kSidLyrAlign, "Lyrics Alignment"}, {false, kSidLyrAnim, "Lyrics Animation"},
-        {true, -1, ""},
-        {true, -1, "DISK"},
-        {false, kSidDiskSpeed, "Disk Speed"},
-        {true, -1, ""},
-        {true, -1, "SPECTRUM BARS"},   // the bars under the meta data
-        {false, kSidVisFluidity, "Bars Fluidity"}, {false, kSidVisDegr, "Bars Degradation"}, {false, kSidVisVisc, "Bars Viscosity"},
-        {true, -1, ""},
-        {true, -1, "PROGRESS WAVEFORM"},   // the braille waveform in the progress bar
-        {false, kSidWaveStyle, "Waveform Style"},
-        {true, -1, ""},
-        {true, -1, "WHAT THE FIELD SHOWS"},
-        {false, kSidLyricViz, "Lyrics/Viz Default"}, {false, kSidNoLyricsViz, "No-Lyrics Viz"},
-        {true, -1, ""},
-        {true, -1, "VIZ/LYRICS ORDER"},
-        {false, kSidOrder1, "Viz Order 1"}, {false, kSidOrder2, "Viz Order 2"},
-        {false, kSidOrder3, "Viz Order 3"}, {false, kSidOrder4, "Viz Order 4"},
-    };
     // The audio book player: the same tabs without what only the music player uses (the play mode, the lyrics, the disk's
-    // speed), the lyrics view called "notes", the disk's place taken by the book animation.
+    // speed, the display queue), the lyrics view called "notes", the disk's place taken by the book cover.
     static const std::vector<SetLine> book_on_off = {
         {true, -1, "MODES"},
-        {false, kSidStartMode, "Start Mode"}, {false, kSidBlackBg, "Black Background"}, {false, kSidShareProfiles, "Share Profiles"},
-        {false, kSidRemoteApp, "Remote App"}, {false, kSidUpdateCheck, "Update Notice"}, {false, kSidCheckUpdate, "Check Update"},
-        {false, kSidMediaKeys, "Media Keys"},
-        {false, kSidUseTermSettings, "Use Terminal Settings"}, {false, kSidTermSize, "Terminal Size"}, {false, kSidFullScreen, "Full Screen"},
+        {false, kSidStartMode, "Start Mode"},
         {true, -1, ""},
-        {true, -1, "UI MODE SWITCH"},
+        {true, -1, "MODES ON/OFF AND ORDER"},
         {false, kSidUseModePlayer, "Use Music Player"}, {false, kSidUseModeRadio, "Use Radio"}, {false, kSidUseModeBook, "Use Audio Books"},
         {false, kSidModeOrder1, "Mode Order 1"}, {false, kSidModeOrder2, "Mode Order 2"}, {false, kSidModeOrder3, "Mode Order 3"},
         {true, -1, ""},
         {true, -1, "BOOKMARKS"},
         {false, kSidBookAsk, "Ask for Bookmark"},
         {true, -1, ""},
-        {true, -1, "MAIN UI / AUDIO"},
-        {false, kSidBookCover, "Book Cover"}, {false, kSidBookCoverWave, "Book Gradient Wave"}, {false, kSidCoverContrast, "Cover Contrast"}, {false, kSidDummy, "Dummy Buttons"},
-        {false, kSidWave, "Progress Waveform"}, {false, kSidVolIndicator, "Volume Indicator"}, {false, kSidVisualizer, "Spectrum Bars"},
+        {true, -1, "TERMINAL"},
+        {false, kSidBlackBg, "Black Background"}, {false, kSidUseTermSettings, "Use Terminal Settings"}, {false, kSidTermSize, "Terminal Size"},
+        {false, kSidFullScreen, "Full Screen"},
+        {true, -1, ""},
+        {true, -1, "REMOTE / UPDATES"},
+        {false, kSidRemoteApp, "Remote App"}, {false, kSidMediaKeys, "Media Keys"},
+        {false, kSidUpdateCheck, "Update Notice"}, {false, kSidCheckUpdate, "Check Update"},
+        {true, -1, ""},
+        {true, -1, "AUDIO"},
         {false, kSidStereo, "Stereo Sound"}, {false, kSidNormalize, "Normalize Volume"}, {false, kSidTrackBuffer, "Track Buffer (MB)"},
         {false, kSidRateCap, "Rate Cap at 96 kHz"},
+        {true, -1, ""},
+        {true, -1, "TEXT"},
         {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},
+    };
+    static const std::vector<SetLine> book_anima = {
+        {true, -1, "NOTES/VIZ FIELD"},
+        {false, kSidLyricViz, "Notes/Viz Default"}, {false, kSidNoLyricsViz, "When No Notes Show"},
+        {true, -1, ""},
+        {true, -1, "BOOK COVER"},
+        {false, kSidBookCover, "Book Cover"}, {false, kSidBookCoverWave, "Book Gradient Wave"}, {false, kSidCoverContrast, "Cover Contrast"},
+        {true, -1, ""},
+        {true, -1, "SEEK AND VOLUME"},
+        {false, kSidDummy, "Dummy Seek Buttons"}, {false, kSidVolIndicator, "Volume Indicator"},
+        {true, -1, ""},
+        {true, -1, "SPECTRUM BARS"},
+        {false, kSidVisualizer, "On/Off"},
+        {false, kSidVisFluidity, "Bars Fluidity"}, {false, kSidVisDegr, "Bars Degradation"}, {false, kSidVisVisc, "Bars Viscosity"},
+        {true, -1, ""},
+        {true, -1, "PROGRESS WAVEFORM"},
+        {false, kSidWave, "On/Off"},
+        {false, kSidWaveStyle, "Waveform Style"},
+        {true, -1, ""},
+        {true, -1, "OSCI/SPECTRO SETTINGS"},
+        {false, kSidShareProfiles, "Osci/Spectro Share Profile"},
+        {true, -1, ""},
+        {true, -1, "VIZ/NOTES ORDER"},
+        {false, kSidOrder1, "Viz Order 1"}, {false, kSidOrder2, "Viz Order 2"},
+        {false, kSidOrder3, "Viz Order 3"}, {false, kSidOrder4, "Viz Order 4"},
         {true, -1, ""},
         {true, -1, "MAIN UI VIZ/NOTES FIELD"},
         {false, kSidVizField, "Viz/Notes Field"}, {false, kSidUseLyrics, "Use Book Notes"},
         {false, kSidUseOsci, "Use Oscilloscope"},
         {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"},
-    };
-    static const std::vector<SetLine> book_anima = {
-        {true, -1, "SPECTRUM BARS"},
-        {false, kSidVisFluidity, "Bars Fluidity"}, {false, kSidVisDegr, "Bars Degradation"}, {false, kSidVisVisc, "Bars Viscosity"},
-        {true, -1, ""},
-        {true, -1, "PROGRESS WAVEFORM"},
-        {false, kSidWaveStyle, "Waveform Style"},
-        {true, -1, ""},
-        {true, -1, "WHAT THE FIELD SHOWS"},
-        {false, kSidLyricViz, "Notes/Viz Default"}, {false, kSidNoLyricsViz, "No-Notes Viz"},
-        {true, -1, ""},
-        {true, -1, "VIZ/NOTES ORDER"},
-        {false, kSidOrder1, "Viz Order 1"}, {false, kSidOrder2, "Viz Order 2"},
-        {false, kSidOrder3, "Viz Order 3"}, {false, kSidOrder4, "Viz Order 4"},
     };
     if (g_settings_book_layout) return tab == 1 ? book_on_off : book_anima;
     return tab == 1 ? on_off : anima;

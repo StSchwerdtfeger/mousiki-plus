@@ -354,7 +354,7 @@ function showPin(message) {
       "",
       C.text + "Enter the PIN of the remote app:",
       C.legend + "(Mousiki shows it in Settings ->",
-      C.legend + " ON/OFF -> Remote App, and",
+      C.legend + " GENERAL -> REMOTE / UPDATES -> Remote App, and",
       C.legend + " `mousiki --remote-info` prints it)",
       "",
       { t: center(C.field + "  " + shown + "  " + C.R, 36), cmd: "@type" },

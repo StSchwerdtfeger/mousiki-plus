@@ -1,4 +1,4 @@
-// The album cover in the disk's place (music player). Settings -> ON/OFF -> MAIN UI / AUDIO: Album Cover (on / off), Cover Mode
+// The album cover in the disk's place (music player). Settings -> GENERAL -> AUDIO: Album Cover (on / off), Cover Mode
 // (Just Cover / Cover with Gradient / Cover behind Disk), Cover Search (where the cover is looked for; cover_art.cpp).
 //
 //   Just Cover           the cover in its own colours (a real picture: Sixel keeps 240 colours, Kitty all of them)

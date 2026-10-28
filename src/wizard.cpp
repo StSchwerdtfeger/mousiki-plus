@@ -143,7 +143,7 @@ void apply_marker(std::vector<Cell>& cells, size_t seg_start, Role role, bool to
         const bool title_case = c0 >= 'A' && c0 <= 'Z';
         bool take = false, stop_after = false;
         if (first) { take = !has_lower || title_case; stop_after = has_lower; }   // "WIZARD !!!" or a single "Settings"
-        else take = !has_lower && (has_alnum || (end - begin == 1 && (cells[begin].ch == "/" || cells[begin].ch == "&" || cells[begin].ch == "+")));   // "MAIN UI / AUDIO"
+        else take = !has_lower && (has_alnum || (end - begin == 1 && (cells[begin].ch == "/" || cells[begin].ch == "&" || cells[begin].ch == "+")));   // "AUDIO"
         if (!take) break;
         for (size_t k = begin; k < end; ++k) cells[k].role = role;
         end = begin;
@@ -184,6 +184,22 @@ std::vector<Cell> parse_cells(const std::string& line_in, bool toc_page) {
                 continue;
             }
         }
+        if (line[i] == '[' && line.compare(i, 2, "[[") != 0) {
+            // [Text][[Legend]] / [Text][[Header]]: the text takes the marker's colour, the brackets are not shown
+            const size_t e = line.find(']', i + 1);
+            if (e != std::string::npos && e > i + 1 && line.find('[', i + 1) > e && line.compare(e + 1, 2, "[[") == 0) {
+                const size_t me = line.find("]]", e + 3);
+                if (me != std::string::npos) {
+                    const std::string kind = ascii_lower_str(trim_ws(line.substr(e + 3, me - e - 3)));
+                    if (kind == "legend" || kind == "header") {
+                        push(line.substr(i + 1, e - i - 1), kind == "header" ? Role::Header : Role::Legend);
+                        seg_start = cells.size();
+                        i = me + 2;
+                        continue;
+                    }
+                }
+            }
+        }
         if (line[i] == '[') {
             const size_t e = line.find(']', i + 1);
             if (e != std::string::npos && line.find('[', i + 1) > e) {
@@ -212,6 +228,13 @@ std::string plain_text(const std::string& line) {
         if (line.compare(i, 2, "[[") == 0) {
             const size_t e = line.find("]]", i + 2);
             if (e != std::string::npos) { i = e + 2; continue; }
+        }
+        if (line[i] == '[' && line.compare(i, 2, "[[") != 0) {   // [Text][[Legend]]: the frame is not shown
+            const size_t e = line.find(']', i + 1);
+            if (e != std::string::npos && e > i + 1 && line.compare(e + 1, 2, "[[") == 0) {
+                const size_t me = line.find("]]", e + 3);
+                if (me != std::string::npos) { out += line.substr(i + 1, e - i - 1); i = me + 2; continue; }
+            }
         }
         out += line[i++];
     }

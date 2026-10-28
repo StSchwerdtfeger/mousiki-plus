@@ -8,7 +8,7 @@ constexpr int kExitSwitchMode = 77;
 
 // There are three modes: the music player (0), the radio (1) and the audio book player (2) -- the player and the audio book
 // player are two instances of the same engine (class App). SHIFT and + ('*') goes to the next mode that is switched on
-// (Settings -> ON/OFF -> MODES: Mode Order), SHIFT and - ('_') to the previous one. A mode that returns kExitSwitchMode
+// (Settings -> GENERAL -> MODES: Mode Order), SHIFT and - ('_') to the previous one. A mode that returns kExitSwitchMode
 // says which way in this variable (+1 forward, -1 back); main() picks the next mode with it.
 inline int g_mode_switch_dir = 1;
 // The keys of the switch, read from config.txt when a mode starts (HKeyModeNext / HKeyModePrev, Settings -> REFERENCE; 0 = none).

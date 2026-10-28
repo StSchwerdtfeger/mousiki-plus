@@ -89,7 +89,7 @@ struct RadioSettings : VizPrefs {
     std::string list_cursor_fg;                 // the hovered row
     std::string list_cursor_bg = "60";
 
-    std::string tab_current = "212";             // settings screen: the current tab name "[ON/OFF]" and the "< ↔ >" hint
+    std::string tab_current = "212";             // settings screen: the current tab name "[GENERAL]" and the "< ↔ >" hint
     std::string tab_other = "246";                // settings screen: the other tab names
 
     std::string focus = "246";                    // FOCUS: the pane focus indicator "\u25c0" after a pane's title (default = header)
@@ -98,7 +98,7 @@ struct RadioSettings : VizPrefs {
     std::string legend_cmd = "213";              // the descriptions behind the keys of those legends ("Close" in "[ESC] Close")
 
     // --- looks / tuning (config file only for now; the settings screen has the colours only) ----------
-    // --- the ON/OFF tab ---------------------------------------------------------------------------
+    // --- the GENERAL tab ---------------------------------------------------------------------------
     bool on_air_ascii = true;                   // the ON AIR sign (with its colour wave)
     bool pulse_wave = true;                     // the faint circle burst behind the sign
     bool dummy_buttons = true;                  // the <<< MUTE >>> boxes next to the frequency band
@@ -119,18 +119,18 @@ struct RadioSettings : VizPrefs {
     // Black Background: the terminal's background is black while Mousiki runs. One value with the player, in ITS config.txt
     // (BlackBackground=); read / written like the start mode.
     bool black_background = true;
-    // Share Profiles (ON/OFF -> MODES; ShareProfiles= in the player's config.txt, one value for both): with it on, the oscilloscope and
+    // Share Profiles (ANIMA/VIZ -> OSCI/SPECTRO SETTINGS; ShareProfiles= in the player's config.txt, one value for both): with it on, the oscilloscope and
     // spectrogram settings (the VizPrefs base) are the player's. `own_viz` keeps the radio's own values meanwhile (they stay in
     // radio_config.txt and come back when it is turned off). Colours / themes are never shared.
     bool share_profiles = false;
     VizPrefs own_viz;
-    // Remote App (ON/OFF -> MODES; RemoteApp= / RemoteAppPort= / RemoteAppPin= in the player's config.txt, one value for both):
+    // Remote App (GENERAL -> REMOTE / UPDATES; RemoteApp= / RemoteAppPort= / RemoteAppPin= in the player's config.txt, one value for both):
     // the web server of the phone remote (src/remote_server.h). Read when the radio starts, written by save_radio_settings().
     bool remote_app = false;
     int remote_port = 4747;
     std::string remote_pin;
-    bool use_osci = true;                       // ON/OFF "Use oscilloscope": false = never in the scope block / "." cycle
-    bool use_spectro = true;                    // ON/OFF "Use spectrogram": the same for the spectrogram
+    bool use_osci = true;                       // GENERAL "Use oscilloscope": false = never in the scope block / "." cycle
+    bool use_spectro = true;                    // GENERAL "Use spectrogram": the same for the spectrogram
     // The help wizard (SHIFT+w): false means it has never been shown here, so
     // the first start of the radio after an install opens it by itself. Set
     // and written the first time it is closed, exactly like the player's
@@ -153,9 +153,9 @@ struct RadioSettings : VizPrefs {
     bool download_same_as_player = true;        // true: use the music player's download folder instead
     std::string history_path;                   // <path>/radio_history/history_radio.txt
     // --- sleep timer (SHIFT+z overlay) and the REFERENCE tab ------------------------------------------
-    bool marquee = true;                        // ON/OFF tab: a station name that is too long scrolls; false = cut off with "..."
-    bool tune_noise = false;                    // ON/OFF tab: static that fades in / out when another station is tuned
-    // ON/OFF tab: how much of the tuned station is kept for pause / rewind / recording from the past, as an index into
+    bool marquee = true;                        // GENERAL tab: a station name that is too long scrolls; false = cut off with "..."
+    bool tune_noise = false;                    // GENERAL tab: static that fades in / out when another station is tuned
+    // GENERAL tab: how much of the tuned station is kept for pause / rewind / recording from the past, as an index into
     // kTimeshiftMinutes (5 / 15 / 30 / 45 / 60 min). Kept on disk: 11.5 MB per minute.
     int timeshift_idx = 2;
     bool sleep_fade = true;                     // the sleep timer fades the volume out before it stops the stream
@@ -203,9 +203,10 @@ inline int color_tab_row_count() { return kColorRowCount + 2; }   // + THEME + S
 std::string* color_field(RadioSettings& s, int row, int col);
 const std::string* color_field(const RadioSettings& s, int row, int col);
 
-// ---- the ON/OFF and ANIMA/VIZ tabs of the settings screen ----------------------------------------------------------
-// Both tabs are lists of category headers and rows (like the music player's): tab 1 ON/OFF = MODES (Playback, Start Mode)
-// + ON/OFF (the switches), tab 2 ANIMA/VIZ = ON AIR SIGN | VISUALIZER | MODES (the scope pick and its style). The cursor
+// ---- the GENERAL and ANIMA/VIZ tabs of the settings screen ----------------------------------------------------------
+// Both tabs are lists of category headers and rows (like the music player's): tab 1 GENERAL = MODES (Playback, Start Mode)
+// | MODES ON/OFF AND ORDER | TERMINAL | REMOTE / UPDATES | AUDIO (the switches); tab 2 ANIMA/VIZ = ON AIR SIGN |
+// SPECTRUM BARS | OSCI/SPECTRO SETTINGS (Share Profile, Osci/sphere, Osci style). The cursor
 // (SettingsModel::row) counts the rows only; rs_row_line() gives the line it is drawn on.
 struct SettingsLine { bool header; int id; const char* text; };       // a category header, or a row (id + label)
 const std::vector<SettingsLine>& rs_layout(int tab);                   // tab 1 or 2

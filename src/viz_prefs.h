@@ -3,7 +3,7 @@
 // `Settings` (config.txt) and the radio's `RadioSettings` (radio_config.txt) both INHERIT from VizPrefs, so the overlays, the
 // rows, the stepping, the config keys and the defaults are the same code for both, while each keeps its own values.
 //
-// "Share settings profiles" (Settings -> ON/OFF -> MODES): the radio then uses the player's VizPrefs (config.txt); its own
+// "Share settings profiles" (Settings -> ANIMA/VIZ -> OSCI/SPECTRO SETTINGS): the radio then uses the player's VizPrefs (config.txt); its own
 // values stay untouched in radio_config.txt and come back when the option is turned off. Colours / themes are never shared.
 #include <iosfwd>
 #include <string>

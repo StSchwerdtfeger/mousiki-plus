@@ -8,7 +8,7 @@
 //   Others: nothing (bind `mousiki --cmd ...` to keys instead; see the manual).
 // The program talks to this only through remote_control.cpp: the status it already publishes goes to update(), the commands that
 // come back are the same names as the remote control's (play-pause, next, seek ...), so the player and the radio get it alike.
-// Switch off with MediaKeys=false in config.txt (Settings -> ON/OFF -> MODES -> Media Keys).
+// Switch off with MediaKeys=false in config.txt (Settings -> GENERAL -> REMOTE / UPDATES -> Media Keys).
 #include <string>
 #include <vector>
 

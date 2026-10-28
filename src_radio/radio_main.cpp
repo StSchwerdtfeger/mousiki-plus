@@ -340,7 +340,7 @@ int radio_main(int argc, char** argv) {
         engine.set_equalizer(cfg.eq_enabled, cfg.eq_gains);
     };
     apply_audio();
-    // Timeshift buffer (pause / rewind): a ring file in the cache folder, sized by the ON/OFF tab's "Timeshift buffer".
+    // Timeshift buffer (pause / rewind): a ring file in the cache folder, sized by the GENERAL tab's "Timeshift buffer".
     const char* ts_home = std::getenv("HOME");
     if (!ts_home || !*ts_home) ts_home = std::getenv("USERPROFILE");
     const std::string timeshift_file = (std::filesystem::path(ts_home && *ts_home ? ts_home : ".") / ".cache" / "mousiki" / "radio_timeshift.pcm").string();
@@ -1141,7 +1141,7 @@ int radio_main(int argc, char** argv) {
     auto key_change_end = [&](bool changed) { if (!changed && !key_undo.empty()) key_undo.pop_back(); };
 
     // SHIFT+9 / SHIFT+8: the oscilloscope / the spectrogram in their own windows (graphics card, needs SDL2). They work
-    // whatever is switched off on the ON/OFF tab, and also while an overlay is open.
+    // whatever is switched off on the GENERAL tab, and also while an overlay is open.
     auto window_key_label = [&](const char* id) {
         for (int i = 0; i < kKeyActionCount; ++i)
             if (std::string(kKeyActions[i].id) == id) return muisc::symbol_key_label(key_binding(cfg, i));
@@ -1256,8 +1256,8 @@ int radio_main(int argc, char** argv) {
         }
         apply_timeshift();   // the buffer size changed in the settings (or was put back by discarding them)
         engine.set_scope_raw(cfg.osci().music);   // oscilloscope music mode: the scopes get the unprocessed stream
-        set_marquee_enabled(cfg.marquee);   // ON/OFF "Marquee scrolling"
-        radio_enforce_visuals(cfg);   // ON/OFF "Use oscilloscope / spectrogram": a switched-off one never stays
+        set_marquee_enabled(cfg.marquee);   // GENERAL "Marquee scrolling"
+        radio_enforce_visuals(cfg);   // GENERAL "Use oscilloscope / spectrogram": a switched-off one never stays
         {   // the spectrogram window (SHIFT+8): the same
             const bool running_sp = spectro_window_running();
             if (running_sp && (scope_win_tick % 6) == 3) {
@@ -1655,18 +1655,18 @@ int radio_main(int argc, char** argv) {
                     sm.status = u.row < 0 ? "UNDONE: reset of all keys" : std::string("UNDONE: ") + kKeyActions[u.row].label + " is now \"" + key_binding(cfg, u.row) + "\"";
                     continue;
                 }
-                if (k == 9) {                                                  // TAB: COLORS <-> ON/OFF
+                if (k == 9) {                                                  // TAB: COLORS <-> GENERAL
                     sm.tab = (sm.tab + 1) % 6; sm.row = 0; sm.col = 0; sm.status.clear();
                     continue;
                 }
                 const int nrows = sm.tab == 1 ? kOnOffRowCount : sm.tab == 2 ? kAnimRowCount : sm.tab == 3 ? kPathRowCount : sm.tab == 4 ? kKeyActionCount + 1 : sm.tab == 5 ? static_cast<int>(about_app_text().size()) : color_tab_row_count();   // + the THEME and SMOOTHNESS rows
                 // the Volume indicator row has two values (the look | gradient or not): the only row of the other tabs that keeps its column
-                const bool vol_row = sm.tab == 1 && std::string(rs_row_label(sm.tab, sm.row)) == "Volume indicator";
+                const bool vol_row = (sm.tab == 1 || sm.tab == 2) && std::string(rs_row_label(sm.tab, sm.row)) == "Volume indicator";
                 auto fix_col = [&]() {
-                    const bool vol_now = sm.tab == 1 && std::string(rs_row_label(sm.tab, sm.row)) == "Volume indicator";
+                    const bool vol_now = (sm.tab == 1 || sm.tab == 2) && std::string(rs_row_label(sm.tab, sm.row)) == "Volume indicator";
                     if ((sm.tab >= 1 && !vol_now) || (sm.tab == 0 && sm.row != 0 && !color_field(cfg, color_row_of_tab(sm.row), sm.col))) sm.col = 0;
                 };
-                auto toggle = [&](int dir) {   // ON/OFF and ANIMA/VIZ rows: left / right / ENTER
+                auto toggle = [&](int dir) {   // GENERAL and ANIMA/VIZ rows: left / right / ENTER
                     if (sm.tab == 1 && std::string(rs_row_label(sm.tab, sm.row)) == "Remote App") {   // opens the REMOTE APP overlay
                         sm.remote_ov = muisc::remote_ui::State{};
                         sm.remote_ov.open = true;
@@ -2521,7 +2521,7 @@ int radio_main(int argc, char** argv) {
             if ((g_mode_key_next != 0 && k == g_mode_key_next) || (g_mode_key_prev != 0 && k == g_mode_key_prev)) {   // SHIFT and the + key ('*' on a German keyboard): the next mode; SHIFT and - ('_'): the previous one (keys: the player's REFERENCE tab)
                 const int dir = (g_mode_key_next != 0 && k == g_mode_key_next) ? 1 : -1;
                 if (muisc::next_mode_in(muisc::read_mode_config(), 1, dir) == 1) {
-                    ui.model.scope_notice = "the radio is the only mode switched on (Settings -> ON/OFF -> MODES)";
+                    ui.model.scope_notice = "the radio is the only mode switched on (Settings -> GENERAL -> MODES)";
                     ui.model.scope_notice_until = ui.model.t_sec + 4;
                     continue;
                 }
@@ -2594,7 +2594,7 @@ int radio_main(int argc, char** argv) {
                 case ')': toggle_scope_window(); break;     // SHIFT+9: the oscilloscope in its own window
                 case '(': toggle_spectro_window(); break;   // SHIFT+8: the spectrogram in its own window
                 case '.':                              // the scope block: oscilloscope -> sphere -> spectrogram -> oscilloscope
-                    // (what is switched off on the ON/OFF tab is skipped; the sphere is always there)
+                    // (what is switched off on the GENERAL tab is skipped; the sphere is always there)
                     for (int n = 0; n < 3; ++n) {
                         cfg.scope_mode = cfg.scope_mode == 0 ? 1 : cfg.scope_mode == 1 ? 3 : 0;
                         if ((cfg.scope_mode == 0 && !cfg.use_osci) || (cfg.scope_mode == 3 && !cfg.use_spectro)) continue;
@@ -2699,7 +2699,7 @@ int radio_main(int argc, char** argv) {
                 const unsigned long every = static_cast<unsigned long>(std::max(1, (cfg.osci().frame_rate + cap / 2) / cap));
                 ui.model.gfx_due = (gfx_tick % every) == 0;
             }
-            terminal_black_background(cfg.black_background);   // Settings -> ON/OFF -> MODES (only writes when it changes)
+            terminal_black_background(cfg.black_background);   // Settings -> GENERAL -> MODES (only writes when it changes)
             terminal_default_text(cfg.list_fg);                 // text without a colour of its own: the list text colour
             auto frame = render_radio_frame(ui.model, engine.status(), engine, cfg);
             // Lines are joined with "\r\n"; the LAST line gets no newline, so a frame that fills the

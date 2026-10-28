@@ -30,6 +30,8 @@
 //   [[Header]] / [[Legend]] colours the capitalised words (or number) in front of it in the header / legend
 //                           colour. At the end of a line that starts with => or NOTE: it colours the whole
 //                           line, and on a contents page it always colours the whole line.
+//   [Text][[Legend]]        the text in square brackets, followed directly by [[Legend]] (or [[Header]]), is drawn
+//                           in that colour, whatever its case, and the brackets are not shown
 //   [[Header_line]]         anywhere in a line: the whole line is drawn in the header colour
 //   [anything]              in single square brackets is drawn in the legend colour
 //   {VERSION}               the running version of Mousiki Plus

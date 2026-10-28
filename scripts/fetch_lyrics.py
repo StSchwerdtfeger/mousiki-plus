@@ -204,7 +204,7 @@ def main():
             except Exception as e:
                 last_error = str(e)
 
-    # Other spellings of the same names (Settings > ON/OFF > MODES > Lyrics Name Variants): lyrics sites often know a song under
+    # Other spellings of the same names (Settings > GENERAL > TRANSLITERATION > Lyrics Name Variants): lyrics sites often know a song under
     # only one of its names -- Latin letters or the original script -- so a search with a mixed or unusual spelling finds nothing
     # while the same search without the Latin or without the Japanese part does.
     if result is None and variants_on:

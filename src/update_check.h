@@ -2,7 +2,7 @@
 // "A newer version is out": a quiet check of the project's releases page at start-up, at most once a day, in the background.
 // The answer is shown ONCE per version (a small window in the player and the radio: ESC closes it, o opens the release page), never installed -- how to
 // update depends on how Mousiki was installed (winget, Scoop, Homebrew, the installer ...), so the notice only says where.
-// Off with UpdateCheck=false in config.txt (Settings -> ON/OFF -> MODES -> Update Notice). Needs Python 3 like the lyrics;
+// Off with UpdateCheck=false in config.txt (Settings -> GENERAL -> REMOTE / UPDATES -> Update Notice). Needs Python 3 like the lyrics;
 // without it, or without a network, nothing happens.
 #include <filesystem>
 #include <string>
@@ -26,7 +26,7 @@ std::string take_notice();
 // The page [o] opens: the release page, or the project's releases page when none is known.
 std::string release_url(const Notice& n);
 
-// The manual check (Settings -> ON/OFF -> MODES -> Check Update, [ENTER]). It runs in its own thread, asks the same script
+// The manual check (Settings -> GENERAL -> REMOTE / UPDATES -> Check Update, [ENTER]). It runs in its own thread, asks the same script
 // as the start-up check and ignores the once-a-day rule and the UpdateCheck switch. Returns false when one is already running.
 bool check_now(const std::filesystem::path& script);
 bool check_busy();

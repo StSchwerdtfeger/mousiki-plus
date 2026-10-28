@@ -528,7 +528,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
         if (has_track_ && lyrics_w >= 6 && panel_h >= 3) {
             // Fill the panel with the audio-reactive placeholder visual
             // instead of leaving it blank -- which one is picked by
-            // Settings -> ON/OFF -> "Lyrics/Viz" / "No-Lyrics Viz":
+            // Settings -> ANIMA/VIZ -> "Lyrics/Viz" / "When No Lyrics Show":
             //   sphere -> reuses `bars` (already computed for the main
             //             spectrum strip above, same frame) rather than
             //             running a second independent audio analysis.
@@ -541,7 +541,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
             // The visual always gets the whole panel; a caption ("fetching lyrics ...") is a small box laid over its
             // bottom row (below), so the picture never changes its size or moves while it shows.
             const int viz_rows_h = panel_h;
-            // Lyrics view without lyrics: the "No-Lyrics Viz" pick; otherwise the view the "." cycle is on.
+            // Lyrics view without lyrics: the "When No Lyrics Show" pick; otherwise the view the "." cycle is on.
             int area_viz = settings_.element_lyrics ? settings_.nolyrics_viz : settings_.lyric_viz;
             if (area_viz < 3 && !settings_.viz_usable(area_viz)) area_viz = 3;   // nothing is switched on: an empty field
             if (area_viz == 1) {
@@ -826,12 +826,19 @@ std::vector<std::string> App::build_progress_panel(int total_width) const {
     // effectively unused/inert) button_color field.
     std::string button_ansi = border_ansi;
 
-    auto button_mid = [&](const std::string& text) {
-        std::string centered = button_ansi + center_pad(text, button_content_w) + "\x1b[0m";
+    auto button_mid = [&](const std::string& text, const std::string& text_ansi = std::string()) {
+        std::string centered = (text_ansi.empty() ? button_ansi : text_ansi) + center_pad(text, button_content_w) + "\x1b[0m";
         std::string bar = border_ansi + settings_.box_vertical + "\x1b[0m";
         return bar + " " + centered + " " + bar;
     };
     std::string play_label = (has_track_ && player_.is_paused()) ? "PLAY" : (has_track_ ? "PAUSE" : "PLAY");
+
+    // While seeking (the arrow keys) the << or >> label takes the BORDER_COLOR BOTTOM colour for a moment.
+    std::string seek_back_text = border_ansi, seek_fwd_text = border_ansi;
+    if (std::chrono::steady_clock::now() < seek_flash_until_) {
+        if (seek_flash_dir_ < 0) seek_back_text = border_ansi_bottom;
+        else seek_fwd_text = border_ansi_bottom;
+    }
 
     std::vector<std::string> out;
     if (settings_.element_dummy_buttons) {
@@ -849,7 +856,7 @@ std::vector<std::string> App::build_progress_panel(int total_width) const {
     std::string bar = border_ansi + settings_.box_vertical + "\x1b[0m";
     if (settings_.element_dummy_buttons) {
         out.push_back(bar + " " + row1_content + " " + bar
-                      + button_mid("<<<") + button_mid(play_label) + button_mid(">>>"));
+                      + button_mid("<<<", seek_back_text) + button_mid(play_label) + button_mid(">>>", seek_fwd_text));
         out.push_back(bar + " " + row2_content + " " + bar
                       + box_bottom(button_total_w, "", border_ansi_bottom) + box_bottom(button_total_w, "", border_ansi_bottom)
                       + box_bottom(button_total_w, "", border_ansi_bottom));
@@ -867,7 +874,7 @@ std::vector<std::string> App::build_progress_panel(int total_width) const {
     // the volume bar visually reads as the same kind of fill. The
     // "VOLUME BAR:[...]" label and brackets use the border color, same
     // as the buttons above.
-    // The filled part is drawn with the Volume Indicator of the ON/OFF tab ("#", "⠶", "⣿" or the "⡾⣽" row); every
+    // The filled part is drawn with the Volume Indicator of the GENERAL tab ("#", "⠶", "⣿" or the "⡾⣽" row); every
     // position is one column wide whatever the look, so the width math below is the same for all of them.
     // angle_: the disk's angle, so "disk" follows it
     std::string vol_fill_colored;

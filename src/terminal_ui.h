@@ -135,7 +135,7 @@ constexpr int kKeyAltC = 324;
 // destroyed; terminal_release_alt_screen() (main(), when no mode took the screen over) puts the shell back.
 void terminal_hold_alt_screen();
 void terminal_release_alt_screen();
-// Black terminal background (Settings -> ON/OFF -> MODES -> Black Background): on = OSC 11 sets the terminal's default
+// Black terminal background (Settings -> GENERAL -> TERMINAL -> Black Background): on = OSC 11 sets the terminal's default
 // background to black while Mousiki runs; the first time, the terminal is asked for its own colour (Linux / macOS), and
 // off -- or leaving Mousiki in any way -- gives it back (OSC 111, plus that colour). Cheap to call every frame: it only
 // writes something when the state changes. Terminals that do not know OSC 11 simply ignore it.
@@ -184,7 +184,7 @@ private:
 bool last_key_was_arrow();
 
 // ---------------------------------------------------------------------------
-// Terminal size at start (Settings -> ON/OFF -> MODES -> Terminal Size / Full Screen)
+// Terminal size at start (Settings -> GENERAL -> TERMINAL -> Terminal Size / Full Screen)
 // ---------------------------------------------------------------------------
 // Mousiki ASKS the terminal to resize itself (the xterm window sequence ESC [ 8 ; rows ; cols t, ESC [ 10 ; 1 t for full
 // screen); whether the window really changes is the terminal's decision. xterm, GNOME Terminal (VTE), iTerm2, Terminal.app and

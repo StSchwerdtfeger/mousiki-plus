@@ -69,7 +69,7 @@ namespace muisc {
 bool App::request_mode_switch(int dir) {
     const int me = audiobook_ ? 2 : 0;
     if (settings_.next_mode(me, dir) == me) {
-        status_line_ = "this is the only mode switched on (Settings -> ON/OFF -> MODES)";
+        status_line_ = "this is the only mode switched on (Settings -> GENERAL -> MODES)";
         return false;
     }
     g_mode_switch_dir = dir;
@@ -403,3 +403,13 @@ void App::phone_book_reveal() {
 }
 
 } // namespace muisc
+
+namespace muisc {
+// The seek keys: the << or >> button's bottom border lights up for a moment (see build_progress_panel), so a run of
+// seeks shows which way it goes. Each press extends the moment.
+void App::seek_flash(int dir) {
+    seek_flash_dir_ = dir < 0 ? -1 : 1;
+    seek_flash_until_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(700);
+    force_redraw_ = true;
+}
+}  // namespace muisc

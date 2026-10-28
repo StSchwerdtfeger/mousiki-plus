@@ -1,5 +1,5 @@
 #pragma once
-// The remote APP: a small web server inside Mousiki (off by default; Settings -> ON/OFF -> MODES -> Remote App) that the
+// The remote APP: a small web server inside Mousiki (off by default; Settings -> GENERAL -> REMOTE / UPDATES -> Remote App) that the
 // Android app -- or any phone browser -- talks to over the home network.
 //
 //   GET /                      the remote page (the Android app shows the same page)

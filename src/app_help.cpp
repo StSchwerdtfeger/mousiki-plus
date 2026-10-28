@@ -168,7 +168,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         // --- System -- listed first. Besides the rebindable system hotkeys
         // this also carries the literal keys used across multiple overlays
         // (not tied to one editor's own legend below). ---
-        {"SYSTEM (MAIN UI)", "HKeyModeNext", "Switch to the next mode (music player, radio, audio books; the order and the modes that are on are set in Settings -> ON/OFF -> MODES). Playback pauses and the mode waits in the background"},
+        {"SYSTEM (MAIN UI)", "HKeyModeNext", "Switch to the next mode (music player, radio, audio books; the order and the modes that are on are set in Settings -> GENERAL -> MODES). Playback pauses and the mode waits in the background"},
         {nullptr, "HKeyModePrev", "Switch to the previous mode"},
         {nullptr, "HKeySetting", "Open Settings panel, hit again to save and quit"},
         {nullptr, "HKeyConsole", "Console: logs and status messages (TAB pane, arrows scroll)"},
@@ -250,7 +250,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "#/, f:, p:", "Conversion overlay search bar: / full file search; type f: (folders) or p: (saved playlists) and ENTER on one to show only its files; typing / again returns to the full search, ESC steps back"},
         {nullptr, "#c", "Conversion overlay: cancel the running conversion (it keeps running when the overlay is closed)"},
         // --- Visualizations and lyrics ---
-        {"VISUALIZATIONS AND LYRICS (MAIN UI)", "HKeyToggleLyrics", "Cycle the lyrics area forward: sphere / oscilloscope / spectrogram / lyrics (what is off on Settings > ON/OFF is skipped)"},
+        {"VISUALIZATIONS AND LYRICS (MAIN UI)", "HKeyToggleLyrics", "Cycle the lyrics area forward: sphere / oscilloscope / spectrogram / lyrics (what is off on Settings > GENERAL is skipped)"},
         {nullptr, "HKeyToggleLyricsBack", "Cycle the lyrics area backward (same order, reversed)"},
         // --- Visualizations: oscilloscope and spectrogram (in the lyrics area, full screen, in their own windows) ---
         {nullptr, "HKeyOscMenu", "Oscilloscope overlay: style, frame rate, music mode, decay, dot threshold, tail, glow, Z axis ... live -- braille and image keep their own values (toggle)"},

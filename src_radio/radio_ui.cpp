@@ -631,7 +631,7 @@ RadioScope::Params scope_params(const RadioSettings& c, double dt, int style = -
     return p;
 }
 
-// The scope as a terminal image (ON/OFF -> Osci style: image): a real pixel picture the terminal draws itself. Here the
+// The scope as a terminal image (ANIMA/VIZ -> Osci style: image): a real pixel picture the terminal draws itself. Here the
 // pixels are made and left in m.gfx; the cells stay blank and render_radio_frame() adds the position. Returns false when the
 // style is braille or the terminal has no graphics protocol.
 bool build_scope_image(const Style& s, const UiModel& m, RadioEngine& engine, int scope_w) {
@@ -694,7 +694,7 @@ std::vector<std::string> build_scope(const Style& s, const UiModel& m, RadioEngi
     return rows;
 }
 
-// The sphere (ON/OFF -> Osci/sphere): the player's audio-reactive braille sphere, in the scope's place.
+// The sphere (ANIMA/VIZ -> Osci/sphere): the player's audio-reactive braille sphere, in the scope's place.
 // The satellite shown in the free pane on the right while nothing is live: braille art rotated about its centre, swinging
 // +-25 degrees. The angle follows a sine, so it slows down towards both ends like a pendulum. Rotation is done on the dot
 // grid (a braille cell is 2 x 4 dots, and since a terminal cell is about twice as tall as wide the dots are square, so
@@ -1793,7 +1793,7 @@ std::vector<std::string> wrap_words(const std::string& text, int width) {
 struct CheatRow { const char* header; const char* key; const char* desc; };
 const CheatRow kCheatRows[] = {
     // --- System ---
-    {"SYSTEM (MAIN UI)", "@SWITCHKEY", "Switch to the next mode (music player, radio, audio books: the order and the modes that are on are set in Settings -> ON/OFF -> MODES; the radio is closed completely first)"},
+    {"SYSTEM (MAIN UI)", "@SWITCHKEY", "Switch to the next mode (music player, radio, audio books: the order and the modes that are on are set in Settings -> GENERAL -> MODES; the radio is closed completely first)"},
     {nullptr, "@SWITCHBACK", "Switch to the previous mode"},
     {nullptr, "?", "This cheatsheet (toggle)"},
     {nullptr, "<", "The MENUS index: every menu and overlay by category with its key (UP/DOWN/LEFT/RIGHT select, ENTER opens, ESC closes). SHIFT+, on an English keyboard"},
@@ -1817,7 +1817,7 @@ const CheatRow kCheatRows[] = {
     {nullptr, "</>/UP/DOWN", "Equalizer: select band (LEFT / RIGHT) / gain +1 / -1 dB"},
     {nullptr, ",/./TAB/0/R", "Equalizer: previous / next preset / zero the band / reset to Flat (SPACE on/off)"},
     {nullptr, "S/DEL/X", "Equalizer: save the curve as a custom preset (ENTER saves, ESC cancels) / delete the selected one (press twice)"},
-    {"VISUALIZATIONS (MAIN UI)", ".", "Cycle the scope block: oscilloscope / sphere / spectrogram, like . in the player (rebindable; what is off on the ON/OFF tab is skipped)"},
+    {"VISUALIZATIONS (MAIN UI)", ".", "Cycle the scope block: oscilloscope / sphere / spectrogram, like . in the player (rebindable; what is off on the GENERAL tab is skipped)"},
     {nullptr, "SHIFT+i", "Spectrogram options overlay (style, motion, scale, frequencies, gain, range, window, colors, channels, time span; R = Audacity's defaults)"},
     {nullptr, "SHIFT+u", "Spectrogram full screen with frequency labels and time ruler (toggle; ESC closes)"},
     {nullptr, "SHIFT+0", "Oscilloscope full screen: YT mode left, XY mode right, values in the border (toggle; ESC closes; the SHIFT+o options open on top of it). The key is the character = (SHIFT+0 on a German keyboard)"},
@@ -1921,7 +1921,7 @@ const CheatRow kCheatRows[] = {
     {nullptr, "SHIFT+c", "Rename the hovered preset"},
     {nullptr, "SHIFT+d", "Delete the hovered preset (press twice; the last preset cannot be deleted)"},
     {nullptr, "ENTER / ESC", "Name box: confirm / cancel"},
-    {"RADIO SETTINGS (s)", "TAB", "Next tab: COLORS / ON/OFF / ANIMA/VIZ / PATHS / REFERENCE / ABOUT APP"},
+    {"RADIO SETTINGS (s)", "TAB", "Next tab: COLORS / GENERAL / ANIMA/VIZ / PATHS / REFERENCE / ABOUT APP"},
     {nullptr, "UP / DOWN", "Move through the rows (LEFT / RIGHT or ENTER change a switch; ENTER edits a colour, a folder or a key)"},
     {nullptr, "LEFT / RIGHT (editing)", "Move the caret in the colour, folder or key being edited; TAB and the arrows stay in the field until ENTER (apply) or ESC (cancel)"},
     {nullptr, "ENTER (THEME row)", "COLORS tab: ENTER opens CHOOSE THEME (scrollable, ENTER applies, SHIFT+d deletes a theme of your own); the CREATE THEME button builds your own theme"},
@@ -1929,8 +1929,8 @@ const CheatRow kCheatRows[] = {
     {nullptr, "SHIFT+e / SHIFT+i", "COLORS tab: export the current colors as a theme file / import theme files from a folder"},
     {nullptr, "s", "Save radio_config.txt and close (ESC / q close without saving; with unsaved changes it asks first)"},
     {nullptr, "ESC / q", "Discard the changes made on the screen and close"},
-    {nullptr, "ON/OFF: MARQUEE SCROLLING", "A station name that is too long for its column scrolls; off: it is cut off with ..."},
-    {nullptr, "ON/OFF: TUNING NOISE", "Radio static that fades in when you tune another station and fades out when the stream plays"},
+    {nullptr, "GENERAL: MARQUEE SCROLLING", "A station name that is too long for its column scrolls; off: it is cut off with ..."},
+    {nullptr, "GENERAL: TUNING NOISE", "Radio static that fades in when you tune another station and fades out when the stream plays"},
     {nullptr, "REFERENCE: ENTER", "Change the key of the hovered command; a key that is already taken is refused with the name of its owner"},
     {nullptr, "REFERENCE: DEL", "Restore the default key of the hovered command"},
     {nullptr, "REFERENCE: RESET", "The first row under the note: every key back to its default"},
@@ -2471,10 +2471,10 @@ std::vector<std::string> build_history_menu(const Style& s, const UiModel& m, in
 
 // ===========================================================================================
 // RADIO SETTINGS (key `s`) -- same look as the music player's settings screen: square frame in the gradient colours,
-// the tab strip ("[ON/OFF]" = current tab), one row per setting. COLORS: colour cells with a live preview on the
-// right; ON/OFF: toggles.
+// the tab strip ("[GENERAL]" = current tab), one row per setting. COLORS: colour cells with a live preview on the
+// right; GENERAL: toggles.
 // ===========================================================================================
-constexpr const char* kSettingsTabs[6] = {"COLORS", "ON/OFF", "ANIMA/VIZ", "PATHS", "REFERENCE", "ABOUT APP"};
+constexpr const char* kSettingsTabs[6] = {"COLORS", "GENERAL", "ANIMA/VIZ", "PATHS", "REFERENCE", "ABOUT APP"};
 
 // The theme picker (also used to choose a template inside the creator): one theme per line with colour swatches.
 std::vector<std::string> build_theme_picker(const RadioSettings& c, const SettingsModel& sm, int W, int rows) {
@@ -2618,7 +2618,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
     std::vector<std::string> out;
     out.reserve(static_cast<size_t>(H));
 
-    // --- tab strip (2 lines):  ┌─ SETTINGS ─────────┐  COLORS  ┌──┐  [ON/OFF]  ┌─────...─┐
+    // --- tab strip (2 lines):  ┌─ SETTINGS ─────────┐  COLORS  ┌──┐  [GENERAL]  ┌─────...─┐
     //                           │                    └──────────┘  └────────────┘       ... │
     if (cr) {   // CREATE THEME: title, the NAME / TEMPLATE row, a divider; the COLORS rows of the draft follow
         const std::string title = "─ CREATE THEME ";
@@ -2675,7 +2675,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
     };
 
     if (sm.tab == 1 || sm.tab == 2) {
-        // ---- ON/OFF and ANIMA/VIZ: rows under category headers (like the player's tabs); scrolls with the cursor
+        // ---- GENERAL and ANIMA/VIZ: rows under category headers (like the player's tabs); scrolls with the cursor
         struct DLine { std::vector<Seg> segs; int row = -1; };
         std::vector<DLine> dl;
         int rr = 0;
@@ -2688,9 +2688,9 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
             const bool sel = rr == sm.row;
             std::string v = rs_row_value(c, sm.tab, rr);
             // the "disk" look of the Volume indicator is shown as two braille blocks of the animation itself
-            if (sm.tab == 1 && v == muisc::kVolIndicatorNames[muisc::kVolStyleDisk]) v = muisc::volume_disk_snippet(muisc::volume_clock_angle());
+            if ((sm.tab == 1 || sm.tab == 2) && v == muisc::kVolIndicatorNames[muisc::kVolStyleDisk]) v = muisc::volume_disk_snippet(muisc::volume_clock_angle());
             std::vector<Seg> segs = {{"", "   " + pad_right(l.text, 26) + ":  "}, {sel ? "\x1b[7m" : "", v}};
-            if (sm.tab == 1 && std::string(l.text) == "Volume indicator") {   // two values: the look | gradient or not (LEFT / RIGHT switch, ENTER changes)
+            if ((sm.tab == 1 || sm.tab == 2) && std::string(l.text) == "Volume indicator") {   // two values: the look | gradient or not (LEFT / RIGHT switch, ENTER changes)
                 segs = {{"", "   " + pad_right(l.text, 26) + ":  "}, {sel && sm.col == 0 ? "\x1b[7m" : "", v},
                         {"", spaces(std::max(0, 10 - display_width(v)))},
                         {sel && sm.col == 1 ? "\x1b[7m" : "", c.volume_gradient ? "gradient   " : "no gradient"}};
@@ -2700,28 +2700,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
             dl.push_back({segs, rr});
             ++rr;
         }
-        std::vector<std::vector<Seg>> note;   // ANIMA/VIZ: where the oscilloscope and the spectrogram are tuned (pinned at the bottom)
-        if (sm.tab == 2) {
-            note.push_back({});
-            const std::string txt = "The oscilloscope/spectrogram are tuned live via an option overlay: [SHIFT+O] oscilloscope [SHIFT+I] spectrogram. [SHIFT+U/" +
-                [] { const std::string k = muisc::symbol_key_label("="); return k.rfind("SHIFT+", 0) == 0 ? k.substr(6) : k; }() +
-                "] opens a big overlay of both; " +
-                muisc::symbol_key_label(")") + " and " + muisc::symbol_key_label("(") + " open an extra window.";
-            const int cap = std::max(20, inner - 6);
-            std::string rest = txt;
-            while (!rest.empty()) {   // wrapped at spaces
-                std::string ln;
-                if (display_width(rest) <= cap) { ln = rest; rest.clear(); }
-                else {
-                    size_t cut = rest.rfind(' ', static_cast<size_t>(cap));
-                    if (cut == std::string::npos || cut == 0) cut = static_cast<size_t>(cap);
-                    ln = rest.substr(0, cut);
-                    rest = rest.substr(rest.find_first_not_of(' ', cut) == std::string::npos ? rest.size() : rest.find_first_not_of(' ', cut));
-                }
-                note.push_back({{legend, "   " + ln}});
-            }
-        }
-        const int avail = std::max(1, (H - 3) - static_cast<int>(out.size()) - static_cast<int>(note.size()));
+        const int avail = std::max(1, (H - 3) - static_cast<int>(out.size()));
         const int total = static_cast<int>(dl.size());
         int cur = 0;
         for (int i = 0; i < total; ++i) if (dl[static_cast<size_t>(i)].row == sm.row) cur = i;
@@ -2732,8 +2711,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
             std::vector<Seg> segs = dl[static_cast<size_t>(i)].segs;
             line(segs);
         }
-        while (static_cast<int>(out.size()) < H - 3 - static_cast<int>(note.size())) line({});
-        for (const auto& n : note) line(n);
+        while (static_cast<int>(out.size()) < H - 3) line({});
     } else if (sm.tab == 4) {
         // ---- REFERENCE: the note, then the rebindable keys under category headers; scrolls with the cursor
         struct DLine { std::vector<Seg> segs; int action = -1; };
@@ -2770,8 +2748,19 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
         // ---- ABOUT APP: the music player's text, Up / Down scroll
         const int avail = std::max(1, (H - 3) - static_cast<int>(out.size()) - 1);
         line({});
-        const int first = std::clamp(sm.row, 0, std::max(0, static_cast<int>(about_app_text().size()) - avail));
-        for (int i = first; i < static_cast<int>(about_app_text().size()) && i < first + avail; ++i) line({{"", "   " + about_app_text()[i]}});
+        // centred like the music player's ABOUT tab: each line centred, the block sits vertically in the middle of the rows,
+        // moved two rows up (a longer text scrolls and then starts at the top)
+        const int total = static_cast<int>(about_app_text().size());
+        int bw = 0;
+        for (const std::string& s : about_app_text()) bw = std::max(bw, display_width(s));
+        const int pad = std::max(0, (inner - bw) / 2);
+        const int top = total >= avail ? 0 : std::max(0, (avail - total) / 2 - 2);
+        const int first = total > avail ? std::clamp(sm.row, 0, total - avail) : 0;
+        for (int r = 0; r < avail; ++r) {
+            const int i = first + r - top;
+            if (r < top || i < 0 || i >= total) line({});
+            else line({{"", spaces(pad) + about_app_text()[static_cast<size_t>(i)]}});
+        }
     } else if (sm.tab == 3) {
         // ---- PATHS: the folder fields, the "same as music player" toggle and the history folder (like the player's PATHS tab:
         // names in the header colour, values in the colour of inactive list rows, an empty field shows the default folder)
@@ -2866,7 +2855,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
             if (is(&RadioSettings::preset_key_fg)) return {{ansi_fg(v1), "1"}, {ansi_fg(c.list_fg) + ansi_bg(c.list_bg), " Station name"}};
             if (is(&RadioSettings::header)) return {{ansi_fg(v1), "tuning ...  buffering 40%"}};
             if (is(&RadioSettings::legend)) return {{ansi_fg(v1), "[TAB]"}, {ansi_fg(v2), " Pane  "}, {ansi_fg(v1), "[ENTER]"}, {ansi_fg(v2), " Tune"}};
-            if (is(&RadioSettings::tab_current)) return {{ansi_fg(v1), "[COLORS]"}, {"", "  "}, {ansi_fg(v2), "ON/OFF  ANIMA/VIZ"}};
+            if (is(&RadioSettings::tab_current)) return {{ansi_fg(v1), "[COLORS]"}, {"", "  "}, {ansi_fg(v2), "GENERAL  ANIMA/VIZ"}};
             if (is(&RadioSettings::focus)) return {{ansi_fg(c.list_fg), "STATIONS "}, {ansi_fg(v1), "\u25C0"}};
             return {};
         };
@@ -2948,7 +2937,7 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
         return build_settings_impl(sm.theme_draft, tm, W, rows, &sm);
     }
     std::vector<std::string> out = build_settings_impl(c, sm, W, rows, nullptr);
-    if (sm.remote_ov.open) {   // ON/OFF -> Remote App: the REMOTE APP overlay, centred over the settings
+    if (sm.remote_ov.open) {   // GENERAL -> REMOTE / UPDATES -> Remote App: the REMOTE APP overlay, centred over the settings
         muisc::remote_ui::Style st;
         st.border = ansi_fg(c.border_top);
         st.border_bottom = ansi_fg(c.border_bottom);
@@ -3203,7 +3192,7 @@ std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const R
             lines.push_back(row(left + spaces(std::max(1, inner - display_width(left) - display_width(note))) + note, on));
         }
         lines.push_back(row("The recording runs until [y] is pressed again; it is", false, "\x1b[90m"));
-        lines.push_back(row("taken from the timeshift buffer (ON/OFF tab).", false, "\x1b[90m"));
+        lines.push_back(row("taken from the timeshift buffer (GENERAL tab).", false, "\x1b[90m"));
         lines.push_back(box_bottom(s, W, "[UP/DOWN] [ENTER/y] record  [ESC] cancel", s.border_bottom));
     } else if (eqo) {
         // Same panel as the music player's (build_eq_panel): 13 rows of 2 dB, band values and names, status row, legends.
@@ -3295,7 +3284,7 @@ std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const R
                                 + pad_left(osci_row_value(c, ids[static_cast<size_t>(i)]), 18), on));
         }
         if (c.scope_mode == 2) {
-            lines.push_back(row("The scope is switched off (ON/OFF tab: Osci/sphere)", false, "\x1b[90m"));
+            lines.push_back(row("The scope is switched off (ANIMA/VIZ tab: Osci/sphere)", false, "\x1b[90m"));
             lines.push_back(box_bottom_centred(s, W, "[R] reset  [SHIFT+o / ESC] close", s.border_bottom));
         } else push_legend_block(s, lines, W, {"[UP/DOWN] select   [LEFT/RIGHT] change", "[R] reset  [SHIFT+o / ESC] close"});
     } else {
@@ -3615,7 +3604,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     const int list_rows = std::max(4, rows - kFixedRows - 2);        // 2 = the list boxes' own borders
 
     // --- info panel (fixed height). Three blocks: ON AIR sign | station info (+ spectrum) | scope or sphere. A block
-    // that is switched off (ON/OFF tab) is left out; the scope takes all the free width, and when it is off the
+    // that is switched off (GENERAL tab) is left out; the scope takes all the free width, and when it is off the
     // other blocks are centred in the free space so the pane looks filled.
     const bool show_sign = cfg.on_air_ascii;   // the pulse wave lives behind the sign: no sign, no pulse
     const bool show_scope = cfg.scope_mode != 2;
