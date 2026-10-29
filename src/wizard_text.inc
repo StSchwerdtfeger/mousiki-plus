@@ -1866,7 +1866,7 @@ PLAYBACK SPEED: [[Header]]
 )WIZ",
 R"WIZ(             Times, bookmarks, notes and the progress bar stay in the time of the book: at 1.5x a 60
              minute chapter still shows 60:00, it just takes 40 minutes. The music player and the
-             radio always play at 1.0x. [°] / [&] opens CHOOSE AUDIO DEVICE (2.6.5), as in the player.
+             radio always play at 1.0x. 
 
 THE DEFAULT PICTURE: [[Header]] 
 An image of a women rading a book (a grey version of a colour picture) takes the place of the disk. 
