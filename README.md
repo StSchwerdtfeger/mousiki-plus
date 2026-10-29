@@ -94,8 +94,6 @@ Everything below is in the current version (v4.7.1) and works the same on Window
 
 ### Music player
 
-<p align="center"><img width="850" alt="The main screen of the music player (theme SeriousMeowerShell(Default))" src="readme_images/theme_default.png" /></p>
-
 - **Local library** from as many folders as you like (MP3, FLAC, WAV, ALAC, M4A, OGG, OPUS, AAC, tracker modules, console and C64 music ...), sorted by folder, title, artist or length, with **fuzzy search** over file names and tags (`/` and the prefixes `/a:` artist, `/r:` ... ).
 - **Online:** search, stream and **download** from YouTube, SoundCloud and Bandcamp (yt-dlp), whole YouTube playlists in one go (bulk add), with a shared download archive.
 - **Queue** with lock, undo and "save as playlist", big list / folder / queue overlays (the queue overlay has its own search bar), play modes list, repeat, shuffle, stop and queue-then-stop, and a shuffle-next key.
@@ -119,9 +117,8 @@ Everything below is in the current version (v4.7.1) and works the same on Window
 - **Spectrogram** in the field, over the whole screen (`SHIFT+u`) and in its own window (`(`), with its own options (`SHIFT+i`).
 - **Lyric sphere** and **spectrum bars**; the visualization field cycles with `.`.
 
-<p align="center"><img width="850" alt="The spectrogram in the visualization field (theme Lavender Haze)" src="readme_images/theme_lavender_haze.png" /></p>
+
 <p align="center"><img width="850" alt="The spectrogram in image mode in the visualization field, both channels" src="readme_images/spectrogram_inapp.png" /></p>
-<p align="center"><img width="850" alt="The spectrogram over the whole screen" src="readme_images/spectro_full.png" /></p>
 <p align="center"><img width="850" alt="The spectrogram in image mode over the whole screen, both channels (theme Tokyo Night)" src="readme_images/spectro_image.png" /></p>
 
 ### Lyrics and Karaoke mode
