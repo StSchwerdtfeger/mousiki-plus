@@ -134,7 +134,6 @@ Everything below is in the current version (v4.7.1) and works the same on Window
 
 - **Karaoke mode** open via `k`.
   
-<p align="center"><img width="850" alt="Karaoke mode" src="readme_images/karaoke_mode.png" /></p>
 <p align="center"><img width="850" alt="Karaoke mode" src="readme_images/changes_19_2.png" /></p>
 
 ### Playlists, meta data, history, conversion
