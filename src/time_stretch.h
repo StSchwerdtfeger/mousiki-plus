@@ -107,7 +107,11 @@ private:
         auto score = [&](int d, int step) {
             double num = 0.0, en = 1e-9;
             const float* c = cand_.data() + (d + delta_);
-            for (int j = 0; j < ha_; j += step) { num += nat_[static_cast<size_t>(j)] * c[j]; en += c[j] * c[j]; }
+            for (int j = 0; j < ha_; j += step) {   // (summed in double: the products are formed in double too)
+                const double a = nat_[static_cast<size_t>(j)], b = c[j];
+                num += a * b;
+                en += b * b;
+            }
             return num / std::sqrt(en);
         };
         constexpr int kCoarse = 4;   // first every 4th lag on every 4th sample, then the lags around the best one exactly
