@@ -462,7 +462,8 @@ def book_speed_and_devices(binary, root, scripts):
         f.write("# name | genre | country | codec | kbps | url | [*] favorite\n"
                 "Plain Station | Rock | US | MP3 | 128 | http://127.0.0.1:9/c | *\n")
     with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
-        f.write("AudioBookPath=%s\nStartMode=audiobook\nUseTerminalSettings=true\nHKeyAudioDevice=\"&\"\n" % books)
+        # fixed keys, whatever the keyboard layout of the machine (the default mode key is "*" or "'", see default_size_mode_key())
+        f.write("AudioBookPath=%s\nStartMode=audiobook\nUseTerminalSettings=true\nHKeyAudioDevice=\"&\"\nHKeyModeNext=\"J\"\n" % books)
     with open(os.path.join(cfgdir, "radio_config.txt"), "w", encoding="utf-8") as f:
         f.write("HKeyAudioDevice=&\n")
     sess = Session(binary, home, scripts, {"MOUSIKI_RADIO_NULL": "1", "MOUSIKI_NULL_AUDIO": "1"})
@@ -498,7 +499,7 @@ def book_speed_and_devices(binary, root, scripts):
         check("Choose Audio Device" in text and "System Default" in text, "settings: GENERAL has Choose Audio Device (System Default)")
         sess.send(b"\x1b", 1.0)
         for _ in range(2):              # audio books -> music player -> radio (each may open its help wizard on its first start)
-            sess.send("*", 2.5)
+            sess.send("J", 2.5)
             for _ in range(10):
                 if "HELP WIZARD" in sess.text():
                     break
