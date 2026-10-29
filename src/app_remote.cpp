@@ -194,7 +194,13 @@ void App::remote_poll() {
             std::string v = cr.latest;
             while (!v.empty() && (v[0] == 'v' || v[0] == 'V')) v.erase(0, 1);
             if (!cr.ok) status_line_ = "could not check for a newer release: " + cr.error;
-            else if (cr.newer) status_line_ = "a newer release is out: Mousiki " + v + " (you have " + cr.current + "): " + update_check::release_url({cr.latest, cr.current, cr.url});
+            else if (cr.newer) {
+                status_line_ = "a newer release is out: Mousiki " + v + " (you have " + cr.current + "): " + update_check::release_url({cr.latest, cr.current, cr.url});
+                // the same popup as at start-up ([o] release page, [ESC] close); it waits for the main screen, so it opens
+                // when Settings is left (leaving Settings with ESC discards unsaved changes, so it is not forced open)
+                update_latest_ = cr.latest; update_current_ = cr.current; update_url_ = update_check::release_url({cr.latest, cr.current, cr.url});
+                update_pending_ = true;
+            }
             else status_line_ = "Mousiki " + cr.current + " is the newest release (checked just now)";
             force_redraw_ = true;
         }
