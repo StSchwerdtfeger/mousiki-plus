@@ -147,14 +147,14 @@ void App::history_queue_rows(const std::vector<HistoryTopRow>& rows, int take, c
         const HistoryTopRow& r = rows[static_cast<size_t>(i)];
         const std::string artist = (r.artist == "-") ? std::string() : r.artist;
         if (r.id.compare(0, 3, "yt:") == 0) {
-            queue_.push_back({false, r.title, artist, {}, r.id.substr(3)});
+            queue_.push_back({false, r.title, artist, {}, r.id.substr(3), false, ""});
             ++added;
         } else {
             fs::path path = path_from_utf8(r.id);
             std::error_code ec;
             if (!fs::exists(path, ec)) { ++missing; continue; } // moved/deleted since it was played
             const std::string title = r.title.empty() ? path_utf8(path.stem()) : r.title;
-            queue_.push_back({true, title, artist, path, ""});
+            queue_.push_back({true, title, artist, path, "", false, ""});
             ++added;
         }
     }

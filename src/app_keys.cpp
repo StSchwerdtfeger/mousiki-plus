@@ -132,6 +132,8 @@ void App::handle_key(int key) {
         return;
     }
 
+    if (mode_ == Mode::AudioDevice) { audio_device_key(key); return; }   // CHOOSE AUDIO DEVICE (src/app_audiodevice.cpp)
+
     if (mode_ == Mode::UpdateNotice) {
         // The new-version popup: [o] opens the release page (and closes it), ESC closes it; other keys do nothing, so a
         // key meant for the player is not lost silently behind it (it is small and one key away from gone).
@@ -1046,6 +1048,8 @@ void App::handle_key(int key) {
         log_event("ui refreshed");
     } else if (action == "HKeyConsole") {
         mode_ = Mode::Console;
+    } else if (action == "HKeyAudioDevice") {   // "°" (SHIFT+^) / "&": the sound outputs of this computer
+        audio_device_open(false);
     } else if (action == "HKeyToggleNormalize") { // loudness normalisation on/off, for A/B-ing it by ear
         settings_.normalize = !settings_.normalize;
         player_.set_normalization(settings_.normalize,

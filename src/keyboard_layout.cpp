@@ -41,6 +41,7 @@ std::string value_after(const std::string& text, const std::string& key) {   // 
     return "";
 }
 
+#if defined(__APPLE__)
 // macOS: the layout NAME of the selected input source ("German", "U.S.", "British", "Austrian", ...)
 std::string mac_code(const std::string& text) {
     const std::string t = ascii_lower_str(text);
@@ -51,6 +52,7 @@ std::string mac_code(const std::string& text) {
     for (const auto& e : m) if (t.find(e.name) != std::string::npos) return e.code;
     return "";
 }
+#endif
 #endif
 
 std::string detect() {
@@ -128,6 +130,11 @@ std::string default_size_mode_key(bool next) {
     const std::string c = keyboard_layout_code();
     if (c == "us" || c == "gb" || c == "ie" || c == "au" || c == "ca" || c == "en" || c == "nz") return next ? "'" : ";";   // ] [ { } are the radio's timeshift keys; ; and ' sit side by side on a US keyboard
     return next ? "*" : "_";
+}
+
+std::string default_audio_device_key() {
+    const std::string c = keyboard_layout_code();
+    return (c == "de" || c == "at" || c == "ch") ? "°" : "&";
 }
 
 std::string mode_key_label(int ch) {

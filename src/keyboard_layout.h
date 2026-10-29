@@ -22,5 +22,8 @@ std::string mode_key_label(int ch);
 // The DEFAULT keys of "next mode" / "karaoke bigger" (next=true) and "previous mode" / "karaoke smaller": '*' and '_' (side by side on
 // German-style keyboards), but "'" and ";" on US / UK style ones (] [ { } are the radio's timeshift keys), where '*' is SHIFT+8. Only fresh configs get them; a saved key stays.
 std::string default_size_mode_key(bool next);
+// The DEFAULT key of the CHOOSE AUDIO DEVICE overlay (HKeyAudioDevice): "°" (SHIFT+^) where the keyboard has it on that key (German,
+// Austrian, Swiss), "&" elsewhere (US / UK keyboards have no °; "%" is the music player's "queue item to the bottom").
+std::string default_audio_device_key();
 
 } // namespace muisc

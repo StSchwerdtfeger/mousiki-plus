@@ -171,7 +171,8 @@ fs::path sidecar_path(const fs::path& media) { return media.parent_path() / kFol
 void overlay(const fs::path& media, std::string& artist, std::string& title, std::string& album, std::string& year) {
     if (!applies(media)) return;
     std::lock_guard<std::mutex> lk(g_mutex);
-    const Folder& f = load_folder(media.parent_path());
+    const fs::path dir = media.parent_path();   // (a named path: the Folder lives in the cache, not in a temporary)
+    const Folder& f = load_folder(dir);
     auto it = f.files.find(path_utf8(media.filename()));
     if (it == f.files.end()) return;
     const auto& v = it->second;

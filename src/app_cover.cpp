@@ -264,7 +264,6 @@ void App::cover_fill(GfxFrame& g, const CoverImage& cover_ref, int mode, double 
         for (int x = 0; x < w; ++x) {
             const int sx = x + cx0;
             if (sx < 0 || sy < 0 || sx >= cs.w || sy >= cs.h) { continue; }
-            const size_t si = static_cast<size_t>(sy) * cs.w + sx;
             // a cover with a removed background (transparent parts): the pinholes there show a plain grey, so the disk keeps its
             // whole shape and not just the silhouette of the picture
             const size_t at = static_cast<size_t>(y) * w + x;

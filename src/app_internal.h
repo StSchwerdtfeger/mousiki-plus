@@ -1,4 +1,6 @@
 #pragma once
+#include <memory>
+#include <thread>
 // Helpers that app.cpp and the files split out of it (app_meta.cpp, app_history.cpp, app_readlyrics.cpp, app_library.cpp, app_playback.cpp,
 // app_panels.cpp, app_playlist.cpp, app_keys.cpp, app_render.cpp, ... -- every app_*.cpp is a part of class App) both use.
 // Only for those files: nothing here is part of the program's interface. The functions are defined in app.cpp

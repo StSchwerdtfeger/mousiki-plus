@@ -67,6 +67,7 @@ namespace muisc {
 // underneath); in the full-screen takeovers the flag just stays set.
 bool App::queue_overlay_active() const {
     if (!queue_overlay_open_) return false;
+    if (mode_ == Mode::AudioDevice) return !adev_from_settings_;
     switch (mode_) {
         case Mode::Browse: case Mode::Search: case Mode::BulkAdd:
         case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: case Mode::BookOverlay: return true;
@@ -137,8 +138,9 @@ void App::queue_all_tags_resolve() {
         if (queue_all_tags_asked_.insert(path_utf8(q.local_path)).second) paths->push_back(q.local_path);
     }
     if (paths->empty()) return;
-    std::thread([this, paths]() { run_guarded("queue tags", [&] {
+    spawn_bg("queue tags", [this, paths]() {
         for (const fs::path& p : *paths) {
+            if (bg_->quit.load()) return;   // quitting
             std::string text = probe_all_tag_text(p);
             {
                 std::lock_guard<std::mutex> lk(row_meta_mutex_);
@@ -146,7 +148,7 @@ void App::queue_all_tags_resolve() {
             }
             row_meta_tags_version_.fetch_add(1, std::memory_order_relaxed);   // the screen is drawn again with the new matches
         }
-    }); }).detach();
+    });
 }
 
 int App::queue_find_count() const {

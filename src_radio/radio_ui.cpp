@@ -2926,6 +2926,58 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
     return out;
 }
 
+// CHOOSE AUDIO DEVICE (overlay 9 over the main screen, or over the settings): the sound outputs of this computer, the one in use
+// marked; keys in radio_main.cpp. The same rows as the music player's overlay (src/app_audiodevice.cpp).
+constexpr int kAdevOverlayW = 64;
+std::vector<std::string> build_adev_overlay(const RadioSettings& c, const SettingsModel& sm) {
+    const int W = kAdevOverlayW, inner = W - 4;
+    const std::string border = ansi_fg(c.border_top), border_bottom = ansi_fg(c.border_bottom);
+    const std::string bar = border + c.box_vertical + kReset;
+    auto row = [&](const std::string& plain, bool hi) {
+        const std::string x = truncate_str(plain, inner);
+        const std::string body = x + spaces(std::max(0, inner - display_width(x)));
+        return bar + " " + (hi ? "\x1b[7m" + body + kReset : body) + " " + bar;
+    };
+    auto entry = [&](bool cursor, const std::string& name, const std::string& right) {
+        const std::string l = cursor ? "> " : "  ";
+        const std::string n = truncate_str(name, std::max(4, inner - 2 - display_width(right) - 1));
+        const int gap = std::max(1, inner - 2 - display_width(n) - display_width(right));
+        return l + n + spaces(gap) + right;
+    };
+    auto top = [&](const std::string& title) {
+        const std::string t = " " + title + " ";
+        return border + c.box_upper_left + c.box_horizontal + t + repeat(c.box_horizontal, std::max(0, W - 3 - display_width(t))) + c.box_upper_right + kReset;
+    };
+    auto bottom = [&](const std::string& text) {
+        const std::string t = " " + truncate_str(text, W - 8) + " ";
+        const int dashes = std::max(0, W - 2 - display_width(t));
+        return border_bottom + c.box_lower_left + repeat(c.box_horizontal, dashes / 2) + t + repeat(c.box_horizontal, dashes - dashes / 2) + c.box_lower_right + kReset;
+    };
+    std::string def_name;
+    for (const auto& d : sm.adev_list) if (d.is_default) def_name = d.name;
+    std::vector<std::string> lines;
+    lines.push_back(top("Choose Audio Device"));
+    lines.push_back(row("", false));
+    lines.push_back(row(entry(sm.adev_sel == 0, "System Default" + (def_name.empty() ? std::string() : " (" + def_name + ")"), c.audio_device.empty() ? "in use" : ""), sm.adev_sel == 0));
+    bool there = false;
+    for (size_t i = 0; i < sm.adev_list.size(); ++i) {
+        const int r = static_cast<int>(i) + 1;
+        const bool chosen = !c.audio_device.empty() && c.audio_device == sm.adev_list[i].name;
+        if (chosen) there = true;
+        std::string mark = chosen ? "in use" : "";
+        if (chosen && !sm.adev_active.empty() && sm.adev_active != sm.adev_list[i].name) mark = "not opened";
+        lines.push_back(row(entry(sm.adev_sel == r, sm.adev_list[i].name, mark), sm.adev_sel == r));
+    }
+    if (!c.audio_device.empty() && !there) lines.push_back(row("  " + truncate_str(c.audio_device, inner - 18) + " (not found)", false));
+    if (!sm.adev_err.empty()) lines.push_back(row("  " + sm.adev_err, false));
+    lines.push_back(row("", false));
+    for (const std::string& l : wrap_lines("The choice is the same for the music player, the radio and the audio books. The stream moves to the new device at once.", inner, 3))
+        lines.push_back(row(l, false));
+    lines.push_back(row("", false));
+    lines.push_back(bottom("[UP/DOWN] [ENTER] use  [r] look again  [ESC] close"));
+    return lines;
+}
+
 std::vector<std::string> build_settings(const RadioSettings& c, const SettingsModel& sm, int W, int rows) {
     if (sm.theme_ui == 4 || sm.theme_ui == 5) return build_theme_io(c, sm, W, rows);
     if (sm.theme_ui == 1 || sm.theme_ui == 3) return build_theme_picker(c, sm, W, rows);
@@ -2937,6 +2989,14 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
         return build_settings_impl(sm.theme_draft, tm, W, rows, &sm);
     }
     std::vector<std::string> out = build_settings_impl(c, sm, W, rows, nullptr);
+    if (sm.adev_open && sm.adev_from_settings) {   // GENERAL -> AUDIO -> Choose Audio Device, centred over the settings
+        const std::vector<std::string> panel = build_adev_overlay(c, sm);
+        const int H = static_cast<int>(out.size());
+        const int x = std::max(0, (W - kAdevOverlayW) / 2);
+        const int y = std::clamp((H - static_cast<int>(panel.size())) / 2, 0, std::max(0, H - static_cast<int>(panel.size())));
+        for (size_t i = 0; i < panel.size() && y + static_cast<int>(i) < H; ++i)
+            out[static_cast<size_t>(y) + i] = splice_line(out[static_cast<size_t>(y) + i], x, panel[i], kAdevOverlayW);
+    }
     if (sm.remote_ov.open) {   // GENERAL -> REMOTE / UPDATES -> Remote App: the REMOTE APP overlay, centred over the settings
         muisc::remote_ui::Style st;
         st.border = ansi_fg(c.border_top);
@@ -3113,6 +3173,7 @@ std::vector<std::string> build_update_overlay(const Style& s, const UiModel& m) 
 
 std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const RadioStatus& st) {
     if (m.overlay == 8) return build_update_overlay(s, m);
+    if (m.overlay == 9) return build_adev_overlay(s.c, m.settings);
     const RadioSettings& c = s.c;
     const bool osci = m.overlay == 1;
     const bool sleep = m.overlay == 3;
@@ -3689,7 +3750,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     }
     if (m.overlay != 0) {   // SHIFT+o / SHIFT+v overlay, centred over the finished screen
         const auto panel = build_overlay(s, m, st);
-        const int pw = m.overlay == 8 ? kUpdateOverlayW : m.overlay == 7 ? kMenusOverlayW : m.overlay == 6 ? kSpectroOverlayW : m.overlay == 5 ? kRecordOverlayW : m.overlay == 4 ? kEqOverlayW : m.overlay == 3 ? kSleepOverlayW : m.overlay == 1 ? kOsciOverlayW : kNormOverlayW;
+        const int pw = m.overlay == 9 ? kAdevOverlayW : m.overlay == 8 ? kUpdateOverlayW : m.overlay == 7 ? kMenusOverlayW : m.overlay == 6 ? kSpectroOverlayW : m.overlay == 5 ? kRecordOverlayW : m.overlay == 4 ? kEqOverlayW : m.overlay == 3 ? kSleepOverlayW : m.overlay == 1 ? kOsciOverlayW : kNormOverlayW;
         const int ph = static_cast<int>(panel.size());
         const int x = std::max(0, (W - pw) / 2);
         const int y = m.overlay == 1 ? std::clamp(1, 0, std::max(0, rows - ph))   // oscilloscope options: second row, only grows downwards

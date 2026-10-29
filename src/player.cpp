@@ -111,6 +111,31 @@ void Player::data_callback(ma_device* device, void* output, const void* /*input*
     const bool raw_spectro = spectro_feed_active() || spectro_window_feed_active();   // terminal and / or window
     float* raw_out = (raw_scope || raw_spectro) && self->scope_raw_.size() >= 2 * static_cast<size_t>(frame_count) ? self->scope_raw_.data() : nullptr;
 
+    // Playback speed (time_stretch.h; only the audio book player sets it): at any speed but 1.0 the frames come from the
+    // stretcher, which reads the buffer itself. It starts over when the speed has just left 1.0 or the position was moved
+    // from outside (a seek) since the last block.
+    const double speed = self->speed_.load(std::memory_order_relaxed);
+    const bool stretch = std::fabs(speed - 1.0) > 1e-3;
+    if (stretch) {
+        if (!self->ts_active_ || cur != self->ts_last_cur_) self->ts_.reset(static_cast<double>(cur));
+        self->ts_active_ = true;
+    } else {
+        self->ts_active_ = false;
+    }
+    // Frames past the end of the track count as silence once the end is known; frames still being decoded do not.
+    const size_t total_now = windowed ? pcm.total_frames.load(std::memory_order_acquire) : 0;
+    const bool at_end = windowed ? (total_now > 0 && avail >= total_now) : pcm.decode_done.load();
+    auto ts_avail = [&](long long i0, long long i1) {
+        if (i1 > static_cast<long long>(avail) && !at_end) return false;
+        if (windowed && i0 >= 0 && static_cast<size_t>(i0) < lo) return false;
+        return true;
+    };
+    auto ts_sample = [&](long long i, int ch) -> float {
+        if (i < 0 || static_cast<size_t>(i) >= avail || (windowed && static_cast<size_t>(i) < lo)) return 0.0f;
+        const size_t k = pcm.slot(static_cast<size_t>(i));
+        return (pcm_ch == 1 || ch == 0) ? src[k] : src[k + 1];
+    };
+
     // Windowed: the position only moves on over frames that are actually there (after a seek the decoder needs a
     // moment to get there: that moment is a short silence, not a skipped stretch of the track).
     long long played = 0;
@@ -121,26 +146,35 @@ void Player::data_callback(ma_device* device, void* output, const void* /*input*
         norm_cur += (norm_target - norm_cur) * norm_alpha;
         float l = 0.0f, r = 0.0f;
         if (raw_out) raw_out[2 * i] = raw_out[2 * i + 1] = 0.0f;
-        if (!gap && idx >= 0 && static_cast<size_t>(idx) >= lo && static_cast<size_t>(idx) < avail) {
+        float a = 0.0f, b = 0.0f;   // the source frame (channel 0 / 1; a mono buffer gives the same value twice)
+        bool have = false;
+        if (stretch) {
+            have = self->ts_.next(speed, ts_avail, ts_sample, a, b);
+        } else if (!gap && idx >= 0 && static_cast<size_t>(idx) >= lo && static_cast<size_t>(idx) < avail) {
             ++played;
             const size_t k = pcm.slot(static_cast<size_t>(idx));   // sample index of channel 0
+            a = src[k];
+            b = pcm_ch == 1 ? src[k] : src[k + 1];
+            have = true;
+        } else if (windowed) gap = true;
+        if (have) {
             if (raw_out) {
-                raw_out[2 * i] = src[k];
-                raw_out[2 * i + 1] = pcm_ch == 1 ? src[k] : src[k + 1];
+                raw_out[2 * i] = a;
+                raw_out[2 * i + 1] = b;
             }
             if (pcm_ch == 1) {
-                l = r = src[k];
+                l = r = a;
             } else if (play_stereo) {
-                l = src[k];
-                r = src[k + 1];
+                l = a;
+                r = b;
             } else {
-                l = r = 0.5f * (src[k] + src[k + 1]);
+                l = r = 0.5f * (a + b);
             }
             if (eq_run) self->eq_.process(l, r); // before volume/normalisation: tone shaping on the raw signal
             const float g = norm_cur * gain;
             l *= g;
             r *= g;
-        } else if (windowed) gap = true;
+        }
         if (norm_on || norm_cur > 1.001f || eq_run) { l = soft_limit(l); r = soft_limit(r); }
         out[2 * i]     = l;
         out[2 * i + 1] = r;
@@ -170,8 +204,9 @@ void Player::data_callback(ma_device* device, void* output, const void* /*input*
     scope_feed_push(scope_src, frame_count, self->sample_rate_.load());   // the scope window (SHIFT+9); nothing while it is closed
 
     long long new_cur = cur + static_cast<long long>(frame_count);
+    if (stretch) new_cur = static_cast<long long>(std::llround(self->ts_.heard_pos()));   // the source time of what is heard
     if (windowed) {
-        new_cur = cur + played;
+        if (!stretch) new_cur = cur + played;
         const size_t total = pcm.total_frames.load(std::memory_order_acquire);
         if (total > 0 && new_cur >= 0 && static_cast<size_t>(new_cur) >= total) {
             new_cur = static_cast<long long>(total);
@@ -186,6 +221,7 @@ void Player::data_callback(ma_device* device, void* output, const void* /*input*
         self->finished_.store(true);
     }
     // a seek (seek_relative) while this block was being made wins over the position this block reached
+    self->ts_last_cur_ = new_cur;
     self->cursor_frames_.compare_exchange_strong(cur, new_cur);
 }
 
@@ -234,12 +270,21 @@ bool Player::play(std::shared_ptr<StreamingPcm> pcm, double start_sec, int volum
     eq_.reset();       // device isn't running yet: safe to touch audio-thread state
     eq_seen_gen_ = 0;
     eq_sr_ = 0;
+    ts_.configure(sample_rate_.load());   // the speed stretcher's buffers for this rate (allocates: only while stopped)
+    ts_active_ = false;
     norm_cur_ = -1.0f; // audio device isn't running yet: safe to reset; first callback snaps to the target gain
     track_lufs_.store(std::numeric_limits<float>::quiet_NaN());
     norm_gain_db_.store(0.0f);
     cursor_frames_.store(static_cast<long long>(std::max(0.0, start_sec) * sample_rate_.load()));
     if (pcm_->windowed) pcm_->play_pos.store(cursor_frames_.load(), std::memory_order_relaxed);
 
+    if (!open_device_locked()) { pcm_.reset(); return false; }
+    return true;
+}
+
+// Opens and starts the device for the current pcm_ / sample rate: the chosen output (set_device()) when it is there, otherwise
+// the system's default. mutex_ held, device not open.
+bool Player::open_device_locked() {
     ma_device_config cfg = ma_device_config_init(ma_device_type_playback);
     cfg.playback.format = ma_format_f32;
     cfg.playback.channels = 2; // always stereo; mono buffers are duplicated in the callback
@@ -251,9 +296,13 @@ bool Player::play(std::shared_ptr<StreamingPcm> pcm, double start_sec, int volum
     cfg.pUserData = this;
 
     ma_context* ctx = context_ready_ ? &context_ : nullptr;
+    ma_device_id chosen{};
+    std::string want;
+    { std::lock_guard<std::mutex> dk(device_name_mutex_); want = device_name_; }
+    if (ctx && find_output_device(*ctx, want, chosen)) cfg.playback.pDeviceID = &chosen;
+    else if (!want.empty()) ConsoleLog::instance().log_basic("audio: the device \"" + want + "\" is not there -- the default device plays");
     ma_result init_res = ma_device_init(ctx, &cfg, &device_);
     if (init_res != MA_SUCCESS) {
-        pcm_.reset();
         ConsoleLog::instance().log_verbose(
             std::string("audio: ma_device_init failed: ") + ma_result_description(init_res));
         return false;
@@ -261,7 +310,6 @@ bool Player::play(std::shared_ptr<StreamingPcm> pcm, double start_sec, int volum
     ma_result start_res = ma_device_start(&device_);
     if (start_res != MA_SUCCESS) {
         ma_device_uninit(&device_);
-        pcm_.reset();
         ConsoleLog::instance().log_verbose(
             std::string("audio: ma_device_start failed: ") + ma_result_description(start_res));
         return false;
@@ -270,8 +318,32 @@ bool Player::play(std::shared_ptr<StreamingPcm> pcm, double start_sec, int volum
         std::string("audio: device started, backend=") + ma_get_backend_name(device_.pContext->backend) +
         ", rate=" + std::to_string(sample_rate_.load()) + "Hz");
 
+    {
+        std::lock_guard<std::mutex> dk(device_name_mutex_);
+        active_device_ = device_.playback.name;
+    }
     device_ready_ = true;
     return true;
+}
+
+bool Player::reopen_device() {
+    std::lock_guard<std::mutex> lk(mutex_);
+    if (!device_ready_ || !pcm_) return true;   // nothing open: the next play() uses the new choice
+    ma_device_uninit(&device_);                 // blocks until the callback has stopped; position, pause and pcm_ stay
+    device_ready_ = false;
+    if (open_device_locked()) return true;
+    { std::lock_guard<std::mutex> dk(device_name_mutex_); device_name_.clear(); }   // the chosen one failed: back to the default
+    return open_device_locked();
+}
+
+void Player::set_device(const std::string& name) {
+    std::lock_guard<std::mutex> dk(device_name_mutex_);
+    device_name_ = name;
+}
+
+std::string Player::active_device() const {
+    std::lock_guard<std::mutex> dk(device_name_mutex_);
+    return active_device_;
 }
 
 void Player::pause() { paused_.store(true); }

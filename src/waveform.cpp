@@ -205,6 +205,7 @@ static bool stream_decode_miniaudio(const fs::path& file_path, StreamingPcm& pcm
     float buf[4096 * 2]; // 4096 frames, up to 2 channels
     ma_uint64 frames_read = 0;
     for (;;) {
+        if (pcm.cancelled.load()) break;   // let go of the file now (quitting, a cut, a rename)
         ma_result result = ma_decoder_read_pcm_frames(&decoder, buf, 4096, &frames_read);
         if (frames_read > 0) {
             pcm.append(buf, static_cast<size_t>(frames_read));
@@ -256,7 +257,7 @@ static void stream_decode_ffmpeg_fallback(const fs::path& file_path, StreamingPc
     std::vector<float> pending;
     std::array<char, 65536> buf{};
     std::ptrdiff_t n;
-    while ((n = child->read(buf.data(), buf.size())) > 0) {
+    while (!pcm.cancelled.load() && (n = child->read(buf.data(), buf.size())) > 0) {   // (cancelled: quitting, a cut, a rename)
         size_t total = carry_len + static_cast<size_t>(n);
         size_t whole_floats = total / sizeof(float);
         size_t whole_bytes  = whole_floats * sizeof(float);

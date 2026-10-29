@@ -209,13 +209,13 @@ void App::readlyrics_translate() {
     const std::vector<std::string> plain = rd_lines_;
     const LyricsVersion v = rd_job_version_;
     const fs::path track = rd_track_, script = translate_script_;
-    std::thread([this, plain, v, track, script, req]() { run_guarded("lyrics translation", [&] {
+    spawn_bg("lyrics translation", [this, plain, v, track, script, req]() {
         LyricsTranslation t = translate_lyrics_lines(plain, req, script);
         if (t.ok) save_lyrics_translation(track, v, req.to, plain, t);
         std::lock_guard<std::mutex> lk(rd_mutex_);
         rd_result_ = std::move(t);
         rd_result_ready_ = true;
-    }); }).detach();
+    });
 }
 
 void App::readlyrics_poll() {
@@ -648,7 +648,6 @@ void App::build_readlyrics_screen(std::ostringstream& frame, int W, int target_h
     // --- lyrics pane ---
     struct Row { std::string text; int style; };   // 0 original, 1 translation, 2 blank
     std::vector<Row> rows;
-    auto lower = [](std::string s) { for (auto& ch : s) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); return s; };
     for (size_t i = 0; i < rd_lines_.size(); ++i) {
         if (rd_lines_[i].empty()) { rows.push_back({std::string(), 2}); continue; }
         for (auto& w : wrap_lines(shown_text(rd_lines_[i]), wrap_w, 8)) rows.push_back({w, 0});

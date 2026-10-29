@@ -296,6 +296,13 @@ struct Settings : VizPrefs {
     // With Book Cover on: true = the colour wave runs over the cover (grey), false = the cover in its own colours
     // (config.txt: BookCoverWave=true|false). The standard picture always has the wave.
     bool book_cover_wave = true;
+    // Audio book mode: the playback speed, 0.5 - 3.0 in steps of 0.05, the pitch stays (Settings -> GENERAL -> AUDIO "Playback Speed",
+    // SHIFT+LEFT / SHIFT+RIGHT in the audio book player; config.txt: BookSpeed=1.25). The music player and the radio always play at 1.0.
+    double book_speed = 1.0;
+    // The sound output for all modes (Settings -> GENERAL -> AUDIO "Choose Audio Device"; config.txt AudioDevice=<name as the system
+    // names it>; empty = the system's default device). A device that is not there plays on the default one.
+    std::string audio_device;
+    static constexpr double kBookSpeedStep = 0.05;
     // A quiet check for a newer release at start-up (once a day, shown once per version); config.txt: UpdateCheck=true|false.
     bool update_check = true;
     // Decoded audio above this many MB is not held whole in RAM but in a moving 2-minute window (see streaming_pcm.h);
@@ -563,6 +570,11 @@ std::string config_stamp_line();
 std::string config_written_by(const std::filesystem::path& p);   // "" when the file has no stamp (older than v4.2.0)
 bool backup_config_if_older(const std::filesystem::path& p);     // true when a .bak was written
 void save_settings(const Settings& s);
+// One line of config.txt without loading / saving the whole file (the CHOOSE AUDIO DEVICE choice, which every mode writes at once,
+// also from a Settings screen with other changes still unsaved): the value of `key` ("" when missing), and rewriting that line
+// (appended when missing; false when config.txt cannot be written).
+std::string config_value(const std::string& key);
+bool set_config_value(const std::string& key, const std::string& value);
 // ---- one look per mode ----
 // What each mode keeps for itself ("the look"): all colours and the theme, the border characters, which elements and
 // visualizations are shown (and their oscilloscope / spectrogram settings), the volume bar look, the disk, the spectrum bar

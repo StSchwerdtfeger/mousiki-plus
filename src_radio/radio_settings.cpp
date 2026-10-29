@@ -6,10 +6,13 @@
 #include "remote_server.h"
 #include "version.h"
 #include "about_text.h"
+#include "keyboard_layout.h"
+#include "terminal_ui.h"
 #include "settings.h"   // kModeNames, ModeConfig, read_mode_config(): the mode switch is the player's config.txt
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstring>
 #include <cstdlib>
 #include <fstream>
 #include <map>
@@ -116,6 +119,7 @@ enum RsId {
     kRsOnAir, kRsPulse, kRsDummy, kRsVolIndicator, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc,
     kRsScope, kRsOsciStyle,
+    kRsAudioDevice,   // [ENTER]: the CHOOSE AUDIO DEVICE overlay
 };
 }
 
@@ -136,6 +140,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {false, kRsRemoteApp, "Remote App"},
         {true, -1, ""},
         {true, -1, "AUDIO"},
+        {false, kRsAudioDevice, "Choose Audio Device"},
         {false, kRsOnAir, "On air ascii"}, {false, kRsPulse, "Pulse wave"}, {false, kRsDummy, "Dummy buttons"},
         {false, kRsStereo, "Stereo sound"}, {false, kRsNormalize, "Normalize volume"},
         {false, kRsTuneNoise, "Tuning noise"}, {false, kRsTimeshift, "Timeshift buffer"},
@@ -235,6 +240,7 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
     if (bool* f = flag_of(const_cast<RadioSettings&>(s), id)) return *f ? "true" : "false";
     switch (id) {
         case kRsShareProfiles: return s.share_profiles ? "true" : "false";
+        case kRsAudioDevice: return (s.audio_device.empty() ? std::string("System Default") : s.audio_device) + "  [ENTER] choose";
         case kRsRemoteApp: return s.remote_app ? "on   [ENTER] settings" : "off  [ENTER] settings";   // opens the REMOTE APP overlay
         case kRsPlayback: return s.playback_shuffle ? "shuffle" : "list";
         case kRsStartMode: return s.start_mode == "radio" || s.start_mode == "audiobook" ? s.start_mode : "player";
@@ -565,6 +571,7 @@ void load_player_mode_settings(RadioSettings& s) {
     const muisc::ModeConfig mc = muisc::read_mode_config();   // same file; defaults when missing, always one mode on
     for (int i = 0; i < 3; ++i) { s.use_mode[i] = mc.use[i]; s.mode_order[i] = mc.order[i]; }
     s.audiobook_path = player_config_value("audiobookpath");
+    s.audio_device = player_config_value("audiodevice");   // CHOOSE AUDIO DEVICE: one choice for every mode
     int sm = muisc::mode_index(s.start_mode);
     if (sm < 0 || !s.use_mode[sm]) for (int i = 0; i < 3; ++i) if (s.use_mode[s.mode_order[i]]) { s.start_mode = muisc::kModeNames[s.mode_order[i]]; break; }
 }
@@ -684,6 +691,7 @@ const KeyAction kKeyActions[] = {
     {nullptr, "Wizard", "Help Wizard", "W"},          // SHIFT+w, the same key the music player uses
     {nullptr, "Cheatsheet", "Cheatsheet", "?"},
     {nullptr, "Menus", "Menus / Overlays Index", "<"},
+    {nullptr, "AudioDevice", "Choose Audio Device", "°"},   // SHIFT+^ on a German keyboard; "&" by default on other layouts (key_binding)
     {nullptr, "Quit", "Quit Application", "q"},
 };
 const int kKeyActionCount = static_cast<int>(sizeof(kKeyActions) / sizeof(kKeyActions[0]));
@@ -691,13 +699,16 @@ const int kKeyActionCount = static_cast<int>(sizeof(kKeyActions) / sizeof(kKeyAc
 std::string key_binding(const RadioSettings& s, int a) {
     if (a < 0 || a >= kKeyActionCount) return "";
     const auto it = s.keys.find(kKeyActions[a].id);
-    return it != s.keys.end() && !it->second.empty() ? it->second : kKeyActions[a].def;
+    if (it != s.keys.end() && !it->second.empty()) return it->second;
+    if (std::strcmp(kKeyActions[a].id, "AudioDevice") == 0) return muisc::default_audio_device_key();   // "°" or "&", by keyboard layout
+    return kKeyActions[a].def;
 }
 
 int key_code(const std::string& k) {
     if (k == "SPACE") return ' ';
     if (k == "TAB") return 9;
     if (k == "BACKSPACE") return 127;
+    if (k == "\xC2\xB0") return kKeyDegree;   // "°": poll_key() joins its two bytes into one key
     if (k.size() == 1 && static_cast<unsigned char>(k[0]) > 32 && static_cast<unsigned char>(k[0]) < 127) return static_cast<unsigned char>(k[0]);
     return 0;
 }
@@ -718,6 +729,11 @@ std::string key_conflict(const RadioSettings& s, const std::string& key, int exc
 }
 
 int key_translate(const RadioSettings& s, int typed) {
+    {   // CHOOSE AUDIO DEVICE: its key (maybe "°", which is no single character) always comes out as kKeyDegree for the main switch
+        const int adev = key_of(s, "AudioDevice");
+        if (adev != 0 && typed == adev) return kKeyDegree;
+        if (typed == kKeyDegree) return 0;   // "°" while the action has another key
+    }
     if (typed <= 32 && typed != 9) return typed;
     if (typed >= 127) return typed;
     // the old aliases of + and - follow the volume actions while those keep their defaults

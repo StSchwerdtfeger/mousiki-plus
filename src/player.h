@@ -8,12 +8,14 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <vector>
 #include "miniaudio.h"
 #include "streaming_pcm.h"
 #include "fft_visualizer.h"
 #include "oscilloscope_visualizer.h"
 #include "equalizer.h"
+#include "time_stretch.h"
 
 namespace muisc {
 
@@ -99,6 +101,12 @@ public:
     void set_equalizer(bool enabled, const EqGains& gains_db);
     bool equalizer_enabled() const { return eq_enabled_.load(); }
 
+    // Playback speed without a change of pitch (time_stretch.h): 1.0 = normal, clamped to 0.5 .. 3.0. Atomic, takes effect
+    // within one grain (~40 ms). The audio book player uses it; the music player and the radio leave it at 1.0. The position
+    // (poll_elapsed(), seek_relative()) stays in the time of the track itself.
+    void set_speed(double s) { speed_.store(std::clamp(s, TimeStretch::kMinSpeed, TimeStretch::kMaxSpeed)); }
+    double speed() const { return speed_.load(); }
+
     double poll_elapsed() const;
     bool finished() const { return finished_.load(); }
     // Synchronously clears a stale finished flag left over from the
@@ -112,6 +120,14 @@ public:
     void clear_finished() { finished_.store(false); }
 
     void stop();
+
+    // The sound output (audio_backend.h): the name of the chosen device, "" = the system's default. set_device() only stores it;
+    // the next play() opens that device, and reopen_device() moves a running track there at once (same position, pause state
+    // kept; a few hundred ms on WASAPI, so not on the audio thread). A device that is not there (any more) falls back to the
+    // default. active_device() is the name of the device that is open now ("" before the first track).
+    void set_device(const std::string& name);
+    bool reopen_device();
+    std::string active_device() const;
 
 private:
     // Guards play()/stop() (and seek_relative(), which touches pcm_) against
@@ -141,6 +157,9 @@ private:
     // re-locking mutex_ (std::mutex isn't recursive -- play() calling the
     // public stop() from inside its own already-held lock would deadlock).
     void stop_locked();
+    bool open_device_locked();   // the device for pcm_ / sample_rate_ (the chosen one or the default); mutex_ held
+    mutable std::mutex device_name_mutex_;   // guards device_name_ / active_device_ (read by the UI thread)
+    std::string device_name_, active_device_;
 
     ma_context context_{};
     bool context_ready_ = false;
@@ -179,6 +198,14 @@ private:
     Equalizer eq_;
     unsigned eq_seen_gen_ = 0;
     int eq_sr_ = 0;
+
+    // Playback speed. speed_ is the hand-over from the UI thread; ts_, ts_active_ and ts_last_cur_ belong to the audio thread
+    // (ts_ is sized in play() while the device is stopped). ts_last_cur_ is the position the callback stored last: a different
+    // value at the next callback means a seek, and the stretcher starts over there.
+    std::atomic<double> speed_{1.0};
+    TimeStretch ts_;
+    bool ts_active_ = false;
+    long long ts_last_cur_ = 0;
 
     static void data_callback(ma_device* device, void* output, const void* input, ma_uint32 frame_count);
 };

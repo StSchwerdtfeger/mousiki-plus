@@ -333,6 +333,7 @@ void apply_default_hotkeys(Settings& s) {
             {"HKeyKaraokeBigger",               default_size_mode_key(true)},
             {"HKeyKaraokeSmaller",              default_size_mode_key(false)},
             {"HKeyConsole",                     "t"},
+            {"HKeyAudioDevice",                 default_audio_device_key()},   // "°" (SHIFT+^) on German / Austrian / Swiss keyboards, else "&"
             {"HKeyToggleMute",                  "x"},
             {"HKeyCheatsheet",                  "?"},
             {"HKeyMenus",                       "<"},   // the index of all menus and overlays
@@ -893,6 +894,14 @@ static Settings load_from_config(const fs::path& path) {
             std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.book_ask_bookmark = !(v == "false" || v == "0" || v == "off" || v == "no");
+            continue;
+        }
+        if (key == "AudioDevice") { s.audio_device = trim_ws(unquote(value)); continue; }
+        if (key == "BookSpeed") {   // 0.5 .. 3.0, rounded to the 0.05 steps of the setting
+            try {
+                const double v = std::stod(trim_ws(unquote(value)));
+                s.book_speed = std::clamp(std::round(v / Settings::kBookSpeedStep) * Settings::kBookSpeedStep, 0.5, 3.0);
+            } catch (...) {}
             continue;
         }
         if (key == "BookCoverWave") {
@@ -1881,6 +1890,12 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "ShareProfiles=" << (s.share_profiles ? "true" : "false") << "\n## true , false -- the radio uses this file's oscilloscope and spectrogram settings instead of its own (its own come back when this is false; player and radio)\n";
     out << "BookmarkAsk=" << (s.book_ask_bookmark ? "true" : "false") << "\n## true , false -- audio book mode: changing the chapter, the mode or quitting asks first whether to set a bookmark at the exact time (the audio is paused meanwhile)\n";
     out << "BookCoverWave=" << (s.book_cover_wave ? "true" : "false") << "\n## true , false -- with BookCover on: true = the colour wave runs over the cover (a grey cover), false = the cover is shown in its own colours (the standard picture always has the wave)\n";
+    out << "AudioDevice=" << s.audio_device << "\n## the sound output of all modes, as the system names it (Settings -> GENERAL -> AUDIO -> Choose Audio Device); empty = the system's default device\n";
+    {
+        char sp[16];
+        std::snprintf(sp, sizeof sp, "%.2f", s.book_speed);
+        out << "BookSpeed=" << sp << "\n## 0.50 - 3.00 -- audio book mode: playback speed (steps of 0.05; the pitch stays the same). SHIFT+LEFT / SHIFT+RIGHT change it while you listen\n";
+    }
     out << "BookCover=" << (s.book_cover ? "true" : "false") << "\n## true , false -- audio book mode: false = the standard picture (a woman reading), true = the cover image found in the book's folder (cover / folder / front / albumart .jpg .png ..., or the only picture there); the colour wave runs over either one\n";
     out << "UpdateCheck=" << (s.update_check ? "true" : "false") << "\n## true , false -- at start-up Mousiki looks (at most once a day, in the background) whether a newer release exists and tells you once per version; nothing is installed and nothing about you is sent (needs Python 3)\n";
     out << "TrackBufferMB=" << s.track_buffer_mb << "\n## 64 - 16384 (default 256) -- a track whose decoded audio is bigger than this many MB (about 10 MB per minute of CD-quality stereo, double at 96 kHz) is not held whole in RAM but in a moving 2-minute window; seeking inside the window is instant, a jump outside it takes a moment. A bigger value = fast seeking in longer tracks, more RAM in use\n";
@@ -2242,6 +2257,42 @@ static void save_book_profile(const Settings& s) {
     backup_config_if_older(p);
     std::ofstream out(p, std::ios::trunc);
     if (out.is_open()) write_settings(out, merged);
+}
+
+std::string config_value(const std::string& key) {
+    std::ifstream in(config_path());
+    std::string line;
+    while (std::getline(in, line)) {
+        const std::string t = trim_ws(line);
+        if (t.empty() || t[0] == '#') continue;
+        const size_t eq = t.find('=');
+        if (eq != std::string::npos && trim_ws(t.substr(0, eq)) == key) return trim_ws(unquote(t.substr(eq + 1)));
+    }
+    return "";
+}
+
+bool set_config_value(const std::string& key, const std::string& value) {
+    const fs::path p = config_path();
+    std::vector<std::string> lines;
+    {
+        std::ifstream in(p);
+        std::string line;
+        while (std::getline(in, line)) lines.push_back(line);
+    }
+    bool found = false;
+    for (std::string& l : lines) {
+        const std::string t = trim_ws(l);
+        if (t.empty() || t[0] == '#') continue;
+        const size_t eq = t.find('=');
+        if (eq != std::string::npos && trim_ws(t.substr(0, eq)) == key) { l = key + "=" + value; found = true; break; }
+    }
+    if (!found) lines.push_back(key + "=" + value);
+    std::error_code ec;
+    fs::create_directories(p.parent_path(), ec);
+    std::ofstream out(p, std::ios::trunc);
+    if (!out.is_open()) return false;
+    for (const std::string& l : lines) out << l << "\n";
+    return static_cast<bool>(out);
 }
 
 void save_settings(const Settings& s) {

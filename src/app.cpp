@@ -580,6 +580,8 @@ App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(sh
     history_.load(); // listening history: a missing/corrupt file is not fatal (see HistoryStore::load)
     set_emoji_replacement(settings_.replace_emoji);
     player_.set_stereo(settings_.stereo);
+    player_.set_device(settings_.audio_device);   // the sound output (Settings -> GENERAL -> AUDIO "Choose Audio Device")
+    adev_applied_ = settings_.audio_device;
     player_.set_normalization(settings_.normalize,
                               static_cast<float>(settings_.normalize_target_lufs),
                               static_cast<float>(settings_.normalize_max_boost_db));
@@ -642,6 +644,7 @@ App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(sh
 struct NamedComboKey { const char* name; int code; };
 static const NamedComboKey kComboKeys[] = {
     {"ALT+L", kKeyAltL}, {"ALT+C", kKeyAltC}, {"CTRL+L", kKeyCtrlL}, {"CTRL+SHIFT+U", kKeyCtrlShiftU}, {"CTRL+SHIFT+Z", kKeyCtrlShiftZ},
+    {"°", kKeyDegree},   // SHIFT+^ on a German keyboard: two UTF-8 bytes, joined into one key by poll_key()
 };
 
 // "" when `key` is not one of the bindable combinations.
@@ -1058,6 +1061,7 @@ int App::run() {
         poll_name_lookup();        // the Latin name of an artist in Chinese characters (MusicBrainz, in the background)
         poll_meta_save();          // the next slice of a running save
         if (audiobook_) book_poll();   // the loaded chapter's tags, a running tag save
+        audio_device_apply();           // a changed sound output (overlay, Settings discard, the other mode) reaches the player
         readlyrics_poll();         // a finished lyrics translation
         maybe_autosave();
         remote_poll();             // `mousiki --cmd ...` and the status file
@@ -1275,6 +1279,17 @@ int App::run() {
 
 // Everything that has to happen when the player really ends (quit, or quit from the radio while the player was
 // suspended): close the play in the history, stop the audio, save, join the threads.
+bool App::wait_background(int ms) {
+    bg_->quit.store(true);                                  // the long loops stop at their next file
+    if (current_pcm_) current_pcm_->cancelled.store(true);  // a decode that still runs lets go of its file
+    const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(ms);
+    while (bg_->running.load() > 0 && std::chrono::steady_clock::now() < until)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    const int left = bg_->running.load();
+    if (left > 0) ConsoleLog::instance().log_basic("quit: " + std::to_string(left) + " background task(s) still busy -- left to end with the program");
+    return left == 0;
+}
+
 void App::shutdown() {
     if (suspended_) sync_after_radio();   // quit from the radio: its rows may have changed them
     suspended_ = false;

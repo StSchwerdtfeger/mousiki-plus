@@ -207,7 +207,7 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
         fs::path decode_path = decode_from;
         std::string wtitle = pl.title, wartist = pl.artist;
         bool waveform_smooth = settings_.waveform_smooth; // captured by value — see below, avoids a cross-thread read of settings_
-        std::thread([this, decode_path, pcm, waveform_smooth]() { run_guarded("track decode", [&] {
+        spawn_bg("track decode", [this, decode_path, pcm, waveform_smooth]() {
             if (pcm->windowed) {
                 // A long track: held a window at a time (see StreamingPcm). This thread keeps the window filled
                 // until nobody holds the track any more; a second one goes through the whole file once for the
@@ -218,7 +218,7 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
                 StreamingPcm* raw = pcm.get();
                 auto abandoned = [watch, raw]() { return raw->cancelled.load() || watch.use_count() <= raw->internal_refs.load(); };
                 raw->internal_refs.store(1);   // this thread's `pcm`
-                std::thread([this, decode_path, keep = pcm, waveform_smooth, abandoned]() { run_guarded("track analysis", [&] {
+                spawn_bg("track analysis", [this, decode_path, keep = pcm, waveform_smooth, abandoned]() {
                     analyse_track(decode_path, *keep, abandoned);
                     if (!abandoned() && !keep->env_sumsq.empty()) {
                         auto envelope = WaveformQuantizer::envelope_from_bins(keep->env_sumsq, StreamingPcm::kEnvGran,
@@ -228,7 +228,7 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
                         waveform_pending_ready_ = true;
                     }
                     keep->internal_refs.fetch_sub(1);   // before `keep` itself goes (never counted low)
-                }); }).detach();
+                });
                 raw->internal_refs.fetch_add(1);   // the analysis thread's `keep` (it exists already: never counted high)
                 stream_decode_windowed(decode_path, *pcm, abandoned);
                 return;
@@ -250,7 +250,7 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
                 pending_waveform_envelope_ = std::move(envelope);
                 waveform_pending_ready_ = true;
             }
-        }); }).detach();
+        });
       });
 
       // If the guard above swallowed an exception, nothing published a
@@ -282,13 +282,13 @@ void App::launch_lyrics_fetch(std::string title, std::string artist, fs::path pa
     lyrics_path_ = path;
     int my_epoch = ++lyrics_epoch_;
     const double track_secs = static_cast<double>(total_sec_);
-    std::thread([this, title, artist, path, force_network, my_epoch, track_secs]() { run_guarded("lyrics fetch", [&] {
+    spawn_bg("lyrics fetch", [this, title, artist, path, force_network, my_epoch, track_secs]() {
         LyricsResult r = fetch_synced_lyrics(title, artist, path_utf8(lyrics_script_), path, force_network, track_secs);
         std::lock_guard<std::mutex> lock(lyrics_mutex_);
         if (my_epoch != lyrics_epoch_.load()) return; // a newer/retried fetch has since started — discard
         lyrics_result_ = std::move(r);
         lyrics_ready_ = true;
-    }); }).detach();
+    });
 }
 
 void App::poll_pending_load() {
@@ -763,10 +763,10 @@ void App::queue_add_selected_impl(bool at_end) {
     QueueItem item;
     if (list_source_ == ListSource::Local) {
         const auto& t = local_view_[selected_];
-        item = {true, t.title, t.folder_artist, t.path, ""};
+        item = {true, t.title, t.folder_artist, t.path, "", false, ""};
     } else {
         const auto& r = online_view_[selected_];
-        item = {false, r.title, r.uploader, {}, r.video_id};
+        item = {false, r.title, r.uploader, {}, r.video_id, false, ""};
     }
     if (at_end) {
         queue_.push_back(std::move(item));
@@ -996,7 +996,7 @@ void App::track_to_playlist_apply(const std::string& playlist) {
     status_line_ = "downloading \"" + atp_track_.title + "\" for \"" + playlist + "\" ...";
     atp_busy_ = true;
     AtpTrack t = atp_track_;
-    std::thread([this, t, playlist]() { run_guarded("playlist download", [&] {
+    spawn_bg("playlist download", [this, t, playlist]() {
         AtpJob job;
         job.playlist = playlist; job.title = t.title; job.artist = t.artist;
         std::string err;
@@ -1029,7 +1029,7 @@ void App::track_to_playlist_apply(const std::string& playlist) {
         std::lock_guard<std::mutex> lk(atp_mutex_);
         atp_done_ = std::move(job);
         atp_ready_ = true;
-    }); }).detach();
+    });
 }
 
 void App::poll_pending_atp() {

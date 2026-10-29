@@ -262,7 +262,7 @@ void App::commit_bulk_add(bool all) {
     for (size_t i = 0; i < pending_bulk_add_.items.size(); ++i) {
         if (!all && (i >= bulk_add_selected_.size() || !bulk_add_selected_[i])) continue;
         const auto& item = pending_bulk_add_.items[i];
-        queue_.push_back({false, item.title, item.uploader, {}, item.video_id});
+        queue_.push_back({false, item.title, item.uploader, {}, item.video_id, false, ""});
         ++added;
     }
     clamp_queue_selected();

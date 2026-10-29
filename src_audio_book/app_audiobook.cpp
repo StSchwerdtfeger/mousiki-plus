@@ -324,6 +324,17 @@ void App::book_advance() {
 }
 
 // Seeking: a single press jumps 5 s; held down (the terminal repeats the key) the jumps get longer and longer, up to minutes.
+void App::book_speed_set(double speed, bool save) {
+    const double r = std::clamp(std::round(speed / Settings::kBookSpeedStep) * Settings::kBookSpeedStep, TimeStretch::kMinSpeed, TimeStretch::kMaxSpeed);
+    settings_.book_speed = r;
+    player_.set_speed(r);
+    status_line_ = "playback speed: " + speed_label(r) + (std::fabs(r - 1.0) < 1e-6 ? " (normal)" : " (the pitch stays)");
+    if (save) save_settings(settings_);
+    force_redraw_ = true;
+}
+
+void App::book_speed_step(int dir) { book_speed_set(settings_.book_speed + dir * Settings::kBookSpeedStep, true); }
+
 void App::book_seek(int dir) {
     if (!has_track_) return;
     using clock = std::chrono::steady_clock;
@@ -406,6 +417,8 @@ bool App::book_intercept(const std::string& action, int key) {
     }
     if (action == "HKeyPlayNextSong") { book_step(1); return true; }
     if (action == "HKeyPlayPreviousSong") { book_step(-1); return true; }
+    if (key == kKeyShiftLeft) { book_speed_step(-1); return true; }    // SHIFT+LEFT / SHIFT+RIGHT: slower / faster (fixed keys)
+    if (key == kKeyShiftRight) { book_speed_step(1); return true; }
     if (action == "HKeySeekForward") { book_seek(1); return true; }
     if (action == "HKeySeekBackward") { book_seek(-1); return true; }
     if (action == "HKeyCyclePlayMode") {   // an audio book only has: on to the next chapter / repeat the chapter / stop after it
@@ -1391,6 +1404,7 @@ void App::book_finish_job(BookTagJob& job) {
 
 // Render loop: reads the tags of a newly loaded chapter (for the metadata block) and runs one file of a tag save per frame.
 void App::book_poll() {
+    player_.set_speed(settings_.book_speed);   // the playback speed (Settings, SHIFT+LEFT / SHIFT+RIGHT): an atomic, cheap every frame
     {   // the picture in the field changes between nothing (cover being read), the cover and the standard picture: wipe the old image
         static std::string shown_kind;
         const std::string kind = !settings_.book_cover ? "std" : (current_cover(book_dir_) ? "cover:" + book_dir_ : "other:" + book_dir_);

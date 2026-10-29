@@ -325,8 +325,9 @@ std::string App::render_frame(TerminalIO& term) {
     // change always has.
     auto mode_family = [this](Mode m) {
         if (m == Mode::LyricsEdit && lyrics_edit_from_karaoke_) return 7;   // (it is drawn on the karaoke screen)
+        if (m == Mode::AudioDevice) return adev_from_settings_ ? 1 : 0;     // over the settings screen or over the main screen
         switch (m) {
-            case Mode::Browse: case Mode::Search: case Mode::BulkAdd: case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: case Mode::BookOverlay: return 0;
+            case Mode::Browse: case Mode::Search: case Mode::BulkAdd: case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: case Mode::BookOverlay: case Mode::AudioDevice: return 0;
             case Mode::Settings: case Mode::ColorEdit: return 1;
             case Mode::Console: return 2;
             case Mode::Cheatsheet: return 3;
@@ -451,11 +452,12 @@ std::string App::render_frame(TerminalIO& term) {
         return hard_clear ? clamped : soften_fullscreen_frame(clamped, term_cols);
     };
 
-    if (mode_ == Mode::Settings || mode_ == Mode::ColorEdit) {
+    if (mode_ == Mode::Settings || mode_ == Mode::ColorEdit || (mode_ == Mode::AudioDevice && adev_from_settings_)) {
         std::ostringstream frame;
         frame << "\x1b[2J\x1b[H\x1b[?25l";
         build_settings_screen(frame, W, overlay_budget(W));
         if (remote_ov_.open) remote_overlay_draw(frame, W);
+        if (mode_ == Mode::AudioDevice) draw_floating_panel(frame, build_audio_device_panel(), kAudioDevicePanelWidth, W);
         return fullscreen_out(frame);
     }
 
@@ -771,6 +773,8 @@ std::string App::render_frame(TerminalIO& term) {
         draw_floating_panel(floating, build_queue_to_playlist_panel(), kQtpPanelWidth, W);
     } else if (mode_ == Mode::UpdateNotice) {
         draw_floating_panel(floating, build_update_panel(), kUpdatePanelWidth, W);
+    } else if (mode_ == Mode::AudioDevice) {
+        draw_floating_panel(floating, build_audio_device_panel(), kAudioDevicePanelWidth, W);
     } else if (mode_ == Mode::OsciMenu) {
         // Centred like the other overlays; a scope image under it is cropped to the columns that stay free.
         draw_floating_panel(floating, build_osci_menu_panel(), kOsciMenuPanelWidth, W, 0, false, 2);   // starts on row 2 and only grows downwards (braille / image style have different row counts)

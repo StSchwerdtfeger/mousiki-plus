@@ -5,7 +5,9 @@
 #include "utf8_util.h"
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cstdint>
+#include <thread>
 #include <cstdio>
 #include <iostream>
 #include <cerrno>
@@ -538,7 +540,25 @@ void clipboard_set(const std::string& utf8) {
 #endif
 }
 
+// '°' as one key (kKeyDegree) outside text fields: its first byte (C2) is held back until the second one shows whether it is '°';
+// any other character that starts with C2 (§, ´, µ ...) comes out unchanged, one byte per call as before.
 int TerminalIO::poll_key() {
+    static int held = -1;   // a byte read ahead that was not part of '°'
+    if (held >= 0) { const int k = held; held = -1; g_last_key_was_arrow = false; return k; }
+    const int key = poll_key_raw();
+    if (key != 0xC2 || g_text_entry_requested) return key;
+    int next = 0;
+    for (int tries = 0; tries < 20 && next == 0; ++tries) {   // the second byte is normally there at once (a few ms at most)
+        next = poll_key_raw();
+        if (next == 0) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    if (next == 0xB0) { g_last_key_was_arrow = false; return kKeyDegree; }
+    if (next != 0) held = next;
+    g_last_key_was_arrow = false;
+    return key;
+}
+
+int TerminalIO::poll_key_raw() {
     reassert_raw_mode();
     g_last_key_was_shifted = false;
     g_last_key_was_page = false;

@@ -2,6 +2,7 @@
 // Part of class App (src/app.h): Tags of the rows on screen, read in the background (and the waveform of the current track).
 // Split out of app.cpp; the includes are the same as there.
 #include "app.h"
+#include "tag_cache.h"
 #include "text_edit.h"
 #include "overlay_common.h"
 #include "remote_server.h"
@@ -150,7 +151,7 @@ void App::recompute_waveform_for_current_track() {
     // Bump the epoch before the thread starts: a waveform thread that is still running sees that its
     // epoch is stale and drops its result, instead of overwriting pending_waveform_envelope_.
     int my_epoch = ++waveform_epoch_;
-    std::thread([this, pcm, smooth, my_epoch]() { run_guarded("waveform pass", [&] {
+    spawn_bg("waveform pass", [this, pcm, smooth, my_epoch]() {
         if (pcm->windowed) {
             // a long track: from the figures of its analysis pass (the samples are not all held)
             if (!pcm->analysis_done.load(std::memory_order_acquire) || pcm->env_sumsq.empty()) return;
@@ -172,7 +173,7 @@ void App::recompute_waveform_for_current_track() {
         if (my_epoch != waveform_epoch_.load()) return; // superseded — discard
         pending_waveform_envelope_ = std::move(envelope);
         waveform_pending_ready_ = true;
-    }); }).detach();
+    });
 }
 
 void App::resolve_playlist_tracks_async() {
@@ -192,8 +193,9 @@ void App::resolve_playlist_tracks_async() {
         if (it == row_meta_cache_.end() || !it->second.tags_resolved) paths->push_back(q.local_path);
     }
     if (paths->empty()) return;
-    std::thread([this, paths]() { run_guarded("playlist metadata", [&] {
+    spawn_bg("playlist metadata", [this, paths]() {
         for (const fs::path& p : *paths) {
+            if (bg_->quit.load()) return;   // quitting
             std::string key = path_utf8(p);
             RowMeta rm = try_native_row_meta(p);
             if (!rm.tags_resolved) {
@@ -211,8 +213,12 @@ void App::resolve_playlist_tracks_async() {
             }
             row_meta_tags_version_.fetch_add(1, std::memory_order_relaxed);
         }
-    }); }).detach();
+    });
 }
+
+// The parallel workers of the background tag sweep (a constant outside the function: MSVC does not let a nested lambda use a
+// local constexpr without capturing it).
+static constexpr int kResolverWorkers = 4;
 
 void App::launch_row_meta_resolver() {
     // One sweep per session -- except that rescan_library() clears the
@@ -223,55 +229,94 @@ void App::launch_row_meta_resolver() {
     auto paths = std::make_shared<std::vector<fs::path>>();
     paths->reserve(all_local_tracks_.size());
     for (auto& t : all_local_tracks_) paths->push_back(t.path);
+    const bool books = audiobook_;
 
-    // Background sweep over the whole library: resolves the tags of every file the render thread
-    // has not reached yet. ffprobe is a separate process per call and slow to start (especially on
-    // Windows), so a few workers pull file indices from a shared counter and run calls in parallel.
-    constexpr int kResolverWorkers = 4;
-    auto next_index = std::make_shared<std::atomic<size_t>>(0);
-
-    for (int worker = 0; worker < kResolverWorkers; ++worker) {
-        std::thread([this, paths, next_index]() { run_guarded("library metadata sweep", [&] {
-            for (;;) {
-                size_t i = next_index->fetch_add(1, std::memory_order_relaxed);
-                if (i >= paths->size()) return;
-                const fs::path& p = (*paths)[i];
-                std::string key = path_utf8(p);
-                {
-                    std::lock_guard<std::mutex> lk(row_meta_mutex_);
-                    auto it = row_meta_cache_.find(key);
-                    // A cache entry counts as done only when its tags came from a real probe. The render
-                    // thread may cache just the duration (from the native header parser), so such an entry
-                    // must not stop the sweep: its tags still need ffprobe.
-                    if (it != row_meta_cache_.end() && it->second.tags_resolved) continue;
-                }
-                RowMeta rm = try_native_row_meta(p);
-                // Try the native header reader first: for a well-formed tag (the common case) it needs a
-                // few pread() calls, while ffprobe costs a whole process spawn per file. Only what the
-                // native reader declines (another format, or an unusual tag layout) goes to ffprobe.
-                if (!rm.tags_resolved) {
-                    RowMeta ff = probe_row_meta(p);
-                    if (rm.duration_sec <= 0) rm.duration_sec = ff.duration_sec; // keep native's duration if we already had it
-                    rm.title = ff.title;
-                    rm.artist = ff.artist;
-                    rm.album = ff.album;
-                    rm.tags_resolved = ff.tags_resolved;
-                }
-                {
-                    std::lock_guard<std::mutex> lk(row_meta_mutex_);
-                    // Only a new key counts against the cache cap. Overwriting an existing entry does
-                    // not grow the map, so it is never refused: otherwise a duration-only entry could
-                    // never be upgraded to one with tags once the cache was full.
-                    translit_learn(rm.title, rm.artist, rm.album, key);
-                    row_meta_cache_[key] = rm;   // no cap: ~200 bytes a track, and a cap left the tags of every file past it unsearchable
-                }
-                // Tell the main thread that tags arrived: poll_pending_row_meta_tags() (called every
-                // frame) re-runs an active search when this version changes, so a file that becomes
-                // searchable by its tags is found without retyping the query.
-                if (rm.tags_resolved) row_meta_tags_version_.fetch_add(1, std::memory_order_relaxed);
+    // Everything runs in the background. First the tag cache of the last run (tag_cache.h): every file whose size and
+    // modification time did not change gets its tags from there at once. Then the sweep over the rest: ffprobe is a separate
+    // process per call and slow to start (especially on Windows), so a few workers pull file indices from a shared counter and
+    // run calls in parallel. The last worker to finish writes the tag cache anew (also when the program quits half-way: what was
+    // read so far is kept).
+    spawn_bg("library tag cache", [this, paths, books]() {
+        auto stamps = std::make_shared<std::vector<TagStamp>>(paths->size());
+        {
+            const TagCacheMap cached = tag_cache_load(tag_cache_path(books));
+            size_t hits = 0;
+            for (size_t i = 0; i < paths->size() && !bg_->quit.load(); ++i) {
+                (*stamps)[i] = tag_stamp((*paths)[i]);
+                if (cached.empty() || !(*stamps)[i].ok()) continue;
+                const std::string key = path_utf8((*paths)[i]);
+                const auto it = cached.find(key);
+                if (it == cached.end() || !(it->second.stamp == (*stamps)[i])) continue;   // new or changed: read again
+                std::lock_guard<std::mutex> lk(row_meta_mutex_);
+                auto& slot = row_meta_cache_[key];
+                if (slot.tags_resolved) continue;   // read meanwhile (the rows on screen, the meta editor)
+                slot = it->second.meta;
+                translit_learn(slot.title, slot.artist, slot.album, key);
+                ++hits;
             }
-        }); }).detach();
-    }
+            if (hits > 0) row_meta_tags_version_.fetch_add(1, std::memory_order_relaxed);   // search / sort see them now
+            ConsoleLog::instance().log_verbose("tag cache: " + std::to_string(hits) + " of " + std::to_string(paths->size()) + " files unchanged");
+        }
+        auto next_index = std::make_shared<std::atomic<size_t>>(0);
+        auto finished = std::make_shared<std::atomic<int>>(0);
+        for (int worker = 0; worker < kResolverWorkers; ++worker) {
+            spawn_bg("library metadata sweep", [this, paths, stamps, next_index, finished, books]() {
+                for (;;) {
+                    if (bg_->quit.load()) break;   // quitting: stop here (what was read is written below)
+                    size_t i = next_index->fetch_add(1, std::memory_order_relaxed);
+                    if (i >= paths->size()) break;
+                    const fs::path& p = (*paths)[i];
+                    std::string key = path_utf8(p);
+                    {
+                        std::lock_guard<std::mutex> lk(row_meta_mutex_);
+                        auto it = row_meta_cache_.find(key);
+                        // A cache entry counts as done only when its tags came from a real probe. The render
+                        // thread may cache just the duration (from the native header parser), so such an entry
+                        // must not stop the sweep: its tags still need ffprobe.
+                        if (it != row_meta_cache_.end() && it->second.tags_resolved) continue;
+                    }
+                    RowMeta rm = try_native_row_meta(p);
+                    // Try the native header reader first: for a well-formed tag (the common case) it needs a
+                    // few pread() calls, while ffprobe costs a whole process spawn per file. Only what the
+                    // native reader declines (another format, or an unusual tag layout) goes to ffprobe.
+                    if (!rm.tags_resolved) {
+                        RowMeta ff = probe_row_meta(p);
+                        if (rm.duration_sec <= 0) rm.duration_sec = ff.duration_sec; // keep native's duration if we already had it
+                        rm.title = ff.title;
+                        rm.artist = ff.artist;
+                        rm.album = ff.album;
+                        rm.tags_resolved = ff.tags_resolved;
+                    }
+                    {
+                        std::lock_guard<std::mutex> lk(row_meta_mutex_);
+                        translit_learn(rm.title, rm.artist, rm.album, key);
+                        row_meta_cache_[key] = rm;   // no cap: ~200 bytes a track, and a cap left the tags of every file past it unsearchable
+                    }
+                    // Tell the main thread that tags arrived: poll_pending_row_meta_tags() (called every
+                    // frame) re-runs an active search when this version changes, so a file that becomes
+                    // searchable by its tags is found without retyping the query.
+                    if (rm.tags_resolved) row_meta_tags_version_.fetch_add(1, std::memory_order_relaxed);
+                }
+                if (finished->fetch_add(1) + 1 != kResolverWorkers) return;
+                // the last worker: the tags of every library file as they are now, with the stamps taken before they were read
+                // (a file changed since then has a newer stamp on disk and is read again next time)
+                TagCacheMap out;
+                {
+                    std::lock_guard<std::mutex> lk(row_meta_mutex_);
+                    out.reserve(paths->size());
+                    for (size_t i = 0; i < paths->size(); ++i) {
+                        if (!(*stamps)[i].ok()) continue;
+                        const std::string key = path_utf8((*paths)[i]);
+                        const auto it = row_meta_cache_.find(key);
+                        if (it == row_meta_cache_.end() || !it->second.tags_resolved) continue;
+                        out[key] = TagCacheEntry{(*stamps)[i], it->second};
+                    }
+                }
+                if (!tag_cache_save(tag_cache_path(books), out))
+                    ConsoleLog::instance().log_basic("tag cache: could not write " + path_utf8(tag_cache_path(books)));
+            });
+        }
+    });
 }
 
 // Every frame's counterpart to launch_row_meta_resolver(): re-filters the

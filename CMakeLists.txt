@@ -246,6 +246,15 @@ endif()
 target_sources(mousiki PRIVATE ${AUDIO_BOOK_SOURCES})
 target_include_directories(mousiki PRIVATE "${CMAKE_SOURCE_DIR}/src_audio_book")
 
+# Compiler warnings for GCC / Clang (MinGW included; MSVC has /W3 above): -Wall -Wextra on Mousiki's own sources only,
+# so the vendored libraries (miniaudio, kissfft, miniz, chromaprint) stay quiet. Warnings never stop the build.
+option(MOUSIKI_WARNINGS "GCC/Clang: build Mousiki's own sources with -Wall -Wextra" ON)
+if(MOUSIKI_WARNINGS AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  set(MOUSIKI_OWN_SOURCES ${MUISC_SOURCES} ${RADIO_MODE_SOURCES} ${AUDIO_BOOK_SOURCES})
+  list(FILTER MOUSIKI_OWN_SOURCES EXCLUDE REGEX "(^|/)src/miniaudio_impl\\.cpp$")
+  set_property(SOURCE ${MOUSIKI_OWN_SOURCES} APPEND PROPERTY COMPILE_OPTIONS -Wall -Wextra)
+endif()
+
 # Optional stand-alone radio executable (development / tests): the radio only, no mode switch.
 option(MOUSIKI_BUILD_RADIO_STANDALONE "Also build the radio as its own executable (mousiki_radio)" OFF)
 if(MOUSIKI_BUILD_RADIO_STANDALONE)
@@ -307,6 +316,9 @@ if(MOUSIKI_BUILD_TESTS)
   get_target_property(MOUSIKI_ALL_SOURCES mousiki SOURCES)
   list(FILTER MOUSIKI_ALL_SOURCES EXCLUDE REGEX "(^|/)src/main\\.cpp$")
   add_executable(mousiki_tests ${MOUSIKI_TEST_SOURCES} ${MOUSIKI_ALL_SOURCES})
+  if(MOUSIKI_WARNINGS AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    set_property(SOURCE ${MOUSIKI_TEST_SOURCES} APPEND PROPERTY COMPILE_OPTIONS -Wall -Wextra)
+  endif()
   target_include_directories(mousiki_tests PRIVATE "${CMAKE_SOURCE_DIR}/tests" $<TARGET_PROPERTY:mousiki,INCLUDE_DIRECTORIES>)
   target_compile_definitions(mousiki_tests PRIVATE $<TARGET_PROPERTY:mousiki,COMPILE_DEFINITIONS>)
   target_compile_options(mousiki_tests PRIVATE $<TARGET_PROPERTY:mousiki,COMPILE_OPTIONS>)

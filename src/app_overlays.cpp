@@ -95,6 +95,7 @@ inline int list_total_for(ListSource src, size_t local, size_t online, size_t pl
 // they close.
 bool App::list_overlay_active() const {
     if (!list_overlay_open_) return false;
+    if (mode_ == Mode::AudioDevice) return !adev_from_settings_;
     switch (mode_) {
         case Mode::Browse: case Mode::Search: case Mode::BulkAdd:
         case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: case Mode::BookOverlay: return true;

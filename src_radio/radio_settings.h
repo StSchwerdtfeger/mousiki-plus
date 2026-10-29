@@ -124,6 +124,9 @@ struct RadioSettings : VizPrefs {
     // radio_config.txt and come back when it is turned off). Colours / themes are never shared.
     bool share_profiles = false;
     VizPrefs own_viz;
+    // The sound output of all modes (GENERAL -> AUDIO "Choose Audio Device"; AudioDevice= in the player's config.txt, "" = the
+    // system default). Read when the radio starts; the CHOOSE AUDIO DEVICE overlay writes that line at once.
+    std::string audio_device;
     // Remote App (GENERAL -> REMOTE / UPDATES; RemoteApp= / RemoteAppPort= / RemoteAppPin= in the player's config.txt, one value for both):
     // the web server of the phone remote (src/remote_server.h). Read when the radio starts, written by save_radio_settings().
     bool remote_app = false;

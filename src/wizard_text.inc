@@ -119,6 +119,7 @@ TABLE OF CONTENT: [[Header]]
    2.6.2 Loudness Normalization and Stereo/Mono
    2.6.3 Sample Rate and Playback Engine
    2.6.4 Sleep Timer
+   2.6.5 Audio Device
 
   2.7 History[[Header]]
    2.7.1 Listening History
@@ -287,6 +288,11 @@ RESCAN LIBRARY: [[Header]]
 Can also be done at any time via the command [SHIFT+r] when adding/deleting files while
 Mousiki is currently running (restarting also triggers a new scan). 
 
+TAGS ARE KEPT BETWEEN RUNS: [[Header]]
+The tags of the library (title, artist, album, year, length) are kept in ~/.cache/mousiki/tag_cache.txt.
+At the next start every file whose size and modification time did not change gets its tags from there
+at once, so search and sort work right away; only new and changed files are read again.
+
 IMPORTANT BEFORE LEAVING THE SETTINGS: [[Header]]
 Remember to leave the settings by hitting [s] to save changes (made in the config.txt). 
 Exiting via [ESC] or [q] exits the settings and discards changes that were made, but you
@@ -387,14 +393,14 @@ Bandcamp   =>  the free 128 kbit/s MP3 stream
 
 The file is named Title - Artist.ext, the cached copy is
 removed, and the library refreshes so it appears as a local
-track straight away.
+)WIZ",
+R"WIZ(track straight away.
 
 DOWNLOAD LOCATION:[[HEADER]]
 Set download PATH at [s] Settings[[Header]]  ->>  PATHS[[LEGEND]]  ->>  DOWNLOAD PATH [[Header]]
 Default download path is inside the cache folder (~/.cache/mousiki).
 The download folder is scanned automatically, so you never have to repeat it as a
-)WIZ",
-R"WIZ(local path. The radio puts its recordings in the same folder by default.
+local path. The radio puts its recordings in the same folder by default.
 
 SHARED DOWNLOAD HISTORY OF MOUSIKI AND YT-DLP:[[Header]]
 When using yt-dlp it places a downloaded_history.txt file inside the chosen download path. This
@@ -534,13 +540,13 @@ hides all tracks that are not missing that tag. The bottom row then says
 
 FETCHING META DATA OF SINGLE TRACKS (POSSIBLE IN BOTH TABS)[[Header]]
 [SHIFT+b]   Fetch missing tags of a SINGLE TRACK
-[SHIFT+n]   Fetch all tags (again) of a SINGLE TRACK (overwrites existing tags)
+)WIZ",
+R"WIZ([SHIFT+n]   Fetch all tags (again) of a SINGLE TRACK (overwrites existing tags)
 
 GENERAL BEHAVIOR OF META DATA EDITOR:[[Header]]
 Every change goes into a pending edit session, autosaved after each keystroke.
 Closing the editor, quitting, even a crash keeps it. Edited fields and their
-)WIZ",
-R"WIZ(library rows are drawn in the header colour, so you can see what will be written.
+library rows are drawn in the header colour, so you can see what will be written.
 Also, when fetching takes a while and you exit the meta data menu, fetching does
 not stop, will continue in the background.
 Only [CTRL+s] writes to the files, and it asks if you want to keep changes. Same
@@ -673,12 +679,12 @@ Dark covers behind the disk: dark dots are lifted a little (locally; bright part
 [o]          only albums with ONE cover
 [s]          only albums with SEVERAL covers
 [p]          Previous unsuccessful fetch: albums that were asked for without success are
-             remembered and listed ONLY here. HTTP 500/503 = the server is busy: not remembered, tried again
+)WIZ",
+R"WIZ(             remembered and listed ONLY here. HTTP 500/503 = the server is busy: not remembered, tried again
              after the list (3 more times, pauses of 45/90/135 s). Titles are searched exact, then fuzzy
              ([ESC] takes the filter off)
 [SHIFT+d]    remove the album TITLE of the album (asks first): pending, empty album tag of its tracks in
-)WIZ",
-R"WIZ(             the meta data editor, saved there with [CTRL+s] - for wrong titles
+             the meta data editor, saved there with [CTRL+s] - for wrong titles
 [SHIFT+r]    rescan the music folders; [ALT+c] / macOS [SHIFT+q] closes the overlay again
 [a]          add the album (on a folder row: all its albums) to the fetch list
 [SHIFT+f]    add everything the search shows (and the filter keeps) to the fetch list
@@ -792,11 +798,11 @@ MAKE THE LYRICS BIGGER: [[Header]]
                              English keyboard: ['] / [;]
 (Rebindable: Karaoke Lyrics Bigger / Smaller in Settings -> REFERENCE.)
 Size 1 is normal terminal text. Sizes 2 to 5 use Mousiki's own pixel font drawn in braille dots
-(3 x 2, 6 x 4, 9 x 6 and 12 x 8 cells per letter). Only the lyrics change size, long lines wrap
+)WIZ",
+R"WIZ((3 x 2, 6 x 4, 9 x 6 and 12 x 8 cells per letter). Only the lyrics change size, long lines wrap
 between words. The bottom border shows the size for a moment, and it is saved when you close.
 The basic font covers Latin letters, digits, punctuation, umlauts and common accented letters.
-)WIZ",
-R"WIZ(Another font for Japanese, Chinese, Korean, Cyrillic and Greek letters is also available but
+Another font for Japanese, Chinese, Korean, Cyrillic and Greek letters is also available but
 may have different sizing options.
 
 KEYS THAT KEEP WORKING IN KARAOKE: [[Header]]
@@ -930,10 +936,10 @@ In the preview [G] turns the scope grid on/off.
 MICROPHONE: [[Header]]
 Rows: Live view (Spectrogram = default, Oscilloscope XY, Oscilloscope YT), Scope grid, Start the microphone
 preview, Created files... In the big preview your microphone is shown live (a playing song stops and
-comes back afterwards): [ENTER] starts / stops a recording (mic_<date>_<time>.wav in the creator folder,
-max. 5 minutes), [V] changes the view, [G] the grid, [ESC] closes the preview (a running recording is saved) and returns to the overlay.
 )WIZ",
-R"WIZ(A one-channel microphone gives the same signal left and right, so XY is a diagonal line: use YT or the
+R"WIZ(comes back afterwards): [ENTER] starts / stops a recording (mic_<date>_<time>.wav in the creator folder,
+max. 5 minutes), [V] changes the view, [G] the grid, [ESC] closes the preview (a running recording is saved) and returns to the overlay.
+A one-channel microphone gives the same signal left and right, so XY is a diagonal line: use YT or the
 spectrogram. If the microphone cannot be opened, the overlay says why (allow microphone access for your
 terminal on macOS / Windows).
 
@@ -1034,6 +1040,33 @@ The player pauses (the position is kept, [p] resumes), the radio stops the strea
 changes the play mode, and it is gone after a restart.
 
 [[New Page]]
+2.6.5 AUDIO DEVICE [[Header]]
+
+OPEN:[[Header]] [°] (German keyboards: [SHIFT+^]; other keyboards: [&]) opens the CHOOSE AUDIO DEVICE
+overlay, in the music player, the radio and the audio books. Settings, GENERAL, AUDIO, Choose Audio
+Device and [ENTER] opens the same overlay over the settings.
+
+System Default (name)    the output the system uses now (the default: nothing chosen)
+the devices              every sound output of this computer (speakers, headphones, HDMI, USB, Bluetooth)
+
+[UP]/[DOWN] pick, [ENTER] switches at once, [r] reads the list again (a headset that was just plugged
+in), [ESC] closes. The device in use is marked "in use".
+
+SWITCHING: [[Header]]
+A track that plays goes on at the same place on the new device (a paused one stays paused); the radio
+stream goes on without stopping. A device that is not there (unplugged) plays on the default one until
+it is back, the overlay then lists it as "(not found)".
+
+ONE CHOICE FOR ALL MODES: [[Header]]
+The choice is written to config.txt at once (AudioDevice=, the name as the system gives it; empty
+means the system default). The [s] / [ESC] of the settings screen neither save nor undo it.
+
+THE KEY: [[Header]]
+[°] where it is [SHIFT+^] (German, Austrian, Swiss layouts), [&] elsewhere (US / UK keyboards have no
+°; [%] stays the queue's "move to the bottom" key). It can be changed in Settings, REFERENCE
+(Choose Audio Device), in the radio too.
+
+[[New Page]]
 2.7.1 LISTENING HISTORY [[Header]]
 
 OPEN: [[Header]] [SHIFT+h] opens the history; [ESC], [q] or [SHIFT+h] close it.
@@ -1061,7 +1094,8 @@ stay exact over years. It lives in history.json, in [s] Settings[[Header]] ->> P
 2.7.2 SMART HISTORY LISTS [[Header]]
 
 ADD SMART HISTORY TO QUEUE: [[Header]]
-Under the TOP TRACKS list sits a pane with sixteen ready-made lists in four columns:
+)WIZ",
+R"WIZ(Under the TOP TRACKS list sits a pane with sixteen ready-made lists in four columns:
 
 TOP TRACKS    TOP OF THE...    TIME OF DAY    REDISCOVER
 Top 10        the week         Morning        newly added
@@ -1099,8 +1133,7 @@ SAVING AND LEAVING: [[Header]]
 Every change is live: you see and hear it while you are still in the settings. But only [s] writes
 it to config.txt and closes. [ESC] or [q] discards. With unsaved changes the settings ask first:
 [s] save, [d] discard, [ESC] keep editing. Discarding puts every row back the way it was when you
-)WIZ",
-R"WIZ(opened the settings, paths included. While there are unsaved changes a note says so.
+opened the settings, paths included. While there are unsaved changes a note says so.
 
 TEXT EDITING, IN EVERY FIELD: [[Header]]
 [<-/->] caret            [SHIFT+<-/->] mark          [HOME] [END] jump
@@ -1169,6 +1202,14 @@ Note that on every Settings tab that scrolls, [SHIFT+UP] / [SHIFT+DOWN] moves a 
                                                   order.
 
 [AUDIO:][[Header]]
+[Choose Audio Device:][[Legend]]                              shows the sound output in use (System Default unless you
+                                                  picked one); [ENTER] opens the CHOOSE AUDIO DEVICE overlay
+                                                  (2.6.5). One choice for all modes, saved at once.
+
+[Playback Speed:][[Legend]]                                   audio books only: 0.5x - 3.0x in steps of 0.05 (default
+                                                  1.0x); the voice keeps its pitch. The same value as
+                                                  [SHIFT+<-] / [SHIFT+->] in the audio book player.
+
 [Track Buffer (MB):][[Legend]]                                default = 256: a track whose decoded audio is smaller is
                                                   held whole in RAM, so seeking is instant; a bigger one
                                                   uses a moving 2-minute window. [ENTER] types a number
@@ -1189,7 +1230,8 @@ Note that on every Settings tab that scrolls, [SHIFT+UP] / [SHIFT+DOWN] moves a 
 [Use Terminal Settings:][[Legend]]                            true = Mousiki leaves the terminal size as it is: Terminal
                                                   Size and Full Screen are ignored (they keep their values).
                                                   Default is false.
-
+)WIZ",
+R"WIZ(
 [Terminal Size:][[Legend]]                                    columns x rows (default 120 x 32, which shows 4 rows in
                                                   the list and the queue) Use [<-/->] to choose the field or
                                                   the [ Set back to default ] button, where [ENTER] makes
@@ -1216,8 +1258,7 @@ Note that on every Settings tab that scrolls, [SHIFT+UP] / [SHIFT+DOWN] moves a 
                                                   browser version of Mousiki. You can also install the .apk
                                                   for Android that can be found on github, which is
                                                   essentially just a small browser app that can be opened
-)WIZ",
-R"WIZ(                                                  via an icon.
+                                                  via an icon.
 
 [Update Notice:][[Legend]]                                    a quiet once-a-day look for a newer release; a small
                                                   window, once per version ([ESC] close, [o] open the Github
@@ -1298,7 +1339,8 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 
 [DISK:][[Header]]
 [Eliment Disk / Cover:][[Legend]]                             shows or hides the disk field in the player area: the
-                                                  spinning disk, or the album cover when Album Cover is on
+)WIZ",
+R"WIZ(                                                  spinning disk, or the album cover when Album Cover is on
                                                   (see below).
 
 [Disk Speed:][[Legend]]                                       with range between 0.01 - 1.00.
@@ -1325,8 +1367,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   themselves turn smoothly around the centre.
                                                   5. Cover behind Disk (Full Anima) - the same, but the dots
                                                   follow the exact braille animation of the disk: rotated
-)WIZ",
-R"WIZ(                                                  and rounded to the dot grid, some of them come and go as
+                                                  and rounded to the dot grid, some of them come and go as
                                                   it turns (the effect of the disk look of the Volume
                                                   Indicator).
                                                   6. Cover ASCII - the cover as braille dots in its own
@@ -1391,7 +1432,8 @@ R"WIZ(                                                  and rounded to the dot g
                                                   toggle: gradient / no gradient, where gradient = the VIZ
                                                   colours gradient from left to right, like the oscilloscope
                                                   is using... [<-/->] switch between the two values of the
-                                                  row, [ENTER] changes the options.
+)WIZ",
+R"WIZ(                                                  row, [ENTER] changes the options.
 
 [SPECTRUM BARS:][[Header]]               
 [On/Off:][[Legend]]                                           shows or hides the spectrum bars under the meta data
@@ -1425,8 +1467,7 @@ R"WIZ(                                                  and rounded to the dot g
 [Viz Order:][[Legend]]                                        1-4, the order of the views in the [,/.] cycle.
 
 [MAIN UI VIZ/LYRICS FIELD:][[Header]] 
-)WIZ",
-R"WIZ([Viz/Lyrics Field:][[Legend]]                                 false = no field, the meta data take its place.
+[Viz/Lyrics Field:][[Legend]]                                 false = no field, the meta data take its place.
 
 [Use Lyrics Engine / Use Oscilloscope / Use Spectrogram / Use Sphere:][[Legend]]
                                                   When a Viz. is set to false it leaves that view out of the
@@ -1519,7 +1560,8 @@ FROM TOP TO BOTTOM: [[Header]]
 TOP PANE:[[Header]] 
 Consists of the ON AIR sign (OFF AIR while nothing is live), the station info (station, title,
 artist, genre, bitrate, sampling rate, type, country), a spectrum under it and the oscilloscope,
-sphere or spectrogram on the right.
+)WIZ",
+R"WIZ(sphere or spectrogram on the right.
 
 FREQUENCY BAND (MHz):[[Header]] 
 Shows a tuning dial. The needle shows the tuned station, dots mark the other stations of your list. 
@@ -1542,6 +1584,7 @@ KEYS ON THE MAIN SCREEN: [[Header]]
 [+] / [-]    volume                     [/]      search        [SHIFT+t]  sort list order <-> A-Z
 [SHIFT+p] presets   [SHIFT+s] radio browser   [SHIFT+k] station lists   [SHIFT+l] big stations overlay
 [h] history   [s] settings   [?] cheat sheet   [<] menus index   [SHIFT+w] this wizard   [q] quit
+[°] (German [SHIFT+^]; other keyboards [&])  choose the audio device (2.6.5)
 
 THE BIG STATIONS OVERLAY: [[Header]]
 [SHIFT+l] shows the STATIONS pane over the whole screen plus a PRESET NAME column.
@@ -1562,8 +1605,7 @@ preset. The name of the active preset list is in the pane title: e.g. PRESETS (M
 THE PRESETS MENU:[[Header]] 
 [SHIFT+p] opens it and is where preset lists can be created. A small [◀] behind a pane's 
 title shows which pane is focused, just as in the music palyer. Names are 1 to 24 characters 
-)WIZ",
-R"WIZ(and unique. Every change is written to presets.txt at once.
+and unique. Every change is written to presets.txt at once.
 
 KEYS IN THE PRESETS MENU: [[Header]]
 [TAB]                  SEARCH > SELECT PRESET > STATIONS
@@ -1681,7 +1723,8 @@ While it runs the footer of the dial shows REC mm:ss.
 
 WHAT YOU GET: [[Header]]
 The recording is written from the buffer as a WAV, which ffmpeg then converts in the background to
-YYYY-MM-DD_HH-MM-SS.mp3, named by the time the first recorded second was on air. It is taken before
+)WIZ",
+R"WIZ(YYYY-MM-DD_HH-MM-SS.mp3, named by the time the first recorded second was on air. It is taken before
 volume, mute and the mono fold.
 
 WHERE IT GOES: [[Header]]
@@ -1726,8 +1769,7 @@ Colors are not carried over between the two modes: the radio has its own palette
 own theme choice, unless the option "Shared profile" is set to true.
 
 COLORS (ONLY THE RADIO HAS): [[Header]]
-)WIZ",
-R"WIZ(ON_AIR            the diagonal gradient of the ON AIR sign, the needle, the lamp and LIVE
+ON_AIR            the diagonal gradient of the ON AIR sign, the needle, the lamp and LIVE
 OSCI              left / right color of the oscilloscope
 FREQUENCY_BAR     the line and ticks of the dial / the numbers and dots
 VOLUME            current / possible part of the volume bar
@@ -1816,6 +1858,16 @@ PLAYBACK: [[Header]]
 [->] / [<-]  seek: 5 seconds at first, faster and faster the longer the key is held (up to minutes), 
              so a long book can be crossed quickly. [p] pause, volume, mute and the sleep timer as always.
 
+PLAYBACK SPEED: [[Header]]
+[SHIFT+->] / [SHIFT+<-]  faster / slower in steps of 0.05, from 0.5x to 3.0x. The voice keeps its pitch
+             (the audio is stretched in time, not played faster like a record). A small box left of the
+             play mode box (right of the search bar) shows it: 1.0x, 1.25x ... It is as wide as its text.
+             The speed is saved at once and is also in Settings, GENERAL, AUDIO (Playback Speed).
+)WIZ",
+R"WIZ(             Times, bookmarks, notes and the progress bar stay in the time of the book: at 1.5x a 60
+             minute chapter still shows 60:00, it just takes 40 minutes. The music player and the
+             radio always play at 1.0x. [°] / [&] opens CHOOSE AUDIO DEVICE (2.6.5), as in the player.
+
 THE DEFAULT PICTURE: [[Header]] 
 An image of a women rading a book (a grey version of a colour picture) takes the place of the disk. 
 It is drawn as small braille dots (a 60 x 60 dot field) and stays still; the colour wave of the 
@@ -1859,8 +1911,7 @@ File name, Book title, Author, Narrator, Chapter, Publisher, Year and Genre.
               The File name row edits the name only; the ending (.mp3 ...) stays.
 [a]           writes the changed book rows (book title, author, narrator, publisher + year, genre) 
               to every chapter of the book; the chapter title stays each chapter's own. The chapter 
-)WIZ",
-R"WIZ(              number always goes in FRONT of the name (01 Dune, 02 Dune ...): the folder is sorted 
+              number always goes in FRONT of the name (01 Dune, 02 Dune ...): the folder is sorted 
               by name, so the number keeps the track order whatever the titles are.
 
 A number that is there already is not added twice; numbers at the END of every name (Dune 01) are moved 
@@ -1934,7 +1985,8 @@ book, chapter, time; the newest first, notes last.
 [ENTER]    opens the book, goes to the chapter and offers the resume choices 
            (on the spot / 10 / 20 / 30 / 60 s before / start).
 [SHIFT+p]  opens the book and plays from the time stamp at once; the list stays.
-[SHIFT+d]  discards a time stamp of any kind - a warning asks first; [y] confirms this step.
+)WIZ",
+R"WIZ([SHIFT+d]  discards a time stamp of any kind - a warning asks first; [y] confirms this step.
 [SHIFT+b]  turns an auto-mark into a regular bookmark.
 [SHIFT+t]  sorting: by the date the stamp was set (newest first), by book (A-Z, the highest chapter 
            and the furthest mark first).
@@ -1986,8 +2038,7 @@ stays until you delete it on purpose: [SHIFT+d] in this window shows how much sp
 
 BOOKMARK AND NOTES FOLLOW: [[Header]] 
 The bookmark and every note in the cut file move to the part that holds their place,
-)WIZ",
-R"WIZ(with the time inside that part (a note at 0:25:00, a chapter starting at 0:10:00: 0:15:00 
+with the time inside that part (a note at 0:25:00, a chapter starting at 0:10:00: 0:15:00 
 of the new chapter).
 
 [[New Page]]

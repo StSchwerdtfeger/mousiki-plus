@@ -89,6 +89,7 @@ inline const RefHotkeyRow kRefRows[] = {
     {nullptr, "HKeyModeNext", "Next Mode"},      // music player -> radio -> audio books (SHIFT and + on a German keyboard)
     {nullptr, "HKeyModePrev", "Previous Mode"},
     {nullptr, "HKeyConsole", "Console / Logs"},
+    {nullptr, "HKeyAudioDevice", "Choose Audio Device"},
     {nullptr, "HKeyWizard", "Help Wizard"},
     {nullptr, "HKeyCheatsheet", "Cheatsheet"},
     {nullptr, "HKeyMenus", "Menus / Overlays Index"},
@@ -127,6 +128,8 @@ enum SetId {
     kSidUseModePlayer, kSidUseModeRadio, kSidUseModeBook, kSidModeOrder1, kSidModeOrder2, kSidModeOrder3, kSidBookAsk, kSidBookCover, kSidBookCoverWave,
     kSidAlbumCover, kSidCoverMode, kSidCoverContrast, kSidCoverSearch,
     kSidCheckUpdate,   // [ENTER] checks for a newer release now (an action row, no value to switch)
+    kSidBookSpeed,     // audio book player: the playback speed (0.5x - 3.0x, the pitch stays)
+    kSidAudioDevice,   // the sound output: shows the device in use, [ENTER] opens the CHOOSE AUDIO DEVICE overlay
 };
 // True while the audio book player is the mode that runs (set by App::run()): its GENERAL and ANIMA/VIZ tabs leave out what only
 // belongs to the music player and name the lyrics view "notes".
@@ -142,6 +145,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidModeOrder1, "Mode Order 1"}, {false, kSidModeOrder2, "Mode Order 2"}, {false, kSidModeOrder3, "Mode Order 3"},
         {true, -1, ""},
         {true, -1, "AUDIO"},
+        {false, kSidAudioDevice, "Choose Audio Device"},
         {false, kSidStereo, "Stereo Sound"}, {false, kSidNormalize, "Normalize Volume"}, {false, kSidTrackBuffer, "Track Buffer (MB)"},
         {false, kSidRateCap, "Rate Cap at 96 kHz"},
         {true, -1, ""},
@@ -215,6 +219,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidUpdateCheck, "Update Notice"}, {false, kSidCheckUpdate, "Check Update"},
         {true, -1, ""},
         {true, -1, "AUDIO"},
+        {false, kSidAudioDevice, "Choose Audio Device"}, {false, kSidBookSpeed, "Playback Speed"},
         {false, kSidStereo, "Stereo Sound"}, {false, kSidNormalize, "Normalize Volume"}, {false, kSidTrackBuffer, "Track Buffer (MB)"},
         {false, kSidRateCap, "Rate Cap at 96 kHz"},
         {true, -1, ""},

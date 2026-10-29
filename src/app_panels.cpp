@@ -993,8 +993,16 @@ std::vector<std::string> App::build_search_bar(int total_width) const {
     std::string border_ansi_bottom = ansi_for(settings_.border_color_bottom, false);
     std::vector<std::string> out;
     int search_w = total_width - 5;
+    // Audio book player: a small box with the playback speed sits left of the play-mode box ("1.0x", "1.25x" ...); it is as wide
+    // as its text, and the search box gives up those columns.
+    const std::string speed_txt = audiobook_ ? speed_label(settings_.book_speed) : std::string();
+    const int speed_w = speed_txt.empty() ? 0 : static_cast<int>(speed_txt.size()) + 4;   // "│ 1.25x │"
+    if (speed_w > 0 && search_w - speed_w >= 20) search_w -= speed_w;
+    const bool speed_box = speed_w > 0 && search_w + speed_w + 5 <= total_width;
+    std::string dash;
+    for (int i = 0; i < speed_w - 2; ++i) dash += "─";
     if (mode_ == Mode::Search) label += focus_indicator(settings_, border_ansi);   // the search box has the keys
-    out.push_back(box_top(label, search_w, border_ansi) + border_ansi + "╭───╮\x1b[0m");
+    out.push_back(box_top(label, search_w, border_ansi) + (speed_box ? border_ansi + "╭" + dash + "╮" : std::string()) + border_ansi + "╭───╮\x1b[0m");
     // Play-mode indicator: L=list, R=repeat, S=shuffle, Q=queue then stop,
     // O=stop -- one letter for whichever of the five settings_.play_mode
     // states is active, cycled with a single "m" press
@@ -1028,9 +1036,10 @@ std::vector<std::string> App::build_search_bar(int total_width) const {
         line = bar + " " + search_idle_sgr(settings_) + pre + search_run(settings_, qry, !qry.empty())
              + std::string(static_cast<size_t>(fill), ' ') + "\x1b[0m " + bar;
     }
-    out.push_back(line + border_ansi + settings_.box_vertical
+    const std::string speed_cell = speed_box ? border_ansi + settings_.box_vertical + "\x1b[0m " + speed_txt + " " + border_ansi + settings_.box_vertical + "\x1b[0m" : std::string();
+    out.push_back(line + speed_cell + border_ansi + settings_.box_vertical
                   + " " + mode_letter + " " + settings_.box_vertical + "\x1b[0m");
-    out.push_back(box_bottom(search_w, "", border_ansi_bottom) + border_ansi_bottom + "╰───╯\x1b[0m");
+    out.push_back(box_bottom(search_w, "", border_ansi_bottom) + (speed_box ? border_ansi_bottom + "╰" + dash + "╯" : std::string()) + border_ansi_bottom + "╰───╯\x1b[0m");
     return out;
 }
 

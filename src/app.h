@@ -40,6 +40,8 @@
 #include "oscilloscope_visualizer.h"
 #include "terminal_gfx.h"
 #include "player.h"
+#include "console_log.h"
+#include "audio_backend.h"
 #include "playlist_manager.h"
 #include "settings.h"
 #include "snapshot.h"
@@ -54,7 +56,7 @@
 
 namespace muisc {
 
-enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, CoverFetch, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex, UpdateNotice, QueueToPlaylist, BookOverlay };
+enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, CoverFetch, History, ClearQueue, OsciMenu, NormMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex, UpdateNotice, QueueToPlaylist, BookOverlay, AudioDevice };
 enum class ListSource { Local, Online, Playlist, Folder };
 
 // One row of the main UI's "/f:" folder list: a folder that directly
@@ -1524,6 +1526,35 @@ private:
     // [ESC] closes it, [o] opens the release page. It waits (update_pending_) until the main screen is showing.
     bool update_pending_ = false;
     std::string update_latest_, update_current_, update_url_;
+
+    // Background tasks that are started and left to run (tags, lyrics, waveforms, translations ...): spawn_bg() counts them in
+    // bg_, long loops stop early once bg_->quit is set, and wait_background() (main.cpp, at exit) waits for them. A task that is
+    // still busy after that wait keeps the App alive until the process ends (main.cpp leaves it), so no task can reach a
+    // destroyed App.
+    struct BgTasks { std::atomic<int> running{0}; std::atomic<bool> quit{false}; };
+    std::shared_ptr<BgTasks> bg_ = std::make_shared<BgTasks>();
+    template <class F> void spawn_bg(const char* what, F&& body);   // app_internal.h
+public:
+    // Asks the background tasks to stop and waits up to `ms` for them; false when some are still running.
+    bool wait_background(int ms);
+private:
+
+    // CHOOSE AUDIO DEVICE (src/app_audiodevice.cpp): a small floating panel (Mode::AudioDevice) with the sound outputs of this
+    // computer; from Settings (GENERAL -> AUDIO, [ENTER]) it is drawn over the settings screen and ESC goes back there. The choice
+    // is settings_.audio_device (config.txt AudioDevice=, "" = the system default); audio_device_apply() hands a changed value to
+    // the player once per frame (adev_applied_ = the value it has).
+    static constexpr int kAudioDevicePanelWidth = 64;
+    bool adev_from_settings_ = false;
+    int adev_sel_ = 0;                          // 0 = System Default, 1.. = adev_list_
+    std::vector<AudioOutputDevice> adev_list_;  // read when the overlay opens ([r] reads it again)
+    std::string adev_err_;
+    std::string adev_applied_;
+    std::string audio_device_label() const;     // "System Default" or the chosen name (Settings row, status line)
+    void audio_device_open(bool from_settings);
+    void audio_device_close();
+    void audio_device_key(int key);
+    void audio_device_apply();
+    std::vector<std::string> build_audio_device_panel() const;
     static constexpr int kUpdatePanelWidth = 56;
     std::vector<std::string> build_update_panel() const;
 
@@ -1847,6 +1878,10 @@ private:
     void book_step(int delta, bool direct = false);   // direct (the remote app): no questions, the chapter plays from its start                // n / b
     void book_advance();                      // the chapter ended
     void book_seek(int dir);                  // accelerating seek
+    // Playback speed (audio book player only; time_stretch.h): set rounds to 0.05 and clamps to 0.5 .. 3.0, applies it at once and
+    // says so in the status line (save: written to config.txt now, as the keys do); step moves it by one 0.05 step (SHIFT+LEFT / RIGHT).
+    void book_speed_set(double speed, bool save);
+    void book_speed_step(int dir);
     bool book_intercept(const std::string& action, int key);   // keys of the audio book player (true = used)
     std::vector<std::string> build_chapter_panel(int total_width, int height) const;
     // ---- the album cover in the disk's place (music player; Settings -> Album Cover / Cover Mode / Cover Search; app_cover.cpp) ----
@@ -2129,5 +2164,20 @@ private:
     std::vector<std::string> build_list_panel(int width, int height) const;
     std::vector<std::string> build_queue_panel(int width, int height, bool wide_artist = false) const;   // wide_artist: the big overlay gives the artist column twice the room
 };
+
+// A background task of the App (see spawn_bg() above): counted in bg_ while it runs; whatever it throws becomes a log line (an
+// exception escaping a std::thread would end the program). The counter is a shared object of its own, so the task can still count
+// itself out when it outlasts the wait at exit.
+template <class F>
+void App::spawn_bg(const char* what, F&& body) {
+    std::shared_ptr<BgTasks> st = bg_;
+    st->running.fetch_add(1);
+    std::thread([st, what, b = std::forward<F>(body)]() mutable {
+        try { b(); }
+        catch (const std::exception& e) { ConsoleLog::instance().log_basic(std::string("internal error in ") + what + ": " + e.what()); }
+        catch (...) { ConsoleLog::instance().log_basic(std::string("internal error in ") + what + " (unknown exception)"); }
+        st->running.fetch_sub(1);
+    }).detach();
+}
 
 } // namespace muisc

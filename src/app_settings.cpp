@@ -651,7 +651,7 @@ void App::handle_theme_key(int key) {
 
 // Tabs 1 and 2 are a list of category headers and rows that can be longer than the panel: the first line shown is
 // chosen so that the selected row is in the middle (and its category header stays visible when it is right below it).
-int App::settings_tab_first_line(int W, int visible) const {
+int App::settings_tab_first_line(int /*W*/, int visible) const {
     const auto& lay = settings_layout(settings_tab_);
     const int total = static_cast<int>(lay.size());
     const int cur = settings_item_line(settings_tab_, settings_row_);
@@ -734,6 +734,8 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidLyricsVariants: v = settings_.lyrics_name_variants; break;
             case kSidRemoteApp: return settings_.remote_app ? "on   [ENTER] settings" : "off  [ENTER] settings";   // opens the REMOTE APP overlay
             case kSidCheckUpdate: return update_check::check_busy() ? std::string("checking ...") : std::string("[ENTER] to check");
+            case kSidBookSpeed: return speed_label(settings_.book_speed);
+            case kSidAudioDevice: return audio_device_label() + "  [ENTER] choose";
             case kSidNormalize: v = settings_.normalize; break;
             case kSidMetaOnly: v = settings_.meta_only; break;
             case kSidEmoji: v = settings_.replace_emoji; break;
@@ -832,6 +834,12 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidTrackBuffer: return {};   // a number (ENTER types it) and a "Set back to default" button (RIGHT, then ENTER)
             case kSidRemoteApp: return {};   // not a switch: ENTER / LEFT / RIGHT open the REMOTE APP overlay
             case kSidCheckUpdate: return {};   // an action: ENTER asks GitHub (handle_settings_key)
+            case kSidAudioDevice: return {};   // not a switch: ENTER opens the CHOOSE AUDIO DEVICE overlay
+            case kSidBookSpeed: {   // 0.5x .. 3.0x in steps of 0.05
+                std::vector<std::string> o;
+                for (int h = 50; h <= 300; h += 5) o.push_back(speed_label(h / 100.0));
+                return o;
+            }
             case kSidVisFluidity: case kSidVisDegr: case kSidVisVisc: return {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
             case kSidLatinHanzi: return {"Leave", "Chin.", "Jap."};
             case kSidTermSize: return {};   // two typed numbers (ENTER types the one that is lit)
@@ -961,6 +969,12 @@ void App::settings_commit_edit_impl() {
                 force_redraw_ = true;
                 return;
             case kSidStartMode: { const int m = mode_index(v); if (m >= 0 && settings_.use_mode[m]) settings_.start_mode = kModeNames[m]; return; }
+            case kSidBookSpeed: {   // "1.25x" or a typed "1.25"
+                std::string d = v;
+                if (!d.empty() && d.back() == 'x') d.pop_back();
+                try { book_speed_set(std::stod(d), false); } catch (...) { status_line_ = "playback speed: type a number between 0.5 and 3.0"; }
+                return;
+            }
             case kSidVolIndicator:
                 settings_.volume_indicator = std::max(0, volume_style_from_name(v));
                 return;
@@ -1275,6 +1289,8 @@ void App::settings_cycle(int dir) {
     if (id == kSidUpdateCheck) status_line_ = settings_.update_check ? "update notice: on -- at start-up Mousiki looks once a day for a newer release and tells you once (nothing is installed)"
                                                                      : "update notice: off -- no check for a newer release";
     if (id == kSidCheckUpdate) status_line_ = "check update: [ENTER] asks GitHub for the newest release now (needs Python 3 and a network connection)";
+    if (id == kSidBookSpeed) status_line_ = "playback speed: " + speed_label(settings_.book_speed) + " -- the voice keeps its pitch; SHIFT+LEFT / SHIFT+RIGHT change it while you listen";
+    if (id == kSidAudioDevice) status_line_ = "choose audio device: " + audio_device_label() + " -- [ENTER] lists the devices (also % on the main screen)";
     if (id == kSidLatinLookup) status_line_ = settings_.latin_lookup ? "latin name lookup: on -- artists written in Chinese characters are looked up on MusicBrainz in the background (their name is sent to musicbrainz.org, one at a time)"
                                                                     : "latin name lookup: off -- nothing is sent anywhere";
     if (id == kSidLatinMacrons) status_line_ = settings_.latin_macrons ? "latin macrons: on -- Japanese long vowels as macrons (koohii -> kōhī, ou -> ō)" : "latin macrons: off -- Japanese long vowels spelled out (ou, uu, koohii)";
@@ -1384,6 +1400,11 @@ void App::handle_settings_key(int key) {
         }
         if (close) { remote_ov_ = remote_ui::State{}; status_line_ = settings_.remote_app ? "remote app on (s saves)" : "remote app off (s saves)"; }
         force_redraw_ = true;
+        return;
+    }
+    if (mode_ == Mode::Settings && settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidAudioDevice &&
+        (key == '\r' || key == '\n')) {
+        audio_device_open(true);   // drawn over this screen; ESC comes back here
         return;
     }
     if (mode_ == Mode::Settings && settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidCheckUpdate &&

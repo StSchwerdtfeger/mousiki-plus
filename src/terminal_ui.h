@@ -107,6 +107,11 @@ constexpr int kKeyCtrlShiftRight = 323;
 // Alt+C -- the cover fetch overlay (main UI). A modifier combination, so a sentinel like kKeyAltL; bindable (HKeyCoverFetch).
 constexpr int kKeyAltC = 324;
 
+// The character '°' (SHIFT+^ on a German / Austrian / Swiss keyboard): outside text fields poll_key() joins its two UTF-8 bytes
+// (C2 B0) into this one key, so it can be a hotkey (the CHOOSE AUDIO DEVICE overlay, HKeyAudioDevice). In a text field the bytes
+// arrive as they are and '°' can be typed.
+constexpr int kKeyDegree = 325;
+
 // Name of the Alt key as shown in legends / the cheat sheet. The Mac keyboard
 // has no key called Alt -- the same key (the modifier the terminal reports as
 // "Alt/Meta") is labelled Option there. Chosen at compile time, so Windows and
@@ -170,6 +175,7 @@ public:
 private:
     bool raw_mode_active_ = false;
     void reassert_raw_mode(); // see poll_key()'s definition for why this exists
+    int poll_key_raw();       // one key as the platform reads it (poll_key() joins the bytes of '°' on top)
 };
 
 // True while the key most recently returned by poll_key() was one of the

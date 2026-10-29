@@ -344,9 +344,9 @@ def paging_and_translit_row(binary, root, scripts):
                 if label in line:
                     return line
             return ""
-        # GENERAL tab: Playback, Start Mode, Display queue, MODES ON/OFF AND ORDER (6 rows), AUDIO (4 rows),
-        # TERMINAL: Black Background, then Use Terminal Settings (row 14)
-        for _ in range(14):
+        # GENERAL tab: Playback, Start Mode, Display queue, MODES ON/OFF AND ORDER (6 rows), AUDIO (5 rows),
+        # TERMINAL: Black Background, then Use Terminal Settings (row 15, after AUDIO with Choose Audio Device)
+        for _ in range(15):
             sess.send(b"\x1b[B", 0.1)
         check("Use Terminal Settings" in find("Use Terminal Settings") and "false" in find("Use Terminal Settings"),
               "use terminal settings: the row exists and is false by default")
@@ -445,6 +445,78 @@ def mode_keys(binary, root, scripts):
             sess.pump(0.5)
         check("PROGRESS BAR" in sess.text() and "Plain Station" not in sess.text(), "mode keys: the rebound key (J) in the radio switches on (back to the player)")
         check(sess.alive(), "mode keys: the program is still running")
+    finally:
+        sess.kill()
+
+
+def book_speed_and_devices(binary, root, scripts):
+    """Audio book: SHIFT+LEFT / SHIFT+RIGHT change the playback speed, shown in a box left of the play mode (and saved);
+    the CHOOSE AUDIO DEVICE overlay opens from the main screen of the audio book and the radio and lists System Default;
+    the GENERAL tab has the Playback Speed and Choose Audio Device rows."""
+    home = os.path.join(root, "book_home")
+    books = os.path.join(root, "books")
+    make_wav(os.path.join(books, "Book One", "01 Chapter.wav"))
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    with open(os.path.join(cfgdir, "stations.txt"), "w", encoding="utf-8") as f:
+        f.write("# name | genre | country | codec | kbps | url | [*] favorite\n"
+                "Plain Station | Rock | US | MP3 | 128 | http://127.0.0.1:9/c | *\n")
+    with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+        f.write("AudioBookPath=%s\nStartMode=audiobook\nUseTerminalSettings=true\nHKeyAudioDevice=\"&\"\n" % books)
+    with open(os.path.join(cfgdir, "radio_config.txt"), "w", encoding="utf-8") as f:
+        f.write("HKeyAudioDevice=&\n")
+    sess = Session(binary, home, scripts, {"MOUSIKI_RADIO_NULL": "1", "MOUSIKI_NULL_AUDIO": "1"})
+    try:
+        for _ in range(30):
+            sess.pump(0.5)
+            if "HELP WIZARD" in sess.text():
+                break
+        sess.send(b"\x1b", 1.0)
+        for _ in range(20):
+            sess.pump(0.5)
+            if "Book One" in sess.text():
+                break
+        check("Book One" in sess.text(), "audio book: the book is listed")
+        check("1.0x" in sess.text(), "audio book: the speed box shows 1.0x")
+        check_frame(sess, "audio book main screen", frame=False)
+        sess.send(b"\x1b[1;2C", 0.8)   # SHIFT+RIGHT
+        check("1.05x" in sess.text(), "audio book: SHIFT+RIGHT makes it 1.05x")
+        sess.send(b"\x1b[1;2D", 0.5)
+        sess.send(b"\x1b[1;2D", 0.8)   # SHIFT+LEFT twice
+        check("0.95x" in sess.text(), "audio book: SHIFT+LEFT twice makes it 0.95x")
+        check_frame(sess, "audio book main screen with 0.95x", frame=False)
+        with open(os.path.join(cfgdir, "config.txt"), encoding="utf-8") as f:
+            check("BookSpeed=0.95" in f.read(), "audio book: the speed is saved (BookSpeed=0.95)")
+        sess.send("&", 1.2)
+        check("Choose Audio Device" in sess.text() and "System Default" in sess.text(), "audio device: & opens the overlay in the audio book")
+        sess.send(b"\x1b", 0.8)
+        check("Choose Audio Device" not in sess.text(), "audio device: ESC closes the overlay")
+        sess.send("s", 1.2)
+        sess.send(b"\t", 1.0)          # COLORS -> GENERAL
+        text = sess.text()
+        check("Playback Speed" in text and "0.95x" in text, "settings: GENERAL has Playback Speed (0.95x) in the audio book mode")
+        check("Choose Audio Device" in text and "System Default" in text, "settings: GENERAL has Choose Audio Device (System Default)")
+        sess.send(b"\x1b", 1.0)
+        for _ in range(2):              # audio books -> music player -> radio (each may open its help wizard on its first start)
+            sess.send("*", 2.5)
+            for _ in range(10):
+                if "HELP WIZARD" in sess.text():
+                    break
+                sess.pump(0.3)
+            if "HELP WIZARD" in sess.text():
+                sess.send(b"\x1b", 1.5)
+        for _ in range(10):
+            if "Plain Station" in sess.text():
+                break
+            sess.pump(0.5)
+        if "Plain Station" in sess.text():
+            sess.send("&", 1.5)
+            check("Choose Audio Device" in sess.text() and "System Default" in sess.text(), "audio device: & opens the overlay in the radio")
+            sess.send(b"\x1b", 0.8)
+            check("Choose Audio Device" not in sess.text(), "audio device: ESC closes it in the radio")
+        else:
+            check(False, "audio device: the radio could not be reached for the overlay check")
+        check(sess.alive(), "audio book / devices: the program is still running")
     finally:
         sess.kill()
 
@@ -633,6 +705,8 @@ def main():
         paging_and_translit_row(binary, root, scripts)
         progress("mode_keys")
         mode_keys(binary, root, scripts)
+        progress("book_speed_and_devices")
+        book_speed_and_devices(binary, root, scripts)
         progress("karaoke_timing")
         karaoke_timing(binary, root, scripts)
         progress("selftest_command")

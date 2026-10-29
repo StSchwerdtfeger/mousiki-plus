@@ -1,4 +1,5 @@
 #pragma once
+#include "audio_backend.h"
 // Radio mode -- the 120x30 screen. Pure rendering: takes a model and a status
 // snapshot, returns exactly `rows` lines of exactly `cols` visible columns each.
 // With UiModel::menu.open the whole frame is the PRESETS menu instead of the radio screen;
@@ -170,6 +171,13 @@ struct SettingsModel {
     // theme_ui: 0 = the plain tab | 1 = pick a theme to apply | 2 = the CREATE THEME overlay | 3 = pick a template
     int theme_ui = 0;
     muisc::remote_ui::State remote_ov;   // GENERAL -> REMOTE / UPDATES -> Remote App: the REMOTE APP overlay
+    // CHOOSE AUDIO DEVICE: from GENERAL -> AUDIO ([ENTER]; drawn over the settings) or from the main screen (its key, overlay 9).
+    bool adev_open = false;
+    bool adev_from_settings = false;
+    int adev_sel = 0;                                 // 0 = System Default, 1.. = adev_list
+    std::vector<muisc::AudioOutputDevice> adev_list;  // read when it opens ([r] reads it again)
+    std::string adev_err;
+    std::string adev_active;                          // the output the engine has open (for the "in use" mark)
     bool theme_peek = false;      // SHIFT+p in the picker: the main screen in the highlighted theme (any key closes it)
     std::vector<themes::Theme> theme_list;
     int theme_sel = 0;

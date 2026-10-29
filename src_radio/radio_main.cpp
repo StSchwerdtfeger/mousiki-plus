@@ -584,6 +584,7 @@ int radio_main(int argc, char** argv) {
     // ------------------------------------------------------------------ interactive
     {
         std::string err;
+        engine.set_output_device(cfg.audio_device);   // the chosen sound output (CHOOSE AUDIO DEVICE; "" = the default)
         engine.open_device(&err); // on failure the UI shows the reason and stays usable
     }
     engine.set_volume(70);
@@ -924,6 +925,40 @@ int radio_main(int argc, char** argv) {
         key_undo.clear();
         sm.open = false; sm.editing = false; sm.theme_ui = 0; sm.remote_ov = muisc::remote_ui::State{};
         set_text_entry(false);
+    };
+    // CHOOSE AUDIO DEVICE (GENERAL -> AUDIO [ENTER], or its key on the main screen: overlay 9). The list is read when it opens.
+    auto adev_open = [&](bool from_settings) {
+        SettingsModel& sm = ui.model.settings;
+        sm.adev_err.clear();
+        sm.adev_list = muisc::list_output_devices(&sm.adev_err);
+        sm.adev_active = engine.active_device();
+        sm.adev_sel = 0;
+        for (size_t i = 0; i < sm.adev_list.size(); ++i)
+            if (!cfg.audio_device.empty() && sm.adev_list[i].name == cfg.audio_device) sm.adev_sel = static_cast<int>(i) + 1;
+        sm.adev_open = true;
+        sm.adev_from_settings = from_settings;
+        if (!from_settings) { ui.model.overlay = 9; ui.model.overlay_row = 0; }
+    };
+    auto adev_close = [&]() {
+        SettingsModel& sm = ui.model.settings;
+        sm.adev_open = false;
+        if (!sm.adev_from_settings) ui.model.overlay = 0;
+    };
+    // The pick is written into config.txt at once (one choice for all modes) and the stream moves to that device now.
+    auto adev_pick = [&]() {
+        SettingsModel& sm = ui.model.settings;
+        const std::string pick = sm.adev_sel > 0 && sm.adev_sel <= static_cast<int>(sm.adev_list.size()) ? sm.adev_list[static_cast<size_t>(sm.adev_sel - 1)].name : std::string();
+        cfg.audio_device = pick;
+        if (settings_snapshot_valid) settings_snapshot.audio_device = pick;   // ESC in the settings does not take it back
+        muisc::set_config_value("AudioDevice", pick);   // the player's config.txt (one choice for all modes)
+        std::string err;
+        engine.set_output_device(pick, &err);
+        const std::string now = engine.active_device();
+        std::string msg = "audio device: " + (pick.empty() ? std::string("System Default") : pick);
+        if (!pick.empty() && !now.empty() && now != pick) msg += " -- could not be opened, the default device plays";
+        if (!err.empty()) msg = "audio device: " + err;
+        if (sm.adev_from_settings) sm.status = msg;
+        else { ui.model.notice = msg; notice_until = ui.model.t_sec + 6; }
     };
     // Has anything been changed since the settings screen opened? (the same text that [s] would write)
     auto settings_changed = [&]() { return settings_snapshot_valid && radio_settings_text(cfg) != radio_settings_text(settings_snapshot); };
@@ -1378,6 +1413,25 @@ int radio_main(int argc, char** argv) {
                 else if (k == 'k') --ui.model.cheat_scroll;
                 continue;
             }
+            // ------------------------------------------------------------------ CHOOSE AUDIO DEVICE (over the settings or the main screen)
+            if (ui.model.settings.adev_open) {
+                SettingsModel& sm = ui.model.settings;
+                if (k == 3 || k == kKeyCtrlC) { adev_close(); if (sm.open) settings_close(false); running = false; continue; }
+                const int rows = 1 + static_cast<int>(sm.adev_list.size());
+                if (arrow && k == 'A') { sm.adev_sel = (sm.adev_sel + rows - 1) % rows; continue; }
+                if (arrow && k == 'B') { sm.adev_sel = (sm.adev_sel + 1) % rows; continue; }
+                if (!arrow && (k == 'r' || k == 'R')) {   // look again (a headset that was just plugged in)
+                    const std::string keep = sm.adev_sel > 0 && sm.adev_sel <= static_cast<int>(sm.adev_list.size()) ? sm.adev_list[static_cast<size_t>(sm.adev_sel - 1)].name : std::string();
+                    sm.adev_err.clear();
+                    sm.adev_list = muisc::list_output_devices(&sm.adev_err);
+                    sm.adev_sel = 0;
+                    for (size_t i = 0; i < sm.adev_list.size(); ++i) if (!keep.empty() && sm.adev_list[i].name == keep) sm.adev_sel = static_cast<int>(i) + 1;
+                    continue;
+                }
+                if (!arrow && (k == 13 || k == 10)) { adev_pick(); adev_close(); continue; }
+                if (!arrow && (k == 27 || key_translate(cfg, k) == kKeyDegree)) adev_close();
+                continue;
+            }
             // ------------------------------------------------------------------ RADIO SETTINGS (s)
             if (ui.model.settings.open) {
                 SettingsModel& sm = ui.model.settings;
@@ -1667,6 +1721,11 @@ int radio_main(int argc, char** argv) {
                     if ((sm.tab >= 1 && !vol_now) || (sm.tab == 0 && sm.row != 0 && !color_field(cfg, color_row_of_tab(sm.row), sm.col))) sm.col = 0;
                 };
                 auto toggle = [&](int dir) {   // GENERAL and ANIMA/VIZ rows: left / right / ENTER
+                    if (sm.tab == 1 && std::string(rs_row_label(sm.tab, sm.row)) == "Choose Audio Device") {   // the CHOOSE AUDIO DEVICE overlay
+                        if (dir == 0) adev_open(true);
+                        else sm.status = "[ENTER] lists the audio devices";
+                        return;
+                    }
                     if (sm.tab == 1 && std::string(rs_row_label(sm.tab, sm.row)) == "Remote App") {   // opens the REMOTE APP overlay
                         sm.remote_ov = muisc::remote_ui::State{};
                         sm.remote_ov.open = true;
@@ -2570,6 +2629,7 @@ int radio_main(int argc, char** argv) {
             }
             switch (key_translate(cfg, k)) {
                 case 'q': case 3: case kKeyCtrlC: running = false; break;   // q is free now that the preset keys are 1234567890ertdfg
+                case kKeyDegree: adev_open(false); break;   // CHOOSE AUDIO DEVICE ("°" / "&" by default; key_translate() hands its key over as this)
                 case 13: case 10: tune_visible(ui.model.cursor); break;
                 case 'n': tune_relative(+1); break;       // always the next channel in the list
                 case 'b': tune_back(); break;              // previous channel; depends on the S/L mode

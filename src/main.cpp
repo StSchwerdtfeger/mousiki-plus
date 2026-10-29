@@ -133,6 +133,8 @@ int main(int argc, char** argv) {
                 char arg0[] = "mousiki";
                 char* argv[] = {arg0, nullptr};
                 rc = radio_main(1, argv);
+                // the radio writes its choices into config.txt; the sound output is one of them (CHOOSE AUDIO DEVICE)
+                shared_settings.audio_device = book_settings.audio_device = muisc::config_value("AudioDevice");
             }
             if (rc != kExitSwitchMode) break;
             mode = muisc::next_mode_in(muisc::read_mode_config(), mode, g_mode_switch_dir);   // (the settings screens save before they switch)
@@ -141,6 +143,10 @@ int main(int argc, char** argv) {
         // quit from another mode: now the players really end (each saves, so it first takes over what the last one changed)
         if (app && app->suspended()) { muisc::sync_shared(*last_run, shared_settings); app->shutdown(); }
         if (book_app && book_app->suspended()) { muisc::sync_shared(*last_run, book_settings); book_app->shutdown(); }
+        // Background tasks of the players (tags, lyrics, waveforms ...) get a moment to finish. One that is still busy after that (a
+        // hung ffprobe, a slow network) must not find its App destroyed: that App is then left alive until the process ends.
+        for (std::unique_ptr<muisc::App>* a : {&app, &book_app})
+            if (*a && !(*a)->wait_background(3000)) (void)a->release();
         muisc::media::shutdown();               // the system media controls (MPRIS / Now Playing), if on
         muisc::remote::net::shutdown();         // the remote app's web server (if on)
         muisc::scope_window_close();            // the scope window (if open) closes with the program

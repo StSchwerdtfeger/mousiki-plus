@@ -96,6 +96,11 @@ public:
     // real time, plays nothing) -- for headless tests. Returns false and fills
     // `err` on failure; the UI still works, it just stays silent.
     bool open_device(std::string* err = nullptr);
+    // The sound output (Settings -> GENERAL -> AUDIO "Choose Audio Device", config.txt AudioDevice=; "" = the system default).
+    // Before open_device() it only names the device to open; afterwards the device is opened again on the new output at once
+    // (the stream goes on). A device that is not there plays on the default one. active_device(): the one that is open now.
+    bool set_output_device(const std::string& name, std::string* err = nullptr);
+    std::string active_device() const;
 
     // Tunes to a station. Returns immediately; the previous stream is cancelled
     // and everything else happens on worker threads.
@@ -145,6 +150,7 @@ public:
     RadioScope& scope();
 
 private:
+    bool open_output_locked(std::string* err);   // see radio_engine.cpp
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

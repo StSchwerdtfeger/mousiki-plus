@@ -545,6 +545,9 @@ struct RadioEngine::Impl {
     ma_device device{};
     bool device_ready = false;
     std::string device_error;
+    std::string device_name;        // the chosen output ("" = default)
+    std::string active_device;      // the output that is open now
+    mutable std::mutex device_m;    // guards device_name / active_device / reopening
 
     std::atomic<int> volume{70};
     std::atomic<float> fade{1.0f};     // sleep timer fade-out, multiplies the volume (1 = none)
@@ -761,24 +764,51 @@ bool RadioEngine::open_device(std::string* err) {
     }
     d.context_ready = true;
 
+    std::lock_guard<std::mutex> lk(d.device_m);
+    return open_output_locked(err);
+}
+
+// The playback device on the chosen output (or the default one when that is not there). device_m held, context ready, device closed.
+bool RadioEngine::open_output_locked(std::string* err) {
+    Impl& d = *impl_;
     ma_device_config cfg = ma_device_config_init(ma_device_type_playback);
     cfg.playback.format = ma_format_f32;
     cfg.playback.channels = kChannels;
     cfg.sampleRate = kRate;
     cfg.dataCallback = &Impl::data_callback;
     cfg.pUserData = &d;
+    ma_device_id chosen{};
+    if (find_output_device(d.context, d.device_name, chosen)) cfg.playback.pDeviceID = &chosen;
     if (ma_device_init(&d.context, &cfg, &d.device) != MA_SUCCESS) {
         d.device_error = "could not open the audio device";
         if (err) *err = d.device_error;
         return false;
     }
     d.device_ready = true;
+    d.active_device = d.device.playback.name;
     if (ma_device_start(&d.device) != MA_SUCCESS) {
         d.device_error = "could not start the audio device";
         if (err) *err = d.device_error;
         return false;
     }
+    d.device_error.clear();
     return true;
+}
+
+bool RadioEngine::set_output_device(const std::string& name, std::string* err) {
+    Impl& d = *impl_;
+    std::lock_guard<std::mutex> lk(d.device_m);
+    d.device_name = name;
+    if (!d.context_ready) return true;   // not open yet: open_device() takes it
+    if (d.device_ready) { ma_device_uninit(&d.device); d.device_ready = false; }   // waits for the callback to stop
+    if (open_output_locked(err)) return true;
+    d.device_name.clear();   // the chosen one failed: the default device
+    return open_output_locked(err);
+}
+
+std::string RadioEngine::active_device() const {
+    std::lock_guard<std::mutex> lk(impl_->device_m);
+    return impl_->active_device;
 }
 
 void RadioEngine::tune(const Station& st, int index) {

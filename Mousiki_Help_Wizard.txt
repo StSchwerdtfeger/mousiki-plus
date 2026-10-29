@@ -117,6 +117,7 @@ TABLE OF CONTENT: [[Header]]
    2.6.2 Loudness Normalization and Stereo/Mono
    2.6.3 Sample Rate and Playback Engine
    2.6.4 Sleep Timer
+   2.6.5 Audio Device
 
   2.7 History[[Header]]
    2.7.1 Listening History
@@ -283,6 +284,11 @@ the list automatically, so you do not have to add it as a local path manually.
 RESCAN LIBRARY: [[Header]]
 Can also be done at any time via the command [SHIFT+r] when adding/deleting files while
 Mousiki is currently running (restarting also triggers a new scan). 
+
+TAGS ARE KEPT BETWEEN RUNS: [[Header]]
+The tags of the library (title, artist, album, year, length) are kept in ~/.cache/mousiki/tag_cache.txt.
+At the next start every file whose size and modification time did not change gets its tags from there
+at once, so search and sort work right away; only new and changed files are read again.
 
 IMPORTANT BEFORE LEAVING THE SETTINGS: [[Header]]
 Remember to leave the settings by hitting [s] to save changes (made in the config.txt). 
@@ -1026,6 +1032,33 @@ The player pauses (the position is kept, [p] resumes), the radio stops the strea
 changes the play mode, and it is gone after a restart.
 
 [[New Page]]
+2.6.5 AUDIO DEVICE [[Header]]
+
+OPEN:[[Header]] [°] (German keyboards: [SHIFT+^]; other keyboards: [&]) opens the CHOOSE AUDIO DEVICE
+overlay, in the music player, the radio and the audio books. Settings, GENERAL, AUDIO, Choose Audio
+Device and [ENTER] opens the same overlay over the settings.
+
+System Default (name)    the output the system uses now (the default: nothing chosen)
+the devices              every sound output of this computer (speakers, headphones, HDMI, USB, Bluetooth)
+
+[UP]/[DOWN] pick, [ENTER] switches at once, [r] reads the list again (a headset that was just plugged
+in), [ESC] closes. The device in use is marked "in use".
+
+SWITCHING: [[Header]]
+A track that plays goes on at the same place on the new device (a paused one stays paused); the radio
+stream goes on without stopping. A device that is not there (unplugged) plays on the default one until
+it is back, the overlay then lists it as "(not found)".
+
+ONE CHOICE FOR ALL MODES: [[Header]]
+The choice is written to config.txt at once (AudioDevice=, the name as the system gives it; empty
+means the system default). The [s] / [ESC] of the settings screen neither save nor undo it.
+
+THE KEY: [[Header]]
+[°] where it is [SHIFT+^] (German, Austrian, Swiss layouts), [&] elsewhere (US / UK keyboards have no
+°; [%] stays the queue's "move to the bottom" key). It can be changed in Settings, REFERENCE
+(Choose Audio Device), in the radio too.
+
+[[New Page]]
 2.7.1 LISTENING HISTORY [[Header]]
 
 OPEN: [[Header]] [SHIFT+h] opens the history; [ESC], [q] or [SHIFT+h] close it.
@@ -1160,6 +1193,14 @@ Note that on every Settings tab that scrolls, [SHIFT+UP] / [SHIFT+DOWN] moves a 
                                                   order.
 
 [AUDIO:][[Header]]
+[Choose Audio Device:][[Legend]]                              shows the sound output in use (System Default unless you
+                                                  picked one); [ENTER] opens the CHOOSE AUDIO DEVICE overlay
+                                                  (2.6.5). One choice for all modes, saved at once.
+
+[Playback Speed:][[Legend]]                                   audio books only: 0.5x - 3.0x in steps of 0.05 (default
+                                                  1.0x); the voice keeps its pitch. The same value as
+                                                  [SHIFT+<-] / [SHIFT+->] in the audio book player.
+
 [Track Buffer (MB):][[Legend]]                                default = 256: a track whose decoded audio is smaller is
                                                   held whole in RAM, so seeking is instant; a bigger one
                                                   uses a moving 2-minute window. [ENTER] types a number
@@ -1530,6 +1571,7 @@ KEYS ON THE MAIN SCREEN: [[Header]]
 [+] / [-]    volume                     [/]      search        [SHIFT+t]  sort list order <-> A-Z
 [SHIFT+p] presets   [SHIFT+s] radio browser   [SHIFT+k] station lists   [SHIFT+l] big stations overlay
 [h] history   [s] settings   [?] cheat sheet   [<] menus index   [SHIFT+w] this wizard   [q] quit
+[°] (German [SHIFT+^]; other keyboards [&])  choose the audio device (2.6.5)
 
 THE BIG STATIONS OVERLAY: [[Header]]
 [SHIFT+l] shows the STATIONS pane over the whole screen plus a PRESET NAME column.
@@ -1801,6 +1843,15 @@ PLAYBACK: [[Header]]
 [m]          cycles the playpack mode: on to the next chapter / repeat the chapter / stop after it. 
 [->] / [<-]  seek: 5 seconds at first, faster and faster the longer the key is held (up to minutes), 
              so a long book can be crossed quickly. [p] pause, volume, mute and the sleep timer as always.
+
+PLAYBACK SPEED: [[Header]]
+[SHIFT+->] / [SHIFT+<-]  faster / slower in steps of 0.05, from 0.5x to 3.0x. The voice keeps its pitch
+             (the audio is stretched in time, not played faster like a record). A small box left of the
+             play mode box (right of the search bar) shows it: 1.0x, 1.25x ... It is as wide as its text.
+             The speed is saved at once and is also in Settings, GENERAL, AUDIO (Playback Speed).
+             Times, bookmarks, notes and the progress bar stay in the time of the book: at 1.5x a 60
+             minute chapter still shows 60:00, it just takes 40 minutes. The music player and the
+             radio always play at 1.0x. 
 
 THE DEFAULT PICTURE: [[Header]] 
 An image of a women rading a book (a grey version of a colour picture) takes the place of the disk. 
