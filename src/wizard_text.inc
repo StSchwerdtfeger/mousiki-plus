@@ -2088,7 +2088,8 @@ Long press on the phone: its own settings (base colours, size of the braille dot
 
 NO CONNECTION? [[Header]] same Wi-Fi? A VPN blocks the home network unless "local network access" is allowed in it.
 Windows: [f] in the overlay opens the port in the firewall. Test: http://127.0.0.1:4747 on the computer.
-SAFE: [[Header]] off by default, home network only, PIN for every command, 10 wrong PINs lock it
-for a minute. Windows asks once whether Mousiki may accept connections: allow private networks.
+SAFE: [[Header]] off by default, home network only (other addresses are turned away), PIN for every
+command, 10 wrong PINs lock that one device out for a minute (not your phone). Plain HTTP: use it on
+a network you trust. Windows asks once whether Mousiki may accept connections: allow private networks.
 )WIZ",
 nullptr };

@@ -35,5 +35,7 @@ Install it on the phone (allow "install unknown apps" for the file manager or br
 ## Security
 
 The server only answers in the local network (it listens on the computer's addresses; a router does not forward it to
-the internet unless you set that up). Every command needs the PIN; after 10 wrong PINs it answers nothing for a minute.
+the internet unless you set that up). It also turns away every address that is not one of the home network (or the computer itself). Every command needs the PIN;
+10 wrong PINs in a row lock that device out for a minute (only that one: another device cannot lock your phone out). The
+connection is plain HTTP, so use it on a network you trust; a new PIN (REMOTE APP overlay) ends every lock-out.
 Only the fixed remote commands exist -- nothing can read or change files. Turn Remote App off when you do not use it.

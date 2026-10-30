@@ -3,6 +3,7 @@
 #include "online_source.h"
 #include "process_util.h"
 #include "tiny_json.h"
+#include "utf8_util.h"
 #include <cctype>
 #include <sstream>
 #if defined(_WIN32)
@@ -25,10 +26,10 @@ static std::vector<OnlineResult> parse_json_lines(const std::string& out) {
         if (!tinyjson::parse(line, obj) || obj.type != tinyjson::Type::Object) continue;
         OnlineResult item;
         item.video_id = tinyjson::string_field(obj, "id");
-        item.title = tinyjson::string_field(obj, "title");
+        item.title = clean_tag_text(tinyjson::string_field(obj, "title"));   // (from the web: no control characters)
         std::string uploader = tinyjson::string_field(obj, "uploader");
         if (uploader.empty()) uploader = tinyjson::string_field(obj, "channel");
-        item.uploader = uploader;
+        item.uploader = clean_tag_text(uploader);
         item.duration_sec = tinyjson::number_field(obj, "duration", item.duration_sec);
         if (!item.video_id.empty() && !item.title.empty()) results.push_back(std::move(item));
     }
@@ -79,10 +80,10 @@ static std::vector<OnlineResult> parse_url_lines(const std::string& out) {
         OnlineResult item;
         std::string url = tinyjson::string_field(obj, "webpage_url");
         if (url.find("://") == std::string::npos) url = tinyjson::string_field(obj, "url");
-        item.title = tinyjson::string_field(obj, "title");
+        item.title = clean_tag_text(tinyjson::string_field(obj, "title"));   // (from the web: no control characters)
         std::string uploader = tinyjson::string_field(obj, "uploader");
         if (uploader.empty()) uploader = tinyjson::string_field(obj, "artist");
-        item.uploader = uploader;
+        item.uploader = clean_tag_text(uploader);
         item.duration_sec = tinyjson::number_field(obj, "duration", item.duration_sec);
         if (url.find("://") == std::string::npos || item.title.empty()) continue;
         item.video_id = url;
@@ -170,10 +171,10 @@ std::vector<OnlineResult> OnlineSource::list_playlist(const std::string& url, st
         if (!tinyjson::parse(line, obj) || obj.type != tinyjson::Type::Object) continue;
         OnlineResult item;
         item.video_id = tinyjson::string_field(obj, "id");
-        item.title = tinyjson::string_field(obj, "title");
+        item.title = clean_tag_text(tinyjson::string_field(obj, "title"));   // (from the web: no control characters)
         std::string uploader = tinyjson::string_field(obj, "uploader");
         if (uploader.empty()) uploader = tinyjson::string_field(obj, "channel");
-        item.uploader = uploader;
+        item.uploader = clean_tag_text(uploader);
         item.duration_sec = tinyjson::number_field(obj, "duration", item.duration_sec);
         if (!item.video_id.empty()) {
             if (item.title.empty()) item.title = item.video_id;

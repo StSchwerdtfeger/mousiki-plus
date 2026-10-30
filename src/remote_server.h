@@ -74,5 +74,8 @@ bool parse_request_line(const std::string& line, std::string& path, std::vector<
 // The answer to one request (status line, headers and body), without any socket: what the server thread sends back.
 std::string handle_request(const std::string& request_line, const std::string& peer);
 bool pin_ok(const std::string& pin);   // the PIN rule: 4-8 digits
+// True for an address of the home network or this computer (127.x, 10.x, 172.16-31.x, 192.168.x, 169.254.x, 100.64-127.x): the
+// server answers only those; anything else (a public address forwarded in by a router) is closed at once.
+bool lan_peer(const std::string& ip);
 
 } // namespace muisc::remote::net

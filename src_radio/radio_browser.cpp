@@ -157,7 +157,7 @@ private:
 std::string jstr(const J& o, const char* k) {
     const J* v = o.get(k);
     if (!v) return "";
-    if (v->t == J::Str) return trim_ws(v->s);
+    if (v->t == J::Str) return trim_ws(clean_tag_text(v->s));   // anyone can add a station: no control characters (a "\u001b" in the JSON is a real ESC), well-formed UTF-8
     if (v->t == J::Num) return std::to_string(static_cast<long long>(v->n));
     return "";
 }

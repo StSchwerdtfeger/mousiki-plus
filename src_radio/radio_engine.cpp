@@ -15,6 +15,7 @@
 #include <thread>
 #include <vector>
 #include "audio_backend.h"
+#include "utf8_util.h"   // clean_tag_text(): the station's metadata
 #include "miniaudio.h"
 #include "process_util.h"
 #include <cstdio>
@@ -444,7 +445,10 @@ std::string upper_codec(std::string c) {
     return c;
 }
 
-void apply_stream_title(StreamInfo& info, const std::string& t) {
+// The stream's metadata comes from the station (anyone can add one to Radio Browser): clean_tag_text() removes control characters
+// (a terminal acts on them: ESC sequences could redraw the screen or, in some terminals, reach the clipboard) and broken UTF-8.
+void apply_stream_title(StreamInfo& info, const std::string& raw) {
+    const std::string t = clean_tag_text(raw);
     size_t dash = t.find(" - ");
     if (dash != std::string::npos) { info.artist = t.substr(0, dash); info.title = t.substr(dash + 3); }
     else { info.artist.clear(); info.title = t; }
@@ -473,8 +477,8 @@ void probe_main(std::shared_ptr<Session> s) {
             else if (!(v = value_after(line, "channels")).empty()) got.channels = std::atoi(v.c_str());
             else if (!(v = value_after(line, "bit_rate")).empty()) { int b = std::atoi(v.c_str()); if (b > 0) got.bitrate_kbps = b / 1000; }
             else if (!(v = value_after(line, "TAG:icy-br")).empty()) { int b = std::atoi(v.c_str()); if (b > 0) got.bitrate_kbps = b; }
-            else if (!(v = value_after(line, "TAG:icy-name")).empty()) got.station = v;
-            else if (!(v = value_after(line, "TAG:icy-genre")).empty()) got.genre = v;
+            else if (!(v = value_after(line, "TAG:icy-name")).empty()) got.station = clean_tag_text(v);
+            else if (!(v = value_after(line, "TAG:icy-genre")).empty()) got.genre = clean_tag_text(v);
             else if (!(v = value_after(line, "TAG:StreamTitle")).empty()) stream_title = v;
         }
         if (any || !stream_title.empty()) {

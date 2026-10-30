@@ -82,18 +82,18 @@ static RowMeta probe_row_meta_impl(const fs::path& file) {
             // line. format_tags is listed first and is the authoritative
             // one when present; don't let a later, possibly-blank or
             // irrelevant stream's tags clobber it.
-            if (rm.artist.empty()) rm.artist = val;
+            if (rm.artist.empty()) rm.artist = clean_tag_text(val);
         } else if (key == "TAG:title") {
-            if (rm.title.empty()) rm.title = val;
+            if (rm.title.empty()) rm.title = clean_tag_text(val);
         } else if (key == "TAG:album") {
-            if (rm.album.empty()) rm.album = val;
+            if (rm.album.empty()) rm.album = clean_tag_text(val);
         } else if (key == "TAG:date") {
             // Containers store the year very differently (ID3's TYER="1999",
             // ID3v2.4's TDRC="1999-05-01", Vorbis' DATE, MP4's ©day) --
             // ffprobe just reports whatever it found, so keep only the
             // leading 4-digit year. Same rule probe_metadata() applies to
             // its own md.year, so the editor and the metadata panel agree.
-            if (rm.year.empty()) rm.year = (val.size() >= 4) ? val.substr(0, 4) : val;
+            if (rm.year.empty()) { const std::string y = clean_tag_text(val); rm.year = (y.size() >= 4) ? y.substr(0, 4) : y; }
         }
     }
     return rm;

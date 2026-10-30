@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <map>
 #include <mutex>
 #include <random>
 #include <thread>
@@ -68,8 +69,23 @@ std::string g_mode = "player";
 long long g_rev = 0;
 std::string g_status_json = "{}";
 
-int g_bad_pins = 0;
-Clock::time_point g_locked_until{};
+// Wrong PINs are counted per address that sends them: 10 in a row lock THAT address out for a minute, so another device on the
+// network cannot lock the phone out by guessing. At most kMaxGuards addresses are remembered (the oldest quiet one goes).
+struct PinGuard { int bad = 0; Clock::time_point locked_until{}; Clock::time_point last{}; };
+std::map<std::string, PinGuard> g_guards;
+constexpr size_t kMaxGuards = 256;
+PinGuard& guard_for(const std::string& peer, Clock::time_point now) {
+    auto it = g_guards.find(peer);
+    if (it == g_guards.end() && g_guards.size() >= kMaxGuards) {
+        auto oldest = g_guards.begin();
+        for (auto i = g_guards.begin(); i != g_guards.end(); ++i)
+            if (i->second.locked_until < now && i->second.last < oldest->second.last) oldest = i;
+        g_guards.erase(oldest);
+    }
+    PinGuard& g = g_guards[peer];
+    g.last = now;
+    return g;
+}
 
 std::string page() {
     std::string s;
@@ -116,6 +132,22 @@ std::string reply(int code, const char* type, const std::string& body) {
 std::string json_reply(int code, const std::string& body) { return reply(code, "application/json; charset=utf-8", body); }
 
 std::atomic<int> g_active{0};   // connections being answered right now
+
+} // namespace
+
+bool lan_peer(const std::string& ip) {
+    unsigned a = 0, b = 0, c = 0, d = 0;
+    if (std::sscanf(ip.c_str(), "%u.%u.%u.%u", &a, &b, &c, &d) != 4 || a > 255 || b > 255) return false;
+    if (a == 127) return true;                              // this computer
+    if (a == 10) return true;                               // private networks (RFC 1918)
+    if (a == 172 && b >= 16 && b <= 31) return true;
+    if (a == 192 && b == 168) return true;
+    if (a == 169 && b == 254) return true;                  // link-local (a direct cable, no router)
+    if (a == 100 && b >= 64 && b <= 127) return true;       // shared address space: phone hotspots, Tailscale
+    return false;
+}
+
+namespace {
 
 // One connection: read the request line, answer, close. Runs on its own short-lived thread, so a browser's idle
 // "preconnect" sockets (opened ahead and never used) cannot hold up the real requests.
@@ -169,6 +201,7 @@ void serve_loop(sock_t listener) {
         if (g_active.load() >= 24) { mousiki_close_sock(c); continue; }   // a flood: drop it
         char ip[64] = "?";
         inet_ntop(AF_INET, &peer.sin_addr, ip, sizeof ip);
+        if (!lan_peer(ip)) { mousiki_close_sock(c); continue; }   // only the home network (and this computer) may talk to it
         ++g_active;
         try { std::thread(serve_one, c, std::string(ip)).detach(); }
         catch (...) { --g_active; mousiki_close_sock(c); }
@@ -234,7 +267,7 @@ bool parse_request_line(const std::string& line, std::string& path, std::vector<
     return true;
 }
 
-std::string handle_request(const std::string& request_line, const std::string& /*peer*/) {
+std::string handle_request(const std::string& request_line, const std::string& peer) {
     std::string path;
     std::vector<std::pair<std::string, std::string>> q;
     if (!parse_request_line(request_line, path, q)) return json_reply(400, "{\"error\":\"bad request\"}");
@@ -244,12 +277,13 @@ std::string handle_request(const std::string& request_line, const std::string& /
 
     std::lock_guard<std::mutex> lk(g_mu);
     const auto now = Clock::now();
-    if (now < g_locked_until) return json_reply(429, "{\"error\":\"too many wrong PINs, wait a minute\"}");
+    PinGuard& guard = guard_for(peer, now);
+    if (now < guard.locked_until) return json_reply(429, "{\"error\":\"too many wrong PINs, wait a minute\"}");
     if (get(q, "pin") != g_cfg.pin || g_cfg.pin.empty()) {
-        if (++g_bad_pins >= 10) { g_bad_pins = 0; g_locked_until = now + std::chrono::seconds(60); }
+        if (++guard.bad >= 10) { guard.bad = 0; guard.locked_until = now + std::chrono::seconds(60); }
         return json_reply(403, "{\"error\":\"wrong PIN\"}");
     }
-    g_bad_pins = 0;
+    guard.bad = 0;
 
     if (path == "/api/hello")
         return json_reply(200, std::string("{\"ok\":true,\"version\":\"") + tinyjson::escape(MOUSIKI_VERSION) + "\",\"mode\":\"" + tinyjson::escape(g_mode) + "\"}");
@@ -284,7 +318,7 @@ std::string handle_request(const std::string& request_line, const std::string& /
 
 void configure(const Config& c) {
     std::lock_guard<std::mutex> lk(g_mu);
-    if (c.pin != g_cfg.pin) { g_bad_pins = 0; g_locked_until = {}; }   // a new PIN (set at the computer) ends a lock-out
+    if (c.pin != g_cfg.pin) g_guards.clear();   // a new PIN (set at the computer) ends every lock-out
     const bool same = c.enabled == g_cfg.enabled && c.port == g_cfg.port && c.pin == g_cfg.pin;
     if (same && (g_running.load() || !c.enabled || !g_error.empty())) return;
     // the PIN can change while it runs; a new port or on/off needs a new listener

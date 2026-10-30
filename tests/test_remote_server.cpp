@@ -116,6 +116,28 @@ TEST(remote_server_locks_after_ten_wrong_pins) {
     CHECK_EQ(code_of(req("/api/hello?pin=135791")), 200);
 }
 
+TEST(remote_server_lockout_is_per_device) {
+    use_pin("135792");
+    auto from = [](const std::string& target, const std::string& ip) { return net::handle_request("GET " + target + " HTTP/1.1", ip); };
+    for (int i = 0; i < 10; ++i) from("/api/hello?pin=000000", "192.168.1.66");   // someone else on the Wi-Fi guesses
+    CHECK_EQ(code_of(from("/api/hello?pin=135792", "192.168.1.66")), 429);         // that device waits a minute
+    CHECK_EQ(code_of(from("/api/hello?pin=135792", "192.168.1.20")), 200);         // the phone is not locked out
+    use_pin("135793");
+}
+
+TEST(remote_server_answers_only_the_home_network) {
+    CHECK(net::lan_peer("127.0.0.1"));
+    CHECK(net::lan_peer("192.168.178.20"));
+    CHECK(net::lan_peer("10.0.0.5"));
+    CHECK(net::lan_peer("172.20.1.1"));
+    CHECK(net::lan_peer("169.254.3.4"));
+    CHECK(net::lan_peer("100.101.102.103"));
+    CHECK(!net::lan_peer("8.8.8.8"));
+    CHECK(!net::lan_peer("172.32.0.1"));
+    CHECK(!net::lan_peer("100.128.0.1"));
+    CHECK(!net::lan_peer("?"));
+}
+
 TEST(remote_server_commands_reach_the_program) {
     mt::TempHome home;
     net::configure({false, 4747, "112233"});
