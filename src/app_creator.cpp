@@ -472,7 +472,7 @@ void App::creator_preview_close() {
     creator_spectro_.set_visible(false);
     creator_audio_.reset();
     if (has_track_) {
-        player_.stop();
+        device_stop();   // on the device worker (see App::device_run())
         has_track_ = false;
         history_end_current_play();
     }
@@ -492,7 +492,7 @@ void App::creator_live_start() {
     std::string err;
     if (!creator_mic_->start(44100, err)) { creator_status_ = "Microphone: " + err; return; }
     if (has_track_) {
-        player_.stop();
+        device_stop();   // on the device worker (see App::device_run())
         has_track_ = false;
         history_end_current_play();
     }

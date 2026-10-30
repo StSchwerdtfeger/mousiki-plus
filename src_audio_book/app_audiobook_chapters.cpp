@@ -303,7 +303,7 @@ void App::book_cut_start(bool trim) {
     if (has_track_ && current_is_local_ && !plays_it) { std::error_code eq; plays_it = fs::equivalent(current_path_, job.src, eq) && !eq; }
     if (!plays_it && has_track_ && current_is_local_) plays_it = current_path_.filename() == job.src.filename() && current_path_.parent_path().filename() == job.src.parent_path().filename();   // (another spelling of the same folder)
     if (plays_it) {   // the player must let go of the file
-        player_.stop();
+        device_stop();   // on the device worker (see App::device_run())
         // The long files are decoded by ffmpeg processes that read the file for as long as anybody holds the track (the player, and
         // the app's own reference): letting go of it ends them, and the file can be moved.
         if (current_pcm_) current_pcm_->cancelled.store(true);   // (the decode threads end and close the file; another holder of the track would keep them alive)

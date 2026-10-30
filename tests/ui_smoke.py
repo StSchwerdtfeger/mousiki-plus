@@ -95,7 +95,11 @@ class Session:
 
     def pump(self, seconds):
         end = time.time() + seconds * SLOW
-        while time.time() < end:
+        # A frame is written in one go between "begin / end synchronized update" (ESC[?2026h ... ESC[?2026l), but it reaches us
+        # in pieces: when the time is up in the middle of one, read on (at most one more second) until that frame is complete,
+        # so the checks never see half a frame (on a slow machine that happened now and then: "frame broken" on a good frame).
+        hard_end = end + 1.0
+        while time.time() < end or (time.time() < hard_end and self.raw.rfind(b"\x1b[?2026h") > self.raw.rfind(b"\x1b[?2026l")):
             r, _, _ = select.select([self.fd], [], [], 0.1)
             if r:
                 try:

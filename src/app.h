@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <condition_variable>
 #include <filesystem>
+#include <deque>
 #include <functional>
 #include <map>
 #include <set>
@@ -1251,6 +1252,14 @@ private:
     void start_device_worker();      // called once, from the constructor
     void stop_device_worker();       // called once, from run()'s shutdown, before joining device_worker_thread_
     void launch_device_play_async();
+    // Any other call that opens, moves or closes the audio device (Player::stop(), reopen_device()) runs on the device worker too,
+    // and the caller waits until it is done: device_run() posts `fn` and blocks until the worker has run it (under
+    // player_mutex_). When the worker is not running (yet / any more) `fn` runs right here. device_stop() = device_run() of
+    // player_.stop(), and a track switch that is still waiting for the worker is dropped (it would start the old track again).
+    std::deque<std::function<void()>> device_tasks_;   // guarded by device_request_mutex_
+    bool device_worker_running_ = false;               // guarded by device_request_mutex_
+    void device_run(const std::function<void()>& fn);
+    void device_stop();
 
     PendingLoad pending_load_;
     void launch_load_async(fs::path local_path, std::string title, std::string artist,

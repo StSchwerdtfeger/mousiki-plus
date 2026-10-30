@@ -418,7 +418,46 @@ void App::launch_device_play_async() {
 }
 
 void App::start_device_worker() {
+    {
+        std::lock_guard<std::mutex> lk(device_request_mutex_);
+        device_worker_running_ = true;
+    }
     device_worker_thread_ = std::thread(&App::device_worker_loop, this);
+}
+
+void App::device_run(const std::function<void()>& fn) {
+    auto done = std::make_shared<std::promise<void>>();
+    std::future<void> fut = done->get_future();
+    {
+        std::lock_guard<std::mutex> lk(device_request_mutex_);
+        if (device_worker_running_ && !device_worker_stop_) {
+            device_tasks_.push_back([fn, done] {
+                run_guarded("audio device", fn);
+                done->set_value();
+            });
+        } else {
+            done.reset();
+        }
+    }
+    if (!done) {   // no worker: here, as before
+        std::lock_guard<std::mutex> lk(player_mutex_);
+        run_guarded("audio device", fn);
+        return;
+    }
+    device_request_cv_.notify_one();
+    fut.wait();
+}
+
+void App::device_stop() {
+    {   // a switch that has not reached the worker yet would start the track that is being stopped again
+        std::lock_guard<std::mutex> lk(device_request_mutex_);
+        if (device_request_ready_) {
+            device_request_ready_ = false;
+            device_request_.pcm.reset();
+            device_play_pending_gen_.store(0);
+        }
+    }
+    device_run([this] { player_.stop(); });
 }
 
 void App::stop_device_worker() {
@@ -432,12 +471,23 @@ void App::stop_device_worker() {
 void App::device_worker_loop() {
     for (;;) {
         DevicePlayRequest req;
+        std::function<void()> task;
         {
             std::unique_lock<std::mutex> lk(device_request_mutex_);
-            device_request_cv_.wait(lk, [this] { return device_request_ready_ || device_worker_stop_; });
-            if (device_worker_stop_) return;   // quitting -- don't start one more track on the way out
-            req = device_request_;
-            device_request_ready_ = false;
+            device_request_cv_.wait(lk, [this] { return device_request_ready_ || device_worker_stop_ || !device_tasks_.empty(); });
+            if (!device_tasks_.empty()) {   // a stop / device move first (also on the way out: the caller waits for it)
+                task = std::move(device_tasks_.front());
+                device_tasks_.pop_front();
+            } else {
+                if (device_worker_stop_) { device_worker_running_ = false; return; }   // quitting -- don't start one more track on the way out
+                req = device_request_;
+                device_request_ready_ = false;
+            }
+        }
+        if (task) {
+            std::lock_guard<std::mutex> lk(player_mutex_);
+            task();
+            continue;
         }
         // Defensive only: with a single overwritable slot rather than a
         // real queue, req.generation should already equal device_gen_ by

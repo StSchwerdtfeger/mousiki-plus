@@ -1300,11 +1300,8 @@ void App::shutdown() {
     suspended_ = false;
     history_end_current_play();
     history_.save();
+    device_stop();          // closed by the thread that opened it
     stop_device_worker();
-    {
-        std::lock_guard<std::mutex> lk(player_mutex_);
-        player_.stop();
-    }
     save_settings(settings_);
     if (settings_.autosave_enabled && !audiobook_) {
         save_snapshot(build_snapshot());

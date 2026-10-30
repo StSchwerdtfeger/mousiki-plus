@@ -1330,7 +1330,7 @@ void App::book_finish_job(BookTagJob& job) {
     if (has_track_ && current_is_local_) {   // the chapter that plays is held open by the player's decoder: it lets go first
         for (const auto& r : rn)
             if (path_key(r.first) == path_key(current_path_)) {
-                player_.stop();
+                device_stop();   // on the device worker (see App::device_run())
                 if (current_pcm_) current_pcm_->cancelled.store(true);
                 current_pcm_.reset();
                 has_track_ = false;

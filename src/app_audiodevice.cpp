@@ -78,8 +78,9 @@ void App::audio_device_apply() {
     adev_applied_ = settings_.audio_device;
     player_.set_device(adev_applied_);
     if (!has_track_) return;   // nothing open: the next track opens the new device
-    std::lock_guard<std::mutex> lk(player_mutex_);
-    if (!player_.reopen_device()) ConsoleLog::instance().log_basic("audio: no audio device could be opened");
+    device_run([this] {   // on the device worker, like every opening and closing of the device (WASAPI wants one thread)
+        if (!player_.reopen_device()) ConsoleLog::instance().log_basic("audio: no audio device could be opened");
+    });
 }
 
 std::vector<std::string> App::build_audio_device_panel() const {
