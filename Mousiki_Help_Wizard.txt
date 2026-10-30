@@ -188,6 +188,12 @@ The audio book mode is the third mode: the music player shaped for
 books (books and chapters instead of library and queue, an opening
 book in place of the disk, tags made for books).
 
+THE TERMINAL FONT: [[Header]]
+The disk and the pictures are braille characters. They look full and round
+with Cascadia Mono, the font Mousiki uses for its own window where the
+terminal allows it (Settings, GENERAL, TEXT AND TRANSLITERATION, Font). A
+font without braille characters shows small scattered dots.
+
 Mousiki Plus (Win/Linux/macOS):
 StSchwerdtfeger — github.com/StSchwerdtfeger
 Version {VERSION} — Apache 2.0 license
@@ -204,6 +210,11 @@ MODE CHANGE:[[Header]] [SHIFT and +] (German keyboard) or ['] (English keyboard)
 next mode, [SHIFT and -] (German) or [;] (English) to the previous one: music player, radio and
 audio books, in the order of Settings -> GENERAL -> MODES (every mode can be switched off there).
 Both keys can be changed in Settings -> REFERENCE (Next Mode / Previous Mode).
+
+COVER LOOK:[[Header]] [CTRL+t] one look back, [CTRL+z] one forward: plain disk, Just Cover, Cover
+with Gradient, Cover behind Disk, v2, Full Anima, Cover ASCII, Cover ASCII with Gradient. In the
+audio book mode: default picture, cover with gradient wave, cover in its own colours. Only while
+Eliment Disk / Cover is on; saved at once. Changeable in Settings -> REFERENCE.
 
 MENUS INDEX:[[Header]] [<] (German keyboard) or [SHIFT+,] (English keyboard) lists all menus
 and overlays with their keys; [ENTER] opens the selected one.
@@ -1274,6 +1285,14 @@ This category is only available in the audio book mode only...
                                                   and also include I time-stamp to which one can move...
 
 [TEXT AND TRANSLITERATION (JAP./KOR./CHIN.):][[Header]]
+[Font:][[Legend]]                                             Mousiki's own font (default Cascadia Mono). [ENTER] lists
+                                                  Terminal Default, Cascadia Mono and the monospace fonts of
+                                                  this computer. It is set for Mousiki's window only, where
+                                                  the terminal allows it (macOS Terminal, iTerm2, Windows
+                                                  Terminal through the Mousiki launchers, the old console
+                                                  window); other terminals keep their font. Saved at once,
+                                                  for all modes.
+
 [Replace Emoji:][[Legend]]                                    on (default) = an emoji in a title is drawn as a single ?,
                                                   so the frame borders stay aligned; off = the emoji itself
                                                   is drawn.
@@ -1372,6 +1391,16 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   Disk looks; in the audio book mode with the Book Gradient
                                                   Wave on). Just Cover and all previews stay as they are; 0%
                                                   = as it is.
+[Cover Brightness:][[Legend]]                                 0% .. 100% in steps of 5% (default 50%). Only for the
+                                                  Cover behind Disk looks: the cover is spread over the
+                                                  whole brightness range (bright like the plain disk) and
+                                                  its dark parts are lifted to at least this share; the
+                                                  cover is also sharpened for more detail.
+[Cover Colors:][[Legend]]                                     0% .. 100% in steps of 5% (default 0%). Only for the
+                                                  Cover behind Disk looks: how much of the cover's own
+                                                  colours shows. 0% = the gradient only, 50% = the cover's
+                                                  colours shine through the gradient, 100% = the cover in
+                                                  its own colours.
 [Cover Search:][[Legend]]                                     says where the cover is looked for:
                                                   Default: first the picture inside the file (mp3 and the
                                                   other formats that can carry one). If it has none, the
@@ -1422,6 +1451,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   colours gradient from left to right, like the oscilloscope
                                                   is using... [<-/->] switch between the two values of the
                                                   row, [ENTER] changes the options.
+                                                  Default: the moving braille blocks (disk), in all modes.
 
 [SPECTRUM BARS:][[Header]]               
 [On/Off:][[Legend]]                                           shows or hides the spectrum bars under the meta data
@@ -1446,7 +1476,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 [Waveform Style][[Legend]]                                    Switched between raw / smooth, same as like [w].
 
 [OSCI/SPECTRO SETTINGS:][[Header]]
-[Osci/Spectro Share Profile:][[Legend]]                       on = the music, radio and audio book player use the same
+[Modes Share Settings:][[Legend]]                             on = the music, radio and audio book player use the same
                                                   settings for the oscilloscope/spectrogram settings; each
                                                   modes own values are kept and come back when turned off
                                                   again.
@@ -1504,7 +1534,7 @@ PLAYLISTS, META EDITOR, HISTORY, EQUALIZER, DOWNLOADS, LIBRARY, SYSTEM), and the
 HOW A KEY IS WRITTEN: [[Header]]
 As the character itself (n, T, #, +; a capital letter is SHIFT + the letter) or as a name: ENTER,
 TAB, SPACE, BACKSPACE, ARROW_KEY_UP / DOWN / LEFT / RIGHT. A combination ([ALT+L], [ALT+C], [CTRL+L],
-[CTRL+SHIFT+u], [CTRL+SHIFT+z]) is entered by pressing it. An empty field unbinds the command.
+[CTRL+t], [CTRL+z], [CTRL+SHIFT+u], [CTRL+SHIFT+z]) is entered by pressing it. An empty field unbinds the command.
 
 SAFETY: [[Header]]
 A key that is already used by another command is refused with a message naming it, so you can

@@ -358,3 +358,30 @@ TEST(scripts_dir_override_accepts_only_a_checked_absolute_folder) {
     set_env("");
     CHECK(scripts_file_from_env("tool.py").empty());                      // not set
 }
+
+TEST(settings_cover_brightness_colors_and_volume_default) {
+    mt::TempHome home;
+    Settings s = load_settings();
+    CHECK_EQ(s.cover_brightness, 50);   // the defaults
+    CHECK_EQ(s.cover_colors, 0);
+    CHECK_EQ(s.volume_indicator, 4);    // the "disk" look
+    s.cover_brightness = 35;
+    s.cover_colors = 80;
+    save_settings(s);
+    Settings r = load_settings();
+    CHECK_EQ(r.cover_brightness, 35);
+    CHECK_EQ(r.cover_colors, 80);
+    CHECK(set_config_value("CoverColors", "47%"));   // rounded to steps of 5, clamped
+    CHECK_EQ(load_settings().cover_colors, 45);
+    CHECK(set_config_value("CoverBrightness", "250"));
+    CHECK_EQ(load_settings().cover_brightness, 100);
+}
+
+TEST(settings_cover_look_keys_are_ctrl_t_and_ctrl_z) {
+    Settings s;
+    apply_default_hotkeys(s);
+    CHECK_EQ(s.hotkeys["HKeyCoverPrev"], std::string("CTRL+T"));
+    CHECK_EQ(s.hotkeys["HKeyCoverNext"], std::string("CTRL+Z"));
+    CHECK_EQ(combo_key_name(kKeyCtrlT), std::string("CTRL+T"));
+    CHECK_EQ(combo_key_name(kKeyCtrlZ), std::string("CTRL+Z"));
+}

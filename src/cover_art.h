@@ -40,6 +40,11 @@ void quantize_colours(const std::vector<unsigned char>& rgb, const std::vector<u
 // The cover fitted into max_w x max_h pixels (proportions kept). `key_id` names the cover (a new id = a new scaling).
 // `contrast` 0..100 (%): 0 = the cover as it is; more pushes the brightnesses (the colours) away from the middle grey.
 const CoverScaled& cover_scaled(const CoverImage& c, int max_w, int max_h, bool colour, int contrast = 0);
+// The cover fitted into max_w x max_h in its own colours, unquantised: `rgb` (3 bytes a pixel) and `alpha`, w x h (the same size
+// cover_scaled() gives for these arguments). A cache of its own, so the grey and the colour version of the same cover can be used
+// in one frame (the cover behind the disk with Cover Colors).
+struct CoverRgb { std::string key; int w = 0, h = 0; std::vector<unsigned char> rgb, alpha; };
+const CoverRgb& cover_scaled_rgb(const CoverImage& c, int max_w, int max_h, int contrast = 0);
 
 // ---- where a cover comes from ----------------------------------------------------------------------------------------------
 // The places that are looked at, in this order, until one gives a picture:

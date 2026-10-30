@@ -300,6 +300,9 @@ TerminalIO::TerminalIO() {
     raw = g_orig_termios;
     raw.c_lflag &= ~(ECHO | ICANON);
     raw.c_iflag &= ~(IXON | IXOFF);   // Ctrl+S / Ctrl+Q reach the app as keys (Ctrl+S = save), not as flow control
+#ifdef _POSIX_VDISABLE
+    raw.c_cc[VSUSP] = _POSIX_VDISABLE;   // Ctrl+Z is a key (the cover look), it does not stop the program
+#endif
     raw.c_cc[VMIN] = 0;
     raw.c_cc[VTIME] = 0;
     tcsetattr(STDIN_FILENO, TCSANOW, &raw);
@@ -374,6 +377,9 @@ void TerminalIO::reassert_raw_mode() {
     struct termios raw = g_orig_termios;
     raw.c_lflag &= ~(ECHO | ICANON);
     raw.c_iflag &= ~(IXON | IXOFF);   // see the constructor: Ctrl+S is a key here
+#ifdef _POSIX_VDISABLE
+    raw.c_cc[VSUSP] = _POSIX_VDISABLE;   // see the constructor: Ctrl+Z is a key here
+#endif
     // Text-entry mode: keep SIGINT off the keyboard so Ctrl+C reaches the
     // editor as a key (copy) rather than as a signal (quit). Re-derived here
     // rather than applied once, because this runs on every poll.
@@ -659,6 +665,8 @@ int TerminalIO::poll_key_raw() {
                 if (mod == 5 && (code == 'p' || code == 'P')) { g_last_key_was_arrow = false; return kKeyCtrlP; } // Ctrl+P
                 if (mod == 5 && (code == 'l' || code == 'L')) { g_last_key_was_arrow = false; return kKeyCtrlL; } // Ctrl+L
                 if (mod == 5 && (code == 'n' || code == 'N')) { g_last_key_was_arrow = false; return kKeyCtrlN; } // Ctrl+N
+                if (mod == 5 && (code == 't' || code == 'T')) { g_last_key_was_arrow = false; return kKeyCtrlT; } // Ctrl+T
+                if (mod == 5 && (code == 'z' || code == 'Z')) { g_last_key_was_arrow = false; return kKeyCtrlZ; } // Ctrl+Z
                 // "1;<mod> A" -- an arrow (or Home/End) pressed WITH a
                 // modifier, which is how xterm-style terminals report
                 // Shift+Left/Right: "ESC [ 1 ; 2 D". mod is
@@ -716,6 +724,8 @@ int TerminalIO::poll_key_raw() {
     // Ctrl+L = the READ LYRICS overlay (the lyrics timing overlay is Alt+L).
     if (c == 0x0c) { g_last_key_was_arrow = false; return kKeyCtrlL; }
     if (c == 0x0e) { g_last_key_was_arrow = false; return kKeyCtrlN; }   // Ctrl+N (audio book mode: small note field <-> big notes overlay)
+    if (c == 0x14) { g_last_key_was_arrow = false; return kKeyCtrlT; }   // Ctrl+T: the cover look one step back
+    if (c == 0x1a) { g_last_key_was_arrow = false; return kKeyCtrlZ; }   // Ctrl+Z: one step forward (VSUSP is off, see below)
     g_last_key_was_arrow = false;
     return c;
 #endif

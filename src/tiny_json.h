@@ -162,7 +162,6 @@ public:
 private:
     const std::string& s_;
     size_t i_ = 0;
-    bool ok_ = true;
 
     void skip_ws() { while (i_ < s_.size() && (s_[i_] == ' ' || s_[i_] == '\t' || s_[i_] == '\n' || s_[i_] == '\r')) ++i_; }
     char peek() const { return i_ < s_.size() ? s_[i_] : '\0'; }

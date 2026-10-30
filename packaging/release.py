@@ -20,7 +20,7 @@ and macOS from nothing but the Mousiki source .zip.  Pure standard library.
 Outputs land in ./dist :
     Mousiki-<ver>-windows-x64-setup.exe      + Mousiki-<ver>-windows-x64-portable.zip
     Mousiki-<ver>-linux-amd64.deb           + Mousiki-<ver>-linux-amd64-portable.zip
-    Mousiki-<ver>-macos-universal.pkg        + Mousiki-<ver>-macos-universal-portable.zip
+    Mousiki-<ver>-macos-universal.dmg        + Mousiki-<ver>-macos-universal-portable.zip
     SHA256SUMS.txt
 Files of other versions found in ./dist are moved to ./dist/older/<version>/ when a build starts, so
 only the current version is left to upload.
@@ -504,9 +504,15 @@ if exist "%MOUSIKI_HOME%portable.txt" set "HOME=%MOUSIKI_HOME%data"
 
 WIN_WT_LAUNCHER = r"""@echo off
 rem Opens Mousiki in Windows Terminal (the legacy console window cannot render the UI properly).
+rem Mousiki keeps a Windows Terminal profile "Mousiki" with its own font (Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Font);
+rem once it exists, the window opens with that profile -- your own profiles are not changed.
 where wt.exe >nul 2>&1
 if errorlevel 1 goto plain
-start "" wt.exe --title Mousiki "%~dp0mousiki.cmd" %*
+if exist "%LOCALAPPDATA%\Microsoft\Windows Terminal\Fragments\Mousiki\mousiki.json" (
+    start "" wt.exe -p "Mousiki" --title Mousiki "%~dp0mousiki.cmd" %*
+) else (
+    start "" wt.exe --title Mousiki "%~dp0mousiki.cmd" %*
+)
 exit /b
 :plain
 call "%~dp0mousiki.cmd" %*
@@ -1133,7 +1139,7 @@ Architecture: %s
 Installed-Size: %d
 Maintainer: Mousiki release toolkit <noreply@localhost>
 Depends: libc6, libstdc++6, python3, ffmpeg, curl, libasound2 | libasound2t64, libpulse0
-Recommends: pulseaudio-utils | pipewire-pulse, xclip | wl-clipboard, xdg-utils, libsdl2-2.0-0
+Recommends: pulseaudio-utils | pipewire-pulse, xclip | wl-clipboard, xdg-utils, libsdl2-2.0-0, fonts-cascadia-code
 Homepage: https://github.com/StSchwerdtfeger/mousiki-plus
 Description: Terminal music player and online radio (TUI)
  Mousiki plays local files and online sources (via the bundled yt-dlp) in the
@@ -1178,7 +1184,7 @@ def build_linux(a, ctx):
 
 
 # --------------------------------------------------------------------------
-# macOS: build + .pkg
+# macOS: build + Mousiki.app on a .dmg
 # --------------------------------------------------------------------------
 def deps_macos(install):
     if not capture(["xcode-select", "-p"]):
@@ -1188,46 +1194,170 @@ def deps_macos(install):
             run(["brew", "install", "cmake"])
         else:
             die("cmake missing - run: brew install cmake  (or use --install-deps)")
-    for t in ("pkgbuild", "productbuild", "codesign"):
+    for t in ("hdiutil", "codesign", "sips"):
         if not which(t):
             die("%s not found - this must run on macOS" % t)
 
 
-MAC_COMMAND = """#!/bin/sh
-# Double-click to start Mousiki in a Terminal window.
-exec /usr/local/lib/mousiki/mousiki "$@"
+CASCADIA_VERSION = "2407.24"   # github.com/microsoft/cascadia-code releases; 'release.py pin' fixes the file and its SHA-256
+CASCADIA_ZIP = "CascadiaCode-%s.zip" % CASCADIA_VERSION
+CASCADIA_URL = "https://github.com/microsoft/cascadia-code/releases/download/v%s/%s" % (CASCADIA_VERSION, CASCADIA_ZIP)
+CASCADIA_LICENSE = HERE / "fonts" / "CascadiaCode-OFL.txt"   # SIL Open Font License 1.1, shipped next to the font
+
+
+def fetch_cascadia_mono(dl, a):
+    """Cascadia Mono (the font of the README pictures: full braille dots) as {file name: bytes}; {} when it cannot be had.
+    The variable font when the release has it, else the static Regular and Bold."""
+    try:
+        z = fetch_pinned(CASCADIA_ZIP, dl / CASCADIA_ZIP, a)
+        if z is None:
+            z = fetch(CASCADIA_URL, dl / CASCADIA_ZIP, a.refresh_tools, tries=2)
+    except SystemExit:
+        warn("Cascadia Mono could not be downloaded - the app is built without the font")
+        return {}
+    out = {}
+    with zipfile.ZipFile(str(z)) as zf:
+        names = zf.namelist()
+        var = [n for n in names if n.lower().endswith("ttf/cascadiamono.ttf")]
+        pick = var or [n for n in names if n.lower().split("/")[-1] in ("cascadiamono-regular.ttf", "cascadiamono-bold.ttf")]
+        for n in pick:
+            out[n.split("/")[-1]] = zf.read(n)
+    if not out:
+        warn("Cascadia Mono not found in %s - the app is built without the font" % z.name)
+    return out
+
+
+# Mousiki.app/Contents/MacOS/Mousiki: copies the bundled font into ~/Library/Fonts once (per user, no password), then opens
+# Mousiki in a new Terminal window. Mousiki itself sets the font of that window (Settings -> GENERAL -> TEXT AND
+# TRANSLITERATION -> Font, Cascadia Mono by default; terminal_font.cpp) and gives it back when it quits.
+MAC_APP_LAUNCHER = r"""#!/bin/sh
+CONTENTS="$(cd "$(dirname "$0")/.." && pwd)"
+RES="$CONTENTS/Resources"
+if [ -d "$RES/fonts" ]; then
+    mkdir -p "$HOME/Library/Fonts"
+    for f in "$RES"/fonts/*.ttf; do
+        [ -e "$f" ] || continue
+        [ -e "$HOME/Library/Fonts/$(basename "$f")" ] || cp "$f" "$HOME/Library/Fonts/" 2>/dev/null
+    done
+fi
+exec open -a Terminal "$RES/Mousiki.command"
 """
 
-MAC_UNINSTALL = """#!/bin/sh
-echo "This removes Mousiki (program files and the /Applications/Mousiki folder)."
-echo "Your settings in ~/.config/mousiki are kept."
+MAC_APP_COMMAND = """#!/bin/sh
+# Starts Mousiki in a Terminal window (used when the app may not control Terminal).
+exec "$(cd "$(dirname "$0")" && pwd)/mousiki/mousiki"
+"""
+
+# On the disk image: the two terminal commands (optional), and the clean-up of an install by the old .pkg (up to v4.7.x).
+MAC_INSTALL_COMMANDS = """#!/bin/sh
+APP="/Applications/Mousiki.app/Contents/Resources/mousiki"
+echo "This adds the terminal commands  mousiki  and  lala  (links in /usr/local/bin to Mousiki.app)."
+echo "Drag Mousiki.app into Applications first. Your Mac password is asked for."
+if [ ! -x "$APP/mousiki" ]; then echo "Mousiki.app is not in /Applications yet."; exit 1; fi
+sudo mkdir -p /usr/local/bin
+sudo ln -sf "$APP/mousiki" /usr/local/bin/mousiki
+sudo ln -sf "$APP/lala" /usr/local/bin/lala
+echo "Done. Open a new Terminal window and type  mousiki  (or  lala)."
+echo "(When you move Mousiki.app to the Bin, these two links stay behind and do nothing; remove them with"
+echo " sudo rm /usr/local/bin/mousiki /usr/local/bin/lala )"
+"""
+
+MAC_REMOVE_OLD_PKG = """#!/bin/sh
+echo "This removes Mousiki installed by the older .pkg installer (up to v4.7.x):"
+echo "/usr/local/lib/mousiki, the /Applications/Mousiki folder and its mousiki / lala commands."
+echo "Mousiki.app and your settings in ~/.config/mousiki are kept."
 printf "Continue? [y/N] "
 read ans
 case "$ans" in y|Y) ;; *) echo "Cancelled."; exit 0 ;; esac
-sudo rm -rf /usr/local/lib/mousiki /usr/local/bin/mousiki /usr/local/bin/lala /Applications/Mousiki
+for c in mousiki lala; do
+    case "$(readlink /usr/local/bin/$c 2>/dev/null)" in *lib/mousiki/*) sudo rm -f /usr/local/bin/$c ;; esac
+done
+sudo rm -rf /usr/local/lib/mousiki /Applications/Mousiki
 sudo pkgutil --forget io.github.mousiki.player >/dev/null 2>&1
-echo "Mousiki was removed."
+echo "The old installation was removed."
+"""
+
+MAC_INFO_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key><string>Mousiki</string>
+    <key>CFBundleDisplayName</key><string>Mousiki</string>
+    <key>CFBundleIdentifier</key><string>io.github.mousiki.player</string>
+    <key>CFBundleVersion</key><string>@@VER@@</string>
+    <key>CFBundleShortVersionString</key><string>@@VER@@</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleExecutable</key><string>Mousiki</string>
+    @@ICON@@<key>LSMinimumSystemVersion</key><string>10.15</string>
+    <key>NSAppleEventsUsageDescription</key><string>Mousiki sets the font of its own Terminal window (and gives the old one back when it quits).</string>
+    <key>NSHighResolutionCapable</key><true/>
+</dict>
+</plist>
 """
 
 
-def build_mac_pkgroot(stage, root):
-    """Payload of the .pkg: program in /usr/local/lib/mousiki + /usr/local/bin/mousiki,
-    plus a /Applications/Mousiki folder with a double-click launcher, the manual and an uninstaller."""
-    rmtree(root)
-    lib = root / "usr" / "local" / "lib" / "mousiki"
-    shutil.copytree(str(stage), str(lib), symlinks=True)
-    (root / "usr" / "local" / "bin").mkdir(parents=True)
-    os.symlink("../lib/mousiki/mousiki", str(root / "usr" / "local" / "bin" / "mousiki"))
-    os.symlink("../lib/mousiki/lala", str(root / "usr" / "local" / "bin" / "lala"))   # second command name
-    apps = root / "Applications" / "Mousiki"
-    apps.mkdir(parents=True)
-    write_text(apps / "Mousiki.command", MAC_COMMAND, executable=True)
-    write_text(apps / "Uninstall Mousiki.command", MAC_UNINSTALL, executable=True)
+def mac_icon(src, res):
+    """mousiki.ico -> Contents/Resources/mousiki.icns with the tools macOS has (sips); False when that does not work."""
+    ico = src / "mousiki.ico"
+    if not ico.is_file():
+        return False
+    png = res / "icon-tmp.png"
+    try:
+        ok = subprocess.call(["sips", "-s", "format", "png", str(ico), "--out", str(png)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+        ok = ok and subprocess.call(["sips", "-s", "format", "icns", str(png), "--out", str(res / "mousiki.icns")],
+                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+    except OSError:
+        ok = False
+    if png.exists():
+        png.unlink()
+    return ok and (res / "mousiki.icns").is_file()
+
+
+def build_mac_app(stage, src, app, ver, fonts):
+    """Mousiki.app: everything inside the bundle (program, tools, scripts, font, manual), so moving the app to the Bin removes it."""
+    rmtree(app)
+    contents = app / "Contents"
+    res = contents / "Resources"
+    (contents / "MacOS").mkdir(parents=True)
+    res.mkdir(parents=True)
+    shutil.copytree(str(stage), str(res / "mousiki"), symlinks=True)
+    write_text(contents / "MacOS" / "Mousiki", MAC_APP_LAUNCHER, executable=True)
+    write_text(res / "Mousiki.command", MAC_APP_COMMAND, executable=True)
+    if fonts:
+        (res / "fonts").mkdir()
+        for name, data in fonts.items():
+            (res / "fonts" / name).write_bytes(data)
+        shutil.copy2(str(CASCADIA_LICENSE), str(res / "fonts" / "CascadiaCode-OFL.txt"))
+        with open(str(res / "mousiki" / "THIRD-PARTY.txt"), "a", encoding="utf-8") as f:
+            f.write("- Cascadia Mono %s (SIL Open Font License 1.1, Microsoft) - https://github.com/microsoft/cascadia-code - "
+                    "Mousiki.app/Contents/Resources/fonts\n" % CASCADIA_VERSION)
     manual = find_manual_pdf(stage)
     if manual:
-        shutil.copy2(str(manual), str(apps / "Mousiki User Manual.pdf"))
-    if os.name != "nt":
-        (root / "Applications").chmod(0o775)
+        shutil.copy2(str(manual), str(res / "Mousiki User Manual.pdf"))
+    icon = mac_icon(src, res)
+    plist = MAC_INFO_PLIST.replace("@@VER@@", ver)
+    plist = plist.replace("@@ICON@@", "<key>CFBundleIconFile</key><string>mousiki</string>\n    " if icon else "")
+    write_text(contents / "Info.plist", plist)
+    if not icon:
+        warn("no app icon (sips could not convert mousiki.ico) - the app shows the generic icon")
+
+
+def build_mac_dmg(app, ws, out, ver):
+    """The disk image: Mousiki.app, a link to Applications (drag and drop), the manual and two optional helper commands."""
+    root = ws / "dmgroot"
+    rmtree(root)
+    root.mkdir(parents=True)
+    shutil.move(str(app), str(root / "Mousiki.app"))
+    os.symlink("/Applications", str(root / "Applications"))
+    manual = root / "Mousiki.app" / "Contents" / "Resources" / "Mousiki User Manual.pdf"
+    if manual.is_file():
+        shutil.copy2(str(manual), str(root / "Mousiki User Manual.pdf"))
+    write_text(root / "Install Terminal Commands (optional).command", MAC_INSTALL_COMMANDS, executable=True)
+    write_text(root / "Remove Old Mousiki (pkg install).command", MAC_REMOVE_OLD_PKG, executable=True)
+    if out.exists():
+        out.unlink()
+    run(["hdiutil", "create", "-volname", "Mousiki %s" % ver, "-srcfolder", str(root), "-ov", "-format", "UDZO", str(out)])
+    rmtree(root)
 
 
 def build_macos(a, ctx):
@@ -1245,37 +1375,25 @@ def build_macos(a, ctx):
         bundle_unix_tools(stage, ctx["dl"], a, "macos")
     run(["xattr", "-cr", stage], check=False)
     sign_id = a.sign_identity or os.environ.get("MOUSIKI_CODESIGN_ID") or "-"
+    sign_opts = ["--options", "runtime", "--timestamp"] if sign_id != "-" else []
     for f in (stage / "app" / "mousiki", stage / "scripts" / "fpcalc"):
         if f.is_file():
-            cmd = ["codesign", "--force", "--sign", sign_id]
-            if sign_id != "-":
-                cmd += ["--options", "runtime", "--timestamp"]
-            run(cmd + [f], check=False)
+            run(["codesign", "--force", "--sign", sign_id] + sign_opts + [f], check=False)
     if sign_id == "-":
         warn("binaries are only ad-hoc signed (no Apple Developer ID) - Gatekeeper will warn on other Macs")
     ver = ctx["version"]
     arch = "universal" if universal else ("arm64" if platform.machine() == "arm64" else "x86_64")
-    root = ws / "pkgroot"
-    build_mac_pkgroot(stage, root)
-    comp = ws / "mousiki-component.pkg"
-    # preinstall: remove the old program folder so an upgrade leaves no stale files (user settings are in ~/.config)
-    scripts = ws / "pkgscripts"
-    rmtree(scripts)
-    write_text(scripts / "preinstall", "#!/bin/sh\nrm -rf /usr/local/lib/mousiki\nexit 0\n", executable=True)
-    run(["pkgbuild", "--root", root, "--identifier", "io.github.mousiki.player", "--version", ver,
-         "--install-location", "/", "--ownership", "recommended", "--scripts", scripts, comp])
-    out = dist / ("Mousiki-%s-macos-%s.pkg" % (ver, arch))
-    if out.exists():
-        out.unlink()
-    cmd = ["productbuild", "--package", comp]
-    inst_id = os.environ.get("MOUSIKI_INSTALLER_SIGN_ID")
-    if inst_id:
-        cmd += ["--sign", inst_id]
-    run(cmd + [out])
-    outputs = [out]
+    outputs = []
+    # the app (with the font) on a disk image: drag it to Applications; moving it to the Bin removes Mousiki again
+    app = ws / "Mousiki.app"
+    build_mac_app(stage, src, app, ver, fetch_cascadia_mono(ctx["dl"], a))
+    run(["xattr", "-cr", app], check=False)
+    run(["codesign", "--force", "--deep", "--sign", sign_id] + sign_opts + [app], check=False)
+    out = dist / ("Mousiki-%s-macos-%s.dmg" % (ver, arch))
+    build_mac_dmg(app, ws, out, ver)
+    outputs.append(out)
     outputs.append(make_portable(stage, ws, dist, "Mousiki-%s-macos-%s-portable.zip" % (ver, arch),
                                  "Mousiki-%s" % ver, "macos", ver))
-    rmtree(root)
     rmtree(stage)
     return outputs
 
@@ -1309,7 +1427,7 @@ def archive_old_dist(dist, version):
 
 
 def write_checksums(dist):
-    pats = ("*.exe", "*.zip", "*.deb", "*.pkg", "*.cdx.json")
+    pats = ("*.exe", "*.zip", "*.deb", "*.dmg", "*.pkg", "*.cdx.json")
     files = sorted({p for pat in pats for p in dist.glob(pat)})
     if not files:
         return
@@ -1335,7 +1453,7 @@ def gpg_key_of(a):
 
 def gpg_sign_release(dist, key):
     """Detached, ASCII-armoured signatures for SHA256SUMS.txt (covers every file) and for every package
-    (.exe / .zip / .deb / .pkg) and the SBOM (.cdx.json), plus the public key.
+    (.exe / .zip / .deb / .dmg) and the SBOM (.cdx.json), plus the public key.
     Verify with:  gpg --verify SHA256SUMS.txt.asc SHA256SUMS.txt   or   gpg --verify <package>.asc <package>"""
     gpg = gpg_binary()
     if not gpg:
@@ -1343,7 +1461,7 @@ def gpg_sign_release(dist, key):
     sums = dist / "SHA256SUMS.txt"
     if not sums.is_file():
         die("no SHA256SUMS.txt in %s - nothing to sign" % dist)
-    packages = sorted({p for pat in ("*.exe", "*.zip", "*.deb", "*.pkg", "*.cdx.json") for p in dist.glob(pat)})
+    packages = sorted({p for pat in ("*.exe", "*.zip", "*.deb", "*.dmg", "*.pkg", "*.cdx.json") for p in dist.glob(pat)})
     for t in [sums] + packages:
         asc = t.with_name(t.name + ".asc")
         if asc.exists():
@@ -1544,11 +1662,11 @@ def cmd_cloud(a):
     if tmp.is_dir():
         for p in tmp.rglob("*"):
             ext = p.suffix.lower()
-            if p.is_file() and (ext in (".exe", ".zip", ".deb", ".pkg") or p.name.endswith(".cdx.json")):   # packages + the SBOM
+            if p.is_file() and (ext in (".exe", ".zip", ".deb", ".dmg", ".pkg") or p.name.endswith(".cdx.json")):   # packages + the SBOM
                 shutil.copy2(str(p), str(dist / p.name))
                 got.append(dist / p.name)
             elif p.is_file() and (p.name in ("mousiki-release-key.asc", "SHA256SUMS.txt", "SHA256SUMS.txt.asc")
-                                  or (ext == ".asc" and p.name[:-4].lower().endswith((".exe", ".zip", ".deb", ".pkg", ".cdx.json")))):
+                                  or (ext == ".asc" and p.name[:-4].lower().endswith((".exe", ".zip", ".deb", ".dmg", ".pkg", ".cdx.json")))):
                 shutil.copy2(str(p), str(dist / p.name))      # checksums + GPG signatures made in the workflow
             elif p.is_file() and p.name.endswith(".intoto.jsonl"):
                 shutil.copy2(str(p), str(dist / p.name))      # provenance bundle
@@ -1732,6 +1850,11 @@ def cmd_pin(a):
             put(name, url, get(url, work / name))
         except SystemExit:
             warn("%s: download failed - keeping the old pin" % name)
+    # Cascadia Mono for the macOS app (fixed version, see CASCADIA_VERSION)
+    try:
+        put(CASCADIA_ZIP, CASCADIA_URL, get(CASCADIA_URL, work / CASCADIA_ZIP))
+    except SystemExit:
+        warn("%s: download failed - keeping the old pin" % CASCADIA_ZIP)
     for k, v in old.items():           # whatever could not be refreshed this time stays as it was
         files.setdefault(k, v)
     pin_kanji_packages(work)
@@ -1760,7 +1883,7 @@ def cmd_doctor(a):
         row("dpkg-deb", bool(which("dpkg-deb")), "sudo apt install dpkg-dev")
     else:
         row("Xcode CLT", bool(capture(["xcode-select", "-p"])), "xcode-select --install")
-        row("pkgbuild", bool(which("pkgbuild")), "comes with macOS")
+        row("hdiutil", bool(which("hdiutil")), "comes with macOS")
 
 
 def main():

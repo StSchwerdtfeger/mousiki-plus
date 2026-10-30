@@ -24,6 +24,7 @@
 #include "update_check.h"
 #include "app_internal.h"
 #include "app_settings_tables.h"
+#include "terminal_font.h"
 #include <cstring>
 #include <algorithm>
 #include <cctype>
@@ -100,6 +101,7 @@ void App::settings_close(bool save) {
     settings_dirty_ = false;
     theme_ui_ = 0;
     remote_ov_ = remote_ui::State{};
+    font_ov_ = font_ui::State{};
     mode_ = Mode::Browse;
     remote_app_apply();   // a discarded Remote App switch is undone here
 }
@@ -715,6 +717,8 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidAlbumCover: v = settings_.album_cover; break;
             case kSidCoverMode: return settings_.cover_mode == 0 ? "Just Cover" : settings_.cover_mode == 1 ? "Cover with Gradient" : settings_.cover_mode == 4 ? "Cover behind Disk (Full Anima)" : settings_.cover_mode == 5 ? "Cover ASCII" : settings_.cover_mode == 6 ? "Cover ASCII with Gradient" : settings_.cover_mode == 3 ? "Cover behind Disk v2" : "Cover behind Disk";
             case kSidCoverContrast: return std::to_string(std::clamp(settings_.cover_contrast, 0, 100)) + "%";
+            case kSidCoverBrightness: return std::to_string(std::clamp(settings_.cover_brightness, 0, 100)) + "%";
+            case kSidCoverColors: return std::to_string(std::clamp(settings_.cover_colors, 0, 100)) + "%";
             case kSidCoverSearch: {
                 static const char* names[] = {"Default", "Folder First", "Within File First", "Image in Folder Only", "Within File Only"};
                 return names[std::clamp(settings_.cover_search, 0, 4)];
@@ -736,6 +740,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidCheckUpdate: return update_check::check_busy() ? std::string("checking ...") : std::string("[ENTER] to check");
             case kSidBookSpeed: return speed_label(settings_.book_speed);
             case kSidAudioDevice: return audio_device_label() + "  [ENTER] choose";
+            case kSidTermFont: return settings_.terminal_font + "  [ENTER] choose";
             case kSidNormalize: v = settings_.normalize; break;
             case kSidMetaOnly: v = settings_.meta_only; break;
             case kSidEmoji: v = settings_.replace_emoji; break;
@@ -829,12 +834,14 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             }
             case kSidVolIndicator: return {kVolIndicatorNames[0], kVolIndicatorNames[1], kVolIndicatorNames[2], kVolIndicatorNames[3], kVolIndicatorNames[4]};
             case kSidCoverMode: return {"Just Cover", "Cover with Gradient", "Cover behind Disk", "Cover behind Disk v2", "Cover behind Disk (Full Anima)", "Cover ASCII", "Cover ASCII with Gradient"};
+            case kSidCoverBrightness: case kSidCoverColors:
             case kSidCoverContrast: { std::vector<std::string> o; for (int i = 0; i <= 100; i += 5) o.push_back(std::to_string(i) + "%"); return o; }
             case kSidCoverSearch: return {"Default", "Folder First", "Within File First", "Image in Folder Only", "Within File Only"};
             case kSidTrackBuffer: return {};   // a number (ENTER types it) and a "Set back to default" button (RIGHT, then ENTER)
             case kSidRemoteApp: return {};   // not a switch: ENTER / LEFT / RIGHT open the REMOTE APP overlay
             case kSidCheckUpdate: return {};   // an action: ENTER asks GitHub (handle_settings_key)
             case kSidAudioDevice: return {};   // not a switch: ENTER opens the CHOOSE AUDIO DEVICE overlay
+            case kSidTermFont: return {};      // not a switch: ENTER opens the FONT overlay
             case kSidBookSpeed: {   // 0.5x .. 3.0x in steps of 0.05
                 std::vector<std::string> o;
                 for (int h = 50; h <= 300; h += 5) o.push_back(speed_label(h / 100.0));
@@ -938,6 +945,12 @@ void App::settings_commit_edit_impl() {
                 std::string d = v;
                 if (!d.empty() && d.back() == '%') d.pop_back();
                 settings_.cover_contrast = std::clamp((std::atoi(d.c_str()) + 2) / 5 * 5, 0, 100);
+                return;
+            }
+            case kSidCoverBrightness: case kSidCoverColors: {   // behind the disk: brightness floor / the cover's own colours
+                std::string d = v;
+                if (!d.empty() && d.back() == '%') d.pop_back();
+                (id == kSidCoverBrightness ? settings_.cover_brightness : settings_.cover_colors) = std::clamp((std::atoi(d.c_str()) + 2) / 5 * 5, 0, 100);
                 return;
             }
             case kSidCoverSearch:
@@ -1277,8 +1290,8 @@ void App::settings_cycle(int dir) {
     if (id == kSidPlayback) status_line_ = std::string("playback: ") + play_mode_name(settings_.play_mode);
     if (id == kSidBlackBg) status_line_ = settings_.black_background ? "black background: on -- the terminal is black while Mousiki runs (given back on exit)"
                                                                      : "black background: off -- the terminal keeps its own background";
-    if (id == kSidShareProfiles) status_line_ = settings_.share_profiles ? "osci/spectro share profile: on -- the radio uses these oscilloscope / spectrogram settings (its own come back when this is off)"
-                                                                         : "osci/spectro share profile: off -- the radio keeps its own oscilloscope / spectrogram settings";
+    if (id == kSidShareProfiles) status_line_ = settings_.share_profiles ? "modes share settings: on -- the radio uses these oscilloscope / spectrogram settings (its own come back when this is off)"
+                                                                         : "modes share settings: off -- the radio keeps its own oscilloscope / spectrogram settings";
     if (id == kSidBookCover) status_line_ = settings_.book_cover ? "book cover: on"
                                                                  : "book cover: off -- the standard picture";
     if (id == kSidBookCoverWave) status_line_ = settings_.book_cover_wave ? "book gradient wave: true -- colour wave over the cover"
@@ -1290,6 +1303,7 @@ void App::settings_cycle(int dir) {
                                                                      : "update notice: off -- no check for a newer release";
     if (id == kSidCheckUpdate) status_line_ = "check update: [ENTER] asks GitHub for the newest release now (needs Python 3 and a network connection)";
     if (id == kSidBookSpeed) status_line_ = "playback speed: " + speed_label(settings_.book_speed) + " -- the voice keeps its pitch; SHIFT+LEFT / SHIFT+RIGHT change it while you listen";
+    if (id == kSidTermFont) status_line_ = "font: " + settings_.terminal_font + " -- [ENTER] lists the fonts of this computer; Mousiki's window only, where the terminal allows it";
     if (id == kSidAudioDevice) status_line_ = "choose audio device: " + audio_device_label() + " -- [ENTER] lists the devices (also % on the main screen)";
     if (id == kSidLatinLookup) status_line_ = settings_.latin_lookup ? "latin name lookup: on -- artists written in Chinese characters are looked up on MusicBrainz in the background (their name is sent to musicbrainz.org, one at a time)"
                                                                     : "latin name lookup: off -- nothing is sent anywhere";
@@ -1399,6 +1413,26 @@ void App::handle_settings_key(int key) {
             settings_update_dirty();
         }
         if (close) { remote_ov_ = remote_ui::State{}; status_line_ = settings_.remote_app ? "remote app on (s saves)" : "remote app off (s saves)"; }
+        force_redraw_ = true;
+        return;
+    }
+    if (font_ov_.open) {   // the FONT overlay has the keys
+        std::string picked;
+        bool close = false;
+        const int rows = font_ui::list_rows(std::max(10, term_rows_ - 1));
+        if (font_ui::key(font_ov_, key, last_key_was_arrow(), last_key_was_shifted(), rows, picked, close)) {
+            settings_.terminal_font = picked;
+            set_config_value("TerminalFont", picked);              // saved at once (one value for all modes), like the audio device
+            settings_snapshot_.terminal_font = picked;              // ESC on the settings screen does not take it back
+            settings_snapshot_text_ = settings_to_text(settings_snapshot_);
+            status_line_ = terminal_font::apply(picked);
+        }
+        force_redraw_ = true;
+        return;
+    }
+    if (mode_ == Mode::Settings && settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTermFont &&
+        (key == '\r' || key == '\n')) {
+        font_ui::open(font_ov_, settings_.terminal_font);
         force_redraw_ = true;
         return;
     }

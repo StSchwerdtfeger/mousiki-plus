@@ -63,6 +63,33 @@ int App::cover_mode_look() const {
     return m >= 5 ? m - 5 : m;
 }
 
+// CTRL+t / CTRL+z (HKeyCoverPrev / HKeyCoverNext): the look of the disk one step back / forward, only while Eliment Disk / Cover is
+// on. Music player: the plain disk, then the seven Cover Modes (Album Cover on). Audio books: the default picture, the cover with
+// the gradient wave, the cover in its own colours. The setting is saved, the status line names the look.
+void App::cycle_cover_look(int dir) {
+    if (!settings_.element_disk) { status_line_ = "cover look: Eliment Disk / Cover is off (Settings -> ANIMA/VIZ -> DISK)"; return; }
+    if (audiobook_) {
+        static const char* const kBook[] = {"Default Picture", "Book Cover with Gradient Wave", "Book Cover"};
+        int cur = !settings_.book_cover ? 0 : settings_.book_cover_wave ? 1 : 2;
+        cur = (cur + dir + 3) % 3;
+        settings_.book_cover = cur != 0;
+        if (cur != 0) settings_.book_cover_wave = cur == 1;
+        save_settings(settings_);
+        status_line_ = std::string("cover look: ") + kBook[cur];
+        force_redraw_ = true;
+        return;
+    }
+    static const char* const kLooks[] = {"Disk (no cover)", "Just Cover", "Cover with Gradient", "Cover behind Disk", "Cover behind Disk v2",
+                                         "Cover behind Disk (Full Anima)", "Cover ASCII", "Cover ASCII with Gradient"};
+    int cur = settings_.album_cover ? 1 + std::clamp(settings_.cover_mode, 0, 6) : 0;
+    cur = (cur + dir + 8) % 8;
+    settings_.album_cover = cur != 0;
+    if (cur != 0) settings_.cover_mode = cur - 1;
+    save_settings(settings_);
+    status_line_ = std::string("cover look: ") + kLooks[cur] + (cur != 0 && !player_cover() ? "  (this track has no cover: the disk is shown)" : "");
+    force_redraw_ = true;
+}
+
 const CoverImage* App::player_cover() const {
     if (audiobook_ || !settings_.element_disk || !settings_.album_cover || !has_track_ || !current_is_local_ || current_path_.empty()) return nullptr;
     const TrackMetadata md = display_metadata();
@@ -93,7 +120,8 @@ bool App::album_cover_gfx(int col, int cols, int rows) const {
 
     // the cover is only built again when something it shows changes (the behind-the-disk picture turns, so that one is due again
     // every few frames)
-    const std::string key = cover->key + "|" + std::to_string(mode) + "|" + std::to_string(settings_.cover_contrast) + "|" + std::to_string(w) + "x" + std::to_string(h) + "|" +
+    const std::string key = cover->key + "|" + std::to_string(mode) + "|" + std::to_string(settings_.cover_contrast) + "|" + std::to_string(settings_.cover_brightness) + "|" +
+                            std::to_string(settings_.cover_colors) + "|" + std::to_string(w) + "x" + std::to_string(h) + "|" +
                             std::to_string(col) + "|" + settings_.disk_color + "|" + (settings_.disk_color_gradient ? settings_.disk_color_end : std::string());
     using clock = std::chrono::steady_clock;
     const auto now = clock::now();
@@ -103,7 +131,7 @@ bool App::album_cover_gfx(int col, int cols, int rows) const {
     const bool turning = mode >= 1;   // (the gradient wave of mode 1 moves too)
     const bool due = resized || (turning && now - cover_pic_at_ >= gap);
     g.plain = true;
-    g.direct = mode == 0;
+    g.direct = mode == 0 || cover_sixel_colours(mode);
     g.scale = scale;
     g.out_cw = cw0; g.out_ch = ch0;
     g.cols = cols; g.rows = rows; g.w = w; g.h = h;
@@ -165,6 +193,99 @@ constexpr float kDarkContrast = 0.9f;    // extra local contrast in those areas 
 inline float dark_enhance(float v, float mean, float strength) {
     const float c = std::clamp(mean + (v - mean) * (1.f + kDarkContrast * strength), 0.f, 255.f);
     return c + kDarkLift * strength * (255.f - c);
+}
+
+// Cover Brightness: the cover's brightnesses (of the visible part) are spread over the whole range, from a floor up to full white, so
+// the dots behind which the cover sits shine like the plain disk's. The floor is Cover Brightness of the way up (0..100 % -> 0..150):
+// even a black part of the cover still shows the disk's dots. Low / high = the 2nd / 98th percentile (a few stray pixels do not
+// decide); a flat picture keeps its own range.
+struct Stretch {
+    float lo = 0.f, hi = 255.f, floor = 0.f;
+    float operator()(float v) const {
+        const float t = std::clamp((v - lo) / std::max(1.f, hi - lo), 0.f, 1.f);
+        return floor + t * (255.f - floor);
+    }
+};
+Stretch make_stretch(const std::vector<unsigned char>& v, int brightness) {
+    Stretch st;
+    st.floor = 1.5f * std::clamp(brightness, 0, 100);
+    std::array<int, 256> hist{};
+    int n = 0;
+    for (unsigned char x : v) if (x) { ++hist[x]; ++n; }
+    if (n < 16) return st;
+    int acc = 0, lo = 0, hi = 255;
+    for (int i = 0; i < 256; ++i) { acc += hist[static_cast<size_t>(i)]; if (acc >= n / 50) { lo = i; break; } }
+    acc = 0;
+    for (int i = 255; i >= 0; --i) { acc += hist[static_cast<size_t>(i)]; if (acc >= n / 50) { hi = i; break; } }
+    if (hi - lo >= 16) { st.lo = static_cast<float>(lo); st.hi = static_cast<float>(hi); }
+    return st;
+}
+
+// More detail inside the dots: an unsharp mask (the picture minus its 3 x 3 blur, added back), w x h, values 0..255.
+std::vector<float> sharpened(const std::vector<float>& v, int w, int h, float amount) {
+    std::vector<float> out(v.size());
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) {
+            float sum = 0.f;
+            int n = 0;
+            for (int dy = -1; dy <= 1; ++dy)
+                for (int dx = -1; dx <= 1; ++dx) {
+                    const int xx = x + dx, yy = y + dy;
+                    if (xx < 0 || yy < 0 || xx >= w || yy >= h) continue;
+                    sum += v[static_cast<size_t>(yy) * w + xx];
+                    ++n;
+                }
+            const float c = v[static_cast<size_t>(y) * w + x];
+            out[static_cast<size_t>(y) * w + x] = std::clamp(c + amount * (c - sum / static_cast<float>(n)), 0.f, 255.f);
+        }
+    return out;
+}
+constexpr float kDetail = 0.8f;   // how strong the unsharp mask is
+
+// Cover Colors > 0: the colours are no longer one gradient colour per row, so the palette holds hue x saturation at full brightness
+// (entry 0 white, then 6 saturations x 36 hues) and `level` carries the brightness of every pixel.
+std::array<std::array<uint8_t, 3>, 256> hue_sat_palette() {
+    std::array<std::array<uint8_t, 3>, 256> pal{};
+    pal[0] = {255, 255, 255};
+    for (int si = 1; si <= 6; ++si)
+        for (int hi = 0; hi < 36; ++hi) {
+            const double hh = hi * 10.0 / 60.0, sat = si / 6.0;
+            const double c = sat, xx = c * (1.0 - std::fabs(std::fmod(hh, 2.0) - 1.0)), m = 1.0 - c;
+            double r = 0, g = 0, b = 0;
+            if (hh < 1) { r = c; g = xx; } else if (hh < 2) { r = xx; g = c; } else if (hh < 3) { g = c; b = xx; }
+            else if (hh < 4) { g = xx; b = c; } else if (hh < 5) { r = xx; b = c; } else { r = c; b = xx; }
+            pal[static_cast<size_t>(1 + (si - 1) * 36 + hi)] = {static_cast<uint8_t>(std::lround((r + m) * 255)), static_cast<uint8_t>(std::lround((g + m) * 255)),
+                                                                 static_cast<uint8_t>(std::lround((b + m) * 255))};
+        }
+    return pal;
+}
+// A colour as (palette entry of hue_sat_palette(), brightness 0..255).
+inline void hue_sat_encode(float r, float g, float b, uint8_t& idx, float& level) {
+    const float mx = std::max({r, g, b}), mn = std::min({r, g, b});
+    level = mx;
+    idx = 0;
+    if (mx < 1.f) return;
+    const float sat = (mx - mn) / mx;
+    const int si = static_cast<int>(std::lround(sat * 6.f));
+    if (si == 0) return;
+    float h;
+    const float d = std::max(1e-3f, mx - mn);
+    if (mx == r) h = 60.f * std::fmod((g - b) / d, 6.f);
+    else if (mx == g) h = 60.f * ((b - r) / d + 2.f);
+    else h = 60.f * ((r - g) / d + 4.f);
+    if (h < 0) h += 360.f;
+    const int hi = static_cast<int>(std::lround(h / 10.f)) % 36;
+    idx = static_cast<uint8_t>(1 + (si - 1) * 36 + hi);
+}
+// The colour of a dot: the disk's gradient colour `base` at brightness `v`, mixed with the cover's own colour (cr, cg, cb) brought to
+// the same brightness, by `t` (0 = gradient only, 1 = the cover's colour).
+inline std::array<float, 3> mix_colour(const std::array<uint8_t, 3>& base, float v, float cr, float cg, float cb, float t) {
+    const float lum = std::max(8.f, 0.299f * cr + 0.587f * cg + 0.114f * cb);
+    const float k = v / lum;
+    std::array<float, 3> out;
+    const float c[3] = {cr * k, cg * k, cb * k};
+    for (int i = 0; i < 3; ++i) out[static_cast<size_t>(i)] = std::clamp(base[static_cast<size_t>(i)] * (v / 255.f) * (1.f - t) + std::min(255.f, c[i]) * t, 0.f, 255.f);
+    return out;
 }
 }  // namespace
 
@@ -258,21 +379,67 @@ void App::cover_fill(GfxFrame& g, const CoverImage& cover_ref, int mode, double 
         }
     std::vector<float> lmean;
     const std::vector<float> lift = dark_lift_map(field, w, h, &lmean);
+    // (black dots in dark areas stay visible), then more detail (unsharp mask) and the Cover Brightness stretch
+    std::vector<float> lum(static_cast<size_t>(w) * h, 0.f);
+    for (size_t i = 0; i < lum.size(); ++i) lum[i] = dark_enhance(static_cast<float>(field[i]), lmean[i], lift[i]);
+    lum = sharpened(lum, w, h, kDetail);
+    std::vector<unsigned char> lum8(lum.size());
+    for (size_t i = 0; i < lum.size(); ++i) lum8[i] = field[i] ? static_cast<unsigned char>(std::max(1.f, lum[i])) : 0;
+    const Stretch bright = make_stretch(lum8, settings_.cover_brightness);
+    // Cover Colors: the cover's own colours (the same size and crop as the grey version)
+    const float tcol = std::clamp(settings_.cover_colors, 0, 100) / 100.f;
+    const CoverRgb* crgb = tcol > 0.f ? &cover_scaled_rgb(*cover, std::max(8, mw), std::max(8, mh), settings_.cover_contrast) : nullptr;
+    if (crgb && (crgb->w != cs.w || crgb->h != cs.h)) crgb = nullptr;
+    // Sixel draws a picture that is not `direct` with 16 colours (blocks of 16 palette entries) x 15 brightness steps: right for
+    // the gradient, but the cover's own colours turned into wrong ones. So with Sixel the colour of every pixel, brightness
+    // included, is taken from a fixed palette (6 x 8 x 5 steps of red, green, blue, ordered dithering) and drawn `direct`.
+    const bool six = crgb && cover_sixel_colours(mode);
+    if (six) {
+        g.direct = true;
+        for (int r = 0; r < 6; ++r)
+            for (int gg = 0; gg < 8; ++gg)
+                for (int b = 0; b < 5; ++b)
+                    g.pal[static_cast<size_t>(r * 40 + gg * 5 + b)] = {static_cast<uint8_t>(r * 255 / 5), static_cast<uint8_t>(gg * 255 / 7), static_cast<uint8_t>(b * 255 / 4)};
+    } else if (crgb) g.pal = hue_sat_palette();
+    static const float kBayer4[4][4] = {{0, 8, 2, 10}, {12, 4, 14, 6}, {3, 11, 1, 9}, {15, 7, 13, 5}};
     for (int y = 0; y < h; ++y) {
         const int sy = y + cy0;
         const uint8_t hu = row_hue(y);
+        const auto base = dc.at(h > 1 ? static_cast<double>(y) / (h - 1) : 0.0);
         for (int x = 0; x < w; ++x) {
             const int sx = x + cx0;
             if (sx < 0 || sy < 0 || sx >= cs.w || sy >= cs.h) { continue; }
             // a cover with a removed background (transparent parts): the pinholes there show a plain grey, so the disk keeps its
             // whole shape and not just the silhouette of the picture
             const size_t at = static_cast<size_t>(y) * w + x;
-            const int v0 = field[at];
-            const int v = std::clamp(static_cast<int>(std::lround(dark_enhance(static_cast<float>(v0), lmean[at], lift[at]))), 0, 255);   // (black dots in dark areas stay visible)
-            const int lv = static_cast<int>(std::lround(v * (hole[at] / 255.0)));
-            if (lv < 4) continue;   // no pinhole here: black (transparent)
+            if (hole[at] == 0 || !field[at]) continue;
+            const float v = bright(lum[at]);
+            if (!crgb) {
+                const int lv = static_cast<int>(std::lround(v * (hole[at] / 255.0)));
+                if (lv < 4) continue;   // no pinhole here: black (transparent)
+                g.level[at] = static_cast<unsigned char>(std::min(lv, 255));
+                g.hue[at] = hu;
+                continue;
+            }
+            const size_t si = static_cast<size_t>(sy) * crgb->w + sx;
+            const float a = crgb->alpha[si] / 255.f, grey = static_cast<float>(kBacking * 255.0) * (1.f - a);
+            const auto c = mix_colour(base, v, crgb->rgb[si * 3] * a + grey, crgb->rgb[si * 3 + 1] * a + grey, crgb->rgb[si * 3 + 2] * a + grey, tcol);
+            if (six) {
+                const float k = hole[at] / 255.f, t = (kBayer4[y & 3][x & 3] + 0.5f) / 16.f - 0.5f;
+                auto q = [&](float v, int n) { return std::clamp(static_cast<int>(std::lround(v * k / 255.f * (n - 1) + t)), 0, n - 1); };
+                const int ix = q(c[0], 6) * 40 + q(c[1], 8) * 5 + q(c[2], 5);
+                if (ix == 0) continue;   // black: transparent
+                g.level[at] = 255;
+                g.hue[at] = static_cast<uint8_t>(ix);
+                continue;
+            }
+            uint8_t idx = 0;
+            float lev = 0.f;
+            hue_sat_encode(c[0], c[1], c[2], idx, lev);
+            const int lv = static_cast<int>(std::lround(lev * (hole[at] / 255.0)));
+            if (lv < 4) continue;
             g.level[at] = static_cast<unsigned char>(std::min(lv, 255));
-            g.hue[at] = hu;
+            g.hue[at] = idx;
         }
     }
 }
@@ -289,7 +456,7 @@ const std::string* App::player_phone_png(std::string& key) const {
     // the step of the picture: the turn of the disk (modes 2 to 4) or the phase of the gradient wave (mode 1)
     const double unit = mode == 1 ? 0.04 : 0.06;
     const int step = turning ? static_cast<int>(std::lround((mode == 1 ? wave_phase_now() : phone_angle_) / unit)) : 0;
-    key = "cover|" + cover->key + "|" + std::to_string(settings_.cover_contrast) + "|" + std::to_string(mode) + "|" + std::to_string(step) + "|" + settings_.disk_color + "|" +
+    key = "cover|" + cover->key + "|" + std::to_string(settings_.cover_contrast) + "|" + std::to_string(settings_.cover_brightness) + "|" + std::to_string(settings_.cover_colors) + "|" + std::to_string(mode) + "|" + std::to_string(step) + "|" + settings_.disk_color + "|" +
           (settings_.disk_color_gradient ? settings_.disk_color_end : std::string());
     if (key == cache_key && !cache_png.empty()) return &cache_png;
     // the disk's field is 30 x 15 cells: a cell is 1 : 2, so the picture is square
@@ -357,16 +524,39 @@ std::vector<std::string> App::album_cover_lines(int cols, int rows) const {
             }
         std::vector<float> cell_mean;
         const std::vector<float> cell_lift = dark_lift_map(cell_lum, cols, rows, &cell_mean);
+        std::vector<float> cl(cell_lum.size());
+        for (size_t i = 0; i < cl.size(); ++i) cl[i] = dark_enhance(static_cast<float>(cell_lum[i]), cell_mean[i], cell_lift[i]);
+        cl = sharpened(cl, cols, rows, kDetail);
+        std::vector<unsigned char> cl8(cl.size());
+        for (size_t i = 0; i < cl.size(); ++i) cl8[i] = static_cast<unsigned char>(std::max(1.f, cl[i]));
+        const Stretch bright = make_stretch(cl8, settings_.cover_brightness);
+        // Cover Colors: the average colour of the cover under every cell
+        const float tcol = std::clamp(settings_.cover_colors, 0, 100) / 100.f;
+        const CoverRgb* crgb = tcol > 0.f ? &cover_scaled_rgb(*cover, std::max(8, mw), std::max(8, mh), settings_.cover_contrast) : nullptr;
+        if (crgb && (crgb->w != cs.w || crgb->h != cs.h)) crgb = nullptr;
         for (int r = 0; r < rows; ++r) {
             std::string line, last;
             const auto base = dc.at(rows > 1 ? static_cast<double>(r) / (rows - 1) : 0.0);
             for (int c = 0; c < cols; ++c) {
                 const int b = bits[static_cast<size_t>(r) * disk_.width() + c];
                 if (!b) { line += ' '; continue; }
-                const double lum0 = cell_lum[static_cast<size_t>(r) * cols + c] / 255.0;
-                const double lum = dark_enhance(static_cast<float>(lum0 * 255.0), cell_mean[static_cast<size_t>(r) * cols + c], cell_lift[static_cast<size_t>(r) * cols + c]) / 255.0;
-                const double f = std::max(0.22, std::pow(lum, 0.8));
-                const std::string col = sgr(static_cast<int>(base[0] * f + 0.5), static_cast<int>(base[1] * f + 0.5), static_cast<int>(base[2] * f + 0.5));
+                const float v = std::max(56.f, bright(cl[static_cast<size_t>(r) * cols + c]));
+                std::array<float, 3> rgbv{base[0] * v / 255.f, base[1] * v / 255.f, base[2] * v / 255.f};
+                if (crgb) {
+                    float rs = 0, gs = 0, bs = 0;
+                    int n = 0;
+                    for (int dy = 0; dy < 4; ++dy)
+                        for (int dx = 0; dx < 2; ++dx) {
+                            const int sx = c * 2 + dx + cx0, sy = r * 4 + dy + cy0;
+                            if (sx < 0 || sy < 0 || sx >= crgb->w || sy >= crgb->h) continue;
+                            const size_t si = static_cast<size_t>(sy) * crgb->w + sx;
+                            const float a = crgb->alpha[si] / 255.f, grey = static_cast<float>(kBacking * 255.0) * (1.f - a);
+                            rs += crgb->rgb[si * 3] * a + grey; gs += crgb->rgb[si * 3 + 1] * a + grey; bs += crgb->rgb[si * 3 + 2] * a + grey;
+                            ++n;
+                        }
+                    if (n) rgbv = mix_colour(base, v, rs / n, gs / n, bs / n, tcol);
+                }
+                const std::string col = sgr(static_cast<int>(rgbv[0] + 0.5f), static_cast<int>(rgbv[1] + 0.5f), static_cast<int>(rgbv[2] + 0.5f));
                 if (col != last) { line += col; last = col; }
                 braille(line, b);
             }

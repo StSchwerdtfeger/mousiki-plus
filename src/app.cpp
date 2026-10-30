@@ -430,15 +430,16 @@ namespace {
 
 // Resolves a filename under scripts/ next to the running binary. Shared by
 // the lyrics helper and the fast-search helper -- same candidate list
-// (env override, cwd, exe-relative at one/two/three levels up to cover a
+// (env override, exe-relative at one/two/three levels up to cover a
 // multi-config MSVC build), only the filename differs.
+// Never the scripts/ of the folder Mousiki was started in: starting it inside a downloaded project with its own scripts/
+// folder would run that project's Python code. A build in <checkout>/build finds <checkout>/scripts one level up.
 fs::path find_scripts_file(const std::string& filename) {
     {
         fs::path p = scripts_file_from_env(filename);   // MOUSIKI_SCRIPTS_DIR, checked (see scripts_env.h)
         if (!p.empty()) return p;
     }
-    fs::path cwd_candidate = fs::path("scripts") / filename;
-    if (fs::exists(cwd_candidate)) return cwd_candidate;
+    fs::path fallback;   // where the installed copy belongs (returned when it is missing: the callers report "not found")
 
 #if defined(__APPLE__)
     char exe_buf[4096];
@@ -448,6 +449,7 @@ fs::path find_scripts_file(const std::string& filename) {
         fs::path exe_dir = fs::canonical(fs::path(exe_buf), ec).parent_path();
         if (!ec) {
             fs::path p = exe_dir / "scripts" / filename;
+            fallback = p;
             if (fs::exists(p)) return p;
             p = exe_dir.parent_path() / "scripts" / filename;
             if (fs::exists(p)) return p;
@@ -464,6 +466,7 @@ fs::path find_scripts_file(const std::string& filename) {
         if (!exe.empty()) {
             fs::path exe_dir = path_from_utf8(exe).parent_path();
             fs::path p = exe_dir / "scripts" / filename;
+            fallback = p;
             if (fs::exists(p)) return p;
             p = exe_dir.parent_path() / "scripts" / filename;
             if (fs::exists(p)) return p;
@@ -478,12 +481,13 @@ fs::path find_scripts_file(const std::string& filename) {
         exe_buf[n] = '\0';
         fs::path exe_dir = fs::path(exe_buf).parent_path();
         fs::path p = exe_dir / "scripts" / filename;
+        fallback = p;
         if (fs::exists(p)) return p;
         p = exe_dir.parent_path() / "scripts" / filename;
         if (fs::exists(p)) return p;
     }
 #endif
-    return cwd_candidate;
+    return fallback;
 }
 
 fs::path find_lyrics_script() { return find_scripts_file("fetch_lyrics.py"); }
@@ -644,6 +648,7 @@ App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(sh
 struct NamedComboKey { const char* name; int code; };
 static const NamedComboKey kComboKeys[] = {
     {"ALT+L", kKeyAltL}, {"ALT+C", kKeyAltC}, {"CTRL+L", kKeyCtrlL}, {"CTRL+SHIFT+U", kKeyCtrlShiftU}, {"CTRL+SHIFT+Z", kKeyCtrlShiftZ},
+    {"CTRL+T", kKeyCtrlT}, {"CTRL+Z", kKeyCtrlZ},
     {"°", kKeyDegree},   // SHIFT+^ on a German keyboard: two UTF-8 bytes, joined into one key by poll_key()
 };
 

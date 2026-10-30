@@ -152,7 +152,7 @@ if(ANDROID)
   target_link_libraries(mousiki PRIVATE OpenSLES log android)
 elseif(WIN32)
   target_compile_definitions(mousiki PRIVATE MUISC_PLATFORM_WINDOWS=1 MA_ENABLE_ONLY_SPECIFIC_BACKENDS=1 MA_ENABLE_WASAPI=1)
-  target_link_libraries(mousiki PRIVATE ole32 winmm ws2_32 iphlpapi shell32)
+  target_link_libraries(mousiki PRIVATE ole32 winmm ws2_32 iphlpapi shell32 gdi32 user32)   # gdi32 / user32: the font list (terminal_font.cpp)
   if(NOT MOUSIKI_WINDOWS_SMTC)
     target_compile_definitions(mousiki PRIVATE MOUSIKI_NO_SMTC=1)
   endif()   # ws2_32: the remote app's web server
@@ -264,7 +264,7 @@ if(MOUSIKI_BUILD_RADIO_STANDALONE)
       src/fft_visualizer.cpp src/audio_backend.cpp src/miniaudio_impl.cpp src/keyboard_layout.cpp
       src/spectrogram.cpp src/scope_window.cpp src/themes.cpp src/border_gradient.cpp
       # shared with the player: the oscilloscope and the terminal picture output (Kitty / Sixel)
-      src/oscilloscope_visualizer.cpp src/terminal_gfx.cpp src/remote_control.cpp src/remote_server.cpp src/remote_overlay.cpp src/qr_code.cpp
+      src/oscilloscope_visualizer.cpp src/terminal_gfx.cpp src/remote_control.cpp src/remote_server.cpp src/remote_overlay.cpp src/qr_code.cpp src/font_picker.cpp src/terminal_font.cpp
       # the player's settings code: Share Profiles, Remote App, the shared oscilloscope / spectrogram rows
       src/settings.cpp src/osci_settings.cpp src/update_check.cpp src/open_url.cpp src/media_session.cpp src/media_session_mpris.cpp
       # the help wizard (SHIFT+w): its pages, and the disk its welcome page spins
@@ -284,7 +284,7 @@ if(MOUSIKI_BUILD_RADIO_STANDALONE)
   elseif(WIN32)
     target_compile_definitions(mousiki_radio PRIVATE MUISC_PLATFORM_WINDOWS=1 MA_ENABLE_ONLY_SPECIFIC_BACKENDS=1 MA_ENABLE_WASAPI=1 MA_ENABLE_NULL=1
                                NOMINMAX WIN32_LEAN_AND_MEAN _USE_MATH_DEFINES _CRT_SECURE_NO_WARNINGS _CRT_NONSTDC_NO_WARNINGS)
-    target_link_libraries(mousiki_radio PRIVATE ole32 winmm ws2_32 iphlpapi shell32)
+    target_link_libraries(mousiki_radio PRIVATE ole32 winmm ws2_32 iphlpapi shell32 gdi32 user32)
     if(NOT MOUSIKI_WINDOWS_SMTC)
       target_compile_definitions(mousiki_radio PRIVATE MOUSIKI_NO_SMTC=1)
     endif()

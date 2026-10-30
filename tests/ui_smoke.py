@@ -377,8 +377,8 @@ def paging_and_translit_row(binary, root, scripts):
         check("32" in find("Terminal Size") and "28" not in find("Terminal Size"), "terminal size: ENTER on the button sets it back to 120 x 32")
         sess.send(b"\x1b[B", 0.2)
         check("Full Screen" in find("Full Screen") and "false" in find("Full Screen"), "full screen: the row exists and is off by default")
-        for _ in range(9):
-            sess.send(b"\x1b[B", 0.1)   # down to Translit. Kanji (past REMOTE / UPDATES; TEXT AND TRANSLITERATION is last)
+        for _ in range(10):
+            sess.send(b"\x1b[B", 0.1)   # down to Translit. Kanji (past REMOTE / UPDATES; TEXT AND TRANSLITERATION, with Font first, is last)
         def row():
             return find("Translit. Kanji")
         def settle(word, limit=8.0):   # a slow machine draws the row a moment after the key: wait for it (up to `limit` s)
@@ -398,6 +398,19 @@ def paging_and_translit_row(binary, root, scripts):
         sess.send(b"\x1b[D", 0.8)
         settle("Leave")
         check("Leave" in row(), "translit kanji: LEFT twice is back at Leave")
+        # TEXT AND TRANSLITERATION -> Font (5 rows up): Cascadia Mono by default, ENTER opens the FONT overlay, ESC closes it
+        check("Cascadia Mono" in find("Font  "), "font: the row exists and reads Cascadia Mono by default")
+        for _ in range(5):
+            sess.send(b"\x1b[A", 0.1)
+        sess.send(b"\r", 1.0)
+        for _ in range(20):            # listing the fonts of the computer can take a moment
+            if "FONT (" in sess.text():
+                break
+            sess.pump(0.5)
+        check("FONT (" in sess.text() and "Terminal Default" in sess.text(), "font: ENTER opens the FONT overlay with Terminal Default")
+        check_frame(sess, "settings with the FONT overlay", frame=False)
+        sess.send(b"\x1b", 0.8)
+        check("FONT (" not in sess.text(), "font: ESC closes the FONT overlay")
         sess.send(b"\x1b[6~", 0.8)   # PgDn in the settings: a page, like SHIFT+down
         check(sess.alive(), "paging: PgDn in the settings does not crash")
         sess.send(b"\x1b", 1.0)
@@ -493,10 +506,25 @@ def book_speed_and_devices(binary, root, scripts):
         sess.send(b"\x1b", 0.8)
         check("Choose Audio Device" not in sess.text(), "audio device: ESC closes the overlay")
         sess.send("s", 1.2)
+        for _ in range(20):            # a slow machine: wait for the settings screen before TAB
+            if "[TAB] Switch" in sess.text():
+                break
+            sess.pump(0.5)
         sess.send(b"\t", 1.0)          # COLORS -> GENERAL
-        text = sess.text()
-        check("Playback Speed" in text and "0.95x" in text, "settings: GENERAL has Playback Speed (0.95x) in the audio book mode")
-        check("Choose Audio Device" in text and "System Default" in text, "settings: GENERAL has Choose Audio Device (System Default)")
+        for _ in range(10):
+            if "GENERAL" in sess.text() and "Start Mode" in sess.text():
+                break
+            sess.pump(0.5)
+        seen = sess.text()
+        for _ in range(40):            # the AUDIO rows may be below the visible part: walk down until both have been seen
+            if "Playback Speed" in seen and "Choose Audio Device" in seen:
+                break
+            sess.send(b"\x1b[B", 0.15)
+            seen += sess.text()
+        check("Playback Speed" in seen and "0.95x" in seen, "settings: GENERAL has Playback Speed (0.95x) in the audio book mode")
+        check("Choose Audio Device" in seen and "System Default" in seen, "settings: GENERAL has Choose Audio Device (System Default)")
+        if "Playback Speed" not in seen:
+            sess.dump("settings GENERAL tab of the audio book mode")
         sess.send(b"\x1b", 1.0)
         for _ in range(2):              # audio books -> music player -> radio (each may open its help wizard on its first start)
             sess.send("J", 2.5)

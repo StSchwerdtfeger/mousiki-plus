@@ -36,14 +36,20 @@ struct Settings : VizPrefs {
     bool album_cover = false;            // the cover of the playing track is shown in the disk's place (the disk where there is none)
     int cover_mode = 2;                  // 0 = just the cover, 1 = cover with the disk's gradient, 2 = cover behind the disk (the disk's dots are pinholes; the dot grid stays, the pattern turns), 3 = v2 (the dots themselves turn), 4 = full animation (dots that come and go), 5 = Cover ASCII (braille dots in the cover's colours), 6 = Cover ASCII with Gradient
     int cover_contrast = 0;              // 0..100 in steps of 5 (%): more contrast for the cover
+    // The cover behind the disk (Cover Modes 2-4, and their braille looks): Cover Brightness 0..100 % (steps of 5) -- how far the cover's
+    // brightness is stretched up, so the disk's dots shine like the plain disk's (0 = only the full range of the picture, more = a
+    // brighter floor for every dot); Cover Colors 0..100 % -- the cover's own colours mixed into the disk's gradient (0 = the
+    // gradient only, 100 = the cover's own colours). config.txt: CoverBrightness= / CoverColors=
+    int cover_brightness = 50;
+    int cover_colors = 0;
     int cover_search = 0;                // 0 default (file, then folder), 1 folder first, 2 within file first, 3 image in folder only, 4 within file only
     bool element_dummy_buttons = true;
     bool element_queue = true;           // replaces the old queue_visible
     bool element_waveform = true;
     // "Volume Indicator" (GENERAL tab): what the VOLUME BAR is drawn with. 0 = "#", 1 = "⠶", 2 = "⣿", 3 = "⡾⣽" (a fixed row of
     // braille characters that is not repeating), 4 = "disk" (the dots of the disk animation, see volume_bar.h).
-    // config.txt: VolumeIndicator=
-    int volume_indicator = 0;
+    // config.txt: VolumeIndicator=. Default: the "disk" look (the animation).
+    int volume_indicator = 4;
     // "gradient" (true) / "no gradient" (false), right of the Volume Indicator: the filled part of the bar takes the colours
     // of the VIZ gradient from left to right, like the oscilloscope does. config.txt: VolumeGradient=
     bool volume_gradient = false;
@@ -302,6 +308,9 @@ struct Settings : VizPrefs {
     // The sound output for all modes (Settings -> GENERAL -> AUDIO "Choose Audio Device"; config.txt AudioDevice=<name as the system
     // names it>; empty = the system's default device). A device that is not there plays on the default one.
     std::string audio_device;
+    // Mousiki's own terminal font (Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Font; config.txt TerminalFont=): set for
+    // Mousiki's window only, where the terminal allows it (terminal_font.h). "Terminal Default" leaves the terminal's font alone.
+    std::string terminal_font = "Cascadia Mono";
     static constexpr double kBookSpeedStep = 0.05;
     // A quiet check for a newer release at start-up (once a day, shown once per version); config.txt: UpdateCheck=true|false.
     bool update_check = true;

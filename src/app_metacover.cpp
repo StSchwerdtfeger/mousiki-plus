@@ -269,7 +269,7 @@ std::vector<std::string> App::build_meta_cov_panel(int screen_w) const {
             else if (it.special == 2) { label = "No cover (show the disk)"; if (cur == kCoverNone) mark = " * "; }
             else { label = it.c.label; if (choice_of(it.c) == cur) mark = " * "; }
             left = pad_right(truncate_str(mark + label, list_w), list_w);
-            if (k == meta_cov_sel_ && !meta_cov_search_) left = "\x1b[7m" + left + "\x1b[0m";
+            if (k == meta_cov_sel_) left = "\x1b[7m" + left + "\x1b[0m";   // lit while the search field is in use too: [↑↓] pick while typing
         } else {
             left = std::string(static_cast<size_t>(list_w), ' ');
         }

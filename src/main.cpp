@@ -6,6 +6,7 @@
 #include <iostream>
 #include <string>
 #include "app.h"
+#include "terminal_font.h"
 #include "mode_switch.h"
 #include "scope_window.h"
 #include "remote_control.h"
@@ -112,6 +113,8 @@ int main(int argc, char** argv) {
     muisc::terminal_probe_screen();
     if (!shared_settings.use_terminal_settings)
         muisc::terminal_apply_size(shared_settings.terminal_cols, shared_settings.terminal_rows, shared_settings.full_screen);
+    // Mousiki's own font (Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Font): for this window only, where the terminal allows it
+    muisc::terminal_font::apply(shared_settings.terminal_font);
     bool book_default_theme = false;
     muisc::Settings book_settings = muisc::load_book_settings(shared_settings, &book_default_theme);
     if (book_default_theme) muisc::apply_book_default_theme(book_settings);   // no look of its own yet: Rose Pine
@@ -152,6 +155,7 @@ int main(int argc, char** argv) {
         muisc::scope_window_close();            // the scope window (if open) closes with the program
         muisc::spectro_window_close();          // and the spectrogram window
         muisc::terminal_release_alt_screen();   // (only does something when a mode ended for a switch and the other one never started)
+        muisc::terminal_font::restore();        // the terminal's own font again (Terminal.app window, iTerm2 profile, console window)
     } catch (const std::exception& e) {
         // Belt-and-braces on top of settings.cpp's own try/catch around
         // config.txt parsing: this catches anything else startup could

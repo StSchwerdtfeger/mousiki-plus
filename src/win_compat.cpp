@@ -543,6 +543,8 @@ int win_poll_key() {
             if (k.wVirtualKeyCode == 'P' && (wc_ctrl == 0x10 || wc_ctrl == 0)) { g_last_key_was_arrow = false; return kKeyCtrlP; }
             if (k.wVirtualKeyCode == 'L' && (wc_ctrl == 0x0c || wc_ctrl == 0)) { g_last_key_was_arrow = false; return kKeyCtrlL; }
             if (k.wVirtualKeyCode == 'N' && (wc_ctrl == 0x0e || wc_ctrl == 0)) { g_last_key_was_arrow = false; return kKeyCtrlN; }
+            if (k.wVirtualKeyCode == 'T' && (wc_ctrl == 0x14 || wc_ctrl == 0)) { g_last_key_was_arrow = false; return kKeyCtrlT; }
+            if (k.wVirtualKeyCode == 'Z' && (wc_ctrl == 0x1a || wc_ctrl == 0)) { g_last_key_was_arrow = false; return kKeyCtrlZ; }
         }
     }
 
@@ -702,6 +704,34 @@ std::string win_find_executable(const std::string& name) {
     }
     exts.insert(exts.begin(), L"");   // try the name verbatim first
 
+    // Where a bare name is looked for: Mousiki's own folder, then PATH -- and NOT the current folder. SearchPathW(nullptr, ...)
+    // tries the folder Mousiki was started in before PATH, so a python.exe / yt-dlp.exe / ffmpeg.exe lying in a downloaded folder
+    // you start Mousiki from would run instead of the installed one.
+    std::wstring search_dirs;
+    {
+        const std::string exe = win_executable_path();
+        if (!exe.empty()) {
+            const std::wstring we = widen(exe);
+            const size_t slash = we.find_last_of(L"\\/");
+            if (slash != std::wstring::npos) search_dirs = we.substr(0, slash);
+        }
+        const DWORD need = GetEnvironmentVariableW(L"PATH", nullptr, 0);
+        if (need > 0) {
+            std::wstring path(need, L'\0');
+            const DWORD got = GetEnvironmentVariableW(L"PATH", path.data(), need);
+            path.resize(got < need ? got : 0);
+            // a "." or empty entry in PATH would bring the current folder back: left out
+            size_t start = 0;
+            while (start <= path.size()) {
+                const size_t semi = path.find(L';', start);
+                std::wstring d = path.substr(start, semi == std::wstring::npos ? std::wstring::npos : semi - start);
+                if (!d.empty() && d != L"." && d != L".\\") { if (!search_dirs.empty()) search_dirs += L';'; search_dirs += d; }
+                if (semi == std::wstring::npos) break;
+                start = semi + 1;
+            }
+        }
+    }
+
     for (const auto& ext : exts) {
         std::wstring candidate = wname + ext;
         if (has_sep) {
@@ -712,11 +742,18 @@ std::string win_find_executable(const std::string& name) {
         }
         wchar_t found[MAX_PATH * 2];
         wchar_t* filepart = nullptr;
-        DWORD n = SearchPathW(nullptr, candidate.c_str(), nullptr,
+        DWORD n = SearchPathW(search_dirs.empty() ? nullptr : search_dirs.c_str(), candidate.c_str(), nullptr,
                               static_cast<DWORD>(std::size(found)), found, &filepart);
         if (n > 0 && n < std::size(found)) return narrow(std::wstring(found, n));
     }
     return std::string();
+}
+
+std::string win_system_program(const std::string& name) {
+    wchar_t dir[MAX_PATH];
+    const UINT n = GetSystemDirectoryW(dir, MAX_PATH);
+    if (n == 0 || n >= MAX_PATH) return name;
+    return narrow(std::wstring(dir, n) + L"\\" + widen(name));
 }
 
 const std::string& win_python_command() {

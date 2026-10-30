@@ -106,7 +106,6 @@ void freq_bounds(const SpectroSettings& s, int rate, double& lo, double& hi) {
     if ((s.scale == 1 || s.scale == 5) && lo < 1.0) lo = 1.0;
 }
 
-const int kWinSizes[6] = {256, 512, 1024, 2048, 4096, 8192};
 const int kPads[4] = {1, 2, 4, 8};
 const int kMinFreqs[9] = {0, 20, 50, 100, 200, 300, 500, 1000, 2000};
 const int kMaxFreqs[10] = {1000, 2000, 4000, 5000, 8000, 10000, 12000, 16000, 20000, 24000};

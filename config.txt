@@ -89,6 +89,10 @@ AlbumCover=false
 CoverMode=disk
 ## CoverContrast = 0 .. 100 (percent, steps of 5): more contrast for the album cover (0 = the cover as it is)
 CoverContrast=0
+## CoverBrightness = 0 .. 100 (percent, steps of 5): the cover behind the disk -- how bright its dots are lifted (0 = the picture's own range; more = brighter, like the plain disk)
+CoverBrightness=50
+## CoverColors = 0 .. 100 (percent, steps of 5): the cover behind the disk -- its own colours mixed into the disk's gradient (0 = gradient only, 100 = the cover's own colours)
+CoverColors=0
 ## CoverSearch = where the cover is looked for (every search except "file only" ends with any picture of the folder, the first by name, when nothing else gave one):
 ##   default      the picture inside the file, else the picture in the folder whose name is closest to the title or the album tag (a fuzzy
 ##                match, so one folder can hold the covers of several albums), else cover / folder / front / albumart / album (jpg jpeg png webp bmp gif tif tiff avif heic jxl jp2 ico tga ppm pcx; no camera RAW)
@@ -101,7 +105,7 @@ ElimentQueue=true
 ## Progress Waveform = the braille waveform in the progress bar (off: a plain bar)
 ElimentWaveForm=true
 ## VolumeIndicator = what the VOLUME BAR is drawn with: # , ⠶ , ⣿ , ⡾⣽ or disk. ⡾⣽ is a fixed, not repeating row of braille characters; disk uses the braille effect of the disk animation (a strip of dots that is turned, the centre of the circle is two cells in from the left). Settings -> ON/OFF -> Volume Indicator
-VolumeIndicator=#
+VolumeIndicator=disk
 ## VolumeGradient = true: the filled part of the VOLUME BAR is coloured with the VIZ gradient (the VIZ colours of the Colors tab) from left to right, like the oscilloscope; false: one colour
 VolumeGradient=false
 ## VizLyricsField = the field right of the meta data (lyrics, sphere, oscilloscope, spectrogram). false: no field, the meta data take its place and no lyrics are fetched for it.

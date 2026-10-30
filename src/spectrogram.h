@@ -137,7 +137,7 @@ private:
     std::vector<uint8_t> cache_;
     std::vector<uint64_t> cache_tag_;
     int cache_h_ = 0;
-    unsigned cache_gen_ = 0, gen_ = 1;
+    unsigned gen_ = 1;
     std::string cache_key_;
     std::vector<int> row_lo_, row_hi_;  // bin range per row (cache_h_ rows per channel)
     SpectroSettings prep_;

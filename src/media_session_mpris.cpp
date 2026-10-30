@@ -33,7 +33,7 @@ struct DBusObjectPathVTable {
     unsigned int (*message_function)(DBusConnection*, DBusMessage*, void*);
     void (*pad1)(void*); void (*pad2)(void*); void (*pad3)(void*); void (*pad4)(void*);
 };
-constexpr int kTypeByte = 'y', kTypeBool = 'b', kTypeInt32 = 'i', kTypeInt64 = 'x', kTypeDouble = 'd', kTypeString = 's',
+constexpr int kTypeBool = 'b', kTypeInt64 = 'x', kTypeDouble = 'd', kTypeString = 's',
               kTypePath = 'o', kTypeArray = 'a', kTypeVariant = 'v', kTypeDictEntry = 'e';
 constexpr unsigned kHandled = 0, kNotYetHandled = 1;
 constexpr int kNameDoNotQueue = 4;

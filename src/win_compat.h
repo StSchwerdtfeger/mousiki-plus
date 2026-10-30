@@ -125,6 +125,9 @@ void win_bootstrap_env();
 
 // Replacement for readlink("/proc/self/exe"). Empty string on failure.
 std::string win_executable_path();
+// The full path of a program in the Windows system folder ("cmd.exe" -> "C:\\Windows\\System32\\cmd.exe"; UTF-8), so it is never
+// a copy lying in the folder Mousiki was started in. Falls back to the bare name if the system folder cannot be read.
+std::string win_system_program(const std::string& name);
 
 // Resolves a bare program name against PATH and PATHEXT, returning a full
 // path. CreateProcess only ever appends ".exe" on its own, so without this a

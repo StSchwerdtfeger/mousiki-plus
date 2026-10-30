@@ -802,6 +802,8 @@ void App::handle_key(int key) {
     // Browse view -- text fields and menus handled their keys above.
     if (key_is("HKeyModeNext", key)) { request_mode_switch(1); return; }
     if (key_is("HKeyModePrev", key)) { request_mode_switch(-1); return; }
+    if (key_is("HKeyCoverPrev", key)) { cycle_cover_look(-1); return; }   // CTRL+t / CTRL+z: the cover look back / forward
+    if (key_is("HKeyCoverNext", key)) { cycle_cover_look(1); return; }
     int lookup_key = (key == '\r') ? '\n' : key;
     std::string action = resolve_hotkey_action(lookup_key);
     if (action.empty() && lookup_key >= 'a' && lookup_key <= 'z') action = resolve_hotkey_action(lookup_key - 32);

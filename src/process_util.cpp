@@ -336,7 +336,7 @@ std::unique_ptr<ChildProcess> spawn_capture(const Args& args, bool merge_stderr)
 
     std::string cmdline;
     if (via_cmd) {
-        cmdline = "cmd.exe /c " + quote_arg(exe, true);
+        cmdline = quote_arg(win_system_program("cmd.exe"), false) + " /c " + quote_arg(exe, true);   // the system cmd.exe, never one in the current folder
     } else {
         cmdline = quote_arg(exe, false);
     }

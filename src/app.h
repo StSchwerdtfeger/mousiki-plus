@@ -27,6 +27,7 @@
 #include "disk_art.h"
 #include "remote_server.h"
 #include "remote_overlay.h"
+#include "font_picker.h"
 #include "fft_visualizer.h"
 #include "history.h"
 #include "local_source.h"
@@ -628,6 +629,9 @@ private:
     std::vector<std::string> build_cf_art_panel(int width, int height) const;
     std::vector<std::string> build_cf_list_panel(int width, int height) const;
     int cover_mode_look() const;                 // cover_mode with the ASCII modes (5, 6) folded onto 0, 1
+    // Sixel and Cover Colors > 0 in a Cover behind Disk look: the picture is drawn with a fixed colour palette (`direct`), see cover_fill()
+    bool cover_sixel_colours(int mode) const { return gfx_proto_ == GfxProto::Sixel && settings_.cover_colors > 0 && mode >= 2 && mode <= 4; }
+    void cycle_cover_look(int dir);              // CTRL+t / CTRL+z: the plain disk and the cover looks (audio books: default picture, cover with wave, cover)
     std::vector<std::string> cover_preview_lines(const std::string& file, bool embedded, int cols, int rows, const std::string& msg = "") const;
 
     // --- meta/tag editor overlay (Mode::MetaEdit, HKeyMetaEditor = Shift+M) ---
@@ -2121,6 +2125,9 @@ private:
     double phone_angle_ = 0.0;       // the phone's disk: its own turn at speed 0.10
     remote_ui::State remote_ov_;     // Settings -> GENERAL -> REMOTE / UPDATES -> Remote App: the REMOTE APP overlay (address, QR code, port, PIN)
     void remote_overlay_draw(std::ostringstream& frame, int W) const;
+    remote_ui::Style settings_overlay_style() const;   // the colours / glyphs of the overlays over the settings screen
+    font_ui::State font_ov_;        // Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Font: the FONT overlay
+    void font_overlay_draw(std::ostringstream& frame, int W) const;
     std::chrono::steady_clock::time_point phone_last_{}, phone_built_{};
     int phone_view_ = 0;             // 0 the phone's main screen, 1 its LISTS screen
     int phone_focus_ = 0;            // LISTS: the pane UP / DOWN page through (0 the local list, 1 the saved playlists)

@@ -46,6 +46,7 @@
 #include "spectrogram.h"
 #include "mode_switch.h"
 #include "settings.h"
+#include "terminal_font.h"
 #include "radio_settings.h"
 #include "radio_fuzzy.h"
 #include "radio_history.h"
@@ -923,7 +924,7 @@ int radio_main(int argc, char** argv) {
         }
         settings_snapshot_valid = false;
         key_undo.clear();
-        sm.open = false; sm.editing = false; sm.theme_ui = 0; sm.remote_ov = muisc::remote_ui::State{};
+        sm.open = false; sm.editing = false; sm.theme_ui = 0; sm.remote_ov = muisc::remote_ui::State{}; sm.font_ov = muisc::font_ui::State{};
         set_text_entry(false);
     };
     // CHOOSE AUDIO DEVICE (GENERAL -> AUDIO [ENTER], or its key on the main screen: overlay 9). The list is read when it opens.
@@ -1435,6 +1436,19 @@ int radio_main(int argc, char** argv) {
             // ------------------------------------------------------------------ RADIO SETTINGS (s)
             if (ui.model.settings.open) {
                 SettingsModel& sm = ui.model.settings;
+                if (sm.font_ov.open) {     // the FONT overlay has the keys
+                    if (k == 3 || k == kKeyCtrlC) { sm.font_ov.open = false; settings_close(false); running = false; continue; }
+                    std::string picked;
+                    bool close = false;
+                    const int rows = muisc::font_ui::list_rows(std::max(10, term.rows()));
+                    if (muisc::font_ui::key(sm.font_ov, k, arrow, last_key_was_shifted(), rows, picked, close)) {
+                        cfg.terminal_font = picked;
+                        if (settings_snapshot_valid) settings_snapshot.terminal_font = picked;   // ESC does not take it back
+                        muisc::set_config_value("TerminalFont", picked);                        // one value for all modes, saved at once
+                        sm.status = muisc::terminal_font::apply(picked);
+                    }
+                    continue;
+                }
                 if (sm.remote_ov.open) {   // the REMOTE APP overlay has the keys
                     if (k == 3 || k == kKeyCtrlC) { settings_close(false); running = false; continue; }
                     muisc::remote_ui::Values v{cfg.remote_app, cfg.remote_port, cfg.remote_pin};
@@ -1721,6 +1735,11 @@ int radio_main(int argc, char** argv) {
                     if ((sm.tab >= 1 && !vol_now) || (sm.tab == 0 && sm.row != 0 && !color_field(cfg, color_row_of_tab(sm.row), sm.col))) sm.col = 0;
                 };
                 auto toggle = [&](int dir) {   // GENERAL and ANIMA/VIZ rows: left / right / ENTER
+                    if (sm.tab == 1 && std::string(rs_row_label(sm.tab, sm.row)) == "Font") {   // the FONT overlay
+                        if (dir == 0) muisc::font_ui::open(sm.font_ov, cfg.terminal_font);
+                        else sm.status = "[ENTER] lists the fonts of this computer";
+                        return;
+                    }
                     if (sm.tab == 1 && std::string(rs_row_label(sm.tab, sm.row)) == "Choose Audio Device") {   // the CHOOSE AUDIO DEVICE overlay
                         if (dir == 0) adev_open(true);
                         else sm.status = "[ENTER] lists the audio devices";

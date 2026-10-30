@@ -101,6 +101,35 @@ const CoverScaled& cover_scaled(const CoverImage& c, int max_w, int max_h, bool 
     return cs;
 }
 
+const CoverRgb& cover_scaled_rgb(const CoverImage& c, int max_w, int max_h, int contrast) {
+    static CoverRgb cs;
+    contrast = std::clamp(contrast, 0, 100);
+    const std::string key = c.key + "|" + std::to_string(max_w) + "x" + std::to_string(max_h) + "|" + std::to_string(contrast);
+    if (cs.key == key) return cs;
+    const double factor = 1.0 + contrast / 100.0 * 1.5;
+    cs = CoverRgb();
+    cs.key = key;
+    const size_t n = static_cast<size_t>(c.w) * c.h;
+    int ow = 0, oh = 0;
+    std::vector<unsigned char> chn[3];
+    for (int k = 0; k < 3; ++k) {
+        std::vector<unsigned char> plane(n);
+        for (size_t i = 0; i < n; ++i) plane[i] = c.rgb[i * 3 + static_cast<size_t>(k)];
+        chn[k] = BookArt::scale_grey(plane, c.w, c.h, max_w, max_h, ow, oh);
+    }
+    cs.alpha = BookArt::scale_grey(c.alpha, c.w, c.h, max_w, max_h, ow, oh);
+    cs.w = ow; cs.h = oh;
+    const size_t m = static_cast<size_t>(ow) * oh;
+    cs.rgb.resize(m * 3);
+    for (size_t i = 0; i < m; ++i)
+        for (int k = 0; k < 3; ++k) {
+            const int v = chn[k][i];
+            cs.rgb[i * 3 + static_cast<size_t>(k)] = contrast > 0 ? static_cast<unsigned char>(std::clamp(static_cast<int>(std::lround((v - 127.5) * factor + 127.5)), 0, 255))
+                                                                   : static_cast<unsigned char>(v);
+        }
+    return cs;
+}
+
 // ---- the search order ------------------------------------------------------------------------------------------------------
 std::vector<CoverStep> cover_steps(int search) {
     switch (search) {

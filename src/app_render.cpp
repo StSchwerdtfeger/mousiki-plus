@@ -457,6 +457,7 @@ std::string App::render_frame(TerminalIO& term) {
         frame << "\x1b[2J\x1b[H\x1b[?25l";
         build_settings_screen(frame, W, overlay_budget(W));
         if (remote_ov_.open) remote_overlay_draw(frame, W);
+        if (font_ov_.open) font_overlay_draw(frame, W);
         if (mode_ == Mode::AudioDevice) draw_floating_panel(frame, build_audio_device_panel(), kAudioDevicePanelWidth, W);
         return fullscreen_out(frame);
     }

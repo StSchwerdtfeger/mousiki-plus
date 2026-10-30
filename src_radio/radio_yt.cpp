@@ -11,7 +11,9 @@
 #include <thread>
 #ifdef _WIN32
 #include "win_compat.h"
-#elif !defined(__APPLE__)
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
+#else
 #include <unistd.h>
 #endif
 
@@ -20,22 +22,27 @@ namespace fs = std::filesystem;
 
 namespace {
 // Same candidate list as the player's find_scripts_file() (which lives in app.cpp's anonymous namespace): the env
-// override, ./scripts, then scripts/ next to the executable and one level above it. Missing is fine -- OnlineSource
-// then falls back to yt-dlp's own search.
+// override, then scripts/ next to the executable and one level above it -- never ./scripts of the folder the program
+// was started in (that folder's Python code would run). Missing is fine -- OnlineSource then falls back to yt-dlp's
+// own search.
 fs::path find_search_script() {
     const std::string name = "fast_yt_search.py";
     {
         fs::path p = muisc::scripts_file_from_env(name);   // MOUSIKI_SCRIPTS_DIR, checked (see scripts_env.h)
         if (!p.empty()) return p;
     }
-    fs::path c = fs::path("scripts") / name;
-    if (fs::exists(c)) return c;
     fs::path exe_dir;
 #ifdef _WIN32
     std::string exe = win_executable_path();
     if (!exe.empty()) exe_dir = path_from_utf8(exe).parent_path();
 #elif defined(__APPLE__)
-    // no /proc: ./scripts and MOUSIKI_SCRIPTS_DIR are enough for the prototype
+    char buf[4096];
+    uint32_t size = sizeof(buf);
+    if (_NSGetExecutablePath(buf, &size) == 0) {
+        std::error_code ec;
+        fs::path p = fs::canonical(fs::path(buf), ec);
+        if (!ec) exe_dir = p.parent_path();
+    }
 #else
     char buf[4096];
     ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
@@ -47,7 +54,7 @@ fs::path find_search_script() {
         p = exe_dir.parent_path() / "scripts" / name;
         if (fs::exists(p)) return p;
     }
-    return c;
+    return exe_dir.empty() ? fs::path() : exe_dir / "scripts" / name;
 }
 } // namespace
 

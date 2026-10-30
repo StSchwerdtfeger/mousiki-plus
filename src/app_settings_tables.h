@@ -88,6 +88,8 @@ inline const RefHotkeyRow kRefRows[] = {
     {"SYSTEM", "HKeySetting", "Open Settings"},
     {nullptr, "HKeyModeNext", "Next Mode"},      // music player -> radio -> audio books (SHIFT and + on a German keyboard)
     {nullptr, "HKeyModePrev", "Previous Mode"},
+    {nullptr, "HKeyCoverPrev", "Cover Look Back"},      // plain disk -> the cover modes (audio books: default picture -> cover)
+    {nullptr, "HKeyCoverNext", "Cover Look Forward"},
     {nullptr, "HKeyConsole", "Console / Logs"},
     {nullptr, "HKeyAudioDevice", "Choose Audio Device"},
     {nullptr, "HKeyWizard", "Help Wizard"},
@@ -126,10 +128,11 @@ enum SetId {
     kSidVisFluidity, kSidWaveStyle, kSidDiskSpeed, kSidVisDegr, kSidVisVisc, kSidLyrAlign, kSidLyrAnim,
     kSidVolIndicator,
     kSidUseModePlayer, kSidUseModeRadio, kSidUseModeBook, kSidModeOrder1, kSidModeOrder2, kSidModeOrder3, kSidBookAsk, kSidBookCover, kSidBookCoverWave,
-    kSidAlbumCover, kSidCoverMode, kSidCoverContrast, kSidCoverSearch,
+    kSidAlbumCover, kSidCoverMode, kSidCoverContrast, kSidCoverSearch, kSidCoverBrightness, kSidCoverColors,
     kSidCheckUpdate,   // [ENTER] checks for a newer release now (an action row, no value to switch)
     kSidBookSpeed,     // audio book player: the playback speed (0.5x - 3.0x, the pitch stays)
     kSidAudioDevice,   // the sound output: shows the device in use, [ENTER] opens the CHOOSE AUDIO DEVICE overlay
+    kSidTermFont,      // Mousiki's own terminal font: [ENTER] opens the FONT overlay (terminal_font.h)
 };
 // True while the audio book player is the mode that runs (set by App::run()): its GENERAL and ANIMA/VIZ tabs leave out what only
 // belongs to the music player and name the lyrics view "notes".
@@ -158,6 +161,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidUpdateCheck, "Update Notice"}, {false, kSidCheckUpdate, "Check Update"},
         {true, -1, ""},
         {true, -1, "TEXT AND TRANSLITERATION (JAP./KOR./CHIN.)"},
+        {false, kSidTermFont, "Font"},
         {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},
         {false, kSidLatinMacrons, "Latin Macrons"}, {false, kSidLatinWo, "Latin Wo"}, {false, kSidLatinHanzi, "Translit. Kanji"}, {false, kSidLatinLookup, "Latin Name Lookup"}, {false, kSidLyricsVariants, "Lyrics Name Variants"},
     };
@@ -172,7 +176,8 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {true, -1, "DISK"},
         {false, kSidDisk, "Eliment Disk / Cover"}, {false, kSidDiskSpeed, "Disk Speed"},
         {false, kSidAlbumCover, "Album Cover"}, {false, kSidCoverMode, "Cover Mode"},
-        {false, kSidCoverContrast, "Cover Contrast"}, {false, kSidCoverSearch, "Cover Search"},
+        {false, kSidCoverContrast, "Cover Contrast"}, {false, kSidCoverBrightness, "Cover Brightness"},
+        {false, kSidCoverColors, "Cover Colors"}, {false, kSidCoverSearch, "Cover Search"},
         {true, -1, ""},
         {true, -1, "SEEK AND VOLUME"},
         {false, kSidDummy, "Dummy Seek Buttons"}, {false, kSidVolIndicator, "Volume Indicator"},
@@ -186,7 +191,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidWaveStyle, "Waveform Style"},
         {true, -1, ""},
         {true, -1, "OSCI/SPECTRO SETTINGS"},
-        {false, kSidShareProfiles, "Osci/Spectro Share Profile"},
+        {false, kSidShareProfiles, "Modes Share Settings"},
         {true, -1, ""},
         {true, -1, "VIZ/LYRICS ORDER"},
         {false, kSidOrder1, "Viz Order 1"}, {false, kSidOrder2, "Viz Order 2"},
@@ -224,6 +229,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidRateCap, "Rate Cap at 96 kHz"},
         {true, -1, ""},
         {true, -1, "TEXT"},
+        {false, kSidTermFont, "Font"},
         {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},
     };
     static const std::vector<SetLine> book_anima = {
@@ -245,7 +251,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidWaveStyle, "Waveform Style"},
         {true, -1, ""},
         {true, -1, "OSCI/SPECTRO SETTINGS"},
-        {false, kSidShareProfiles, "Osci/Spectro Share Profile"},
+        {false, kSidShareProfiles, "Modes Share Settings"},
         {true, -1, ""},
         {true, -1, "VIZ/NOTES ORDER"},
         {false, kSidOrder1, "Viz Order 1"}, {false, kSidOrder2, "Viz Order 2"},

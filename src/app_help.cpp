@@ -170,6 +170,8 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         // (not tied to one editor's own legend below). ---
         {"SYSTEM (MAIN UI)", "HKeyModeNext", "Switch to the next mode (music player, radio, audio books; the order and the modes that are on are set in Settings -> GENERAL -> MODES). Playback pauses and the mode waits in the background"},
         {nullptr, "HKeyModePrev", "Switch to the previous mode"},
+        {nullptr, "HKeyCoverPrev", "Cover look one step back: plain disk, Just Cover, Cover with Gradient, the Cover behind Disk looks, the ASCII looks (audio books: default picture, cover with gradient wave, cover). Only with Eliment Disk / Cover on; saved at once"},
+        {nullptr, "HKeyCoverNext", "Cover look one step forward (the same looks the other way round)"},
         {nullptr, "HKeySetting", "Open Settings panel, hit again to save and quit"},
         {nullptr, "HKeyConsole", "Console: logs and status messages (TAB pane, arrows scroll)"},
         {nullptr, "HKeyAudioDevice", "Choose the audio device: the sound outputs of this computer, the one in use marked (UP/DOWN, ENTER switches at once, ESC closes); also Settings -> GENERAL -> AUDIO"},

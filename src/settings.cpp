@@ -330,6 +330,8 @@ void apply_default_hotkeys(Settings& s) {
             // (the size keys only inside the karaoke overlay).
             {"HKeyModeNext",                    default_size_mode_key(true)},    // "*" / "_", on a US / UK keyboard "'" / ";"
             {"HKeyModePrev",                    default_size_mode_key(false)},
+            {"HKeyCoverPrev",                   "CTRL+T"},   // the cover look one step back / forward (Eliment Disk / Cover on)
+            {"HKeyCoverNext",                   "CTRL+Z"},
             {"HKeyKaraokeBigger",               default_size_mode_key(true)},
             {"HKeyKaraokeSmaller",              default_size_mode_key(false)},
             {"HKeyConsole",                     "t"},
@@ -897,6 +899,7 @@ static Settings load_from_config(const fs::path& path) {
             continue;
         }
         if (key == "AudioDevice") { s.audio_device = trim_ws(unquote(value)); continue; }
+        if (key == "TerminalFont") { const std::string v = trim_ws(unquote(value)); if (!v.empty()) s.terminal_font = v; continue; }
         if (key == "BookSpeed") {   // 0.5 .. 3.0, rounded to the 0.05 steps of the setting
             try {
                 const double v = std::stod(trim_ws(unquote(value)));
@@ -961,6 +964,12 @@ static Settings load_from_config(const fs::path& path) {
             else if (v == "6" || v == "ascii" || v == "cover ascii") s.cover_mode = 5;
             else if (v == "7" || v == "ascii gradient" || v == "ascii2" || v == "cover ascii with gradient") s.cover_mode = 6;
             else if (v == "5" || v == "full" || v == "full anima" || v == "cover behind disk (full anima)") s.cover_mode = 4;
+            continue;
+        }
+        if (key == "CoverBrightness" || key == "CoverColors") {
+            std::string v = trim_ws(unquote(value));
+            if (!v.empty() && v.back() == '%') v.pop_back();
+            (key == "CoverBrightness" ? s.cover_brightness : s.cover_colors) = std::clamp((std::atoi(v.c_str()) + 2) / 5 * 5, 0, 100);
             continue;
         }
         if (key == "CoverContrast") {
@@ -1828,6 +1837,8 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "AlbumCover=" << tf(s.album_cover) << "\n## true , false -- music player: the cover of the playing track takes the disk's place (needs ElimentDisk=true; where a track has no cover the disk is shown)\n";
     out << "CoverMode=" << (s.cover_mode == 0 ? "cover" : s.cover_mode == 1 ? "gradient" : s.cover_mode == 3 ? "disk2" : s.cover_mode == 4 ? "full" : s.cover_mode == 5 ? "ascii" : s.cover_mode == 6 ? "ascii2" : "disk") << "\n## cover (just the cover) , gradient (the cover in the disk's gradient colours, as a wave moving diagonally from the upper left to the lower right) , disk (the cover behind the disk: the disk's dots are pinholes that let the full cover shine through; the dots stay on their grid, only the pattern turns) , disk2 (the same, but the dots themselves turn) , full (the disk's full animation, the dots that come and go as it turns) , ascii (the cover as braille dots in its own colours, also where the terminal could show a picture) , ascii2 (the same in the disk's gradient)\n";
     out << "CoverContrast=" << s.cover_contrast << "\n## 0 .. 100 (percent, steps of 5) -- more contrast for the album cover (0 = the cover as it is)\n";
+    out << "CoverBrightness=" << s.cover_brightness << "\n## 0 .. 100 (percent, steps of 5) -- the cover behind the disk: how bright its dots are lifted (0 = the picture's own range; more = brighter, like the plain disk)\n";
+    out << "CoverColors=" << s.cover_colors << "\n## 0 .. 100 (percent, steps of 5) -- the cover behind the disk: its own colours mixed into the disk's gradient (0 = gradient only, 100 = the cover's own colours)\n";
     out << "CoverSearch=" << (s.cover_search == 1 ? "folder first" : s.cover_search == 2 ? "file first" : s.cover_search == 3 ? "folder only" : s.cover_search == 4 ? "file only" : "default")
         << "\n## default (the picture inside the file, else the closest-named picture in the folder) , folder first , file first (inside the file, else only a closely named folder picture) , folder only , file only -- every search except file only ends with any picture of the folder (the first by name) when nothing else gave one\n";
     out << "ElimentDummyButtons=" << tf(s.element_dummy_buttons) << "\n";
@@ -1890,6 +1901,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "ShareProfiles=" << (s.share_profiles ? "true" : "false") << "\n## true , false -- the radio uses this file's oscilloscope and spectrogram settings instead of its own (its own come back when this is false; player and radio)\n";
     out << "BookmarkAsk=" << (s.book_ask_bookmark ? "true" : "false") << "\n## true , false -- audio book mode: changing the chapter, the mode or quitting asks first whether to set a bookmark at the exact time (the audio is paused meanwhile)\n";
     out << "BookCoverWave=" << (s.book_cover_wave ? "true" : "false") << "\n## true , false -- with BookCover on: true = the colour wave runs over the cover (a grey cover), false = the cover is shown in its own colours (the standard picture always has the wave)\n";
+    out << "TerminalFont=" << s.terminal_font << "\n## the font of Mousiki's window, where the terminal allows it (Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Font): a font installed on the computer, or Terminal Default\n";
     out << "AudioDevice=" << s.audio_device << "\n## the sound output of all modes, as the system names it (Settings -> GENERAL -> AUDIO -> Choose Audio Device); empty = the system's default device\n";
     {
         char sp[16];

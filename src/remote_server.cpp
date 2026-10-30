@@ -494,10 +494,19 @@ std::string open_windows_firewall(int port) {
 #if defined(_WIN32)
     // one inbound rule for the port, all network profiles (a network marked "public" blocks the phone otherwise); the old
     // rule of the same name is removed first. Windows asks for administrator rights.
-    const std::wstring args = L"/c netsh advfirewall firewall delete rule name=\"Mousiki Remote\" >nul 2>&1 & "
-                              L"netsh advfirewall firewall add rule name=\"Mousiki Remote\" dir=in action=allow protocol=TCP localport=" +
-                              std::to_wstring(port) + L" profile=any";
-    const auto r = reinterpret_cast<intptr_t>(ShellExecuteW(nullptr, L"runas", L"cmd.exe", args.c_str(), nullptr, SW_HIDE));
+    // cmd.exe and netsh.exe by their full paths in the system folder, started there: this runs with administrator rights, so a
+    // cmd.exe / netsh.exe lying in the folder Mousiki was started in must never be the one that runs
+    wchar_t dir[MAX_PATH];
+    const UINT dn = GetSystemDirectoryW(dir, MAX_PATH);
+    if (dn == 0 || dn >= MAX_PATH) return "the firewall rule was not added (the Windows system folder could not be found)";
+    const std::wstring sys_dir(dir, dn);
+    const std::wstring netsh = L"\"" + sys_dir + L"\\netsh.exe\"";
+    const std::wstring cmd = sys_dir + L"\\cmd.exe";
+    // (the whole command in one more pair of quotes: cmd /c drops the first and the last quote of a line that starts with one)
+    const std::wstring args = L"/c \"" + netsh + L" advfirewall firewall delete rule name=\"Mousiki Remote\" >nul 2>&1 & " +
+                              netsh + L" advfirewall firewall add rule name=\"Mousiki Remote\" dir=in action=allow protocol=TCP localport=" +
+                              std::to_wstring(port) + L" profile=any\"";
+    const auto r = reinterpret_cast<intptr_t>(ShellExecuteW(nullptr, L"runas", cmd.c_str(), args.c_str(), sys_dir.c_str(), SW_HIDE));
     if (r <= 32) return "the firewall rule was not added (administrator rights refused?)";
     return "firewall: port " + std::to_string(port) + " allowed for incoming connections (rule \"Mousiki Remote\")";
 #else

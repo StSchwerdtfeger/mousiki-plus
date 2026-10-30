@@ -1,9 +1,10 @@
 # Mousiki radio mode -- settings (separate from the music player's config.txt)
+# Written by Mousiki v4.7.1  (the first save by a newer version keeps the previous file as radio_config.txt.bak)
 # Location (Windows): %USERPROFILE%\.config\mousiki\radio_config.txt
 # Location (Linux/macOS): $HOME/.config/mousiki/radio_config.txt  (or ./radio_config.txt next to the program)
 # Written by the settings screen (press s in the radio); edit by hand if you like.
 #
-# Colours are numbers of the 256-colour terminal palette (1-255). 0 or empty = no colour (the terminal's own).
+# Colours are numbers of the 256-colour terminal palette (1-255) in every field. 0 or empty = no colour (the terminal's own).
 # (A file without the next line is an older one: its 30-37 / 90-97 / 40-47 / 100-107 are converted once.)
 ColorCodes=palette
 
@@ -75,20 +76,19 @@ ColorLegendCommand=213
 ColorTabCurrent=212
 ColorTabOther=246
 
+# Pane focus indicator: the little triangle after the title of the pane that has the keys
+ColorFocus=246
+
 ##-------------------------------------------
 ##              ON/OFF
 ##-------------------------------------------
 
-# Share Profiles (Settings -> ON/OFF -> MODES) is ONE switch stored as ShareProfiles= in the player's config.txt. While it is on the
-# oscilloscope/spectrogram values of the player are used; the radio's own ones are kept below as '## own ...' lines and come back when off.
-# Remote App (Settings -> ON/OFF -> MODES) lives in the player's config.txt too: RemoteApp=, RemoteAppPort=, RemoteAppPin=.
 OnAirAscii=true
 PulseWave=true
 DummyButtons=true
 # what the VOLUME BAR is drawn with: # | ⠶ | ⣿ | ⡾⣽ (a fixed row, not repeating) | disk (the braille effect of the disk)
-VolumeIndicator=#
-# true: the filled part of the VOLUME BAR takes the oscilloscope colours from left to right, false: one colour
 VolumeGradient=false
+VolumeIndicator=disk
 # right of the station info: osci | sphere | off | spectro
 OsciSphere=osci
 Visualizer=true
@@ -102,7 +102,7 @@ TuneNoise=false
 # a station name that is too long for its column scrolls; false = it is cut off with "..." instead
 MarqueeScrolling=true
 # the help wizard (SHIFT+w) greeted you once already; false makes it open again on the next start
-WizardSeen=false
+WizardSeen=true
 # timeshift buffer for pause / rewind / recording from the past: 5 | 15 | 30 | 45 | 60 minutes (on disk, 11.5 MB per minute)
 TimeshiftMinutes=30
 # loudness normalisation (SHIFT+v overlay, v toggles): target -40..0 LUFS, max boost 0..24 dB
@@ -163,9 +163,9 @@ HKeyRecord=y
 HKeySleepTimer=Z
 HKeySearch=/
 HKeySort=T
-HKeyPresets=K
+HKeyPresets=P
 HKeyBrowser=S
-HKeyLists=P
+HKeyLists=K
 HKeyHistory=h
 HKeyStations=L
 HKeyOsciMenu=O
@@ -185,6 +185,7 @@ HKeyGoLive=}
 HKeySettings=s
 HKeyWizard=W
 HKeyCheatsheet=?
+HKeyMenus=<
 HKeyQuit=q
 
 ##-------------------------------------------
@@ -198,9 +199,9 @@ VisualizerViscosity=3
 # Oscilloscope (SHIFT+o overlay), one block per style: braille = Osci<name>, image = OsciImage<name>. Each style keeps its own values.
 # Decay = afterglow 0.00-0.99 | DotThreshold 0.01-1.00 (braille: lower = thicker line) | TailBrightness 0.00-1.00 | Interpolation = connect the
 # samples with lines | ZAxis = beam intensity (ZDepth 0-1, ZSource speed|level) | TraceLength 128-8192 samples | Rotate = 45 degrees (mid vertical) |
-# MonoPhase = phase portrait for near-mono signals | Palette gradient|settings|temperature|aurora|magma|ice|neon|spectrum|green | Glow 0-1 (image bloom) |
-# FrameRate = screen refresh while that style is in use: 30 | 45 | 60 | 90 | 120 | 165 | MusicMode = oscilloscope music mode (the scopes get
-# the stream itself, no EQ / normalization / volume, at a fixed scale and without the phase portrait; the XY beam
+# MonoPhase = phase portrait for near-mono signals | Palette gradient|settings|temperature|aurora|magma|ice|neon|spectrum | Glow 0-1 (image bloom) |
+# FrameRate = screen refresh while that style is in use: 30 | 45 | 60 | 90 | 120 | 165 | MusicMode = oscilloscope music mode (the scopes
+# get the decoded signal itself, no EQ / normalization / volume, at a fixed scale and without the phase portrait; the XY beam
 # adds light like a CRT -- Decay about 0.10 gives the look of osci-render)
 # CrtBeam = true: the CRT beam | false: the classic look (both with and without music mode) | LowRateBlanking (music mode, CRT beam) = fade out the
 # jumps between shapes in files below 96 kHz | DwellBrightness (CRT beam) = true: slow strokes bright, jumps dark |
@@ -241,10 +242,7 @@ OsciImageCrtBeam=true
 OsciImageLowRateBlanking=true
 OsciImageDwellBrightness=true
 OsciImageRoughMode=false
-# ON/OFF tab: braille | image (a real pixel picture drawn by the terminal: Kitty graphics or Sixel; braille where there is neither)
-# xy (left = horizontal, right = vertical) | yt (amplitude over time, triggered like a normal scope) | overlap (YT drawn over the XY figure) | row (XY in the top half, YT in the bottom half) | col (XY in the left half, YT in the right half)
-OsciMode=xy
-# The big oscilloscope overlay (SHIFT+0, the = key): ScopeGrid = axes / grid over both pictures (SHIFT+a in the overlay) | ScopeValues = the axis values at the grid lines (SHIFT+v) | ScopeGridColor = its colour,
+# The big oscilloscope overlay (SHIFT+0): ScopeGrid = axes / grid over both pictures (SHIFT+a in the overlay) | ScopeGridColor = its colour,
 # 0-255 (SHIFT+c in the overlay); empty = the colour of inactive list elements.
 # The pictures follow OsciStyle: braille dots, or (image) two pixel pictures on a Kitty / Sixel terminal.
 ScopeGrid=true
@@ -260,8 +258,11 @@ ScopeYtValueDiv=4
 ScopeYtInfo=both
 ScopeXyDiv=4
 ScopeXyInfo=both
+# braille | image (a real pixel picture drawn by the terminal: Kitty graphics or Sixel; braille where there is neither)
+# xy (left = horizontal, right = vertical) | yt (amplitude over time, triggered like a normal scope) | overlap (YT drawn over the XY figure) | row (XY in the top half, YT in the bottom half)
+OsciMode=xy
 OsciStyle=braille
-# image style: auto | kitty | sixel | off
+# image style: auto | kitty | sixel | off, and the pixels of one terminal cell (WxH, empty = ask the terminal)
 OsciImageProtocol=auto
 # image style: full | half | third of the screen resolution (lower = less work and data per frame, a softer and wider beam)
 OsciImageResolution=half

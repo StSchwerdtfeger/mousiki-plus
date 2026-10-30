@@ -103,7 +103,7 @@ struct RadioSettings : VizPrefs {
     bool pulse_wave = true;                     // the faint circle burst behind the sign
     bool dummy_buttons = true;                  // the <<< MUTE >>> boxes next to the frequency band
     bool volume_gradient = false;               // "gradient" right of the Volume indicator: the filled bar takes the oscilloscope colours (osci_left -> osci_right)
-    int volume_indicator = 0;                   // what the VOLUME BAR is drawn with: 0 "#", 1 "⠶", 2 "⣿", 3 "⡾⣽", 4 "disk" (volume_bar.h)
+    int volume_indicator = 4;                   // what the VOLUME BAR is drawn with: 0 "#", 1 "⠶", 2 "⣿", 3 "⡾⣽", 4 "disk" (volume_bar.h; the default: the animation)
     int scope_mode = 0;                         // right of the station info: 0 = oscilloscope, 1 = sphere, 2 = off, 3 = spectrogram; default: the oscilloscope
     bool element_visualizer = true;             // the FFT spectrum under the station info
     bool stereo = true;                         // false = fold left + right to mono
@@ -127,6 +127,8 @@ struct RadioSettings : VizPrefs {
     // The sound output of all modes (GENERAL -> AUDIO "Choose Audio Device"; AudioDevice= in the player's config.txt, "" = the
     // system default). Read when the radio starts; the CHOOSE AUDIO DEVICE overlay writes that line at once.
     std::string audio_device;
+    // Mousiki's own terminal font (GENERAL -> TEXT -> Font; TerminalFont= in the player's config.txt, one value for all modes).
+    std::string terminal_font = "Cascadia Mono";
     // Remote App (GENERAL -> REMOTE / UPDATES; RemoteApp= / RemoteAppPort= / RemoteAppPin= in the player's config.txt, one value for both):
     // the web server of the phone remote (src/remote_server.h). Read when the radio starts, written by save_radio_settings().
     bool remote_app = false;

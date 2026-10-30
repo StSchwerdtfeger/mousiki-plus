@@ -97,6 +97,11 @@ constexpr int kKeyCtrlL = 318;
 // Not rebindable.
 constexpr int kKeyCtrlN = 319;
 
+// Ctrl+T / Ctrl+Z -- main screen: the cover look one step back / forward (HKeyCoverPrev / HKeyCoverNext, rebindable; control bytes
+// 0x14 / 0x1a). On macOS / Linux Ctrl+Z would suspend the program: raw mode switches that off (VSUSP), so it arrives as a key.
+constexpr int kKeyCtrlT = 326;
+constexpr int kKeyCtrlZ = 327;
+
 // Ctrl+Left / Ctrl+Right (a word to the side) and Ctrl+Shift+Left / Right (mark a word). Only reported while a text field has the
 // keyboard (set_text_entry); everywhere else the keys stay what they were, so no screen loses a key.
 constexpr int kKeyCtrlLeft = 320;

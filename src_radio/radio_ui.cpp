@@ -1,5 +1,6 @@
 // The radio's screen: draws the station list, the player and the overlays, and handles the radio's
 // keys. It is the largest file of the radio mode.
+#include "terminal_font.h"
 #include "radio_ui.h"
 #include "overlay_common.h"
 #include "about_text.h"
@@ -310,9 +311,7 @@ std::vector<std::string> utf8_chars(const std::string& str) {
 // Four rings centred on the panel: one hairline ring shrinks (frames 0-17), two hairline rings and
 // one thick ring grow (frames 5-20, 14-29, 12-27). Drawn with braille dots in the cells the sign
 // leaves empty, in the sign's own gradient colours but very dim, so the sign stays the star.
-// One loop runs at kCircleSpeedRatio x the colour wave's speed (SignWave::speed = cycles/second).
 // ---------------------------------------------------------------------------------------------
-constexpr float kCircleSpeedRatio = 0.5f; // loops per second = wave cycles per second * this
 constexpr float kCircleDim = 0.17f;        // brightness of the rings relative to the gradient (faint)
 constexpr float kCircleFrames = 29.0f;     // length of the source animation
 
@@ -2997,19 +2996,29 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
         for (size_t i = 0; i < panel.size() && y + static_cast<int>(i) < H; ++i)
             out[static_cast<size_t>(y) + i] = splice_line(out[static_cast<size_t>(y) + i], x, panel[i], kAdevOverlayW);
     }
+    // the overlays over the settings (REMOTE APP, FONT): the radio's colours and box glyphs
+    muisc::remote_ui::Style st;
+    st.border = ansi_fg(c.border_top);
+    st.border_bottom = ansi_fg(c.border_bottom);
+    st.header = "\x1b[1m" + ansi_fg(c.header);   // captions, like the labels of the settings rows
+    st.legend = ansi_fg(c.legend);
+    st.text = ansi_fg(c.list_fg);
+    st.value = st.text;
+    st.change = "\x1b[41;37m";
+    st.cursor = "\x1b[7m";
+    st.ul = c.box_upper_left; st.ur = c.box_upper_right; st.ll = c.box_lower_left; st.lr = c.box_lower_right;
+    st.h = c.box_horizontal;  st.v = c.box_vertical;
+    if (c.border_smooth) st.border_at = [&c](float t) { return gradient_fg(c.border_top, c.border_bottom, t); };
+    if (sm.font_ov.open) {   // GENERAL -> TEXT -> Font: the FONT overlay, centred over the settings
+        int w = 0;
+        const int H = static_cast<int>(out.size());
+        const std::vector<std::string> panel = muisc::font_ui::build(sm.font_ov, st, c.terminal_font, muisc::terminal_font::last_note(), W - 2, H, w);
+        const int x = std::max(0, (W - w) / 2);
+        const int y = std::clamp((H - static_cast<int>(panel.size())) / 2, 0, std::max(0, H - static_cast<int>(panel.size())));
+        for (size_t i = 0; i < panel.size() && y + static_cast<int>(i) < H; ++i)
+            out[static_cast<size_t>(y) + i] = splice_line(out[static_cast<size_t>(y) + i], x, panel[i], w);
+    }
     if (sm.remote_ov.open) {   // GENERAL -> REMOTE / UPDATES -> Remote App: the REMOTE APP overlay, centred over the settings
-        muisc::remote_ui::Style st;
-        st.border = ansi_fg(c.border_top);
-        st.border_bottom = ansi_fg(c.border_bottom);
-        st.header = "\x1b[1m" + ansi_fg(c.header);   // captions, like the labels of the settings rows
-        st.legend = ansi_fg(c.legend);
-        st.text = ansi_fg(c.list_fg);
-        st.value = st.text;
-        st.change = "\x1b[41;37m";
-        st.cursor = "\x1b[7m";
-        st.ul = c.box_upper_left; st.ur = c.box_upper_right; st.ll = c.box_lower_left; st.lr = c.box_lower_right;
-        st.h = c.box_horizontal;  st.v = c.box_vertical;
-        if (c.border_smooth) st.border_at = [&c](float t) { return gradient_fg(c.border_top, c.border_bottom, t); };
         const muisc::remote_ui::Values v{c.remote_app, c.remote_port, c.remote_pin};
         int w = 0;
         const int H = static_cast<int>(out.size());

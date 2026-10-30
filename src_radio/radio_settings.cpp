@@ -120,6 +120,7 @@ enum RsId {
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc,
     kRsScope, kRsOsciStyle,
     kRsAudioDevice,   // [ENTER]: the CHOOSE AUDIO DEVICE overlay
+    kRsFont,          // [ENTER]: the FONT overlay
 };
 }
 
@@ -147,6 +148,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {false, kRsUseOsci, "Use oscilloscope"}, {false, kRsUseSpectro, "Use spectrogram"},   // false: not in the "." cycle (the window still works)
         {true, -1, ""},
         {true, -1, "TEXT"},
+        {false, kRsFont, "Font"},
         {false, kRsMarquee, "Marquee scrolling"},
     };
     static const std::vector<SettingsLine> anima = {
@@ -161,7 +163,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {false, kRsFluidity, "Bars Fluidity"}, {false, kRsDegr, "Bars Degradation"}, {false, kRsVisc, "Bars Viscosity"},
         {true, -1, ""},
         {true, -1, "OSCI/SPECTRO SETTINGS"},
-        {false, kRsShareProfiles, "Osci/Spectro Share Profile"},
+        {false, kRsShareProfiles, "Modes Share Settings"},
         {false, kRsScope, "Osci/sphere"}, {false, kRsOsciStyle, "Osci style"},
     };
     return tab == 1 ? on_off : anima;
@@ -240,6 +242,7 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
     if (bool* f = flag_of(const_cast<RadioSettings&>(s), id)) return *f ? "true" : "false";
     switch (id) {
         case kRsShareProfiles: return s.share_profiles ? "true" : "false";
+        case kRsFont: return s.terminal_font + "  [ENTER] choose";
         case kRsAudioDevice: return (s.audio_device.empty() ? std::string("System Default") : s.audio_device) + "  [ENTER] choose";
         case kRsRemoteApp: return s.remote_app ? "on   [ENTER] settings" : "off  [ENTER] settings";   // opens the REMOTE APP overlay
         case kRsPlayback: return s.playback_shuffle ? "shuffle" : "list";
@@ -572,6 +575,7 @@ void load_player_mode_settings(RadioSettings& s) {
     for (int i = 0; i < 3; ++i) { s.use_mode[i] = mc.use[i]; s.mode_order[i] = mc.order[i]; }
     s.audiobook_path = player_config_value("audiobookpath");
     s.audio_device = player_config_value("audiodevice");   // CHOOSE AUDIO DEVICE: one choice for every mode
+    if (const std::string f = player_config_value("terminalfont"); !f.empty()) s.terminal_font = f;   // the FONT row
     int sm = muisc::mode_index(s.start_mode);
     if (sm < 0 || !s.use_mode[sm]) for (int i = 0; i < 3; ++i) if (s.use_mode[s.mode_order[i]]) { s.start_mode = muisc::kModeNames[s.mode_order[i]]; break; }
 }
