@@ -1,6 +1,5 @@
 // The radio's screen: draws the station list, the player and the overlays, and handles the radio's
 // keys. It is the largest file of the radio mode.
-#include "terminal_font.h"
 #include "radio_ui.h"
 #include "overlay_common.h"
 #include "about_text.h"
@@ -2416,7 +2415,7 @@ std::vector<std::string> build_history_menu(const Style& s, const UiModel& m, in
     else if (hm.tab == 1) hint = "[←→/TAB] Tab  [1/2/3] Tab  [↑↓] Move  [r] Flip sort  [ESC] Exit";
     else hint = "[←→/TAB] Tab  [1/2/3] Tab  [↑↓] Scroll  [ESC] Exit";
     out.push_back(seg_line(legend_segs(s.legend, s.legend_cmd, hint), W));
-    out.push_back(seg_line({{"\x1b[32m", utf8_take(hm.flash, W)}}, W));
+    out.push_back(seg_line({{"\x1b[38;5;246m", utf8_take(hm.flash, W)}}, W));
     while (static_cast<int>(out.size()) < rows) out.push_back(spaces(W));
     out.resize(static_cast<size_t>(rows));
 
@@ -2538,7 +2537,7 @@ std::vector<std::string> build_theme_picker(const RadioSettings& c, const Settin
     else
     out.push_back(seg_line(legend_segs(legend, ansi_fg(c.legend_cmd), std::string(sm.theme_ui == 1 ? "[↑↓] Select  [SHIFT+↑↓] Page  [SHIFT+p] Preview  [ENTER] Apply  [SHIFT+d] Delete your own theme  [ESC] Back"
                                                       : "[↑↓] Select  [SHIFT+↑↓] Page  [SHIFT+p] Preview  [ENTER] Use as template  [ESC] Back")), W));
-    out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status, W)}}, W));
+    out.push_back(seg_line({{"\x1b[38;5;246m", utf8_take(sm.status, W)}}, W));
     return out;
 }
 
@@ -2599,7 +2598,7 @@ std::vector<std::string> build_theme_io(const RadioSettings& c, const SettingsMo
     out.push_back(seg_line(legend_segs(legend, ansi_fg(c.legend_cmd), std::string(sm.editing ? "[ENTER] Apply  [ESC] Cancel  [←→] Cursor  [Ctrl+C/X/V] Copy/Cut/Paste"
                                    : exp ? "[↑↓] Field  [ENTER] Edit  [s] Export  [ESC] Cancel"
                                          : "[↑↓] Select  [ENTER] Import the file (or edit the folder)  [a] Import all  [ESC] Cancel")), W));
-    out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status, W)}}, W));
+    out.push_back(seg_line({{"\x1b[38;5;246m", utf8_take(sm.status, W)}}, W));
     return out;
 }
 
@@ -2921,7 +2920,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
     else if (sm.leave_prompt == 2) hint = " Unsaved theme! [s] Save it  [d] Discard it  [ESC] Keep editing";
     else if (sm.leave_prompt == 1) hint = " Unsaved changes! [s] Save and leave  [d] Discard and leave  [ESC] Keep editing";
     out.push_back(seg_line(sm.leave_prompt ? std::vector<Seg>{{"\x1b[1;7m", hint}} : legend_segs(legend, ansi_fg(c.legend_cmd), hint), W));
-    out.push_back(seg_line({{"\x1b[32m", utf8_take(sm.status.empty() && sm.dirty ? std::string("Unsaved changes! Save with `s` or discard with `ESC`.") : sm.status, W)}}, W));
+    out.push_back(seg_line({{"\x1b[38;5;246m", utf8_take(sm.status.empty() && sm.dirty ? std::string("Unsaved changes! Save with `s` or discard with `ESC`.") : sm.status, W)}}, W));
     return out;
 }
 
@@ -3009,15 +3008,6 @@ std::vector<std::string> build_settings(const RadioSettings& c, const SettingsMo
     st.ul = c.box_upper_left; st.ur = c.box_upper_right; st.ll = c.box_lower_left; st.lr = c.box_lower_right;
     st.h = c.box_horizontal;  st.v = c.box_vertical;
     if (c.border_smooth) st.border_at = [&c](float t) { return gradient_fg(c.border_top, c.border_bottom, t); };
-    if (sm.font_ov.open) {   // GENERAL -> TEXT -> Font: the FONT overlay, centred over the settings
-        int w = 0;
-        const int H = static_cast<int>(out.size());
-        const std::vector<std::string> panel = muisc::font_ui::build(sm.font_ov, st, c.terminal_font, muisc::terminal_font::last_note(), W - 2, H, w);
-        const int x = std::max(0, (W - w) / 2);
-        const int y = std::clamp((H - static_cast<int>(panel.size())) / 2, 0, std::max(0, H - static_cast<int>(panel.size())));
-        for (size_t i = 0; i < panel.size() && y + static_cast<int>(i) < H; ++i)
-            out[static_cast<size_t>(y) + i] = splice_line(out[static_cast<size_t>(y) + i], x, panel[i], w);
-    }
     if (sm.remote_ov.open) {   // GENERAL -> REMOTE / UPDATES -> Remote App: the REMOTE APP overlay, centred over the settings
         const muisc::remote_ui::Values v{c.remote_app, c.remote_port, c.remote_pin};
         int w = 0;
@@ -3930,7 +3920,7 @@ std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus&
         const int page = std::clamp(m.phone_page, 0, pages - 1);
         out.push_back(box_top(s, W, "STATIONS (" + std::to_string(n) + ")  page " + std::to_string(page + 1) + "/" + std::to_string(pages), s.border));
         zones.push_back({0, 0, W, 1, "@menu", ""});
-        row(m.phone_note.empty() ? s.legend + "tap a station to tune it" + kReset : "\x1b[32m" + truncate_str(m.phone_note, inner) + kReset);
+        row(m.phone_note.empty() ? s.legend + "tap a station to tune it" + kReset : "\x1b[38;5;246m" + truncate_str(m.phone_note, inner) + kReset);
         row("");
         for (int i = 0; i < per; ++i) {
             const int k = page * per + i;

@@ -16,6 +16,7 @@ and macOS from nothing but the Mousiki source .zip.  Pure standard library.
     python release.py update-repo --zip ...                        copy a new source zip into the git repo + push
     python release.py checksums --gpg-key KEYID                    SHA256SUMS + detached GPG signatures
     python release.py pin                                          fix yt-dlp / FFmpeg / Python / PyPI to exact versions + hashes (pins.json)
+    python release.py pins-check [--out report.md]                 download every pinned file again, compare its hash (CI: pins-watch)
 
 Outputs land in ./dist :
     Mousiki-<ver>-windows-x64-setup.exe      + Mousiki-<ver>-windows-x64-portable.zip
@@ -81,6 +82,16 @@ def warn(msg):
 def die(msg, code=1):
     print("ERROR: " + msg, file=sys.stderr, flush=True)
     sys.exit(code)
+
+
+class DownloadFailed(SystemExit):
+    """A download that could not be done (server not reachable ...). A SystemExit like die(), so it still ends the build
+    where nobody catches it; a caller with a fallback catches only this -- never a SHA-256 mismatch, which stays a die()."""
+
+
+def die_download(msg):
+    print("ERROR: " + msg, file=sys.stderr, flush=True)
+    raise DownloadFailed(1)
 
 
 def host_target():
@@ -189,7 +200,7 @@ def fetch(url, dest, refresh=False, max_age_days=None, tries=4):
         if dest.exists():
             warn("download failed (%s) - using cached copy %s" % (e, dest.name))
             return dest
-        die("download failed: %s\n    %s" % (url, e))
+        die_download("download failed: %s\n    %s" % (url, e))
     return dest
 
 
@@ -504,7 +515,7 @@ if exist "%MOUSIKI_HOME%portable.txt" set "HOME=%MOUSIKI_HOME%data"
 
 WIN_WT_LAUNCHER = r"""@echo off
 rem Opens Mousiki in Windows Terminal (the legacy console window cannot render the UI properly).
-rem Mousiki keeps a Windows Terminal profile "Mousiki" with its own font (Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Font);
+rem Mousiki keeps a Windows Terminal profile "Mousiki" with its own font (Cascadia Mono) and colour scheme;
 rem once it exists, the window opens with that profile -- your own profiles are not changed.
 where wt.exe >nul 2>&1
 if errorlevel 1 goto plain
@@ -674,12 +685,14 @@ def add_static_ffmpeg_linux(pstage, dl, a):
         tf = fetch_pinned("ffmpeg-linux-%s-static.tar.xz" % arch, dl / ("ffmpeg-linux-%s-static.tar.xz" % arch), a)
         if tf is None:
             tf = fetch(url, dl / ("ffmpeg-linux-%s-static.tar.xz" % arch), a.refresh_tools, tries=2)
-    except SystemExit:
-        # johnvansickle.com sometimes does not answer GitHub's runners: the GitHub-hosted BtbN builds (GPLv3) are the fallback
-        warn("static ffmpeg from johnvansickle.com is not reachable - trying the BtbN builds on GitHub")
-        flavor = "linux64" if arch == "amd64" else "linuxarm64"
-        url = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-%s-gpl.tar.xz" % flavor
-        tf = fetch(url, dl / ("ffmpeg-linux-%s-btbn.tar.xz" % arch), a.refresh_tools)
+    except DownloadFailed:
+        # johnvansickle.com sometimes does not answer GitHub's runners: the GitHub-hosted BtbN builds (GPLv3) are the fallback --
+        # only when the server was not reachable (a SHA-256 mismatch stops the build), and only a pinned, dated BtbN build
+        warn("static ffmpeg from johnvansickle.com is not reachable - trying the pinned BtbN build on GitHub")
+        tf = fetch_pinned("ffmpeg-linux-%s-btbn.tar.xz" % arch, dl / ("ffmpeg-linux-%s-btbn.tar.xz" % arch), a)
+        if tf is None:
+            die("no static ffmpeg for the Linux portable zip: johnvansickle.com is not reachable and the BtbN fallback is not\n"
+                "  pinned (run 'release.py pin'). An unverified build is never bundled.")
         source = "BtbN FFmpeg-Builds (GPLv3; source: https://github.com/BtbN/FFmpeg-Builds and https://ffmpeg.org)"
     bin_dir = pstage / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
@@ -1212,7 +1225,7 @@ def fetch_cascadia_mono(dl, a):
         z = fetch_pinned(CASCADIA_ZIP, dl / CASCADIA_ZIP, a)
         if z is None:
             z = fetch(CASCADIA_URL, dl / CASCADIA_ZIP, a.refresh_tools, tries=2)
-    except SystemExit:
+    except DownloadFailed:   # (a SHA-256 mismatch stops the build)
         warn("Cascadia Mono could not be downloaded - the app is built without the font")
         return {}
     out = {}
@@ -1228,8 +1241,7 @@ def fetch_cascadia_mono(dl, a):
 
 
 # Mousiki.app/Contents/MacOS/Mousiki: copies the bundled font into ~/Library/Fonts once (per user, no password), then opens
-# Mousiki in a new Terminal window. Mousiki itself sets the font of that window (Settings -> GENERAL -> TEXT AND
-# TRANSLITERATION -> Font, Cascadia Mono by default; terminal_font.cpp) and gives it back when it quits.
+# Mousiki in a new Terminal window. Mousiki itself sets the font of that window (Cascadia Mono; terminal_font.cpp) and gives it back when it quits.
 MAC_APP_LAUNCHER = r"""#!/bin/sh
 CONTENTS="$(cd "$(dirname "$0")/.." && pwd)"
 RES="$CONTENTS/Resources"
@@ -1750,7 +1762,7 @@ def cmd_all(a):
 
 
 KANJI_PINS_FILE = HERE.parent / "scripts" / "kanji_pins.json"
-KANJI_PACKAGES = ("pykakasi", "jaconv", "deprecated", "wrapt")   # pykakasi and what it needs, all pure-Python wheels (one file for every platform)
+KANJI_PACKAGES = ("pykakasi", "jaconv", "deprecated", "wrapt", "janome")   # pykakasi and what it needs, and janome (word spacing); all pure-Python wheels (one file for every platform)
 
 
 def pin_kanji_packages(work):
@@ -1842,6 +1854,24 @@ def cmd_pin(a):
             put("ffmpeg-linux-%s-static.tar.xz" % arch, url, f2)
         except SystemExit:
             warn("static FFmpeg (%s): download failed - keeping the old pin" % arch)
+    # BtbN FFmpeg-Builds (the fallback when johnvansickle.com does not answer): a dated release, never the moving "latest"
+    try:
+        req = urllib.request.Request("https://github.com/BtbN/FFmpeg-Builds/releases/latest", headers={"User-Agent": "mousiki-release-toolkit"})
+        with urllib.request.urlopen(req, timeout=60) as r:
+            btbn_tag = r.geturl().rstrip("/").split("/")[-1]
+    except Exception as e:
+        warn("BtbN: could not find the latest dated release (%s) - keeping its old pins" % e)
+        btbn_tag = None
+    if btbn_tag and btbn_tag != "latest":
+        base = "https://github.com/BtbN/FFmpeg-Builds/releases/download/%s/" % btbn_tag
+        for arch, flavor in (("amd64", "linux64"), ("arm64", "linuxarm64")):
+            asset = "ffmpeg-master-latest-%s-gpl.tar.xz" % flavor
+            try:
+                f = get(base + asset, work / ("ffmpeg-linux-%s-btbn.tar.xz" % arch))
+                verify_sha256(f, base + "checksums.sha256", asset)
+                put("ffmpeg-linux-%s-btbn.tar.xz" % arch, base + asset, f)
+            except SystemExit:
+                warn("BtbN (%s): download failed - keeping the old pin" % arch)
     # Python embeddable: python.org versions never change; no checksum file is published, so this is the first pin you review
     for arch in ("amd64", "arm64"):
         name = "python-%s-embed-%s.zip" % (a.python_embed_version, arch)
@@ -1884,6 +1914,56 @@ def cmd_doctor(a):
     else:
         row("Xcode CLT", bool(capture(["xcode-select", "-p"])), "xcode-select --install")
         row("hdiutil", bool(which("hdiutil")), "comes with macOS")
+
+
+def cmd_pins_check(a):
+    """Downloads every pinned file again (pins.json and scripts/kanji_pins.json) and compares it with its pinned SHA-256, so a
+    pin that went stale is noticed before a release build stops on it. Mismatch = the file on the server is not the pinned one
+    any more (exit code 1); unreachable = only a warning. With --out the report is also written as Markdown."""
+    work = Path(a.work).expanduser().resolve() / "pins-check"
+    work.mkdir(parents=True, exist_ok=True)
+    items = [(name, pin["url"], pin["sha256"]) for name, pin in sorted(load_pins().items())]
+    try:
+        kp = json.loads(KANJI_PINS_FILE.read_text(encoding="utf-8")).get("packages", {})
+        items += [(v["file"], v["url"], v["sha256"]) for _, v in sorted(kp.items())]
+    except Exception as e:
+        warn("scripts/kanji_pins.json could not be read (%s)" % e)
+    rows, bad, gone = [], 0, 0
+    for name, url, want in items:
+        dest = work / name
+        try:
+            got = sha256_of(fetch(url, dest, True, tries=2))
+            state = "ok" if got == want.lower() else "MISMATCH"
+        except DownloadFailed:
+            state = "unreachable"
+        if dest.exists():
+            dest.unlink()   # (nothing is kept: the next check downloads again)
+        if state == "MISMATCH":
+            bad += 1
+        elif state == "unreachable":
+            gone += 1
+        rows.append((name, state, url))
+        log("%-40s %s" % (name, state))
+    lines = ["# Pinned downloads", "",
+             "Every file in `packaging/pins.json` and `scripts/kanji_pins.json`, downloaded again and compared with its pinned SHA-256.", ""]
+    if bad:
+        lines += ["**%d file(s) changed on the server.** A release build stops on them: find out why, then run "
+                  "`python packaging/release.py pin` and review the diff." % bad, ""]
+    if gone:
+        lines += ["%d file(s) could not be downloaded (server down, or the file was removed: if it stays like that, run `pin`)." % gone, ""]
+    if not bad and not gone:
+        lines += ["All pins are current.", ""]
+    lines += ["| file | state | url |", "|---|---|---|"] + ["| %s | %s | %s |" % r for r in rows]
+    report = "\n".join(lines) + "\n"
+    if getattr(a, "out", None):
+        write_text(a.out, report)
+    print(report)
+    out = os.environ.get("GITHUB_OUTPUT")
+    if out:
+        with open(out, "a", encoding="utf-8") as f:
+            f.write("stale=%d\nunreachable=%d\n" % (bad, gone))
+    if bad:
+        sys.exit(1)
 
 
 def main():
@@ -1931,10 +2011,12 @@ def main():
     sub.add_parser("doctor", parents=[common], help="check prerequisites")
     sub.add_parser("pin", parents=[common], help="fix yt-dlp / FFmpeg / Python / PyPI packages to exact versions + SHA-256 (pins.json)")
     sub.add_parser("checksums", parents=[common], help="(re)write SHA256SUMS.txt; with --gpg-key also sign it")
+    spc = sub.add_parser("pins-check", parents=[common], help="download every pinned file again and compare it with its pinned SHA-256")
+    spc.add_argument("--out", help="also write the report (Markdown) to this file")
     sub.add_parser("update-repo", parents=[common], help="copy the source zip into the git repo, commit and push")
     a = p.parse_args()
     {"build": cmd_build, "linux-wsl": cmd_linux_wsl, "cloud": cmd_cloud, "all": cmd_all, "doctor": cmd_doctor,
-     "checksums": cmd_checksums, "update-repo": cmd_update_repo, "pin": cmd_pin}[a.cmd](a)
+     "checksums": cmd_checksums, "update-repo": cmd_update_repo, "pin": cmd_pin, "pins-check": cmd_pins_check}[a.cmd](a)
 
 
 if __name__ == "__main__":

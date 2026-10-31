@@ -424,7 +424,7 @@ void App::build_history_screen(std::ostringstream& frame, int W, int target_heig
 
     for (const auto& l : hint_lines)
         frame << legend_colored(settings_, truncate_str(l, W)) << "\n";
-    if (status_rows) frame << "\x1b[32m" << truncate_str(history_status_, W) << "\x1b[0m\n";
+    if (status_rows) frame << "\x1b[38;5;246m" << truncate_str(history_status_, W) << "\x1b[0m\n";
 }
 
 std::vector<std::string> App::build_history_panel(int total_width, int height) {

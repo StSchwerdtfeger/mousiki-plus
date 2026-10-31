@@ -1,0 +1,66 @@
+// Starting programs: the quoting of arguments for a .cmd / .bat program (yt-dlp or Python installed as a shim on Windows).
+// cmd.exe reads that command line before the program does, so text from a search field must neither end its argument
+// ("BatBadBut") nor expand %NAME%. The text checks run on every platform; the round trip through a real cmd.exe on Windows.
+#include "test_framework.h"
+#include "process_util.h"
+#include <fstream>
+#include <string>
+#include <vector>
+
+using namespace muisc;
+
+TEST(cmd_quoting_keeps_text_inside_its_quotes) {
+    std::string q;
+    CHECK(quote_arg_for_cmd("plain", q));
+    CHECK_EQ(q, std::string("\"plain\""));
+    CHECK(quote_arg_for_cmd("a \"b\" & echo PWNED", q));   // a quote is doubled: cmd.exe never leaves the quoted text
+    CHECK_EQ(q, std::string("\"a \"\"b\"\" & echo PWNED\""));
+    CHECK(quote_arg_for_cmd("100% %PATH%", q));            // % becomes an expansion that yields a plain %
+    CHECK_EQ(q, std::string("\"100%%cd:~,% %%cd:~,%PATH%%cd:~,%\""));
+    CHECK(quote_arg_for_cmd("C:\\dir\\", q));               // backslashes before the closing quote are doubled
+    CHECK_EQ(q, std::string("\"C:\\dir\\\\\""));
+    CHECK(quote_arg_for_cmd("x\\\"y", q));                  // ... and before a quote
+    CHECK_EQ(q, std::string("\"x\\\\\"\"y\""));
+    CHECK(quote_arg_for_cmd("", q));
+    CHECK_EQ(q, std::string("\"\""));
+    CHECK(!quote_arg_for_cmd("two\nlines", q));             // cannot be passed through cmd.exe: refused
+    CHECK(!quote_arg_for_cmd("cr\r", q));
+}
+
+#if defined(_WIN32)
+// The real thing: a .cmd file hands its arguments to Python, which prints them back as JSON. What arrives must be exactly
+// what was sent, and nothing in it may have run as a command.
+TEST(cmd_round_trip_through_a_real_cmd_exe) {
+    const Args py = python_command();
+    if (py.empty()) return;   // (no Python on this machine: nothing to check against)
+    mt::TempHome home;
+    const std::filesystem::path shim = home.path() / "echoargs.cmd";
+    {
+        std::ofstream f(shim);
+        f << "@";
+        for (const std::string& a : py) f << "\"" << a << "\" ";
+        f << "-c \"import sys, json; print(json.dumps(sys.argv[1:]))\" %*\r\n";
+    }
+    const std::vector<std::string> sent = {"plain", "two words", "a \"quoted\" word", "x\" & echo PWNED & \"", "%PATH%",
+                                           "100%", "C:\\dir\\", "caret^ bang! amp& pipe| lt< gt>", "back\\\"slash"};
+    Args args = {shim.string()};
+    args.insert(args.end(), sent.begin(), sent.end());
+    const ProcResult r = run_capture(args, true);
+    CHECK_EQ(r.exit_code, 0);
+    CHECK(r.out.find("PWNED\r\n") == std::string::npos && r.out.find("PWNED\n") == std::string::npos);   // nothing ran
+    std::string want = "[";
+    for (size_t i = 0; i < sent.size(); ++i) {
+        if (i) want += ", ";
+        want += "\"";
+        for (char c : sent[i]) {
+            if (c == '"' || c == '\\') want += '\\';
+            want += c;
+        }
+        want += "\"";
+    }
+    want += "]";
+    std::string got = r.out;
+    while (!got.empty() && (got.back() == '\n' || got.back() == '\r')) got.pop_back();
+    CHECK_EQ(got, want);
+}
+#endif

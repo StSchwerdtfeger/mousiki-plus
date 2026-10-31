@@ -127,7 +127,9 @@ struct RadioSettings : VizPrefs {
     // The sound output of all modes (GENERAL -> AUDIO "Choose Audio Device"; AudioDevice= in the player's config.txt, "" = the
     // system default). Read when the radio starts; the CHOOSE AUDIO DEVICE overlay writes that line at once.
     std::string audio_device;
-    // Mousiki's own terminal font (GENERAL -> TEXT -> Font; TerminalFont= in the player's config.txt, one value for all modes).
+    // The terminal's font in Mousiki's window: GENERAL -> TEXT -> "Terminal default font" (TerminalDefaultFont= in the player's config.txt,
+    // one value for all modes); terminal_font = TerminalFont= there (no row of its own).
+    bool terminal_default_font = false;
     std::string terminal_font = "Cascadia Mono";
     // Remote App (GENERAL -> REMOTE / UPDATES; RemoteApp= / RemoteAppPort= / RemoteAppPin= in the player's config.txt, one value for both):
     // the web server of the phone remote (src/remote_server.h). Read when the radio starts, written by save_radio_settings().

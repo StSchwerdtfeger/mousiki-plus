@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
     if (!shared_settings.use_terminal_settings)
         muisc::terminal_apply_size(shared_settings.terminal_cols, shared_settings.terminal_rows, shared_settings.full_screen);
     // Mousiki's own font (Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Font): for this window only, where the terminal allows it
-    muisc::terminal_font::apply(shared_settings.terminal_font);
+    muisc::terminal_font::apply(shared_settings.terminal_default_font ? std::string(muisc::terminal_font::kTerminalDefault) : shared_settings.terminal_font);
     bool book_default_theme = false;
     muisc::Settings book_settings = muisc::load_book_settings(shared_settings, &book_default_theme);
     if (book_default_theme) muisc::apply_book_default_theme(book_settings);   // no look of its own yet: Rose Pine

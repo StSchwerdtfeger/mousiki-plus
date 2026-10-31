@@ -187,6 +187,7 @@ std::unordered_set<std::string> g_kanji_done;                // texts a kanji re
 std::vector<std::string> g_kanji_pending;
 std::unordered_set<std::string> g_kanji_pending_set;
 std::string g_kanji_file;
+bool g_ja_kana = false;                                      // the last transliterate_impl() text has a run of kana (five or more): word spacing needs the reader (janome)
 bool g_ja_kept = false;                                      // the last transliterate_impl() left kanji of a Japanese text as they are
 unsigned g_cache_version = 0;                               // bumped by everything that can change an answer (the cache of transliterate())
 std::unordered_map<std::string, std::string> g_readings;   // whole text -> Latin reading (built in, the user's file, learned)
@@ -428,7 +429,7 @@ std::string transliterate(const std::string& text) {
         else if (split_latin_cjk(text, pair) && latin_cjk_agree(pair)) r = pair.latin;   // (the pair is written both ways: the Latin one)
         else {
             r = transliterate_impl(text);
-            if (g_ja_kept && text.size() <= 240 && g_kanji_pending.size() < 3000 && text.find_first_of("\n\t\r") == std::string::npos) {   // a kanji reader may know it
+            if ((g_ja_kept || g_ja_kana) && text.size() <= 240 && g_kanji_pending.size() < 3000 && text.find_first_of("\n\t\r") == std::string::npos) {   // a kanji reader may know it
                 const std::string key = trimmed(text);
                 if (!g_kanji_done.count(key) && g_kanji_pending_set.insert(key).second) g_kanji_pending.push_back(key);
             }
@@ -439,6 +440,7 @@ std::string transliterate(const std::string& text) {
 }
 
 static std::string transliterate_impl(const std::string& text) {
+    g_ja_kept = g_ja_kana = false;   // (also for the early return below: the caller asks both after the call)
     {   // a name written both ways ("Kenshi Yonezu (米津玄師)"): its Latin part is all there is to show
         std::string cjk, latin;
         if (split_pair(text, cjk, latin)) return latin;
@@ -450,6 +452,7 @@ static std::string transliterate_impl(const std::string& text) {
     bool hanzi_as_pinyin = false;
     bool japanese_ctx = false;
     g_ja_kept = false;
+    g_ja_kana = false;
     {
         Script sc = kana ? Script::Japanese : script_of_cps(v);
         if (sc == Script::Unknown) {
@@ -465,6 +468,7 @@ static std::string transliterate_impl(const std::string& text) {
         japanese_ctx = sc == Script::Japanese;
     }
 
+    if (kana) { size_t n = 0; for (char32_t c : v) if (is_kana(c)) ++n; g_ja_kana = n >= 5; }
     std::string o;
     o.reserve(text.size() * 2);
     bool geminate = false;            // a small tsu waits for the next sound

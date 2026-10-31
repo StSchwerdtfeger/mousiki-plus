@@ -254,6 +254,8 @@ std::string App::render_frame(TerminalIO& term) {
     frame_main_len_ = std::string::npos;   // set by the main screen: where its line part ends (the overlays follow)
     spectro_used_ = false;
     spectro_area_[0] = -1;
+    pv_spectro_area_[0] = -1;
+    pv_cover_pic_ = false;
     caption_rect_[2] = 0;
     caption_text_.clear();
     gfx_ok_ = false;          // set again at the very end of a Browse frame (the Settings / Console / ... screens return early and show no picture)
@@ -324,7 +326,9 @@ std::string App::render_frame(TerminalIO& term) {
     // leaving any of *those* still forces one, same as a real mode
     // change always has.
     auto mode_family = [this](Mode m) {
+        if (m == Mode::LyricsEdit && lyrics_edit_from_reader_) return 9;   // (it is drawn on the READ LYRICS screen)
         if (m == Mode::LyricsEdit && lyrics_edit_from_karaoke_) return 7;   // (it is drawn on the karaoke screen)
+        if (m == Mode::MetaEdit && meta_sty_open_ && meta_sty_from_main_) return 0;   // the Style Option panel over the main screen
         if (m == Mode::AudioDevice) return adev_from_settings_ ? 1 : 0;     // over the settings screen or over the main screen
         switch (m) {
             case Mode::Browse: case Mode::Search: case Mode::BulkAdd: case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: case Mode::BookOverlay: case Mode::AudioDevice: return 0;
@@ -362,6 +366,7 @@ std::string App::render_frame(TerminalIO& term) {
     last_render_rows_ = term_rows_;
     last_render_mode_ = mode_;
     const char* clear_prefix = hard_clear ? "\x1b[2J\x1b[H" : "\x1b[H";
+    if (hard_clear) cf_pic_key_.clear();   // the screen is wiped: a cover preview picture (meta editor, cover menus) must be sent again
 
     // The creator's preview (after "Create"): the oscilloscope music or the spectrogram of the new file over the whole screen
     if (creator_show_ && mode_ == Mode::Browse) {
@@ -456,8 +461,11 @@ std::string App::render_frame(TerminalIO& term) {
         std::ostringstream frame;
         frame << "\x1b[2J\x1b[H\x1b[?25l";
         build_settings_screen(frame, W, overlay_budget(W));
+        // The cover preview of the Settings screen is the one picture it may show; any other picture switched on while building the
+        // screen (the colour tab's theme preview builds the main screen's disk) must stay off.
+        if (!pv_cover_pic_) gfx_.active = false;
+        gfx_ok_ = gfx_.active;
         if (remote_ov_.open) remote_overlay_draw(frame, W);
-        if (font_ov_.open) font_overlay_draw(frame, W);
         if (mode_ == Mode::AudioDevice) draw_floating_panel(frame, build_audio_device_panel(), kAudioDevicePanelWidth, W);
         return fullscreen_out(frame);
     }
@@ -537,7 +545,7 @@ std::string App::render_frame(TerminalIO& term) {
         return shown;
     }
 
-    if (mode_ == Mode::MetaEdit) {
+    if (mode_ == Mode::MetaEdit && !(meta_sty_open_ && meta_sty_from_main_)) {
         // The five field values are resolved right before drawing them:
         // reading a tag can promote into the shared cache, and the panel
         // builder itself is const (see meta_refresh_hover_values()).
@@ -547,6 +555,7 @@ std::string App::render_frame(TerminalIO& term) {
         const int meta_budget = overlay_budget(W);   // (this builds the main screen's metadata panel, which switches the picture slots on)
         gfx_.active = false;
         gfx2_.active = false;
+        // Opened with the main UI's key (HKeyStyleOptions): only the Style Option panel, no meta editor behind it
         build_meta_screen(frame, W, meta_budget);   // (switches gfx_ on when the cover is drawn as a real picture)
         std::string shown = fullscreen_out(frame);
         frame_main_len_ = shown.size();
@@ -561,6 +570,12 @@ std::string App::render_frame(TerminalIO& term) {
             draw_floating_panel(panel, build_meta_cov_panel(W), kMetaCovPanelWidth, W);
             shown += panel.str();
             gfx_ok_ = gfx_.active;   // (the panel's preview is a real picture when [t] says so)
+        }
+        if (meta_sty_open_) {
+            std::ostringstream panel;
+            draw_floating_panel(panel, build_meta_sty_panel(W), meta_sty_panel_width(W), W);
+            shown += panel.str();
+            gfx_ok_ = gfx_.active;   // (the preview is a real picture when the terminal can show one and [t] says so)
         }
         // Saving takes a moment for a few files and a while for hundreds: the panel only appears when it lasts longer than ~1 s.
         if (meta_save_.active && std::chrono::steady_clock::now() - meta_save_.started > std::chrono::milliseconds(1000)) {
@@ -578,11 +593,16 @@ std::string App::render_frame(TerminalIO& term) {
         return fullscreen_out(frame);
     }
 
-    if (mode_ == Mode::ReadLyrics) {
+    if (mode_ == Mode::ReadLyrics || (mode_ == Mode::LyricsEdit && lyrics_edit_from_reader_)) {
         std::ostringstream frame;
         frame << "\x1b[2J\x1b[H\x1b[?25l";
         build_readlyrics_screen(frame, W, overlay_budget(W));
         std::string shown = fullscreen_out(frame);
+        if (mode_ == Mode::LyricsEdit) {
+            std::ostringstream panel;
+            draw_floating_panel(panel, build_lyrics_edit_panel(), kLyricsEditPanelWidth, W);
+            shown += panel.str();
+        }
         if (rd_opts_open_) {
             std::ostringstream panel;
             draw_floating_panel(panel, build_readlyrics_options_panel(), 66, W);
@@ -795,13 +815,20 @@ std::string App::render_frame(TerminalIO& term) {
         draw_floating_panel(floating, build_creator_panel(), kCreatorPanelWidth, W);
     } else if (mode_ == Mode::Equalizer) {
         draw_floating_panel(floating, build_eq_panel(), kEqPanelWidth, W);
+    } else if (mode_ == Mode::MetaEdit) {   // the Style Option panel of the playing track (HKeyStyleOptions), over the main screen
+        meta_refresh_hover_values();
+        meta_sty_pic_ = false;
+        draw_floating_panel(floating, build_meta_sty_panel(W), meta_sty_panel_width(W), W);
     }
     out += floating.str();
     if (gfx_.active) {
         const bool floating_mode = mode_ != Mode::Browse && mode_ != Mode::Search;
         const bool covered_all = list_overlay_active() || queue_overlay_active() || folder_overlay_active() || convert_overlay_active();
         if (covered_all || (mode_family(mode_) != 0)) gfx_.active = false;
-        else {
+        else if (meta_sty_pic_ && mode_ == Mode::MetaEdit) {   // the preview of the Style Option panel (over the main screen) owns the picture slot: it lies inside the panel
+            gfx_.crop = 0;
+            gfx_.cut_w = 0;
+        } else {
             gfx_.crop = 0;
             const int fx = float_rect_[0], fy = float_rect_[1], fw = float_rect_[2], fh = float_rect_[3];
             if (gfx_.plain) {

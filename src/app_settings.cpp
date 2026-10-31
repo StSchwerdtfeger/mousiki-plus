@@ -3,6 +3,7 @@
 #include "app.h"
 #include "text_edit.h"
 #include "overlay_common.h"
+#include "terminal_font.h"
 #include "remote_server.h"
 #include "remote_control.h"
 #include "about_text.h"
@@ -24,7 +25,6 @@
 #include "update_check.h"
 #include "app_internal.h"
 #include "app_settings_tables.h"
-#include "terminal_font.h"
 #include <cstring>
 #include <algorithm>
 #include <cctype>
@@ -91,7 +91,7 @@ void App::settings_close(bool save) {
             player_.set_stereo(settings_.stereo);
             player_.set_normalization(settings_.normalize, static_cast<float>(settings_.normalize_target_lufs),
                                       static_cast<float>(settings_.normalize_max_boost_db));
-            set_emoji_replacement(settings_.replace_emoji);
+            set_emoji_mode(settings_.emoji_mode);
             if (before.local_music_paths != settings_.local_music_paths || before.download_folder != settings_.download_folder)
                 rescan_library();
             force_redraw_ = true;
@@ -101,7 +101,6 @@ void App::settings_close(bool save) {
     settings_dirty_ = false;
     theme_ui_ = 0;
     remote_ov_ = remote_ui::State{};
-    font_ov_ = font_ui::State{};
     mode_ = Mode::Browse;
     remote_app_apply();   // a discarded Remote App switch is undone here
 }
@@ -740,11 +739,11 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidCheckUpdate: return update_check::check_busy() ? std::string("checking ...") : std::string("[ENTER] to check");
             case kSidBookSpeed: return speed_label(settings_.book_speed);
             case kSidAudioDevice: return audio_device_label() + "  [ENTER] choose";
-            case kSidTermFont: return settings_.terminal_font + "  [ENTER] choose";
             case kSidNormalize: v = settings_.normalize; break;
             case kSidMetaOnly: v = settings_.meta_only; break;
-            case kSidEmoji: v = settings_.replace_emoji; break;
+            case kSidEmoji: return settings_.emoji_mode == 1 ? "Safe" : settings_.emoji_mode == 2 ? "All" : "Off";
             case kSidMarquee: v = settings_.marquee; break;
+            case kSidTermDefaultFont: v = settings_.terminal_default_font; break;
             case kSidUseLyrics: v = settings_.use_lyrics; break;
             case kSidUseOsci: v = settings_.use_osci; break;
             case kSidUseSpectro: v = settings_.use_spectro; break;
@@ -841,7 +840,6 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidRemoteApp: return {};   // not a switch: ENTER / LEFT / RIGHT open the REMOTE APP overlay
             case kSidCheckUpdate: return {};   // an action: ENTER asks GitHub (handle_settings_key)
             case kSidAudioDevice: return {};   // not a switch: ENTER opens the CHOOSE AUDIO DEVICE overlay
-            case kSidTermFont: return {};      // not a switch: ENTER opens the FONT overlay
             case kSidBookSpeed: {   // 0.5x .. 3.0x in steps of 0.05
                 std::vector<std::string> o;
                 for (int h = 50; h <= 300; h += 5) o.push_back(speed_label(h / 100.0));
@@ -849,6 +847,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             }
             case kSidVisFluidity: case kSidVisDegr: case kSidVisVisc: return {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"};
             case kSidLatinHanzi: return {"Leave", "Chin.", "Jap."};
+            case kSidEmoji: return {"Off", "Safe", "All"};
             case kSidTermSize: return {};   // two typed numbers (ENTER types the one that is lit)
             case kSidWaveStyle: return {"raw", "smooth"};
             case kSidDiskSpeed: return {"0.01", "0.05", "0.10", "0.17", "0.25", "0.50", "0.75", "1.00"};
@@ -976,6 +975,11 @@ void App::settings_commit_edit_impl() {
                 } catch (...) { status_line_ = "terminal size: type a number (0 = leave the terminal as it is)"; }
                 return;
             }
+            case kSidEmoji:   // Off / Safe (keep plain emoji, "?" for the risky ones) / All
+                settings_.emoji_mode = v == "safe" ? 1 : v == "all" ? 2 : v == "off" ? 0 : settings_.emoji_mode;
+                set_emoji_mode(settings_.emoji_mode);   // every width calculation follows from the next frame on
+                force_redraw_ = true;
+                break;
             case kSidLatinHanzi:   // Chinese characters that could be Japanese or Chinese (東京): leave / pinyin / kanji reading
                 settings_.latin_hanzi = v == "chin." ? 1 : v == "jap." ? 2 : v == "leave" ? 0 : settings_.latin_hanzi;
                 translit_set_default_hanzi(settings_.latin_hanzi);
@@ -1039,11 +1043,14 @@ void App::settings_commit_edit_impl() {
                                           static_cast<float>(settings_.normalize_max_boost_db));
                 break;
             case kSidMetaOnly: settings_.meta_only = is_true; break;
-            case kSidEmoji:
-                settings_.replace_emoji = is_true;
-                set_emoji_replacement(is_true); // every width calculation follows from the next frame on
-                break;
             case kSidMarquee: settings_.marquee = is_true; break;
+            case kSidTermDefaultFont:   // applied and saved at once (one value for all modes), like the audio device
+                settings_.terminal_default_font = is_true;
+                set_config_value("TerminalDefaultFont", is_true ? "true" : "false");
+                settings_snapshot_.terminal_default_font = is_true;
+                settings_snapshot_text_ = settings_to_text(settings_snapshot_);
+                terminal_font::apply(is_true ? std::string(terminal_font::kTerminalDefault) : settings_.terminal_font);
+                break;
             case kSidBlackBg: settings_.black_background = is_true; break;   // the render loop applies it
             case kSidShareProfiles: settings_.share_profiles = is_true; break;   // the radio reads it when it starts
             case kSidBookAsk: settings_.book_ask_bookmark = is_true; break;
@@ -1268,12 +1275,16 @@ void App::settings_cycle(int dir) {
                                            : "lists: filename + metadata";
         resort_local_view_keep_selection();
     }
+    if (id == kSidTermDefaultFont)
+        status_line_ = settings_.terminal_default_font ? "terminal default font: on -- Mousiki leaves the terminal's own font alone"
+                                                       : "terminal default font: off -- Mousiki's window uses " + settings_.terminal_font + " (Windows Terminal: the profile \"Mousiki\")";
     if (id == kSidMarquee) {
         status_line_ = settings_.marquee ? "marquee: long titles scroll" : "marquee: off, long titles are cut with ...";
     }
     if (id == kSidEmoji) {
-        status_line_ = settings_.replace_emoji ? "emoji: drawn as a single ? (layout stays aligned)"
-                                               : "emoji: drawn as they are (alignment depends on your terminal)";
+        status_line_ = settings_.emoji_mode == 2 ? "emoji: all drawn as a single ? (layout stays aligned)"
+                     : settings_.emoji_mode == 1 ? "emoji: plain ones are kept, joined / flag / skin-tone / keycap ones drawn as a single ?"
+                                                 : "emoji: drawn as they are (alignment depends on your terminal)";
     }
     if (id >= kSidUseLyrics && id <= kSidUseSphere) {
         static const char* const names[4] = {"lyrics", "oscilloscope", "spectrogram", "sphere"};
@@ -1303,7 +1314,6 @@ void App::settings_cycle(int dir) {
                                                                      : "update notice: off -- no check for a newer release";
     if (id == kSidCheckUpdate) status_line_ = "check update: [ENTER] asks GitHub for the newest release now (needs Python 3 and a network connection)";
     if (id == kSidBookSpeed) status_line_ = "playback speed: " + speed_label(settings_.book_speed) + " -- the voice keeps its pitch; SHIFT+LEFT / SHIFT+RIGHT change it while you listen";
-    if (id == kSidTermFont) status_line_ = "font: " + settings_.terminal_font + " -- [ENTER] lists the fonts of this computer; Mousiki's window only, where the terminal allows it";
     if (id == kSidAudioDevice) status_line_ = "choose audio device: " + audio_device_label() + " -- [ENTER] lists the devices (also % on the main screen)";
     if (id == kSidLatinLookup) status_line_ = settings_.latin_lookup ? "latin name lookup: on -- artists written in Chinese characters are looked up on MusicBrainz in the background (their name is sent to musicbrainz.org, one at a time)"
                                                                     : "latin name lookup: off -- nothing is sent anywhere";
@@ -1413,26 +1423,6 @@ void App::handle_settings_key(int key) {
             settings_update_dirty();
         }
         if (close) { remote_ov_ = remote_ui::State{}; status_line_ = settings_.remote_app ? "remote app on (s saves)" : "remote app off (s saves)"; }
-        force_redraw_ = true;
-        return;
-    }
-    if (font_ov_.open) {   // the FONT overlay has the keys
-        std::string picked;
-        bool close = false;
-        const int rows = font_ui::list_rows(std::max(10, term_rows_ - 1));
-        if (font_ui::key(font_ov_, key, last_key_was_arrow(), last_key_was_shifted(), rows, picked, close)) {
-            settings_.terminal_font = picked;
-            set_config_value("TerminalFont", picked);              // saved at once (one value for all modes), like the audio device
-            settings_snapshot_.terminal_font = picked;              // ESC on the settings screen does not take it back
-            settings_snapshot_text_ = settings_to_text(settings_snapshot_);
-            status_line_ = terminal_font::apply(picked);
-        }
-        force_redraw_ = true;
-        return;
-    }
-    if (mode_ == Mode::Settings && settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTermFont &&
-        (key == '\r' || key == '\n')) {
-        font_ui::open(font_ov_, settings_.terminal_font);
         force_redraw_ = true;
         return;
     }
@@ -1808,7 +1798,7 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
         pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(editing_io ? "[ENTER] Apply  [ESC] Cancel  [\u2190\u2192] Cursor  [Ctrl+C/X/V] Copy/Cut/Paste"
             : theme_ui_ == 4 ? "[\u2191\u2193] Field  [ENTER] Edit  [s] Export  [ESC] Cancel"
                              : "[\u2191\u2193] Select  [ENTER] Import the file (or edit the folder)  [a] Import all  [ESC] Cancel")) + R);
-        if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
+        if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[38;5;246m" + truncate_str(status_line_, W - 2) + R);
         if (editing_io && cursor_y > 0) frame << "\x1b[" << cursor_y << ";" << cursor_x << "H\x1b[?25h";
         return;
     }
@@ -1865,7 +1855,7 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
         pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(theme_ui_ == 1
             ? "[↑↓] Select  [SHIFT+↑↓] Page  [SHIFT+p] Preview  [ENTER] Apply  [SHIFT+d] Delete your own theme  [ESC] Back"
             : "[↑↓] Select  [SHIFT+↑↓] Page  [SHIFT+p] Preview  [ENTER] Use as template  [ESC] Back")) + R);
-        if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
+        if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[38;5;246m" + truncate_str(status_line_, W - 2) + R);
         return;
     }
 
@@ -1974,7 +1964,7 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
     pos(MAX_Y + 1, 1, legend_colored(settings_, std::string(editing
         ? "[ENTER] Apply  [ESC] Cancel  [←→] Cursor  [SHIFT+←→] Mark  [Ctrl+C/X/V] Copy/Cut/Paste"
         : "[ENTER] Edit/Open  [s] Save theme  [ESC] Discard")) + R);
-    if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + R);
+    if (!status_line_.empty()) pos(MAX_Y + 2, 1, "\x1b[38;5;246m" + truncate_str(status_line_, W - 2) + R);
     if (editing && cursor_y > 0) frame << "\x1b[" << cursor_y << ";" << cursor_x << "H\x1b[?25h";
 }
 
@@ -2266,6 +2256,7 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
             y++;
         }
         scrollbar(first, visible, total);   // there is more above / below
+        settings_preview_draw(frame, W, MAX_Y, settings_tab_, B);   // the highlighted option, shown live on the right (wide terminals only)
     } else if (settings_tab_ == 3) {
         // PATHS tab: the LOCAL PATH / DOWNLOAD PATH / PLAYLIST PATH
         // sections (build_path_rows()) -- editable path rows, each list
@@ -2537,9 +2528,9 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
     // path or error message just ends early instead of wrapping.
     // (the message of the last change is shown even when there are unsaved changes, so a change that made
     // the settings differ from the saved ones still shows its message)
-    if (settings_dirty_ && status_line_.empty()) pos(y, 1, "\x1b[32mUnsaved changes! Save with `s` or discard with `ESC`.\x1b[0m");
-    else if (settings_dirty_) pos(y, 1, "\x1b[32m" + truncate_str(status_line_, std::max(1, W - 2 - 11)) + "\x1b[0m\x1b[33m (unsaved)\x1b[0m");
-    else if (!status_line_.empty()) pos(y, 1, "\x1b[32m" + truncate_str(status_line_, W - 2) + "\x1b[0m");
+    if (settings_dirty_ && status_line_.empty()) pos(y, 1, "\x1b[38;5;246mUnsaved changes! Save with `s` or discard with `ESC`.\x1b[0m");
+    else if (settings_dirty_) pos(y, 1, "\x1b[38;5;246m" + truncate_str(status_line_, std::max(1, W - 2 - 11)) + "\x1b[0m\x1b[33m (unsaved)\x1b[0m");
+    else if (!status_line_.empty()) pos(y, 1, "\x1b[38;5;246m" + truncate_str(status_line_, W - 2) + "\x1b[0m");
 
     // 4. In-place text editing cursor placement.
     if (mode_ == Mode::ColorEdit) {

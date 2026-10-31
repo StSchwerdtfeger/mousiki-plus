@@ -89,7 +89,9 @@ struct StreamingPcm {
     std::atomic<long> internal_refs{0};             // shared_ptr holders that are the decode threads themselves
 
     // limit_bytes: the size of the decoded audio (without the headroom below) above which the window is used instead.
-    void reserve_for_seconds(double seconds, int sr, int ch = 1, double limit_bytes = kWindowBytes) {
+    // unknown_length: the file says nothing about its length (`seconds` is only a guess): always the window, so the whole track
+    // plays however long it is, with the memory of a window (a buffer sized by the guess would cut it off).
+    void reserve_for_seconds(double seconds, int sr, int ch = 1, double limit_bytes = kWindowBytes, bool unknown_length = false) {
         sample_rate = sr;
         channels = ch >= 2 ? 2 : 1;
         meter.reset(sr, channels);
@@ -102,7 +104,7 @@ struct StreamingPcm {
         // memory in use: the pages are only touched as the decoder fills them.
         const double audio_bytes = static_cast<double>(est_frames) * channels * sizeof(float);
         (void)bytes;
-        if (audio_bytes > limit_bytes && static_cast<double>(est_frames) > kWindowSeconds * sr * 1.5) {
+        if (unknown_length || (audio_bytes > limit_bytes && static_cast<double>(est_frames) > kWindowSeconds * sr * 1.5)) {
             windowed = true;
             ring_frames = static_cast<size_t>(kWindowSeconds * sr);
             data.assign(ring_frames * static_cast<size_t>(channels), 0.0f);

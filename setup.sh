@@ -510,7 +510,7 @@ fi
 
 if [ "${WITH_KANJI:-0}" = 1 ]; then
     step "Installing pykakasi (optional: kanji readings for the Latin letters display)"
-    if python3 -m pip install --quiet --user pykakasi 2>/dev/null || python3 -m pip install --quiet --user --break-system-packages pykakasi; then
+    if python3 -m pip install --quiet --user pykakasi janome 2>/dev/null || python3 -m pip install --quiet --user --break-system-packages pykakasi janome; then
         step "pykakasi installed"
     else
         warn "pykakasi could not be installed -- Mousiki works without it (kanji just stay as they are)."

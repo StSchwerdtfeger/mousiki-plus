@@ -280,11 +280,17 @@ LyricsAnimation=word by word
 ## full , word by word , line by line , letter by letter
 ## active line only , active word only
  
+TerminalDefaultFont=false
+## true = Mousiki leaves the terminal's own font alone; false = Mousiki's window uses the font of TerminalFont= (Settings -> TEXT AND TRANSLITERATION -> Terminal Default Font)
+TerminalFont=Cascadia Mono
+## the font of Mousiki's window where the terminal allows it (Windows Terminal: the profile "Mousiki"; macOS Terminal, iTerm2, old Windows console); no settings row, only here
+
 ##-------------------------------------------
 ##             EMOJI IN TITLES
 ##-------------------------------------------
  
 ReplaceEmoji=true
+## safe = keep plain one-codepoint emoji, replace only joined / flag / skin-tone / keycap ones with "?"
 ## true  = an emoji in a title is drawn as a single "?" so the box borders always stay aligned
 ## false = draw the real emoji (alignment then depends on how your terminal measures emoji)
  
@@ -540,5 +546,6 @@ HKeyReadLyrics="CTRL+L"
 HKeyQueueUndoClear="CTRL+SHIFT+Z"
 HKeyQueueToPlaylist="CTRL+SHIFT+U"
 HKeyCoverFetch="ALT+C"
+HKeyStyleOptions="S"
 HKeyBulkAdd="G"
 HKeyAddToPlaylist="A"

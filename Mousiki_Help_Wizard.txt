@@ -191,8 +191,8 @@ book in place of the disk, tags made for books).
 THE TERMINAL FONT: [[Header]]
 The disk and the pictures are braille characters. They look full and round
 with Cascadia Mono, the font Mousiki uses for its own window where the
-terminal allows it (Settings, GENERAL, TEXT AND TRANSLITERATION, Font). A
-font without braille characters shows small scattered dots.
+terminal allows it (Settings, GENERAL, TEXT AND TRANSLITERATION,
+Terminal Default Font switches that off). A font without braille characters shows small scattered dots.
 
 Mousiki Plus (Win/Linux/macOS):
 StSchwerdtfeger — github.com/StSchwerdtfeger
@@ -214,7 +214,8 @@ Both keys can be changed in Settings -> REFERENCE (Next Mode / Previous Mode).
 COVER LOOK:[[Header]] [CTRL+t] one look back, [CTRL+z] one forward: plain disk, Just Cover, Cover
 with Gradient, Cover behind Disk, v2, Full Anima, Cover ASCII, Cover ASCII with Gradient. In the
 audio book mode: default picture, cover with gradient wave, cover in its own colours. Only while
-Eliment Disk / Cover is on; saved at once. Changeable in Settings -> REFERENCE.
+Eliment Disk / Cover is on; saved at once. Changeable in Settings -> REFERENCE. An album with
+its own look (meta editor -> Style Option) changes that look instead.
 
 MENUS INDEX:[[Header]] [<] (German keyboard) or [SHIFT+,] (English keyboard) lists all menus
 and overlays with their keys; [ENTER] opens the selected one.
@@ -522,6 +523,16 @@ folder, in its fetched_covers folder, the album's covers), "Automatic" (Settings
 Search decides), "No cover", delete a picture from the disk ([DEL], not the one inside a file)
 or search pictures by file name ([TAB] or [/]). The choice goes before the album default of
 the cover fetch menu and before the Cover Search setting (except "Within File Only").
+Next to it sits the button [ Style Option ] (move there with [->] or [ENTER] on it): a small
+overlay with the look of THIS track (as in Settings, Disk, Just Cover, Cover with Gradient, the
+Cover behind Disk looks, the ASCII looks), its own Cover Contrast, Cover Brightness and Cover
+Colors, and the look of its whole ALBUM (no album tag: of that folder). [<-][->] change a row,
+[DEL] or [d] puts it back to "as in Settings". [t] switches between a real picture
+(Kitty / Sixel terminals, the default) and braille dots. A wide terminal adds a preview of the cover with the
+chosen look on the right. The track's own values win over the album's look and
+over Settings; while the track plays, [CTRL+t] / [CTRL+z] change its look.
+From the main screen [SHIFT+s] opens the Style Option overlay of the track that plays, on its
+own ([ESC] closes it); opened that way [m] leads on to the meta data of that very song.
 
 SORT LIBRARY AND ADD TRACK TO FETCH META DATA TAB:[[Header]]
 Several sort options are available for the LIBRARY PANE:
@@ -781,7 +792,13 @@ so far and the translations and the text itseld. [TAB] switches between the two 
 [SHIFT+↑/↓] (or [SPACE]/[b]) for a page and [HOME] / [END] for top/bottom. 
 [t] opens the translate overlay (service (Google / MyMemory), translate into, lyrics are in), 
 the command [ENTER] fetches.
-[SHIFT+t] shows / cycles / hides translations, [d] or [DEL] deletes a translation.
+[SHIFT+t] shows / cycles / hides translations (a translation that is there is shown at once),
+[d] or [DEL] deletes a translation.
+[p] plays / pauses the track of the reader: while it plays, the lyrics are drawn like in the main
+view (active line, sung words, animation), the view scrolls along ([f] switches that off, any
+scrolling too), the translation of the active line is lit, [SHIFT+<-/->] seeks 5 s.
+[ALT+L] opens the lyrics timing overlay (shift the lyrics earlier / later, live; [ENTER] saves),
+only for the track that plays and has synced lyrics loaded.
 Fetching translations goes on in the background and may take a while; asking for another one 
 meanwhile then only gives a warning.
 
@@ -1181,6 +1198,13 @@ any key goes back.
 Most of the rows are changed with [<-/->] to set the respective value to either true/false or
 toggle other values. Some options demand input, such as terminal size. 
 Note that on every Settings tab that scrolls, [SHIFT+UP] / [SHIFT+DOWN] moves a page.
+On a terminal at least 107 columns wide, GENERAL and ANIMA/VIZ show a PREVIEW BOX on the right
+of the rows - only for the option you are on, never several at once: the lyrics (alignment,
+animation), the disk and cover looks, the volume bar at 85%, the spectrum bars, the progress
+waveform, the oscilloscope, spectrogram (a picture in Kitty / Sixel terminals) and sphere (with the signal of the radio station
+"TEST Stereo Chords": no file, no internet - Mousiki makes the same signal itself), the
+transliteration examples, the emoji (note, radio, space invader, book, black cat) and the
+marquee.
 
 [MODES:][[Header]]
 [Playback:][[Legend]]                                         the play mode (works like using [m] in the main player UI;
@@ -1285,17 +1309,18 @@ This category is only available in the audio book mode only...
                                                   and also include I time-stamp to which one can move...
 
 [TEXT AND TRANSLITERATION (JAP./KOR./CHIN.):][[Header]]
-[Font:][[Legend]]                                             Mousiki's own font (default Cascadia Mono). [ENTER] lists
-                                                  Terminal Default, Cascadia Mono and the monospace fonts of
-                                                  this computer. It is set for Mousiki's window only, where
-                                                  the terminal allows it (macOS Terminal, iTerm2, Windows
-                                                  Terminal through the Mousiki launchers, the old console
-                                                  window); other terminals keep their font. Saved at once,
-                                                  for all modes.
+[Terminal Default Font:][[Legend]]                            false (default) = Mousiki's window uses Cascadia Mono
+                                                  (Windows Terminal: the profile "Mousiki"; macOS Terminal,
+                                                  iTerm2, the old console window). true = Mousiki leaves
+                                                  the terminal's own font alone. Saved at once, for all
+                                                  modes. Another font: TerminalFont= in config.txt.
 
-[Replace Emoji:][[Legend]]                                    on (default) = an emoji in a title is drawn as a single ?,
-                                                  so the frame borders stay aligned; off = the emoji itself
-                                                  is drawn.
+[Replace Emoji:][[Legend]]                                    All (default) = every emoji in a title is drawn as a ?
+                                                  (a single one), so the frame borders stay aligned; Safe
+                                                  = plain emoji (note, radio, book ...) are kept and only
+                                                  the risky ones (joined ones like the black cat, flags,
+                                                  skin tones, red heart-style forms, keycaps) become ?;
+                                                  Off = every emoji itself is drawn.
 
 [Marquee Scrolling:][[Legend]]                                on (default) = a name that is too long for its column
                                                   scrolls while the row is hovered; off = it is cut off with
@@ -1305,7 +1330,10 @@ NOTE:[[Legend]]
 The below only fully works, when pykakasi is installed (pip install pykakasi for the python
 version that is used by Mousiki, in case you didn't install it via the installer bundle or 
 excluded from your build and want to use it later). Wihtout pykakasi some Kanji signs for
-Japanese transliteration may remain. Less a problem for Chines/Korean Transliteration. This
+Japanese transliteration may remain. Less a problem for Chines/Korean Transliteration. With the
+package janome too (pip install janome) Japanese lines are cut into words (watashi wa anata ga
+suki desu) instead of one long word; Korean keeps the spaces of the text, Chinese is written
+syllable by syllable. This
 has only been tested well with Japanese language, so feel free to report issues in order for
 me to adjust / extend the transliteration function in the future. 
 
@@ -1391,16 +1419,17 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   Disk looks; in the audio book mode with the Book Gradient
                                                   Wave on). Just Cover and all previews stay as they are; 0%
                                                   = as it is.
-[Cover Brightness:][[Legend]]                                 0% .. 100% in steps of 5% (default 50%). Only for the
-                                                  Cover behind Disk looks: the cover is spread over the
-                                                  whole brightness range (bright like the plain disk) and
-                                                  its dark parts are lifted to at least this share; the
-                                                  cover is also sharpened for more detail.
-[Cover Colors:][[Legend]]                                     0% .. 100% in steps of 5% (default 0%). Only for the
-                                                  Cover behind Disk looks: how much of the cover's own
-                                                  colours shows. 0% = the gradient only, 50% = the cover's
-                                                  colours shine through the gradient, 100% = the cover in
-                                                  its own colours.
+[Cover Brightness:][[Legend]]                                 0% .. 100% in steps of 5% (default 50%). Cover behind
+                                                  Disk looks: the cover is spread over the whole
+                                                  brightness range (bright like the plain disk), its dark
+                                                  parts are lifted to at least this share and it is
+                                                  sharpened. Audio book cover with the wave: a brightness
+                                                  curve, 50% = as it is, more = brighter, less = darker.
+[Cover Colors:][[Legend]]                                     0% .. 100% in steps of 5% (default 0%). How much of the
+                                                  cover's own colours shows through the gradient (Cover
+                                                  behind Disk looks; audio book cover with the wave).
+                                                  0% = the gradient only, 50% = the cover's colours shine
+                                                  through, 100% = the cover in its own colours.
 [Cover Search:][[Legend]]                                     says where the cover is looked for:
                                                   Default: first the picture inside the file (mp3 and the
                                                   other formats that can carry one). If it has none, the
@@ -1436,7 +1465,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 
 
 [SEEK AND VOLUME:][[Header]]
-[Dummy Seek Buttons:][[Legend]]                               shows or hides the three decorative buttons next to the
+[Dummy Buttons:][[Legend]]                                    shows or hides the three decorative buttons next to the
                                                   progress bar. When you seek with the arrow keys, the << or
                                                   >> label takes the BORDER_COLOR BOTTOM colour for a
                                                   moment. The same happens in the audio book mode.
@@ -1896,7 +1925,9 @@ BOOK COVER: [[Header]]
 The option [Book Cover] in Settings, GENERAL, set to true shows the cover image found in the book's 
 folder instead (a file named cover, folder, front or albumart, else the first picture there; 
 jpg, png, webp ...; no picture file: the cover art inside the first audio file is used). The 
-gradient wave can also be toggled via [Book gradient]. 
+gradient wave can also be toggled via [Book gradient]. With the wave on, [Cover Brightness]
+(50% = as it is) and [Cover Colors] (how much of the cover's own colours shines through the
+gradient) work on the book's cover too (Settings, ANIMA/VIZ, BOOK COVER).
 
 A book without a cover image keeps the default picture. Switching Book Cover on shows in the 
 status line which protocol is used and the cover file found (or why there is none; the console log, t, 

@@ -264,6 +264,13 @@ void clipboard_set(const std::string& utf8);
 // WriteConsoleW per flush).
 void write_frame(const std::string& frame);
 
+// 24-bit colours (ESC[38;2;r;g;bm / 48;2) need a terminal that knows them. macOS Terminal before macOS 26 does not and shows
+// wrong colours for them, so there write_frame() turns every one into the nearest of the 256 fixed colours (to_256_colours()).
+// MOUSIKI_COLORS=256 forces that anywhere, MOUSIKI_COLORS=truecolor switches it off.
+bool truecolor_ok();
+std::string to_256_colours(const std::string& text);
+int nearest_256(int r, int g, int b);   // the 256-colour palette entry (16..255) closest to an RGB colour
+
 // Truncates/right-pads (by byte length — good enough for the mostly-ASCII
 // UI text here; multi-byte titles may render slightly short) to exactly
 // `width` visible columns.
@@ -321,7 +328,7 @@ std::string paint_legend_row(const LegendRow& row, const std::string& border, co
 // the number of lines changed -- then the caller sends the whole frame (and `prev` is set from it).
 bool diff_frame_lines(const std::string& body, std::vector<std::string>& prev, std::string& out);
 
-// Emoji handling (see the long comment above replace_emoji() in
+// Emoji handling (set_emoji_mode(): 0 off, 1 safe = keep plain one-codepoint emoji, 2 all; see the long comment above replace_emoji() in
 // terminal_ui.cpp). On (the default): every emoji cluster is measured and
 // drawn as a single "?" by display_width()/pad_right()/truncate_str()/
 // wrap_lines()/utf8_take()/utf8_skip_take(), so a title containing an emoji
@@ -329,6 +336,7 @@ bool diff_frame_lines(const std::string& body, std::vector<std::string>& prev, s
 // emoji's width is. Off: emoji pass through and are measured by the width
 // table. Driven by config.txt's ReplaceEmoji.
 void set_emoji_replacement(bool on);
+void set_emoji_mode(int mode);   // 0 off, 1 safe, 2 all
 
 // Marquee scrolling of too-long titles (config.txt / radio_config.txt: MarqueeScrolling). Off: such a text is cut
 // with "..." like every other over-wide text. Each mode sets it from its own settings.

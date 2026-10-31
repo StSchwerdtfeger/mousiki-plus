@@ -67,6 +67,71 @@ def read(kks, text):
     return " ".join(out.split())
 
 
+# --- word spacing with janome (optional, Apache-2.0, pure Python, its dictionary is inside the package) -----------------------------
+# Japanese is written without spaces, so romaji needs the words cut first: tokens by janome, the reading of each by pykakasi.
+# Particles stand alone ("watashi wa anata ga suki desu"), endings and auxiliary verbs stay with their verb ("tabemashita").
+# は / へ / を as particles are read wa / e / o.
+COPULA = {"\u3067\u3059", "\u3060", "\u3067\u3057\u305f", "\u3067\u3057\u3087\u3046", "\u3060\u3063\u305f"}   # です だ でした でしょう だった: separate words
+
+
+def kana_to_hepburn(kks, kana):
+    return "".join(i.get("hepburn", "") for i in kks.convert(kana))
+
+
+def read_words(kks, tok, text):
+    pieces = []   # [romaji, glue_to_previous]
+    prev_p0 = prev_p1 = ""
+    for t in tok.tokenize(text):
+        surf = t.surface
+        pos = t.part_of_speech.split(",")
+        p0, p1 = pos[0], pos[1] if len(pos) > 1 else ""
+        if not has_cjk(surf):
+            seg = unicodedata.normalize("NFKC", surf)
+            seg = seg.replace("\u300c", '"').replace("\u300d", '"').replace("\u300e", '"').replace("\u300f", '"')
+            if p0 == "\u8a18\u53f7" or not seg.strip():
+                pieces.append([seg.strip(), "punct"])
+            else:
+                pieces.append([seg, False])
+            continue
+        if p0 == "\u52a9\u8a5e" and surf in ("\u306f", "\u3078", "\u3092"):
+            seg = {"\u306f": "wa", "\u3078": "e", "\u3092": "o"}[surf]
+        else:
+            rd = t.reading if t.reading and t.reading != "*" else ""
+            # a small tsu at the end of a word doubles the next consonant (言っ|て = itte): pykakasi alone would write "itsu"
+            geminate = rd[-1:] in ("\u30c3", "\u3063") and len(rd) > 1
+            seg = kana_to_hepburn(kks, rd[:-1] if geminate else rd) if rd else ""
+            if geminate and seg:
+                seg += "~"
+            if not seg:
+                seg = kana_to_hepburn(kks, surf)
+        if not seg:
+            continue
+        glue = ((p0 == "\u52a9\u52d5\u8a5e" and surf not in COPULA) or (p0 == "\u52d5\u8a5e" and p1 in ("\u975e\u81ea\u7acb", "\u63a5\u5c3e"))
+                or (p0 == "\u540d\u8a5e" and p1 == "\u63a5\u5c3e") or (p0 == "\u52a9\u8a5e" and p1 == "\u63a5\u7d9a\u52a9\u8a5e")
+                or surf in ("\u3063", "\u30c3"))
+        # ...てはいけない: the verb after a particle (は, が, ...) is a word of its own, not an ending of the word before
+        if glue and prev_p0 == "\u52a9\u8a5e" and prev_p1 != "\u63a5\u7d9a\u52a9\u8a5e" and p0 == "\u52d5\u8a5e":
+            glue = False
+        if pieces and pieces[-1][0].endswith("~"):
+            glue = True   # the doubled consonant belongs to the next syllable
+        pieces.append([seg, glue])
+        prev_p0, prev_p1 = p0, p1
+    out = ""
+    for seg, glue in pieces:
+        if not seg:
+            continue
+        if out.endswith("~"):   # the doubled consonant: the first letter of what follows (ch -> t: itchi)
+            first = seg[0] if seg[0].isalpha() else ""
+            out = out[:-1] + ("t" if seg.startswith("ch") else first)
+        if glue == "punct":
+            out += seg
+        elif out and not glue and not out.endswith(('"', "(")):
+            out += " " + seg
+        else:
+            out += seg
+    return " ".join(out.replace("~", "").split())
+
+
 def main():
     if len(sys.argv) < 2:
         print(json.dumps({"ok": False, "error": "usage: kanji_reading.py <file>"}))
@@ -80,9 +145,22 @@ def main():
         with open(sys.argv[1], encoding="utf-8") as f:
             texts = [line.rstrip("\r\n") for line in f if line.strip()]
         kks = pykakasi.kakasi()
+        tok = None
+        try:
+            from janome.tokenizer import Tokenizer
+            tok = Tokenizer()
+        except Exception:
+            tok = None
         res = {}
         for t in texts:
-            r = read(kks, t)
+            r = ""
+            if tok is not None:
+                try:
+                    r = read_words(kks, tok, t)
+                except Exception:
+                    r = ""
+            if not r and has_kanji(t):   # (kana-only text without janome: nothing to add, the program's own romaji stays)
+                r = read(kks, t)
             if r:
                 res[t] = r
         print(json.dumps({"ok": True, "readings": res}, ensure_ascii=False))

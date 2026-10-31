@@ -25,7 +25,6 @@
 #include "process_util.h"
 #include "app_internal.h"
 #include "update_check.h"
-#include "terminal_font.h"
 #include "open_url.h"
 #include "app_settings_tables.h"
 #include <cstring>
@@ -124,16 +123,6 @@ remote_ui::Style App::settings_overlay_style() const {
     if (settings_.border_smooth)
         st.border_at = [this](float t) { return gradient_ansi(settings_.border_color, settings_.border_color_bottom, t, false); };
     return st;
-}
-
-void App::font_overlay_draw(std::ostringstream& frame, int W) const {
-    const int rows = std::max(10, term_rows_ - 1);
-    int w = 0;
-    const std::vector<std::string> lines = font_ui::build(font_ov_, settings_overlay_style(), settings_.terminal_font,
-                                                          terminal_font::last_note(), W - 2, rows, w);
-    const int x = std::max(1, (W - w) / 2 + 1), y = std::max(1, (rows - static_cast<int>(lines.size())) / 2 + 1);
-    for (size_t i = 0; i < lines.size(); ++i) frame << "\x1b[" << y + static_cast<int>(i) << ";" << x << "H" << lines[i];
-    frame << "\x1b[0m";
 }
 
 void App::remote_overlay_draw(std::ostringstream& frame, int W) const {

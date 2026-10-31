@@ -108,6 +108,28 @@ RGB ansi256_to_rgb(int idx) {
 }
 } // namespace
 
+// The config files are written to "<name>.tmp" first and then renamed over the real one: a crash or a power cut in the middle
+// of a save leaves the old file, never a cut-off one. (When the rename fails -- a file system without it -- it is written in place.)
+bool write_text_atomic(const fs::path& p, const std::string& text) {
+    fs::path tmp = p;
+    tmp += ".tmp";
+    std::error_code ec;
+    {
+        std::ofstream out(tmp, std::ios::trunc);
+        if (!out.is_open()) return false;
+        out << text;
+        out.flush();
+        if (!out.good()) { out.close(); fs::remove(tmp, ec); return false; }
+    }
+    fs::rename(tmp, p, ec);
+    if (!ec) return true;
+    fs::remove(tmp, ec);
+    std::ofstream direct(p, std::ios::trunc);
+    if (!direct.is_open()) return false;
+    direct << text;
+    return direct.good();
+}
+
 bool try_parse_rgb(const std::string& color_value, int& r, int& g, int& b) {
     if (color_value.empty()) return false;
     int idx;
@@ -445,6 +467,7 @@ void apply_default_hotkeys(Settings& s) {
 #else
             {"HKeyCoverFetch",                  "ALT+C"},         // cover fetch overlay (MusicBrainz / Cover Art Archive)
 #endif
+            {"HKeyStyleOptions",                "S"},             // SHIFT+s: the Style Option overlay (cover look, contrast, brightness, colors) of the playing track
             {"HKeyReadLyrics",                  "CTRL+L"},        // READ LYRICS overlay
             {"HKeyQueueUndoClear",              "CTRL+SHIFT+Z"},  // bring back the queue that was just cleared
             {"HKeyQueueToPlaylist",             "CTRL+SHIFT+U"},  // save the queue as a playlist
@@ -898,8 +921,9 @@ static Settings load_from_config(const fs::path& path) {
             s.book_ask_bookmark = !(v == "false" || v == "0" || v == "off" || v == "no");
             continue;
         }
-        if (key == "AudioDevice") { s.audio_device = trim_ws(unquote(value)); continue; }
+        if (key == "TerminalDefaultFont") { s.terminal_default_font = parse_bool(value); continue; }
         if (key == "TerminalFont") { const std::string v = trim_ws(unquote(value)); if (!v.empty()) s.terminal_font = v; continue; }
+        if (key == "AudioDevice") { s.audio_device = trim_ws(unquote(value)); continue; }
         if (key == "BookSpeed") {   // 0.5 .. 3.0, rounded to the 0.05 steps of the setting
             try {
                 const double v = std::stod(trim_ws(unquote(value)));
@@ -1254,7 +1278,7 @@ static Settings load_from_config(const fs::path& path) {
         }
 
         // --- Emoji handling ---------------------------------------------
-        if (key == "ReplaceEmoji") { s.replace_emoji = parse_bool(value); continue; }
+        if (key == "ReplaceEmoji") { std::string lv = value; for (char& ch : lv) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); s.emoji_mode = lv == "safe" ? 1 : (parse_bool(value) ? 2 : 0); continue; }
         if (key == "MarqueeScrolling") { s.marquee = parse_bool(value); continue; }
 
         // --- Stereo ------------------------------------------------------
@@ -1588,10 +1612,9 @@ bool write_remote_app(RemoteAppConfig& rc) {
     }
     std::error_code ec;
     fs::create_directories(p.parent_path(), ec);
-    std::ofstream out(p, std::ios::trunc);
-    if (!out.is_open()) return false;
-    for (const auto& l : lines) out << l << "\n";
-    return out.good();
+    std::string text;
+    for (const auto& l : lines) text += l + "\n";
+    return write_text_atomic(p, text);
 }
 
 bool read_share_profiles() {
@@ -1661,10 +1684,9 @@ bool write_latin_letters(bool on) {
     bool done = false;
     for (auto& l : lines) if (!done && l.compare(0, 13, "LatinLetters=") == 0) { l = want; done = true; }
     if (!done) lines.push_back(want);
-    std::ofstream out(p, std::ios::trunc);
-    if (!out.is_open()) return false;
-    for (const auto& l : lines) out << l << "\n";
-    return out.good();
+    std::string text;
+    for (const auto& l : lines) text += l + "\n";
+    return write_text_atomic(p, text);
 }
 
 bool write_start_mode(const std::string& mode) {
@@ -1681,10 +1703,9 @@ bool write_start_mode(const std::string& mode) {
     if (!done) lines.push_back(want);
     std::error_code ec;
     fs::create_directories(p.parent_path(), ec);
-    std::ofstream out(p, std::ios::trunc);
-    if (!out.is_open()) return false;
-    for (const auto& l : lines) out << l << "\n";
-    return out.good();
+    std::string text;
+    for (const auto& l : lines) text += l + "\n";
+    return write_text_atomic(p, text);
 }
 
 // A config.txt from before "ColorCodes=palette": 30-37 / 90-97 in text fields and 40-47 / 100-107 in background fields were plain
@@ -1901,7 +1922,8 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "ShareProfiles=" << (s.share_profiles ? "true" : "false") << "\n## true , false -- the radio uses this file's oscilloscope and spectrogram settings instead of its own (its own come back when this is false; player and radio)\n";
     out << "BookmarkAsk=" << (s.book_ask_bookmark ? "true" : "false") << "\n## true , false -- audio book mode: changing the chapter, the mode or quitting asks first whether to set a bookmark at the exact time (the audio is paused meanwhile)\n";
     out << "BookCoverWave=" << (s.book_cover_wave ? "true" : "false") << "\n## true , false -- with BookCover on: true = the colour wave runs over the cover (a grey cover), false = the cover is shown in its own colours (the standard picture always has the wave)\n";
-    out << "TerminalFont=" << s.terminal_font << "\n## the font of Mousiki's window, where the terminal allows it (Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Font): a font installed on the computer, or Terminal Default\n";
+    out << "TerminalDefaultFont=" << (s.terminal_default_font ? "true" : "false") << "\n## true , false -- true = Mousiki leaves the terminal's own font alone; false = Mousiki's window uses the font of TerminalFont= (Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Terminal Default Font)\n";
+    out << "TerminalFont=" << s.terminal_font << "\n## the font of Mousiki's window where the terminal allows it (Windows Terminal: the profile \"Mousiki\"; macOS Terminal.app, iTerm2, the old Windows console): a font installed on the computer; Cascadia Mono is the default\n";
     out << "AudioDevice=" << s.audio_device << "\n## the sound output of all modes, as the system names it (Settings -> GENERAL -> AUDIO -> Choose Audio Device); empty = the system's default device\n";
     {
         char sp[16];
@@ -1937,7 +1959,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "##-------------------------------------------\n";
     out << "##             EMOJI IN TITLES\n";
     out << "##-------------------------------------------\n\n";
-    out << "ReplaceEmoji=" << (s.replace_emoji ? "true" : "false") << "\n";
+    out << "ReplaceEmoji=" << (s.emoji_mode == 1 ? "safe" : s.emoji_mode == 2 ? "true" : "false") << "\n";
     out << "## true  = an emoji in a title is drawn as a single \"?\" so the box borders always stay aligned\n";
     out << "## false = draw the real emoji (alignment then depends on how your terminal measures emoji)\n";
     out << "\n";
@@ -2243,8 +2265,8 @@ static void save_book_profile(const Settings& s) {
     {
         std::ostringstream all;
         write_settings(all, s);
-        std::ofstream out(bp, std::ios::trunc);
-        if (out.is_open()) {
+        std::ostringstream out;
+        {
             out << "# Mousiki Configuration File -- AUDIO BOOK MODE\n";
             out << config_stamp_line() << "\n";
             out << "# Only the look of the audio book mode is kept here: colours, elements, visualizations, borders, play mode.\n";
@@ -2260,6 +2282,7 @@ static void save_book_profile(const Settings& s) {
                 if (is_look_key(trim_ws(t.substr(0, cut)))) out << line << "\n";
             }
         }
+        write_text_atomic(bp, out.str());
     }
     Settings base = load_settings();     // the file as the music player left it
     Settings merged = s;
@@ -2267,8 +2290,9 @@ static void save_book_profile(const Settings& s) {
     merged.book_profile = false;
     const fs::path p = config_path();
     backup_config_if_older(p);
-    std::ofstream out(p, std::ios::trunc);
-    if (out.is_open()) write_settings(out, merged);
+    std::ostringstream out;
+    write_settings(out, merged);
+    write_text_atomic(p, out.str());
 }
 
 std::string config_value(const std::string& key) {
@@ -2301,10 +2325,9 @@ bool set_config_value(const std::string& key, const std::string& value) {
     if (!found) lines.push_back(key + "=" + value);
     std::error_code ec;
     fs::create_directories(p.parent_path(), ec);
-    std::ofstream out(p, std::ios::trunc);
-    if (!out.is_open()) return false;
-    for (const std::string& l : lines) out << l << "\n";
-    return static_cast<bool>(out);
+    std::string text;
+    for (const std::string& l : lines) text += l + "\n";
+    return write_text_atomic(p, text);
 }
 
 void save_settings(const Settings& s) {
@@ -2314,9 +2337,9 @@ void save_settings(const Settings& s) {
     fs::create_directories(p.parent_path(), ec);
     backup_config_if_older(p);   // the first save by a newer version keeps the old file as config.txt.bak
 
-    std::ofstream out(p, std::ios::trunc);
-    if (!out.is_open()) return;
+    std::ostringstream out;
     write_settings(out, s);
+    write_text_atomic(p, out.str());
 }
 
 } // namespace muisc

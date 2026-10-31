@@ -100,8 +100,9 @@ TEST(remote_server_page_is_open_api_needs_the_pin) {
     CHECK_EQ(code_of(page), 200);
     CHECK(page.find("text/html") != std::string::npos);
     CHECK(body_of(page).find("Mousiki Remote") != std::string::npos);
-    CHECK_EQ(code_of(req("/api/hello")), 403);
-    CHECK_EQ(code_of(req("/api/hello?pin=111111")), 403);
+    CHECK_EQ(code_of(req("/api/status")), 403);
+    CHECK_EQ(code_of(req("/api/status?pin=111111")), 403);
+    CHECK_EQ(code_of(req("/api/status?pin=246810")), 200);
     const std::string ok = req("/api/hello?pin=246810");
     CHECK_EQ(code_of(ok), 200);
     CHECK(body_of(ok).find("\"ok\":true") != std::string::npos);
@@ -110,19 +111,31 @@ TEST(remote_server_page_is_open_api_needs_the_pin) {
 
 TEST(remote_server_locks_after_ten_wrong_pins) {
     use_pin("135790");
-    for (int i = 0; i < 10; ++i) req("/api/hello?pin=000000");
-    CHECK_EQ(code_of(req("/api/hello?pin=135790")), 429);           // even the right PIN waits a minute now
+    for (int i = 0; i < 10; ++i) req("/api/status?pin=000000");
+    CHECK_EQ(code_of(req("/api/status?pin=135790")), 429);           // even the right PIN waits a minute now
     use_pin("135791");                                                // a new PIN, set at the computer, ends it
-    CHECK_EQ(code_of(req("/api/hello?pin=135791")), 200);
+    CHECK_EQ(code_of(req("/api/status?pin=135791")), 200);
 }
 
 TEST(remote_server_lockout_is_per_device) {
     use_pin("135792");
     auto from = [](const std::string& target, const std::string& ip) { return net::handle_request("GET " + target + " HTTP/1.1", ip); };
-    for (int i = 0; i < 10; ++i) from("/api/hello?pin=000000", "192.168.1.66");   // someone else on the Wi-Fi guesses
-    CHECK_EQ(code_of(from("/api/hello?pin=135792", "192.168.1.66")), 429);         // that device waits a minute
-    CHECK_EQ(code_of(from("/api/hello?pin=135792", "192.168.1.20")), 200);         // the phone is not locked out
+    for (int i = 0; i < 10; ++i) from("/api/status?pin=000000", "192.168.1.66");   // someone else on the Wi-Fi guesses
+    CHECK_EQ(code_of(from("/api/status?pin=135792", "192.168.1.66")), 429);         // that device waits a minute
+    CHECK_EQ(code_of(from("/api/status?pin=135792", "192.168.1.20")), 200);         // the phone is not locked out
     use_pin("135793");
+}
+
+TEST(remote_server_hello_needs_no_pin_and_is_no_wrong_pin) {
+    // the phone app's network scan asks /api/hello?pin=0: it is recognised, and many scans do not lock the phone out
+    use_pin("135794");
+    for (int i = 0; i < 15; ++i) {
+        const std::string r = req("/api/hello?pin=0");
+        CHECK_EQ(code_of(r), 200);
+        CHECK(body_of(r).find("\"ok\":true") != std::string::npos);
+    }
+    CHECK_EQ(code_of(req("/api/status?pin=135794")), 200);
+    CHECK(req("/api/hello").find("Access-Control-Allow-Origin") == std::string::npos);   // no other web page may read the answers
 }
 
 TEST(remote_server_answers_only_the_home_network) {
@@ -178,7 +191,7 @@ TEST(remote_server_live_socket) {
     const std::string page = http_get(port, "/");
     CHECK_EQ(code_of(page), 200);
     CHECK(page.find("Content-Length:") != std::string::npos);
-    const std::string bad = http_get(port, "/api/hello?pin=1");
+    const std::string bad = http_get(port, "/api/status?pin=1");
     CHECK(code_of(bad) == 403 || code_of(bad) == 429);
     // a second server on the same port fails with a message instead of crashing
     net::shutdown();

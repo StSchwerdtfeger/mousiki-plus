@@ -560,11 +560,13 @@ fs::path lyrics_folder_of(const fs::path& track_path) {
     return s.empty() ? fs::path() : s.parent_path();
 }
 
-std::vector<std::string> lyrics_plain_lines(const std::string& raw) {
+std::vector<LyricLine> lyrics_read_lines(const std::string& raw, double* delay) {
     static const std::regex stamp_re(R"(\[\s*\d+:\d+(?:[.:]\d+)?\s*\])");     // [mm:ss.xx]
     static const std::regex word_re(R"(<\s*\d+:\d+(?:[.:]\d+)?\s*>)");          // <mm:ss.xx> (enhanced LRC)
     static const std::regex tag_re(R"(^\s*\[\s*[A-Za-z#][A-Za-z0-9_# ]*\s*:[^\]]*\]\s*$)");   // [ar:..] [ti:..] [offset:..] [re:..]
-    std::vector<std::string> out;
+    static const std::regex first_stamp_re(R"(^\s*\[\s*(\d+):(\d+)(?:[.:](\d+))?\s*\])");
+    if (delay) *delay = parse_lrc_delay(raw);
+    std::vector<LyricLine> out;
     std::istringstream in(raw);
     std::string line;
     bool first = true;
@@ -574,6 +576,18 @@ std::vector<std::string> lyrics_plain_lines(const std::string& raw) {
         first = false;
         while (!line.empty() && (line.back() == '\r' || line.back() == '\n')) line.pop_back();
         if (std::regex_match(line, tag_re)) continue;
+        LyricLine ln;
+        ln.start_time = -1.0;   // -1: this line has no time stamp
+        std::smatch sm;
+        if (std::regex_search(line, sm, first_stamp_re)) {
+            double frac = 0.0;
+            if (sm[3].matched) { try { frac = std::stod("0." + sm[3].str()); } catch (...) { frac = 0.0; } }
+            try { ln.start_time = std::stod(sm[1].str()) * 60.0 + std::stod(sm[2].str()) + frac; } catch (...) { ln.start_time = -1.0; }
+            if (line.find('<') != std::string::npos) {   // enhanced LRC: the words with their times (the same reading the player uses)
+                const std::vector<LyricLine> parsed = parse_lrc(line, true);
+                if (parsed.size() == 1) ln.words = parsed[0].words;
+            }
+        }
         line = std::regex_replace(line, stamp_re, "");
         // A word tag stands between two words ("<00:34.2>Talking<00:35.4>away", no spaces in the file), so it becomes a space -- the same
         // boundary the karaoke view makes -- and the collapse below keeps one of them.
@@ -587,13 +601,21 @@ std::vector<std::string> lyrics_plain_lines(const std::string& raw) {
             space = false;
             t += c;
         }
-        if (t.empty() && !out.empty() && out.back().empty()) continue;   // a run of blank lines is one
-        out.push_back(t);
+        if (t.empty() && !out.empty() && out.back().full_text.empty()) continue;   // a run of blank lines is one
+        ln.full_text = t;
+        if (t.empty()) ln.words.clear();
+        out.push_back(std::move(ln));
     }
-    while (!out.empty() && out.back().empty()) out.pop_back();
+    while (!out.empty() && out.back().full_text.empty()) out.pop_back();
     size_t lead = 0;
-    while (lead < out.size() && out[lead].empty()) ++lead;
+    while (lead < out.size() && out[lead].full_text.empty()) ++lead;
     out.erase(out.begin(), out.begin() + static_cast<std::ptrdiff_t>(lead));
+    return out;
+}
+
+std::vector<std::string> lyrics_plain_lines(const std::string& raw) {
+    std::vector<std::string> out;
+    for (const LyricLine& l : lyrics_read_lines(raw, nullptr)) out.push_back(l.full_text);
     return out;
 }
 

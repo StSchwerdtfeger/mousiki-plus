@@ -183,7 +183,7 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
         // the file's own sample rate: no resampling on the way to the device
         pl.pcm->reserve_for_seconds(duration > 0 ? duration : 300.0,
                                     native_sample_rate(decode_from, pl.metadata.sampling, duration, settings_.rate_cap_96), want_stereo ? 2 : 1,
-                                    static_cast<double>(settings_.track_buffer_mb) * 1024.0 * 1024.0);
+                                    static_cast<double>(settings_.track_buffer_mb) * 1024.0 * 1024.0, duration <= 0);
         pl.success = true;
 
         write_load_timing_log(pl.title, is_local, t_resolve, t_probe, elapsed_s(t_start), "");

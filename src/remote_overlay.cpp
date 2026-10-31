@@ -122,7 +122,7 @@ std::vector<std::string> build(const State& st, const Values& val, const Style& 
         else { line(s.legend + truncate_str("(the window is too small for the QR code: " + address + "/#pin=" + val.pin + ")", inner) + kR); line(""); }
         for (const auto& h : help) line(h);
     }
-    line(st.status.empty() ? std::string() : "\x1b[32m" + truncate_str(st.status, inner) + kR);
+    line(st.status.empty() ? std::string() : "\x1b[38;5;246m" + truncate_str(st.status, inner) + kR);
     {
         const std::string legend = st.editing ? " [0-9] Type  [ENTER] Apply  [ESC] Cancel "
 #if defined(_WIN32)

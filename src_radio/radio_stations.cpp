@@ -2,12 +2,14 @@
 // station streams.
 #include "radio_stations.h"
 #include "string_util.h"
+#include "settings.h"   // write_text_atomic()
 #include <algorithm>
 #include <cctype>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 
 namespace muisc::radio {
 
@@ -117,12 +119,11 @@ bool save_preset_names(const std::vector<Station>& all) {
     const fs::path p = preset_names_path();
     std::error_code ec;
     if (p.has_parent_path()) fs::create_directories(p.parent_path(), ec);
-    std::ofstream o(p, std::ios::trunc);
-    if (!o) return false;
+    std::ostringstream o;   // written in one go at the end (write_text_atomic: never a cut-off file)
     o << "# Mousiki radio -- second names for the PRESETS pane: url<TAB>name (edited with SHIFT+c in the stations overlay)\n";
     for (const auto& st : all)
         if (!st.preset_name.empty()) o << st.url << '\t' << st.preset_name << '\n';
-    return static_cast<bool>(o);
+    return write_text_atomic(p, o.str());
 }
 
 static void apply_preset_names(std::vector<Station>& v) {
@@ -337,8 +338,7 @@ bool save_station_lists(const std::vector<Station>& stations, const std::vector<
     std::error_code ec;
     const fs::path p = station_lists_path();
     if (p.has_parent_path()) fs::create_directories(p.parent_path(), ec);
-    std::ofstream o(p, std::ios::trunc);
-    if (!o) return false;
+    std::ostringstream o;   // written in one go at the end (write_text_atomic: never a cut-off file)
     o << "# Mousiki radio station lists -- written by the STATION LISTS menu (Shift+K). [list name] followed by: url | station name\n";
     for (const auto& l : lists) {
         o << "\n[" << l.name << "]\n";
@@ -348,7 +348,7 @@ bool save_station_lists(const std::vector<Station>& stations, const std::vector<
             o << s.url << " | " << s.name << "\n";
         }
     }
-    return static_cast<bool>(o);
+    return write_text_atomic(p, o.str());
 }
 
 PresetStore load_presets(const std::vector<Station>& stations) {
@@ -422,8 +422,7 @@ bool save_presets(const std::vector<Station>& stations, const PresetStore& store
     std::error_code ec;
     const fs::path p = presets_path();
     if (p.has_parent_path()) fs::create_directories(p.parent_path(), ec);
-    std::ofstream o(p, std::ios::trunc);
-    if (!o) return false;
+    std::ostringstream o;   // written in one go at the end (write_text_atomic: never a cut-off file)
     o << "# Mousiki radio presets -- written by the PRESETS menu (P). [preset name] followed by: key | url | station name\n";
     o << "@keys " << kPresetKeys << "\n";
     if (store.active >= 0 && store.active < static_cast<int>(store.banks.size()))
@@ -437,7 +436,7 @@ bool save_presets(const std::vector<Station>& stations, const PresetStore& store
             o << kPresetKeys[i] << " | " << s.url << " | " << s.name << "\n";
         }
     }
-    return static_cast<bool>(o);
+    return write_text_atomic(p, o.str());
 }
 
 } // namespace muisc::radio

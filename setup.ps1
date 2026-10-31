@@ -123,7 +123,7 @@ if (-not $SkipDeps) {
         $pyCmd = if (Test-Command py) { @('py','-3') } elseif (Test-Command python3) { @('python3') } elseif (Test-Command python) { @('python') } else { $null }
         if ($pyCmd) {
             $pyRest = if ($pyCmd.Count -gt 1) { $pyCmd[1..($pyCmd.Count-1)] } else { @() }
-            & $pyCmd[0] @pyRest -m pip install --user pykakasi
+            & $pyCmd[0] @pyRest -m pip install --user pykakasi janome
             if ($LASTEXITCODE -ne 0) { Write-Warning "pykakasi could not be installed -- Mousiki works without it (kanji just stay as they are)." }
         } else {
             Write-Warning "No Python found -- pykakasi was skipped."

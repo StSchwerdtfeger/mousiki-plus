@@ -4,6 +4,7 @@
 #include "indic_handler.h"
 #include "utf8_util.h"
 #include <algorithm>
+#include <vector>
 #include <cctype>
 #include <chrono>
 #include <cstdint>
@@ -18,6 +19,7 @@
 #include <poll.h>
 #include <termios.h>
 #include <unistd.h>
+#include <sys/utsname.h>
 #include <csignal>
 #include <cstdlib>
 #include <memory>
@@ -731,6 +733,79 @@ int TerminalIO::poll_key_raw() {
 #endif
 }
 
+int nearest_256(int r, int g, int b) {
+    static const int kLevels[6] = {0, 95, 135, 175, 215, 255};   // the steps of the 6 x 6 x 6 colour cube (16..231)
+    auto step = [](int v) { int best = 0; for (int i = 1; i < 6; ++i) if (std::abs(kLevels[i] - v) < std::abs(kLevels[best] - v)) best = i; return best; };
+    r = std::clamp(r, 0, 255); g = std::clamp(g, 0, 255); b = std::clamp(b, 0, 255);
+    const int ri = step(r), gi = step(g), bi = step(b);
+    auto dist = [&](int R, int G, int B) { return (R - r) * (R - r) * 3 + (G - g) * (G - g) * 4 + (B - b) * (B - b) * 2; };
+    const int cube = 16 + 36 * ri + 6 * gi + bi;
+    const int dc = dist(kLevels[ri], kLevels[gi], kLevels[bi]);
+    const int avg = (r + g + b) / 3;
+    const int gi2 = std::clamp((avg - 8 + 5) / 10, 0, 23);   // the grey ramp 232..255: 8, 18, ... 238
+    const int gv = 8 + 10 * gi2;
+    return dist(gv, gv, gv) < dc ? 232 + gi2 : cube;
+}
+
+std::string to_256_colours(const std::string& in) {
+    if (in.find(";2;") == std::string::npos) return in;
+    std::string out;
+    out.reserve(in.size());
+    size_t i = 0;
+    while (i < in.size()) {
+        if (in[i] != '\x1b' || i + 1 >= in.size() || in[i + 1] != '[') { out += in[i++]; continue; }
+        // a CSI sequence: parameters (digits and ';') up to the final byte
+        size_t j = i + 2;
+        while (j < in.size() && ((in[j] >= '0' && in[j] <= '9') || in[j] == ';')) ++j;
+        if (j >= in.size() || in[j] != 'm') { out.append(in, i, (j < in.size() ? j + 1 : j) - i); i = j < in.size() ? j + 1 : j; continue; }
+        std::vector<int> p;
+        {
+            int cur = 0;
+            bool any = false;
+            for (size_t k = i + 2; k < j; ++k) {
+                if (in[k] == ';') { p.push_back(any ? cur : 0); cur = 0; any = false; }
+                else { cur = cur * 10 + (in[k] - '0'); any = true; if (cur > 100000) cur = 100000; }
+            }
+            p.push_back(any ? cur : 0);
+        }
+        std::string sgr = "\x1b[";
+        for (size_t k = 0; k < p.size(); ++k) {
+            if ((p[k] == 38 || p[k] == 48 || p[k] == 58) && k + 4 < p.size() && p[k + 1] == 2) {
+                sgr += std::to_string(p[k]) + ";5;" + std::to_string(nearest_256(p[k + 2], p[k + 3], p[k + 4]));
+                k += 4;
+            } else if ((p[k] == 38 || p[k] == 48 || p[k] == 58) && k + 2 < p.size() && p[k + 1] == 5) {
+                sgr += std::to_string(p[k]) + ";5;" + std::to_string(p[k + 2]);   // a 256-colour one stays (its number must not be read as a code)
+                k += 2;
+            } else sgr += std::to_string(p[k]);
+            if (k + 1 < p.size()) sgr += ';';
+        }
+        out += sgr + "m";
+        i = j + 1;
+    }
+    return out;
+}
+
+bool truecolor_ok() {
+    static const bool ok = [] {
+        if (const char* e = std::getenv("MOUSIKI_COLORS")) {
+            const std::string v = e;
+            if (v == "256") return false;
+            if (v == "truecolor" || v == "24bit") return true;
+        }
+#if defined(__APPLE__)
+        const char* prog = std::getenv("TERM_PROGRAM");
+        if (prog && std::string(prog) == "Apple_Terminal") {
+            // macOS Terminal knows 24-bit colours from macOS 26 (Darwin 25) on
+            struct utsname u {};
+            if (uname(&u) == 0) return std::atoi(u.release) >= 25;
+            return false;
+        }
+#endif
+        return true;
+    }();
+    return ok;
+}
+
 void write_frame(const std::string& frame) {
 #if defined(_WIN32)
     std::cout << frame << std::flush;
@@ -739,7 +814,7 @@ void write_frame(const std::string& frame) {
     std::string buf;
     buf.reserve(frame.size() + 16);
     buf += "\x1b[?2026h"; // begin synchronized update
-    buf += frame;
+    buf += truecolor_ok() ? frame : to_256_colours(frame);
     buf += "\x1b[?2026l"; // end synchronized update -> terminal paints the finished frame
     size_t off = 0;
     while (off < buf.size()) {
@@ -799,9 +874,10 @@ int TerminalIO::cols() const {
 // music titles use all the time (music notes, stars, arrows, dingbat checks)
 // are untouched, as are all CJK / Indic / Latin characters.
 // ---------------------------------------------------------------------------
-static bool g_replace_emoji = true;
+static int g_emoji_mode = 2;   // 0 off, 1 safe (keep plain one-codepoint emoji), 2 all
 
-void set_emoji_replacement(bool on) { g_replace_emoji = on; }
+void set_emoji_mode(int m) { g_emoji_mode = m < 0 ? 0 : m > 2 ? 2 : m; }
+void set_emoji_replacement(bool on) { g_emoji_mode = on ? 2 : 0; }
 
 static bool g_marquee = true;
 void set_marquee_enabled(bool on) { g_marquee = on; }
@@ -847,7 +923,7 @@ bool is_emoji_modifier(uint32_t cp)     { return cp >= 0x1F3FB && cp <= 0x1F3FF;
 bool is_emoji_tag(uint32_t cp)          { return cp >= 0xE0020 && cp <= 0xE007F; } // flag subdivisions
 
 std::string replace_emoji_valid(const std::string& s) {
-    if (!g_replace_emoji) return s;
+    if (g_emoji_mode == 0) return s;
     // Fast path: every emoji, VS16, ZWJ and keycap is encoded with a lead byte
     // >= 0xE2, so nearly every ordinary title bails out here after one scan.
     bool maybe = false;
@@ -877,6 +953,7 @@ std::string replace_emoji_valid(const std::string& s) {
         // Swallow the rest of the cluster: modifiers, variation selectors,
         // keycaps, tag sequences, a second regional indicator (flags), and
         // ZWJ-joined follow-up emoji.
+        const size_t base_end = i;
         bool first_is_ri = is_regional_indicator(cp);
         while (i < s.size()) {
             size_t j = i;
@@ -894,6 +971,12 @@ std::string replace_emoji_valid(const std::string& s) {
             } else {
                 break;
             }
+        }
+        // "Safe": a plain emoji of one codepoint (and an old enough Unicode version) is kept; only the clusters
+        // that terminals and fonts draw differently become "?".
+        if (g_emoji_mode == 1 && is_emoji_base(cp) && !is_regional_indicator(cp) && cp <= 0x1F9FF && i == base_end) {
+            out.append(s, start, i - start);
+            continue;
         }
         out += '?';
     }

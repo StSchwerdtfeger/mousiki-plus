@@ -25,6 +25,28 @@ struct CoverImage {
 };
 
 // A cover scaled to a size: grey (`grey`) or in its own colours (`level` = opacity, `hue` = palette index into `pal`, 240 colours).
+// A few sizes at once: the terminal's picture, the phone's picture and a preview are made from the same cover at different
+// sizes in the same frame, and with one remembered size each of them scaled the cover again every frame. A slot is only
+// ever overwritten (the least recently used one), never moved, so a reference handed out stays valid until that slot is reused.
+template <class T, size_t N>
+struct SizeCache {
+    std::array<T, N> slot{};
+    std::array<unsigned long long, N> used{};
+    unsigned long long clock = 0;
+    T* find(const std::string& key) {
+        for (size_t i = 0; i < N; ++i)
+            if (!slot[i].key.empty() && slot[i].key == key) { used[i] = ++clock; return &slot[i]; }
+        return nullptr;
+    }
+    T& fresh() {   // the least recently used slot, emptied
+        size_t pick = 0;
+        for (size_t i = 1; i < N; ++i) if (used[i] < used[pick]) pick = i;
+        used[pick] = ++clock;
+        slot[pick] = T();
+        return slot[pick];
+    }
+};
+
 struct CoverScaled {
     std::string key;
     int w = 0, h = 0;

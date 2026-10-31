@@ -141,6 +141,7 @@ void App::handle_meta_key(int key) {
     if (handle_meta_prompt_key(key)) return;
     if (handle_meta_choice_key(key)) return;
     if (handle_meta_cov_key(key)) return;
+    if (handle_meta_sty_key(key)) return;
 
     if (key == 27) { // ESC
         // Inside a text box ESC first steps out of it: the field editor goes
@@ -367,8 +368,9 @@ void App::handle_meta_key(int key) {
         if (path.empty()) { meta_focus_ = 1; meta_field_editing_ = false; return; }
         if (meta_field_ >= kMetaFieldCount) {   // the "Cover Options" button below the fields
             meta_field_editing_ = false;
-            if (arrow && (key == 'A' || key == 'B')) { meta_field_ = meta_nav(meta_field_, kMetaFieldCount + 1, key == 'A'); return; }
-            if (key == '\r' || key == '\n') meta_cov_open();
+            if (arrow && (key == 'A' || key == 'B')) { meta_field_ = meta_nav(meta_field_, kMetaFieldCount + 2, key == 'A'); return; }
+            if (arrow && (key == 'C' || key == 'D')) { meta_field_ = meta_field_ == kMetaFieldCount ? kMetaFieldCount + 1 : kMetaFieldCount; return; }   // the two buttons side by side
+            if (key == '\r' || key == '\n') { if (meta_field_ == kMetaFieldCount) meta_cov_open(); else meta_sty_open(); }
             return;
         }
 
@@ -400,7 +402,7 @@ void App::handle_meta_key(int key) {
             // arms this one (caret starts at the end, same as a fresh
             // PATHS-row edit). Everything else is a no-op -- typing on a
             // merely-highlighted field would be surprising.
-            if (arrow && (key == 'A' || key == 'B')) { meta_field_ = meta_nav(meta_field_, kMetaFieldCount + 1, key == 'A'); return; }
+            if (arrow && (key == 'A' || key == 'B')) { meta_field_ = meta_nav(meta_field_, kMetaFieldCount + 2, key == 'A'); return; }
             if (key == '\r' || key == '\n') {
                 if (e && e->needs_choice(meta_field_)) { meta_choice_open(); return; }   // several candidates: pick one first
                 meta_field_editing_ = true;
@@ -669,11 +671,14 @@ std::vector<std::string> App::build_meta_fields_panel(int total_width, int heigh
             const int pic_rows = height - pic_first;
             if (row == btn_row) {
                 const bool hov = (meta_focus_ == 2) && meta_field_ >= kMetaFieldCount;
-                const std::string btn = "[ Cover Options ]";
-                const int left = std::max(0, (inner - display_width(btn)) / 2);
-                padded = std::string(static_cast<size_t>(left), ' ') + (hov ? cursor_sgr(settings_.list_cursor_color, settings_.list_cursor_bg_color) : header_sgr(settings_))
-                       + btn + "\x1b[0m" + ansi_for(settings_.list_color, false);
-                padded += std::string(static_cast<size_t>(std::max(0, inner - left - display_width(btn))), ' ');
+                const std::string b1 = "[ Cover Options ]", b2 = "[ Style Option ]";
+                const int total = display_width(b1) + 2 + display_width(b2);
+                const int left = std::max(0, (inner - total) / 2);
+                const std::string lit = cursor_sgr(settings_.list_cursor_color, settings_.list_cursor_bg_color), plain = header_sgr(settings_);
+                const std::string base = ansi_for(settings_.list_color, false);
+                padded = std::string(static_cast<size_t>(left), ' ') + (hov && meta_field_ == kMetaFieldCount ? lit : plain) + b1 + "\x1b[0m" + base + "  "
+                       + (hov && meta_field_ == kMetaFieldCount + 1 ? lit : plain) + b2 + "\x1b[0m" + base;
+                padded += std::string(static_cast<size_t>(std::max(0, inner - left - total)), ' ');
             } else if (row >= pic_first && pic_rows >= 3) {
                 if (row == pic_first) cover_pane_cache = meta_cover_pane(inner, pic_rows);
                 const size_t ri = static_cast<size_t>(row - pic_first);
@@ -964,7 +969,8 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
         std::string enter_hint = "[ENTER] Edit";
         if (meta_tab_ == 0 && meta_focus_ == 2) {
             const MetaEditEntry* he = meta_entry(meta_hovering_path());
-            if (meta_field_ >= kMetaFieldCount) enter_hint = "[ENTER] Cover Options\001Cover";
+            if (meta_field_ == kMetaFieldCount) enter_hint = "[ENTER] Cover Options\001Cover";
+            else if (meta_field_ > kMetaFieldCount) enter_hint = "[ENTER] Style Option\001Style";
             else if (he && meta_field_ >= 0 && he->needs_choice(meta_field_)) enter_hint = "[ENTER] Choose";
         }
         // The legend is a small tree table: one row per group of commands (label | commands), joined by tree lines. Four rows
@@ -1000,7 +1006,7 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
             const auto lrows = layout_legend_tree(groups, W - 1);
             for (size_t i = 0; i < lrows.size(); ++i) frame << " " << paint_legend(settings_, lrows, i, border, 0, true) << "\n";
         }
-        if (!meta_status_.empty()) frame << "\x1b[32m" << truncate_str(meta_status_, W) << "\x1b[0m\n";
+        if (!meta_status_.empty()) frame << "\x1b[38;5;246m" << truncate_str(meta_status_, W) << "\x1b[0m\n";
         else frame << "\n";
     }
 }

@@ -78,6 +78,7 @@ void App::readlyrics_open() {
     rd_opts_warn_.clear();
     rd_status_.clear();
     rd_status_warn_ = false;
+    rd_follow_ = true;
     if (rd_busy_) { rd_status_ = "a translation is still running (" + language_name(rd_job_to_) + " with " + translate_service_name(rd_job_svc_) + ")"; }
     readlyrics_load_version();
     mode_ = Mode::ReadLyrics;
@@ -96,6 +97,8 @@ void App::readlyrics_close() {
 
 void App::readlyrics_load_version() {
     rd_lines_.clear();
+    rd_timed_.clear();
+    rd_delay_ = 0.0;
     rd_trans_.clear();
     rd_tlist_.clear();
     rd_from_.clear();
@@ -105,8 +108,42 @@ void App::readlyrics_load_version() {
     rd_confirm_del_ = false;
     if (rd_sel_ < 0 || rd_sel_ >= static_cast<int>(rd_versions_.size())) return;
     const LyricsVersion& v = rd_versions_[static_cast<size_t>(rd_sel_)];
-    rd_lines_ = lyrics_plain_lines(read_lyrics_version_text(rd_track_, v));
+    rd_timed_ = lyrics_read_lines(read_lyrics_version_text(rd_track_, v), &rd_delay_);
+    for (const LyricLine& l : rd_timed_) rd_lines_.push_back(l.full_text);
     readlyrics_refresh_translations(settings_.translate_to);
+    rd_show_ = !rd_tlist_.empty();   // a translation that is there is shown at once
+}
+
+bool App::readlyrics_track_plays() const {
+    return has_track_ && !current_path_.empty() && current_path_ == rd_track_;
+}
+
+// [p]: the track of the reader starts (the library entry, or the file when it is not in the library); when it is the loaded one already
+// it pauses / resumes. The reader stays open and follows the song.
+void App::readlyrics_play() {
+    rd_status_warn_ = false;
+    if (readlyrics_track_plays()) {
+        act_play_pause();
+        rd_status_ = player_.is_paused() ? "paused" : "playing";
+        return;
+    }
+    std::error_code ec;
+    if (rd_track_.empty() || !fs::exists(rd_track_, ec)) {
+        rd_status_ = "this lyrics file has no track to play (it came from the search) -- open the reader for a track with CTRL+L";
+        rd_status_warn_ = true;
+        return;
+    }
+    LocalTrack t;
+    bool found = false;
+    for (const auto& lt : all_local_tracks_) if (lt.path == rd_track_) { t = lt; found = true; break; }
+    if (!found) {
+        t.path = rd_track_;
+        t.title = path_utf8(rd_track_.stem());
+        t.folder_artist = path_utf8(rd_track_.parent_path().filename());
+    }
+    start_local_track(t);
+    rd_follow_ = true;
+    rd_status_ = "playing: " + t.title;
 }
 
 // Reads the saved translations of the chosen file again; `prefer_to` is the language to select when it is there.
@@ -301,6 +338,7 @@ void App::handle_readlyrics_key(int key) {
     if (rd_search_open_) { readlyrics_search_key(key); return; }
     const bool arrow = last_key_was_arrow();
     if (!arrow && key_is("HKeyTranslit", key)) { toggle_latin_letters(); return; }   // Latin letters on / off, also here
+    if (!arrow && key_is("HKeyLyricsTiming", key)) { lyrics_edit_open_over_reader(); return; }   // the lyrics timing overlay, as on the main screen
     if (key == kKeyCtrlS && !rd_confirm_del_) { readlyrics_search_open(); return; }
     if (rd_confirm_del_) {   // "delete this translation?" -- only y confirms
         if (!arrow && (key == 'y' || key == 'Y')) readlyrics_delete_translation();
@@ -309,6 +347,17 @@ void App::handle_readlyrics_key(int key) {
     }
     if (key == 27 || key_is("HKeyReadLyrics", key) || key == 'q' || key == 'Q') { readlyrics_close(); return; }
     if (!arrow && key == '\t') { rd_pane_ = rd_pane_ == 0 ? 1 : 0; rd_status_.clear(); return; }
+    if (!arrow && (key == 'p' || key == 'P')) { readlyrics_play(); return; }
+    if (!arrow && (key == 'f' || key == 'F')) {
+        rd_follow_ = !rd_follow_;
+        rd_status_ = rd_follow_ ? "the view follows the song" : "the view stays where it is -- [f] follows the song again";
+        rd_status_warn_ = false;
+        return;
+    }
+    if (key == kKeyShiftLeft || key == kKeyShiftRight) {   // SHIFT+left / right: 5 s back / forward, to hear a line again
+        if (readlyrics_track_plays()) player_.seek_relative(key == kKeyShiftLeft ? -5.0 : 5.0);
+        return;
+    }
     if (!arrow && key == 't') { rd_opts_open_ = true; rd_opts_row_ = 0; rd_opts_warn_.clear(); return; }
     if (!arrow && key == 'T') { readlyrics_toggle_translations(); return; }
     const int n = static_cast<int>(rd_versions_.size());
@@ -330,6 +379,8 @@ void App::handle_readlyrics_key(int key) {
         else rd_confirm_del_ = true;
         return;
     }
+    const bool scrolls = (arrow && (key == 'A' || key == 'B')) || key == ' ' || key == 'b' || key == 'B' || key == kKeyHome || key == kKeyEnd;
+    if (scrolls && rd_follow_ && readlyrics_track_plays()) { rd_follow_ = false; rd_status_ = "the view stays where it is -- [f] follows the song again"; rd_status_warn_ = false; }
     if (arrow && last_key_was_shifted() && (key == 'A' || key == 'B')) {   // SHIFT+up / down: a page
         const int page = std::max(1, term_rows_ - 14);
         rd_scroll_ = key == 'A' ? std::max(0, rd_scroll_ - page) : rd_scroll_ + page;
@@ -630,6 +681,7 @@ void App::build_readlyrics_screen(std::ostringstream& frame, int W, int target_h
     } else {
         std::vector<LegendGroup> groups = {
             {"Move", {"[\u2190\u2192] Choose file/Translation\001Choose", "[TAB] Focus", "[\u2191\u2193] Scroll", "[SHIFT+\u2191\u2193] Page up/down\001Page", "[HOME/END] Top/Bottom"}},
+            {"Play", {"[p] Play/Pause", "[SHIFT+\u2190\u2192] Seek 5 s\001Seek", "[f] Follow the song\001Follow", "[" + hotkey_text("HKeyLyricsTiming", "ALT+L") + "] Lyrics timing\001Timing"}},
             {"Translate", {"[t] Translate", "[SHIFT+t] Show/Hide translations\001Show/Hide", "[d/DEL] Delete translation\001Delete"}},
             {"Session", {"[CTRL+s] Search", "[ESC] Close"}},
         };
@@ -637,7 +689,7 @@ void App::build_readlyrics_screen(std::ostringstream& frame, int W, int target_h
         for (size_t i = 0; i < lrows.size(); ++i) hint_lines.push_back(" " + paint_legend(settings_, lrows, i, border, 0, true));
     }
     const int legend_rows = static_cast<int>(hint_lines.size());
-    const int status_rows = rd_status_.empty() ? 0 : 1;
+    const int status_rows = 0;   // no status line here: the status message and the log overlay show rd_status_ (it used to change the size of the panes)
     const int budget = std::min(target_height, term_rows_ - 1);
     const int body = std::max(3, budget - 6 /*two top panes*/ - 2 /*lyrics pane borders*/ - legend_rows - status_rows);
     // two blank rows above and below the lyrics (none on a terminal too short for them)
@@ -646,26 +698,58 @@ void App::build_readlyrics_screen(std::ostringstream& frame, int W, int target_h
     const int wrap_w = std::max(10, inner - 8);   // a little air left and right: the lines are centred
 
     // --- lyrics pane ---
-    struct Row { std::string text; int style; };   // 0 original, 1 translation, 2 blank
+    // The track of the reader is the loaded one: its lyrics are drawn the way the lyrics engine draws them (the active line, the words that
+    // are sung, the animation of Settings), the view follows the song, and the translation of the active line is lit with it.
+    struct Row { std::string text; int style; bool pre = false; };   // 0 original, 1 translation, 2 blank, 3 translation of the active line; pre: painted already (wrap_w wide)
+    const bool plays = readlyrics_track_plays() && rd_timed_.size() == rd_lines_.size() && !rd_lines_.empty();
+    const double elapsed = plays ? player_.poll_elapsed() : 0.0;
+    bool synced = false;
+    for (const LyricLine& l : rd_timed_) if (l.start_time >= 0.0) { synced = true; break; }
+    double offset = rd_delay_;
+    if (mode_ == Mode::LyricsEdit && lyrics_edit_from_reader_) { std::lock_guard<std::mutex> lk(lyrics_mutex_); offset = lyrics_result_.delay; }   // the timing overlay is open: live
+    const double lt = elapsed - offset;
+    int active = -1;
+    if (plays) {
+        if (synced) {
+            for (size_t i = 0; i < rd_timed_.size(); ++i) if (rd_timed_[i].start_time >= 0.0 && rd_timed_[i].start_time <= lt) active = static_cast<int>(i);
+        } else if (total_sec_ > 0) {   // plain lyrics: spread over the track
+            active = std::clamp(static_cast<int>(elapsed / static_cast<double>(total_sec_) * static_cast<double>(rd_lines_.size())), 0, static_cast<int>(rd_lines_.size()) - 1);
+        }
+    }
+    Settings ks = settings_;   // centred whole-line look, as in the karaoke view
+    ks.lyrics_alignment = 0;
     std::vector<Row> rows;
+    int active_row = -1;
     for (size_t i = 0; i < rd_lines_.size(); ++i) {
         if (rd_lines_[i].empty()) { rows.push_back({std::string(), 2}); continue; }
-        for (auto& w : wrap_lines(shown_text(rd_lines_[i]), wrap_w, 8)) rows.push_back({w, 0});
+        const bool is_active = plays && static_cast<int>(i) == active;
+        if (is_active) active_row = static_cast<int>(rows.size());
+        if (plays) {
+            LyricLine ll = rd_timed_[i];
+            if (translit_enabled()) { ll.full_text = transliterate(ll.full_text); for (auto& w : ll.words) w.second = transliterate(w.second); }
+            const bool timed = synced && ll.start_time >= 0.0;
+            for (auto& w : render_lyric_line_wrapped(ll, timed ? lt : 1e12, wrap_w, is_active, ks)) rows.push_back({w, 0, true});
+        } else {
+            for (auto& w : wrap_lines(shown_text(rd_lines_[i]), wrap_w, 8)) rows.push_back({w, 0});
+        }
         if (show) {
             const std::string& t = rd_trans_[i];
             if (!t.empty() && ascii_lower_str(t) != ascii_lower_str(rd_lines_[i]))
-                for (auto& w : wrap_lines("(" + shown_text(t) + ")", wrap_w, 8)) rows.push_back({w, 1});
+                for (auto& w : wrap_lines("(" + shown_text(t) + ")", wrap_w, 8)) rows.push_back({w, is_active ? 3 : 1});
         }
     }
     if (rd_lines_.empty()) {
         rows.push_back({rd_versions_.empty() ? "no lyrics saved for this track" : "this file has no readable lyrics", 2});
     }
+    if (plays && rd_follow_ && active_row >= 0) rd_scroll_ = std::max(0, active_row - text_rows / 2 + 1);   // (clamped below)
     const int max_scroll = std::max(0, static_cast<int>(rows.size()) - text_rows);
     rd_scroll_ = std::clamp(rd_scroll_, 0, max_scroll);
 
     std::string info;
     if (!rows.empty() && !rd_lines_.empty())
         info = "row " + std::to_string(std::min<int>(rd_scroll_ + text_rows, static_cast<int>(rows.size()))) + "/" + std::to_string(rows.size());
+    if (plays) info += std::string(info.empty() ? "" : "  ") + (player_.is_paused() ? "paused " : "playing ") + fmt_mmss(elapsed) + " / " + fmt_mmss(static_cast<double>(total_sec_)) +
+                       (rd_follow_ ? "" : "  (follow off: [f])");
     const std::string sep2 = info.empty() ? "" : "  ";
     if (show) info += sep2 + "translation: " + language_name(rd_from_) + " > " + language_name(rd_to_) +
                       (rd_svc_.empty() ? std::string() : " (" + translate_service_name(rd_svc_) + ")");
@@ -680,10 +764,15 @@ void App::build_readlyrics_screen(std::ostringstream& frame, int W, int target_h
         std::string painted;
         if (k >= margin && k < body - margin && idx >= 0 && idx < static_cast<int>(rows.size())) {
             const Row& r = rows[static_cast<size_t>(idx)];
-            const std::string cut = truncate_str(r.text, inner);
-            const int lead = std::max(0, (inner - display_width(cut)) / 2);   // centred
-            const std::string t = pad_right(std::string(static_cast<size_t>(lead), ' ') + cut, inner);
-            painted = r.style == 0 ? orig_sgr + t + R : r.style == 1 ? trans_sgr + t + R : t;
+            if (r.pre) {   // painted by the lyrics engine, wrap_w columns wide
+                const int lead = std::max(0, (inner - wrap_w) / 2);
+                painted = std::string(static_cast<size_t>(lead), ' ') + r.text + R + std::string(static_cast<size_t>(std::max(0, inner - lead - wrap_w)), ' ');
+            } else {
+                const std::string cut = truncate_str(r.text, inner);
+                const int lead = std::max(0, (inner - display_width(cut)) / 2);   // centred
+                const std::string t = pad_right(std::string(static_cast<size_t>(lead), ' ') + cut, inner);
+                painted = r.style == 0 ? orig_sgr + t + R : r.style == 1 ? trans_sgr + t + R : r.style == 3 ? orig_sgr + t + R : t;
+            }
         } else {
             painted = std::string(static_cast<size_t>(inner), ' ');
         }
@@ -692,7 +781,6 @@ void App::build_readlyrics_screen(std::ostringstream& frame, int W, int target_h
     frame << box_bottom(W, info, border_bottom) << "\n";
 
     for (const auto& l : hint_lines) frame << l << "\n";
-    if (status_rows) frame << (rd_status_warn_ ? "\x1b[31m" : "\x1b[32m") << truncate_str(rd_status_, W) << "\x1b[0m\n";
 }
 
 

@@ -62,6 +62,30 @@ Args python_command() {
 #endif
 }
 
+// An argument for a .cmd / .bat shim, which cmd.exe reads before the program behind it does ("BatBadBut"): cmd.exe does not know
+// \" -- a quote in the text would end the quoted argument and let & | < > run as commands -- and expands %NAME% even inside
+// quotes. So: always quoted; a quote is written "" (cmd.exe stays inside the quotes, and the program behind the shim -- Python,
+// yt-dlp: the Microsoft C runtime -- reads "" inside quotes as one quote); % is written %%cd:~,% (an expansion that yields a
+// plain %, the trick Rust's standard library uses); backslashes before the closing quote are doubled. Line breaks cannot be
+// passed through cmd.exe at all: false (the program is not started).
+bool quote_arg_for_cmd(const std::string& arg, std::string& out) {
+    out = "\"";
+    size_t backslashes = 0;
+    for (char c : arg) {
+        if (c == '\r' || c == '\n') return false;
+        if (c == '\\') { ++backslashes; continue; }
+        if (c == '"') { out.append(backslashes * 2, '\\'); out += "\"\""; backslashes = 0; continue; }
+        out.append(backslashes, '\\');
+        backslashes = 0;
+        if (c == '%') { out += "%%cd:~,%"; continue; }
+        out += c;
+    }
+    out.append(backslashes * 2, '\\');
+    out += '"';
+    return true;
+}
+
+
 // =====================================================================
 // POSIX implementation
 // =====================================================================
@@ -336,13 +360,26 @@ std::unique_ptr<ChildProcess> spawn_capture(const Args& args, bool merge_stderr)
 
     std::string cmdline;
     if (via_cmd) {
-        cmdline = quote_arg(win_system_program("cmd.exe"), false) + " /c " + quote_arg(exe, true);   // the system cmd.exe, never one in the current folder
+        // the system cmd.exe (never one in the current folder); /d: no AutoRun commands, /v:off: no !NAME! expansion. The whole
+        // command after /c is in one more pair of quotes, which cmd.exe removes (it drops the first and the last quote of the line).
+        std::string inner;
+        if (!quote_arg_for_cmd(exe, inner)) return nullptr;
+        for (size_t i = 1; i < args.size(); ++i) {
+            std::string q;
+            if (!quote_arg_for_cmd(args[i], q)) {
+                ConsoleLog::instance().log_command(command_text(args), "spawn refused: a line break cannot be passed to a .cmd / .bat program", -1);
+                return nullptr;
+            }
+            inner += ' ';
+            inner += q;
+        }
+        cmdline = quote_arg(win_system_program("cmd.exe"), false) + " /d /e:on /v:off /c \"" + inner + "\"";
     } else {
         cmdline = quote_arg(exe, false);
-    }
-    for (size_t i = 1; i < args.size(); ++i) {
-        cmdline += ' ';
-        cmdline += quote_arg(args[i], via_cmd);
+        for (size_t i = 1; i < args.size(); ++i) {
+            cmdline += ' ';
+            cmdline += quote_arg(args[i], false);
+        }
     }
 
     SECURITY_ATTRIBUTES sa{};

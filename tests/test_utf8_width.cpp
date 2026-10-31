@@ -133,3 +133,30 @@ TEST(wrap_lines_chunks_long_cjk_words) {
         CHECK(display_width(l) <= 10);
     }
 }
+
+TEST(truecolour_becomes_256_colours_for_old_terminals) {
+    // macOS Terminal before macOS 26 shows 24-bit colours wrong: they are turned into the nearest of the 256 fixed ones
+    CHECK_EQ(nearest_256(0, 0, 0), 16);
+    CHECK_EQ(nearest_256(255, 255, 255), 231);
+    CHECK_EQ(nearest_256(255, 0, 0), 196);
+    CHECK_EQ(nearest_256(128, 128, 128), 244);                       // a grey from the grey ramp
+    CHECK_EQ(to_256_colours("a\x1b[38;2;255;0;0mred\x1b[0m"), std::string("a\x1b[38;5;196mred\x1b[0m"));
+    CHECK_EQ(to_256_colours("\x1b[1;38;2;0;0;0;48;2;255;255;255mX"), std::string("\x1b[1;38;5;16;48;5;231mX"));
+    CHECK_EQ(to_256_colours("\x1b[38;5;2;1mY\x1b[2J"), std::string("\x1b[38;5;2;1mY\x1b[2J"));   // 256 colours and other sequences stay
+    CHECK_EQ(to_256_colours("no colour ;2; here"), std::string("no colour ;2; here"));
+}
+
+TEST(emoji_safe_mode_keeps_plain_emoji_and_replaces_risky_clusters) {
+    const std::string note = "\xF0\x9F\x8E\xB5";                         // U+1F3B5, one codepoint
+    const std::string cat = "\xF0\x9F\x90\x88\xE2\x80\x8D\xE2\xAC\x9B";   // black cat: U+1F408 ZWJ U+2B1B
+    const std::string flag = "\xF0\x9F\x87\xA9\xF0\x9F\x87\xAA";          // flag Germany
+    set_emoji_mode(1);
+    CHECK_EQ(display_width("a" + note + "b"), 4);   // the note is kept (2 cells)
+    CHECK_EQ(display_width("a" + cat + "b"), 3);    // one "?"
+    CHECK_EQ(display_width("a" + flag + "b"), 3);
+    set_emoji_mode(2);
+    CHECK_EQ(display_width("a" + note + "b"), 3);
+    set_emoji_mode(0);
+    CHECK(display_width("a" + cat + "b") != 3);
+    set_emoji_mode(2);
+}

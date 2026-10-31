@@ -8,6 +8,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <map>
 #include <mutex>
@@ -124,7 +125,7 @@ std::string reply(int code, const char* type, const std::string& body) {
     r += std::string("Content-Type: ") + type + "\r\n";
     r += "Content-Length: " + std::to_string(body.size()) + "\r\n";
     r += "Cache-Control: no-store\r\n";
-    r += "Access-Control-Allow-Origin: *\r\n";   // the API is guarded by the PIN, not by the origin
+    // (no Access-Control-Allow-Origin: the page and the API come from the same address, and no other web page may read the answers)
     r += "Connection: close\r\n\r\n";
     return r + body;
 }
@@ -163,7 +164,11 @@ void serve_one(sock_t c, std::string ip) {
 #endif
     std::string req;
     char buf[2048];
-    while (req.size() < 8192 && req.find("\r\n\r\n") == std::string::npos && req.find("\n\n") == std::string::npos) {
+    // one deadline for the whole request (the 2 s above are per read): a client that sends a byte now and then cannot hold
+    // one of the few connection slots for long
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (req.size() < 8192 && req.find("\r\n\r\n") == std::string::npos && req.find("\n\n") == std::string::npos &&
+           std::chrono::steady_clock::now() < deadline) {
         const int got = static_cast<int>(recv(c, buf, sizeof buf, 0));
         if (got <= 0) break;
         req.append(buf, static_cast<size_t>(got));
@@ -277,6 +282,10 @@ std::string handle_request(const std::string& request_line, const std::string& p
 
     std::lock_guard<std::mutex> lk(g_mu);
     const auto now = Clock::now();
+    // "is this Mousiki?" -- the phone app's network scan asks with no PIN (pin=0). The answer (version, mode) is no secret and
+    // does not count as a wrong PIN: the scan must not lock the phone itself out.
+    if (path == "/api/hello" && get(q, "pin") != g_cfg.pin)
+        return json_reply(200, std::string("{\"ok\":true,\"pin\":false,\"version\":\"") + tinyjson::escape(MOUSIKI_VERSION) + "\",\"mode\":\"" + tinyjson::escape(g_mode) + "\"}");
     PinGuard& guard = guard_for(peer, now);
     if (now < guard.locked_until) return json_reply(429, "{\"error\":\"too many wrong PINs, wait a minute\"}");
     if (get(q, "pin") != g_cfg.pin || g_cfg.pin.empty()) {
@@ -289,7 +298,8 @@ std::string handle_request(const std::string& request_line, const std::string& p
         return json_reply(200, std::string("{\"ok\":true,\"version\":\"") + tinyjson::escape(MOUSIKI_VERSION) + "\",\"mode\":\"" + tinyjson::escape(g_mode) + "\"}");
     if (path == "/api/status") return json_reply(200, g_status_json);
     if (path == "/api/screen") {
-        const int cols = std::atoi(get(q, "cols").c_str()), rows = std::atoi(get(q, "rows").c_str());
+        auto small = [](const std::string& v) { const long n = std::strtol(v.c_str(), nullptr, 10); return static_cast<int>(std::clamp(n, 0L, 1000L)); };   // (atoi of a huge number: undefined)
+        const int cols = small(get(q, "cols")), rows = small(get(q, "rows"));
         if (cols > 0) g_want_cols = std::clamp(cols, 36, 80);
         if (rows > 0) g_want_rows = std::clamp(rows, 20, 80);
         g_screen_asked = now;

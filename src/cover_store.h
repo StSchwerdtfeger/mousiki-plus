@@ -42,6 +42,17 @@ std::string cover_track_choice(const std::string& track_path);               // 
 void set_cover_track_choice(const std::string& track_path, const std::string& choice);   // "" removes it
 std::string cover_album_choice(const std::string& album);                    // the default picture of an album name ("" = none made)
 void set_cover_album_choice(const std::string& album, const std::string& choice);
+// The cover look chosen for one album (meta editor -> COVER OPTIONS -> [l]); it wins over Settings -> Album Cover / Cover Mode.
+// 0 = the plain disk (no cover), 1..7 = the Cover Modes (Just Cover ... Cover ASCII with Gradient), -1 = none chosen. The album is
+// its name (any track with the same album tag); a track without one: its folder.
+inline constexpr int kCoverLookCount = 8;
+int cover_album_look(const std::string& album, const std::string& folder);
+void set_cover_album_look(const std::string& album, const std::string& folder, int look);   // -1 removes it
+// The style of one track (meta editor -> Style Option): its own look and its own Cover Contrast / Brightness / Colors. -1 = as in Settings
+// (look: then the album's look, then Settings). It wins over everything else for that track.
+struct CoverStyle { int look = -1, contrast = -1, brightness = -1, colors = -1; };
+CoverStyle cover_track_style(const std::string& track_path);
+void set_cover_track_style(const std::string& track_path, const CoverStyle& st);   // all -1 removes it
 // The albums a cover fetch found nothing for (remembered, so they are not asked for again and again): the reason, "" = not on the list.
 std::string cover_fetch_failure(const std::string& album);
 void set_cover_fetch_failure(const std::string& album, const std::string& reason);   // reason "" removes it

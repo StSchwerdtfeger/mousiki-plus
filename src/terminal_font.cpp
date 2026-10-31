@@ -4,6 +4,8 @@
 #include "process_util.h"
 #include "tiny_json.h"
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <atomic>
 #include <cctype>
 #include <cstdio>
@@ -167,6 +169,54 @@ int CALLBACK enum_font(const LOGFONTW* lf, const TEXTMETRICW*, DWORD type, LPARA
 fs::path wt_fragment_file() {
     return fs::path(widen(getenv_str("LOCALAPPDATA"))) / L"Microsoft" / L"Windows Terminal" / L"Fragments" / L"Mousiki" / L"mousiki.json";
 }
+// The settings.json files of Windows Terminal (Store, Preview, Canary, unpackaged), in the order tried.
+std::vector<fs::path> wt_settings_files() {
+    const std::wstring base = widen(getenv_str("LOCALAPPDATA"));
+    std::vector<fs::path> v;
+    if (base.empty()) return v;
+    const fs::path root(base);
+    v.push_back(root / L"Packages" / L"Microsoft.WindowsTerminal_8wekyb3d8bbwe" / L"LocalState" / L"settings.json");
+    v.push_back(root / L"Packages" / L"Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe" / L"LocalState" / L"settings.json");
+    v.push_back(root / L"Packages" / L"Microsoft.WindowsTerminalCanary_8wekyb3d8bbwe" / L"LocalState" / L"settings.json");
+    v.push_back(root / L"Microsoft" / L"Windows Terminal" / L"settings.json");
+    return v;
+}
+// Windows Terminal reads its fragments (the "Mousiki" profile) only when it loads its settings. It reloads them whenever settings.json
+// changes, so after the profile changed this sets the file's "last written" time to now: the running window then reloads, and a
+// window on the Mousiki profile takes the new font at once (the file's content is not touched). Store, Preview, Canary and unpackaged installs.
+void wt_poke_reload() {
+    for (const fs::path& f : wt_settings_files()) {
+        std::error_code ec;
+        if (!fs::exists(f, ec)) continue;
+        {   // the same bytes written again: a change Windows Terminal surely notices (a bare change of the time is not always reported)
+            std::string text;
+            { std::ifstream in(f, std::ios::binary); std::ostringstream ss; ss << in.rdbuf(); text = ss.str(); }
+            if (!text.empty() && text.size() < (4u << 20)) {
+                std::ofstream out(f, std::ios::binary | std::ios::trunc);
+                if (out) { out << text; out.close(); if (out) continue; }
+            }
+        }
+        HANDLE h = CreateFileW(f.c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, 0, nullptr);
+        if (h == INVALID_HANDLE_VALUE) continue;
+        FILETIME ft;
+        GetSystemTimeAsFileTime(&ft);
+        SetFileTime(h, nullptr, nullptr, &ft);
+        CloseHandle(h);
+    }
+}
+// Writes `json` to `f` when it differs ("" removes the file); true if the file changed.
+bool wt_sync_file(const fs::path& f, const std::string& json) {
+    std::error_code ec;
+    std::string old;
+    { std::ifstream in(f, std::ios::binary); std::ostringstream ss; ss << in.rdbuf(); old = ss.str(); }
+    if (json.empty()) { if (!fs::exists(f, ec)) return false; return fs::remove(f, ec); }
+    if (old == json) return false;
+    fs::create_directories(f.parent_path(), ec);
+    std::ofstream out(f, std::ios::binary | std::ios::trunc);
+    if (!out) return false;
+    out << json;
+    return true;
+}
 // The launcher next to the program folder (installed / portable: <dir>\mousiki.cmd, the program in <dir>\app), else the program.
 std::string own_launcher() {
     wchar_t buf[MAX_PATH * 2];
@@ -241,12 +291,83 @@ std::string guess_postscript_name(const std::string& family) {
     return s + "-Regular";
 }
 
-std::string wt_fragment_json(const std::string& font, const std::string& commandline, const std::string& icon) {
+namespace {
+// SHA-1 (RFC 3174) of `data`: 20 bytes.
+std::array<unsigned char, 20> sha1(const std::string& data) {
+    uint32_t h[5] = {0x67452301u, 0xEFCDAB89u, 0x98BADCFEu, 0x10325476u, 0xC3D2E1F0u};
+    std::string m = data;
+    const uint64_t bits = static_cast<uint64_t>(data.size()) * 8;
+    m += static_cast<char>(0x80);
+    while (m.size() % 64 != 56) m += '\0';
+    for (int i = 7; i >= 0; --i) m += static_cast<char>((bits >> (i * 8)) & 0xFF);
+    auto rol = [](uint32_t v, int n) { return (v << n) | (v >> (32 - n)); };
+    for (size_t off = 0; off < m.size(); off += 64) {
+        uint32_t w[80];
+        for (int i = 0; i < 16; ++i)
+            w[i] = (static_cast<uint32_t>(static_cast<unsigned char>(m[off + i * 4])) << 24) | (static_cast<uint32_t>(static_cast<unsigned char>(m[off + i * 4 + 1])) << 16) |
+                   (static_cast<uint32_t>(static_cast<unsigned char>(m[off + i * 4 + 2])) << 8) | static_cast<uint32_t>(static_cast<unsigned char>(m[off + i * 4 + 3]));
+        for (int i = 16; i < 80; ++i) w[i] = rol(w[i - 3] ^ w[i - 8] ^ w[i - 14] ^ w[i - 16], 1);
+        uint32_t a = h[0], b = h[1], c = h[2], d = h[3], e = h[4];
+        for (int i = 0; i < 80; ++i) {
+            uint32_t f, k;
+            if (i < 20) { f = (b & c) | (~b & d); k = 0x5A827999u; }
+            else if (i < 40) { f = b ^ c ^ d; k = 0x6ED9EBA1u; }
+            else if (i < 60) { f = (b & c) | (b & d) | (c & d); k = 0x8F1BBCDCu; }
+            else { f = b ^ c ^ d; k = 0xCA62C1D6u; }
+            const uint32_t t = rol(a, 5) + f + e + k + w[i];
+            e = d; d = c; c = rol(b, 30); b = a; a = t;
+        }
+        h[0] += a; h[1] += b; h[2] += c; h[3] += d; h[4] += e;
+    }
+    std::array<unsigned char, 20> out{};
+    for (int i = 0; i < 5; ++i) for (int j = 0; j < 4; ++j) out[static_cast<size_t>(i * 4 + j)] = static_cast<unsigned char>((h[i] >> (24 - j * 8)) & 0xFF);
+    return out;
+}
+std::string utf16le_ascii(const std::string& s) {   // (names are plain ASCII here: "Mousiki")
+    std::string o;
+    for (char c : s) { o += c; o += '\0'; }
+    return o;
+}
+std::array<unsigned char, 16> uuid5(const std::array<unsigned char, 16>& ns, const std::string& name) {
+    std::string in(reinterpret_cast<const char*>(ns.data()), 16);
+    in += name;
+    const auto d = sha1(in);
+    std::array<unsigned char, 16> u{};
+    for (size_t i = 0; i < 16; ++i) u[i] = d[i];
+    u[6] = static_cast<unsigned char>((u[6] & 0x0F) | 0x50);
+    u[8] = static_cast<unsigned char>((u[8] & 0x3F) | 0x80);
+    return u;
+}
+} // namespace
+
+std::string wt_fragment_profile_guid(const std::string& fragment, const std::string& profile) {
+    // Windows Terminal's namespace for the profiles of fragments: {f65ddb7e-706b-4499-8a50-40313caf510a}
+    const std::array<unsigned char, 16> terminal_ns = {0xf6, 0x5d, 0xdb, 0x7e, 0x70, 0x6b, 0x44, 0x99, 0x8a, 0x50, 0x40, 0x31, 0x3c, 0xaf, 0x51, 0x0a};
+    const auto app = uuid5(terminal_ns, utf16le_ascii(fragment));
+    const auto u = uuid5(app, utf16le_ascii(profile));
+    char b[48];
+    std::snprintf(b, sizeof b, "{%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x}", u[0], u[1], u[2], u[3], u[4], u[5], u[6], u[7], u[8], u[9], u[10], u[11], u[12], u[13], u[14], u[15]);
+    return b;
+}
+
+std::string wt_fragment_json(const std::string& font, const std::string& commandline, const std::string& icon, bool retrowave) {
     std::string j = "{\n  \"profiles\": [\n    {\n      \"name\": \"Mousiki\",\n";
     j += "      \"commandline\": \"" + tinyjson::escape(commandline) + "\",\n";
     if (!icon.empty()) j += "      \"icon\": \"" + tinyjson::escape(icon) + "\",\n";
     if (!font.empty() && font != kTerminalDefault) j += "      \"font\": { \"face\": \"" + tinyjson::escape(font) + "\" },\n";
-    j += "      \"hidden\": false\n    }\n  ]\n}\n";
+    if (retrowave) j += std::string("      \"colorScheme\": \"") + kWtSchemeName + "\",\n";
+    j += "      \"hidden\": false\n    }\n  ]";
+    if (retrowave) {   // (the colours of Mousiki's own look: black, "green" = grey for the status lines)
+        j += std::string(",\n  \"schemes\": [\n    {\n      \"name\": \"") + kWtSchemeName + "\",\n"
+             "      \"background\": \"#000000\", \"foreground\": \"#46BDFF\",\n"
+             "      \"cursorColor\": \"#FFFFFF\", \"selectionBackground\": \"#FFFFFF\",\n"
+             "      \"black\": \"#181A1F\", \"red\": \"#FF16B0\", \"green\": \"#929292\", \"yellow\": \"#FCEE54\",\n"
+             "      \"blue\": \"#46BDFF\", \"purple\": \"#FF92DF\", \"cyan\": \"#DF81FC\", \"white\": \"#FFFFFF\",\n"
+             "      \"brightBlack\": \"#FF16B0\", \"brightRed\": \"#F85353\", \"brightGreen\": \"#FCEE54\", \"brightYellow\": \"#FFFFFF\",\n"
+             "      \"brightBlue\": \"#46BDFF\", \"brightPurple\": \"#FF92DF\", \"brightCyan\": \"#FF901F\", \"brightWhite\": \"#FFFFFF\"\n"
+             "    }\n  ]";
+    }
+    j += "\n}\n";
     return j;
 }
 
@@ -265,20 +386,20 @@ static std::string apply_impl(const std::string& font_in, const std::string& lau
     const bool none = font == kTerminalDefault;
     const Host host = detect_host();
 #if defined(_WIN32)
+    bool wt_profile_changed = false;
     {   // the Windows Terminal profile "Mousiki" is kept up to date whatever the window is now: the launchers open it
         const std::string launcher = launcher_in.empty() ? own_launcher() : launcher_in;
         if (!launcher.empty() && !getenv_str("LOCALAPPDATA").empty()) {
             std::error_code ec;
-            const fs::path f = wt_fragment_file();
-            fs::create_directories(f.parent_path(), ec);
             const fs::path ico = path_from_utf8(launcher).parent_path() / "mousiki.ico";
-            std::ofstream out(f, std::ios::binary | std::ios::trunc);
-            if (out) out << wt_fragment_json(none ? std::string() : font, "\"" + launcher + "\"", fs::exists(ico, ec) ? path_utf8(ico) : std::string());
+            const std::string json = wt_fragment_json(none ? std::string() : font, "\"" + launcher + "\"", fs::exists(ico, ec) ? path_utf8(ico) : std::string());
+            if (wt_sync_file(wt_fragment_file(), json)) wt_profile_changed = true;   // (written only when it changed: Windows Terminal reloads on every change)
         }
     }
-    if (host == Host::WindowsTerminal)
-        return none ? "font: Windows Terminal keeps its own font (the Mousiki profile has none)"
-                    : "font: " + font + " -- in Windows Terminal it applies when Mousiki opens through its launcher (profile \"Mousiki\")";
+    if (host == Host::WindowsTerminal) {
+        if (wt_profile_changed) wt_poke_reload();   // the running window reloads its settings now (and with them the changed profile)
+        return "font: Windows Terminal -- the profile \"Mousiki\" (opened by the Mousiki launchers) uses " + std::string(none ? "its own font" : font);
+    }
     {   // the console window itself
         std::lock_guard<std::mutex> lk(g_mu);
         HANDLE out = GetStdHandle(STD_OUTPUT_HANDLE);

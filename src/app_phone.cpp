@@ -156,7 +156,7 @@ std::vector<std::string> App::build_phone_screen(int W, int H, std::vector<remot
         out.push_back(box_top("LIBRARY", W, B));
         zones.push_back({0, 0, W, 1, "@menu", ""});
         row(phone_note_.empty() ? legend + truncate_str("tap a folder or a chapter (plays)", inner) + kR
-                                : "\x1b[32m" + truncate_str(phone_note_, inner) + kR);
+                                : "\x1b[38;5;246m" + truncate_str(phone_note_, inner) + kR);
         {
             const std::string label = "▶ AUDIO BOOKS (" + std::to_string(nr) + ")  " + std::to_string(page + 1) + "/" + std::to_string(pages);
             const std::string lab = truncate_str(label, W - 8);
@@ -204,7 +204,7 @@ std::vector<std::string> App::build_phone_screen(int W, int H, std::vector<remot
         out.push_back(box_top("LISTS", W, B));
         zones.push_back({0, 0, W, 1, "@menu", ""});
         row(phone_note_.empty() ? legend + truncate_str("queue: " + q_n + (queue_.size() == 1 ? " title" : " titles") + "  |  tap a list to page it", inner) + kR
-                                : "\x1b[32m" + truncate_str(phone_note_, inner) + kR);
+                                : "\x1b[38;5;246m" + truncate_str(phone_note_, inner) + kR);
         // a pane header "├─ ▶ NAME (n)  1/3 ───┤": the focus marker and colour of the tab strips; tapping it gives the focus
         auto header = [&](const std::string& name, int count, int pg, int pgs, bool focus, int which) {
             const std::string label = (focus ? "▶ " : "  ") + name + " (" + std::to_string(count) + ")  " + std::to_string(pg + 1) + "/" + std::to_string(pgs);

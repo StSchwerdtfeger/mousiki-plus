@@ -385,3 +385,16 @@ TEST(settings_cover_look_keys_are_ctrl_t_and_ctrl_z) {
     CHECK_EQ(combo_key_name(kKeyCtrlT), std::string("CTRL+T"));
     CHECK_EQ(combo_key_name(kKeyCtrlZ), std::string("CTRL+Z"));
 }
+
+TEST(config_files_are_written_whole_or_not_at_all) {
+    mt::TempHome home;
+    const fs::path p = fs::path(std::getenv("HOME")) / "atomic_test.txt";
+    CHECK(write_text_atomic(p, "A=1\n"));
+    CHECK(write_text_atomic(p, "A=2\nB=3\n"));   // over an existing file
+    std::ifstream in(p);
+    std::string all((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    CHECK_EQ(all, std::string("A=2\nB=3\n"));
+    fs::path tmp = p;
+    tmp += ".tmp";
+    CHECK(!fs::exists(tmp));                        // no temp file is left behind
+}

@@ -256,6 +256,8 @@ Args ffmpeg_cmd(const Station& st) {
         cmd.insert(cmd.end(), src.begin(), src.end());
     } else {
         // rw_timeout: give up on a stalled socket after 15 s instead of blocking forever.
+        // A web address may only lead to the web (a redirect to file: or another protocol is refused by ffmpeg itself).
+        if (Station::web_url(st.url)) cmd.insert(cmd.end(), {"-protocol_whitelist", "http,https,tcp,tls,crypto,httpproxy"});
         cmd.insert(cmd.end(), {"-rw_timeout", "15000000", "-reconnect", "1", "-reconnect_streamed", "1",
                                "-reconnect_delay_max", "5", "-i", st.url});
     }
@@ -458,9 +460,10 @@ void probe_main(std::shared_ptr<Session> s) {
     // Polled, not streamed: ffprobe opens its own short connection to the stream. That is the
     // simplest way to get ICY metadata out of ffmpeg without writing an HTTP client, and it is
     // cheap, but it does show up as one extra (brief) listener on the station every 20 s.
-    const Args cmd = {"ffprobe", "-v", "error", "-rw_timeout", "10000000",
-                      "-show_entries", "format_tags:stream=codec_name,bit_rate,sample_rate,channels",
-                      "-of", "default=noprint_wrappers=1", s->station.url};
+    Args cmd = {"ffprobe", "-v", "error", "-rw_timeout", "10000000",
+                "-show_entries", "format_tags:stream=codec_name,bit_rate,sample_rate,channels", "-of", "default=noprint_wrappers=1"};
+    if (Station::web_url(s->station.url)) cmd.insert(cmd.end(), {"-protocol_whitelist", "http,https,tcp,tls,crypto,httpproxy"});
+    cmd.insert(cmd.end(), {"-i", s->station.url});   // -i: an address that starts with "-" is not read as an option
     while (!s->cancel.load()) {
         ProcResult r = run_capture(cmd, false);
         if (s->cancel.load()) return;

@@ -101,6 +101,10 @@ fs::path lyrics_folder_of(const fs::path& track_path);
 // Readable lines of an LRC / plain lyrics text: timestamps, word tags and [ar:]-style header tags are removed, a
 // run of blank lines becomes one, leading / trailing blank lines are dropped.
 std::vector<std::string> lyrics_plain_lines(const std::string& raw);
+// The same lines WITH their times (READ LYRICS plays along with the song): lines[i].full_text == lyrics_plain_lines(raw)[i], start_time = -1
+// where the line has no time stamp, words = the word times of an enhanced LRC line. `delay` (optional) gets the [offset:] of the text, in the
+// sign LyricsResult::delay uses.
+std::vector<LyricLine> lyrics_read_lines(const std::string& raw, double* delay = nullptr);
 
 // Writes `delay_sec` (same sign as LyricsResult::delay) into the track's sidecar
 // .lrc as an "[offset:...]" tag, replacing an existing one (0 removes the tag).

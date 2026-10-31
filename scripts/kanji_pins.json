@@ -11,6 +11,11 @@
       "sha256": "2914114fe761ca49fc7089e25e6ad4a400c26f262ffce84e13b176916b71610a",
       "url": "https://files.pythonhosted.org/packages/3b/da/9657d637bcacdbaf6a914ce504000da5639f9d945f8d3552a940f021d6c0/jaconv-0.5.0-py3-none-any.whl"
     },
+    "janome": {
+      "file": "Janome-0.5.0-py2.py3-none-any.whl",
+      "sha256": "d098670394a77881ce2f6b7d696c0ea5ff74c0c8cf74a8a882159ec82c0e6dc7",
+      "url": "https://files.pythonhosted.org/packages/73/7d/70f4069f4bbf0fca023e82a1fbbade6f5216365d4fe259fee1950723eca5/Janome-0.5.0-py2.py3-none-any.whl"
+    },
     "pykakasi": {
       "file": "pykakasi-2.3.0-py3-none-any.whl",
       "sha256": "26d21b090048ff45c6a4d8e962426b7951767216008ec30358e8a9d74af77f29",

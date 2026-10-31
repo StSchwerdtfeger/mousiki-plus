@@ -120,7 +120,7 @@ enum RsId {
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc,
     kRsScope, kRsOsciStyle,
     kRsAudioDevice,   // [ENTER]: the CHOOSE AUDIO DEVICE overlay
-    kRsFont,          // [ENTER]: the FONT overlay
+    kRsTermDefaultFont, // leave the terminal's own font alone (one value for all modes: TerminalDefaultFont= in the player's config.txt)
 };
 }
 
@@ -148,7 +148,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {false, kRsUseOsci, "Use oscilloscope"}, {false, kRsUseSpectro, "Use spectrogram"},   // false: not in the "." cycle (the window still works)
         {true, -1, ""},
         {true, -1, "TEXT"},
-        {false, kRsFont, "Font"},
+        {false, kRsTermDefaultFont, "Terminal default font"},
         {false, kRsMarquee, "Marquee scrolling"},
     };
     static const std::vector<SettingsLine> anima = {
@@ -228,6 +228,7 @@ bool* flag_of(RadioSettings& s, int id) {
         case kRsNormalize: return &s.normalize;
         case kRsTuneNoise: return &s.tune_noise;
         case kRsMarquee: return &s.marquee;
+        case kRsTermDefaultFont: return &s.terminal_default_font;
         case kRsUseOsci: return &s.use_osci;
         case kRsUseSpectro: return &s.use_spectro;
         case kRsBlackBg: return &s.black_background;
@@ -242,7 +243,6 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
     if (bool* f = flag_of(const_cast<RadioSettings&>(s), id)) return *f ? "true" : "false";
     switch (id) {
         case kRsShareProfiles: return s.share_profiles ? "true" : "false";
-        case kRsFont: return s.terminal_font + "  [ENTER] choose";
         case kRsAudioDevice: return (s.audio_device.empty() ? std::string("System Default") : s.audio_device) + "  [ENTER] choose";
         case kRsRemoteApp: return s.remote_app ? "on   [ENTER] settings" : "off  [ENTER] settings";   // opens the REMOTE APP overlay
         case kRsPlayback: return s.playback_shuffle ? "shuffle" : "list";
@@ -553,10 +553,9 @@ bool set_player_config_value(const std::string& key, const std::string& value) {
     }
     in.close();
     if (!found) lines.push_back(key + "=" + value);
-    std::ofstream out(f, std::ios::trunc);
-    if (!out) return false;
-    for (const auto& l : lines) out << l << "\n";
-    return true;
+    std::string text;
+    for (const auto& l : lines) text += l + "\n";
+    return write_text_atomic(f, text);
 }
 } // namespace
 
@@ -574,8 +573,12 @@ void load_player_mode_settings(RadioSettings& s) {
     const muisc::ModeConfig mc = muisc::read_mode_config();   // same file; defaults when missing, always one mode on
     for (int i = 0; i < 3; ++i) { s.use_mode[i] = mc.use[i]; s.mode_order[i] = mc.order[i]; }
     s.audiobook_path = player_config_value("audiobookpath");
+    {
+        std::string v = ascii_lower_str(player_config_value("terminaldefaultfont"));
+        s.terminal_default_font = v == "true" || v == "1" || v == "yes" || v == "on";
+        if (const std::string f = player_config_value("terminalfont"); !f.empty()) s.terminal_font = f;
+    }
     s.audio_device = player_config_value("audiodevice");   // CHOOSE AUDIO DEVICE: one choice for every mode
-    if (const std::string f = player_config_value("terminalfont"); !f.empty()) s.terminal_font = f;   // the FONT row
     int sm = muisc::mode_index(s.start_mode);
     if (sm < 0 || !s.use_mode[sm]) for (int i = 0; i < 3; ++i) if (s.use_mode[s.mode_order[i]]) { s.start_mode = muisc::kModeNames[s.mode_order[i]]; break; }
 }
@@ -1146,8 +1149,7 @@ bool save_radio_settings(const RadioSettings& s, std::string* err) {
     std::error_code ec;
     if (target.has_parent_path()) fs::create_directories(target.parent_path(), ec);
     backup_config_if_older(target);   // the first save by a newer version keeps the old file as radio_config.txt.bak
-    std::ofstream o(target, std::ios::trunc);
-    if (!o) { if (err) *err = "cannot write " + target.string(); return false; }
+    std::ostringstream o;   // written in one go at the end (write_text_atomic: never a cut-off file)
     if (s.start_mode != player_start_mode()) set_player_start_mode(s.start_mode);   // the settings that live in the player's config.txt
     save_player_mode_settings(s);
     if (s.black_background != player_black_background()) set_player_black_background(s.black_background);
@@ -1160,7 +1162,7 @@ bool save_radio_settings(const RadioSettings& s, std::string* err) {
         }
     }
     write_radio_settings(o, s);
-    if (!o) { if (err) *err = "cannot write " + target.string(); return false; }
+    if (!write_text_atomic(target, o.str())) { if (err) *err = "cannot write " + target.string(); return false; }
     if (s.share_profiles) {   // the radio's edits of the shared settings go to the player's config.txt
         VizPrefs now;
         if (read_player_viz(now) && viz_text(now) != viz_text(s)) write_player_viz(s);

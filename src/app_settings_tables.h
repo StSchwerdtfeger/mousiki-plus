@@ -75,7 +75,8 @@ inline const RefHotkeyRow kRefRows[] = {
     {"PLAYLISTS", "HKeyPlaylist", "Open Playlist Editor"}, // opens the playlist create/manage screen
     // --- Meta editor ---
     {"META EDITOR", "HKeyMetaEditor", "Open Meta Editor"}, // edit file names/tags, AcoustID fetch
-    {nullptr, "HKeyCoverFetch", "Open Cover Fetch"},       // fetch album covers (MusicBrainz / Cover Art Archive)
+    {nullptr, "HKeyCoverFetch", "Open Cover Fetch"},
+    {nullptr, "HKeyStyleOptions", "Open Style Options"},   // the cover look of the playing track       // fetch album covers (MusicBrainz / Cover Art Archive)
     {nullptr, "HKeyFetchTags", "Fetch Missing Tags"}, // the hovered title; also inside the meta editor
     // --- Listening history ---
     {"HISTORY", "HKeyHistory", "Open Listening History"}, // HISTORY / TOP TRACKS / TOP PLAYLISTS / HABITS overlay
@@ -129,10 +130,10 @@ enum SetId {
     kSidVolIndicator,
     kSidUseModePlayer, kSidUseModeRadio, kSidUseModeBook, kSidModeOrder1, kSidModeOrder2, kSidModeOrder3, kSidBookAsk, kSidBookCover, kSidBookCoverWave,
     kSidAlbumCover, kSidCoverMode, kSidCoverContrast, kSidCoverSearch, kSidCoverBrightness, kSidCoverColors,
+    kSidTermDefaultFont, // TEXT AND TRANSLITERATION: leave the terminal's own font alone (terminal_font.h)
     kSidCheckUpdate,   // [ENTER] checks for a newer release now (an action row, no value to switch)
     kSidBookSpeed,     // audio book player: the playback speed (0.5x - 3.0x, the pitch stays)
     kSidAudioDevice,   // the sound output: shows the device in use, [ENTER] opens the CHOOSE AUDIO DEVICE overlay
-    kSidTermFont,      // Mousiki's own terminal font: [ENTER] opens the FONT overlay (terminal_font.h)
 };
 // True while the audio book player is the mode that runs (set by App::run()): its GENERAL and ANIMA/VIZ tabs leave out what only
 // belongs to the music player and name the lyrics view "notes".
@@ -161,7 +162,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidUpdateCheck, "Update Notice"}, {false, kSidCheckUpdate, "Check Update"},
         {true, -1, ""},
         {true, -1, "TEXT AND TRANSLITERATION (JAP./KOR./CHIN.)"},
-        {false, kSidTermFont, "Font"},
+        {false, kSidTermDefaultFont, "Terminal Default Font"},
         {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},
         {false, kSidLatinMacrons, "Latin Macrons"}, {false, kSidLatinWo, "Latin Wo"}, {false, kSidLatinHanzi, "Translit. Kanji"}, {false, kSidLatinLookup, "Latin Name Lookup"}, {false, kSidLyricsVariants, "Lyrics Name Variants"},
     };
@@ -180,7 +181,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidCoverColors, "Cover Colors"}, {false, kSidCoverSearch, "Cover Search"},
         {true, -1, ""},
         {true, -1, "SEEK AND VOLUME"},
-        {false, kSidDummy, "Dummy Seek Buttons"}, {false, kSidVolIndicator, "Volume Indicator"},
+        {false, kSidDummy, "Dummy Buttons"}, {false, kSidVolIndicator, "Volume Indicator"},
         {true, -1, ""},
         {true, -1, "SPECTRUM BARS"},   // the bars under the meta data
         {false, kSidVisualizer, "On/Off"},
@@ -229,7 +230,7 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidRateCap, "Rate Cap at 96 kHz"},
         {true, -1, ""},
         {true, -1, "TEXT"},
-        {false, kSidTermFont, "Font"},
+        {false, kSidTermDefaultFont, "Terminal Default Font"},
         {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},
     };
     static const std::vector<SetLine> book_anima = {
@@ -238,9 +239,10 @@ inline const std::vector<SetLine>& settings_layout(int tab) {
         {true, -1, ""},
         {true, -1, "BOOK COVER"},
         {false, kSidBookCover, "Book Cover"}, {false, kSidBookCoverWave, "Book Gradient Wave"}, {false, kSidCoverContrast, "Cover Contrast"},
+        {false, kSidCoverBrightness, "Cover Brightness"}, {false, kSidCoverColors, "Cover Colors"},
         {true, -1, ""},
         {true, -1, "SEEK AND VOLUME"},
-        {false, kSidDummy, "Dummy Seek Buttons"}, {false, kSidVolIndicator, "Volume Indicator"},
+        {false, kSidDummy, "Dummy Buttons"}, {false, kSidVolIndicator, "Volume Indicator"},
         {true, -1, ""},
         {true, -1, "SPECTRUM BARS"},
         {false, kSidVisualizer, "On/Off"},

@@ -381,6 +381,24 @@ void App::lyrics_edit_open() {
     }
     lyrics_edit_orig_delay_ = lyrics_result_.delay;
     lyrics_edit_from_karaoke_ = false;
+    lyrics_edit_from_reader_ = false;
+    mode_ = Mode::LyricsEdit;
+}
+
+// Over READ LYRICS: the same overlay, for the lyrics of the track that plays (the reader's lines light up with the new offset while it is
+// open). The lyrics engine is started for the track like the karaoke screen does, so the main screen's lyrics field may be off.
+void App::lyrics_edit_open_over_reader() {
+    if (!readlyrics_track_plays()) { rd_status_ = "lyrics timing: only for the track that plays -- start it with [p]"; rd_status_warn_ = true; return; }
+    karaoke_ensure_lyrics();
+    std::lock_guard<std::mutex> lk(lyrics_mutex_);
+    if (!lyrics_ready_ || lyrics_path_ != current_path_ || lyrics_result_.lines.empty()) {
+        rd_status_ = "lyrics timing: no synced lyrics are loaded for this track (yet)";
+        rd_status_warn_ = true;
+        return;
+    }
+    lyrics_edit_orig_delay_ = lyrics_result_.delay;
+    lyrics_edit_from_karaoke_ = false;
+    lyrics_edit_from_reader_ = true;
     mode_ = Mode::LyricsEdit;
 }
 
@@ -393,13 +411,15 @@ void App::lyrics_edit_open_over_karaoke() {
     }
     lyrics_edit_orig_delay_ = lyrics_result_.delay;
     lyrics_edit_from_karaoke_ = true;
+    lyrics_edit_from_reader_ = false;
     mode_ = Mode::LyricsEdit;
 }
 
 // Back to the screen it was opened from: the main screen, or the karaoke screen.
 void App::lyrics_edit_close() {
-    mode_ = lyrics_edit_from_karaoke_ ? Mode::Karaoke : Mode::Browse;
+    mode_ = lyrics_edit_from_reader_ ? Mode::ReadLyrics : lyrics_edit_from_karaoke_ ? Mode::Karaoke : Mode::Browse;
     lyrics_edit_from_karaoke_ = false;
+    lyrics_edit_from_reader_ = false;
     force_redraw_ = true;
 }
 
@@ -610,6 +630,7 @@ const MenuIdxEntry kMenuIdxPlayer[] = {
     {"LISTS & LIBRARY",  "Playlist editor",           "HKeyPlaylist",       "P"},
     {"LISTS & LIBRARY",  "Meta data editor",          "HKeyMetaEditor",     "M"},
     {"LISTS & LIBRARY",  "Cover fetch",               "HKeyCoverFetch",     kCoverFetchKey},
+    {"LISTS & LIBRARY",  "Style options (cover look)", "HKeyStyleOptions",   "S"},
     {"LISTS & LIBRARY",  "Listening history",         "HKeyHistory",        "H"},
     {"SOUND",            "Equalizer",                 "HKeyEqualizer",      "E"},
     {"SOUND",            "Normalization",             "HKeyNormMenu",       "V"},

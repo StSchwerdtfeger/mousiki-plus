@@ -333,6 +333,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "#CTRL+SHIFT+x", "Discard the meta editor's pending edits (fetched tags included) and empty the fetch list"},
         // --- Cover fetch: opened with its own key, runs in the same two-tab frame ---
         {"COVER FETCH (MAIN UI)", "HKeyCoverFetch", "Cover fetch overlay: album library (missing / one / several covers), fetch the front covers from MusicBrainz / Cover Art Archive into fetched_covers folders (an extra overlay, because MusicBrainz often misjudges album titles)"},
+        {nullptr, "HKeyStyleOptions", "Style Option overlay of the track that plays (cover look, contrast, brightness, colors; the same overlay as the meta editor's Style Option button, shown on its own); [m] goes on to the meta data of that song, ESC closes it"},
         {"META EDITOR: LIBRARY PANE", "#f", "Meta editor (library pane): folder view on / off -- files grouped by folder, numbered per folder; [a] on a folder header adds the whole folder to the fetch list, ENTER closes / opens it"},
         {nullptr, "#r", "Meta editor: toggle edited files on top of the library pane"},
         {nullptr, "#n", "Meta editor (library pane): toggle recently added files first"},

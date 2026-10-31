@@ -28,7 +28,6 @@
 #include "disk_art.h"
 #include "remote_server.h"
 #include "remote_overlay.h"
-#include "font_picker.h"
 #include "fft_visualizer.h"
 #include "history.h"
 #include "local_source.h"
@@ -630,10 +629,26 @@ private:
     std::vector<std::string> build_cf_art_panel(int width, int height) const;
     std::vector<std::string> build_cf_list_panel(int width, int height) const;
     int cover_mode_look() const;                 // cover_mode with the ASCII modes (5, 6) folded onto 0, 1
+    // The cover look of the playing track: its album's own look (COVER OPTIONS -> [l], cover_album_look()) or Settings -> Album
+    // Cover / Cover Mode. album_look_override(): -1 none, 0 plain disk, 1..7 the Cover Modes (remembered per track and choice).
+    int album_look_override() const;
+    bool eff_album_cover() const;
+    int eff_cover_mode() const;
+    // The style of the playing track (Style Option in the meta editor): its own look / contrast / brightness / colours, else the album's
+    // look, else Settings. Cached by path and cover store revision.
+    int eff_cover_contrast() const;
+    int eff_cover_brightness() const;
+    int eff_cover_colors() const;
+    const CoverStyle& track_style() const;
+    mutable std::string look_cache_path_;
+    mutable unsigned look_cache_rev_ = 0;
+    mutable int look_cache_val_ = -1;
+    mutable CoverStyle style_cache_;
     // Sixel and Cover Colors > 0 in a Cover behind Disk look: the picture is drawn with a fixed colour palette (`direct`), see cover_fill()
-    bool cover_sixel_colours(int mode) const { return gfx_proto_ == GfxProto::Sixel && settings_.cover_colors > 0 && mode >= 2 && mode <= 4; }
+    bool cover_sixel_colours(int mode) const { return gfx_proto_ == GfxProto::Sixel && eff_cover_colors() > 0 && mode >= 2 && mode <= 4; }
     void cycle_cover_look(int dir);              // CTRL+t / CTRL+z: the plain disk and the cover looks (audio books: default picture, cover with wave, cover)
     std::vector<std::string> cover_preview_lines(const std::string& file, bool embedded, int cols, int rows, const std::string& msg = "") const;
+    std::vector<std::string> album_cover_lines_for(const CoverImage& cover, int mode, int contrast, int brightness, int colors, double angle, int cols, int rows) const;   // any cover, any style (previews)
 
     // --- meta/tag editor overlay (Mode::MetaEdit, HKeyMetaEditor = Shift+M) ---
     // Deliberately shaped like the playlist editor above: same tab strip,
@@ -710,6 +725,24 @@ private:
     mutable int meta_pane_col_ = 0;     // screen column of the FIELDS panel (where a full-resolution cover picture starts)
     std::vector<std::string> meta_cover_pane(int inner, int rows) const;   // the track's cover as braille lines, `rows` x `inner` columns
     static constexpr int kMetaCovPanelWidth = 86;
+    // The "Style Option" overlay (next to the Cover Options button): the look and the Cover Contrast / Brightness / Colors of one track
+    // (cover_store.h CoverStyle), and the look of its whole album. "As in Settings" = nothing of its own.
+    bool meta_sty_open_ = false;
+    int meta_sty_sel_ = 0;
+    std::string meta_sty_track_;
+    std::string meta_sty_msg_;
+    mutable bool meta_sty_pic_ = false;   // this frame the picture in gfx_ is the Style Option preview (it is not cropped by its own panel)
+    bool meta_sty_from_main_ = false;   // opened by HKeyStyleOptions: ESC returns to the main UI
+    void meta_sty_open();
+    void meta_open_style_playing();     // HKeyStyleOptions: the Style Option overlay of the playing track
+    bool handle_meta_sty_key(int key);
+    std::vector<std::string> build_meta_sty_panel(int screen_w) const;
+    int meta_sty_panel_width(int screen_w) const;
+    std::vector<std::string> meta_sty_preview(int prev_w, int rows, const CoverStyle& st, int album_look, int screen_w) const;
+    bool meta_sty_gfx(const CoverImage& cover, int mode, int contrast, int brightness, int colors, double angle, int col, int row, int cols, int rows) const;   // the Style preview as a picture (gfx_)
+    // While the Style overlay builds its picture, these replace the playing track's own cover style (eff_cover_*)
+    mutable struct CoverOvr { bool on = false; int contrast = 0, brightness = 0, colors = 0; } cover_ovr_;
+    static constexpr int kMetaStyPanelWidth = 64;
     // The choice overlay (ENTER on a field with several fetched candidates).
     bool meta_choice_open_ = false;
     int meta_choice_field_ = 0;
@@ -901,6 +934,7 @@ private:
     std::chrono::steady_clock::time_point waveform_reveal_start_;
     bool waveform_ready_ = false;
     std::shared_ptr<StreamingPcm> current_pcm_;
+    const StreamingPcm* pcm_cut_noted_ = nullptr;   // the track whose "longer than its buffer" note was shown (once per track)
     size_t total_sec_ = 0;
     double angle_ = 0.0;
     std::chrono::steady_clock::time_point last_frame_time_;
@@ -1391,6 +1425,9 @@ private:
     int settings_tab_first_line(int W, int visible) const;       // first layout line shown on tab 1 / 2 (scrolling)
     // Every overlay sizes itself from term_rows_ directly.
     void build_settings_screen(std::ostringstream& frame, int W, int player_h) const;
+    // The preview box right of the rows of GENERAL / ANIMA/VIZ: a live example of the highlighted option only (settings_preview.cpp)
+    void settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int tab, const std::function<std::string(int)>& border_at) const;
+    mutable std::shared_ptr<struct SettingsPreviewState> pv_;
     void handle_settings_key(int key);
 
     // --- PATHS tab (tab 3) --------------------------------------------------
@@ -1587,6 +1624,12 @@ private:
     mutable bool spectro_used_ = false;
     mutable int spectro_area_[4] = {-1, 0, 0, 0};
     SpectroGfx spectro_gfx_;
+    // The spectrogram of the Settings preview box (settings_preview.cpp) as a picture: where this frame put it, its settings, its own picture state
+    mutable int pv_spectro_area_[4] = {-1, 0, 0, 0};
+    mutable bool pv_cover_pic_ = false;   // the Settings cover preview is a picture this frame (the only picture the Settings screen may show)
+    mutable SpectroSettings pv_spectro_set_;
+    SpectroGfx pv_spectro_gfx_;
+    SpectroAnalyzer* settings_preview_spectro() const;   // nullptr until a preview was drawn
     bool spectro_full_ = false;
     // SHIFT+0: the big oscilloscope overlay (YT left, XY right). Each picture has its own scope (own phosphor buffer) fed from
     // scope_; SHIFT+a toggles the grid, SHIFT+v the axis values, SHIFT+c asks for its colour (the digits typed so far are in scope_big_color_buf_).
@@ -1741,7 +1784,9 @@ private:
     // read back with the lyrics), ESC / Alt+L = cancel (the value from before the
     // overlay opened comes back). Opens only while synced lyrics are loaded.
     double lyrics_edit_orig_delay_ = 0.0;               // delay when the overlay opened (ESC restores it)
+    bool lyrics_edit_from_reader_ = false;              // opened over READ LYRICS: drawn on it, closing returns to it
     bool lyrics_edit_from_karaoke_ = false;             // opened over the karaoke screen: it is drawn on it and closing returns to it
+    void lyrics_edit_open_over_reader();    // ... over the READ LYRICS overlay (only for the track that plays)
     void lyrics_edit_open_over_karaoke();   // the lyrics timing overlay over the karaoke screen
     void karaoke_ensure_lyrics();   // the karaoke overlay fetches the lyrics itself when the engine is off
     // SHIFT+w (HKeyWizard): the Mousiki Plus Help Wizard (Mode::Wizard), a full-screen help book. src/wizard.{h,cpp}
@@ -1768,6 +1813,11 @@ private:
     int rd_sel_ = 0;                                    // chosen file
     int rd_first_ = 0;                                  // first file shown on the one-line chooser (scrolls with the choice)
     std::vector<std::string> rd_lines_;                 // plain lyrics of the chosen file
+    std::vector<LyricLine> rd_timed_;                   // the same lines with their times (rd_timed_[i].full_text == rd_lines_[i]): the highlight while the track plays
+    double rd_delay_ = 0.0;                             // the [offset:] of the chosen file (as LyricsResult::delay)
+    bool rd_follow_ = true;                             // the view scrolls along with the song (any scrolling turns it off, [f] on again)
+    void readlyrics_play();                             // [p]: start this track, else pause / resume it
+    bool readlyrics_track_plays() const;                // the track of the reader is the loaded one
     std::vector<TranslationInfo> rd_tlist_;             // the translations saved for the chosen file (TRANSLATION pane)
     int rd_tsel_ = 0;                                   // the one chosen / shown
     int rd_tfirst_ = 0;                                 // first entry shown on the one-line chooser
@@ -2135,8 +2185,6 @@ private:
     remote_ui::State remote_ov_;     // Settings -> GENERAL -> REMOTE / UPDATES -> Remote App: the REMOTE APP overlay (address, QR code, port, PIN)
     void remote_overlay_draw(std::ostringstream& frame, int W) const;
     remote_ui::Style settings_overlay_style() const;   // the colours / glyphs of the overlays over the settings screen
-    font_ui::State font_ov_;        // Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Font: the FONT overlay
-    void font_overlay_draw(std::ostringstream& frame, int W) const;
     std::chrono::steady_clock::time_point phone_last_{}, phone_built_{};
     int phone_view_ = 0;             // 0 the phone's main screen, 1 its LISTS screen
     int phone_focus_ = 0;            // LISTS: the pane UP / DOWN page through (0 the local list, 1 the saved playlists)

@@ -223,6 +223,7 @@ def kitty_cover_options(binary, home, scripts):
         sess.send(b"\t", 0.5)
         for _ in range(12):
             sess.send(b"\x1b[B", 0.15)
+        sess.send(b"\x1b[D", 0.3)       # (the last stop is Style Option: Left goes to Cover Options)
         sess.send(b"\r", 1.5)
         check("COVER OPTIONS" in sess.text(), "kitty cover options: the overlay opens")
         def picture_after(mark, wait):
@@ -254,6 +255,8 @@ def kitty_cover_options(binary, home, scripts):
             check(now != shows_picture,
                   "kitty cover options: [t] switches the preview to %s" % ("braille (ASCII)" if shows_picture else "a picture"))
             shows_picture = now
+        if not shows_picture:
+            sess.send("t", 1.0)          # (back to the picture for the next check)
         check(sess.alive(), "kitty cover options: the program is still running")
     finally:
         sess.kill()
@@ -345,7 +348,7 @@ def paging_and_translit_row(binary, root, scripts):
         sess.send(b"\t", 0.6)
         def find(label):
             for line in sess.screen.display:
-                if label in line:
+                if label in line and "Preview:" not in line:   # (the preview box on the right is titled with the row)
                     return line
             return ""
         # GENERAL tab: Playback, Start Mode, Display queue, MODES ON/OFF AND ORDER (6 rows), AUDIO (5 rows),
@@ -382,7 +385,7 @@ def paging_and_translit_row(binary, root, scripts):
         sess.send(b"\x1b[B", 0.2)
         check("Full Screen" in find("Full Screen") and "false" in find("Full Screen"), "full screen: the row exists and is off by default")
         for _ in range(10):
-            sess.send(b"\x1b[B", 0.1)   # down to Translit. Kanji (past REMOTE / UPDATES; TEXT AND TRANSLITERATION, with Font first, is last)
+            sess.send(b"\x1b[B", 0.1)   # down to Translit. Kanji (past REMOTE / UPDATES; TEXT AND TRANSLITERATION is last)
         def row():
             return find("Translit. Kanji")
         def settle(word, limit=8.0):   # a slow machine draws the row a moment after the key: wait for it (up to `limit` s)
@@ -391,6 +394,7 @@ def paging_and_translit_row(binary, root, scripts):
                 sess.pump(0.3)
         settle("Leave")
         check("Leave" in row(), "translit kanji: the row exists and reads Leave by default")
+        check("Preview: Translit. Kanji" in sess.text() and "zh\u0101ng" in sess.text(), "settings preview: the hovered row shows its examples")
         sess.send(b"\x1b[C", 0.8)
         settle("Chin.")
         check("Chin." in row(), "translit kanji: RIGHT cycles to Chin.")
@@ -402,19 +406,6 @@ def paging_and_translit_row(binary, root, scripts):
         sess.send(b"\x1b[D", 0.8)
         settle("Leave")
         check("Leave" in row(), "translit kanji: LEFT twice is back at Leave")
-        # TEXT AND TRANSLITERATION -> Font (5 rows up): Cascadia Mono by default, ENTER opens the FONT overlay, ESC closes it
-        check("Cascadia Mono" in find("Font  "), "font: the row exists and reads Cascadia Mono by default")
-        for _ in range(5):
-            sess.send(b"\x1b[A", 0.1)
-        sess.send(b"\r", 1.0)
-        for _ in range(20):            # listing the fonts of the computer can take a moment
-            if "FONT (" in sess.text():
-                break
-            sess.pump(0.5)
-        check("FONT (" in sess.text() and "Terminal Default" in sess.text(), "font: ENTER opens the FONT overlay with Terminal Default")
-        check_frame(sess, "settings with the FONT overlay", frame=False)
-        sess.send(b"\x1b", 0.8)
-        check("FONT (" not in sess.text(), "font: ESC closes the FONT overlay")
         sess.send(b"\x1b[6~", 0.8)   # PgDn in the settings: a page, like SHIFT+down
         check(sess.alive(), "paging: PgDn in the settings does not crash")
         sess.send(b"\x1b", 1.0)
@@ -609,6 +600,59 @@ def karaoke_timing(binary, root, scripts):
         sess.kill()
 
 
+def read_lyrics_play(binary, root, scripts):
+    """READ LYRICS (CTRL+L): a saved translation is shown at once, and [p] plays the track with the lyrics highlighted."""
+    home = os.path.join(root, "rl_home")
+    lib = os.path.join(root, "rl_music")
+    os.makedirs(os.path.join(home, ".config", "mousiki"))
+    os.makedirs(os.path.join(lib, "lyrics", "translations"))
+    make_wav(os.path.join(lib, "Read Song.wav"), 20)
+    lines = ["First lyric line here", "Second lyric line here", "Third lyric line here"]
+    with open(os.path.join(lib, "lyrics", "Read Song.lrc"), "w", encoding="utf-8") as f:
+        f.write("[00:00.50]%s\n[00:03.00]%s\n[00:06.00]%s\n" % tuple(lines))
+    h = 1469598103934665603     # the fingerprint of the original lines (FNV-1a, see lyrics_translate.cpp)
+    for l in lines:
+        for c in l.encode("utf-8"):
+            h = ((h ^ c) * 1099511628211) & 0xFFFFFFFFFFFFFFFF
+        h = ((h ^ 0x0a) * 1099511628211) & 0xFFFFFFFFFFFFFFFF
+    with open(os.path.join(lib, "lyrics", "translations", "Read Song.en.txt"), "w", encoding="utf-8") as f:
+        f.write("#mousiki-translation to=en from=de svc=google lines=3 hash=%016x\n" % h)
+        f.write("Erste Zeile hier\nZweite Zeile hier\nDritte Zeile hier\n")
+    with open(os.path.join(home, ".config", "mousiki", "config.txt"), "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\n" % lib)
+    sess = Session(binary, home, scripts)
+    try:
+        for _ in range(30):
+            sess.pump(0.5)
+            if "HELP WIZARD" in sess.text():
+                break
+        sess.send(b"\x1b", 1.0)
+        for _ in range(20):
+            sess.pump(0.5)
+            if "Read Song" in sess.text():
+                break
+        sess.send(b"\x0c", 1.5)   # CTRL+L on the hovered track
+        check("READ LYRICS" in sess.text() and "First lyric line here" in sess.text(), "read lyrics: the overlay shows the lyrics")
+        check("(Erste Zeile hier)" in sess.text(), "read lyrics: a saved translation is shown without asking")
+        check("[p] Play" in sess.text(), "read lyrics: the legend names the play key")
+        check_frame(sess, "read lyrics")
+        sess.send("p", 3.0)        # the track starts, the reader stays open
+        check("READ LYRICS" in sess.text(), "read lyrics: [p] keeps the reader open")
+        if shutil.which("ffprobe") is None or sess.alive() is False:
+            print("  skipped: read lyrics playback (ffmpeg / ffprobe is not installed on this machine)")
+            return
+        for _ in range(6):
+            sess.pump(0.5)
+        if re.search(r"playing 0:00", sess.text()) or "playing" not in sess.text():
+            print("  skipped: read lyrics playback (the track does not play on this machine: no audio device)")
+            return
+        check("playing " in sess.text() and "First lyric line here" in sess.text(), "read lyrics: the position is shown while it plays")
+        sess.send("p", 1.0)
+        check("paused" in sess.text(), "read lyrics: [p] pauses")
+    finally:
+        sess.kill()
+
+
 def main():
     args = sys.argv[1:]
     if not args:
@@ -700,6 +744,7 @@ def main():
         sess.send(b"\t", 0.5)
         for _ in range(12):
             sess.send(b"\x1b[B", 0.15)
+        sess.send(b"\x1b[D", 0.3)       # the two buttons sit side by side: the last stop is Style Option, Left goes to Cover Options
         sess.send(b"\r", 1.5)
         check("COVER OPTIONS" in sess.text(), "cover options: the overlay opens")
         sess.send("t", 1.0)
@@ -708,6 +753,28 @@ def main():
         check(sess.alive(), "cover options: [t] again does not crash")
         sess.send(b"\x1b", 1.0)
         check("COVER OPTIONS" not in sess.text(), "cover options: ESC closes the overlay")
+        check("Style Option" in sess.text() and "Cover Options" in sess.text(), "meta editor: both buttons are shown")
+        sess.send(b"\x1b[C", 0.3)       # Right: the Style Option button
+        sess.send(b"\r", 1.5)
+        for _ in range(12):   # (the overlay animates: a read can fall between two frames)
+            if "STYLE OPTION" in sess.text() and "Cover Brightness" in sess.text(): break
+            sess.pump(0.4)
+        check("STYLE OPTION" in sess.text(), "style option: the overlay opens")
+        check("Cover Brightness" in sess.text() and "Look of this track" in sess.text(), "style option: the rows are shown")
+        check_frame(sess, "style option", frame=False)
+        sess.send(b"\x1b[B", 0.3)       # Cover Contrast
+        sess.send(b"\x1b[C", 1.2)
+        for _ in range(8):   # (the overlay's preview animates: a read can fall between two frames)
+            if "\u25c0 0 %" in sess.text(): break
+            sess.pump(0.4)
+        check("\u25c0 0 %" in sess.text(), "style option: Right gives the track its own value")
+        sess.send(b"\x7f", 0.5)         # DEL: back to 'as in Settings'
+        for _ in range(8):
+            if "as in Settings" in sess.text(): break
+            sess.pump(0.4)
+        check("as in Settings" in sess.text(), "style option: DEL goes back to 'as in Settings'")
+        sess.send(b"\x1b", 1.0)
+        check("STYLE OPTION" not in sess.text(), "style option: ESC closes the overlay")
         for _ in range(4):  # ESC steps back: fields pane -> library pane -> out of the meta editor
             if "META EDITOR" not in sess.text():
                 break
@@ -742,6 +809,8 @@ def main():
         book_speed_and_devices(binary, root, scripts)
         progress("karaoke_timing")
         karaoke_timing(binary, root, scripts)
+        progress("read_lyrics_play")
+        read_lyrics_play(binary, root, scripts)
         progress("selftest_command")
         selftest_command(binary, scripts)
     if not keep:

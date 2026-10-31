@@ -151,6 +151,30 @@ TEST(lyrics_plain_lines_strip_timestamps_tags_and_blank_runs) {
     CHECK_EQ(lines[3], std::string("Third line with gaps"));
 }
 
+TEST(lyrics_read_lines_keep_the_times_and_line_up_with_the_plain_lines) {
+    const std::string lrc =
+        "[ar:Some Artist]\n[offset:+250]\n"
+        "[00:12.30]First line\n"
+        "[00:15.00]<00:15.00>Second <00:15.50>line\n"
+        "\n\n"
+        "[01:02.5]Third line\n"
+        "plain line without a time\n";
+    double delay = 99.0;
+    const std::vector<LyricLine> l = lyrics_read_lines(lrc, &delay);
+    const std::vector<std::string> plain = lyrics_plain_lines(lrc);
+    CHECK_EQ(l.size(), plain.size());                    // one entry per plain line, the same text
+    for (size_t i = 0; i < l.size() && i < plain.size(); ++i) CHECK_EQ(l[i].full_text, plain[i]);
+    CHECK_EQ(l.size(), static_cast<size_t>(5));
+    CHECK(std::abs(l[0].start_time - 12.3) < 0.001);
+    CHECK(std::abs(l[1].start_time - 15.0) < 0.001);
+    CHECK_EQ(l[1].words.size(), static_cast<size_t>(2));   // the word times of the enhanced line
+    CHECK(std::abs(l[1].words[1].first - 15.5) < 0.001);
+    CHECK(l[2].full_text.empty());
+    CHECK(std::abs(l[3].start_time - 62.5) < 0.001);
+    CHECK(l[4].start_time < 0.0);                        // no time stamp
+    CHECK(std::abs(delay - (-0.25)) < 0.001);            // [offset:+250] = the lyrics come 250 ms earlier
+}
+
 TEST(lyrics_plain_lines_handle_bom_and_edges) {
     CHECK(lyrics_plain_lines("").empty());
     CHECK(lyrics_plain_lines("[ar:x]\n[ti:y]\n").empty());

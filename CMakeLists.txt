@@ -264,9 +264,9 @@ if(MOUSIKI_BUILD_RADIO_STANDALONE)
       src/fft_visualizer.cpp src/audio_backend.cpp src/miniaudio_impl.cpp src/keyboard_layout.cpp
       src/spectrogram.cpp src/scope_window.cpp src/themes.cpp src/border_gradient.cpp
       # shared with the player: the oscilloscope and the terminal picture output (Kitty / Sixel)
-      src/oscilloscope_visualizer.cpp src/terminal_gfx.cpp src/remote_control.cpp src/remote_server.cpp src/remote_overlay.cpp src/qr_code.cpp src/font_picker.cpp src/terminal_font.cpp
+      src/oscilloscope_visualizer.cpp src/terminal_gfx.cpp src/remote_control.cpp src/remote_server.cpp src/remote_overlay.cpp src/qr_code.cpp src/terminal_font.cpp
       # the player's settings code: Share Profiles, Remote App, the shared oscilloscope / spectrogram rows
-      src/settings.cpp src/osci_settings.cpp src/update_check.cpp src/open_url.cpp src/media_session.cpp src/media_session_mpris.cpp
+      src/settings.cpp src/translit.cpp src/lyrics_fetcher.cpp src/TextSanitizer.cpp src/osci_settings.cpp src/update_check.cpp src/open_url.cpp src/media_session.cpp src/media_session_mpris.cpp
       # the help wizard (SHIFT+w): its pages, and the disk its welcome page spins
       src/wizard.cpp src/disk_art.cpp)
   if(WIN32)

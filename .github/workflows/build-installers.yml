@@ -51,8 +51,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09   # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1   # v6
         with:
           python-version: "3.12"
       - name: Inno Setup
@@ -82,13 +82,13 @@ jobs:
       - name: Upload binaries to sign
         if: inputs.sign == 'true'
         id: up-bin
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f   # v6
         with:
           name: unsigned-binaries
           path: ${{ runner.temp }}/to-sign/*
       - name: Sign binaries (SignPath)
         if: inputs.sign == 'true'
-        uses: signpath/github-action-submit-signing-request@v1
+        uses: signpath/github-action-submit-signing-request@ced31329c0317e779dad2eec2a7c3bb46ea1343e   # v1
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -119,13 +119,13 @@ jobs:
       - name: Upload installer to sign
         if: inputs.sign == 'true'
         id: up-setup
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f   # v6
         with:
           name: unsigned-installer
           path: ${{ runner.temp }}/installer-to-sign/*
       - name: Sign installer (SignPath)
         if: inputs.sign == 'true'
-        uses: signpath/github-action-submit-signing-request@v1
+        uses: signpath/github-action-submit-signing-request@ced31329c0317e779dad2eec2a7c3bb46ea1343e   # v1
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
           organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
@@ -160,7 +160,7 @@ jobs:
           PY
           powershell -NoProfile -Command "Get-ChildItem packaging/dist/*-setup.exe | ForEach-Object { '{0}: {1}' -f \$_.Name, (Get-AuthenticodeSignature \$_).Status }"
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f   # v6
         with:
           name: dist-windows
           path: |
@@ -174,7 +174,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09   # v5
       - name: Source selection
         run: |
           if [ "${{ inputs.source }}" = "checkout" ]; then
@@ -186,7 +186,7 @@ jobs:
           fi
       - name: Build
         run: python3 packaging/release.py build --target linux --install-deps $SRC_ARGS $BUILD_ARGS
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f   # v6
         with:
           name: dist-linux
           path: |
@@ -200,7 +200,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09   # v5
       - name: Source selection
         run: |
           if [ "${{ inputs.source }}" = "checkout" ]; then
@@ -212,7 +212,7 @@ jobs:
           fi
       - name: Build
         run: python3 packaging/release.py build --target macos --install-deps $SRC_ARGS $BUILD_ARGS
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f   # v6
         with:
           name: dist-macos
           path: |
@@ -234,8 +234,8 @@ jobs:
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
       GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v7
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09   # v5
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131   # v7
         with:
           pattern: dist-*
           path: collected
@@ -270,7 +270,7 @@ jobs:
       - name: Build provenance attestation
         id: attest
         if: ${{ !github.event.repository.private }}
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be   # v2
         with:
           subject-path: |
             packaging/dist/*.exe
@@ -281,7 +281,7 @@ jobs:
       - name: Keep the attestation bundle
         if: ${{ steps.attest.outputs.bundle-path != '' }}
         run: cp "${{ steps.attest.outputs.bundle-path }}" packaging/dist/mousiki-release.intoto.jsonl
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f   # v6
         with:
           name: mousiki-release
           path: packaging/dist/*

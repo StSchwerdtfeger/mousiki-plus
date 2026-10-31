@@ -2,6 +2,7 @@
 // between the running program and mousiki --cmd calls through small files in its control folder,
 // written atomically.
 #include "remote_control.h"
+#include <cmath>
 
 #include <algorithm>
 #include <chrono>
@@ -84,7 +85,9 @@ double number(const std::string& arg, double fallback) {
     if (arg.empty()) return fallback;
     char* end = nullptr;
     const double v = std::strtod(arg.c_str(), &end);
-    return end == arg.c_str() ? fallback : v;
+    // "nan", "inf" or a 12-digit number would make the int casts of the callers undefined: a sane range only
+    if (end == arg.c_str() || !std::isfinite(v)) return fallback;
+    return std::clamp(v, -1.0e6, 1.0e6);
 }
 
 void start(const char* mode) {

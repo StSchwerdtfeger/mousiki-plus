@@ -21,6 +21,12 @@ struct Station {
 
     const std::string& preset_label() const { return preset_name.empty() ? name : preset_name; }
     bool synthetic() const { return url.rfind("lavfi:", 0) == 0; }
+    // An http:// or https:// address (any case). Stations from Radio Browser must be one (anyone can add a station there: no
+    // file: paths, no devices, no ffmpeg options); for such a station ffmpeg / ffprobe only get the web protocols.
+    static bool web_url(const std::string& u) {
+        auto starts = [&](const char* p) { size_t i = 0; for (; p[i]; ++i) if (i >= u.size() || (u[i] | 0x20) != p[i]) return false; return true; };
+        return starts("http://") || starts("https://");
+    }
 };
 
 // Loads stations.txt (see radio/stations.txt for the format). Search order:

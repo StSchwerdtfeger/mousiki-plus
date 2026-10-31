@@ -16,8 +16,8 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09   # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961   # v5
         with:
           distribution: temurin
           java-version: '17'
@@ -31,7 +31,7 @@ jobs:
           chmod +x gradlew
           ./gradlew --no-daemon assembleDebug
           cp app/build/outputs/apk/debug/app-debug.apk mousiki-remote.apk
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f   # v6
         with:
           name: mousiki-remote-apk
           path: remote_app/android/mousiki-remote.apk

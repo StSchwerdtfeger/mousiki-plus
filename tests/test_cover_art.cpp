@@ -215,3 +215,30 @@ TEST(album_covers_lists_each_picture_once) {
     AlbumCovers none = album_covers(d, "Other", d / "t.mp3", false, false);
     CHECK_EQ(none.count(), 0);
 }
+
+TEST(cover_look_per_album) {
+    mt::TempHome home;
+    CHECK_EQ(cover_album_look("Some Album", "/music/a"), -1);           // none chosen
+    set_cover_album_look("Some Album", "/music/a", 4);
+    CHECK_EQ(cover_album_look("some_album", "/elsewhere"), 4);         // the album name decides (spelling ignored), not the folder
+    set_cover_album_look("", "/music/loose", 0);                        // no album tag: the folder
+    CHECK_EQ(cover_album_look("-", "/music/loose"), 0);
+    CHECK_EQ(cover_album_look("", "/music/other"), -1);
+    set_cover_album_look("Some Album", "/music/a", -1);                 // back to Settings
+    CHECK_EQ(cover_album_look("Some Album", "/music/a"), -1);
+    set_cover_album_look("", "/music/loose", -1);
+}
+
+TEST(cover_scaled_keeps_several_sizes) {
+    CoverImage c;
+    c.key = "test-cover"; c.w = 64; c.h = 32; c.ok = true;
+    c.level.assign(static_cast<size_t>(c.w) * c.h, 128);
+    c.alpha.assign(c.level.size(), 255);
+    c.rgb.assign(c.level.size() * 3, 100);
+    const CoverScaled& a = cover_scaled(c, 40, 20, false, 0);
+    const CoverScaled& b = cover_scaled(c, 20, 10, false, 0);
+    CHECK(&a != &b);                                                    // two sizes, two slots
+    CHECK(&cover_scaled(c, 40, 20, false, 0) == &a);                    // the first size is still there (not made again)
+    CHECK_EQ(a.w, 40);
+    CHECK_EQ(b.w, 20);
+}

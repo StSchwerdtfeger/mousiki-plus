@@ -64,7 +64,28 @@ void App::build_console_screen(std::ostringstream& frame, int W, int target_heig
     const bool two = status_rows >= 2;
     if (!two) { log_rows = std::max(1, target_height - 2); status_rows = 0; }
 
-    auto pane = [&](const std::string& title, const std::vector<std::string>& lines, int rows, int pane_no, const std::string& hint) {
+    // A message longer than the pane is wrapped onto more rows instead of being cut off; the rows after the first are indented to
+    // sit under the text after the "[hh:mm:ss] " time.
+    auto wrapped = [&](const std::vector<std::string>& in) {
+        const int inner = std::max(10, W - 4);
+        std::vector<std::string> out;
+        for (const std::string& s : in) {
+            if (display_width(s) <= inner || s.find('\x1b') != std::string::npos) { out.push_back(s); continue; }
+            size_t ind = 0;
+            if (s.size() > 3 && s[0] == '[') { const size_t c = s.find("] "); if (c != std::string::npos && c <= 12) ind = c + 2; }
+            const std::vector<std::string> first = wrap_lines(s, inner, 40);
+            if (ind == 0 || first.size() < 2 || static_cast<int>(ind) > inner / 2) { for (const std::string& l : first) out.push_back(l); continue; }
+            // the first row as it is, the rest of the text wrapped to the narrower width under it
+            std::string head = first[0];
+            size_t at = head.size();
+            while (at < s.size() && s[at] == ' ') ++at;
+            out.push_back(head);
+            for (const std::string& l : wrap_lines(s.substr(at), inner - static_cast<int>(ind), 40)) out.push_back(std::string(ind, ' ') + l);
+        }
+        return out;
+    };
+    auto pane = [&](const std::string& title, const std::vector<std::string>& lines_in, int rows, int pane_no, const std::string& hint) {
+        const std::vector<std::string> lines = wrapped(lines_in);
         const int total = static_cast<int>(lines.size());
         const int max_up = std::max(0, total - rows);
         int& up = console_up_[pane_no];
@@ -82,7 +103,7 @@ void App::build_console_screen(std::ostringstream& frame, int W, int target_heig
     };
     pane("CONSOLE / LOGS", ConsoleLog::instance().lines(), log_rows, 0,
          two ? "" : "UP/DOWN scroll | HOME / END | [t / ESC] close");   // (with two panes the one legend sits under the second)
-    if (two) pane("STATUS MESSAGES", status_history_, status_rows, 1, "[TAB] other pane | UP/DOWN scroll (SHIFT: page) | HOME / END | [t / ESC] close");
+    if (two) pane("STATUS MESSAGES", status_history_, status_rows, 1, W >= 90 ? "[TAB] other pane | UP/DOWN scroll (SHIFT: page) | HOME / END | [t / ESC] close" : "[TAB] pane | UP/DOWN | HOME/END | [t] close");
 }
 
 // ---------------------------------------------------------------------

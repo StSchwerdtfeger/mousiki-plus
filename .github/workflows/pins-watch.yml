@@ -1,0 +1,44 @@
+# Once a week: downloads every file pinned in packaging/pins.json and scripts/kanji_pins.json again (the FFmpeg, yt-dlp, Python
+# and font downloads of the installers) and compares it with its pinned SHA-256. When a file on a server is no longer the
+# pinned one, a release build would stop on it: ONE issue "Pinned downloads: out of date" is opened (or updated) with the
+# report; when everything matches again it is closed. Fix: run `python packaging/release.py pin`, review the diff, commit.
+name: pins-watch
+
+on:
+  schedule:
+    - cron: "41 4 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09   # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1   # v6
+        with:
+          python-version: "3.12"
+      - name: Download the pinned files and compare
+        id: check
+        run: python packaging/release.py pins-check --work "$RUNNER_TEMP/pins" --out report.md || true
+      - name: Show the report in the run summary
+        run: cat report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STALE: ${{ steps.check.outputs.stale }}
+        run: |
+          TITLE="Pinned downloads: out of date"
+          NUM=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number,title --jq ".[] | select(.title==\"$TITLE\") | .number" | head -n1)
+          if [ "${STALE:-0}" != "0" ]; then
+            if [ -n "$NUM" ]; then
+              gh issue edit "$NUM" --body-file report.md
+            else
+              gh issue create --title "$TITLE" --body-file report.md
+            fi
+          elif [ -n "$NUM" ]; then
+            gh issue close "$NUM" --comment "Every pinned download matches its checksum again."
+          fi

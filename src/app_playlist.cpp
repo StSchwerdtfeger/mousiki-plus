@@ -308,7 +308,7 @@ std::vector<std::string> App::build_playlist_export_panel(int panel_w) const {
     row("", 0);
     {
         const std::string st = truncate_str(playlist_export_status_, inner);
-        row("\x1b[32m" + st + R, display_width(st));
+        row("\x1b[38;5;246m" + st + R, display_width(st));
     }
     {
         const std::string hint = truncate_str("[TAB/\u2191\u2193] Field | [\u2190\u2192] Cursor / format | [ENTER] Export | [ESC] Cancel", inner);
@@ -547,7 +547,7 @@ std::vector<std::string> App::build_playlist_import_panel(int panel_w) const {
     row("", 0);
     {
         const std::string st = truncate_str(playlist_import_status_, inner);
-        row("\x1b[32m" + st + R, display_width(st));
+        row("\x1b[38;5;246m" + st + R, display_width(st));
     }
     {
         const std::string hint = truncate_str(playlist_import_field_ == 0
@@ -1292,7 +1292,7 @@ void App::build_playlist_screen(std::ostringstream& frame, int W, int target_hei
     }
 
     // Footer: a full key legend (gray, "\x1b[90m") plus a status line
-    // (green, "\x1b[32m") below it -- exactly the colors and layout
+    // (green, "\x1b[38;5;246m") below it -- exactly the colors and layout
     // Settings' own footer uses (see build_settings_screen()'s
     // "[TAB] Switch | ... " line and its status_line_ line just below).
     if (playlist_confirm_exit_) {
@@ -1333,7 +1333,7 @@ void App::build_playlist_screen(std::ostringstream& frame, int W, int target_hei
             const auto lrows = layout_legend_tree(groups, W - 1);
             for (size_t i = 0; i < lrows.size(); ++i) frame << " " << paint_legend(settings_, lrows, i, border, 0, true) << "\n";
         }
-        if (!playlist_status_.empty()) frame << "\x1b[32m" << playlist_status_ << "\x1b[0m\n";
+        if (!playlist_status_.empty()) frame << "\x1b[38;5;246m" << playlist_status_ << "\x1b[0m\n";
         else frame << "\n";
     }
 

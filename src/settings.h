@@ -308,8 +308,10 @@ struct Settings : VizPrefs {
     // The sound output for all modes (Settings -> GENERAL -> AUDIO "Choose Audio Device"; config.txt AudioDevice=<name as the system
     // names it>; empty = the system's default device). A device that is not there plays on the default one.
     std::string audio_device;
-    // Mousiki's own terminal font (Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Font; config.txt TerminalFont=): set for
-    // Mousiki's window only, where the terminal allows it (terminal_font.h). "Terminal Default" leaves the terminal's font alone.
+    // The terminal's font in Mousiki's window (terminal_font.h): normally Cascadia Mono. Settings -> GENERAL -> TEXT AND TRANSLITERATION
+    // -> "Terminal Default Font" (TerminalDefaultFont=): true = Mousiki leaves the terminal's own font alone. TerminalFont= (config.txt
+    // only, no settings row) names another font than Cascadia Mono.
+    bool terminal_default_font = false;
     std::string terminal_font = "Cascadia Mono";
     static constexpr double kBookSpeedStep = 0.05;
     // A quiet check for a newer release at start-up (once a day, shown once per version); config.txt: UpdateCheck=true|false.
@@ -346,10 +348,12 @@ struct Settings : VizPrefs {
     int console_verbosity = 0; // 0=basic, 1=verbose
 
     // --- emoji in titles (config.txt: ReplaceEmoji) ----------------------
-    // true  = every emoji is drawn as a single "?" so box borders can never
+    // 2 (true, default) = every emoji is drawn as a single "?" so box borders can never
     //         be shifted by a terminal that measures emoji differently.
-    // false = draw real emoji (alignment then depends on the terminal).
-    bool replace_emoji = true;
+    // 1 (safe) = plain one-codepoint emoji (note, radio, book ...) are kept; the risky ones (joined
+    //         sequences like the black cat, flags, skin tones, VS16 forms, keycaps) become one "?".
+    // 0 (false) = draw real emoji (alignment then depends on the terminal).
+    int emoji_mode = 2;
 
     // --- stereo playback (config.txt: StereoPlayback) -----------------------
     // true  = tracks are decoded and played in stereo (2x the memory per
@@ -578,6 +582,8 @@ Settings load_settings();
 std::string config_stamp_line();
 std::string config_written_by(const std::filesystem::path& p);   // "" when the file has no stamp (older than v4.2.0)
 bool backup_config_if_older(const std::filesystem::path& p);     // true when a .bak was written
+// Writes `text` to "<p>.tmp" and renames it over `p`: a crash or a power cut in the middle never leaves a cut-off file.
+bool write_text_atomic(const std::filesystem::path& p, const std::string& text);
 void save_settings(const Settings& s);
 // One line of config.txt without loading / saving the whole file (the CHOOSE AUDIO DEVICE choice, which every mode writes at once,
 // also from a Settings screen with other changes still unsaved): the value of `key` ("" when missing), and rewriting that line

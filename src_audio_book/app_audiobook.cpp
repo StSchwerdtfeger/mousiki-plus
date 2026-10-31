@@ -13,6 +13,8 @@
 #include "book_cue.h"
 #include "process_util.h"
 #include "console_log.h"
+#include "cover_art.h"   // SizeCache, cover_scaled_rgb()
+#include "cover_colour.h"
 #include <memory>
 #include <algorithm>
 #include <set>
@@ -513,15 +515,39 @@ void quantize_colours(const std::vector<unsigned char>& rgb, const std::vector<u
         if (alpha[i] >= 3) hue[i] = of_bin[(static_cast<size_t>(rgb[i * 3] >> 3) << 10) | (static_cast<size_t>(rgb[i * 3 + 1] >> 3) << 5) | (rgb[i * 3 + 2] >> 3)];
 }
 
+// The book's cover as the music player's CoverImage (the same pixels), so it can use cover_scaled_rgb() for Cover Colors. Made
+// once per cover (two remembered: the open book and the one before).
+const CoverImage& book_cover_image(const CoverData& c) {
+    static std::array<CoverImage, 2> slot;
+    static size_t next = 0;
+    const std::string key = "book|" + c.dir + "|" + std::to_string(c.w) + "x" + std::to_string(c.h);
+    for (CoverImage& ci : slot) if (ci.key == key) return ci;
+    CoverImage& ci = slot[next];
+    next = (next + 1) % slot.size();
+    ci = CoverImage();
+    ci.key = key; ci.dir = c.dir; ci.w = c.w; ci.h = c.h; ci.level = c.level; ci.rgb = c.rgb; ci.alpha = c.alpha; ci.ok = c.ok;
+    return ci;
+}
+
+// Cover Brightness for the book cover with the gradient wave: a brightness curve, 50 % = the picture as it is, 100 % = much brighter
+// (dark parts lifted), 0 % = darker. (The music player's Cover behind Disk looks use it differently: there it lifts the dots.)
+std::array<unsigned char, 256> book_brightness_curve(int brightness) {
+    std::array<unsigned char, 256> lut{};
+    const double gamma = std::pow(2.0, (50 - std::clamp(brightness, 0, 100)) / 50.0);   // 0 % -> 2, 50 % -> 1, 100 % -> 0.5
+    for (int v = 0; v < 256; ++v)
+        lut[static_cast<size_t>(v)] = v == 0 ? 0 : static_cast<unsigned char>(std::clamp(static_cast<int>(std::lround(255.0 * std::pow(v / 255.0, gamma))), 1, 255));
+    return lut;
+}
+
 const BookCoverScaled& scaled_cover(const CoverData& c, int max_w, int max_h, bool colour, int contrast) {
-    static BookCoverScaled cs;
+    static SizeCache<BookCoverScaled, 4> cache;   // (the terminal's and the phone's picture are different sizes: both stay)
     contrast = std::clamp(contrast, 0, 100);
     const std::string key = c.dir + "|" + std::to_string(max_w) + "x" + std::to_string(max_h) + (colour ? "c" : "g") + std::to_string(contrast);
     // more contrast: values move away from the middle (0 % = unchanged, 100 % = 2.5 times the distance from the middle grey)
     const double factor = 1.0 + contrast / 100.0 * 1.5;
     auto punch = [&](unsigned char v) { return static_cast<unsigned char>(std::clamp(static_cast<int>(std::lround((v - 127.5) * factor + 127.5)), 0, 255)); };
-    if (cs.key == key) return cs;
-    cs = BookCoverScaled();
+    if (const BookCoverScaled* hit = cache.find(key)) return *hit;
+    BookCoverScaled& cs = cache.fresh();
     cs.key = key;
     if (!colour) {
         cs.grey = BookArt::scale_grey(c.level, c.w, c.h, max_w, max_h, cs.w, cs.h);
@@ -756,12 +782,16 @@ bool App::book_picture_gfx(int col, int cols, int rows) const {
     }
     const std::vector<unsigned char>& pic = *picp;
     static std::string last_src;
-    const std::string src = cover ? book_dir_ + (direct ? "|c" : "|g") + std::to_string(direct ? 0 : settings_.cover_contrast) : waiting ? std::string("|w") : std::string();
+    const std::string src = cover ? book_dir_ + (direct ? "|c" : "|g") + std::to_string(direct ? 0 : settings_.cover_contrast) + "|" +
+                                        std::to_string(settings_.cover_brightness) + "|" + std::to_string(settings_.cover_colors)
+                                  : waiting ? std::string("|w") : std::string();
     const bool changed_src = src != last_src;
     last_src = src;
     const bool resized = changed_src || g.w != w || g.h != h || g.level.size() != static_cast<size_t>(w) * h || !g.plain || g.id != 0 || g.col != col || g.cols != cols;
+    // Cover Colors with Sixel: a fixed palette, drawn `direct` (see cover_colour.h)
+    const bool six_colours = cover && !direct && settings_.cover_colors > 0 && gfx_proto_ == GfxProto::Sixel;
     g.plain = true;
-    g.direct = direct;
+    g.direct = direct || six_colours;
     g.scale = scale;
     g.out_cw = cw0; g.out_ch = ch0;
     g.cols = cols; g.rows = rows; g.w = w; g.h = h;
@@ -812,13 +842,40 @@ bool App::book_picture_gfx(int col, int cols, int rows) const {
         const double ripple = 0.5 + 0.5 * std::sin(6.283185307179586 * (d * waves - phase));
         hue_of[static_cast<size_t>(k)] = static_cast<uint8_t>(std::lround(std::clamp((1.0 - amount) * d + amount * ripple, 0.0, 1.0) * 255.0));
     }
+    // the book's cover: Cover Brightness (a brightness curve) and Cover Colors (its own colours shine through the gradient)
+    const std::array<unsigned char, 256> curve = book_brightness_curve(cover ? settings_.cover_brightness : 50);
+    const float tcol = cover ? std::clamp(settings_.cover_colors, 0, 100) / 100.f : 0.f;
+    const CoverRgb* crgb = tcol > 0.f ? &cover_scaled_rgb(book_cover_image(*cover), std::max(8, w - 2 * cws), std::max(8, h - 2 * chs), settings_.cover_contrast) : nullptr;
+    if (crgb && (crgb->w != pw || crgb->h != ph)) crgb = nullptr;
+    const auto grad = g.pal;   // the gradient (hue -> colour)
+    if (crgb) g.pal = six_colours ? cube_palette() : hue_sat_palette();
     for (int y = 0; y < ph; ++y)
         for (int x = 0; x < pw; ++x) {
-            const unsigned char v = pic[static_cast<size_t>(y) * pw + x];
-            if (!v) continue;
+            const unsigned char v0 = pic[static_cast<size_t>(y) * pw + x];
+            if (!v0) continue;
+            const unsigned char v = curve[v0];
             const size_t at = static_cast<size_t>(y + oy) * w + x + ox;
-            g.level[at] = v;   // (grey = brightness; the transparent parts of the picture are 0)
-            g.hue[at] = hue_of[static_cast<size_t>(x + y)];
+            const uint8_t hu = hue_of[static_cast<size_t>(x + y)];
+            if (!crgb) {
+                g.level[at] = v;   // (grey = brightness; the transparent parts of the picture are 0)
+                g.hue[at] = hu;
+                continue;
+            }
+            const size_t si = static_cast<size_t>(y) * pw + x;
+            const auto c = mix_colour(grad[hu], v, crgb->rgb[si * 3], crgb->rgb[si * 3 + 1], crgb->rgb[si * 3 + 2], tcol);
+            if (six_colours) {
+                const int ix = cube_index(c[0], c[1], c[2], x + ox, y + oy);
+                if (ix == 0) continue;
+                g.level[at] = 255;
+                g.hue[at] = static_cast<uint8_t>(ix);
+                continue;
+            }
+            uint8_t idx = 0;
+            float lev = 0.f;
+            hue_sat_encode(c[0], c[1], c[2], idx, lev);
+            if (lev < 3.f) continue;
+            g.level[at] = static_cast<unsigned char>(std::min(255.f, lev));
+            g.hue[at] = idx;
         }
     return true;
 }
@@ -908,6 +965,11 @@ std::vector<std::string> App::book_phone_picture(int& cols, int& rows) const {
     // threshold; a cell takes the average colour of the pixels in it (or, with the wave on, the wave's colour as in the standard picture).
     const bool wave = settings_.book_cover_wave;
     const BookCoverScaled& cs = scaled_cover(*cover, cols * 2, rows * 4, !wave, wave ? settings_.cover_contrast : 0);
+    // with the wave: Cover Brightness (a brightness curve) and Cover Colors (the cover's own colours through the gradient)
+    const std::array<unsigned char, 256> curve = book_brightness_curve(wave ? settings_.cover_brightness : 50);
+    const float tcol = wave ? std::clamp(settings_.cover_colors, 0, 100) / 100.f : 0.f;
+    const CoverRgb* crgb = tcol > 0.f ? &cover_scaled_rgb(book_cover_image(*cover), cols * 2, rows * 4, settings_.cover_contrast) : nullptr;
+    if (crgb && (crgb->w != cs.w || crgb->h != cs.h)) crgb = nullptr;
     const int fw = cols * 2, fh = rows * 4;
     const int ox = std::max(0, (fw - cs.w) / 2), oy = std::max(0, (fh - cs.h) / 2);
     int sr = 255, sg = 255, sb = 255, er = 255, eg = 255, eb = 255;
@@ -926,6 +988,7 @@ std::vector<std::string> App::book_phone_picture(int& cols, int& rows) const {
         std::string line, last;
         for (int c = 0; c < cols; ++c) {
             int bits = 0, n = 0, rs = 0, gs = 0, bs = 0;
+            float cr = 0, cg = 0, cb = 0;   // the cover's own colour under the cell (Cover Colors)
             for (int dy = 0; dy < 4; ++dy)
                 for (int dx = 0; dx < 2; ++dx) {
                     const int x = c * 2 + dx - ox, y = r * 4 + dy - oy;
@@ -934,8 +997,10 @@ std::vector<std::string> App::book_phone_picture(int& cols, int& rows) const {
                     int lum, pr, pg, pb;
                     if (wave) {
                         lum = cs.grey[at];
-                        pr = pg = pb = lum;
                         if (lum == 0) continue;
+                        lum = curve[static_cast<size_t>(lum)];
+                        pr = pg = pb = lum;
+                        if (crgb) { cr += crgb->rgb[at * 3]; cg += crgb->rgb[at * 3 + 1]; cb += crgb->rgb[at * 3 + 2]; }
                     } else {
                         if (cs.level[at] < 128) continue;
                         const auto& p = cs.pal[cs.hue[at]];
@@ -953,6 +1018,12 @@ std::vector<std::string> App::book_phone_picture(int& cols, int& rows) const {
                 const double ripple = 0.5 + 0.5 * std::sin(6.283185307179586 * (d * 1.5 - phase));
                 const double v = std::clamp(0.5 * d + 0.5 * ripple, 0.0, 1.0);
                 const double f = std::max(0.25, std::pow(rs / n / 255.0, 1.4));
+                if (crgb) {
+                    const std::array<uint8_t, 3> base = {static_cast<uint8_t>(std::lround(sr + (er - sr) * v)), static_cast<uint8_t>(std::lround(sg + (eg - sg) * v)),
+                                                         static_cast<uint8_t>(std::lround(sb + (eb - sb) * v))};
+                    const auto m = mix_colour(base, static_cast<float>(f * 255.0), cr / n, cg / n, cb / n, tcol);
+                    std::snprintf(col, sizeof col, "\x1b[38;2;%d;%d;%dm", static_cast<int>(m[0] + 0.5f), static_cast<int>(m[1] + 0.5f), static_cast<int>(m[2] + 0.5f));
+                } else
                 std::snprintf(col, sizeof col, "\x1b[38;2;%d;%d;%dm", static_cast<int>((sr + (er - sr) * v) * f + 0.5),
                               static_cast<int>((sg + (eg - sg) * v) * f + 0.5), static_cast<int>((sb + (eb - sb) * v) * f + 0.5));
             } else {
@@ -982,7 +1053,8 @@ const std::string* App::book_phone_png(std::string& key) const {
         if (g_cover_note.empty() || g_cover_note_dir != book_dir_) return nullptr;
     }
     const bool direct = cover && !settings_.book_cover_wave;
-    key = (cover ? book_dir_ + (direct ? "|c" : "|g") + std::to_string(direct ? 0 : settings_.cover_contrast) : std::string("standard")) + "|" + settings_.disk_color + "|" +
+    key = (cover ? book_dir_ + (direct ? "|c" : "|g") + std::to_string(direct ? 0 : settings_.cover_contrast) + "|" + std::to_string(settings_.cover_brightness) + "|" +
+                       std::to_string(settings_.cover_colors) : std::string("standard")) + "|" + settings_.disk_color + "|" +
           (settings_.disk_color_gradient ? settings_.disk_color_end : std::string());
     if (key == cache_key && !cache_png.empty()) return &cache_png;
     int sr = 255, sg = 255, sb = 255, er = 255, eg = 255, eb = 255;
@@ -1001,6 +1073,11 @@ const std::string* App::book_phone_png(std::string& key) const {
         lv = &BookArt::picture(640, 640, pw, ph);
     }
     if (pw <= 0 || ph <= 0 || lv->size() < static_cast<size_t>(pw) * ph) return nullptr;
+    // the cover with the wave: Cover Brightness / Cover Colors as on the computer
+    const std::array<unsigned char, 256> curve = book_brightness_curve(cover && !direct ? settings_.cover_brightness : 50);
+    const float tcol = cover && !direct ? std::clamp(settings_.cover_colors, 0, 100) / 100.f : 0.f;
+    const CoverRgb* crgb = tcol > 0.f ? &cover_scaled_rgb(book_cover_image(*cover), 640, 640, settings_.cover_contrast) : nullptr;
+    if (crgb && (crgb->w != pw || crgb->h != ph)) crgb = nullptr;
     std::vector<unsigned char> rgba(static_cast<size_t>(pw) * ph * 4, 0);
     for (int y = 0; y < ph; ++y)
         for (int x = 0; x < pw; ++x) {
@@ -1016,8 +1093,12 @@ const std::string* App::book_phone_png(std::string& key) const {
                 o[0] = static_cast<unsigned char>(std::lround(sr + (er - sr) * d));
                 o[1] = static_cast<unsigned char>(std::lround(sg + (eg - sg) * d));
                 o[2] = static_cast<unsigned char>(std::lround(sb + (eb - sb) * d));
+                if (crgb) {
+                    const auto m = mix_colour({o[0], o[1], o[2]}, 255.f, crgb->rgb[i * 3], crgb->rgb[i * 3 + 1], crgb->rgb[i * 3 + 2], tcol);
+                    o[0] = static_cast<unsigned char>(m[0] + 0.5f); o[1] = static_cast<unsigned char>(m[1] + 0.5f); o[2] = static_cast<unsigned char>(m[2] + 0.5f);
+                }
             }
-            o[3] = a;
+            o[3] = direct ? a : curve[a];
         }
     size_t n = 0;
     void* p = tdefl_write_image_to_png_file_in_memory(rgba.data(), pw, ph, 4, &n);

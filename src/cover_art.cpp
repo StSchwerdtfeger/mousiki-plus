@@ -1,13 +1,14 @@
 // Album covers: finds the best picture for a track (inside the file or a close-named picture in its
 // folder), decodes it with ffmpeg, quantises the colours and scales it to the disk's place.
-#include <set>
 #include "cover_art.h"
+#include <set>
 #include "book_art.h"
 #include "cover_store.h"
 #include "console_log.h"
 #include "path_utf8.h"
 #include "process_util.h"
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <chrono>
 #include <cmath>
@@ -66,15 +67,16 @@ void quantize_colours(const std::vector<unsigned char>& rgb, const std::vector<u
         if (alpha[i] >= 3) hue[i] = of_bin[(static_cast<size_t>(rgb[i * 3] >> 3) << 10) | (static_cast<size_t>(rgb[i * 3 + 1] >> 3) << 5) | (rgb[i * 3 + 2] >> 3)];
 }
 
+
 const CoverScaled& cover_scaled(const CoverImage& c, int max_w, int max_h, bool colour, int contrast) {
-    static CoverScaled cs;
+    static SizeCache<CoverScaled, 4> cache;
     contrast = std::clamp(contrast, 0, 100);
     const std::string key = c.key + "|" + std::to_string(max_w) + "x" + std::to_string(max_h) + (colour ? "c" : "g") + std::to_string(contrast);
     // more contrast: values move away from the middle (0 % = unchanged, 100 % = 2.5 times the distance from the middle grey)
     const double factor = 1.0 + contrast / 100.0 * 1.5;
     auto punch = [&](unsigned char v) { return static_cast<unsigned char>(std::clamp(static_cast<int>(std::lround((v - 127.5) * factor + 127.5)), 0, 255)); };
-    if (cs.key == key) return cs;
-    cs = CoverScaled();
+    if (const CoverScaled* hit = cache.find(key)) return *hit;
+    CoverScaled& cs = cache.fresh();
     cs.key = key;
     if (!colour) {
         cs.grey = BookArt::scale_grey(c.level, c.w, c.h, max_w, max_h, cs.w, cs.h);
@@ -102,12 +104,12 @@ const CoverScaled& cover_scaled(const CoverImage& c, int max_w, int max_h, bool 
 }
 
 const CoverRgb& cover_scaled_rgb(const CoverImage& c, int max_w, int max_h, int contrast) {
-    static CoverRgb cs;
+    static SizeCache<CoverRgb, 3> cache;
     contrast = std::clamp(contrast, 0, 100);
     const std::string key = c.key + "|" + std::to_string(max_w) + "x" + std::to_string(max_h) + "|" + std::to_string(contrast);
-    if (cs.key == key) return cs;
+    if (const CoverRgb* hit = cache.find(key)) return *hit;
     const double factor = 1.0 + contrast / 100.0 * 1.5;
-    cs = CoverRgb();
+    CoverRgb& cs = cache.fresh();
     cs.key = key;
     const size_t n = static_cast<size_t>(c.w) * c.h;
     int ow = 0, oh = 0;

@@ -582,7 +582,7 @@ App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(sh
     if (audiobook_) history_.set_file_name("reading_history.json");   // the reading history is a file of its own
     history_.set_dir(settings_.history_path);
     history_.load(); // listening history: a missing/corrupt file is not fatal (see HistoryStore::load)
-    set_emoji_replacement(settings_.replace_emoji);
+    set_emoji_mode(settings_.emoji_mode);
     player_.set_stereo(settings_.stereo);
     player_.set_device(settings_.audio_device);   // the sound output (Settings -> GENERAL -> AUDIO "Choose Audio Device")
     adev_applied_ = settings_.audio_device;
@@ -1056,6 +1056,20 @@ int App::run() {
         poll_pending_search();
         poll_pending_load();
         poll_pending_waveform();
+        // A file that gave no length plays in the windowed buffer; its length is known once the decoder or the analysis pass
+        // has been through it: from then on the time and the progress bar show it.
+        if (current_pcm_ && total_sec_ == 0 && current_pcm_->windowed) {
+            const size_t tf = current_pcm_->total_frames.load(std::memory_order_acquire);
+            if (tf > 0) total_sec_ = tf / static_cast<size_t>(std::max(1, current_pcm_->sample_rate));
+        }
+        // A length that is far too short: the buffer holds the length + 25 %; whatever is longer is cut off. Not silently:
+        if (current_pcm_ && current_pcm_.get() != pcm_cut_noted_ && current_pcm_->capacity_exceeded.load(std::memory_order_relaxed)) {
+            pcm_cut_noted_ = current_pcm_.get();
+            const int mins = static_cast<int>(current_pcm_->capacity_frames() / static_cast<size_t>(std::max(1, current_pcm_->sample_rate)) / 60);
+            status_line_ = "this track is longer than its file says: only its first " + std::to_string(std::max(1, mins)) +
+                           " minutes play -- converting it (e.g. ffmpeg -i in.ext out.mp3) fixes that";
+            ConsoleLog::instance().log_basic("audio: " + status_line_);
+        }
         poll_pending_bulk_add();
         poll_pending_atp();
         poll_pending_row_meta_tags();
@@ -1152,8 +1166,10 @@ int App::run() {
         const bool sp_img = main_frame && spectro_area_[0] >= 0 && sp_proto != 0 && !list_overlay_active() && !queue_overlay_active();
         const bool sp_creator = sp_img && creator_show_;   // the creator's preview has its own spectrogram, settings and picture
         if (!spectro_used_ || !main_frame) spectro().set_visible(false);
-        if (frame_str.find("\x1b[2J") != std::string::npos) { spectro_gfx_.invalidate(); creator_spectro_gfx_.invalidate(); }
-        const bool sixel_on = (gfx_ok_ && gfx_proto_ == GfxProto::Sixel && gfx_.active && gfx_.crop < gfx_.cols) || (sp_img && sp_proto == 2);
+        // the Settings preview box: its spectrogram is a picture too (settings_preview.cpp)
+        const bool pv_img = (mode_ == Mode::Settings || mode_ == Mode::ColorEdit) && pv_spectro_area_[0] >= 0 && sp_proto != 0 && settings_preview_spectro();
+        if (frame_str.find("\x1b[2J") != std::string::npos) { spectro_gfx_.invalidate(); creator_spectro_gfx_.invalidate(); pv_spectro_gfx_.invalidate(); }
+        const bool sixel_on = (gfx_ok_ && gfx_proto_ == GfxProto::Sixel && gfx_.active && gfx_.crop < gfx_.cols) || (sp_img && sp_proto == 2) || (pv_img && sp_proto == 2);
         if (sixel_on && (!gfx_shown || frame_str.find("\x1b[2J") != std::string::npos)) { gfx_.fresh = true; gfx2_.fresh = true; }
         const auto frame_now = std::chrono::steady_clock::now();
         std::string wire;   // ONE write per frame (text + picture): two writes let the terminal paint in between = flicker
@@ -1214,6 +1230,12 @@ int App::run() {
             } else if (gfx_shown) {
                 wire += gfx_clear(gfx_proto_);
                 gfx_shown = false;
+                // Sixel has no delete: the picture stays until its cells are written over, and a line diff that finds the cells
+                // unchanged (spaces before, spaces now -- the Settings cover preview) never rewrites them. Send the next frame whole.
+                if (gfx_proto_ == GfxProto::Sixel) {
+                    last_frame_str.clear();
+                    prev_lines.clear();
+                }
             }
             if (gfx_proto_ == GfxProto::None) gfx_shown = false;
             // the overlay's second picture (the XY box) goes with the first one
@@ -1248,6 +1270,14 @@ int App::run() {
             if (spectro_gfx_.shown()) wire = spectro_gfx_.clear(sp_proto) + wire;   // before the new screen's text
             if (creator_spectro_gfx_.shown()) wire = creator_spectro_gfx_.clear(sp_proto) + wire;
         }
+        if (pv_img) {
+            int cw = 10, chh = 20;
+            gfx_cell_pixels(settings_.cell_pixels, cw, chh);
+            wire += pv_spectro_gfx_.emit(sp_proto, pv_spectro_set_, *settings_preview_spectro(), pv_spectro_area_[0], pv_spectro_area_[1], pv_spectro_area_[2], pv_spectro_area_[3],
+                                         cw, chh, true, 0, 0, 0, 0);
+        } else if (pv_spectro_gfx_.shown()) {
+            wire = pv_spectro_gfx_.clear(sp_proto) + wire;
+        }
         if (!wire.empty()) write_frame(wire);
         // 25fps (was 12.5fps) — the 700ms waveform reveal animation only
         // got ~9 frames to work with at the old 80ms cadence, which
@@ -1263,6 +1293,7 @@ int App::run() {
     if (gfx2_shown_) { write_frame(gfx_clear(gfx_proto_, 1)); gfx2_shown_ = false; }
     if (spectro_gfx_.shown()) write_frame(spectro_gfx_.clear(gfx_proto_ == GfxProto::Kitty ? 1 : 2));
     if (creator_spectro_gfx_.shown()) write_frame(creator_spectro_gfx_.clear(gfx_proto_ == GfxProto::Kitty ? 1 : 2));
+    if (pv_spectro_gfx_.shown()) write_frame(pv_spectro_gfx_.clear(gfx_proto_ == GfxProto::Kitty ? 1 : 2));
     if (switch_mode_) {
         // Switching to the radio: the player is only SUSPENDED (kept in memory, so coming back is instant and shows
         // the very same screen). Playback is paused, the terminal is handed over without a flash of the shell.

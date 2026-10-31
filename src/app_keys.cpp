@@ -350,6 +350,7 @@ void App::handle_key(int key) {
             { std::lock_guard<std::mutex> lk(lyrics_mutex_); d = lyrics_result_.delay; }
             char num[24];
             std::snprintf(num, sizeof num, "%+.1f s", d);
+            if (lyrics_edit_from_reader_) rd_delay_ = d;   // (the reader's lines keep the new offset)
             if (save_lyrics_delay(lyrics_path_, d)) status_line_ = std::string("lyrics timing saved: ") + num;
             else status_line_ = std::string("lyrics timing ") + num + " applied, but could not be saved (no lyrics file for this track)";
             lyrics_edit_close();
@@ -831,6 +832,8 @@ void App::handle_key(int key) {
         }
     } else if (action == "HKeyLyricsTiming") {   // lyrics timing overlay
         lyrics_edit_open();
+    } else if (action == "HKeyStyleOptions") {   // SHIFT+s: the Style Option overlay of the playing track
+        meta_open_style_playing();
     } else if (action == "HKeyCoverFetch") {     // ALT+c: fetch album covers (MusicBrainz / Cover Art Archive)
         if (audiobook_) status_line_ = "cover fetch: music player only";
         else cf_open();

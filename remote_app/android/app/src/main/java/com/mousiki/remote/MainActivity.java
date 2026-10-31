@@ -266,7 +266,7 @@ public class MainActivity extends Activity {
         return out;
     }
 
-    // Mousiki's /api/hello answers JSON -- with a wrong PIN too ({"error":"wrong PIN"}), which is enough to recognise it.
+    // Mousiki's /api/hello answers {"ok":true,...} without the PIN too (it does not count as a wrong PIN); older versions answered {"error":"wrong PIN"}.
     private static boolean isMousiki(String host, int port) {
         HttpURLConnection c = null;
         try {

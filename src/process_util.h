@@ -26,6 +26,11 @@ ProcResult run_capture(const Args& args, bool merge_stderr = false);
 // so the line can be read back). It is never run.
 std::string command_text(const Args& args);
 
+// Windows only uses it, but it is plain text work (tested on every platform): `arg` quoted for a .cmd / .bat program, which
+// cmd.exe reads first ("BatBadBut": no breaking out with a quote, no %NAME% expansion). false: a line break, which cannot be
+// passed through cmd.exe at all.
+bool quote_arg_for_cmd(const std::string& arg, std::string& out);
+
 // The Python 3 interpreter as an argument list ("python3", or on Windows "py -3" or a full path). Empty when Python
 // is not installed (Windows only; elsewhere the name is always returned and a missing binary shows up at spawn time).
 Args python_command();

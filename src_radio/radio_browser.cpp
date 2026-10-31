@@ -267,7 +267,7 @@ std::vector<BrowseStation> parse_browse_json(const std::string& json, bool* ok) 
         b.name = jstr(o, "name");
         b.url = jstr(o, "url");
         b.url_resolved = jstr(o, "url_resolved");
-        if (b.name.empty() || b.stream_url().empty()) continue;
+        if (b.name.empty() || !Station::web_url(b.stream_url())) continue;   // only http(s) streams (see Station::web_url)
         b.homepage = jstr(o, "homepage");
         b.tags = jstr(o, "tags");
         b.country = jstr(o, "country");

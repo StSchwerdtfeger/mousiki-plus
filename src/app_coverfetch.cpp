@@ -1069,7 +1069,7 @@ void App::build_cf_screen(std::ostringstream& frame, int W, int target_height) c
         std::lock_guard<std::mutex> lk(cf_mutex_);
         status = cf_fetch_progress_;
     }
-    if (!status.empty()) frame << "\x1b[32m" << truncate_str(status, W) << "\x1b[0m\n";
+    if (!status.empty()) frame << "\x1b[38;5;246m" << truncate_str(status, W) << "\x1b[0m\n";
     else frame << "\n";
 }
 

@@ -1,5 +1,4 @@
-// Mousiki's own terminal font (Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Font; config.txt TerminalFont=, default
-// "Cascadia Mono"). The disk and the pictures are braille characters: with a font that has full braille dots they look like the
+// Mousiki's own terminal font: always Cascadia Mono (not a setting). The disk and the pictures are braille characters: with a font that has full braille dots they look like the
 // screenshots, with one that has none the terminal borrows them from another font and they turn into scattered dots.
 //
 // The font belongs to the terminal, not to the program in it, so Mousiki can only set it where the terminal offers a way, and
@@ -39,7 +38,13 @@ std::string last_note();
 
 // ---- helpers (exposed for the tests) -------------------------------------------------------------------------------------
 std::vector<std::string> parse_fc_list(const std::string& fc_list_output);                 // "Fam A,Fam A Loc\nFam B\n" -> {"Fam A","Fam B"}
-std::string wt_fragment_json(const std::string& font, const std::string& commandline, const std::string& icon);
+// The GUID Windows Terminal gives a profile of a fragment (a version 5 UUID: the fragment's folder name, then the profile's name, both as UTF-16LE),
+// as "{xxxxxxxx-xxxx-5xxx-xxxx-xxxxxxxxxxxx}" in lower case. A tab of Windows Terminal says which profile it runs in WT_PROFILE_ID.
+std::string wt_fragment_profile_guid(const std::string& fragment, const std::string& profile);
+inline constexpr const char* kWtSchemeName = "Mousiki Retrowave";
+// The fragment of the profile "Mousiki": its font (none = the terminal's), and the colour scheme "Mousiki Retrowave" (black background, grey
+// for ANSI green) that is part of the same fragment.
+std::string wt_fragment_json(const std::string& font, const std::string& commandline, const std::string& icon, bool retrowave = true);
 std::string iterm_profile_json(const std::string& postscript_font, int size, const std::string& parent_profile);
 std::string guess_postscript_name(const std::string& family);                              // "Cascadia Mono" -> "CascadiaMono-Regular"
 

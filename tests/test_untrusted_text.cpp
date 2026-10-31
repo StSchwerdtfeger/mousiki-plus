@@ -37,3 +37,20 @@ TEST(clean_tag_text_removes_escape_sequences_starters) {
     CHECK(!has_control(t));
     CHECK(t.find("Artist") == 0);
 }
+
+TEST(radio_browser_keeps_only_web_streams) {
+    // anyone can add a station: a file: path, a device or an ffmpeg option in place of the stream address is dropped
+    const std::string json =
+        "[{\"name\":\"Web\",\"url\":\"HTTPS://example.com/s\"},"
+        "{\"name\":\"File\",\"url\":\"file:///etc/passwd\"},"
+        "{\"name\":\"Option\",\"url\":\"-f lavfi\"},"
+        "{\"name\":\"Resolved\",\"url\":\"http://a/\",\"url_resolved\":\"concat:/x|/y\"}]";
+    bool ok = false;
+    const std::vector<BrowseStation> v = parse_browse_json(json, &ok);
+    CHECK(ok);
+    CHECK_EQ(v.size(), static_cast<size_t>(1));
+    if (!v.empty()) CHECK_EQ(v[0].name, std::string("Web"));
+    CHECK(Station::web_url("http://x"));
+    CHECK(!Station::web_url("httpx://x"));
+    CHECK(!Station::web_url("http:"));
+}

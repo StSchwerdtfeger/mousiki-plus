@@ -16,6 +16,7 @@
 #include "picture_formats.h"
 #include "process_util.h"
 #include "tiny_json.h"
+#include "settings.h"   // write_text_atomic()
 #if defined(_WIN32)
 #include "win_compat.h"
 #endif
@@ -101,6 +102,8 @@ struct Choices {
     std::map<std::string, std::string> track, album;   // track path -> choice, album key -> choice
     std::map<std::string, std::string> fetched;         // album key -> "epoch|what MusicBrainz matched" (successful fetches)
     std::map<std::string, std::string> failed;          // album key -> why the last fetch found nothing
+    std::map<std::string, std::string> look;            // album key (or "dir:<folder>") -> the cover look of that album ("0".."7")
+    std::map<std::string, std::string> style;           // track path -> "look,contrast,brightness,colors" (-1 = as in Settings)
     std::atomic<unsigned> revision{1};
 };
 
@@ -116,7 +119,7 @@ fs::path choices_file() {
 }
 
 // Reads choices.txt once (later calls return at once). Each line is a tab-separated record with a one-letter tag:
-// T = track path -> choice, A = album key -> choice, R = successful fetch, F = failed fetch. Lines with a bad layout or an unknown tag are skipped.
+// T = track path -> choice, A = album key -> choice, R = successful fetch, F = failed fetch, L = look of an album, S = style of a track. Lines with a bad layout or an unknown tag are skipped.
 void load_locked(Choices& c) {
     if (c.loaded) return;
     c.loaded = true;
@@ -133,6 +136,8 @@ void load_locked(Choices& c) {
         else if (line[0] == 'A') c.album[key] = val;
         else if (line[0] == 'F') c.failed[key] = val;
         else if (line[0] == 'R') c.fetched[key] = val;
+        else if (line[0] == 'L') c.look[key] = val;
+        else if (line[0] == 'S') c.style[key] = val;
     }
 }
 
@@ -141,11 +146,14 @@ void save_locked(Choices& c) {
     const fs::path p = choices_file();
     std::error_code ec;
     fs::create_directories(p.parent_path(), ec);   // errors are ignored here; if the folder could not be created, the write below simply fails
-    std::ofstream out(p, std::ios::binary | std::ios::trunc);
+    std::ostringstream out;
     for (const auto& kv : c.track) out << "T\t" << kv.first << "\t" << kv.second << "\n";
     for (const auto& kv : c.album) out << "A\t" << kv.first << "\t" << kv.second << "\n";
     for (const auto& kv : c.fetched) out << "R\t" << kv.first << "\t" << kv.second << "\n";
     for (const auto& kv : c.failed) out << "F\t" << kv.first << "\t" << kv.second << "\n";
+    for (const auto& kv : c.look) out << "L\t" << kv.first << "\t" << kv.second << "\n";
+    for (const auto& kv : c.style) out << "S\t" << kv.first << "\t" << kv.second << "\n";
+    write_text_atomic(p, out.str());   // (never a cut-off file: every choice is in it)
 }
 
 } // namespace
@@ -173,6 +181,72 @@ void mark_cover_fetched(const std::string& album, const std::string& info) {
     for (char& ch : t) if (ch == '\t' || ch == '\n' || ch == '\r') ch = ' ';
     c.fetched[key] = std::to_string(static_cast<long long>(std::time(nullptr))) + "|" + t;
     save_locked(c);
+}
+
+namespace {
+// An album's key for its look: the album name (as for the album's picture); a track without an album tag: its folder.
+std::string look_key(const std::string& album, const std::string& folder) {
+    const std::string a = album == "-" ? std::string() : album;
+    const std::string k = cover_name_key(a);
+    return k.empty() ? (folder.empty() ? std::string() : "dir:" + folder) : k;
+}
+}  // namespace
+
+int cover_album_look(const std::string& album, const std::string& folder) {
+    const std::string key = look_key(album, folder);
+    if (key.empty()) return -1;
+    Choices& c = choices();
+    std::lock_guard<std::mutex> lk(c.mu);
+    load_locked(c);
+    const auto it = c.look.find(key);
+    if (it == c.look.end()) return -1;
+    const int v = std::atoi(it->second.c_str());
+    return v >= 0 && v <= kCoverLookCount - 1 ? v : -1;
+}
+
+void set_cover_album_look(const std::string& album, const std::string& folder, int look) {
+    const std::string key = look_key(album, folder);
+    if (key.empty()) return;
+    Choices& c = choices();
+    {
+        std::lock_guard<std::mutex> lk(c.mu);
+        load_locked(c);
+        if (look < 0 || look >= kCoverLookCount) c.look.erase(key); else c.look[key] = std::to_string(look);
+        save_locked(c);
+    }
+    cover_store_touch();
+}
+
+CoverStyle cover_track_style(const std::string& track_path) {
+    CoverStyle st;
+    if (track_path.empty()) return st;
+    Choices& c = choices();
+    std::lock_guard<std::mutex> lk(c.mu);
+    load_locked(c);
+    const auto it = c.style.find(track_path);
+    if (it == c.style.end()) return st;
+    int v[4] = {-1, -1, -1, -1};
+    std::istringstream in(it->second);
+    std::string part;
+    for (int i = 0; i < 4 && std::getline(in, part, ','); ++i) v[i] = std::atoi(part.c_str());
+    st.look = v[0] >= 0 && v[0] < kCoverLookCount ? v[0] : -1;
+    st.contrast = v[1] >= 0 && v[1] <= 100 ? v[1] : -1;
+    st.brightness = v[2] >= 0 && v[2] <= 100 ? v[2] : -1;
+    st.colors = v[3] >= 0 && v[3] <= 100 ? v[3] : -1;
+    return st;
+}
+
+void set_cover_track_style(const std::string& track_path, const CoverStyle& st) {
+    if (track_path.empty()) return;
+    Choices& c = choices();
+    {
+        std::lock_guard<std::mutex> lk(c.mu);
+        load_locked(c);
+        if (st.look < 0 && st.contrast < 0 && st.brightness < 0 && st.colors < 0) c.style.erase(track_path);
+        else c.style[track_path] = std::to_string(st.look) + "," + std::to_string(st.contrast) + "," + std::to_string(st.brightness) + "," + std::to_string(st.colors);
+        save_locked(c);
+    }
+    cover_store_touch();
 }
 
 std::string cover_fetch_failure(const std::string& album) {

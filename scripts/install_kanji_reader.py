@@ -22,7 +22,7 @@ import sysconfig
 import urllib.request
 import zipfile
 
-WANT = ["pykakasi"]
+WANT = ["pykakasi", "janome"]   # pykakasi reads the kanji; janome (Apache-2.0, with its own dictionary) cuts Japanese into words, for the spaces
 UA = {"User-Agent": "mousiki-kanji-installer"}
 
 

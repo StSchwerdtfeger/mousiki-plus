@@ -258,12 +258,12 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
                                      std::string(static_cast<size_t>(std::max(0, disk_w - left - art_w)), ' '));
             else disk_frame.emplace_back(std::string(static_cast<size_t>(disk_w), ' '));
         }
-    } else if (settings_.element_disk && !audiobook_ && settings_.album_cover && album_cover_gfx(2, disk_w, panel_h)) {
+    } else if (settings_.element_disk && !audiobook_ && eff_album_cover() && album_cover_gfx(2, disk_w, panel_h)) {
         // Album Cover: the cover of the playing track is a pixel image in the disk's place (it uses the picture slot gfx_, so the
         // oscilloscope image goes into the second slot gfx2_)
         cover_pic_img = true;
         for (int i = 0; i < panel_h; ++i) disk_frame.push_back(gfx_hole(disk_w));
-    } else if (settings_.element_disk && !audiobook_ && settings_.album_cover && (gfx_proto_ == GfxProto::None || settings_.cover_mode >= 5) &&
+    } else if (settings_.element_disk && !audiobook_ && eff_album_cover() && (gfx_proto_ == GfxProto::None || eff_cover_mode() >= 5) &&
                !(disk_frame = album_cover_lines(disk_w, panel_h)).empty()) {
         // (no Kitty / Sixel: the cover in braille dots)
     } else if (settings_.element_disk) {

@@ -90,6 +90,7 @@ std::filesystem::path locate_script(const std::string& filename);
 void theme_apply(Settings& s, const themes::Theme& t);   // sets the colours of a theme (app_settings.cpp)
 
 // Hotkey strings (defined in app.cpp, used by the Settings screen)
+const char* cover_look_name(int look);               // 0 "Disk (no cover)", 1..7 the Cover Modes (app_cover.cpp)
 std::string combo_key_name(int key);                  // "" when `key` is not a bindable combination
 std::string normalize_hotkey_string(std::string s);   // what was typed into a key field, cleaned up
 
