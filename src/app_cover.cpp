@@ -176,7 +176,9 @@ bool App::album_cover_gfx(int col, int cols, int rows) const {
     const bool resized = key != cover_pic_key_ || !g.plain || g.w != w || g.h != h || g.level.size() != static_cast<size_t>(w) * h || g.id != 0 ||
                          g.col != col || g.cols != cols;
     const auto gap = std::chrono::milliseconds(gfx_proto_ == GfxProto::Sixel ? 110 : 40);
-    const bool turning = mode >= 1;   // (the gradient wave of mode 1 moves too)
+    // (the gradient wave of mode 1 moves too). Under the Style Option overlay (SHIFT+s on the main screen) the picture of the main screen
+    // stands still: the preview in the panel is the one that moves, and two pictures re-sent all the time flicker in a Sixel / Kitty terminal.
+    const bool turning = mode >= 1 && !(mode_ == Mode::MetaEdit && meta_sty_from_main_);
     const bool due = resized || (turning && now - cover_pic_at_ >= gap);
     g.plain = true;
     g.direct = mode == 0 || cover_sixel_colours(mode);

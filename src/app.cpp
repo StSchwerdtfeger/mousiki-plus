@@ -1151,6 +1151,28 @@ int App::run() {
             std::this_thread::sleep_for(std::chrono::milliseconds(40));
             continue;
         }
+        // The Style Option overlay opened from the main screen (SHIFT+s): the main screen behind it stands still. Its disk and
+        // visualizations would change lines every frame, and each of those line writes lands next to the preview picture (Sixel
+        // replaces the cells under it): the picture then flickers. Only the panel (and its preview picture) is live.
+        bool sty_frozen = false;
+        {
+            static std::string frozen_body;
+            static int frozen_cols = -1, frozen_rows = -1;
+            const bool freeze = mode_ == Mode::MetaEdit && meta_sty_from_main_ && frame_main_len_ != std::string::npos && frame_main_len_ <= frame_str.size();
+            // (the look chosen in the panel is shown behind it at once: the frozen screen is taken again when the look changes)
+            const std::string look_sig = std::to_string(eff_cover_mode()) + "|" + std::to_string(eff_cover_contrast()) + "|" + std::to_string(eff_cover_brightness()) + "|" +
+                                         std::to_string(eff_cover_colors()) + "|" + (settings_.album_cover ? "a" : "d");
+            static std::string frozen_sig;
+            if (freeze && (frozen_body.empty() || frozen_cols != term.cols() || frozen_rows != term.rows() || frozen_sig != look_sig)) {
+                frozen_body = frame_str.substr(0, frame_main_len_);
+                frozen_cols = term.cols(); frozen_rows = term.rows();
+                frozen_sig = look_sig;
+            } else if (freeze) {
+                sty_frozen = true;
+                frame_str = frozen_body + frame_str.substr(frame_main_len_);
+                frame_main_len_ = frozen_body.size();
+            } else frozen_body.clear();
+        }
         // Static screens (menus, settings, a paused player) produce the very
         // same bytes frame after frame; sending them again only gives the
         // terminal something to repaint. Skip identical frames, but still
@@ -1173,7 +1195,8 @@ int App::run() {
         if (sixel_on && (!gfx_shown || frame_str.find("\x1b[2J") != std::string::npos)) { gfx_.fresh = true; gfx2_.fresh = true; }
         const auto frame_now = std::chrono::steady_clock::now();
         std::string wire;   // ONE write per frame (text + picture): two writes let the terminal paint in between = flicker
-        const bool heal = frame_now - last_frame_written_at > std::chrono::seconds(2);
+        // (no heal frame under the frozen Style Option overlay: the whole screen written again every two seconds makes the picture blink)
+        const bool heal = !sty_frozen && frame_now - last_frame_written_at > std::chrono::seconds(2);
         if (frame_str != last_frame_str || heal) {
             // The main screen: only the lines that changed (at 120 / 165 fps the whole screen every frame would be
             // megabytes per second for the terminal). Full frames: every 2 s, after a clear, or when an overlay changed.
@@ -1200,11 +1223,15 @@ int App::run() {
                 }
                 wire = frame_str;
             }
+            // Style Option overlay: a whole frame (another row selected) writes the screen's text again, also in the picture's cells
+            // (Sixel shows that text until the picture is sent): the pictures go out again in this same write.
+            if (sty_frozen && sixel_on && !diffed) { gfx_.fresh = true; if (gfx2_.active) gfx2_.fresh = true; }
             // A floating panel (a question, the "<" menu, a small overlay) came or went: the text it left over the picture's cells
             // must be wiped. Sixel keeps its picture only while the cells are skipped, so then the cells are written as spaces and
             // the picture is sent again in the same write (nothing shows in between).
-            const bool floating_changed = floating != last_floating;
-            if (sixel_on && floating_changed && gfx_.active) gfx_.fresh = true;
+            // (under the Style Option overlay a change inside the panel -- another row selected -- leaves the picture's cells as they are)
+            const bool floating_changed = floating != last_floating && !(sty_frozen && !floating.empty() && !last_floating.empty());
+            if (sixel_on && floating_changed && gfx_.active) { gfx_.fresh = true; if (gfx2_.active) gfx2_.fresh = true; }   // (the second picture's cells are blanked too: it goes out again in the same write)
             last_floating = floating;
             last_frame_str = std::move(frame_str);
             last_frame_written_at = frame_now;

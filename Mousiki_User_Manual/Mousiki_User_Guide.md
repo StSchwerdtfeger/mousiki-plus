@@ -1,4 +1,4 @@
-# Mousiki User Guide v4.7.1 (Windows · Linux · macOS) – music player, radio and audio book player
+# Mousiki User Guide v4.8.0 (Windows · Linux · macOS) – music player, radio and audio book player
 
 ## Welcome: a quick tour
 
@@ -165,7 +165,7 @@ The key shown for each command is the **default binding**. Your own bindings may
 - **[15. Upgrades and your settings](#15-upgrades-and-your-settings)**
 - **[About this app](#about-this-app)**
   - [Original developer of v1.0](#original-developer-of-v10)
-  - [Windows port, incl. extensive modifications up to v4.7.1 (including the radio and audio book modes)](#windows-port-incl-extensive-modifications-up-to-v471-including-the-radio-and-audio-book-modes)
+  - [Windows port, incl. extensive modifications up to v4.8.0 (including the radio and audio book modes)](#windows-port-incl-extensive-modifications-up-to-v480-including-the-radio-and-audio-book-modes)
   - [Third-party software and licences](#third-party-software-and-licences)
   
 ---
@@ -2518,12 +2518,12 @@ Installing a new version never deletes your settings (`config.txt`, `radio_confi
 | **Email** | itz.ender5820@gmail.com | **Version** | original and final v1.0 |
 | | | **Licence** | Apache Licence 2.0 |
 
-### Windows port, incl. extensive modifications up to v4.7.1 (including the radio and audio book modes)
+### Windows port, incl. extensive modifications up to v4.8.0 (including the radio and audio book modes)
 
 | | | | |
 |---|---|---|---|
 | **Developer** | Steffen Schwerdtfeger | **GitHub** | [StSchwerdtfeger](https://github.com/StSchwerdtfeger) |
-| **Email** | fanti.blub@gmail.com | **Version** | current v4.7.1 |
+| **Email** | fanti.blub@gmail.com | **Version** | current v4.8.0 |
 | | | **Licence** | Apache Licence 2.0 |
 
 ### Third-party software and licences

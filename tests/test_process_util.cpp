@@ -38,7 +38,10 @@ TEST(cmd_round_trip_through_a_real_cmd_exe) {
     {
         std::ofstream f(shim);
         f << "@";
-        for (const std::string& a : py) f << "\"" << a << "\" ";
+        for (size_t i = 0; i < py.size(); ++i) {   // (only the program is quoted: the py launcher does not read a quoted "-3" as its option)
+            if (i == 0) f << "\"" << py[i] << "\" ";
+            else f << py[i] << " ";
+        }
         f << "-c \"import sys, json; print(json.dumps(sys.argv[1:]))\" %*\r\n";
     }
     const std::vector<std::string> sent = {"plain", "two words", "a \"quoted\" word", "x\" & echo PWNED & \"", "%PATH%",

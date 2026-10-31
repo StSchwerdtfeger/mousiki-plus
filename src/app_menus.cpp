@@ -618,7 +618,12 @@ constexpr const char* kLyricsTimingKey = "ALT+L";
 constexpr const char* kCoverFetchKey = "ALT+C";
 #endif
 struct MenuIdxEntry { const char* cat; const char* title; const char* action; const char* fallback; };
+// (SYSTEM first: it is the top left corner of the index)
 const MenuIdxEntry kMenuIdxPlayer[] = {
+    {"SYSTEM",           "Settings",                  "HKeySetting",        "s"},
+    {"SYSTEM",           "Console / logs / status",   "HKeyConsole",        "t"},
+    {"SYSTEM",           "Help wizard",               "HKeyWizard",         "W"},
+    {"SYSTEM",           "Cheat sheet",               "HKeyCheatsheet",     "?"},
     {"LYRICS",           "Karaoke",                   "HKeyKaraoke",        "k"},
     {"LYRICS",           "Read lyrics",               "HKeyReadLyrics",     "CTRL+L"},
     {"LYRICS",           "Lyrics timing",             "HKeyLyricsTiming",   kLyricsTimingKey},
@@ -643,10 +648,6 @@ const MenuIdxEntry kMenuIdxPlayer[] = {
     {"VISUALS",          "Scope window",              "HKeyScopeWindow",    ")"},
     {"VISUALS",          "Spectrogram window",        "HKeySpectroWindow",  "("},
     {"CREATE",           "Creator",                   "HKeyCreator",        "^"},
-    {"SYSTEM",           "Settings",                  "HKeySetting",        "s"},
-    {"SYSTEM",           "Console / logs / status",   "HKeyConsole",        "t"},
-    {"SYSTEM",           "Help wizard",               "HKeyWizard",         "W"},
-    {"SYSTEM",           "Cheat sheet",               "HKeyCheatsheet",     "?"},
 };
 // The audio book mode: only what it can do (the lyrics, playlist and creator entries are not there). An action starting with '#'
 // is a fixed key (the fallback), not a bound one.
