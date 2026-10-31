@@ -1012,7 +1012,7 @@ std::vector<std::string> App::book_phone_picture(int& cols, int& rows) const {
                     if (lv * 8.0 > kBayer[dy][dx] + 0.5) bits |= kBit[dy][dx];
                 }
             if (!bits || !n) { line += ' '; continue; }
-            char col[40];
+            char col[64];
             if (wave) {
                 const double d = (c + 2.0 * r) / static_cast<double>(std::max(1, cols - 1 + 2 * (rows - 1)));
                 const double ripple = 0.5 + 0.5 * std::sin(6.283185307179586 * (d * 1.5 - phase));

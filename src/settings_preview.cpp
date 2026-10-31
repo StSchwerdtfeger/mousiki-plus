@@ -135,12 +135,6 @@ PvKind kind_of(int id, const Settings& s) {
     }
 }
 
-std::string rgb_fg(int r, int g, int b) {
-    char c[40];
-    std::snprintf(c, sizeof c, "\x1b[38;2;%d;%d;%dm", std::clamp(r, 0, 255), std::clamp(g, 0, 255), std::clamp(b, 0, 255));
-    return c;
-}
-
 std::string braille_utf8(int bits) {
     const unsigned cp = 0x2800u + static_cast<unsigned>(bits);
     std::string s;
