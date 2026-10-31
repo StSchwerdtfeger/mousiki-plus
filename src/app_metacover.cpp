@@ -246,14 +246,19 @@ bool App::meta_sty_gfx(const CoverImage& cover, int mode, int contrast, int brig
     const int cws = std::min(cw0, std::max(2, 640 / cols));
     const int chs = std::min(ch0, std::max(4, 640 / rows));
     const int w = cols * cws, h = rows * chs;
-    GfxFrame& g = gfx_;
+    // Over the main screen (its own cover picture is in gfx_) the preview goes into the second slot, so both pictures are shown.
+    const bool second = meta_sty_from_main_ && gfx_.active;
+    GfxFrame& g = second ? gfx2_ : gfx_;
+    const int want_id = second ? 1 : 0;
+    std::string& pic_key = second ? sty2_key_ : cover_pic_key_;
+    auto& pic_at = second ? sty2_at_ : cover_pic_at_;
     const std::string key = "sty|" + cover.key + "|" + std::to_string(mode) + "|" + std::to_string(contrast) + "|" + std::to_string(brightness) + "|" + std::to_string(colors) + "|" +
                             std::to_string(w) + "x" + std::to_string(h) + "|" + std::to_string(col) + "," + std::to_string(row) + "|" + settings_.disk_color + "|" +
                             (settings_.disk_color_gradient ? settings_.disk_color_end : std::string());
     const auto now = std::chrono::steady_clock::now();
-    const bool resized = key != cover_pic_key_ || !g.plain || g.w != w || g.h != h || g.level.size() != static_cast<size_t>(w) * h || g.id != 0 || g.col != col || g.cols != cols;
+    const bool resized = key != pic_key || !g.plain || g.w != w || g.h != h || g.level.size() != static_cast<size_t>(w) * h || g.id != want_id || g.col != col || g.cols != cols;
     const auto gap = std::chrono::milliseconds(gfx_proto_ == GfxProto::Sixel ? 110 : 40);
-    const bool due = resized || (mode >= 1 && now - cover_pic_at_ >= gap);
+    const bool due = resized || (mode >= 1 && now - pic_at >= gap);
     cover_ovr_ = {true, contrast, brightness, colors};   // (cover_fill and cover_sixel_colours read the style through eff_cover_*)
     g.plain = true;
     g.direct = mode == 0 || cover_sixel_colours(mode);
@@ -261,18 +266,19 @@ bool App::meta_sty_gfx(const CoverImage& cover, int mode, int contrast, int brig
     g.out_cw = cw0; g.out_ch = ch0;
     g.cols = cols; g.rows = rows; g.w = w; g.h = h;
     g.col = col; g.row = row;
-    g.id = 0; g.grid.clear(); g.cut_w = 0; g.crop = 0;
+    g.id = want_id; g.grid.clear(); g.cut_w = 0; g.crop = 0;
     g.opaque = settings_.black_background;
     g.erase = !settings_.black_background;
     g.active = true;
     g.fresh = due;
     if (due) {
-        cover_pic_key_ = key;
-        cover_pic_at_ = now;
+        pic_key = key;
+        pic_at = now;
         static const auto t0 = std::chrono::steady_clock::now();   // (the gradient wave of mode 1 moves at 0.15 cycles per second)
         cover_fill(g, cover, mode, mode == 1 ? std::chrono::duration<double>(now - t0).count() * 0.15 : angle, w, h, cws, chs);
     }
     cover_ovr_.on = false;
+    meta_sty_pic_ = second ? 2 : 1;
     return true;
 }
 
@@ -312,7 +318,6 @@ std::vector<std::string> App::meta_sty_preview(int prev_w, int rows, const Cover
             if (cf_full_res_ && m <= 4 && meta_sty_gfx(*img, m, contrast, brightness, colors, angle, (start_col - 1) + 1 + (kMetaStyPanelWidth - 2) + 1 + lpad0, start_row, dw, dh)) {
                 for (int r = 0; r < dh; ++r) disk.push_back(gfx_hole(dw));
                 note += "  (image)";
-                meta_sty_pic_ = true;
             } else {
                 disk = album_cover_lines_for(*img, m >= 5 ? m - 5 : m, contrast, brightness, colors, angle, dw, dh);
                 if (disk.empty()) plain_disk();

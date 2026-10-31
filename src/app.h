@@ -731,7 +731,11 @@ private:
     int meta_sty_sel_ = 0;
     std::string meta_sty_track_;
     std::string meta_sty_msg_;
-    mutable bool meta_sty_pic_ = false;   // this frame the picture in gfx_ is the Style Option preview (it is not cropped by its own panel)
+    // Style Option preview as a real picture: 0 = none this frame, 1 = it is in gfx_, 2 = in gfx2_ (over the main screen, whose own cover
+    // picture keeps gfx_). The picture lies inside its own panel, so the panel must not crop it.
+    mutable int meta_sty_pic_ = 0;
+    mutable std::string sty2_key_;                                  // what the preview in gfx2_ shows
+    mutable std::chrono::steady_clock::time_point sty2_at_{};
     bool meta_sty_from_main_ = false;   // opened by HKeyStyleOptions: ESC returns to the main UI
     void meta_sty_open();
     void meta_open_style_playing();     // HKeyStyleOptions: the Style Option overlay of the playing track

@@ -817,7 +817,7 @@ std::string App::render_frame(TerminalIO& term) {
         draw_floating_panel(floating, build_eq_panel(), kEqPanelWidth, W);
     } else if (mode_ == Mode::MetaEdit) {   // the Style Option panel of the playing track (HKeyStyleOptions), over the main screen
         meta_refresh_hover_values();
-        meta_sty_pic_ = false;
+        meta_sty_pic_ = 0;
         draw_floating_panel(floating, build_meta_sty_panel(W), meta_sty_panel_width(W), W);
     }
     out += floating.str();
@@ -825,7 +825,7 @@ std::string App::render_frame(TerminalIO& term) {
         const bool floating_mode = mode_ != Mode::Browse && mode_ != Mode::Search;
         const bool covered_all = list_overlay_active() || queue_overlay_active() || folder_overlay_active() || convert_overlay_active();
         if (covered_all || (mode_family(mode_) != 0)) gfx_.active = false;
-        else if (meta_sty_pic_ && mode_ == Mode::MetaEdit) {   // the preview of the Style Option panel (over the main screen) owns the picture slot: it lies inside the panel
+        else if (meta_sty_pic_ == 1 && mode_ == Mode::MetaEdit) {   // the preview of the Style Option panel (over the main screen) owns the picture slot: it lies inside the panel
             gfx_.crop = 0;
             gfx_.cut_w = 0;
         } else {
@@ -870,7 +870,8 @@ std::string App::render_frame(TerminalIO& term) {
         // the oscilloscope picture next to an album cover (second slot): a floating panel frees its columns as it does for gfx_
         if (gfx_.active && gfx2_.active) {
             gfx2_.crop = 0;
-            const bool floating_mode = mode_ != Mode::Browse && mode_ != Mode::Search;
+            const bool own_second = meta_sty_pic_ == 2 && mode_ == Mode::MetaEdit;   // the Style Option preview lies inside its own panel
+            const bool floating_mode = !own_second && mode_ != Mode::Browse && mode_ != Mode::Search;
             const int fx = float_rect_[0], fy = float_rect_[1], fw = float_rect_[2], fh = float_rect_[3];
             if (floating_mode && fw > 0 && fy < gfx2_.row + gfx2_.rows && fy + fh > gfx2_.row && fx < gfx2_.col + gfx2_.cols && fx + fw > gfx2_.col)
                 gfx2_.crop = fx <= gfx2_.col ? std::clamp(fx + fw - gfx2_.col, 0, gfx2_.cols) : gfx2_.cols;
