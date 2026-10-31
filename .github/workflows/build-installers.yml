@@ -4,7 +4,7 @@
 #   windows : unsigned in one step, or (sign=true) compile -> SignPath signs mousiki.exe + fpcalc.exe
 #             -> package -> SignPath signs the setup.exe
 #   linux   : .deb + portable zip (Ubuntu 22.04 runner, so the binary also runs on older distros)
-#   macos   : universal .dmg (Mousiki.app) + portable zip
+#   macos   : universal .dmg (Mousiki.app) + portable zip, and the same for Apple silicon only (arm64)
 #   release : SHA256SUMS.txt, GPG signatures for every package (if GPG_PRIVATE_KEY is set),
 #             GitHub build-provenance attestations (public repositories), one artifact "mousiki-release"
 #

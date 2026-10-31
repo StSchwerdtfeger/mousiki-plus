@@ -22,6 +22,7 @@ Outputs land in ./dist :
     Mousiki-<ver>-windows-x64-setup.exe      + Mousiki-<ver>-windows-x64-portable.zip
     Mousiki-<ver>-linux-amd64.deb           + Mousiki-<ver>-linux-amd64-portable.zip
     Mousiki-<ver>-macos-universal.dmg        + Mousiki-<ver>-macos-universal-portable.zip
+    Mousiki-<ver>-macos-arm64.dmg            + Mousiki-<ver>-macos-arm64-portable.zip      (Apple silicon only; --mac-arch both, the default)
     SHA256SUMS.txt
 Files of other versions found in ./dist are moved to ./dist/older/<version>/ when a build starts, so
 only the current version is left to upload.
@@ -1372,19 +1373,20 @@ def build_mac_dmg(app, ws, out, ver):
     rmtree(root)
 
 
-def build_macos(a, ctx):
-    deps_macos(a.install_deps)
+def build_macos_one(a, ctx, label, archs):
+    """One macOS flavour: its own build tree, its own Mousiki.app on a .dmg, its own portable zip.
+    label = the name in the file names (universal / arm64 / x86_64), archs = CMAKE_OSX_ARCHITECTURES ("" = this Mac's own)."""
     ws, src, dist = ctx["ws"], ctx["src"], ctx["dist"]
-    build = ws / "build"
-    universal = a.mac_arch == "universal"
-    cmake_build(src, build, ["-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"] if universal else [])
+    build = ws / ("build" if label == "universal" else "build-" + label)   # (universal keeps the old tree name: incremental builds stay)
+    log("macOS %s: %s" % (label, archs or "this Mac's own architecture"))
+    cmake_build(src, build, ["-DCMAKE_OSX_ARCHITECTURES=" + archs] if archs else [])
     exe = find_built(build, "mousiki")
     stage = ws / "stage"
     rmtree(stage)
     stage_common(stage, src, exe, "macos")
     write_launchers(stage, "macos")
     if not a.no_bundle_tools:
-        bundle_unix_tools(stage, ctx["dl"], a, "macos")
+        bundle_unix_tools(stage, ctx["dl"], a, "macos")   # (yt-dlp_macos is one universal binary: the same in every flavour)
     run(["xattr", "-cr", stage], check=False)
     sign_id = a.sign_identity or os.environ.get("MOUSIKI_CODESIGN_ID") or "-"
     sign_opts = ["--options", "runtime", "--timestamp"] if sign_id != "-" else []
@@ -1394,19 +1396,36 @@ def build_macos(a, ctx):
     if sign_id == "-":
         warn("binaries are only ad-hoc signed (no Apple Developer ID) - Gatekeeper will warn on other Macs")
     ver = ctx["version"]
-    arch = "universal" if universal else ("arm64" if platform.machine() == "arm64" else "x86_64")
     outputs = []
     # the app (with the font) on a disk image: drag it to Applications; moving it to the Bin removes Mousiki again
     app = ws / "Mousiki.app"
     build_mac_app(stage, src, app, ver, fetch_cascadia_mono(ctx["dl"], a))
     run(["xattr", "-cr", app], check=False)
     run(["codesign", "--force", "--deep", "--sign", sign_id] + sign_opts + [app], check=False)
-    out = dist / ("Mousiki-%s-macos-%s.dmg" % (ver, arch))
+    out = dist / ("Mousiki-%s-macos-%s.dmg" % (ver, label))
     build_mac_dmg(app, ws, out, ver)
     outputs.append(out)
-    outputs.append(make_portable(stage, ws, dist, "Mousiki-%s-macos-%s-portable.zip" % (ver, arch),
+    outputs.append(make_portable(stage, ws, dist, "Mousiki-%s-macos-%s-portable.zip" % (ver, label),
                                  "Mousiki-%s" % ver, "macos", ver))
     rmtree(stage)
+    return outputs
+
+
+def build_macos(a, ctx):
+    """--mac-arch both (default): the universal app (Intel + Apple silicon in one) and a separate arm64 one for M chips,
+    each as .dmg + portable zip. universal / arm64 / x86_64 build only that one, native = this Mac's own architecture."""
+    deps_macos(a.install_deps)
+    host = "arm64" if platform.machine().lower() == "arm64" else "x86_64"
+    flavours = {
+        "both": [("universal", "arm64;x86_64"), ("arm64", "arm64")],
+        "universal": [("universal", "arm64;x86_64")],
+        "arm64": [("arm64", "arm64")],
+        "x86_64": [("x86_64", "x86_64")],
+        "native": [(host, "")],
+    }[a.mac_arch]
+    outputs = []
+    for label, archs in flavours:
+        outputs += build_macos_one(a, ctx, label, archs)
     return outputs
 
 
@@ -1980,7 +1999,8 @@ def main():
     common.add_argument("--install-deps", action="store_true", help="install missing build tools (winget / apt / brew)")
     common.add_argument("--sync-version", action="store_true", help="patch the CMakeLists.txt version (and so the About screens) in the build copy")
     common.add_argument("--python-embed-version", default=DEFAULT_PY_EMBED, help="Windows embedded Python version")
-    common.add_argument("--mac-arch", choices=["universal", "native"], default="universal")
+    common.add_argument("--mac-arch", choices=["both", "universal", "arm64", "x86_64", "native"], default="both",
+                        help="macOS: both = the universal app plus a separate arm64 app for M chips (default)")
     common.add_argument("--sign-identity", help="macOS codesign identity (default: ad-hoc)")
     common.add_argument("--distro", help="WSL distribution name (default: your default distro)")
     common.add_argument("--repo", help="GitHub repo (owner/name) used for cloud builds")
