@@ -98,7 +98,25 @@ struct Settings : VizPrefs {
     bool use_sphere = true;
     // The order of the views in the "." cycle (ANIMA/VIZ tab: "Viz Order 1..4"): a permutation of
     // 0 = sphere, 1 = oscilloscope, 2 = spectrogram, 3 = lyrics. config.txt: VizOrder=sphere,osci,spectro,lyrics.
-    int viz_order[5] = {0, 1, 2, 3, 4};   // (4 = video, "Viz Order 5"; config.txt: VizOrder=sphere,osci,spectro,lyrics,video)
+    int viz_order[6] = {0, 1, 2, 3, 4, 5};   // (4 = video, "Viz Order 5"; 5 = MilkDrop, "Viz Order 6"; config.txt: VizOrder=sphere,osci,spectro,lyrics,video,milkdrop)
+    // MilkDrop visuals (milkdrop.h; projectM installed by the user). use_milkdrop: in the "." cycle (when projectM is there). milkdrop_view: the
+    // field shows them right now (like video_view; the lyrics are not fetched for it). config.txt: UseMilkDrop=, MilkDropView=, MilkDrop...=.
+    bool use_milkdrop = true;
+    bool milkdrop_view = false;
+    std::string milkdrop_presets;      // MilkDropPresets=: the preset folder ("" = the usual places)
+    int milkdrop_fps = 30;             // MilkDropFrameRate=: pictures a second (15, 20, 25, 30, 45, 60)
+    int milkdrop_res = 480;            // MilkDropResolution=: drawn at most this many pixels across (320, 480, 640, 960, 1280)
+    int milkdrop_preset_secs = 25;     // MilkDropPresetDuration=: seconds until the next preset (0 = it stays)
+    bool milkdrop_shuffle = true;      // MilkDropShuffle=: the next preset at random
+    bool milkdrop_auto = false;        // MilkDropAuto=: Auto MilkDrop -- the field shows the visuals for every track (Auto Video is switched off meanwhile)
+    bool milkdrop_auto_video_was = false;   // MilkDropAutoVideoWas=: Auto Video was on when Auto MilkDrop switched it off (it comes back with it)
+    int milkdrop_fx = 0;               // MilkDropEffect=: a video effect over the MilkDrop pictures (its own: the video's are the track's), 0 off
+    bool milkdrop_fixed_colors = false; // MilkDropSixelColors=adaptive|fixed: the colours of a palette picture (Sixel) from the picture itself, or the fixed 256
+    bool milkdrop_fav_shuffle = false; // MilkDropShuffleFavourites=: only the favourite presets (milkdrop_favourites.txt) are played
+    int milkdrop_beat = 10;            // MilkDropBeatSensitivity=: 0 .. 20 (= 0.0 .. 2.0; 10 = 1.0)
+    bool milkdrop_hard_cuts = true;    // MilkDropHardCuts=: a strong beat may change the preset at once
+    int milkdrop_transition = 3;       // MilkDropTransition=: seconds of the blend into the next preset (0 = a cut)
+    bool milkdrop_show_name = true;    // MilkDropShowName=: the preset's name in a small box for 3 s after it changed
     // The view the field starts with when Mousiki opens (ANIMA/VIZ tab: "Lyrics/Viz Default"): 0 = sphere, 1 = oscilloscope,
     // 2 = spectrogram, 3 = lyrics. The "." key changes the view live, but that is not remembered: the next start begins with
     // this one again; 4 = "last used": it starts with the view it was left on. config.txt: VizDefault=sphere|osci|spectro|lyrics|last.
@@ -137,7 +155,12 @@ struct Settings : VizPrefs {
     // The layout of the full screen video (SHIFT+UP / SHIFT+DOWN there): 0 video, 1 video + oscilloscope, 2 video + oscilloscope + spectrogram
     // (spectrogram at the bottom). The picture styles and versions of the two visuals are the layout's own (-1 = as in the oscilloscope /
     // spectrogram options); every other option is shared with them.
-    int video_layout = 0;                  // full screen video: 0 video | 1 + oscilloscope | 2 + spectrogram | 3 + both
+    int video_layout = 0;                  // full screen video: 0 video | 1 + oscilloscope | 2 + spectrogram | 3 + both | 4 quartet (oscilloscope, MilkDrop / video, spectrogram)
+    // The big video overlay shows the MilkDrop visuals instead of the video (its "m" key): VideoFullSource=video|milkdrop. Its layouts are
+    // milkdrop_layout (VideoFullMilkDropLayout=): 0 MilkDrop | 1 + oscilloscope (right) | 2 + oscilloscope over spectrogram (right) |
+    // 3 quartet (top left oscilloscope, top right MilkDrop, bottom left video, bottom right spectrogram) | 4 video (left) + MilkDrop (right).
+    bool vfull_milkdrop = false;
+    int milkdrop_layout = 0;
     int vl_osci_style = -1;           // VideoLayoutOsciStyle=: -1 as in the options, 0 braille, 1 image
     int vl_osci_mode = -1;            // VideoLayoutOsciMode=: -1 as in the options, 0 XY, 1 YT
     int vl_spec_style = -1;           // VideoLayoutSpectroStyle=
@@ -152,16 +175,16 @@ struct Settings : VizPrefs {
     // The field shows lyrics (and they are fetched) right now: field on, lyrics allowed, lyrics view selected.
     bool lyrics_on() const { return element_vizfield && use_lyrics && element_lyrics; }
     // Is that view (0..3) switched on at all?
-    bool viz_usable(int v) const { return v == 0 ? use_sphere : v == 1 ? use_osci : v == 2 ? use_spectro : v == 3 ? use_lyrics : video_mode; }
+    bool viz_usable(int v) const { return v == 0 ? use_sphere : v == 1 ? use_osci : v == 2 ? use_spectro : v == 3 ? use_lyrics : v == 5 ? use_milkdrop : video_mode; }
     // The next / previous switched-on view after `cur` in viz_order (dir > 0 forward). `only_visuals` leaves the lyrics
     // (3) out. The video view (4) is never returned: it is not a default. Returns cur when there is no other one.
     int viz_step(int cur, int dir, bool only_visuals) const {
         int pos = 0;
-        for (int i = 0; i < 5; ++i) if (viz_order[i] == cur) pos = i;
-        for (int k = 1; k <= 5; ++k) {
-            const int c = viz_order[((pos + (dir > 0 ? k : -k)) % 5 + 5) % 5];
+        for (int i = 0; i < 6; ++i) if (viz_order[i] == cur) pos = i;
+        for (int k = 1; k <= 6; ++k) {
+            const int c = viz_order[((pos + (dir > 0 ? k : -k)) % 6 + 6) % 6];
             if (c == cur) break;
-            if (viz_usable(c) && c != 4 && !(only_visuals && c == 3)) return c;
+            if (viz_usable(c) && c != 4 && c != 5 && !(only_visuals && c == 3)) return c;   // (video and MilkDrop are views, not lyric_viz values)
         }
         return cur;
     }
@@ -404,8 +427,11 @@ struct Settings : VizPrefs {
     // A quiet check for a newer release at start-up (once a day, shown once per version); config.txt: UpdateCheck=true|false.
     bool update_check = true;
     // Decoded audio above this many MB is not held whole in RAM but in a moving 2-minute window (see streaming_pcm.h);
-    // config.txt: TrackBufferMB. Default 256.
-    static constexpr int kTrackBufferDefaultMB = 256, kTrackBufferMinMB = 64, kTrackBufferMaxMB = 16384;
+    // config.txt: TrackBufferMB. Default 64 (since batch 281; was 256): a stereo track up to about 3 minutes at 44.1 kHz is held whole.
+    static constexpr int kTrackBufferDefaultMB = 64, kTrackBufferMinMB = 64, kTrackBufferMaxMB = 16384;
+    // The most this computer allows: a quarter of its RAM (with gapless playback two tracks can be held at once), at most
+    // kTrackBufferMaxMB; kTrackBufferMaxMB when the RAM cannot be told.
+    static int track_buffer_cap_mb();
     int track_buffer_mb = kTrackBufferDefaultMB;
     // The terminal is resized to this many columns x rows when Mousiki starts (and when it is changed in the settings); 0 in either:
     // the terminal is left as it is. FullScreen asks the terminal for full screen and overrides the size. Terminals decide whether
@@ -424,6 +450,17 @@ struct Settings : VizPrefs {
     bool rate_cap_96 = true;
     // Pause and resume with a 8 ms fade instead of a hard cut (no click). config.txt: PauseFade=true|false.
     bool pause_fade = true;
+    // Auto-Play (GENERAL -> AUDIO): false (the default) = when the music player starts, the track it opens with (the restored session or the
+    // first of the library) is loaded and stands paused at its place; the play / pause key (p) starts it. true = it starts playing at once. config.txt: AutoPlay=.
+    bool auto_play = false;
+    // Pause Sphere (ANIMA/VIZ -> SPHERE): true = the sphere stops turning while the track is paused; false (the default) = it goes on
+    // turning (at the full frame rate: Reduce Motion When Paused leaves a turning sphere alone). config.txt: PauseSphere=.
+    bool pause_sphere = false;
+    // Gapless Playback (GENERAL -> AUDIO): 0 = off (the default; the device is opened anew for every track, a short gap), 1 = album (the
+    // next track goes on without a gap when it belongs to the same album -- album tag and artist or folder; a file without an album tag:
+    // the same folder -- and has the same sample rate and channel count, so nothing is resampled), 2 = full (every automatic change to the
+    // next local track, of any album; one with another sample rate is resampled to the rate that plays). config.txt: Gapless=off|album|full.
+    int gapless = 0;
     // The remote app (phone): a small web server inside Mousiki, off by default. One value for both programs (config.txt:
     // RemoteApp=, RemoteAppPort=, RemoteAppPin=); see remote_server.h.
     bool remote_app = false;
@@ -563,6 +600,9 @@ struct Settings : VizPrefs {
     // --- hotkey mapping ------------------------------------------------
     // Action name → key string (e.g. "ARROW_KEY_UP", "s", "ENTER")
     std::unordered_map<std::string, std::string> hotkeys;
+    // (not saved) commands new to this config whose default key another command of it already had: left unbound by
+    // apply_default_hotkeys(), "HKeyX (its key \":\" is HKeyY's)". The player says so once at start (the status line).
+    std::vector<std::string> hotkeys_left_unbound;
 
     // Convenience: resolve a hotkey action to the configured key code.
     // Returns the default if not mapped. Key codes returned match what

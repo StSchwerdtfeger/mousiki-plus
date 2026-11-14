@@ -9,6 +9,7 @@
 #include "coverfetch_state.h"
 #include "hifi_bars.h"
 #include "app_internal.h"
+#include "app_state_kanji.h"
 #include "app_settings_tables.h"
 #include "cover_art.h"
 #include "creator.h"
@@ -57,9 +58,6 @@ struct SettingsPreviewState {
     double spec_idle = 0.0;       // seconds since the spectrogram preview was last shown (its memory goes back after ten)
     std::vector<float> env_raw, env_smooth;
     CoverImage cover;
-    int translit_key = -1;
-    double translit_at = -10.0;
-    std::vector<std::string> translit_rows;
     std::vector<float> text_audio;   // the spectrogram and spectrum bars preview's sound: a created spectrogram that reads "Mousiki Plus" (interleaved stereo, 48 kHz)
     size_t text_pos = 0;             // in frames
     bool text_made = false;
@@ -134,7 +132,7 @@ PvKind kind_of(int id, const Settings& s) {
         case kSidWave: case kSidWaveStyle: return kPvWave;
         case kSidUseOsci: return kPvScope;   // (Modes Share Settings: no preview)
         case kSidUseSpectro: return kPvSpectro;
-        case kSidUseSphere: return kPvSphere;
+        case kSidUseSphere: case kSidPauseSphere: return kPvSphere;
         case kSidLyricViz: case kSidNoLyricsViz: case kSidNoVideoViz: {
             // Lyrics/Viz Defaults is edited in viz_default (0 sphere, 1 osci, 2 spectro, 3 lyrics, 4 last used: the view in use, lyric_viz);
             // lyric_viz alone is only what the field shows now, so the preview showed the wrong picture until the row was changed twice.
@@ -387,25 +385,29 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             // playing and PLAY while paused (alternating here), and << / >> flash in the bottom border colour while seeking.
             if (settings_.element_dummy_buttons) {
                 const int bw = 13;
+                // With a smooth border gradient the three rows fade from the top to the bottom colour (as the frame does
+                // line by line on the main screen); rough keeps the top colour and only the bottom line in the bottom colour.
+                const bool smooth = settings_.border_smooth;
                 const std::string ba = ansi_for(settings_.border_color, false), bb = ansi_for(settings_.border_color_bottom, false);
+                const std::string bm = smooth ? gradient_ansi(settings_.border_color, settings_.border_color_bottom, 0.5f, false) : ba;
                 const bool paused = (static_cast<int>(P.t / 2.0) % 2) == 1;
                 const bool flash = std::fmod(P.t, 4.0) < 0.5;
                 const bool back = static_cast<int>(P.t / 4.0) % 2 == 0;
                 auto mid = [&](const std::string& text, const std::string& tx) {
-                    const std::string bar = ba + settings_.box_vertical + R;
+                    const std::string bar = bm + settings_.box_vertical + R;
                     return bar + " " + tx + center_pad(text, 9) + R + " " + bar;
                 };
-                const std::string lb = (flash && back) ? bb : ba, rb = (flash && !back) ? bb : ba;
+                const std::string lb = (flash && back) ? bb : bm, rb = (flash && !back) ? bb : bm;
                 const std::string pl = paused ? "PLAY" : "PAUSE";
                 const bool all = cw >= 3 * bw;
                 std::string t, m, bt;
                 if (all) {
                     t = box_top("", bw, ba) + box_top("", bw, ba) + box_top("", bw, ba);
-                    m = mid("<<<", lb) + mid(pl, ba) + mid(">>>", rb);
+                    m = mid("<<<", lb) + mid(pl, bm) + mid(">>>", rb);
                     bt = box_bottom(bw, "", bb) + box_bottom(bw, "", bb) + box_bottom(bw, "", bb);
                     w = 3 * bw;
                 } else {   // a narrow box: the play / pause button alone
-                    t = box_top("", bw, ba); m = mid(pl, ba); bt = box_bottom(bw, "", bb);
+                    t = box_top("", bw, ba); m = mid(pl, bm); bt = box_bottom(bw, "", bb);
                     w = bw;
                 }
                 rows = {t, m, bt};
@@ -574,46 +576,54 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             if (display_width(t) <= cw) { rows.push_back({t, t}); return; }
             for (const std::string& w : wrap_lines(t, cw, 6)) rows.push_back({w, w});
         };
+        // Every result is what Mousiki itself makes of the example with that value (transliterate_as()): nothing is written in by hand.
         const int m = settings_.latin_macrons ? 1 : 0, wo = settings_.latin_wo ? 1 : 0, hz = settings_.latin_hanzi;
+        auto tm = [&](const char* t, int v) { return transliterate_as(t, v, -1, -1); };
+        auto tw = [&](const char* t, int v) { return transliterate_as(t, -1, v, -1); };
+        auto th = [&](const char* t, int v) { return transliterate_as(t, -1, -1, v); };
+        // the optional kanji reader (pykakasi; janome cuts the words): what it does here, in one line
+        const std::string reader = kanji_->broken ? "the kanji reader is not installed (pip install pykakasi janome)"
+                                 : !settings_.latin_letters ? "the kanji reader reads while the Latin letters are on (" + hotkey_text("HKeyTranslit", "\"") + ")"
+                                                            : "kanji reader: on (its readings come in after a moment)";
         std::string cap;
         if (id == kSidLatinMacrons) {
-            line("Long vowels: off | on");
-            example("\u30e9\u30fc\u30e1\u30f3", {"raamen", "r\u0101men"}, m, {"off", "on"});
-            example("\u30b3\u30fc\u30d2\u30fc", {"koohii", "k\u014dh\u012b"}, m, {"off", "on"});
-            example("\u304d\u3048\u306c\u3088\u3046", {"kienuyou", "kienuy\u014d"}, m, {"off", "on"});
+            line("Long vowels of kana: off | on");
+            example("\u30e9\u30fc\u30e1\u30f3", {tm("\u30e9\u30fc\u30e1\u30f3", 0), tm("\u30e9\u30fc\u30e1\u30f3", 1)}, m, {"off", "on"});      // ラーメン
+            example("\u30b3\u30fc\u30d2\u30fc", {tm("\u30b3\u30fc\u30d2\u30fc", 0), tm("\u30b3\u30fc\u30d2\u30fc", 1)}, m, {"off", "on"});      // コーヒー
+            example("\u3068\u3046\u304d\u3087\u3046", {tm("\u3068\u3046\u304d\u3087\u3046", 0), tm("\u3068\u3046\u304d\u3087\u3046", 1)}, m, {"off", "on"});   // とうきょう
+            line("off: the long vowel spelled out (ou, oo, ii); on: a line over it (\u014d, \u012b).");
             cap = std::string("Latin Macrons: ") + (m ? "on" : "off");
         } else if (id == kSidLatinWo) {
-            line("The particle \u3092: wo | o");
-            example("\u3053\u3048\u3092\u304d\u304b\u305b\u3066", {"koe wo", "koe o"}, wo ? 0 : 1, {"wo", "o"});
-            example("\u3042\u306a\u305f\u3092", {"anata wo", "anata o"}, wo ? 0 : 1, {"wo", "o"});
-            example("\u3059\u304d\u3092", {"suki wo", "suki o"}, wo ? 0 : 1, {"wo", "o"});
+            line("The particle \u3092 (object marker): wo | o");
+            example("\u3042\u3044\u3092\u3053\u3081\u3066", {tw("\u3042\u3044\u3092\u3053\u3081\u3066", 1), tw("\u3042\u3044\u3092\u3053\u3081\u3066", 0)}, wo ? 0 : 1, {"wo", "o"});   // あいをこめて
+            example("\u3053\u3048\u3092\u304d\u304b\u305b\u3066", {tw("\u3053\u3048\u3092\u304d\u304b\u305b\u3066", 1), tw("\u3053\u3048\u3092\u304d\u304b\u305b\u3066", 0)}, wo ? 0 : 1, {"wo", "o"});   // こえをきかせて
+            line("It is written \"wo\" and spoken \"o\". Kana have no spaces: the words run together unless the kanji reader cuts them.");
+            line(reader);
             cap = std::string("Latin Wo: ") + (wo ? "wo" : "o");
         } else if (id == kSidLatinHanzi) {
-            line("Chinese characters without a hint (Leave | Chin. | Jap.):");
-            example("\u6771\u4eac", {"\u6771\u4eac", "d\u014dng j\u012bng", m ? "t\u014dky\u014d" : "toukyou"}, hz, {"Leave", "Chin.", "Jap."});
-            example("\u5f20\u60ac", {"zh\u0101ng xu\u00e1n"}, 0);   // 张悬 (Deserts Chang), a Taiwanese independent singer-songwriter
+            line("Chinese characters with no hint of the language (no kana, no other tag that tells): Leave | Chin. | Jap.");
+            example("\u6771\u4eac", {th("\u6771\u4eac", 0), th("\u6771\u4eac", 1), th("\u6771\u4eac", 2)}, hz, {"Leave", "Chin.", "Jap."});   // 東京
+            example("\u5f20\u60ac", {th("\u5f20\u60ac", hz) + "  (only Chinese writes \u5f20 \u60ac)"}, 0);   // 张悬 (Deserts Chang, a Taiwanese singer-songwriter): a hint of its own
+            line("Jap.: the kanji reader reads them; without it they stay.");
+            line("Japanese text (kana in it) is not changed by this row: its kanji are read by the kanji reader. A short poem, phrase by phrase:");
+            example("\u8349\u306e\u540d\u3082", {th("\u8349\u306e\u540d\u3082", hz)}, 0);   // 草の名も
+            example("\u5bc2\u3057\u3046\u306a\u308a\u3051\u308a", {th("\u5bc2\u3057\u3046\u306a\u308a\u3051\u308a", hz)}, 0);   // 寂しうなりけり
+            example("\u6625\u306e\u96e8", {th("\u6625\u306e\u96e8", hz)}, 0);   // 春の雨
+            if (th("\u6625\u306e\u96e8", hz).find("\u96e8") != std::string::npos)   // (the reader has not read it here: what it makes of it)
+                line("with the reader: kusa no na mo / sabishiunarikeri / haru no ame");
+            line(reader);
             cap = std::string("Translit. Kanji: ") + (hz == 1 ? "Chin." : hz == 2 ? "Jap." : "Leave");
         } else {   // kSidLatinLookup
-            line("Names in Chinese characters / kana:");
-            if (P.translit_key < 0 || P.t - P.translit_at > 1.5) {
-                P.translit_key = 0;
-                P.translit_at = P.t;
-                P.translit_rows.assign(1, transliterate("\u30ab\u30cd\u30b3\u30a2\u30e4\u30ce"));   // what the rules alone give
-            }
-            example("\u30ab\u30cd\u30b3\u30a2\u30e4\u30ce", {P.translit_rows.empty() ? std::string("kanekoayano") : P.translit_rows[0], "Kaneko Ayano"}, settings_.latin_lookup ? 1 : 0, {"off", "on"});
-            line("on: the Latin spelling is looked up online at MusicBrainz (the artist name is sent there).");
+            line("An artist name in kanji that Mousiki has no reading for: on, MusicBrainz is asked for the Latin spelling the artist uses (the name is sent there); off, the name stays as the rules make it.");
+            const std::string yanai = transliterate("\u67f3\u4e95 \u611b\u5b50");   // 柳井 愛子
+            line("shown now | when found, e.g.:");
+            example("\u67f3\u4e95 \u611b\u5b50", {yanai, "Aiko Yanai"}, -1, {"shown now", "when found, e.g."});
+            line("Name order: Japanese puts the family name first (\u67f3\u4e95 Yanai = family name, \u611b\u5b50 Aiko = given name); the Latin spelling on MusicBrainz mostly puts the given name first, so the two parts swap.");
+            line("Never looked up:");
+            example("HAKU \u30cf\u30af\u3002", {transliterate("HAKU \u30cf\u30af\u3002") + "  (the tag has it in Latin)"}, 0);   // the tag holds the Latin name itself
+            example("\u30ab\u30cd\u30b3\u30a2\u30e4\u30ce", {transliterate("\u30ab\u30cd\u30b3\u30a2\u30e4\u30ce") + "  (kana only)"}, 0);   // kana only: read by the rules (or what your tags taught)
             cap = std::string("Latin Name Lookup: ") + (settings_.latin_lookup ? "on" : "off");
         }
-        line("");
-        line("Always the same:");
-        example("\u3055\u304f\u3089", {"sakura"}, 0);
-        example("\u732b\u306e\u624b\u3082\u501f\u308a\u305f\u3044", {"neko no te mo karitai"}, 0);
-        example("\u3057\u3093\u3042\u3044", {"shin'ai"}, 0);
-        example("\uc548\ub155\ud558\uc138\uc694", {"annyeonghaseyo"}, 0);
-        line("A short poem, phrase by phrase:");
-        example("\u8349\u306e\u540d\u3082", {"kusa no na mo"}, 0);
-        example("\u5bc2\u3057\u3046\u306a\u308a\u3051\u308a", {"sabishiu narikeri"}, 0);
-        example("\u6625\u306e\u96e8", {"haru no ame"}, 0);
         for (const PRow& r : rows) {
             if (display_width(r.plain) <= cw) { out.rows.push_back(r.ansi); continue; }
             // too wide for the box: the text scrolls

@@ -85,14 +85,27 @@ ColorFocus=246
 
 OnAirAscii=true
 # the " : : " column between the ON AIR / OFF AIR sign and the station info: true | false (the sign sits in the middle of that space)
-SignBorder=true
+SignBorder=false
 PulseWave=true
 DummyButtons=true
 # what the VOLUME BAR is drawn with: # | ⠶ | ⣿ | ⡾⣽ (a fixed row, not repeating) | disk (the braille effect of the disk)
 VolumeGradient=false
 VolumeIndicator=disk
-# right of the station info: osci | sphere | off | spectro
+# right of the station info: osci | sphere | off | spectro | milkdrop (the MilkDrop visuals, when projectM is installed)
 OsciSphere=osci
+# the MilkDrop visuals (ANIMA/VIZ -> MILKDROP, the ":" overlay): false leaves them out of the "." cycle
+UseMilkDrop=true
+# pictures a second (15 .. 60), drawn at most this many pixels across (320 .. 1280; then scaled to the block)
+MilkDropFrameRate=30
+MilkDropResolution=480
+# seconds a preset stays (0 = until changed by hand), next preset at random, beat sensitivity 0 .. 20 (= 0.0 .. 2.0)
+MilkDropPresetDuration=25
+MilkDropShuffle=true
+MilkDropBeatSensitivity=10
+# a strong beat may change the preset at once; seconds of the blend into the next preset (0 = a cut); the preset's name for 3 s after a change
+MilkDropHardCuts=true
+MilkDropTransition=3
+MilkDropShowName=true
 Visualizer=true
 StereoSound=true
 # false = left out entirely: not in the "." cycle of the scope block (the sphere always is); the windows

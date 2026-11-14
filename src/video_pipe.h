@@ -13,6 +13,7 @@
 // MOUSIKI_VIDEO_THREAD=0 keeps everything on the UI thread (for a comparison, or a machine with one core).
 #pragma once
 
+#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -34,6 +35,7 @@ struct VideoPicParams {
     int vcols = 1, vrows = 1;    // the picture's size in cells (the radius of the corners follows the cell size)
     int trim = 0;                // columns of pixels cut off at the right
     int cut_c = 0, cut_r = 0, cut_w = 0, cut_h = 0;   // the lyric box: cells (relative to the picture) that are cut out; cut_w = 0: none
+    bool adaptive = false;       // (palette pictures) the colours come from the picture itself (VideoPlayer::quantize_adaptive): the MilkDrop visuals
 };
 
 // A finished picture: the buffers go straight into the GfxFrame (swapped, so no memory is allocated per frame).
@@ -42,6 +44,8 @@ struct VideoPic {
     std::vector<uint8_t> rgb;    // truecolor: w * h * 3 (else empty)
     std::vector<uint8_t> hue;    // palette: w * h (else empty)
     std::vector<uint8_t> level;  // w * h: 255 = opaque, 0 = cut out
+    std::array<std::array<uint8_t, 3>, 256> pal{};   // the picture's own palette (own_pal), else VideoPlayer::palette() is meant
+    bool own_pal = false;
     double look_ms = 0.0, quant_ms = 0.0;   // what it cost (the look, the colour reduction with the masks)
 };
 
@@ -68,7 +72,8 @@ public:
     bool submit(const std::string& key, const VideoFrame& f, int cx0, int cy0, int w, int h, const VideoFrame* prev, const VideoPicParams& p);
     // The finished picture for `key` and the size w x h, if the worker has one: its buffers are swapped into the arguments (the arguments' old
     // buffers go back to the worker). A picture for another key or size is dropped. false: nothing (yet).
-    bool take(const std::string& key, int w, int h, std::vector<uint8_t>& rgb, std::vector<uint8_t>& hue, std::vector<uint8_t>& level);
+    bool take(const std::string& key, int w, int h, std::vector<uint8_t>& rgb, std::vector<uint8_t>& hue, std::vector<uint8_t>& level,
+              std::array<std::array<uint8_t, 3>, 256>* pal = nullptr, bool* own_pal = nullptr);
     // Forgets the frame that waits and the picture that is finished (a frame the worker is busy with is thrown away when it is done).
     void cancel();
     // How many frames were dropped for a newer one (for the tests / the log).

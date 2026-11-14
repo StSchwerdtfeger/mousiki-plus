@@ -754,6 +754,18 @@ void App::meta_panel_field(MetaPanel& m) const {
             lyric_rows[start + i] =
                 gradient_ansi(settings_.disk_color, settings_.disk_color_end, t) + body + "\x1b[0m";
         }
+    } else if (settings_.milkdrop_view && lyrics_w >= 12 && panel_h >= 4 && milkdrop_usable() &&
+               [&]() {   // the MilkDrop view: the visuals fill the field (like the full-field video); false: they cannot run (the usual view then)
+                   const int lpad = 1;   // (one empty column at the left, as the video has)
+                   const bool wide = gfxs_.proto != GfxProto::None;
+                   const int fw = lyrics_w + (wide ? 1 : 0) - lpad;
+                   std::vector<std::string> mrows;
+                   if (!milkdrop_field_rows(mrows, fw, panel_h, 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + lpad, cover_pic_img, wide)) return false;
+                   for (int i = 0; i < panel_h && i < static_cast<int>(mrows.size()); ++i) lyric_rows[static_cast<size_t>(i)] = std::string(static_cast<size_t>(lpad), ' ') + mrows[static_cast<size_t>(i)];
+                   lyrics_wide = wide;
+                   return true;
+               }()) {
+        // (drawn: lyric_rows hold the picture's cells)
     } else if (settings_.video_mode && settings_.video_view && !audiobook_ && lyrics_w >= 12 && panel_h >= 6 &&
                [&]() {   // (false: no video for this track -> "When No Video Shows" decides, see video_missing)   // the Video view: the picture of the track's video with the current lyric line under it
                    const int vsize = video_size_for(current_.path);
@@ -919,7 +931,11 @@ void App::meta_panel_field(MetaPanel& m) const {
                     for (int i = 0; i < static_cast<int>(rows.size()) && i < panel_h; ++i) lyric_rows[i] = rows[static_cast<size_t>(i)];
                 }
             } else if (area_viz == 0) {
-                auto sphere_rows = sphere_.render(lyrics_w, viz_rows_h, bars, viz_dt_);
+                // Pause Sphere: a paused track stops the sphere (it stands still, so Reduce Motion When Paused can calm the screen);
+                // otherwise it goes on turning and the main loop keeps the full frame rate for it (sphere_turning_)
+                const bool sphere_still = settings_.pause_sphere && has_track_ && player_.is_paused();
+                auto sphere_rows = sphere_.render(lyrics_w, viz_rows_h, bars, sphere_still ? 0.0 : viz_dt_);
+                sphere_turning_ = !sphere_still;
                 std::string sphere_ansi = gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, 0.5f);
                 for (int i = 0; i < static_cast<int>(sphere_rows.size()) && i < panel_h; ++i) {
                     lyric_rows[i] = sphere_ansi + pad_right(sphere_rows[i], lyrics_w) + "\x1b[0m";
@@ -944,15 +960,22 @@ void App::meta_panel_field(MetaPanel& m) const {
             lyric_rows[0] = pad_right(std::string(pad, ' ') + lyrics_status, lyrics_w);
         }
     } else {
-        // SHIFT+2 (main_translit_key): the translation in place of the lines that have one (they keep the line's timing; no word timing of their own)
+        // SHIFT+2 (main_translit_key): the translation after every line that has one, in ( ) -- the line keeps its timing; with word timing the
+        // translation is the last "word" of the line and lights up with the line's last word
         if (main_lyr_tr_ && !lines_orig.empty() && lines_orig.size() == lines_copy.size()) {
             const std::vector<VTr>& all = video_translations(lines_orig);
             if (!all.empty()) {
                 const std::vector<std::string>& tr = all[static_cast<size_t>(std::clamp(vfull_tr_idx_, 0, static_cast<int>(all.size()) - 1))].lines;
                 for (size_t i = 0; i < lines_copy.size() && i < tr.size(); ++i) {
                     if (tr[i].empty()) continue;
-                    lines_copy[i].full_text = translit_enabled() ? transliterate(tr[i]) : tr[i];
-                    lines_copy[i].words.clear();
+                    const std::string add = "(" + (translit_enabled() ? transliterate(tr[i]) : tr[i]) + ")";
+                    lines_copy[i].full_text += " " + add;
+                    if (!lines_copy[i].words.empty()) {   // (word by word, so the line wraps between them)
+                        const double at = lines_copy[i].words.back().first;
+                        std::istringstream ws(add);
+                        std::string w;
+                        while (ws >> w) lines_copy[i].words.push_back({at, w});
+                    }
                 }
             }
         }

@@ -1,6 +1,7 @@
 // The music player's settings: defaults, the config.txt round trip, the shared oscilloscope rows, the hotkey table.
 #include "test_framework.h"
 #include "settings.h"
+#include "process_util.h"
 #include "themes.h"
 #include "app_internal.h"
 #include "scripts_env.h"
@@ -394,6 +395,47 @@ TEST(settings_cover_look_keys_are_ctrl_t_and_ctrl_z) {
     CHECK_EQ(combo_key_name(kKeyCtrlZ), std::string("CTRL+Z"));
 }
 
+TEST(settings_new_command_on_a_taken_key_is_left_unbound_and_said) {
+    // an older config: everything but the visuals overlay, and the user's own binding on ":"
+    Settings s;
+    apply_default_hotkeys(s);
+    s.hotkeys.erase("HKeyVisualsMenu");
+    s.hotkeys["HKeyKaraoke"] = ":";
+    s.hotkeys_left_unbound.clear();
+    apply_default_hotkeys(s);
+    CHECK_EQ(s.hotkeys["HKeyVisualsMenu"], std::string(""));   // the user's key wins
+    CHECK_EQ(s.hotkeys["HKeyKaraoke"], std::string(":"));
+    CHECK_EQ(s.hotkeys_left_unbound.size(), static_cast<size_t>(1));
+    CHECK(!s.hotkeys_left_unbound.empty() && s.hotkeys_left_unbound[0].find("HKeyVisualsMenu") == 0 &&
+          s.hotkeys_left_unbound[0].find("HKeyKaraoke") != std::string::npos);
+    // a fresh config: nothing given way
+    Settings f;
+    apply_default_hotkeys(f);
+    CHECK(f.hotkeys_left_unbound.empty());
+    CHECK_EQ(f.hotkeys["HKeyVisualsMenu"], std::string(":"));
+}
+
+TEST(settings_old_video_window_key_is_dropped) {
+    // the video window is gone: its line goes, whatever key it had; it had taken ":" from the visuals overlay, which gets it back
+    Settings s;
+    apply_default_hotkeys(s);
+    s.hotkeys["HKeyVideoWindow"] = ":";
+    s.hotkeys["HKeyVisualsMenu"] = "";
+    apply_default_hotkeys(s);
+    CHECK(s.hotkeys.find("HKeyVideoWindow") == s.hotkeys.end());
+    CHECK_EQ(s.hotkeys["HKeyVisualsMenu"], std::string(":"));
+    CHECK(settings_to_text(s).find("HKeyVideoWindow") == std::string::npos);
+    // another key: dropped too; a visuals key chosen by the user stays
+    Settings t;
+    apply_default_hotkeys(t);
+    t.hotkeys["HKeyVideoWindow"] = "W";
+    t.hotkeys["HKeyVisualsMenu"] = "%";
+    t.hotkeys["HKeyQueueMoveBottom"] = "";
+    apply_default_hotkeys(t);
+    CHECK(t.hotkeys.find("HKeyVideoWindow") == t.hotkeys.end());
+    CHECK_EQ(t.hotkeys["HKeyVisualsMenu"], std::string("%"));
+}
+
 TEST(config_files_are_written_whole_or_not_at_all) {
     mt::TempHome home;
     const fs::path p = fs::path(std::getenv("HOME")) / "atomic_test.txt";
@@ -746,7 +788,19 @@ TEST(settings_table_reads_old_names_clamps_numbers_and_takes_flag_spellings) {
     CHECK_EQ(read("VideoDownHeight=99999\n").video_down_height, 2160);           // above the range
     CHECK_EQ(read("VideoDownHeight=5\n").video_down_height, 144);                // below it
     CHECK_EQ(read("VideoDownHeight=abc\n").video_down_height, Settings().video_down_height);   // not a number: the default stays
-    CHECK_EQ(read("VideoLayout=7\n").video_layout, 3);
+    CHECK_EQ(read("VideoLayout=7\n").video_layout, 4);
+    {   // TrackBufferMB: at most a quarter of the RAM (and 16384); 64 at least
+        const int cap = Settings::track_buffer_cap_mb();
+        CHECK(cap >= Settings::kTrackBufferMinMB && cap <= Settings::kTrackBufferMaxMB);
+        const long long ram = physical_memory_mb();
+        if (ram > 0) CHECK(cap <= std::max<long long>(Settings::kTrackBufferMinMB, ram / 4));
+        CHECK_EQ(read("TrackBufferMB=99999999\n").track_buffer_mb, cap);
+        CHECK_EQ(read("TrackBufferMB=10\n").track_buffer_mb, Settings::kTrackBufferMinMB);
+    }                    // (4: the quartet)
+    CHECK_EQ(read("VideoFullMilkDropLayout=9\n").milkdrop_layout, 4);
+    CHECK_EQ(read("VideoFullMilkDropLayout=-2\n").milkdrop_layout, 0);
+    CHECK(read("VideoFullSource=milkdrop\n").vfull_milkdrop);
+    CHECK(!read("VideoFullSource=video\n").vfull_milkdrop);
     CHECK(read("Eliment_vizfield=yes\n").element_vizfield);
     // the five element switches take their name, and the two older spellings (Eliment_* / Element_*); a value that is true / false either way
     {
@@ -799,6 +853,32 @@ TEST(settings_table_reads_old_names_clamps_numbers_and_takes_flag_spellings) {
 
 // Video Frame Rate (VideoFrameRate=, batch 278): 25 (the default, as every video was decoded before) or 60 (the video's own rate, up to 60);
 // anything else is read as the nearer of the two kinds (60 and more = 60, less = 25).
+// Auto-Play (the opening track stands paused) and Pause Sphere are off by default, and both reach config.txt (the round trip above flips them)
+TEST(settings_auto_play_and_pause_sphere_default_off) {
+    mt::TempHome home;
+    const Settings s = load_settings();
+    CHECK(!s.auto_play);
+    CHECK(!s.pause_sphere);
+    const std::string text = settings_to_text(s);
+    CHECK(text.find("AutoPlay=false") != std::string::npos);
+    CHECK(text.find("PauseSphere=false") != std::string::npos);
+    CHECK_EQ(s.gapless, 0);                 // Gapless Playback: off by default
+    CHECK(text.find("Gapless=off") != std::string::npos);
+    CHECK_EQ(s.track_buffer_mb, 64);        // (batch 281: 64 MB instead of 256)
+}
+
+TEST(settings_gapless_values) {
+    mt::TempHome home;
+    save_settings(load_settings());
+    for (const char* v : {"off", "album", "full"}) {
+        Settings s = load_settings();
+        s.gapless = std::string(v) == "full" ? 2 : std::string(v) == "album" ? 1 : 0;
+        save_settings(s);
+        CHECK_EQ(load_settings().gapless, s.gapless);
+        CHECK(settings_to_text(load_settings()).find(std::string("Gapless=") + v) != std::string::npos);
+    }
+}
+
 TEST(settings_video_frame_rate_is_25_or_60) {
     mt::TempHome home;
     CHECK_EQ(load_settings().video_fps, 25);

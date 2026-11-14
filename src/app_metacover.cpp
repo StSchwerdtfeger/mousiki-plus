@@ -1,6 +1,7 @@
 // The cover in the meta data editor: the picture under the fields and the "Cover Options" overlay (choose a picture for the track,
 // "no cover", back to automatic, delete a fetched / folder picture, search pictures by file name). Member functions of App.
 #include "app.h"
+#include "milkdrop.h"
 #include "meta_state.h"
 #include "coverfetch_state.h"
 #include "overlay_rows.h"
@@ -269,6 +270,7 @@ void App::meta_open_style_playing() {
 
 bool App::handle_meta_sty_key(int key) {
     if (!meta_->sty_open) return false;
+    if (mdb_open_ && !mdb_track_.empty()) { handle_mdb_key(key); return true; }   // (More Options: the preset overlay of this track)
     const bool arrow = last_key_was_arrow();
     if (key == 27) {
         meta_->sty_open = false;
@@ -282,7 +284,7 @@ bool App::handle_meta_sty_key(int key) {
         meta_->field = 0;
         return true;
     }
-    if (arrow && (key == 'A' || key == 'B')) { const int n = static_cast<int>(style_rows(settings_.video_mode, meta_->sty_pair).size()); meta_->sty_sel = (meta_->sty_sel + (key == 'A' ? n - 1 : 1)) % n; return true; }
+    if (arrow && (key == 'A' || key == 'B')) { const int n = static_cast<int>(style_rows(settings_.video_mode, meta_->sty_pair, milkdrop_usable()).size()); meta_->sty_sel = (meta_->sty_sel + (key == 'A' ? n - 1 : 1)) % n; return true; }
     const std::string album = meta_->hover_values[static_cast<size_t>(MetaField::Album)];
     const std::string folder = path_utf8(path_from_utf8(meta_->sty_track).parent_path());
     CoverStyle st = cover_track_style(meta_->sty_track);
@@ -298,9 +300,28 @@ bool App::handle_meta_sty_key(int key) {
     else if (!arrow && (key == kKeyDelete || key == 127 || key == 'd' || key == 'r')) reset = true;
     else if (key == '\r' || key == '\n' || key == ' ') dir = 1;
     if (!dir && !reset) return true;
-    const std::vector<StyleRow> list = style_rows(settings_.video_mode, meta_->sty_pair);
+    const std::vector<StyleRow> list = style_rows(settings_.video_mode, meta_->sty_pair, milkdrop_usable());
     const StyleRow sel = list[static_cast<size_t>(std::clamp(meta_->sty_sel, 0, static_cast<int>(list.size()) - 1))];
     if (!arrow && (key == '\r' || key == '\n') && sel == kStVideoEffect) { fxpick_open(3); return true; }   // ENTER on Video Effect: the list of all effects
+    if (sel == kStMilkdropOn || sel == kStMilkdropPreset) {   // the MilkDrop visuals of this track
+        MilkdropTrackOpts mo = cover_track_milkdrop(meta_->sty_track);
+        if (sel == kStMilkdropOn) {
+            mo.on = reset ? -1 : mo.on < 0 ? (dir > 0 ? 1 : 0) : mo.on == 1 ? (dir > 0 ? 0 : -1) : (dir > 0 ? -1 : 1);   // as it comes -> on -> off -> ...
+            meta_->sty_msg = mo.on < 0 ? "saved: MilkDrop as it comes" : mo.on == 1 ? "saved: MilkDrop shows while this track plays" : "saved: no MilkDrop for this track";
+        } else if (reset) {   // More Options: all of them back to "as it comes"
+            mo.preset.clear();
+            mo.keep = -1;
+            mo.fx = -1;
+            meta_->sty_msg = "saved: the MilkDrop options of this track are as they come";
+        } else if (dir > 0) {   // More Options: the preset overlay for this track
+            mdb_open_track(meta_->sty_track, meta_->hover_values[static_cast<size_t>(MetaField::Title)]);
+            if (!mdb_open_) meta_->sty_msg = status_line_;
+            return true;
+        } else return true;
+        set_cover_track_milkdrop(meta_->sty_track, mo);
+        if (has_track_ && path_utf8(current_.path) == meta_->sty_track) milkdrop_track_apply();
+        return true;
+    }
     switch (sel) {
         case kStLook: st.look = reset ? -1 : sty_step(st.look, dir, kCoverLookCount - 1, 1); break;
         case kStCoverContrast: st.contrast = reset ? -1 : sty_step(st.contrast, dir, 150, 5); break;
@@ -344,6 +365,7 @@ bool App::handle_meta_sty_key(int key) {
             meta_->sty_msg = "saved";
             return true;
         }
+        case kStMilkdropOn: case kStMilkdropPreset: break;   // (handled above)
         case kStMp4Audio: {   // true / false (false = the song's own audio, as before)
             VideoTrackOpts o = cover_track_video_opts(meta_->sty_track);
             const int before = o.mp4audio;
@@ -365,7 +387,8 @@ bool App::handle_meta_sty_key(int key) {
 }
 
 // Wide enough for the preview (the disk is 30 cells wide) when the terminal has room for it.
-int App::meta_sty_panel_width(int screen_w) const { return screen_w >= 100 && term_rows_ >= 24 ? kMetaStyPanelWidth + 32 : kMetaStyPanelWidth; }
+// (a wide window: five more columns on each side, all of them for the preview -- the video is shown wider, the options keep their column)
+int App::meta_sty_panel_width(int screen_w) const { return screen_w >= 110 && term_rows_ >= 24 ? kMetaStyPanelWidth + 42 : screen_w >= 100 && term_rows_ >= 24 ? kMetaStyPanelWidth + 32 : kMetaStyPanelWidth; }
 
 // The cover of the track as it looks with the style set in the overlay (the plain disk where the look is the disk or the track has no
 // cover), prev_w x 15 cells, braille dots like the disk of the main screen. The last row names what is shown.
@@ -426,7 +449,7 @@ std::vector<std::string> App::meta_sty_preview(int prev_w, int rows, const Cover
     const int gsat = st.gsat >= 0 ? st.gsat : settings_.cover_grad_sat;
     const int chroma = st.chroma >= 0 ? st.chroma : settings_.cover_chroma;
     const double angle = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() * 0.6;
-    const int dw = disk_.width(), dh = disk_.height();
+    int dw = disk_.width(), dh = disk_.height();
     std::string note = cover_look_name(look);
     std::vector<std::string> disk;
     auto plain_disk = [&]() {
@@ -440,7 +463,7 @@ std::vector<std::string> App::meta_sty_preview(int prev_w, int rows, const Cover
     // track's effect, contrast, brightness, colours, chromatic aberration and rounded corners apply, and it plays. The playing track uses the
     // player of the field (in step with the audio; the field is not drawn while this overlay is open); another track uses a decoder of its
     // own that runs while the preview is shown. A track without a video, or with its video off: the disk.
-    const std::vector<StyleRow> srows = style_rows(settings_.video_mode, meta_->sty_pair);
+    const std::vector<StyleRow> srows = style_rows(settings_.video_mode, meta_->sty_pair, milkdrop_usable());
     const bool video_rows = settings_.video_mode && style_row_is_video(srows[static_cast<size_t>(std::clamp(meta_->sty_sel, 0, static_cast<int>(srows.size()) - 1))]);
     const fs::path trk = path_from_utf8(meta_->sty_track);
     const std::string vshown = video_rows ? video_shown_for(trk) : std::string();
@@ -457,16 +480,19 @@ std::vector<std::string> App::meta_sty_preview(int prev_w, int rows, const Cover
             vt = std::chrono::duration<double>(now - sty_video_t0_).count();
         }
         sty_video_seen_ = now;
-        const int lpad0 = std::max(0, (prev_w - dw) / 2);
+        // the video takes the whole preview column (less a column on each side) and all its rows but the note -- not just the disk's place
+        const int vw = std::max(dw, prev_w - 2), vh = std::max(dh, rows - 1);
+        const int lpad0 = std::max(0, (prev_w - vw) / 2);
         const int W = meta_sty_panel_width(screen_w), panel_h = rows + 2;
         const int start_col = 1 + std::max(0, (screen_w - W) / 2);
         const int start_row = std::clamp(1 + std::max(0, (term_rows_ - panel_h) / 2 - kFloatingPanelUpShift + 1), 1, std::max(1, term_rows_ - panel_h));
-        const int top0 = std::max(0, (rows - 1 - dh) / 2);
+        const int top0 = std::max(0, (rows - 1 - vh) / 2);
         const bool second = meta_->sty_from_main && mode_ == Mode::MetaEdit && gfx_.active;   // (like the cover preview: the main screen's own picture stays in the first slot)
         std::vector<std::string> vr;
-        if (video_draw(vr, dw, dh, (start_col - 1) + 1 + (kMetaStyPanelWidth - 2) + 1 + lpad0, start_row + top0, second, vt, 0, std::vector<std::string>(), 0, false, false, vp, &trk) &&
-            static_cast<int>(vr.size()) == dh) {
+        if (video_draw(vr, vw, vh, (start_col - 1) + 1 + (kMetaStyPanelWidth - 2) + 1 + lpad0, start_row + top0, second, vt, 0, std::vector<std::string>(), 0, false, false, vp, &trk) &&
+            static_cast<int>(vr.size()) == vh) {
             disk = std::move(vr);
+            dw = vw; dh = vh;
             note = "the video of this track";
             if (gfxs_.proto != GfxProto::None && (second ? gfx2_ : gfx_).active) { meta_->sty_pic = second ? 2 : 1; note += "  (image)"; }
             vdone = true;
@@ -551,7 +577,7 @@ std::vector<std::string> App::build_meta_sty_panel(int screen_w) const {
     };
     auto look_text = [&](int own) { return own >= 0 ? std::string(cover_look_name(own)) : std::string("as in Settings"); };
     struct Row { const char* label; std::string value; };
-    const std::vector<StyleRow> list = style_rows(settings_.video_mode, meta_->sty_pair);
+    const std::vector<StyleRow> list = style_rows(settings_.video_mode, meta_->sty_pair, milkdrop_usable());
     const VideoTrackOpts vo = settings_.video_mode ? cover_track_video_opts(meta_->sty_track) : VideoTrackOpts();
     static const char* const size_names[4] = {"regular", "cropped", "full", "framed"};
     auto row_of = [&](StyleRow id) -> Row {
@@ -583,6 +609,13 @@ std::vector<std::string> App::build_meta_sty_panel(int screen_w) const {
             case kStVideoResolution: return {"Video Resolution", vo.res >= 0 ? std::string(video_res_name(vo.res)) : std::string("as in Settings (") + video_res_name(settings_.video_res) + ")"};
             case kStVideoRounded: return {"Video Rounded Corners", vo.round >= 0 ? std::string(vo.round ? "on" : "off") : std::string("as in Settings (") + (settings_.video_round ? "on" : "off") + ")"};
             case kStMp4Audio: return {"Use mp4 audio for this song", vo.mp4audio == 1 ? std::string("true") : std::string("false")};
+            case kStMilkdropOn: { const MilkdropTrackOpts mo = cover_track_milkdrop(meta_->sty_track);
+                return {"MilkDrop for this track", mo.on < 0 ? std::string("as it comes") : mo.on == 1 ? std::string("on (shown while it plays)") : std::string("off")}; }
+            case kStMilkdropPreset: { const MilkdropTrackOpts mo = cover_track_milkdrop(meta_->sty_track);
+                std::string v;
+                if (!mo.preset.empty()) v = path_utf8(path_from_utf8(mo.preset).stem()) + (mo.keep == 0 ? " (then on)" : "");
+                if (mo.fx >= 0) v += (v.empty() ? "" : ", ") + std::string(video_fx_name(video_fx_canon(mo.fx)));
+                return {"More Options", truncate_str(v.empty() ? std::string("as it comes") : v, 18) + " [ENTER]"}; }   // (a preset name can be long)
             case kStAlbum: break;
         }
         return {"Look of the whole album", look_text(album_look)};
@@ -605,6 +638,7 @@ std::vector<std::string> App::build_meta_sty_panel(int screen_w) const {
         const StyleRow id = list[static_cast<size_t>(i)];
         if (i == 0) head("Cover");
         else if (id == kStVideoOn) head("Video");
+        else if (id == kStMilkdropOn) head("MilkDrop");
         else if (id == kStAlbum) head("Album");
         std::string t = " " + pad_right(rows[static_cast<size_t>(i)].label, 27) + " \u25c0 " + rows[static_cast<size_t>(i)].value + " \u25b6";
         t = pad_right(truncate_str(t, left_w - 1), left_w - 1) + " ";

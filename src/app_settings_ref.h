@@ -22,6 +22,7 @@ inline const RefHotkeyRow kRefRows[] = {
     {nullptr, "HKeyToggleNormalize", "Toggle Normalize"},
     {nullptr, "HKeyBarsMenu", "Spectrum Bars Options"}, // style, the Hi-Fi rows, motion; under the upper pane
     {nullptr, "HKeyNormMenu", "Normalization Tuning"}, // on/off, target level, max boost, live
+    {nullptr, "HKeyVisualsMenu", "Visuals (MilkDrop)"}, // the preset and the MilkDrop options
     {nullptr, "HKeySleepTimer", "Sleep Timer"},       // 15/30/60/90/120 min or stop after the current song
     {nullptr, "HKeyCreator", "Creator"},              // text / picture -> oscilloscope music or spectrogram sound
     // --- Navigation & View ---

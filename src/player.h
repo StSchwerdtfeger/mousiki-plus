@@ -55,8 +55,9 @@ public:
     // interleaved stereo block written to the device -- the raw
     // time-domain feed for the lyrics panel's oscilloscope (independent
     // of fft_sink, so one can exist without the other).
+    // `start_paused`: the device opens paused (silence from the first callback on; resume() starts it).
     bool play(std::shared_ptr<StreamingPcm> pcm, double start_sec, int volume_pct,
-              FftVisualizer* fft_sink = nullptr, OscilloscopeVisualizer* scope_sink = nullptr);
+              FftVisualizer* fft_sink = nullptr, OscilloscopeVisualizer* scope_sink = nullptr, bool start_paused = false);
 
     void pause();
     void resume();
@@ -127,6 +128,18 @@ public:
 
     void stop();
 
+    // Gapless playback (Settings -> GENERAL -> AUDIO -> Gapless Playback). queue_next() hands over the track that follows: the audio
+    // thread goes on into it at the very sample where the one that plays ends, in the same callback, with the device kept open -- no
+    // gap, no reopen. It has to have the same sample rate as the one that plays (the device runs at that rate); it may be the same
+    // buffer again (repeat). take_switch() is how the main thread learns that the audio thread went on into it (true once per switch;
+    // from then on it is the track that plays and the old one is let go). clear_next() takes a track that was handed over back
+    // (false: too late, the switch has happened -- take_switch() reports it). All three only try the lock: while play() swaps the device
+    // they return false and are asked again on the next frame. Not at a playback speed other than 1 (the audio book player).
+    bool queue_next(std::shared_ptr<StreamingPcm> next);
+    int clear_next();
+    bool take_switch();
+    bool has_next() const { return next_.load(std::memory_order_acquire) != nullptr; }
+
     // The sound output (audio_backend.h): the name of the chosen device, "" = the system's default. set_device() only stores it;
     // the next play() opens that device, and reopen_device() moves a running track there at once (same position, pause state
     // kept; a few hundred ms on WASAPI, so not on the audio thread). A device that is not there (any more) falls back to the
@@ -173,6 +186,15 @@ private:
     bool device_ready_ = false;
 
     std::shared_ptr<StreamingPcm> pcm_;
+    // What the audio callback plays (the callback reads only these raw pointers, never the shared_ptrs above/below, which the main
+    // thread may reassign while it runs). active_ is pcm_ itself, or -- after a gapless switch, until take_switch() -- next_pcm_.
+    // next_ is the handed-over track; the callback takes it with an exchange, so whoever exchanges it out of there first owns the decision.
+    std::atomic<StreamingPcm*> active_{nullptr};
+    std::shared_ptr<StreamingPcm> next_pcm_;   // mutex_
+    std::atomic<StreamingPcm*> next_{nullptr};
+    bool commit_switch_locked();                // the callback took next_: next_pcm_ becomes pcm_; mutex_ held
+    bool switch_unreported_ = false;            // a switch committed (by any of the calls) that take_switch() has not reported yet; mutex_
+    static void render(Player* self, StreamingPcm* pcm, float* out, ma_uint32 frame_count, bool may_finish = true);
     FftVisualizer* fft_sink_ = nullptr;
     OscilloscopeVisualizer* scope_sink_ = nullptr; // raw-waveform feed; same lifetime rules as fft_sink_
     std::atomic<int> sample_rate_{44100};
@@ -217,6 +239,7 @@ private:
     long long ts_last_cur_ = 0;
 
     static void data_callback(ma_device* device, void* output, const void* input, ma_uint32 frame_count);
+    static void data_callback_impl(ma_device* device, void* output, const void* input, ma_uint32 frame_count);
 };
 
 } // namespace muisc

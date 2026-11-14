@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <cstdlib>
 #include <fstream>
@@ -121,6 +122,7 @@ enum RsId {
     kRsOnAir, kRsSignBorder, kRsPulse, kRsDummy, kRsVolIndicator, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc, kRsBehavior, kRsBarStyle, kRsHifiRes, kRsHifiChan, kRsHifiColor, kRsHifiScale, kRsHifiAdapt, kRsHifiSplit, kRsHifiFScale, kRsHifiGain, kRsHifiRange,
     kRsScope, kRsOsciStyle,
+    kRsUseMilkdrop, kRsMdFps, kRsMdRes, kRsMdDuration, kRsMdShuffle, kRsMdBeat, kRsMdHardCuts, kRsMdTransition, kRsMdShowName,
     kRsAudioDevice,   // [ENTER]: the CHOOSE AUDIO DEVICE overlay
     kRsCliScripts,    // [ENTER]: the script overlay
     kRsTermDefaultFont, // leave the terminal's own font alone (one value for all modes: TerminalDefaultFont= in the player's config.txt)
@@ -146,10 +148,8 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {true, -1, ""},
         {true, -1, "AUDIO"},
         {false, kRsAudioDevice, "Choose Audio Device"},
-        {false, kRsOnAir, "On air ascii"}, {false, kRsSignBorder, "Sign border"}, {false, kRsPulse, "Pulse wave"}, {false, kRsDummy, "Dummy buttons"},
         {false, kRsStereo, "Stereo sound"}, {false, kRsNormalize, "Normalize volume"},
         {false, kRsTuneNoise, "Tuning noise"}, {false, kRsTimeshift, "Timeshift buffer"},
-        {false, kRsUseOsci, "Use oscilloscope"}, {false, kRsUseSpectro, "Use spectrogram"},   // false: not in the "." cycle (the window still works)
         {true, -1, ""},
         {true, -1, "TEXT"},
         {false, kRsTermDefaultFont, "Terminal default font"},
@@ -157,10 +157,11 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
     };
     static const std::vector<SettingsLine> anima = {
         {true, -1, "ON AIR SIGN"},
+        {false, kRsOnAir, "On air ascii"}, {false, kRsSignBorder, "Sign border"}, {false, kRsPulse, "Pulse wave"},
         {false, kRsGradSpeed, "Gradient wave speed"}, {false, kRsPulseSpeed, "Pulse wave speed"},
         {true, -1, ""},
         {true, -1, "SEEK AND VOLUME"},
-        {false, kRsVolIndicator, "Volume indicator"},
+        {false, kRsDummy, "Dummy buttons"}, {false, kRsVolIndicator, "Volume indicator"},
         {true, -1, ""},
         {true, -1, "SPECTRUM BARS"},   // the spectrum bars under the station info
         {false, kRsVisualizer, "On/Off"},
@@ -168,8 +169,14 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {false, kRsBehavior, "Bars Behavior"}, {false, kRsFluidity, "Bars Fluidity"}, {false, kRsDegr, "Bars Degradation"}, {false, kRsVisc, "Bars Viscosity"},
         {true, -1, ""},
         {true, -1, "OSCI/SPECTRO SETTINGS"},
+        {false, kRsUseOsci, "Use oscilloscope"}, {false, kRsUseSpectro, "Use spectrogram"},   // false: not in the "." cycle (the window still works)
         {false, kRsShareProfiles, "Modes Share Settings"},
         {false, kRsScope, "Osci/sphere"}, {false, kRsOsciStyle, "Osci style"},
+        {true, -1, ""},
+        {true, -1, "MILKDROP"},   // the MilkDrop visuals in the scope block (projectM, when installed)
+        {false, kRsUseMilkdrop, "Use MilkDrop"}, {false, kRsMdFps, "MilkDrop Frame Rate"}, {false, kRsMdRes, "MilkDrop Resolution"},
+        {false, kRsMdDuration, "Preset Duration"}, {false, kRsMdShuffle, "Shuffle Presets"}, {false, kRsMdBeat, "Beat Sensitivity"},
+        {false, kRsMdHardCuts, "Hard Cuts"}, {false, kRsMdTransition, "Preset Transition"}, {false, kRsMdShowName, "Show Preset Name"},
     };
     if (tab == 1) return on_off;
     if (g_rs_hifi) return anima;
@@ -203,7 +210,7 @@ const int kOnOffRowCount = rs_row_count(1);
 const int kAnimRowCount = rs_row_count(2);
 
 std::string scope_mode_name(const RadioSettings& s) {
-    return s.scope_mode == 1 ? "sphere" : s.scope_mode == 2 ? "off" : s.scope_mode == 3 ? "spectro" : "osci";
+    return s.scope_mode == 1 ? "sphere" : s.scope_mode == 2 ? "off" : s.scope_mode == 3 ? "spectro" : s.scope_mode == 4 ? "milkdrop" : "osci";
 }
 
 namespace {
@@ -244,10 +251,24 @@ bool* flag_of(RadioSettings& s, int id) {
         case kRsUseOsci: return &s.use_osci;
         case kRsUseSpectro: return &s.use_spectro;
         case kRsBlackBg: return &s.black_background;
+        case kRsUseMilkdrop: return &s.use_milkdrop;
+        case kRsMdShuffle: return &s.md_shuffle;
+        case kRsMdHardCuts: return &s.md_hard_cuts;
+        case kRsMdShowName: return &s.md_show_name;
         default: return nullptr;
     }
 }
 } // namespace
+
+int radio_md_step(int which, int cur, int dir) {
+    // the steps of the MilkDrop rows (as the player's): 0 frame rate, 1 resolution, 2 preset duration; the nearest step, then one on
+    static const int fps[] = {15, 20, 25, 30, 45, 60}, res[] = {320, 480, 640, 960, 1280}, dur[] = {0, 10, 15, 20, 25, 30, 45, 60, 90, 120, 180, 300};
+    const int* a = which == 0 ? fps : which == 1 ? res : dur;
+    const int n = which == 0 ? 6 : which == 1 ? 5 : 12;
+    int k = 0;
+    for (int i = 0; i < n; ++i) if (std::abs(a[i] - cur) < std::abs(a[k] - cur)) k = i;
+    return a[std::clamp(k + (dir > 0 ? 1 : dir < 0 ? -1 : 0), 0, n - 1)];
+}
 
 std::string rs_row_value(const RadioSettings& s, int tab, int row) {
     g_rs_hifi = s.bars_style == 1;
@@ -260,7 +281,7 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsCliScripts: return "[ENTER] open";   // the script overlay
         case kRsRemoteApp: return s.remote_app ? "on   [ENTER] settings" : "off  [ENTER] settings";   // opens the REMOTE APP overlay
         case kRsPlayback: return s.playback_shuffle ? "shuffle" : "list";
-        case kRsStartMode: return s.start_mode == "radio" || s.start_mode == "audiobook" ? s.start_mode : "player";
+        case kRsStartMode: return s.start_mode == "radio" || s.start_mode == "audiobook" ? s.start_mode : "music player";   // (radio_config / config.txt keep "player")
         case kRsUseModePlayer: return s.use_mode[0] ? "true" : "false";
         case kRsUseModeRadio: return s.use_mode[1] ? "true" : "false";
         case kRsUseModeBook: return s.use_mode[2] ? "true" : "false";
@@ -287,6 +308,11 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsVisc: return std::to_string(s.bar_viscosity());
         case kRsScope: return scope_mode_name(s);
         case kRsOsciStyle: return s.osci_style == 1 ? "image" : "braille";
+        case kRsMdFps: return std::to_string(s.md_fps) + " fps";
+        case kRsMdRes: return std::to_string(s.md_res) + " px";
+        case kRsMdDuration: return s.md_secs <= 0 ? std::string("off") : std::to_string(s.md_secs) + " s";
+        case kRsMdBeat: { char b[8]; std::snprintf(b, sizeof b, "%.1f", std::clamp(s.md_beat, 0, 20) / 10.0); return b; }
+        case kRsMdTransition: return s.md_transition <= 0 ? std::string("cut") : std::to_string(s.md_transition) + " s";
     }
     return "";
 }
@@ -354,8 +380,13 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
         case kRsHifiRange: s.hifi_range = std::clamp(s.hifi_range + 4 * dir, 40, 100); break;
         case kRsDegr: cycle_int(s.bar_degradation(), 1, 10, dir); break;
         case kRsVisc: cycle_int(s.bar_viscosity(), 0, 10, dir); break;
-        case kRsScope: step(s.scope_mode, 4); break;
+        case kRsScope: step(s.scope_mode, 5); break;   // osci, sphere, off, spectro, milkdrop (an unusable MilkDrop shows the oscilloscope: radio_milkdrop.cpp)
         case kRsOsciStyle: step(s.osci_style, 2); break;
+        case kRsMdFps: s.md_fps = radio_md_step(0, s.md_fps, dir == 0 ? 1 : dir); break;
+        case kRsMdRes: s.md_res = radio_md_step(1, s.md_res, dir == 0 ? 1 : dir); break;
+        case kRsMdDuration: s.md_secs = radio_md_step(2, s.md_secs, dir == 0 ? 1 : dir); break;
+        case kRsMdBeat: s.md_beat = std::clamp(s.md_beat + (dir == 0 ? 1 : dir), 0, 20); break;
+        case kRsMdTransition: s.md_transition = std::clamp(s.md_transition + (dir == 0 ? 1 : dir), 0, 10); break;
     }
 }
 
@@ -638,6 +669,7 @@ void load_player_mode_settings(RadioSettings& s) {
     const muisc::ModeConfig mc = muisc::read_mode_config();   // same file; defaults when missing, always one mode on
     for (int i = 0; i < 3; ++i) { s.use_mode[i] = mc.use[i]; s.mode_order[i] = mc.order[i]; }
     s.audiobook_path = player_config_value("audiobookpath");
+    s.md_presets = player_config_value("milkdroppresets");   // the MilkDrop preset folder: one for all modes ("" = the usual places)
     {
         std::string v = ascii_lower_str(player_config_value("terminaldefaultfont"));
         s.terminal_default_font = v == "true" || v == "1" || v == "yes" || v == "on";
@@ -760,7 +792,8 @@ const KeyAction kKeyActions[] = {
     {nullptr, "ScopeBig", "Oscilloscope Full Screen", "="},     // SHIFT+0 on a German keyboard: YT left, XY right, grid
     {nullptr, "NormMenu", "Normalization Overlay", "V"},
     {nullptr, "EqMenu", "Equalizer Overlay", "E"},
-    {nullptr, "ScopeToggle", "Cycle Osci / Sphere / Spectro", "."},   // "." like the player's lyrics-area cycle (was "o" up to v3.0.0)
+    {nullptr, "ScopeToggle", "Cycle Osci / Sphere / Spectro / MilkDrop", "."},   // "." like the player's lyrics-area cycle (was "o" up to v3.0.0)
+    {nullptr, "VisualsMenu", "MilkDrop Visuals Overlay", ":"},   // as in the music player and the audio book
     {"TIMESHIFT", "Pause", "Pause / Resume (keeps buffering)", "SPACE"},
     {nullptr, "Back30", "Back 30 Seconds", "["},
     {nullptr, "Fwd30", "Forward 30 Seconds", "]"},
@@ -959,7 +992,16 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("DummyButtons")) s.dummy_buttons = as_bool(*v, s.dummy_buttons);
     if (auto v = get("VolumeGradient")) s.volume_gradient = as_bool(*v, s.volume_gradient);
     if (auto v = get("VolumeIndicator")) { const int st = muisc::volume_style_from_name(*v); if (st >= 0) s.volume_indicator = st; }
-    if (auto v = get("OsciSphere")) { const std::string l = ascii_lower_str(*v); s.scope_mode = l == "sphere" ? 1 : l == "off" ? 2 : (l == "spectro" || l == "spectrogram") ? 3 : 0; }
+    if (auto v = get("OsciSphere")) { const std::string l = ascii_lower_str(*v); s.scope_mode = l == "sphere" ? 1 : l == "off" ? 2 : (l == "spectro" || l == "spectrogram") ? 3 : l == "milkdrop" ? 4 : 0; }
+    if (auto v = get("UseMilkDrop")) s.use_milkdrop = as_bool(*v, s.use_milkdrop);
+    if (auto v = get("MilkDropFrameRate")) s.md_fps = std::clamp(muisc::atoi_safe(v->c_str()), 10, 60);
+    if (auto v = get("MilkDropResolution")) s.md_res = std::clamp(muisc::atoi_safe(v->c_str()), 160, 1920);
+    if (auto v = get("MilkDropPresetDuration")) s.md_secs = std::clamp(muisc::atoi_safe(v->c_str()), 0, 3600);
+    if (auto v = get("MilkDropShuffle")) s.md_shuffle = as_bool(*v, s.md_shuffle);
+    if (auto v = get("MilkDropBeatSensitivity")) s.md_beat = std::clamp(muisc::atoi_safe(v->c_str()), 0, 20);
+    if (auto v = get("MilkDropHardCuts")) s.md_hard_cuts = as_bool(*v, s.md_hard_cuts);
+    if (auto v = get("MilkDropTransition")) s.md_transition = std::clamp(muisc::atoi_safe(v->c_str()), 0, 10);
+    if (auto v = get("MilkDropShowName")) s.md_show_name = as_bool(*v, s.md_show_name);
     for (const auto& [k, v] : kv) { if (!spectro_profile_key(s, k, v)) spectro_config_key(s.spectro, k, v); }
     spectro_profiles_finish(s);
     if (auto v = get("TuneNoise")) s.tune_noise = as_bool(*v, s.tune_noise);
@@ -1130,8 +1172,21 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "# what the VOLUME BAR is drawn with: # | \xE2\xA0\xB6 | \xE2\xA3\xBF | \xE2\xA1\xBE\xE2\xA3\xBD (a fixed row, not repeating) | disk (the braille effect of the disk)\n"
          "VolumeGradient=" << (s.volume_gradient ? "true" : "false") << "\n"
          "VolumeIndicator=" << muisc::kVolIndicatorNames[std::clamp(s.volume_indicator, 0, muisc::kVolStyleCount - 1)] << "\n"
-         "# right of the station info: osci | sphere | off | spectro\n"
+         "# right of the station info: osci | sphere | off | spectro | milkdrop (the MilkDrop visuals, when projectM is installed)\n"
          "OsciSphere=" << scope_mode_name(s) << "\n"
+         "# the MilkDrop visuals (ANIMA/VIZ -> MILKDROP, the \":\" overlay): false leaves them out of the \".\" cycle\n"
+         "UseMilkDrop=" << (s.use_milkdrop ? "true" : "false") << "\n"
+         "# pictures a second (15 .. 60), drawn at most this many pixels across (320 .. 1280; then scaled to the block)\n"
+         "MilkDropFrameRate=" << s.md_fps << "\n"
+         "MilkDropResolution=" << s.md_res << "\n"
+         "# seconds a preset stays (0 = until changed by hand), next preset at random, beat sensitivity 0 .. 20 (= 0.0 .. 2.0)\n"
+         "MilkDropPresetDuration=" << s.md_secs << "\n"
+         "MilkDropShuffle=" << (s.md_shuffle ? "true" : "false") << "\n"
+         "MilkDropBeatSensitivity=" << s.md_beat << "\n"
+         "# a strong beat may change the preset at once; seconds of the blend into the next preset (0 = a cut); the preset's name for 3 s after a change\n"
+         "MilkDropHardCuts=" << (s.md_hard_cuts ? "true" : "false") << "\n"
+         "MilkDropTransition=" << s.md_transition << "\n"
+         "MilkDropShowName=" << (s.md_show_name ? "true" : "false") << "\n"
          "Visualizer=" << (s.element_visualizer ? "true" : "false") << "\n"
          "StereoSound=" << (s.stereo ? "true" : "false") << "\n"
          "# false = left out entirely: not in the \".\" cycle of the scope block (the sphere always is); the windows\n"

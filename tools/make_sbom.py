@@ -4,7 +4,8 @@
   python tools/make_sbom.py --out packaging/dist/Mousiki-5.0.0-sbom.cdx.json [--version 5.0.0]
 
 Lists Mousiki itself, the libraries shipped as source (third_party/VENDORED.json) and the bundled tools (packaging/pins.json:
-yt-dlp, FFmpeg, Python, SDL2 ... with their exact download address and SHA-256). Standard library only; no network."""
+yt-dlp, FFmpeg, Python, SDL2 ... with their exact download address and SHA-256; projectM and the MilkDrop presets from
+tools/milkdrop-windows.ps1). Standard library only; no network."""
 import argparse
 import datetime
 import json
@@ -76,6 +77,33 @@ def tool_components():
     return out
 
 
+MILKDROP_LICENSES = {"projectm": "LGPL-2.1-only", "projectm-eval": "MIT", "presets": None, "textures": None}
+
+
+def milkdrop_components():
+    """projectM and the preset packs the Windows packages bundle (pins in tools/milkdrop-windows.ps1: one commit each; the
+    checksum is over the archive's files, see that script)."""
+    path = ROOT / "tools" / "milkdrop-windows.ps1"
+    if not path.is_file():
+        return []
+    text = path.read_text(encoding="utf-8")
+    out = []
+    for name, url, manifest in re.findall(r"Name = '([^']+)'\s+Url\s+= '([^']+)'\s+Manifest = '([0-9a-f]{64})'", text):
+        comp = {
+            "type": "library" if name.startswith("projectm") else "data",
+            "bom-ref": "milkdrop/" + name,
+            "name": name,
+            "version": url.rsplit("/", 1)[-1].replace(".zip", ""),
+            "externalReferences": [{"type": "distribution", "url": url}],
+            "properties": [{"name": "mousiki:shipped-as", "value": "Windows packages: built / unpacked by tools/milkdrop-windows.ps1"},
+                           {"name": "mousiki:files-sha256-manifest", "value": manifest}],
+        }
+        if MILKDROP_LICENSES.get(name):
+            comp["licenses"] = license_entry(MILKDROP_LICENSES[name])
+        out.append(comp)
+    return out
+
+
 def build(version):
     return {
         "bomFormat": "CycloneDX",
@@ -95,7 +123,7 @@ def build(version):
                 "externalReferences": [{"type": "vcs", "url": "https://github.com/StSchwerdtfeger/mousiki-plus"}],
             },
         },
-        "components": vendored_components() + tool_components(),
+        "components": vendored_components() + tool_components() + milkdrop_components(),
     }
 
 

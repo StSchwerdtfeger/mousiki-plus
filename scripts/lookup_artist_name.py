@@ -63,7 +63,7 @@ def latin_name(artist, wanted):
     if w != fold(artist.get("name")):   # only an alias of the artist (a stage name ...): its own Latin form, not the artist's
         for a in aliases:
             if w in (fold(a.get("name")), fold(a.get("sort-name"))) and is_latin(a.get("sort-name") or ""):
-                return a["sort-name"]
+                return unsort(a["sort-name"])   # ("Yanai, Aiko" -> "Aiko Yanai", as for the artist's own sort name)
         return None
     best = None
     for a in aliases:
@@ -92,6 +92,15 @@ def latin_name(artist, wanted):
             return (first + " " + last).strip()
         return sort
     return None
+
+
+def unsort(sort):
+    """A sort name "Family, Given" as it is written in Latin letters: "Given Family"; anything else as it is."""
+    if sort.count(",") == 1:
+        last, first = [p.strip() for p in sort.split(",")]
+        if last and first:
+            return first + " " + last
+    return sort
 
 
 def get(url):

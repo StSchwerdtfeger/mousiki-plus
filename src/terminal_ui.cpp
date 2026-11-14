@@ -1031,10 +1031,12 @@ bool write_frame_async_allowed() {
     return !off;
 }
 
-double write_frame_async(std::string frame) {
+double write_frame_async(std::string frame, int has_picture) {
     AsyncWriter& w = writer();
     const auto t0 = std::chrono::steady_clock::now();
-    const bool pic = frame.size() >= 32 * 1024;   // (a frame this big holds a picture: text frames are a few KiB)
+    // (a frame this big holds a picture: text frames are a few KiB -- unless the caller says: a big floating panel written again with the
+    // lines that changed is text, and counting it as a picture held back every new picture behind it)
+    const bool pic = has_picture >= 0 ? has_picture != 0 : frame.size() >= 32 * 1024;
     {
         std::unique_lock<std::mutex> lk(w.mu);
         if (!w.started) { w.started = true; std::thread([&w] { w.loop(); }).detach(); }

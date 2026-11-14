@@ -289,7 +289,7 @@ std::optional<std::string> App::render_takeover_screen(int term_cols, int W, boo
         gfxs_.ok = gfx_.active;
         if (remote_ov_.open) remote_overlay_draw(frame, W);
         if (mode_ == Mode::AudioDevice) draw_floating_panel(frame, build_audio_device_panel(), kAudioDevicePanelWidth, W);
-        if (fxpick_.open) draw_fxpick(frame, W);   // (the effect list over the settings)
+        if (fxpick_.open) { draw_fxpick(frame, W); if (fxpick_pic_) gfxs_.ok = true; }   // (the effect list over the settings: its preview is a picture where the terminal shows them)
         return fullscreen_out(frame);
     }
 
@@ -391,6 +391,14 @@ std::optional<std::string> App::render_takeover_screen(int term_cols, int W, boo
         frame_main_len_ = shown.size();
         gfxs_.ok = gfx_.active;
         return shown;
+    }
+
+    // Style Option -> More Options: the MilkDrop preset overlay of one track, over the whole screen (as from the visuals overlay)
+    if (mode_ == Mode::MetaEdit && mdb_open_ && !mdb_track_.empty()) {
+        std::string out = build_mdb_screen(W, hard_clear ? "\x1b[2J\x1b[H" : "\x1b[H");
+        frame_main_len_ = out.size();
+        gfxs_.ok = gfx_.active;
+        return out;
     }
 
     if (mode_ == Mode::MetaEdit && !(meta_->sty_open && meta_->sty_from_main)) {
@@ -603,7 +611,7 @@ std::string App::render_frame(TerminalIO& term) {
         if (m == Mode::MetaEdit && meta_->sty_open && meta_->sty_from_main) return 0;   // the Style Option panel over the main screen
         if (m == Mode::AudioDevice) return adev_->from_settings ? 1 : 0;     // over the settings screen or over the main screen
         switch (m) {
-            case Mode::Browse: case Mode::Search: case Mode::BulkAdd: case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::BarsMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::Creator: case Mode::LyricsEdit: case Mode::BookOverlay: case Mode::AudioDevice: case Mode::VideoMenu: case Mode::VideoLink: case Mode::VideoSearch: return 0;
+            case Mode::Browse: case Mode::Search: case Mode::BulkAdd: case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::MilkdropMenu: case Mode::BarsMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::Creator: case Mode::LyricsEdit: case Mode::BookOverlay: case Mode::AudioDevice: case Mode::VideoMenu: case Mode::VideoLink: case Mode::VideoSearch: return 0;
             case Mode::Settings: case Mode::ColorEdit: return 1;
             case Mode::MenuIndex: return settings_.menu_index_classic ? 0 : 12;   // the organigram over the whole screen; the classic view is an overlay
             case Mode::Console: return 2;
@@ -672,8 +680,9 @@ std::string App::render_frame(TerminalIO& term) {
     // and a changed hole means new pictures
     auto cut_gfx_holes = [&]() {
         gfxs_.ok = gfx_.active;
-        for (int k = 0; k < 2 && gfx_.active; ++k) {
-            GfxFrame& F = k == 0 ? gfx_ : gfx2_;
+        for (int k = 0; k < 3 && gfx_.active; ++k) {
+            GfxFrame& F = k == 0 ? gfx_ : k == 1 ? gfx2_ : gfx3_;
+            if (k == 2 && (!gfx3_.active || fxpick_pic_ == 3)) continue;   // (the third picture: the quartet's oscilloscope; the effect list's own lies in its panel)
             int cut[4] = {-1, -1, -1, -1};
             const int fx = float_rect_[0], fy = float_rect_[1], fw = float_rect_[2], fh = float_rect_[3];
             const bool own_pic = k == 1 && fxpick_.open && fxpick_pic_ == 2;   // (the effect list's preview picture lies inside its own panel: no hole in it)
@@ -718,14 +727,31 @@ std::string App::render_frame(TerminalIO& term) {
         return out;
     }
 
+    // the MilkDrop preset overlay (from the visuals overlay): the preset folder and the visuals beside it, over the whole screen
+    if ((mode_ == Mode::MilkdropMenu || (mode_ == Mode::MetaEdit && !mdb_track_.empty())) && mdb_open_) {   // (also More Options of Style Option over the main screen)
+        std::string out = build_mdb_screen(W, clear_prefix);
+        frame_main_len_ = out.size();
+        gfxs_.ok = gfx_.active;
+        return out;
+    }
     // HKeyVideoFull: the video over the whole screen
-    if (video_full_ && (mode_ == Mode::Browse || mode_ == Mode::OsciMenu || mode_ == Mode::SpectroMenu)) {
+    if (video_full_ && video_opts_open_ && mode_ == Mode::Browse && !fxpick_.open) {   // SHIFT+s: VIDEO OPTIONS over the whole screen, the video beside the options
+        // (with the effect list open the menu it came from is not drawn: the big video stands behind the list, still, with the highlighted effect -- below)
+        std::string out = build_video_opts_screen(W, clear_prefix);
+        if (!out.empty()) {
+            frame_main_len_ = out.size();
+            gfxs_.ok = gfx_.active;
+            return out;
+        }
+    }
+    if (video_full_ && (mode_ == Mode::Browse || mode_ == Mode::OsciMenu || mode_ == Mode::SpectroMenu || mode_ == Mode::MilkdropMenu)) {
         std::string out = build_video_full(W, clear_prefix);
         frame_main_len_ = out.size();
         gfxs_.ok = gfx_.active;
-        if (mode_ == Mode::OsciMenu || mode_ == Mode::SpectroMenu) {   // the layout's oscilloscope / spectrogram options over the picture
+        if (mode_ == Mode::OsciMenu || mode_ == Mode::SpectroMenu || mode_ == Mode::MilkdropMenu) {   // the layout's oscilloscope / spectrogram / MilkDrop options over the picture
             std::ostringstream floating;
             if (mode_ == Mode::OsciMenu) draw_floating_panel(floating, build_osci_menu_panel(), kOsciMenuPanelWidth, W);
+            else if (mode_ == Mode::MilkdropMenu) draw_floating_panel(floating, build_milkdrop_menu_panel(), kMdMenuPanelWidth, W);
             else draw_floating_panel(floating, build_spectro_menu_panel(), kSpectroMenuPanelWidth, W);
             out += floating.str();
             cut_gfx_holes();
@@ -964,6 +990,8 @@ std::string App::render_frame(TerminalIO& term) {
                             static_cast<int>(build_metadata_panel(W).size()) + 1);
     } else if (mode_ == Mode::NormMenu) {
         draw_floating_panel(floating, build_norm_menu_panel(), kNormMenuPanelWidth, W);
+    } else if (mode_ == Mode::MilkdropMenu) {
+        draw_floating_panel(floating, build_milkdrop_menu_panel(), kMdMenuPanelWidth, W);
     } else if (mode_ == Mode::LyricsEdit) {
         draw_floating_panel(floating, build_lyrics_edit_panel(), kLyricsEditPanelWidth, W);
     } else if (mode_ == Mode::SleepTimer) {

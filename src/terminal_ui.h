@@ -289,7 +289,7 @@ void write_frame(const std::string& frame);
 // For a frame with a big picture: written by a writer thread while the next one is built. Returns the ms spent waiting for the write of the
 // frame before. Every other write (write_frame() too) waits for the writer first; anything that writes to the terminal on its own calls
 // write_frame_drain() before.
-double write_frame_async(std::string frame);
+double write_frame_async(std::string frame, int has_picture = -1);   // has_picture: 1 / 0 = the caller knows; -1 = guessed from the size
 void write_frame_drain();
 // A frame with the hidden cursor parked at the top left ("ESC[H" added), unless its last cursor escape is "show" (a text caret to be seen).
 std::string park_cursor(const std::string& frame);

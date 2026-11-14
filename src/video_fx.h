@@ -5,15 +5,15 @@
 
 namespace muisc {
 
-inline constexpr int kVideoFxCount = 43;
+inline constexpr int kVideoFxCount = 44;
 // 0 off, 1 scanlines, 2 crt, 3 vhs, 4 glitch, 5 pixel, 6 gradient, 7 quiet glitch, 8 phosphor green, 9 phosphor amber, 10 halftone, 11 dither,
 // 12 game boy (high-res), 13 ega 16, 14 bloom, 15 film, 16 neon edge, 17 interlace, 18 game boy low-res, 19 neon edge gradient, 20 game boy high-res gradient, 21 dither b/w, 22 dither gradient, 23 game boy high-res b/w, 24 game boy low-res b/w, 25 game boy low-res gradient,
 // 26 phosphor green glow, 27 cga, 28 c64, 29 zx spectrum, 30 amstrad cpc, 31 teletext, 32 amiga ham, 33 silent film, 34 technicolor, 35 vector, 36 blueprint,
-// 37 ascii, 38 thermal, 39 risograph, 40 laserdisc, 41 halftone cmyk, 42 halftone cmyk high-res (36 blueprint is no longer offered)
+// 37 ascii, 38 thermal, 39 risograph, 40 laserdisc, 41 halftone cmyk, 42 halftone cmyk high-res, 43 teletext high-res (36 blueprint is no longer offered)
 inline const char* video_fx_name(int fx) {   // as shown in the menus (every word capitalized)
     static const char* const n[kVideoFxCount] = {"Off", "Scanlines", "CRT", "VHS", "Glitch", "Pixel", "Gradient", "Quiet Glitch", "Phosphor Green", "Phosphor Amber",
                                                  "Halftone", "Dither", "Game Boy High-Res", "EGA 16", "Bloom", "Film", "Neon Edge", "Interlace", "Game Boy Low-Res", "Neon Edge Gradient", "Game Boy High-Res Gradient", "Dither B/W", "Dither Gradient", "Game Boy High-Res B/W", "Game Boy Low-Res B/W", "Game Boy Low-Res Gradient", "Phosphor Green Glow", "CGA", "C64",
-                                                 "ZX Spectrum", "Amstrad CPC", "Teletext", "Amiga HAM", "Silent Film", "Technicolor", "Vector", "Blueprint", "ASCII", "Thermal", "Risograph", "LaserDisc", "Halftone CMYK", "Halftone CMYK High-Res"};
+                                                 "ZX Spectrum", "Amstrad CPC", "Teletext", "Amiga HAM", "Silent Film", "Technicolor", "Vector", "Blueprint", "ASCII", "Thermal", "Risograph", "LaserDisc", "Halftone CMYK", "Halftone CMYK High-Res", "Teletext High-Res"};
     return fx >= 0 && fx < kVideoFxCount ? n[fx] : "Off";
 }
 inline std::string video_fx_key(int fx) {   // as written in config.txt (lower case)
@@ -24,7 +24,7 @@ inline std::string video_fx_key(int fx) {   // as written in config.txt (lower c
 // The order of the effects in the lists (the numbers stay as they are: they are stored): "Quiet Glitch" sits right below "Glitch".
 // "Dither" (11) is no longer offered: it hardly differed from "Dither B/W" (21), which takes its place (an old setting of 11 reads as 21).
 inline constexpr int kVideoFxShown = kVideoFxCount - 3;   // (Dither 11, Bloom 14 and Blueprint 36 are not offered)
-inline constexpr int kVideoFxOrder[kVideoFxShown] = {0, 1, 2, 3, 40, 17, 4, 7, 8, 26, 9, 38, 35, 16, 19, 15, 33, 34, 39, 10, 41, 42, 21, 22, 5, 6, 12, 23, 20, 18, 25, 24, 13, 27, 29, 30, 28, 32, 31, 37};
+inline constexpr int kVideoFxOrder[kVideoFxShown] = {0, 1, 2, 3, 40, 17, 4, 7, 8, 26, 9, 38, 35, 16, 19, 15, 33, 34, 39, 10, 41, 42, 21, 22, 5, 6, 12, 23, 20, 18, 25, 24, 13, 27, 29, 30, 28, 32, 31, 43, 37};
 // "Bloom" (14) is no longer offered either (too plain), nor is "Blueprint" (36): an old setting of either reads as Off.
 inline int video_fx_canon(int fx) { return fx == 11 ? 21 : fx == 14 || fx == 36 || fx >= kVideoFxCount ? 0 : fx; }   // (an effect that is gone, e.g. Night Vision of an early 5.1.0 build, reads as Off)
 // The effects that run the gradient wave need the visualizer gradient.

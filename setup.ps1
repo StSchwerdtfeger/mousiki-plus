@@ -44,6 +44,12 @@
     Don't use ccache. By default it is installed with winget (when winget exists and it is missing) and CMake uses it, so a
     rebuild after a small change, a branch switch or a clean build takes a fraction of the time.
 
+.PARAMETER SkipMilkDrop
+    Don't build / install the MilkDrop visuals. By default tools\milkdrop-windows.ps1 builds projectM (LGPL-2.1) from a
+    pinned, checksummed source and puts projectM-4.dll, projectM-4-playlist.dll and milkdrop\ (the "Cream of the Crop"
+    presets by ISOSCELES and the MilkDrop texture pack) next to mousiki.exe: about 80 MB of downloads and a few minutes of
+    building, once (a later run skips it while it is up to date). Without it the MilkDrop view is simply left out.
+
 .PARAMETER NoInstall
     Don't create the launchers. By default the commands "mousiki" and "lala"
     are created in %LOCALAPPDATA%\Mousiki\bin, which is added to your user
@@ -58,7 +64,8 @@ param(
     [switch]$NoUpgrade,
     [switch]$UpgradeFfmpeg,
     [switch]$WithKanji,
-    [switch]$NoCcache
+    [switch]$NoCcache,
+    [switch]$SkipMilkDrop
 )
 
 $ErrorActionPreference = 'Stop'
@@ -282,6 +289,29 @@ if ($SkipDeps) {
         Write-Warning "Could not fetch SDL2 ($($_.Exception.Message)). Everything else works; for the scope / spectrogram windows copy SDL2.dll from $sdlZipName (github.com/libsdl-org/SDL/releases) next to mousiki.exe."
     } finally {
         Remove-Item -LiteralPath $sdlZip -Force -ErrorAction SilentlyContinue
+    }
+}
+
+# ---------------------------------------------------------------------------
+# MilkDrop visuals (optional): projectM + presets next to mousiki.exe
+# ---------------------------------------------------------------------------
+# tools\milkdrop-windows.ps1 does the work (packaging/release.py uses the same script for the installer); it returns at
+# once when what is there matches its pins. A failure only costs the MilkDrop view.
+$mdScript = Join-Path $root 'tools\milkdrop-windows.ps1'
+if ($SkipMilkDrop) {
+    # (asked for)
+} elseif ($SkipDeps) {
+    if (-not (Test-Path (Join-Path $exe.DirectoryName 'milkdrop\installed.txt'))) {
+        Write-Host "MilkDrop visuals not built (-SkipDeps): run  pwsh -File `"$mdScript`" -Dest `"$($exe.DirectoryName)`"  for them."
+    }
+} elseif (-not (Test-Path $mdScript)) {
+    Write-Warning "tools\milkdrop-windows.ps1 is missing - the MilkDrop visuals are not installed (everything else works)."
+} else {
+    try {
+        Write-Step "MilkDrop visuals (projectM + the Cream of the Crop presets)"
+        & $mdScript -Dest $exe.DirectoryName -Cache (Join-Path $build 'milkdrop')
+    } catch {
+        Write-Warning "The MilkDrop visuals were not installed ($($_.Exception.Message)). Everything else works; run setup again later, or with -SkipMilkDrop to leave them out."
     }
 }
 

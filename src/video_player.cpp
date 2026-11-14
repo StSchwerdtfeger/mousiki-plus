@@ -845,7 +845,8 @@ void VideoPlayer::apply_fx(VideoFrame& f, int fx, double t, bool braille, const 
         fx_interlace(ctx);
     } else if (fx == 29) { fx_spectrum(ctx);
     } else if (fx == 30) { fx_cpc(ctx);
-    } else if (fx == 31) { fx_teletext(ctx);
+    } else if (fx == 31) { fx_teletext(ctx, false);
+    } else if (fx == 43) { fx_teletext(ctx, true);
     } else if (fx == 32) { fx_ham(ctx);
     } else if (fx == 34) { fx_technicolor(ctx);
     } else if (fx == 35) { fx_vector(ctx);
@@ -1549,6 +1550,106 @@ void VideoPlayer::quantize(const VideoFrame& f, std::vector<uint8_t>& hue, std::
                 }
             }
         }
+    });
+}
+
+void VideoPlayer::quantize_adaptive(const VideoFrame& f, std::vector<uint8_t>& hue, std::vector<uint8_t>& level,
+                                    std::array<std::array<uint8_t, 3>, 256>& pal, int ncol) {
+    const size_t n = static_cast<size_t>(f.w) * f.h;
+    hue.assign(n, 0);
+    level.assign(n, 255);
+    pal = {};
+    if (f.rgb.size() < n * 3 || n == 0) return;
+    ncol = std::clamp(ncol, 2, 240);
+    // --- the histogram: 32 x 32 x 32 bins (every 2nd pixel of every 2nd row is plenty for the palette)
+    static thread_local std::vector<uint32_t> hist;
+    hist.assign(32768, 0);
+    for (int y = 0; y < f.h; y += 2)
+        for (int x = 0; x < f.w; x += 2) {
+            const size_t i = (static_cast<size_t>(y) * f.w + x) * 3;
+            ++hist[(static_cast<size_t>(f.rgb[i] >> 3) << 10) | (static_cast<size_t>(f.rgb[i + 1] >> 3) << 5) | (f.rgb[i + 2] >> 3)];
+        }
+    // --- median cut over the occupied bins
+    struct Bin { uint16_t key; uint32_t cnt; };
+    static thread_local std::vector<Bin> bins;
+    bins.clear();
+    for (uint32_t k = 0; k < 32768; ++k) if (hist[k]) bins.push_back({static_cast<uint16_t>(k), hist[k]});
+    auto ch = [](uint16_t key, int c) { return c == 0 ? (key >> 10) & 31 : c == 1 ? (key >> 5) & 31 : key & 31; };
+    struct Box { size_t a, b; uint64_t cnt; int axis, range; };
+    auto measure = [&](Box& bx) {
+        int lo[3] = {31, 31, 31}, hi[3] = {0, 0, 0};
+        bx.cnt = 0;
+        for (size_t k = bx.a; k < bx.b; ++k) {
+            for (int c = 0; c < 3; ++c) { const int v = ch(bins[k].key, c); lo[c] = std::min(lo[c], v); hi[c] = std::max(hi[c], v); }
+            bx.cnt += bins[k].cnt;
+        }
+        // (green counts a little more, blue less: the eye's weights)
+        const int rr = (hi[0] - lo[0]) * 3, rg = (hi[1] - lo[1]) * 4, rb = (hi[2] - lo[2]) * 2;
+        bx.axis = rg >= rr && rg >= rb ? 1 : rr >= rb ? 0 : 2;
+        bx.range = std::max({rr, rg, rb});
+    };
+    std::vector<Box> boxes;
+    if (!bins.empty()) { Box b0{0, bins.size(), 0, 0, 0}; measure(b0); boxes.push_back(b0); }
+    while (static_cast<int>(boxes.size()) < ncol) {
+        // the box to split: the most pixels times its spread (a box of one bin cannot be split)
+        int best = -1;
+        double bestv = 0;
+        for (size_t i = 0; i < boxes.size(); ++i) {
+            if (boxes[i].b - boxes[i].a < 2 || boxes[i].range == 0) continue;
+            const double v = static_cast<double>(boxes[i].cnt) * boxes[i].range;
+            if (v > bestv) { bestv = v; best = static_cast<int>(i); }
+        }
+        if (best < 0) break;
+        Box bx = boxes[static_cast<size_t>(best)];
+        const int axis = bx.axis;
+        std::sort(bins.begin() + static_cast<long>(bx.a), bins.begin() + static_cast<long>(bx.b),
+                  [&](const Bin& p, const Bin& q) { return ch(p.key, axis) < ch(q.key, axis); });
+        uint64_t half = bx.cnt / 2, run = 0;
+        size_t m = bx.a;
+        while (m < bx.b - 1 && run + bins[m].cnt <= half) run += bins[m++].cnt;
+        if (m == bx.a) m = bx.a + 1;
+        Box l{bx.a, m, 0, 0, 0}, r{m, bx.b, 0, 0, 0};
+        measure(l); measure(r);
+        boxes[static_cast<size_t>(best)] = l;
+        boxes.push_back(r);
+    }
+    const int np = std::max(1, static_cast<int>(boxes.size()));
+    for (int i = 0; i < static_cast<int>(boxes.size()); ++i) {   // each colour: the mean of its box, weighted by the pixels
+        double s[3] = {0, 0, 0}, w = 0;
+        for (size_t k = boxes[static_cast<size_t>(i)].a; k < boxes[static_cast<size_t>(i)].b; ++k)
+            for (int c = 0; c < 3; ++c) s[c] += (ch(bins[k].key, c) * 8 + 4) * static_cast<double>(bins[k].cnt);
+        for (size_t k = boxes[static_cast<size_t>(i)].a; k < boxes[static_cast<size_t>(i)].b; ++k) w += bins[k].cnt;
+        for (int c = 0; c < 3; ++c) pal[static_cast<size_t>(i)][static_cast<size_t>(c)] = static_cast<uint8_t>(std::clamp(std::lround(s[c] / std::max(1.0, w)), 0L, 255L));
+    }
+    // --- every pixel: the nearest colour of the palette (looked up once per bin, shared by the threads)
+    static thread_local std::unique_ptr<std::atomic<int16_t>[]> lut;
+    if (!lut) lut.reset(new std::atomic<int16_t>[32768]);
+    for (int k = 0; k < 32768; ++k) lut[k].store(-1, std::memory_order_relaxed);
+    std::atomic<int16_t>* L = lut.get();
+    const auto* P = pal.data();
+    auto nearest = [&](int key) -> int {
+        const int r = ((key >> 10) & 31) * 8 + 4, g = ((key >> 5) & 31) * 8 + 4, b = (key & 31) * 8 + 4;
+        int bi = 0, bd = 1 << 30;
+        for (int i = 0; i < np; ++i) {
+            const int dr = r - P[i][0], dg = g - P[i][1], db = b - P[i][2];
+            const int d = dr * dr * 3 + dg * dg * 4 + db * db * 2;
+            if (d < bd) { bd = d; bi = i; }
+        }
+        return bi;
+    };
+    const int qpat = fx_pat(0, 1);   // (blue noise, like the fixed palette)
+    par_rows(f.h, [&](int ry0, int ry1) {
+        for (int y = ry0; y < ry1; ++y)
+            for (int x = 0; x < f.w; ++x) {
+                const size_t i = static_cast<size_t>(y) * f.w + x;
+                // a nudge of up to half a bin either way, the same pattern every frame (calm to encode)
+                const int d = (fx_dither_rank(qpat, x, y) * 8) / 1024 - 4;
+                auto q = [&](int v) { return std::clamp(v + d, 0, 255) >> 3; };
+                const int key = (q(f.rgb[i * 3]) << 10) | (q(f.rgb[i * 3 + 1]) << 5) | q(f.rgb[i * 3 + 2]);
+                int c = L[key].load(std::memory_order_relaxed);
+                if (c < 0) { c = nearest(key); L[key].store(static_cast<int16_t>(c), std::memory_order_relaxed); }
+                hue[i] = static_cast<uint8_t>(c);
+            }
     });
 }
 

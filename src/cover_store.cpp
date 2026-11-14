@@ -210,6 +210,7 @@ struct Choices {
     std::map<std::string, std::string> style;           // track path -> "look,contrast,brightness,colors,chroma,gradient saturation" (-1 = as in Settings)
     std::map<std::string, std::string> vopts;           // track path -> "on,size,fx,contrast,colors,chroma,res" (-1 = as in the VIDEO overlay)
     std::map<std::string, std::string> vmode;           // track path -> "1" cover / "2" video thumbnail / "3" plain disk (absent: as in the VIDEO overlay)
+    std::map<std::string, std::string> mdopts;          // track path -> "<on>|<preset>" (the MilkDrop visuals of the track, Style Option)
     std::atomic<unsigned> revision{1};
     std::atomic<unsigned> style_revision{1};   // a look / contrast / brightness ... changed: no picture is read again for it
 };
@@ -226,7 +227,8 @@ fs::path choices_file() {
 }
 
 // Reads choices.txt once (later calls return at once). Each line is a tab-separated record with a one-letter tag:
-// T = track path -> choice, A = album key -> choice, R = successful fetch, F = failed fetch, L = look of an album, S = style of a track. Lines with a bad layout or an unknown tag are skipped.
+// T = track path -> choice, A = album key -> choice, R = successful fetch, F = failed fetch, L = look of an album, S = style of a track, V / W = the video mode / options of a track,
+// D = the MilkDrop visuals of a track ("<on>|<preset>"). Lines with a bad layout or an unknown tag are skipped.
 void load_locked(Choices& c) {
     if (c.loaded) return;
     c.loaded = true;
@@ -253,6 +255,7 @@ void load_locked(Choices& c) {
         else if (line[0] == 'L') c.look[key] = val;
         else if (line[0] == 'S') c.style[key] = val;
         else if (line[0] == 'W') c.vopts[key] = val;
+        else if (line[0] == 'D') c.mdopts[key] = val;
     }
 }
 
@@ -269,6 +272,7 @@ void save_locked(Choices& c) {
     for (const auto& kv : c.look) out << "L\t" << kv.first << "\t" << kv.second << "\n";
     for (const auto& kv : c.vmode) out << "V\t" << kv.first << "\t" << kv.second << "\n";
     for (const auto& kv : c.vopts) out << "W\t" << kv.first << "\t" << kv.second << "\n";
+    for (const auto& kv : c.mdopts) out << "D\t" << kv.first << "\t" << kv.second << "\n";
     for (const auto& kv : c.style) out << "S\t" << kv.first << "\t" << kv.second << "\n";
     write_text_atomic(p, out.str());   // (never a cut-off file: every choice is in it)
 }
@@ -433,6 +437,44 @@ void set_cover_track_video_opts(const std::string& track_path, const VideoTrackO
         save_locked(c);
     }
     if (old_on != o.on) cover_store_touch();   // (only "video of this track" can change what the disk shows; a look change must not make the cover load again: it blinked away)
+}
+
+MilkdropTrackOpts cover_track_milkdrop(const std::string& track_path) {
+    MilkdropTrackOpts o;
+    Choices& c = choices();
+    std::lock_guard<std::mutex> lk(c.mu);
+    load_locked(c);
+    const auto it = c.mdopts.find(track_path);
+    if (it == c.mdopts.end()) return o;
+    const size_t bar = it->second.find('|');
+    const int on = muisc::atoi_safe(it->second.substr(0, bar).c_str());
+    o.on = on == 0 || on == 1 ? on : -1;
+    if (bar != std::string::npos) o.preset = it->second.substr(bar + 1);
+    // "<on>|<preset>[\t<keep>\t<fx>]" (the two after a tab came later; a preset never has a tab)
+    const size_t tab = o.preset.find('\t');
+    if (tab != std::string::npos) {
+        const std::string rest = o.preset.substr(tab + 1);
+        o.preset.resize(tab);
+        const size_t tab2 = rest.find('\t');
+        const int keep = muisc::atoi_safe(rest.substr(0, tab2).c_str());
+        o.keep = keep == 0 || keep == 1 ? keep : -1;
+        if (tab2 != std::string::npos) o.fx = std::max(-1, muisc::atoi_safe(rest.substr(tab2 + 1).c_str()));
+    }
+    return o;
+}
+
+void set_cover_track_milkdrop(const std::string& track_path, const MilkdropTrackOpts& o) {
+    if (track_path.empty()) return;
+    Choices& c = choices();
+    std::lock_guard<std::mutex> lk(c.mu);
+    load_locked(c);
+    std::string p = o.preset;
+    for (char& ch : p) if (ch == '\t' || ch == '\n' || ch == '\r') ch = ' ';
+    const int keep = o.keep == 0 || o.keep == 1 ? o.keep : -1, fx = std::max(-1, o.fx);
+    if (o.on < 0 && p.empty() && keep < 0 && fx < 0) c.mdopts.erase(track_path);
+    else c.mdopts[track_path] = std::to_string(o.on == 0 || o.on == 1 ? o.on : -1) + "|" + p +
+                                (keep >= 0 || fx >= 0 ? "\t" + std::to_string(keep) + "\t" + std::to_string(fx) : std::string());
+    save_locked(c);
 }
 
 int cover_track_video_mode(const std::string& track_path) {

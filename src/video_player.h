@@ -110,6 +110,11 @@ public:
     static VideoFrame test_card(int w, int h);
     static void quantize(const VideoFrame& f, std::vector<uint8_t>& hue, std::vector<uint8_t>& level, int dither = 0);   // (dither: see apply_fx)
     static const std::vector<std::array<uint8_t, 3>>& palette();
+    // Palette picture with the colours taken from the picture itself (the MilkDrop visuals on Sixel): up to `ncol` (<= 240) colours by
+    // median cut over a 5-bit-per-channel histogram, written to `pal` (`hue` indexes it); each pixel takes the nearest of them after a
+    // blue-noise nudge of half a histogram step (no bands). A picture of few hues gets them all, so its gradients stay smooth.
+    static void quantize_adaptive(const VideoFrame& f, std::vector<uint8_t>& hue, std::vector<uint8_t>& level,
+                                  std::array<std::array<uint8_t, 3>, 256>& pal, int ncol = 240);
     // Braille: `cols` x `rows` cells from a frame that has (cols * 2) x (rows * 4) dots. Each cell: the dot mask (0x2800 + mask) and the
     // mean brightness 0..255 of its dots.
     struct Cell { uint8_t mask = 0; uint8_t level = 0; };

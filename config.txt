@@ -137,7 +137,7 @@ VideoCover=cover
 VideoSize=full
 ## the video's picture in the small field: regular = the whole picture | cropped = two columns cut off each side | full = fills the field (the oscilloscope's space), cropped to fit, the lyric line as a small black box over it | framed = like full, but one row and two columns smaller on every side (an empty frame)
 VideoFx=off
-## a retro effect on the video's picture (small field and full screen): off | scanlines | crt | vhs | laserdisc | interlace | glitch | quiet glitch | phosphor green | phosphor green glow | phosphor amber | thermal | vector | neon edge | neon edge gradient | film | silent film | technicolor | risograph | halftone | halftone cmyk | halftone cmyk high-res | dither b/w | dither gradient | pixel | gradient | game boy high-res (+ gradient, b/w) | game boy low-res (+ gradient, b/w) | ega 16 | cga | zx spectrum | amstrad cpc | c64 | amiga ham | teletext | ascii
+## a retro effect on the video's picture (small field and full screen): off | scanlines | crt | vhs | laserdisc | interlace | glitch | quiet glitch | phosphor green | phosphor green glow | phosphor amber | thermal | vector | neon edge | neon edge gradient | film | silent film | technicolor | risograph | halftone | halftone cmyk | halftone cmyk high-res | dither b/w | dither gradient | pixel | gradient | game boy high-res (+ gradient, b/w) | game boy low-res (+ gradient, b/w) | ega 16 | cga | zx spectrum | amstrad cpc | c64 | amiga ham | teletext | teletext high-res | ascii
 VideoContrast=0
 ## 0 .. 100 (percent, steps of 5) -- more contrast for the video's picture (0 = as it is)
 VideoBrightness=50
@@ -169,7 +169,11 @@ VideoBuffer=32
 VideoMp3=true
 ## yt-dlp mp3 from mp4: SEARCH YT also saves the sound of a downloaded video as an mp3 song in the download folder when no song is the target (CTRL+o in SEARCH YT changes it per download): true | false
 VideoLayout=0
-## the layout of the big video overlay (SHIFT+UP / SHIFT+DOWN there): 0 video | 1 video + oscilloscope | 2 video + spectrogram | 3 video + oscilloscope + spectrogram
+## the layout of the big video overlay (SHIFT+UP / SHIFT+DOWN there): 0 video | 1 video + oscilloscope | 2 video + spectrogram | 3 video + oscilloscope + spectrogram | 4 quartet (oscilloscope top left, MilkDrop top right, video bottom left, spectrogram bottom right; needs MilkDrop)
+VideoFullSource=video
+## what the big video overlay shows (its m key): video | milkdrop (the MilkDrop visuals, when projectM is installed)
+VideoFullMilkDropLayout=0
+## its layout with MilkDrop (SHIFT+UP / SHIFT+DOWN there): 0 MilkDrop | 1 MilkDrop + oscilloscope | 2 MilkDrop + oscilloscope + spectrogram | 3 quartet | 4 video + MilkDrop
 VideoLayoutOsciStyle=default
 VideoLayoutOsciMode=default
 VideoLayoutSpectroStyle=default
@@ -192,11 +196,42 @@ UseLyrics=true
 UseOscilloscope=true
 UseSpectrogram=true
 UseSphere=true
+UseMilkDrop=true
+## true , false (default true) -- the MilkDrop visuals in the "." cycle (when projectM and presets are installed: see the manual)
+MilkDropView=false
+MilkDropPresets=
+## the folder of the MilkDrop presets (.milk); empty = the usual places (~/.local/share/projectM/presets, /usr/local/share/projectM/presets, /usr/share/projectM/presets; Windows: milkdrop\presets next to mousiki.exe, %LOCALAPPDATA%\projectM\presets)
+MilkDropFrameRate=30
+## 15 , 20 , 25 , 30 , 45 , 60 (default 30) -- MilkDrop pictures a second (each one is drawn by the graphics card, or the processor when there is none)
+MilkDropResolution=480
+## 320 , 480 , 640 , 960 , 1280 (default 480) -- the MilkDrop pictures are drawn at most this many pixels across (then scaled to the place); more is sharper and costs more
+MilkDropPresetDuration=25
+## 0 - 600 (default 25) -- seconds until the next MilkDrop preset (0 = it stays until you change it)
+MilkDropAuto=false
+## true , false (default false) -- Auto MilkDrop: the field shows the MilkDrop visuals for every track (a track's Style Option can say no); it switches Auto Video off meanwhile and back on after
+MilkDropAutoVideoWas=false
+## (set by Mousiki) Auto Video was on when Auto MilkDrop switched it off: it comes back on with Auto MilkDrop off
+MilkDropShuffle=true
+## true , false (default true) -- the next preset at random (false: in the order of the files)
+MilkDropShuffleFavourites=false
+## true , false (default false) -- only the favourite presets are played (milkdrop_favourites.txt; the preset overlay's [a]); without favourites all of them
+MilkDropBeatSensitivity=10
+## 0 - 20 (default 10 = 1.0) -- how strongly the visuals react to the beat
+MilkDropHardCuts=true
+## true , false (default true) -- a strong beat may change the preset at once
+MilkDropTransition=3
+## 0 - 10 (default 3) -- seconds of the blend from one preset into the next (0 = a cut)
+MilkDropShowName=true
+## true , false (default true) -- the preset's name in a small box for 3 seconds after it changed
+MilkDropEffect=off
+## off (default) or a video effect name (as VideoFx=) -- an effect over the MilkDrop pictures, their own (the video's effect belongs to the track's video)
+MilkDropSixelColors=adaptive
+## adaptive (default) , fixed -- the colours of the MilkDrop pictures on Sixel (and Kitty at standard resolution): adaptive = up to 240 colours taken from each picture (smooth gradients, a little more CPU), fixed = the fixed 256-colour palette of the videos
 ## false = left out entirely: not in the "." cycle of the lyrics area. The windows
 ## (SHIFT+8 spectrogram, SHIFT+9 oscilloscope on a German keyboard) and the full screen (SHIFT+u) work either way.
 ## Switching a view off moves LyricViz / NoLyricsViz on to the next visual that is on, and UseLyrics=false turns ElimentLyrics off.
-VizOrder=sphere,osci,spectro,lyrics,video
-## the order of the views when you press "." (sphere, osci, spectro, lyrics, video in any order); Settings -> ANIMA/VIZ -> Viz Order 1..5
+VizOrder=sphere,osci,spectro,lyrics,video,milkdrop
+## the order of the views when you press "." (sphere, osci, spectro, lyrics, video, milkdrop in any order); Settings -> ANIMA/VIZ -> Viz Order 1..6
 ## Oscilloscope (SHIFT+o overlay), one block per style: braille = Osci<name>, image = OsciImage<name>. Each style keeps its own values.
 ## Decay = afterglow 0.00-0.99 | DotThreshold 0.01-1.00 (braille: lower = thicker line) | TailBrightness 0.00-1.00 | Interpolation = connect the
 ## samples with lines | ZAxis = beam intensity (ZDepth 0-1, ZSource speed|level) | TraceLength 128-8192 samples | Rotate = 45 degrees (mid vertical) |
@@ -390,12 +425,16 @@ UpdateCheck=true
 ## true , false -- at start-up Mousiki looks (at most once a day, in the background) whether a newer release exists and tells you once per version; nothing is installed and nothing about you is sent (needs Python 3)
 MediaKeys=true
 ## true , false -- the system's media controls: Windows shows Mousiki in the media pop-up and its media keys work, Linux shows it in the desktop's media widgets (MPRIS; playerctl works), macOS shows Now Playing and handles the media keys (read at the next start; player and radio)
-TrackBufferMB=256
-## 64 - 16384 (default 256) -- a track whose decoded audio is bigger than this many MB (about 10 MB per minute of CD-quality stereo, double at 96 kHz) is not held whole in RAM but in a moving 2-minute window; seeking inside the window is instant, a jump outside it takes a moment. A bigger value = fast seeking in longer tracks, more RAM in use
+TrackBufferMB=64
+## 64 up to a quarter of the RAM, at most 16384 (default 64) -- a track whose decoded audio is bigger than this many MB (about 21 MB per minute of CD-quality stereo, double at 96 kHz; 64 MB = about 3 minutes) is not held whole in RAM but in a moving 2-minute window; seeking inside the window is instant, a jump outside it takes a moment. A bigger value = fast seeking in longer tracks, more RAM in use
 RateCap96=true
 ## true , false (default true) -- a track above 96 kHz (e.g. 176.4 / 192 kHz) is brought down to 96 kHz; false plays it at its own rate: more RAM (the decoded audio grows with the rate, see TrackBufferMB) and the audio device must accept the rate. The next track that is loaded uses it
 PauseFade=true
 ## true , false (default true) -- pausing and resuming fade the sound over about 8 ms instead of cutting it off at once (no click; music player and audio books)
+AutoPlay=false
+## true , false (default false) -- false: when the music player starts, the track it opens with (the restored session or the first track of the library) is loaded and stands paused; the play / pause key (p) starts it. true: it starts playing at once
+Gapless=off
+## off , album , full (default off) -- album: a track goes on into the next one without a gap when the next one (the track that follows in the play order) is of the same album (album tag and the same artist or folder; untagged files: the same folder) and has the same sample rate and channel count; full: every automatic change to the next local track (a different sample rate is resampled to the one that plays); off: the audio device is opened anew for every track (a short gap). Not for online tracks, the radio and audio books
 AudioDevice=
 ## the sound output of all modes, as the system names it (Settings -> GENERAL -> AUDIO -> Choose Audio Device); empty = the system's default device
 RemoteApp=false
@@ -709,6 +748,7 @@ HKeyScopeBig="="
 HKeyScopeWindow=")"
 HKeySpectroWindow="("
 HKeyNormMenu="V"
+HKeyVisualsMenu=":"
 HKeyListOverlay="L"
 HKeyFolderOverlay="F"
 HKeyConvertOverlay="C"

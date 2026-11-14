@@ -49,7 +49,72 @@ void App::fxpick_open(int target) {
     fxpick_.open = true;
     fxpick_pic_ = 0;
     fxpick_pic_key_.clear();
+    // the video behind the list stands still on the frame it shows now (its decoder is free for the preview)
+    fxpick_freeze_ = VideoFrame{};
+    fxpick_freeze_scaled_ = VideoFrame{};
+    if (video_.has_video()) if (const VideoFrame* f = video_.current_frame()) if (f->w >= 4 && f->h >= 4) fxpick_freeze_ = *f;
+    video_pic_key_.clear();   // (the picture behind is made again: still, with the highlighted effect)
     force_redraw_ = true;
+}
+
+VideoLook App::fxpick_bg_look(const fs::path& track, const VideoLook& own) const {
+    if (!fxpick_.open) return own;
+    const std::vector<int> e = fxpick_entries();
+    if (e.empty()) return own;
+    const int cur = e[static_cast<size_t>(std::clamp(fxpick_.cursor, 0, static_cast<int>(e.size()) - 1))];
+    const std::string tp = path_utf8(track);
+    // the highlighted effect is shown behind the list where choosing it would change this picture: the track's own effect (VIDEO OPTIONS, Style Option of
+    // this track), or the effect of Settings / the VIDEO overlay for a track that has no effect of its own
+    const bool applies = (fxpick_.target == 2 && tp == path_utf8(current_.path)) || (fxpick_.target == 3 && meta_ && meta_->sty_track == tp) ||
+                         ((fxpick_.target == 0 || fxpick_.target == 1) && cover_track_video_opts(tp).fx < 0);
+    if (!applies) return own;
+    VideoLook l = own;
+    l.fx = video_fx_canon(std::clamp(cur < 0 ? settings_.video_fx : cur, 0, kVideoFxCount - 1));
+    if (video_fx_uses_gradient(l.fx)) {
+        l.grad = video_fx_gradient(settings_);
+        const int gs = cover_track_video_opts(tp).gsat;
+        if (gs >= 0) l.grad.sat = gs;
+    }
+    return l;
+}
+
+const VideoFrame* App::fxpick_source(int w, int h, double& t, double* aspect) const {
+    const auto now = std::chrono::steady_clock::now();
+    const fs::path trk = fxpick_.target == 3 && meta_ ? path_from_utf8(meta_->sty_track) : current_.path;
+    const bool playing_trk = has_track_ && !trk.empty() && path_utf8(trk) == path_utf8(current_.path);
+    const std::string own = trk.empty() ? std::string() : video_shown_for(trk);
+    fxpick_src_main_ = false;
+    if (playing_trk && !own.empty()) {   // the playing track's video: the screen's own decoder
+        video_ensure_source();
+        if (video_.has_video()) {
+            fxpick_src_main_ = true;
+            t = player_.poll_elapsed();
+            const double d = video_.duration();
+            if (d > 1.0 && t >= d) t = std::fmod(t, d);
+            if (aspect) *aspect = video_.aspect();
+            if (w <= 0 || h <= 0) return nullptr;   // (only which video and its shape)
+            video_.set_buffer_mb(settings_.video_buffer);
+            video_.set_sharp(video_res_for() > 0);
+            video_.set_rate_mode(settings_.video_fps);
+            const VideoFrame* cf = video_.frame_for(t, w, h, !player_.is_paused());
+            return cf ? cf : video_.current_frame();
+        }
+    }
+    std::string vsrc = own;
+    if (vsrc.empty()) { const fs::path s = find_preview_video(); if (!s.empty()) vsrc = path_utf8(s); }   // no video here: the cat of the Settings preview
+    if (vsrc != fxpick_video_src_) { fxpick_video_.set_source(vsrc); fxpick_video_src_ = vsrc; fxpick_video_t0_ = now; fxpick_pic_key_.clear(); }
+    fxpick_video_seen_ = now;
+    t = std::chrono::duration<double>(now - fxpick_video_t0_).count();
+    if (vsrc.empty() || !fxpick_video_.has_video()) return nullptr;
+    if (aspect) *aspect = fxpick_video_.aspect();
+    if (w <= 0 || h <= 0) return nullptr;
+    const double d = fxpick_video_.duration();
+    if (d > 1.0 && t >= d) t = std::fmod(t, d);   // (it plays round and round)
+    fxpick_video_.set_buffer_mb(settings_.video_buffer);
+    fxpick_video_.set_sharp(video_res_for() > 0);
+    fxpick_video_.set_rate_mode(settings_.video_fps);
+    const VideoFrame* cf = fxpick_video_.frame_for(t, w, h, true);
+    return cf ? cf : fxpick_video_.current_frame();
 }
 
 void App::fxpick_apply(int fx) {
@@ -99,11 +164,14 @@ bool App::fxpick_key(int key, bool arrow) {
         fxpick_.open = false;
         fxpick_prev_key_.clear();
         fxpick_pic_ = 0; fxpick_pic_key_.clear();
+        fxpick_freeze_ = VideoFrame{}; fxpick_freeze_scaled_ = VideoFrame{};   // (the video behind plays on)
+        video_pic_key_.clear();
         fxpick_apply(fx);
     } else if (key == 27 || key == 'q' || key == 'Q') {
         fxpick_.open = false;
         fxpick_prev_key_.clear();
         fxpick_pic_ = 0; fxpick_pic_key_.clear();
+        fxpick_freeze_ = VideoFrame{}; fxpick_freeze_scaled_ = VideoFrame{};   // (the video behind plays on)
         video_pic_key_.clear();   // (a picture that was cut for the panel is sent whole again)
     }
     force_redraw_ = true;
@@ -138,9 +206,8 @@ std::vector<std::string> App::fxpick_preview(int fx, int cols, int rows) const {
     const int K = std::clamp(300 / std::max(1, pw), 1, 12);
     const int vw = pw * K, vh = ph * K;
     VideoFrame work;
-    // (only the video of the playing track is on hand; another track's video is not decoded for this)
-    const bool mine = has_track_ && video_for_track_ == path_utf8(current_.path) && video_.has_video() && (fxpick_.target != 3 || (meta_ && meta_->sty_track == path_utf8(current_.path)));
-    const VideoFrame* cf = mine ? video_.current_frame() : nullptr;
+    double st = t;
+    const VideoFrame* cf = fxpick_source(vw, vh, st);   // (the track's video, else the cat)
     if (cf && cf->w >= 4 && cf->h >= 4 && cf->rgb.size() >= static_cast<size_t>(cf->w) * cf->h * 3) {
         const double ta = static_cast<double>(pw) / ph, sa = static_cast<double>(cf->w) / cf->h;
         int cw = cf->w, ch = cf->h;
@@ -178,13 +245,15 @@ constexpr int kFxMargin = 1;                              // columns / rows of t
 
 // A real picture for the preview needs a picture terminal and a menu that has a picture behind it, or room for one: the VIDEO OPTIONS panel of the big
 // video (the video is the first picture, the preview takes the second slot), the VIDEO SETTINGS overlay and the Style Option overlay over the main screen
-// (the screen's picture, if it has one, keeps the first slot). Settings has no picture behind it and shows the preview as text.
+// (the screen's picture, if it has one, keeps the first slot). When the screen behind has two pictures (an album cover and the video next to it, the
+// video with the oscilloscope beside it) the preview takes a third one of its own (gfx3_): it used to fall back to half blocks of text then -- the
+// coarse preview of VIDEO SETTINGS and Style Option. Settings has no picture behind it and shows the preview as text.
 bool App::fxpick_picture_possible() const {
     if (!fxpick_.open || gfxs_.proto == GfxProto::None) return false;
-    if (fxpick_.target == 1) return mode_ == Mode::VideoMenu && !gfx2_.active;
-    if (fxpick_.target == 2) return video_opts_open_ && gfx_.active && !gfx2_.active;   // (a layout with the oscilloscope / spectrogram beside the video has the second slot: then the preview stays text)
-    if (fxpick_.target == 3) return meta_ && meta_->sty_from_main && mode_ == Mode::MetaEdit && !gfx2_.active;
-    return false;
+    if (fxpick_.target == 1) return mode_ == Mode::VideoMenu;
+    if (fxpick_.target == 2) return video_opts_open_ && gfx_.active;
+    if (fxpick_.target == 3) return meta_ && meta_->sty_from_main && mode_ == Mode::MetaEdit;
+    return mode_ == Mode::Settings || mode_ == Mode::ColorEdit;   // Settings: nothing behind the list takes a picture slot
 }
 
 // The preview as a picture: the video of the track (the whole frame, in its own proportions; decoded for the preview, see below), or a test picture,
@@ -192,8 +261,8 @@ bool App::fxpick_picture_possible() const {
 bool App::fxpick_picture(int fx, int cols, int rows, int abs_col, int abs_row, std::vector<std::string>& out) const {
     out.assign(static_cast<size_t>(std::max(0, rows)), std::string(static_cast<size_t>(std::max(0, cols)), ' '));
     if (!fxpick_picture_possible() || cols < 6 || rows < 3 || abs_col < 0 || abs_row < 0) return false;
-    const bool second = gfx_.active;   // (the screen's own picture keeps the first slot)
-    GfxFrame& g = second ? gfx2_ : gfx_;
+    const int slot = !gfx_.active ? 0 : !gfx2_.active ? 1 : 2;   // (the screen's own pictures keep their slots: the first free one, else the third)
+    GfxFrame& g = slot == 0 ? gfx_ : slot == 1 ? gfx2_ : gfx3_;
     int cw0 = 10, ch0 = 20;
     gfx_cell_pixels(settings_.cell_pixels, cw0, ch0);
     cw0 = std::max(4, cw0); ch0 = std::max(8, ch0);
@@ -201,18 +270,10 @@ bool App::fxpick_picture(int fx, int cols, int rows, int abs_col, int abs_row, s
     // Resolution, or the track's own: 640 / 1280 / 1920 pixels across on Kitty, 480 / 720 / 960 on Sixel) and the size the preview is shown in. (It
     // used the frame of the video behind the list, which is decoded for another size -- the small field of the main screen -- and was then cut to 480
     // pixels: a blurred picture.) The playing track's video runs with the sound; another track's (Style Option) from the moment the list opened.
-    const fs::path trk = fxpick_.target == 3 && meta_ ? path_from_utf8(meta_->sty_track) : current_.path;
-    const std::string vsrc = trk.empty() ? std::string() : video_shown_for(trk);
-    const bool playing_trk = has_track_ && !trk.empty() && path_utf8(trk) == path_utf8(current_.path);
-    const auto now = std::chrono::steady_clock::now();
-    if (vsrc != fxpick_video_src_) { fxpick_video_.set_source(vsrc); fxpick_video_src_ = vsrc; fxpick_video_t0_ = now; fxpick_pic_key_.clear(); }
-    fxpick_video_seen_ = now;
-    const bool vplay = playing_trk ? !player_.is_paused() : true;
-    const double t = playing_trk ? player_.poll_elapsed() : !vsrc.empty() ? std::chrono::duration<double>(now - fxpick_video_t0_).count()
-                                                                          : std::chrono::duration<double>(now.time_since_epoch()).count();
+    double t = 0.0, asp = 0.0;
+    fxpick_source(0, 0, t, &asp);   // (which video, its time and its shape; the frame is asked for below, at the size it is shown in)
     const long tick = static_cast<long>(std::max(0.0, t) * 25.0);
-    const bool have_video = !vsrc.empty() && fxpick_video_.has_video();
-    const double sa = have_video && fxpick_video_.aspect() > 0.1 ? fxpick_video_.aspect() : 16.0 / 9.0;
+    const double sa = asp > 0.1 ? asp : 16.0 / 9.0;
     // the whole frame, fitted into the box of cols x rows cells
     const double bw = static_cast<double>(cols) * cw0, bh = static_cast<double>(rows) * ch0;
     double fw = bw, fh = bw / sa;
@@ -222,26 +283,26 @@ bool App::fxpick_picture(int fx, int cols, int rows, int abs_col, int abs_row, s
     const double f = std::min(1.0, static_cast<double>(maxw) / (vcols * cw0));
     const int dw = std::max(2, static_cast<int>(vcols * cw0 * f) & ~1), dh = std::max(2, static_cast<int>(vrows * ch0 * f) & ~1);
     const int lead = (cols - vcols) / 2, top = (rows - vrows) / 2;
-    const VideoFrame* cf = nullptr;
-    if (have_video) {
-        fxpick_video_.set_buffer_mb(settings_.video_buffer);
-        fxpick_video_.set_sharp(video_res_for() > 0);
-        fxpick_video_.set_rate_mode(settings_.video_fps);
-        cf = fxpick_video_.frame_for(t, dw, dh, vplay);
-        if (!cf) cf = fxpick_video_.current_frame();   // (the decoder is starting: the last frame it had, else the test picture)
-    }
+    double t2 = t;
+    const VideoFrame* cf = asp > 0.1 ? fxpick_source(dw, dh, t2) : nullptr;   // (the decoder is starting: nothing yet, the test picture meanwhile)
     if (cf && !(cf->w >= 4 && cf->h >= 4 && cf->rgb.size() >= static_cast<size_t>(cf->w) * cf->h * 3)) cf = nullptr;
     const bool tc = gfxs_.proto == GfxProto::Kitty && video_res_for() > 0;   // true colour (high / full resolution on Kitty)
     const VideoLook look = fxpick_look(fx);
     const std::string key = std::to_string(dw) + "x" + std::to_string(dh) + "|" + std::to_string(vcols) + "x" + std::to_string(vrows) + "|" + std::to_string(tick) + "|" + look.sig() + "|" +
-                            std::to_string(tc ? 1 : 0) + "|" + std::to_string(second ? 2 : 1) + "|" + (cf ? "v" : "c");
-    const bool remake = key != fxpick_pic_key_ || g.w != dw || g.h != dh || g.level.size() != static_cast<size_t>(dw) * dh;
+                            std::to_string(tc ? 1 : 0) + "|" + std::to_string(slot + 1) + "|" + (cf ? "v" : "c");
+    const bool geom_change = g.w != dw || g.h != dh || g.level.size() != static_cast<size_t>(dw) * dh;
+    // Only the film moved on (the next frame) while the terminal is still taking the picture before: no new picture now -- it would wait anyway,
+    // and one made every pass starves the sending (a fresh picture is held back again and again). The first pass after the terminal is done makes
+    // the newest. (Another effect, size or place is made at once.)
+    const auto tick_free = [](const std::string& k) { const size_t a = k.find('|', k.find('|') + 1), b = k.find('|', a + 1); return a == std::string::npos || b == std::string::npos ? k : k.substr(0, a) + k.substr(b); };
+    const bool only_frame = !geom_change && key != fxpick_pic_key_ && tick_free(key) == tick_free(fxpick_pic_key_);
+    const bool remake = (key != fxpick_pic_key_ || geom_change) && !(only_frame && write_frame_async_allowed() && write_frame_picture_busy());
     if (remake) {
         VideoFrame work = cf ? VideoPlayer::resample(*cf, dw, dh) : VideoPlayer::test_card(dw, dh);
         VideoFrame prev_shown;
         const VideoFrame* prevp = nullptr;
         if (look.fx == 17 && cf) {   // (the interlace look combs against the frame before)
-            if (const VideoFrame* pf = fxpick_video_.previous_frame()) { prev_shown = VideoPlayer::resample(*pf, dw, dh); prevp = &prev_shown; }
+            if (const VideoFrame* pf = fxpick_src_main_ ? video_.previous_frame() : fxpick_video_.previous_frame()) { prev_shown = VideoPlayer::resample(*pf, dw, dh); prevp = &prev_shown; }
         }
         if (look.active() && work.w == dw && work.h == dh) VideoPlayer::apply_look(work, look, t, false, prevp);
         if (tc) { g.rgb = work.rgb; g.level.assign(static_cast<size_t>(dw) * dh, 255); g.hue.clear(); }
@@ -256,13 +317,13 @@ bool App::fxpick_picture(int fx, int cols, int rows, int abs_col, int abs_row, s
     g.out_cw = cw0; g.out_ch = ch0;
     g.cols = vcols; g.rows = vrows; g.w = dw; g.h = dh;
     g.col = abs_col + lead; g.row = abs_row + top;
-    g.id = second ? 1 : 0; g.grid.clear(); g.crop = 0;
+    g.id = slot; g.grid.clear(); g.crop = 0;
     g.cut_c = g.cut_r = g.cut_w = g.cut_h = 0; g.cut2_w = 0;
     g.opaque = settings_.black_background;
     g.erase = !settings_.black_background;
     g.active = true;
     g.fresh = remake;
-    fxpick_pic_ = second ? 2 : 1;
+    fxpick_pic_ = slot + 1;
     for (int r = top; r < top + vrows; ++r)
         out[static_cast<size_t>(r)] = std::string(static_cast<size_t>(lead), ' ') + gfx_hole(vcols) + std::string(static_cast<size_t>(cols - lead - vcols), ' ');
     return true;

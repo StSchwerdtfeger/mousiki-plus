@@ -14,7 +14,7 @@ namespace muisc {
 enum SetId {
     kSidVizField, kSidDisk, kSidDummy, kSidQueue, kSidWave, kSidLyricsEngine, kSidLyricViz, kSidVisualizer, kSidNoLyricsViz,
     kSidStereo, kSidNormalize, kSidMetaOnly, kSidEmoji, kSidMarquee, kSidUseLyrics, kSidUseOsci, kSidUseSpectro, kSidUseSphere,
-    kSidOrder1, kSidOrder2, kSidOrder3, kSidOrder4, kSidOrder5, kSidUseVideo, kSidNoVideoViz, kSidVideoSize, kSidVideoFx, kSidVideoContrast, kSidVideoBrightness, kSidVideoColors, kSidVideoChroma, kSidVideoDither, kSidVideoBase, kSidVideoFxContrast, kSidVideoGradSat, kSidVideoRound, kSidVideoClap, kSidVideoCover, kSidVideoRes, kSidVideoFps, kSidVideoBuffer, kSidVideoMp3, kSidCoverChroma,
+    kSidOrder1, kSidOrder2, kSidOrder3, kSidOrder4, kSidOrder5, kSidOrder6, kSidUseVideo, kSidNoVideoViz, kSidVideoSize, kSidVideoFx, kSidVideoContrast, kSidVideoBrightness, kSidVideoColors, kSidVideoChroma, kSidVideoDither, kSidVideoBase, kSidVideoFxContrast, kSidVideoGradSat, kSidVideoRound, kSidVideoClap, kSidVideoCover, kSidVideoRes, kSidVideoFps, kSidVideoBuffer, kSidVideoMp3, kSidCoverChroma,
     kSidPlayback, kSidStartMode, kSidBlackBg, kSidShareProfiles, kSidRemoteApp, kSidUpdateCheck, kSidMediaKeys, kSidUseTermSettings, kSidTermSize, kSidFullScreen, kSidLatinLookup, kSidLatinMacrons, kSidLatinWo, kSidLatinHanzi, kSidLyricsVariants, kSidRateCap, kSidTrackBuffer,
     kSidVisFluidity, kSidWaveStyle, kSidDiskSpeed, kSidVisDegr, kSidVisVisc, kSidLyrAlign, kSidLyrAnim,
     kSidVolIndicator,
@@ -31,6 +31,11 @@ enum SetId {
     kSidCliScripts,    // CLI / REMOTE / UPDATES: [ENTER] opens the script overlay
     kSidAudioDevice,   // the sound output: shows the device in use, [ENTER] opens the CHOOSE AUDIO DEVICE overlay
     kSidSpectroHistory,  // OSCI/SPECTRO SETTINGS: keep analysing the sound while no spectrogram is shown (true, default) or only while one is (false: less RAM)
+    kSidAutoPlay,      // AUDIO: the track the music player opens with starts playing (true) or stands paused (false, default)
+    kSidGapless,       // AUDIO: Gapless Playback off / album / full
+    // MILKDROP (ANIMA/VIZ): the MilkDrop visuals (milkdrop.h)
+    kSidUseMilkdrop, kSidMdFps, kSidMdRes, kSidMdDuration, kSidMdShuffle, kSidMdFavShuffle, kSidMdBeat, kSidMdHardCuts, kSidMdTransition, kSidMdFx, kSidMdColors, kSidMdShowName, kSidMdAuto,
+    kSidPauseSphere,   // SPHERE: the sphere stops turning while the track is paused
 };
 // True while the audio book player is the mode that runs (set by App::run()): its GENERAL and ANIMA/VIZ tabs leave out what only
 // belongs to the music player and name the lyrics view "notes".
@@ -57,10 +62,20 @@ inline int settings_item_line(int tab, int row) {
     for (const auto& l : settings_layout(tab)) { if (!l.header && n++ == row) return line; ++line; }
     return 0;
 }
-inline const char* const kVizNames[5] = {"sphere", "osci", "spectro", "lyrics", "video"};   // viz_order values, row values
+inline const char* const kVizNames[6] = {"sphere", "osci", "spectro", "lyrics", "video", "milkdrop"};   // viz_order values, row values
 // The name of mode `m` (0 music player, 1 radio, 2 audio books) on a row: the words of config.txt.
 inline const char* mode_row_name(int m) { return m == 1 ? "radio" : m == 2 ? "audiobook" : "player"; }
+// The values of the Start Mode row (config.txt keeps StartMode=player / radio / audiobook; mode_index() reads both spellings).
+inline const char* start_mode_row_name(int m) { return m == 1 ? "radio" : m == 2 ? "audiobook" : "music player"; }
 // The name of view `i` on a row: the audio book player calls the lyrics view "notes".
-inline const char* viz_row_name(int i) { return (g_settings_book_layout && i == 3) ? "notes" : kVizNames[i < 0 ? 0 : i > 4 ? 4 : i]; }
+// The place in the six-place order a "Viz Order n" row (0-based) stands for: the audio book has no video view, so its rows skip the place
+// the video holds (Viz Order 1..5 there: sphere, osci, spectro, notes, milkdrop in some order).
+inline int viz_order_slot(const int (&order)[6], int row_idx) {
+    if (!g_settings_book_layout) return row_idx;
+    int n = -1;
+    for (int i = 0; i < 6; ++i) if (order[i] != 4 && ++n == row_idx) return i;
+    return row_idx;
+}
+inline const char* viz_row_name(int i) { return (g_settings_book_layout && i == 3) ? "notes" : kVizNames[i < 0 ? 0 : i > 5 ? 5 : i]; }
 
 } // namespace muisc

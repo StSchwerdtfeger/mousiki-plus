@@ -452,8 +452,10 @@ QUEUE PANE: [[Header]]
 See BUILDING A QUEUE[[Header]] for details on how to e.g. adjust the queue order, how to
 save a queue to a list and more...
 The bottom border shows how many titles are below the visible rows: ( 5 more ).
-[ENTER] plays the highlighted item; [SHIFT+ENTER] plays it AND moves the whole queue along to it (the
-items in front of it go to the end in their order, as if they had been played).
+[ENTER] Reposition Queue State: plays the highlighted item AND moves the whole queue along to it (the
+items in front of it go to the end in their order, as if they had been played; an unlocked queue keeps
+them too). [SHIFT+ENTER] Requeue Track and Play: only that item is played (and goes to the end of a
+locked queue); the others stay where they are.
 
 
 [[NEW PAGE]]
@@ -564,8 +566,8 @@ Korean and Chinese titles: "sakura" finds さくら. The radio's station search 
 TRANSLITERATION TAKEN INTO ACCOUNT:[[Header]] [SHIFT+'] on a US keyboard (the key is ["], 
 German [SHIFT+2]) shows Japanese kana, Korean and Chinese text in Latin letters: titles, 
 tags, file names, lyrics, karaoke, READ LYRICS (it also works inside karaoke and READ LYRICS). 
-On the main screen, while the lyrics field shows synced lyrics with a saved translation, the key has three
-stops: original -> Latin letters -> Latin letters with the translation in the lyrics field -> original.
+On the main screen, while the lyrics field shows synced lyrics with a saved translation, the key has four
+stops: the lyrics -> Latin letters -> the lyrics + translation -> Latin letters + translation -> the lyrics.
 Transliteration is taken into account for the search, but does not apply to searches for the
 Radio station browser or other online searches.
 
@@ -740,7 +742,8 @@ the Video mode on a row "Use Disk/Cover/Thumbnail" sets the cover / video thumbn
 same choice as in Cover Options; the VIDEO SETTINGS overlay holds the default). [<-][->] change a row (with the
 Video mode on more rows: Video of this track on / off, Video Size, Video Effect, Video Base Layer, Video Effect Contrast,
 Video Contrast, Video Brightness, Video Colors, Video Chromatic Aberration, Video Dither Pattern, Video Gradient Saturation,
-for this track only),
+for this track only; with projectM installed two MilkDrop rows: MilkDrop for this track as it comes /
+on / off, and More Options: [ENTER] opens the preset overlay of this track with its Preset, Keep and Effect),
 [DEL] or [d] puts it back to "as in Settings". [t] switches between a real picture
 (Kitty / Sixel terminals, the default) and braille dots. A wide terminal adds a preview of the cover with
 the chosen look on the right. The track's own values win over the album's look and
@@ -1244,26 +1247,28 @@ framed        Like full, one row and two columns smaller on every side.
 Off, Scanlines, CRT, VHS, LaserDisc, Interlace, Glitch, Quiet Glitch, Phosphor Green, Phosphor Green Glow,
 Phosphor Amber, Thermal, Vector, Neon Edge, Neon Edge Gradient, Film, Silent Film, Technicolor, Risograph,
 Halftone, Halftone CMYK, Halftone CMYK High-Res, Dither B/W, Dither Gradient, Pixel, Gradient, Game Boy High-Res (+ Gradient, B/W), Game Boy
-Low-Res (+ Gradient, B/W), EGA 16, CGA, ZX Spectrum, Amstrad CPC, C64, Amiga HAM, Teletext, ASCII.
+Low-Res (+ Gradient, B/W), EGA 16, CGA, ZX Spectrum, Amstrad CPC, C64, Amiga HAM, Teletext (+ High-Res), ASCII.
 A paused video shows a still effect.
 Pick one in the overlay, with [g] on the video view, or per track in Style Option [SHIFT+s].
 [ENTER] on a Video Effect row (Settings, the VIDEO overlay, VIDEO OPTIONS, Style Option) opens the list of all
 effects as one panel in the middle of the window; the menu it came from is not drawn while the list is open. Two columns
-of names and a large preview of the playing video (a test picture when none plays) with the highlighted effect on it:
+of names and a large preview of the playing video (the cat of the Settings preview when the track has none) with the
+highlighted effect on it; the video behind the list stands still meanwhile and shows the highlighted effect too:
 the bigger the window, the bigger the preview (three times the old size from about 124 columns, four times at 140 x 45;
 under 18 columns it is left out). Arrow keys, [HOME] / [END], [ENTER] chooses, [ESC] leaves it as it was.
-The preview is coloured half blocks (up to 72 columns wide); in the VIDEO overlay, in VIDEO OPTIONS of the big video and
-in Style Option, on a Kitty / Sixel terminal, it is a real picture (the whole frame, up to 100 columns wide).
+The preview is coloured half blocks (up to 72 columns wide); on a Kitty / Sixel terminal it is a real picture everywhere,
+Settings included (the whole frame, up to 100 columns wide) -- also
+when the screen behind shows two pictures (album cover and video): then it takes a third picture of its own.
 Phosphor Green Glow: a long-persistence green tube (halation, a short tail to the right of bright parts, a faint
 raster noise; the picture stays square). CGA: four colours (black, cyan, magenta, white), each colour mixed from two
 of them in a pattern, so the picture keeps its brightness and most of its hue.
 Made as the old hardware made the picture: CRT (soft, bloom, curved glass, colour convergence error), VHS (colour
-smeared to the right, head-switch tear, drop-outs; steady, and now and then the tracking slips for a few seconds:
-then the lines wobble and a noise band rolls up), LaserDisc (ringing halos and dot crawl), Interlace
+smeared to the right, head-switch tear, drop-outs; steady, now and then the tracking slips for a few seconds
+and the lines wobble; a noise band rolls up often), LaserDisc (ringing halos and dot crawl), Interlace
 (two fields that comb on motion), Film / Silent Film (grain, halation, gate weave, scratches; sepia and an iris),
 Technicolor (three-strip colour), ZX Spectrum (two colours in every 8 x 8 cell: the colour clash), Amstrad CPC (27
 colours, wide pixels), C64, Amiga HAM (hold-and-modify: colour smears to the right), Teletext (40 x 24 mosaic
-cells, two colours each), ASCII (about 100 readable characters across, the 95 printable ASCII ones; edges are drawn
+cells, two colours each; High-Res: 80 x 48, faces keep their eyes), ASCII (about 180 characters across, 224 different ones: ASCII, Latin-1, symbols; edges are drawn
 as lines along them, | / \ - _, every other cell gets the character whose shape and brightness fit the picture there), Thermal (ironbow palette at full resolution, nothing drawn over it), Vector (only bright lines, like
 Asteroids), Risograph (blue and pink ink, a little out of register), Halftone CMYK (four-colour print: dots at 15, 75,
 0, 45 degrees; High-Res: a much finer screen; Video Effect Contrast sets how strong the print is: full 100 %,
@@ -1327,13 +1332,20 @@ KEY[[Header]]                     ACTION[[Header]]
 [TAB]                   lyrics off / lyrics / with translation / translation only (through
                         every saved translation of READ LYRICS)
 [SHIFT+UP/DOWN]         layout: video / + oscilloscope / + spectrogram / + both, in a column right
-                        of the video
+                        of the video / quartet (osci top left, MilkDrop top right, video bottom
+                        left, spectrogram bottom right; when projectM is installed)
+[m]                     the video or the MilkDrop visuals (VideoFullSource=). With the visuals,
+                        [SHIFT+UP/DOWN] goes through their own layouts: MilkDrop / + osci /
+                        + osci and spectrogram / quartet / video left and MilkDrop right
+[:]                     the visuals overlay (preset and MilkDrop options) over the picture
 [SHIFT+o] / [SHIFT+i]   open the options of the oscilloscope / spectrogram
 [SHIFT+g]               grid and scales
-[SHIFT+s]               a panel for effect, contrast, colors and chromatic aberration
+[SHIFT+s]               VIDEO OPTIONS over the whole screen: the options left, the video right
+                        (big, every change shows at once)
+[SHIFT+k/l/f]           the big queue / list / folder overlay
 [ESC] or [v] or [>]     close
  A track without a video shows a little film clapperboard (its arm slowly closes and opens while
-it sways) and the note to fetch a video with [ALT+v] or pair a local one with [SHIFT+m]. A track
+it sways) and the note to fetch a video with [ALT+v] or pair a local one in the video options of [SHIFT+m]. A track
 can have its own video on / off, size and effect: Style Option [SHIFT+s].
 
 [VIDEO OPTION [SHIFT+m]:][[Header]]
@@ -1371,15 +1383,16 @@ KEY[[Legend]]         ACTION[[Legend]]
 [[New Page]]
 2.5.1 THE VISUALIZATION FIELD [[Header]]
 
-Three visualizations, one key. The music player shows them in the field right of the meta data
+The visualizations, one key. The music player shows them in the field right of the meta data
 (where the lyrics are), the radio in the scope block right of the station info.
 
-[,/.]   cycles the field: lyrics (player only), sphere, oscilloscope, spectrogram back and forth
+[,/.]   cycles the field: lyrics (player only), sphere, oscilloscope, spectrogram, MilkDrop back and forth
+[:]     the MilkDrop visuals overlay (all three modes; the audio book keeps its own MilkDrop options)
 
 WHAT IS IN THE CYCLE: [[Header]]
 A view that is switched off in the settings tab ANIMA/VIZ (Use Lyrics Engine, Use Oscilloscope,
-Use Spectrogram, Use Sphere) is skipped by [,/.]. The order of the views is set on the tab ANIMA/VIZ
-(Viz Order 1 to 5). The view Mousiki starts with is Lyrics/Viz Default on the same tab; [,/.] only
+Use Spectrogram, Use Sphere, Use MilkDrop) is skipped by [,/.]. The order of the views is set on the
+tab ANIMA/VIZ (Viz Order 1 to 6). The view Mousiki starts with is Lyrics/Viz Default on the same tab; [,/.] only
 changes the visualizations while the program runs.
 
 WHAT THEY SHOW: [[Header]]
@@ -1387,6 +1400,17 @@ SPHERE:[[Header]] an audio-reactive sphere (uses same FFT band data as te spectr
 the meta data field in the main UI. 
 OSCILLOSCOPE:[[Header]] Available are a XY and YT mode oscilloscope.
 SPECTROGRAM:[[Header]] time runs left to right, frequency upwards, the color is the strength.
+MILKDROP:[[Header]] the Winamp visualizer, drawn by projectM (Windows: in the installer and built by
+setup.ps1; Linux: installed separately; see the manual: MilkDrop visuals). Thousands of presets. [:] opens its overlay: the preset (left / right,
+[ENTER] random, [n] / [b], [l] lock) and its options. Its row Preset Overlay opens the preset folder
+with the visuals beside it as the preview: [ENTER] chooses, [a] adds a favourite, [d] takes one out
+(in the Favourites folder on top), [/] searches every preset (fuzzy); Shuffle Favourites plays only
+the favourites. Effect puts a video effect over the visuals; Sixel Colours (adaptive) takes the
+colours of a Sixel picture from the picture itself (smooth gradients), fixed = the old palette.
+Lock Preset keeps the preset (no timer, no beat cut); Shuffle only picks what comes next. Auto
+MilkDrop shows the visuals for every track (Auto Video is off meanwhile). Style Option -> More
+Options: the preset overlay for one track (its preset, keep it, its own effect). They also fill the big video overlay ([v],
+then [m]), and Style Option [SHIFT+s] switches them on / off for one track and pins a preset to it.
 All of them analyze the decoded signal, so volume, equalizer and normalization never change
 the picture.
 
@@ -1767,7 +1791,7 @@ marquee.
                                                   all player modes have playback modes, but not all of the
                                                   the same).
 
-[Start Mode:][[Legend]]                                       player / radio / audiobook set the mode Mousiki opens
+[Start Mode:][[Legend]]                                       music player / radio / audiobook set the mode Mousiki opens
                                                   with.
 
 [Display queue:][[Legend]]                                    shows or hides the Queue panel (not in the audio book
@@ -1792,20 +1816,29 @@ marquee.
                                                   1.0x); the voice keeps its pitch. The same value as
                                                   [SHIFT+<-] / [SHIFT+->] in the audio book player.
 
-[Track Buffer (MB):][[Legend]]                                default = 256: a track whose decoded audio is smaller is
-                                                  held whole in RAM, so seeking is instant; a bigger one
-                                                  uses a moving 2-minute window. [ENTER] types a number
-                                                  (max. 6 digits), [->] then [ENTER] on [ Set back to
-                                                  default ] restores 256; applies to the next track. Useful
-                                                  for smooth track changes. However, Mousiki Plus is not
-                                                  built to be fully gapless, since it can become a resource
-                                                  issue...
+[Track Buffer (MB):][[Legend]]                                default = 64 (about 3 minutes of CD-quality stereo): a
+                                                  track whose decoded audio is smaller is held whole in RAM,
+                                                  so seeking is instant; a bigger one uses a moving 2-minute
+                                                  window (a jump outside it takes a moment). [ENTER] types a
+                                                  number (64 up to a quarter of the RAM, at most 16384), [->]
+                                                  then [ENTER] on [ Set back to default ] restores 64;
+                                                  applies to the next track.
 
 [Rate Cap at 96 kHz:][[Legend]]                               on (default) = a track above 96 kHz is brought down to 96
                                                   kHz; off = it plays at its own rate.
 
 [Pause Fade:][[Legend]]                                        on (default) = pause and resume fade the sound over about
                                                   8 ms instead of cutting it off (no click); off = hard cut.
+
+[Auto-Play:][[Legend]]                                         off (default) = the track the player opens with is loaded
+                                                  and stands paused; [p] starts it. on = it plays at once.
+
+[Gapless Playback:][[Legend]]                                  off (default) = a short gap between tracks (the sound
+                                                  device is opened anew). album = the next track of the same
+                                                  album (tags; untagged: the same folder) with the same
+                                                  sample rate and channels follows without a gap. full =
+                                                  every automatic change to the next local track, any album
+                                                  (another sample rate is resampled).
 
 [TERMINAL:][[Header]]
 [Black Background:][[Legend]]                                 on = the terminal is black and plain text takes the list
@@ -1837,9 +1870,11 @@ marquee.
                                                   3 seconds: the screen is redrawn about 10 times a
                                                   second, and 4 times a second once it has stood
                                                   still for 2 seconds (less CPU, less traffic over
-                                                  SSH). Any key brings the full rate back. The
-           radio does the same when no station is tuned
-           (or the stream is paused).
+                                                  SSH). Any key brings the full rate back. A
+                                                  turning sphere keeps the full rate (see Pause
+                                                  Sphere in ANIMA/VIZ -> SPHERE). The radio does
+                                                  the same when no station is tuned (or the stream
+                                                  is paused).
 
 [CLI / REMOTE / UPDATES:][[Header]]
 [CLI Scripts:][[Legend]]                                       [ENTER] opens the script overlay of the command line: the
@@ -2091,6 +2126,21 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   formats. The name only has to be close.
 
 
+[MILKDROP:][[Header]]
+[Use MilkDrop:][[Legend]]                                     true (default) = the MilkDrop view is in the [,/.] cycle
+                                                  (when projectM and presets are installed).
+[MilkDrop Frame Rate / Resolution:][[Legend]]                 30 pictures a second, 480 pixels across (defaults);
+                                                  more costs more (no graphics card: the processor draws).
+[Preset Duration / Shuffle / Transition:][[Legend]]           25 s, random, a 3 s blend (defaults).
+[Beat Sensitivity / Hard Cuts / Show Preset Name:][[Legend]]  1.0, on, on (defaults). The same rows are in [:].
+
+
+[SPHERE:][[Header]]
+[Pause Sphere:][[Legend]]                                     false (default) = the sphere keeps turning while the
+                                                  track is paused, at the full frame rate; true = it
+                                                  stops while paused and the screen calms down.
+
+
 [SEEK AND VOLUME:][[Header]]
 [Dummy Buttons:][[Legend]]                                    shows or hides the three decorative buttons next to the
                                                   progress bar. When you seek with the arrow keys, the <<
@@ -2178,7 +2228,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   later starts empty and fills as the music goes on.
 
 [VIZ/LYRICS ORDER:][[Header]]      
-[Viz Order:][[Legend]]                                        1-5, the order of the views in the [,/.] cycle.
+[Viz Order:][[Legend]]                                        1-6, the order of the views in the [,/.] cycle.
 
 [MAIN UI VIZ/LYRICS FIELD:][[Header]] 
 [Viz/Lyrics Field:][[Legend]]                                 false = no field, the meta data take its place.
@@ -2296,8 +2346,9 @@ sleep timer [SHIFT+z], text fields, the cheat sheet [?] and this wizard [SHIFT+w
 and overlays as described in chapters 2.5 to 2.8. Differences: the radio keeps its own equalizer curve,
 oscilloscope values and settings in radio_config.txt; the sleep timer stops the stream (no "Stop after
 current song"); the visualization field is the scope block right of the station info and [,/.] cycles
-oscilloscope, sphere and spectrogram (there are no lyrics). The spectrogram has its waterfall view here too
-([SHIFT+i], View).
+oscilloscope, sphere, spectrogram and MilkDrop (there are no lyrics). The spectrogram has its waterfall view
+here too ([SHIFT+i], View). [:] opens the MilkDrop visuals overlay, as in the player; the radio keeps its
+own MilkDrop options (radio_config.txt, ANIMA/VIZ -> MILKDROP).
 
 LETTERS ARE MORE OFTEN CASE SENSITIVE IN THE RADIO: [[Header]]
 [r] recalls a preset slot, [R] reconnects the station.
@@ -2531,16 +2582,17 @@ BORDER_COLOR, METADATA, VIZ, LIST, HEADER, LEGEND and TAB_NAMES work as in the p
 THEME row, [e], [SHIFT+d] and the unsaved-changes questions.
 
 GENERAL: [[Header]]
-Playback (shuffle / list, like [m]), Start Mode (player / radio / audiobook), Use Music Player / Use Radio
+Playback (shuffle / list, like [m]), Start Mode (music player / radio / audiobook), Use Music Player / Use Radio
 / Use Audio Books and Mode Order 1..3 (the same rows and values as in the player, kept in its config.txt),
-Black Background, On air ascii, Sign border (the : : column beside the sign, on / off), Pulse wave, Dummy buttons, Volume indicator (the look of the VOLUME BAR, 
-like in the player),Spectrum Bars, Stereo sound, Normalize volume, Tuning noise (static while tuning, off 
-by default and never recorded), Timeshift buffer (5 / 15 / 30 / 45 / 60 minutes),  Use oscilloscope / Use spectrogram.
+Black Background, Stereo sound, Normalize volume, Tuning noise (static while tuning, off by default and never
+recorded), Timeshift buffer (5 / 15 / 30 / 45 / 60 minutes).
 
 ANIMA/VIZ: [[Header]]
-Gradient wave speed and Pulse wave speed (the ON AIR sign), Bars Style with the Hi-Fi rows, Bars Behavior,
-Bars Fluidity / Degradation / Viscosity, Osci/sphere (osci / sphere / spectro / off) and the option Osci 
-style (braille / image).
+ON AIR SIGN: On air ascii, Sign border (the : : column beside the sign; off by default), Pulse wave, Gradient
+wave speed and Pulse wave speed. SEEK AND VOLUME: Dummy buttons and Volume indicator (the look of the VOLUME
+BAR, like in the player). Bars Style with the Hi-Fi rows, Bars Behavior, Bars Fluidity / Degradation /
+Viscosity. OSCI/SPECTRO SETTINGS: Use oscilloscope / Use spectrogram, Osci/sphere (osci / sphere / spectro /
+off) and the option Osci style (braille / image).
 
 [[New Page]]
 3.4.2 RADIO SETTINGS: PATHS, KEYS AND FILES [[Header]]

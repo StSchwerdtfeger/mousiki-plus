@@ -1,6 +1,7 @@
 // The Settings screen: its tabs, the colour themes (picker, creator, import / export) and the PATHS and REFERENCE rows.
 // Split out of app.cpp. Member functions of App (declared in app.h); the tables are in app_settings_tables.h.
 #include "app.h"
+#include "milkdrop.h"
 #include "app_state_theme.h"
 #include "text_edit.h"
 #include "overlay_common.h"
@@ -766,17 +767,33 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidVideoFxContrast: return fxc_name(settings_.video_fxc);
             case kSidVideoGradSat: return std::to_string(std::clamp(settings_.video_grad_sat, 0, 100)) + "%";
             case kSidVideoRound: return settings_.video_round ? "on" : "off";
+            case kSidMdFps: return std::to_string(settings_.milkdrop_fps);
+            case kSidMdRes: return std::to_string(settings_.milkdrop_res);
+            case kSidMdDuration: return settings_.milkdrop_preset_secs <= 0 ? std::string("off") : std::to_string(settings_.milkdrop_preset_secs) + " s";
+            case kSidMdBeat: { char b[8]; std::snprintf(b, sizeof b, "%.1f", std::clamp(settings_.milkdrop_beat, 0, 20) / 10.0); return b; }
+            case kSidMdTransition: return settings_.milkdrop_transition <= 0 ? std::string("cut") : std::to_string(settings_.milkdrop_transition) + " s";
+            case kSidMdFx: return video_fx_name(video_fx_canon(settings_.milkdrop_fx));
+            case kSidMdColors: return settings_.milkdrop_fixed_colors ? "fixed" : "adaptive";
             case kSidVideoCover: return settings_.video_cover == 1 ? "thumbnail" : settings_.video_cover == 2 ? "disk" : settings_.video_cover == 3 ? "thumbnail fallback" : "cover";
             case kSidVideoClap: return settings_.video_clap == 2 ? "none" : settings_.video_clap == 0 ? "text note" : "clap";
             case kSidCoverChroma: return chroma_name(settings_.cover_chroma);
             case kSidVideoRes: return video_res_label(settings_.video_res, gfxs_.proto == GfxProto::Sixel);
             case kSidVideoBuffer: return std::to_string(settings_.video_buffer) + " MB";
             case kSidVideoFps: return settings_.video_fps >= 60 ? "60" : "25";
+            case kSidGapless: return settings_.gapless == 2 ? "full" : settings_.gapless == 1 ? "album" : "off";
             case kSidVideoMp3: return settings_.video_mp3 ? "true" : "false";
             case kSidUseVideo: v = settings_.video_mode; break;
             case kSidNoLyricsViz: return settings_.nolyrics_viz == 1 ? "osci" : settings_.nolyrics_viz == 2 ? "spectro" : settings_.nolyrics_viz == 3 ? "none" : "sphere";
             case kSidStereo: v = settings_.stereo; break;
             case kSidPauseFade: v = settings_.pause_fade; break;
+            case kSidAutoPlay: v = settings_.auto_play; break;
+            case kSidPauseSphere: v = settings_.pause_sphere; break;
+            case kSidUseMilkdrop: v = settings_.use_milkdrop; break;
+            case kSidMdShuffle: v = settings_.milkdrop_shuffle; break;
+            case kSidMdFavShuffle: v = settings_.milkdrop_fav_shuffle; break;
+            case kSidMdHardCuts: v = settings_.milkdrop_hard_cuts; break;
+            case kSidMdShowName: v = settings_.milkdrop_show_name; break;
+            case kSidMdAuto: v = settings_.milkdrop_auto; break;
             case kSidBlackBg: v = settings_.black_background; break;
             case kSidShareProfiles: v = settings_.share_profiles; break;
             case kSidSpectroHistory: v = settings_.spectro_history; break;
@@ -819,8 +836,8 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidUseOsci: v = settings_.use_osci; break;
             case kSidUseSpectro: v = settings_.use_spectro; break;
             case kSidUseSphere: v = settings_.use_sphere; break;
-            case kSidOrder1: case kSidOrder2: case kSidOrder3: case kSidOrder4: case kSidOrder5:   // which view comes at that place of the "." cycle
-                return viz_row_name(settings_.viz_order[settings_item_id(settings_tab_, row) - kSidOrder1]);
+            case kSidOrder1: case kSidOrder2: case kSidOrder3: case kSidOrder4: case kSidOrder5: case kSidOrder6:   // which view comes at that place of the "." cycle
+                return viz_row_name(settings_.viz_order[viz_order_slot(settings_.viz_order, settings_item_id(settings_tab_, row) - kSidOrder1)]);
             case kSidUseModePlayer: v = settings_.use_mode[0]; break;
             case kSidUseModeRadio: v = settings_.use_mode[1]; break;
             case kSidUseModeBook: v = settings_.use_mode[2]; break;
@@ -830,7 +847,7 @@ std::string App::settings_get_value(int row, int col) const {
                 static const char* names[] = {"list", "loop", "shuffle", "stop", "queue then stop"};
                 return names[std::clamp(settings_.play_mode, 0, 4)];
             }
-            case kSidStartMode: return mode_row_name(std::max(0, mode_index(settings_.start_mode)));
+            case kSidStartMode: return start_mode_row_name(std::max(0, mode_index(settings_.start_mode)));
             case kSidVolIndicator: return kVolIndicatorNames[std::clamp(settings_.volume_indicator, 0, kVolStyleCount - 1)];
             case kSidVisFluidity: return std::to_string(settings_.bar_fluidity());
             case kSidBarBehavior: return bars_preset_name(bars_preset_of(settings_.bar_fluidity(), settings_.bar_degradation(), settings_.bar_viscosity()));
@@ -922,13 +939,23 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidVideoRes: return {video_res_label(0, gfxs_.proto == GfxProto::Sixel), video_res_label(1, gfxs_.proto == GfxProto::Sixel), video_res_label(2, gfxs_.proto == GfxProto::Sixel)};
             case kSidVideoMp3: return {"false", "true"};
             case kSidVideoFps: return {"25", "60"};
+            case kSidGapless: return {"off", "album", "full"};
             case kSidVideoBuffer: { std::vector<std::string> o; for (int c : kVideoBufferChoices) o.push_back(std::to_string(c) + " MB"); return o; }
-            case kSidOrder1: case kSidOrder2: case kSidOrder3: case kSidOrder4: case kSidOrder5: return {"sphere", "osci", "spectro", viz_row_name(3), "video"};
+            case kSidOrder1: case kSidOrder2: case kSidOrder3: case kSidOrder4: case kSidOrder5: case kSidOrder6:
+                if (g_settings_book_layout) return {"sphere", "osci", "spectro", viz_row_name(3), "milkdrop"};   // (no video view in the audio book)
+                return {"sphere", "osci", "spectro", viz_row_name(3), "video", "milkdrop"};
+            case kSidMdFps: return {"15", "20", "25", "30", "45", "60"};
+            case kSidMdRes: return {"320", "480", "640", "960", "1280"};
+            case kSidMdDuration: return {"off", "10 s", "15 s", "20 s", "25 s", "30 s", "45 s", "60 s", "90 s", "120 s", "180 s", "300 s"};
+            case kSidMdBeat: { std::vector<std::string> o; for (int i = 0; i <= 20; ++i) { char b[8]; std::snprintf(b, sizeof b, "%.1f", i / 10.0); o.push_back(b); } return o; }
+            case kSidMdTransition: { std::vector<std::string> o; for (int i = 0; i <= 10; ++i) o.push_back(i == 0 ? std::string("cut") : std::to_string(i) + " s"); return o; }
+            case kSidMdFx: { std::vector<std::string> o; for (int i = 0; i < kVideoFxShown; ++i) o.push_back(video_fx_name(kVideoFxOrder[i])); return o; }
+            case kSidMdColors: return {"adaptive", "fixed"};
             case kSidModeOrder1: case kSidModeOrder2: case kSidModeOrder3: return {mode_row_name(0), mode_row_name(1), mode_row_name(2)};
             case kSidPlayback: return {"list", "loop", "shuffle", "stop", "queue then stop"};
             case kSidStartMode: {   // only modes that are switched on can start
                 std::vector<std::string> o;
-                for (int i = 0; i < 3; ++i) if (settings_.use_mode[settings_.mode_order[i]]) o.push_back(mode_row_name(settings_.mode_order[i]));
+                for (int i = 0; i < 3; ++i) if (settings_.use_mode[settings_.mode_order[i]]) o.push_back(start_mode_row_name(settings_.mode_order[i]));
                 return o;
             }
             case kSidVolIndicator: return {kVolIndicatorNames[0], kVolIndicatorNames[1], kVolIndicatorNames[2], kVolIndicatorNames[3], kVolIndicatorNames[4]};
@@ -1024,6 +1051,13 @@ void App::settings_commit_edit_impl() {
         }
         if (id == kSidVideoClap) { settings_.video_clap = v == "none" ? 2 : v == "text note" ? 0 : 1; video_pic_key_.clear(); return; }
         if (id == kSidVideoRound) { settings_.video_round = v == "on"; video_pic_key_.clear(); return; }
+        if (id == kSidMdFps) { settings_.milkdrop_fps = std::clamp(std::atoi(v.c_str()), 10, 60); return; }
+        if (id == kSidMdRes) { settings_.milkdrop_res = std::clamp(std::atoi(v.c_str()), 160, 1920); milkdrop_pic_key_.clear(); return; }
+        if (id == kSidMdDuration) { settings_.milkdrop_preset_secs = v == "off" ? 0 : std::clamp(std::atoi(v.c_str()), 0, 600); return; }
+        if (id == kSidMdBeat) { settings_.milkdrop_beat = std::clamp(static_cast<int>(std::lround(std::atof(v.c_str()) * 10.0)), 0, 20); return; }
+        if (id == kSidMdTransition) { settings_.milkdrop_transition = v == "cut" ? 0 : std::clamp(std::atoi(v.c_str()), 0, 10); return; }
+        if (id == kSidMdFx) { settings_.milkdrop_fx = video_fx_from(v); milkdrop_pic_key_.clear(); return; }
+        if (id == kSidMdColors) { settings_.milkdrop_fixed_colors = v == "fixed"; milkdrop_pic_key_.clear(); return; }
         if (id == kSidVideoChroma) { settings_.video_chroma = chroma_from(v); video_pic_key_.clear(); return; }
         if (id == kSidVideoDither) { settings_.video_dither = dither_from(v); video_pic_key_.clear(); return; }
         if (id == kSidVideoBase) { settings_.video_base = base_from(v); video_pic_key_.clear(); return; }
@@ -1032,6 +1066,7 @@ void App::settings_commit_edit_impl() {
         if (id == kSidVideoRes) { settings_.video_res = video_res_from(v); video_pic_key_.clear(); return; }
         if (id == kSidVideoMp3) { settings_.video_mp3 = v == "true"; return; }
         if (id == kSidVideoFps) { settings_.video_fps = v == "60" ? 60 : 25; return; }
+        if (id == kSidGapless) { settings_.gapless = v == "full" ? 2 : v == "album" ? 1 : 0; return; }
         if (id == kSidVideoBuffer) { const int mb = muisc::atoi_safe(v.c_str()); int best = kVideoBufferChoices[0]; for (int c : kVideoBufferChoices) if (mb >= c) best = c; settings_.video_buffer = best; return; }
         if (id == kSidNoVideoViz) {
             if (v == "lyrics") settings_.novideo_viz = 4;
@@ -1062,16 +1097,16 @@ void App::settings_commit_edit_impl() {
         }
         // "Viz Order 1..4": naming a view puts it at this place; the view that was there takes the place it left
         // (so the order stays a permutation of the four).
-        if (id >= kSidOrder1 && id <= kSidOrder5) {
+        if (id >= kSidOrder1 && id <= kSidOrder6) {
             int want = -1;
-            for (int i = 0; i < 5; ++i) if (v == kVizNames[i]) want = i;
+            for (int i = 0; i < 6; ++i) if (v == kVizNames[i]) want = i;
             if (v == "notes") want = 3;
             if (v == "oscilloscope") want = 1;
             if (v == "spectrogram") want = 2;
-            if (want < 0) return;
-            const int place = id - kSidOrder1;
+            if (want < 0 || (want == 4 && g_settings_book_layout)) return;
+            const int place = viz_order_slot(settings_.viz_order, id - kSidOrder1);
             order_swap_from_ = -1;
-            for (int i = 0; i < 5; ++i)
+            for (int i = 0; i < 6; ++i)
                 if (settings_.viz_order[i] == want) {
                     if (i != place) order_swap_from_ = i;
                     std::swap(settings_.viz_order[i], settings_.viz_order[place]);
@@ -1170,9 +1205,9 @@ void App::settings_commit_edit_impl() {
             case kSidTrackBuffer: {   // typed MB; the next track that is loaded uses it
                 try {
                     const int mb = std::stoi(buf);
-                    settings_.track_buffer_mb = std::clamp(mb, Settings::kTrackBufferMinMB, Settings::kTrackBufferMaxMB);
+                    settings_.track_buffer_mb = std::clamp(mb, Settings::kTrackBufferMinMB, Settings::track_buffer_cap_mb());   // (at most a quarter of the RAM)
                     status_line_ = "track buffer: " + std::to_string(settings_.track_buffer_mb) + " MB" +
-                                   (mb != settings_.track_buffer_mb ? " (allowed: " + std::to_string(Settings::kTrackBufferMinMB) + " - " + std::to_string(Settings::kTrackBufferMaxMB) + ")" : "") +
+                                   (mb != settings_.track_buffer_mb ? " (allowed here: " + std::to_string(Settings::kTrackBufferMinMB) + " - " + std::to_string(Settings::track_buffer_cap_mb()) + ", a quarter of the RAM)" : "") +
                                    " -- applies to the next track that is loaded";
                 } catch (...) { status_line_ = "track buffer: type a number of MB"; }
                 return;
@@ -1199,6 +1234,14 @@ void App::settings_commit_edit_impl() {
             case kSidDummy: settings_.element_dummy_buttons = is_true; break;
             case kSidDiskBorder: settings_.disk_border = is_true; break;
             case kSidReduceMotion: settings_.reduce_motion_paused = is_true; break;
+            case kSidAutoPlay: settings_.auto_play = is_true; break;
+            case kSidPauseSphere: settings_.pause_sphere = is_true; break;
+            case kSidUseMilkdrop: settings_.use_milkdrop = is_true; if (!is_true && settings_.milkdrop_view) settings_.milkdrop_view = false; break;
+            case kSidMdShuffle: settings_.milkdrop_shuffle = is_true; break;
+            case kSidMdFavShuffle: settings_.milkdrop_fav_shuffle = is_true; break;
+            case kSidMdHardCuts: settings_.milkdrop_hard_cuts = is_true; break;
+            case kSidMdShowName: settings_.milkdrop_show_name = is_true; break;
+            case kSidMdAuto: milkdrop_auto_set(is_true); break;
             case kSidQueue: settings_.element_queue = is_true; break;
             case kSidWave: settings_.element_waveform = is_true; break;
             case kSidVizField: settings_.element_vizfield = is_true; break;
@@ -1485,6 +1528,17 @@ void App::settings_cycle(int dir) {
         else
             status_line_ = settings_.stereo ? "stereo: on" : "stereo: off";
     }
+    if (id == kSidUseMilkdrop) {
+        std::string why;
+        status_line_ = !settings_.use_milkdrop ? "milkdrop: left out of the \".\" cycle"
+                     : Milkdrop::instance().available(&why) ? "milkdrop: in the \".\" cycle (" + visuals_key_text() + " opens its options)"
+                     : "milkdrop: in the \".\" cycle once it can run here -- " + why;
+    }
+    if (id == kSidGapless) status_line_ = settings_.gapless == 2 ? "gapless: full -- every automatic change to the next local track goes on without a gap (another sample rate is resampled)"
+                                      : settings_.gapless == 1 ? "gapless: album -- the next track of the same album (same sample rate and channels) follows without a gap"
+                                      : "gapless: off -- the audio device is opened anew for every track";
+    if (id == kSidAutoPlay) status_line_ = settings_.auto_play ? "auto-play: on -- the track the music player opens with starts playing at once (next start)" : "auto-play: off -- the track the music player opens with stands paused at its place (the play / pause key (p) starts it; next start)";
+    if (id == kSidPauseSphere) status_line_ = settings_.pause_sphere ? "pause sphere: on -- the sphere stops turning while the track is paused" : "pause sphere: off -- the sphere goes on turning while the track is paused";
     if (id == kSidPauseFade) status_line_ = settings_.pause_fade ? "pause fade: on -- pause and resume fade over about 8 ms (no click)" : "pause fade: off -- pause cuts the sound at once (a click is possible)";
     if (id == kSidCliScripts) status_line_ = "cli scripts: [ENTER] opens the script overlay (library and editor of the command line's scripts; ESC comes back here)";
     if (id == kSidNormalize) {
@@ -1513,11 +1567,18 @@ void App::settings_cycle(int dir) {
         status_line_ = std::string(names[r]) + (on ? ": in the \".\" cycle" : ": switched off (not in the \".\" cycle; full screen and the windows " +
                               hotkey_text("HKeySpectroWindow", "(") + " / " + hotkey_text("HKeyScopeWindow", ")") + " still work)") + note;
     }
-    if (id >= kSidOrder1 && id <= kSidOrder5) {
+    if (id >= kSidOrder1 && id <= kSidOrder6) {
         std::string o = "\".\" cycle: ";
-        for (int i = 0; i < 5; ++i) o += std::string(i ? " > " : "") + viz_row_name(settings_.viz_order[i]);
+        bool first = true;
+        for (int i = 0; i < 6; ++i) {
+            if (g_settings_book_layout && settings_.viz_order[i] == 4) continue;   // (the audio book has no video view)
+            o += std::string(first ? "" : " > ") + viz_row_name(settings_.viz_order[i]);
+            first = false;
+        }
         // every view is in the cycle once: the one that held the place now holds the place the chosen view left
-        if (order_swap_from_ >= 0) o += "   (Viz Order " + std::to_string(order_swap_from_ + 1) + " took " + viz_row_name(settings_.viz_order[order_swap_from_]) + " in return)";
+        int swap_row = order_swap_from_;   // (the audio book's rows skip the video's place)
+        if (g_settings_book_layout && swap_row >= 0) { int n = 0; for (int i = 0; i < order_swap_from_; ++i) if (settings_.viz_order[i] != 4) ++n; swap_row = n; }
+        if (order_swap_from_ >= 0) o += "   (Viz Order " + std::to_string(swap_row + 1) + " took " + viz_row_name(settings_.viz_order[order_swap_from_]) + " in return)";
         status_line_ = o;
     }
     if (id == kSidPlayback) status_line_ = std::string("playback: ") + play_mode_name(settings_.play_mode);
@@ -1733,7 +1794,7 @@ void App::handle_settings_key(int key) {
             // the library was rescanned) -- don't bury it under the generic
             // "UPDATED".
             bool wrote_own_status = (settings_tab_ == 3 && path_row_is_text(settings_row_)) ||
-                                    (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTermSize);
+                                    (settings_tab_ == 1 && (settings_item_id(1, settings_row_) == kSidTermSize || settings_item_id(1, settings_row_) == kSidTrackBuffer));   // (the track buffer names its range)
             if (!key_name.empty()) ref_undo_push(settings_row_);
             const auto hk_before = settings_.hotkeys;
             settings_commit_edit();
@@ -1782,7 +1843,7 @@ void App::handle_settings_key(int key) {
             const int limit = ((theme_->ui == 2 && theme_->row < 0) || (theme_->ui == 4 && theme_->io_row == 0)) ? themes::kMaxNameLen
                               : (theme_->ui == 4 || theme_->ui == 5) ? 240
                               : (settings_tab_ == 3 && path_row_is_text(settings_row_)) ? 240
-                              : (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTrackBuffer) ? 6 : 18;
+                              : (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTrackBuffer) ? 5 : 18;
             le_paste(color_edit_buffer_, edit_caret_, edit_anchor_, clipboard_get(), static_cast<size_t>(limit));
             status_line_ = "PASTED";
             return;
@@ -1807,7 +1868,7 @@ void App::handle_settings_key(int key) {
         const int edit_limit = ((theme_->ui == 2 && theme_->row < 0) || (theme_->ui == 4 && theme_->io_row == 0)) ? themes::kMaxNameLen
                              : (theme_->ui == 4 || theme_->ui == 5) ? 240
                              : (settings_tab_ == 3 && path_row_is_text(settings_row_)) ? 240
-                             : (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTrackBuffer) ? 6 : 18;   // Track Buffer (MB): 6 digits at most
+                             : (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTrackBuffer) ? 5 : 18;   // Track Buffer (MB): 5 digits at most (16384)
         if (is_text_key(key)) {
             le_insert(color_edit_buffer_, edit_caret_, edit_anchor_, static_cast<char>(key),
                       static_cast<size_t>(edit_limit));

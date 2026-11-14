@@ -1,5 +1,7 @@
 // The looks of the video view share the rows of a picture between threads: the result must be the same as with one thread, for every look.
 #include <algorithm>
+#include <chrono>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <set>
@@ -143,6 +145,36 @@ TEST(video_gradient_saturation_pales_the_gradient_colours_and_100_is_the_old_loo
 }
 
 // The effect list: every effect that is offered is listed once, the names are unique and read back, and the new looks keep their numbers.
+TEST(teletext_high_res_keeps_small_detail) {
+    // a bright face-like disc with two small dark eyes: the plain teletext (40 x 24 characters) loses eyes this small into the white,
+    // the high-res one (80 x 48) keeps them dark; both stay within the eight teletext colours
+    const int w = 640, h = 360;
+    VideoFrame base;
+    base.w = w; base.h = h; base.rgb.assign(static_cast<size_t>(w) * h * 3, 0);
+    for (int y = 0; y < h; ++y)
+        for (int x = 0; x < w; ++x) {
+            uint8_t* p = &base.rgb[(static_cast<size_t>(y) * w + x) * 3];
+            const int dx = x - 320, dy = y - 180;
+            uint8_t r = 60, g = 90, b = 140;                                              // a blue-grey background
+            if (dx * dx + dy * dy < 70 * 70) { r = 230; g = 190; b = 160; }              // the face (skin)
+            if ((dx + 24) * (dx + 24) + (dy + 12) * (dy + 12) < 6 * 6 || (dx - 24) * (dx - 24) + (dy + 12) * (dy + 12) < 6 * 6) { r = 40; g = 30; b = 30; }   // the eyes
+            p[0] = r; p[1] = g; p[2] = b;
+        }
+    auto dark_at_eye = [&](int fx) {
+        VideoFrame f = base;
+        VideoPlayer::apply_fx(f, fx, 0.0);
+        for (size_t i = 0; i < f.rgb.size(); ++i) CHECK(f.rgb[i] == 0 || f.rgb[i] == 255);
+        int dark = 0;
+        for (int y = 180 - 18; y <= 180 - 6; ++y)
+            for (int x = 320 - 30; x <= 320 - 18; ++x) {
+                const uint8_t* p = &f.rgb[(static_cast<size_t>(y) * w + x) * 3];
+                if (p[0] + p[1] + p[2] <= 255) ++dark;
+            }
+        return dark;
+    };
+    CHECK(dark_at_eye(43) > 20);
+}
+
 TEST(video_fx_list_names_and_order) {
     std::vector<int> seen;
     for (int i = 0; i < kVideoFxShown; ++i) {
@@ -174,7 +206,9 @@ TEST(video_fx_list_names_and_order) {
     CHECK_EQ(video_fx_from("halftone cmyk"), 41);
     CHECK_EQ(video_fx_from("halftone cmyk high-res"), 42);
     CHECK(video_fx_pos(42) == video_fx_pos(41) + 1);   // the fine screen sits right below the plain one
-    CHECK_EQ(kVideoFxShown, 40);
+    CHECK_EQ(video_fx_from("teletext high-res"), 43);
+    CHECK(video_fx_pos(43) == video_fx_pos(31) + 1);   // the high-res teletext sits right below the plain one
+    CHECK_EQ(kVideoFxShown, 41);
     CHECK_EQ(video_fx_canon(-1), -1);   // (-1 = "as in Settings" stays)
     CHECK(video_fx_pos(26) == video_fx_pos(8) + 1);   // the glow variant sits right below Phosphor Green
     CHECK_EQ(video_fx_step(28, 1), kVideoFxOrder[(video_fx_pos(28) + 1) % kVideoFxShown]);
@@ -413,23 +447,22 @@ TEST(video_computer_looks_follow_their_hardware) {
         VideoPlayer::apply_fx(f, 5, 0.0);
         CHECK(colours_in(f, 0, 0, 320, 180) <= 32);
     }
-    {   // ASCII: about 100 characters across (cells of 5 x 10 pixels at 480 wide: big enough to read), many different characters, and in every cell one
-        // colour on its dark background
+    {   // ASCII: about 180 characters across (cells of 3 x 6 pixels at 480 wide), many different characters, and in every cell one colour on its dark background
         VideoFrame f = retro_test_picture(480, 270);
         VideoPlayer::apply_fx(f, 37, 0.0);
         std::set<uint64_t> shapes;
         bool ok = true;
-        for (int cy = 0; cy < 27; ++cy)
-            for (int cx = 0; cx < 96; ++cx) {
+        for (int cy = 0; cy < 45; ++cy)
+            for (int cx = 0; cx < 160; ++cx) {
                 int lo = 255 * 3, hi = 0;
-                for (int y = 0; y < 10; ++y) for (int x = 0; x < 5; ++x) { const uint8_t* q = &f.rgb[(static_cast<size_t>(cy * 10 + y) * 480 + cx * 5 + x) * 3]; const int v = q[0] + q[1] + q[2]; lo = std::min(lo, v); hi = std::max(hi, v); }
+                for (int y = 0; y < 6; ++y) for (int x = 0; x < 3; ++x) { const uint8_t* q = &f.rgb[(static_cast<size_t>(cy * 6 + y) * 480 + cx * 3 + x) * 3]; const int v = q[0] + q[1] + q[2]; lo = std::min(lo, v); hi = std::max(hi, v); }
                 uint64_t mask = 0;
-                for (int y = 0; y < 10; ++y) for (int x = 0; x < 5; ++x) { const uint8_t* q = &f.rgb[(static_cast<size_t>(cy * 10 + y) * 480 + cx * 5 + x) * 3]; mask = mask * 2 + (q[0] + q[1] + q[2] > (lo + hi) / 2 ? 1 : 0); }
+                for (int y = 0; y < 6; ++y) for (int x = 0; x < 3; ++x) { const uint8_t* q = &f.rgb[(static_cast<size_t>(cy * 6 + y) * 480 + cx * 3 + x) * 3]; mask = mask * 2 + (q[0] + q[1] + q[2] > (lo + hi) / 2 ? 1 : 0); }
                 if (hi - lo > 60) shapes.insert(mask);
                 if (lo > 120) ok = false;   // (the darkest pixel of a cell is the dark background: no cell is lit everywhere)
             }
         CHECK(ok);
-        CHECK(shapes.size() >= 30);   // (dozens of different characters on a smooth picture)
+        CHECK(shapes.size() >= 40);   // (dozens of different characters on a smooth picture)
     }
 }
 
@@ -673,46 +706,52 @@ TEST(video_halftone_cmyk_effect_contrast_is_the_strength_of_the_print) {
     CHECK(a.sig() == b.sig());
 }
 
-// VHS (batch 275): a tape that tracks well is steady -- the lines sway by a fraction of a pixel; only now and then (in about one stretch of 8 s in
-// three, for 1 to 3 s) the tracking slips and the lines wobble strongly. A vertical edge shows it: its place along the rows.
+// VHS (batch 275, 279): a tape that tracks well is steady -- the lines sway by a fraction of a pixel; only now and then (in about one stretch of 8 s in
+// three, for 1 to 3 s) the tracking slips and the lines wobble strongly. The band of noise that rolls up the picture comes more often (batch 279):
+// only its own rows slip. A vertical edge shows both: where it lies along the rows -- the middle rows (20 % .. 80 % of the places) for the wobble of the
+// whole picture, single rows far off for the band.
 TEST(video_vhs_is_steady_and_slips_only_now_and_then) {
     const int W = 640, H = 360;
     VideoFrame edge;
     edge.w = W; edge.h = H; edge.rgb.assign(static_cast<size_t>(W) * H * 3, 30);
     for (int y = 0; y < H; ++y)
         for (int x = W / 2; x < W; ++x) for (int k = 0; k < 3; ++k) edge.rgb[(static_cast<size_t>(y) * W + x) * 3 + k] = 220;
-    auto spread = [&](double t) {   // how far the edge moves between the rows (the head-switching rows at the bottom left out)
+    auto places = [&](double t) {   // the edge's place in every row (the head-switching rows at the bottom left out)
         VideoFrame f = edge;
         VideoPlayer::apply_fx(f, 3, t);
-        double lo = 1e9, hi = -1e9;
+        std::vector<double> out;
         for (int y = 0; y < H - H / 24 - 2; ++y) {
             double where = W / 2;
             for (int x = W / 4; x < 3 * W / 4; ++x) {
                 const int a = f.rgb[(static_cast<size_t>(y) * W + x) * 3 + 1], b = f.rgb[(static_cast<size_t>(y) * W + x + 1) * 3 + 1];
                 if (a < 125 && b >= 125) { where = x + (125.0 - a) / std::max(1, b - a); break; }
             }
-            lo = std::min(lo, where); hi = std::max(hi, where);
+            out.push_back(where);
         }
-        return hi - lo;
+        std::sort(out.begin(), out.end());
+        return out;
     };
-    int steady = 0, wobbly = 0, n = 0;
-    double steady_worst = 0.0;
+    int steady = 0, wobbly = 0, banded = 0, n = 0;
     for (double t = 0.0; t < 160.0; t += 0.5, ++n) {
-        const double s = spread(t);
-        if (s < 2.5) { ++steady; steady_worst = std::max(steady_worst, s); }
-        if (s > 5.0) ++wobbly;
+        const std::vector<double> p = places(t);
+        const double mid = p[p.size() * 8 / 10] - p[p.size() * 2 / 10];   // (the band's rows are fewer than a fifth: they do not count here)
+        const double all = p.back() - p.front();
+        if (mid < 2.0) ++steady;
+        if (mid > 2.5) ++wobbly;   // (the strong wobble: up to 2.4 px either way at 640 px; its middle rows spread over 3 to 4 px)
+        if (mid < 2.0 && all > 6.0) ++banded;   // (the picture steady, some rows far off: the band)
     }
-    CHECK(steady > n * 6 / 10);    // most of the time the edge is straight within a little more than a pixel (noise and the slow sway)
-    CHECK(wobbly > 0);             // ... and now and then the tracking slips
+    CHECK(steady > n * 6 / 10);    // most of the time the picture is straight within a couple of pixels
+    CHECK(wobbly > 0);             // ... now and then the tracking slips
     CHECK(wobbly < n * 3 / 10);
-    if (!(steady > n * 6 / 10 && wobbly > 0 && wobbly < n * 3 / 10)) std::printf("  vhs: %d steady, %d wobbly of %d frames\n", steady, wobbly, n);
+    CHECK(banded > n * 25 / 100);  // the band rolls through often (it was only there while the tracking slipped: about a tenth of the time)
+    if (!(steady > n * 6 / 10 && wobbly > 0 && wobbly < n * 3 / 10 && banded > n * 25 / 100)) std::printf("  vhs: %d steady, %d wobbly, %d with the band, of %d frames\n", steady, wobbly, banded, n);
 }
 
 // ASCII (batch 275): an edge is drawn as a line along it (| / \\ - _), the rest with characters by shape and brightness. A bright disc and a bright bar on a
-// dark ground: the cells on the bar's left and right side carry a vertical stroke (ink in at most three of the cell's six columns, in most of its rows); the
+// dark ground: the cells on the bar's left and right side carry a vertical stroke (ink in at most two of the cell's four columns, in most of its rows); the
 // cells on the disc's rim carry a stroke that follows the rim: rising on its upper left and lower right, falling on its upper right and lower left.
 TEST(video_ascii_draws_edges_as_lines_along_them) {
-    const int W = 640, H = 360, cw = 6, ch = 12;   // (cells of 6 x 12 at 640 wide)
+    const int W = 640, H = 360, cw = 4, ch = 8;   // (cells of 4 x 8 at 640 wide)
     VideoFrame f;
     f.w = W; f.h = H; f.rgb.assign(static_cast<size_t>(W) * H * 3, 20);
     for (int y = 0; y < H; ++y)
@@ -738,12 +777,12 @@ TEST(video_ascii_draws_edges_as_lines_along_them) {
         slope = n > 2 && std::fabs(d) > 1e-9 ? (n * sxy - sx * sy) / d : 0.0;
     };
     int vertical = 0, checked = 0;
-    for (int cy = 5; cy < 25; ++cy) {
-        for (int cx : {10, 26}) {   // (the bar's sides: x = 63 lies in cell 10, x = 159 in cell 26)
+    for (int cy = 6; cy < 38; ++cy) {
+        for (int cx : {15, 39}) {   // (the bar's sides: x = 63 lies in cell 15, x = 159 in cell 39)
             int cols = 0, rows = 0; double sl = 0;
             ink(cx, cy, cols, rows, sl);
             ++checked;
-            if (cols <= 3 && rows >= 8) ++vertical;
+            if (cols <= 2 && rows >= 5) ++vertical;
         }
     }
     CHECK(vertical >= checked * 3 / 4);
@@ -760,4 +799,78 @@ TEST(video_ascii_draws_edges_as_lines_along_them) {
     CHECK(lean(315.0) > 0.5);    // lower right: rising
     CHECK(lean(45.0) < -0.5);    // upper right: falling
     CHECK(lean(225.0) < -0.5);   // lower left: falling
+}
+
+// The MilkDrop pictures on Sixel: the palette taken from the picture keeps a picture of few hues (a dark blue gradient with a little
+// magenta, like many presets) far closer to itself than the fixed 256 colours, uses at most 240 colours, and gives the same picture
+// with one or four threads.
+TEST(adaptive_palette_is_closer_than_the_fixed_one_for_a_few_hue_picture) {
+    const int W = 480, H = 270;
+    VideoFrame f;
+    f.w = W; f.h = H; f.rgb.resize(static_cast<size_t>(W) * H * 3);
+    for (int y = 0; y < H; ++y)
+        for (int x = 0; x < W; ++x) {
+            const size_t i = (static_cast<size_t>(y) * W + x) * 3;
+            const double t = static_cast<double>(x) / (W - 1), u = static_cast<double>(y) / (H - 1);
+            f.rgb[i] = static_cast<uint8_t>(20 + 60 * t * u + (x > 300 && y < 80 ? 120 : 0));
+            f.rgb[i + 1] = static_cast<uint8_t>(10 + 40 * t);
+            f.rgb[i + 2] = static_cast<uint8_t>(40 + 170 * t);
+        }
+    auto err = [&](const std::vector<uint8_t>& hue, auto pal_of) {
+        double e = 0;
+        for (int y = 0; y < H; ++y)   // the error of 4 x 4 blocks (what the eye averages): the dither's mean, not its grain
+            for (int x = 0; x + 4 <= W; x += 4) {
+                if (y % 4) continue;
+                double s[3] = {0, 0, 0}, o[3] = {0, 0, 0};
+                for (int dy = 0; dy < 4 && y + dy < H; ++dy)
+                    for (int dx = 0; dx < 4; ++dx) {
+                        const size_t i = static_cast<size_t>(y + dy) * W + x + dx;
+                        const auto c = pal_of(hue[i]);
+                        for (int k = 0; k < 3; ++k) { s[k] += c[k]; o[k] += f.rgb[i * 3 + k]; }
+                    }
+                for (int k = 0; k < 3; ++k) e += std::abs(s[k] - o[k]) / 16.0;
+            }
+        return e;
+    };
+    std::vector<uint8_t> hue_a, lev_a, hue_f, lev_f;
+    std::array<std::array<uint8_t, 3>, 256> pal{};
+    VideoPlayer::set_fx_threads(1);
+    VideoPlayer::quantize_adaptive(f, hue_a, lev_a, pal);
+    VideoPlayer::quantize(f, hue_f, lev_f, 0);
+    const auto& fixed = VideoPlayer::palette();
+    const double ea = err(hue_a, [&](uint8_t h) { return pal[h]; });
+    const double ef = err(hue_f, [&](uint8_t h) { return fixed[h]; });
+    std::printf("    block error: adaptive %.0f, fixed %.0f\n", ea, ef);
+    CHECK(ea < ef * 0.6);
+    CHECK(*std::max_element(hue_a.begin(), hue_a.end()) < 240);
+    std::vector<uint8_t> hue4, lev4;
+    std::array<std::array<uint8_t, 3>, 256> pal4{};
+    VideoPlayer::set_fx_threads(4);
+    VideoPlayer::quantize_adaptive(f, hue4, lev4, pal4);
+    VideoPlayer::set_fx_threads(0);
+    CHECK(hue4 == hue_a);
+    CHECK(pal4 == pal);
+}
+
+// (no check: what the two cost at 960 x 540, printed for the release notes)
+TEST(adaptive_palette_cost_is_printed) {
+    const int W = 960, H = 540;
+    VideoFrame f;
+    f.w = W; f.h = H; f.rgb.resize(static_cast<size_t>(W) * H * 3);
+    uint32_t s = 1;
+    for (size_t i = 0; i < f.rgb.size(); ++i) { s = s * 1664525u + 1013904223u; f.rgb[i] = static_cast<uint8_t>((i / 3 % W) * 255 / W / 2 + (s >> 26)); }
+    std::vector<uint8_t> h, l;
+    std::array<std::array<uint8_t, 3>, 256> pal{};
+    for (int threads : {1, 0}) {
+        VideoPlayer::set_fx_threads(threads);
+        auto t0 = std::chrono::steady_clock::now();
+        for (int k = 0; k < 10; ++k) VideoPlayer::quantize_adaptive(f, h, l, pal);
+        auto t1 = std::chrono::steady_clock::now();
+        for (int k = 0; k < 10; ++k) VideoPlayer::quantize(f, h, l, 0);
+        auto t2 = std::chrono::steady_clock::now();
+        std::printf("    960x540 (%s): adaptive %.1f ms, fixed %.1f ms\n", threads == 1 ? "1 thread" : "auto threads",
+                    std::chrono::duration<double, std::milli>(t1 - t0).count() / 10, std::chrono::duration<double, std::milli>(t2 - t1).count() / 10);
+    }
+    VideoPlayer::set_fx_threads(0);
+    CHECK(true);
 }

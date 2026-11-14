@@ -308,6 +308,7 @@ bool translit_possible(const std::string& s) {
 }
 
 static std::string transliterate_impl(const std::string& text);   // (g_mu is held)
+static std::string translit_uncached_locked(const std::string& text);   // (g_mu is held)
 
 namespace {
 // "Kaneko Ayano カネコアヤノ", "HAKU ハク。 (Jap.)", "Anri 杏里": a Latin name written beside the same name in CJK characters (no brackets).
@@ -447,6 +448,26 @@ std::string transliterate(const std::string& text) {
     if (g_cache_for != g_cache_version || g_cache_hanzi != zh || g_cache_style != style || g_cache.size() > 6000) { g_cache.clear(); g_cache_for = g_cache_version; g_cache_hanzi = zh; g_cache_style = style; }
     const auto hit = g_cache.find(text);
     if (hit != g_cache.end()) return hit->second;
+    std::string r = translit_uncached_locked(text);
+    g_cache.emplace(text, r);
+    return r;
+}
+
+std::string transliterate_as(const std::string& text, int macrons, int wo, int hanzi) {
+    if (!translit_possible(text)) return text;
+    std::lock_guard<std::mutex> lock(g_mu);   // (every reader of the style holds g_mu: nobody sees it changed for this call)
+    ensure_builtin_locked();
+    const bool m0 = g_macrons.load(), w0 = g_wo.load();
+    const int h0 = g_default_hanzi.load();
+    if (macrons >= 0) g_macrons.store(macrons != 0);
+    if (wo >= 0) g_wo.store(wo != 0);
+    if (hanzi >= 0) g_default_hanzi.store(hanzi == 1 || hanzi == 2 ? hanzi : 0);
+    const std::string r = translit_uncached_locked(text);   // (the cache is for the settings in use: not touched)
+    g_macrons.store(m0); g_wo.store(w0); g_default_hanzi.store(h0);
+    return r;
+}
+
+static std::string translit_uncached_locked(const std::string& text) {
     std::string r;
     {
         const auto w = g_whole.find(trimmed(text));
@@ -461,7 +482,6 @@ std::string transliterate(const std::string& text) {
             }
         }
     }
-    g_cache.emplace(text, r);
     return r;
 }
 

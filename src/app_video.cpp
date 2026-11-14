@@ -2,6 +2,7 @@
 // picture of the track's video (a real picture in Kitty / Sixel terminals, braille dots elsewhere) with the current lyric line under it.
 // The sound is the player's as always; the picture only follows its clock (video_player.h).
 #include "app.h"
+#include "milkdrop.h"
 #include "app_state_device.h"
 #include "app_internal.h"
 #include "console_log.h"
@@ -200,16 +201,17 @@ void App::video_auto_apply() {
     if (audiobook_ || !settings_.video_mode || !settings_.video_auto || !current_.is_local || current_.path.empty()) return;
     if (!video_shown_for(current_.path).empty()) {
         if (!settings_.video_view) {   // the view you were on (changed with "." / ",") comes back on a track without a video
-            auto_prev_view_ = settings_.element_lyrics ? 3 : std::clamp(settings_.lyric_viz, 0, 2); auto_prev_known_ = true;
+            auto_prev_view_ = settings_.milkdrop_view ? 5 : settings_.element_lyrics ? 3 : std::clamp(settings_.lyric_viz, 0, 2); auto_prev_known_ = true;
             auto_prev_set_ = true;
         }
         settings_.element_lyrics = true;
         settings_.video_view = true;
+        settings_.milkdrop_view = false;   // (the video takes the field from the MilkDrop visuals too; "last used" brings them back)
         return;
     }
     log_event("auto video: " + path_utf8(current_.path.filename()) + " has no video: " + why_no_video());
     if (!settings_.video_view) {   // a track without a video on another view: the view you chose stays (and is remembered for "last used")
-        auto_prev_view_ = settings_.element_lyrics ? 3 : std::clamp(settings_.lyric_viz, 0, 2); auto_prev_known_ = true;
+        auto_prev_view_ = settings_.milkdrop_view ? 5 : settings_.element_lyrics ? 3 : std::clamp(settings_.lyric_viz, 0, 2); auto_prev_known_ = true;
         return;
     }
     // The video had the field, this track has none. What comes now is decided by the Lyrics/Viz Default of Settings, as it says:
@@ -221,8 +223,9 @@ void App::video_auto_apply() {
     auto_prev_set_ = false;
     if (dflt == 5 || (dflt == 4 && !auto_prev_known_)) return;   // (last used, but the field was already on the video when Mousiki started: nothing to go back to, "When No Video Shows" decides)
     settings_.video_view = false;
-    const int back = dflt == 4 ? std::clamp(auto_prev_view_, 0, 3) : std::clamp(dflt, 0, 3);
-    if (back <= 2) { settings_.element_lyrics = false; settings_.lyric_viz = back; }
+    const int back = dflt == 4 ? (auto_prev_view_ == 5 ? 5 : std::clamp(auto_prev_view_, 0, 3)) : std::clamp(dflt, 0, 3);
+    if (back == 5) { settings_.element_lyrics = false; settings_.milkdrop_view = true; }   // (MilkDrop before the video)
+    else if (back <= 2) { settings_.element_lyrics = false; settings_.lyric_viz = back; }
     else settings_.element_lyrics = true;
 }
 
@@ -235,9 +238,10 @@ void App::video_toggle() {
     }
     refresh_local_view();   // the video files join / leave the library list
     if (settings_.video_mode && settings_.video_auto && !audiobook_ && current_.is_local && !current_.path.empty() && !video_shown_for(current_.path).empty()) {
-        if (!settings_.video_view) { auto_prev_view_ = settings_.element_lyrics ? 3 : std::clamp(settings_.lyric_viz, 0, 2); auto_prev_known_ = true; }
+        if (!settings_.video_view) { auto_prev_view_ = settings_.milkdrop_view ? 5 : settings_.element_lyrics ? 3 : std::clamp(settings_.lyric_viz, 0, 2); auto_prev_known_ = true; }
         settings_.element_lyrics = true;   // turned on while a track with a video plays: the field jumps to the video at once
         settings_.video_view = true;
+        settings_.milkdrop_view = false;
     }
     status_line_ = settings_.video_mode
         ? "video mode: on (video files are listed, " + hotkey_text("HKeyToggleLyrics", ".") + " cycles to the video view, " + hotkey_text("HKeyCycleSortMode", "T") + " shows only the videos)"
@@ -338,6 +342,18 @@ VideoLook App::video_look_for(const fs::path& track) const {
     l.base = o.base >= 0 ? o.base : settings_.video_base;
     l.fxc = o.fxc >= 0 ? o.fxc : settings_.video_fxc;
     if (video_fx_uses_gradient(l.fx)) { l.grad = video_fx_gradient(settings_); if (o.gsat >= 0) l.grad.sat = o.gsat; }
+    return l;
+}
+
+// The look of the MilkDrop pictures: their own effect (MilkDropEffect=) with the video's dither pattern, base layer, effect contrast and
+// gradient; no grade (contrast, colours, brightness, chromatic aberration stay as projectM draws them).
+VideoLook App::milkdrop_look() const {
+    VideoLook l;
+    l.fx = video_fx_canon(std::clamp(md_track_fx_ >= 0 ? md_track_fx_ : settings_.milkdrop_fx, 0, kVideoFxCount - 1));   // (the track's own first)
+    l.dither = settings_.video_dither;
+    l.base = settings_.video_base;
+    l.fxc = settings_.video_fxc;
+    if (video_fx_uses_gradient(l.fx)) l.grad = video_fx_gradient(settings_);
     return l;
 }
 
@@ -555,27 +571,85 @@ void App::clap_loading_fill(std::vector<std::string>& rows, int W, int H, int ab
 // picture terminal or braille dots). mode 0: the whole picture, centred | 1: the same with two columns cut off each side | 2: fills
 // the box, cropped to fit. `ov`: lyric rows (width ov_w) as a small black box over the bottom of the box (cut out of the picture).
 // abs_col / abs_row: where the box starts on the screen. false: no video.
+namespace {
+// The MilkDrop pictures (milkdrop.h) through the same drawing as a video (video_draw_src): a source that fills any place it is given
+// (the visuals are drawn for that very aspect), has no length and no frame before.
+class MilkdropSource {
+public:
+    explicit MilkdropSource(Milkdrop& m) : m_(m) {}
+    bool has_video() const { return true; }
+    void fit(int bw, int bh, double, int& ow, int& oh) const { ow = bw; oh = bh; }
+    void fit_cover(int bw, int bh, double, int& ow, int& oh) const { ow = bw; oh = bh; }
+    double duration() const { return 0.0; }
+    void set_buffer_mb(int) {}
+    void set_sharp(bool) {}
+    void set_rate_mode(int) {}
+    const VideoFrame* frame_for(double, int w, int h, bool, bool* fresh) {
+        bool f = false;
+        const VideoFrame* p = m_.frame(w, h, f);
+        if (fresh) *fresh = f;
+        return p;
+    }
+    const VideoFrame* previous_frame() const { return nullptr; }
+    std::string status() const { const std::string s = m_.status(); return s.empty() ? std::string("milkdrop: starting ...") : s; }
+private:
+    Milkdrop& m_;
+};
+} // namespace
+
 bool App::video_draw(std::vector<std::string>& rows, int W, int H, int abs_col, int abs_row, bool second_slot, double t, int mode,
                      const std::vector<std::string>& ov, int ov_w, bool flush_bottom, bool trim_right, VideoPlayer* vp, const fs::path* look_track) const {
     // vp / look_track: the Style Option preview draws another track's video with its own look (a player of its own); else the playing one
     if (!vp) video_ensure_source();
     VideoPlayer& V = vp ? *vp : video_;
+    return video_draw_src(V, vp == nullptr, true, video_pic_key_, rows, W, H, abs_col, abs_row, second_slot, t, mode, ov, ov_w, flush_bottom, trim_right, look_track);
+}
+
+// The MilkDrop visuals in a place of the screen, drawn like the video (picture or braille, the hole for a box over it, the worker for
+// the looks). mode: as video_draw (2 = fill the place). `ov`: rows of a box over its bottom (the preset's name).
+bool App::milkdrop_draw(std::vector<std::string>& rows, int W, int H, int abs_col, int abs_row, bool second_slot, int mode,
+                        const std::vector<std::string>& ov, int ov_w, bool flush_bottom, bool trim_right) const {
+    milkdrop_apply_settings();
+    milkdrop_drawn_ = true;
+    MilkdropSource src(Milkdrop::instance());
+    // The box over the picture is the preset's name, never a lyric line: video_ov_ref_ (the lyric line fully revealed, which sizes the
+    // video's lyric box) is put aside meanwhile. With it the name box took the size of whatever lyric line had the same number of
+    // rows -- cut off, too wide, or (an empty lyric row) not there at all.
+    std::vector<std::string> lyric_ref;
+    lyric_ref.swap(video_ov_ref_);
+    const bool r = video_draw_src(src, false, false, milkdrop_pic_key_, rows, W, H, abs_col, abs_row, second_slot, 0.0, mode, ov, ov_w, flush_bottom, trim_right, nullptr);
+    video_ov_ref_.swap(lyric_ref);
+    if (r) { const GfxFrame& g = second_slot ? gfx2_ : gfx_; if (g.active && g.w > 0) { md_pic_w_ = g.w; md_pic_h_ = g.h; } }
+    return r;
+}
+
+// The drawing itself, for the video (VideoPlayer) and the MilkDrop visuals (MilkdropSource). playing_one: the playing track's own video (its
+// clock, the wait for the audio hand-over); is_video: a video (its look and effects; the MilkDrop pictures have none). pic_key: the key of
+// the picture last made in this place (a size / place change makes the picture anew at once).
+template <class Src>
+bool App::video_draw_src(Src& V, bool playing_one, bool is_video, std::string& pic_key, std::vector<std::string>& rows, int W, int H, int abs_col, int abs_row,
+                         bool second_slot, double t, int mode, const std::vector<std::string>& ov, int ov_w, bool flush_bottom, bool trim_right,
+                         const fs::path* look_track) const {
+    const bool live = playing_one || !is_video;   // (drawn as the screen goes: the terminal's pace holds it back; a preview is made at once)
     const fs::path& LT = look_track ? *look_track : current_.path;
     rows.assign(static_cast<size_t>(std::max(0, H)), std::string(static_cast<size_t>(std::max(0, W)), ' '));
     if (!V.has_video() || W < 4 || H < 2) return false;
     int cw0 = 10, ch0 = 20;
     gfx_cell_pixels(settings_.cell_pixels, cw0, ch0);
     cw0 = std::max(4, cw0); ch0 = std::max(8, ch0);
-    const bool paused = vp ? false : player_.is_paused();
+    const bool paused = playing_one ? player_.is_paused() : false;
     const bool picture = gfxs_.proto != GfxProto::None;
     // --- geometry: dw x dh = what the decoder delivers; the visible part (outw x outh pixels, vcols x vrows cells) is cut from it
+    // (the MilkDrop pictures are no wider than MilkDrop's own Resolution either: projectM draws them at that width, more pixels would only be
+    // made up -- and a smaller picture is what keeps the big overlay smooth on Sixel, where every pixel goes through the terminal)
+    const int md_maxw = is_video ? video_pic_width() : std::min(video_pic_width(), std::max(160, settings_.milkdrop_res));
     int vcols = 0, vrows = 0, dw = 0, dh = 0, outw = 0, outh = 0, cx0 = 0, cy0 = 0;
     {
         int fw = 0, fh = 0;
         if (mode == 2) {
             vcols = W; vrows = H;
             if (picture) {
-                const int maxw = video_pic_width();
+                const int maxw = md_maxw;
                 const double f = std::min(1.0, static_cast<double>(maxw) / (vcols * cw0));
                 outw = std::max(2, static_cast<int>(vcols * cw0 * f) & ~1);
                 outh = std::max(2, static_cast<int>(vrows * ch0 * f) & ~1);
@@ -590,7 +664,7 @@ bool App::video_draw(std::vector<std::string>& rows, int W, int H, int abs_col, 
                 V.fit(W * cw0, H * ch0, 1.0, fw, fh);
                 vcols = std::clamp((fw + cw0 / 2) / cw0, 1, W);
                 vrows = std::clamp((fh + ch0 / 2) / ch0, 1, H);
-                const int maxw = video_pic_width();
+                const int maxw = md_maxw;
                 const double f = std::min(1.0, static_cast<double>(maxw) / (vcols * cw0));
                 dw = std::max(2, static_cast<int>(vcols * cw0 * f) & ~1);
                 dh = std::max(2, static_cast<int>(vrows * ch0 * f) & ~1);
@@ -611,7 +685,7 @@ bool App::video_draw(std::vector<std::string>& rows, int W, int H, int abs_col, 
     // A picture reaches the screen about one terminal write after it was chosen (a sixel frame takes the terminal 50-150 ms): the frame shown is the
     // one for the moment it will be on screen, so the picture is not that much behind the sound. Only while it plays, only with a picture
     // protocol (a text frame is written at once), and at most a quarter of a second.
-    if (!vp && has_track_ && !paused) t = std::max(t, player_.smooth_elapsed());   // (between the steps of the sound device: see Player::smooth_elapsed)   // (between the steps of the sound device: see Player::smooth_elapsed)
+    if (playing_one && has_track_ && !paused) t = std::max(t, player_.smooth_elapsed());   // (between the steps of the sound device: see Player::smooth_elapsed)   // (between the steps of the sound device: see Player::smooth_elapsed)
     if (!paused) t += present_lead_s_;
     // A video shorter than the track plays again from its start for the rest of the time; a longer one is simply cut off with the track.
     const double vdur = V.duration();
@@ -623,8 +697,12 @@ bool App::video_draw(std::vector<std::string>& rows, int W, int H, int abs_col, 
     // While the audio of a new track is still being handed to the device (launch_device_play_async()), the playback time is still the one of
     // the track before: a decoder started now would begin at that time and show a frame from the middle of the new video (or of the one
     // before, when [n] is hit fast), then restart at 0. So nothing is started until the new audio clock is in.
-    const bool handoff = !vp && device_->play_pending_gen.load() != 0;
-    const VideoFrame* frame = handoff ? nullptr : V.frame_for(t, dw, dh, !paused, &fresh);
+    const bool handoff = playing_one && device_->play_pending_gen.load() != 0;
+    // The effect list is open over it: the picture stands still on the frame it had (the decoder is the list's preview meanwhile: one video,
+    // not two), made again only when its look changes -- it shows the highlighted effect where that would apply to it (fxpick_bg_look()).
+    const bool frozen = is_video && playing_one && fxpick_.open && fxpick_freeze_.w >= 4;
+    if (frozen && (fxpick_freeze_scaled_.w != dw || fxpick_freeze_scaled_.h != dh)) fxpick_freeze_scaled_ = VideoPlayer::resample(fxpick_freeze_, dw, dh);
+    const VideoFrame* frame = frozen ? &fxpick_freeze_scaled_ : handoff ? nullptr : V.frame_for(t, dw, dh, !paused, &fresh);
     VideoFrame scaled;   // (the decoder may still deliver the old size for a moment after a resize or a seek: scale what there is)
     if (frame && (frame->w != dw || frame->h != dh)) { scaled = VideoPlayer::resample(*frame, dw, dh); frame = &scaled; }
     const int lead = (W - vcols) / 2, top = (H - vrows) / 2;
@@ -664,7 +742,7 @@ bool App::video_draw(std::vector<std::string>& rows, int W, int H, int abs_col, 
         return o;
     };
     auto in_box_rows = [&](int r) { return oh > 0 && r >= orect_r && r < orect_r + oh; };
-    const VideoLook look = video_look_for(LT);
+    const VideoLook look = !is_video ? milkdrop_look() : frozen ? fxpick_bg_look(LT, video_look_for(LT)) : video_look_for(LT);
     const int fx = look.fx;
     const bool round_corners = video_round_for(LT);
     // the interlace look combs against the frame before: cut and scaled like the frame itself (only made when a picture is made from it)
@@ -688,9 +766,10 @@ bool App::video_draw(std::vector<std::string>& rows, int W, int H, int abs_col, 
         }
         const int trim = trim_right ? std::max(1, outw / std::max(1, vcols) / 2) : 0;   // (half a cell of the picture is left out at the right: see video_field_rows)
         const bool tc = gfxs_.proto == GfxProto::Kitty && video_res_for() > 0;   // true colour (high / full resolution on Kitty)
+        const bool adaptive = !is_video && !tc && !settings_.milkdrop_fixed_colors;   // the MilkDrop pictures: their colours from the picture itself
         const std::string key = std::to_string(dw) + "x" + std::to_string(dh) + "|" + std::to_string(outw) + "x" + std::to_string(outh) + "|" + std::to_string(vcols) + "x" + std::to_string(vrows) + "|" +
-                                std::to_string(abs_col + lead) + "|" + std::to_string(cx0) + "," + std::to_string(cy0) + "|" + std::to_string(cut_c) + "," + std::to_string(cut_r) + "," + std::to_string(cut_w) + "," + std::to_string(cut_h) + "|" + look.sig() + "|" + std::to_string(settings_.video_res) + "|" + (round_corners ? "r" : "-") + std::to_string(trim) + (tc ? "|t" : "|p");
-        const bool resized = key != video_pic_key_ || g.w != outw || g.h != outh || g.level.size() != static_cast<size_t>(outw) * outh;
+                                std::to_string(abs_col + lead) + "|" + std::to_string(cx0) + "," + std::to_string(cy0) + "|" + std::to_string(cut_c) + "," + std::to_string(cut_r) + "," + std::to_string(cut_w) + "," + std::to_string(cut_h) + "|" + look.sig() + "|" + std::to_string(settings_.video_res) + "|" + (round_corners ? "r" : "-") + std::to_string(trim) + (tc ? "|t" : adaptive ? "|a" : "|p");
+        const bool resized = key != pic_key || g.w != outw || g.h != outh || g.level.size() != static_cast<size_t>(outw) * outh;
         g.plain = true; g.direct = true; g.scale = 1; g.truecolor = tc;
         g.out_cw = cw0; g.out_ch = ch0;
         g.cols = vcols; g.rows = vrows; g.w = outw; g.h = outh;
@@ -704,6 +783,7 @@ bool App::video_draw(std::vector<std::string>& rows, int W, int H, int abs_col, 
         pp.look = look; pp.t = t; pp.truecolor = tc; pp.round_corners = round_corners;
         pp.vcols = vcols; pp.vrows = vrows; pp.trim = trim;
         pp.cut_c = cut_c; pp.cut_r = cut_r; pp.cut_w = cut_w; pp.cut_h = cut_h;
+        pp.adaptive = adaptive;
         // A heavy look (20-40 ms of a frame) is made by a worker (video_pipe.h) so the screen and the keys do not wait for it: the picture is taken at
         // a later pass of the loop, and a frame that comes while the worker is busy replaces the one that waits. A new size / look / cut is made on the
         // spot (it must be on screen at once). The preview of another track (`vp`) always works on the spot: it shares the slot with the playing one.
@@ -713,16 +793,20 @@ bool App::video_draw(std::vector<std::string>& rows, int W, int H, int abs_col, 
         // newest frame there is. (A new size or place is made at once: it must be on screen at once.) So the film is shown as fast as the terminal
         // takes it, every picture the newest, and the loop -- the keys, the sound's clock -- never waits for the terminal.
         bool& owed = video_owed_[second_slot ? 1 : 0];
-        const bool hold = vp == nullptr && !resized && write_frame_async_allowed() && write_frame_picture_busy();
+        const bool hold = live && !resized && write_frame_async_allowed() && write_frame_picture_busy();
         bool make = fresh || owed;
         if (make && hold) { owed = true; make = false; }
         else if (make) owed = false;
         if (resized) gfx_urgent_ = true;
-        bool on_the_spot = vp != nullptr || resized || !pipe.wants_thread();
+        bool on_the_spot = !live || resized || !pipe.wants_thread();
         bool installed = false;
         if (!on_the_spot) {
-            installed = !hold && pipe.take(key, outw, outh, g.rgb, g.hue, g.level);
-            if (installed && !tc) { const auto& pal = VideoPlayer::palette(); for (size_t i = 0; i < pal.size() && i < g.pal.size(); ++i) g.pal[i] = pal[i]; }
+            bool own = false;
+            installed = !hold && pipe.take(key, outw, outh, g.rgb, g.hue, g.level, &pic_pal_buf_, &own);
+            if (installed && !tc) {
+                if (own) g.pal = pic_pal_buf_;
+                else { const auto& pal = VideoPlayer::palette(); for (size_t i = 0; i < pal.size() && i < g.pal.size(); ++i) g.pal[i] = pal[i]; }
+            }
             if (make && !pipe.submit(key, *frame, cx0, cy0, outw, outh, prev_for_fx(), pp)) on_the_spot = true;   // (no worker thread: as before)
         }
         g.fresh = on_the_spot ? (make || resized) : installed;
@@ -737,8 +821,11 @@ bool App::video_draw(std::vector<std::string>& rows, int W, int H, int abs_col, 
             video_make_picture(*src, prev_for_fx(), pp, pic);
             g.rgb.swap(pic.rgb); g.hue.swap(pic.hue); g.level.swap(pic.level);
             pipe.note_cost(pic.look_ms + pic.quant_ms);
-            if (!tc) { const auto& pal = VideoPlayer::palette(); for (size_t i = 0; i < pal.size() && i < g.pal.size(); ++i) g.pal[i] = pal[i]; }
-            video_pic_key_ = key;
+            if (!tc) {
+                if (pic.own_pal) g.pal = pic.pal;
+                else { const auto& pal = VideoPlayer::palette(); for (size_t i = 0; i < pal.size() && i < g.pal.size(); ++i) g.pal[i] = pal[i]; }
+            }
+            pic_key = key;
         }
         for (int r = 0; r < H; ++r) {
             if (in_box_rows(r)) rows[static_cast<size_t>(r)] = blank_cells(r, 0, orect_c) + otext[static_cast<size_t>(r - orect_r)] + blank_cells(r, orect_c + orect_w, W);
@@ -780,7 +867,7 @@ bool App::video_draw(std::vector<std::string>& rows, int W, int H, int abs_col, 
     const std::string vstatus = frame ? std::string() : V.status();
     const bool loading = !frame && (vstatus.empty() || vstatus == "video: starting ...");
     if (loading && settings_.video_clap == 1 && H >= 4 && W >= 12) {
-        clap_loading_fill(rows, W, H, abs_col, abs_row, second_slot ? gfx2_ : gfx_, video_pic_key_, second_slot ? 1 : 0);
+        clap_loading_fill(rows, W, H, abs_col, abs_row, second_slot ? gfx2_ : gfx_, pic_key, second_slot ? 1 : 0);
     } else if (loading && settings_.video_clap == 2) {
         // "none": nothing at all while the video loads (an empty field)
     } else if (!frame) {   // no picture (yet): say why, in the middle of the picture's place, instead of a mute empty field
@@ -1046,6 +1133,29 @@ std::vector<std::string> clapper_frame(int cols, int rows, double t) {
 }
 }  // namespace
 
+App::VFullLayout App::vfull_layout() const {
+    VFullLayout l;
+    l.md_ok = milkdrop_usable();
+    int L = std::clamp(settings_.video_layout, 0, 4);
+    if (L == 4 && !l.md_ok) L = 3;   // (the quartet needs MilkDrop: without it the video + both)
+    l.video_l = L;
+    if (settings_.vfull_milkdrop && l.md_ok) {
+        l.source_md = true;
+        switch (std::clamp(settings_.milkdrop_layout, 0, 4)) {
+            case 0: l.main_md = true; break;
+            case 1: l.main_md = true; l.has_o = true; break;
+            case 2: l.main_md = true; l.has_o = l.has_s = true; break;
+            case 3: l.kind = 1; l.has_o = l.has_s = true; break;
+            default: l.kind = 2; break;
+        }
+    } else if (L == 4) {
+        l.kind = 1; l.has_o = l.has_s = true;
+    } else {
+        l.has_o = vl_has_osci(L); l.has_s = vl_has_spectro(L);
+    }
+    return l;
+}
+
 std::string App::build_video_full(int W, const char* clear_prefix) const {
     const int H = std::max(6, term_rows_ - 1);
     // The picture keeps two empty columns to the left and to the right of it (it is scaled down to fit, never cropped), and the commands
@@ -1066,11 +1176,16 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
     }
 
     // ---- the layout: what fits (a screen that is too small shows fewer parts) ----
-    const int L = std::clamp(settings_.video_layout, 0, 3);
-    bool has_o = vl_has_osci(L), has_s = vl_has_spectro(L);
+    const VFullLayout VL = vfull_layout();
+    int kind = VL.kind;                 // 0 the main picture + a column on the right, 1 quartet, 2 video | MilkDrop
+    bool has_o = VL.has_o, has_s = VL.has_s;
+    if (kind == 1 && (cols < 60 || rows_n < 12)) { kind = 0; has_o = has_s = false; }   // (too small for four: the main picture alone)
+    if (kind == 2 && cols < 40) kind = 0;
+    const bool main_md = kind == VL.kind ? VL.main_md : VL.source_md;   // (the fallback shows what the overlay is set to: the MilkDrop or the video)
+    if (VL.source_md) title.replace(0, 5, "MILKDROP");
     bool right = false;
     int vid_w = cols, vid_rows = rows_n, side_w = 0, osc_rows = 0, sp_rows = 0;
-    {
+    if (kind == 0) {
         // Video on the left, one column of the full height on the right: the oscilloscope on top, the spectrogram below it (or one of
         // them alone). The video two thirds of the width (VVO / VVS), the column one third. Too small a screen: the video alone.
         const int parts = (has_o ? 1 : 0) + (has_s ? 1 : 0);
@@ -1095,7 +1210,45 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
     // The box over the picture is measured on the line with ALL its words shown (video_ov_ref_); it must be this line's, not one left by the small field.
     const std::vector<std::string> lyr_rows = lyr ? video_lyric_rows(lw, elapsed, lmode, vfull_tr_idx_, false) : std::vector<std::string>();
     video_ov_ref_ = lyr ? video_lyric_rows(lw, elapsed, lmode, vfull_tr_idx_, true) : std::vector<std::string>();
-    const bool ok = video_draw(pic, vid_w, vid_rows, 1 + mg, 1, false, elapsed, 0, lyr ? lyr_rows : std::vector<std::string>(), lw);
+    bool ok = true;
+    // the quartet / the side by side: the video's place (a note when the track has none) and MilkDrop's
+    auto video_cell = [&](int w, int h, int row0) {
+        std::vector<std::string> v;
+        const int lw3 = std::max(12, w * 2 / 3);
+        const std::vector<std::string> lr = lyr ? video_lyric_rows(lw3, elapsed, lmode, vfull_tr_idx_, false) : std::vector<std::string>();
+        video_ov_ref_ = lyr ? video_lyric_rows(lw3, elapsed, lmode, vfull_tr_idx_, true) : std::vector<std::string>();
+        if (!video_draw(v, w, h, 1 + mg, row0, false, elapsed, 0, lr, lw3)) {
+            v.assign(static_cast<size_t>(h), std::string(static_cast<size_t>(w), ' '));
+            const std::string msg = truncate_str("No video for this track.", w);
+            const int pad = std::max(0, (w - display_width(msg)) / 2);
+            if (h > 0) v[static_cast<size_t>(h / 2)] = std::string(static_cast<size_t>(pad), ' ') + msg + std::string(static_cast<size_t>(std::max(0, w - pad - display_width(msg))), ' ');
+        }
+        return v;
+    };
+    auto md_cell = [&](int w, int h, int col0, int row0, bool slot2) {
+        std::vector<std::string> m;
+        const std::vector<std::string> nb = milkdrop_name_box(w - 2);
+        milkdrop_draw(m, w, h, col0, row0, slot2, 0, nb, nb.empty() ? 0 : w);
+        if (m.size() < static_cast<size_t>(h)) m.resize(static_cast<size_t>(h), std::string(static_cast<size_t>(w), ' '));
+        return m;
+    };
+    const int qlw = (cols - 1) / 2, qrw = cols - 1 - qlw;      // the two columns of the quartet / the side by side
+    const int qtop = kind == 1 ? rows_n / 2 : rows_n, qbot = rows_n - qtop;
+    std::vector<std::string> qvid, qmd;
+    if (kind == 0) {
+        if (main_md) {
+            const std::vector<std::string> nb = milkdrop_name_box(vid_w - 2);
+            milkdrop_draw(pic, vid_w, vid_rows, 1 + mg, 1, false, 0, nb, nb.empty() ? 0 : vid_w);
+        } else {
+            ok = video_draw(pic, vid_w, vid_rows, 1 + mg, 1, false, elapsed, 0, lyr ? lyr_rows : std::vector<std::string>(), lw);
+        }
+    } else if (kind == 1) {   // (the pictures first: the video takes the first slot, MilkDrop the second, the oscilloscope's image what is left)
+        qvid = video_cell(qlw, qbot, 1 + qtop);
+        qmd = md_cell(qrw, qtop, 1 + mg + qlw + 1, 1, true);
+    } else {
+        qvid = video_cell(qlw, rows_n, 1);
+        qmd = md_cell(qrw, rows_n, 1 + mg + qlw + 1, 1, true);
+    }
 
     // ---- the oscilloscope (one picture: XY or YT) in a box of `width` x `rows` cells whose first cell is at the screen row `row0`, column `col0` ----
     auto draw_osci = [&](int width, int rows, int row0, int col0) {
@@ -1116,7 +1269,7 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
         const std::string grid_ansi = ansi_for(settings_.scope_grid_color.empty() ? settings_.list_color : settings_.scope_grid_color, false);
         std::vector<std::string> pane;
         if (image) {
-            GfxFrame& F = gfx_.active ? gfx2_ : gfx_;   // (the video's picture, when it is one, has the first slot)
+            GfxFrame& F = !gfx_.active ? gfx_ : !gfx2_.active ? gfx2_ : gfx3_;   // (the video's / MilkDrop's pictures have the first slots; in the quartet the third is the oscilloscope's)
             gfx_cell_pixels(settings_.cell_pixels, cell_w_, cell_h_);
             const int cw0 = std::max(4, cell_w_), ch0 = std::max(8, cell_h_);
             const int cwq = std::clamp(osci_detail_cap(settings_.image_detail, true) / oc, 4, cw0);
@@ -1125,7 +1278,7 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
             const int chs = std::max(4, static_cast<int>(std::lround(static_cast<double>(cws) * ch0 / cw0)));
             int gr = 128, gg2 = 128, gb = 128;
             try_parse_rgb(settings_.scope_grid_color.empty() ? settings_.list_color : settings_.scope_grid_color, gr, gg2, gb);
-            F.id = &F == &gfx_ ? 0 : 1; F.scale = scale; F.out_cw = cw0; F.out_ch = ch0; F.crop = 0; F.cut_w = 0;
+            F.id = &F == &gfx_ ? 0 : &F == &gfx2_ ? 1 : 2; F.scale = scale; F.out_cw = cw0; F.out_ch = ch0; F.crop = 0; F.cut_w = 0;
             F.cols = oc; F.rows = rows; F.w = oc * cws; F.h = rows * chs;
             F.row = row0;
             F.col = col0 + lab;
@@ -1215,13 +1368,18 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
     };
 
     std::vector<std::string> osc, spl;
-    if (has_o) osc = draw_osci(side_w, osc_rows, 1, 1 + mg + vid_w + 1);
-    if (has_s) spl = draw_spectro(side_w, sp_rows, 1 + osc_rows, 1 + mg + vid_w + 1);
+    if (kind == 1) {   // quartet: the oscilloscope top left, the spectrogram bottom right
+        osc = draw_osci(qlw, qtop, 1, 1 + mg);
+        spl = draw_spectro(qrw, qbot, 1 + qtop, 1 + mg + qlw + 1);
+    } else if (kind == 0) {
+        if (has_o) osc = draw_osci(side_w, osc_rows, 1, 1 + mg + vid_w + 1);
+        if (has_s) spl = draw_spectro(side_w, sp_rows, 1 + osc_rows, 1 + mg + vid_w + 1);
+    }
 
     std::vector<std::string> clap;
     const int note_rows = 3;   // under the clapperboard: the note (2 lines) and a free line
     const std::string note[2] = {"No video for this track.",
-                                 "Fetch video via [" + hotkey_text("HKeyVideoFetch", "ALT+V") + "] or pair local video via [" + hotkey_text("HKeyMetaEditor", "M") + "]"};
+                                 "Fetch video via [" + hotkey_text("HKeyVideoFetch", "ALT+V") + "] or pair local video via video options in [" + hotkey_text("HKeyMetaEditor", "M") + "]"};
     if (!ok) {
         static const auto t0 = std::chrono::steady_clock::now();
         clap = clapper_frame(vid_w, vid_rows - note_rows, std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());   // (moved up to make room for the note)
@@ -1236,7 +1394,14 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
     f << box_top(truncate_str(title, std::max(8, W - 6 - display_width(title_time))) + title_time, W, border) << "\n";
     std::vector<std::string> side = osc;
     side.insert(side.end(), spl.begin(), spl.end());
-    for (int r = 0; r < vid_rows; ++r) {
+    auto row_of = [](const std::vector<std::string>& v, int r, int w) { return r >= 0 && r < static_cast<int>(v.size()) ? v[static_cast<size_t>(r)] : std::string(static_cast<size_t>(w), ' '); };
+    for (int r = 0; kind != 0 && r < rows_n; ++r) {   // the quartet / the side by side
+        std::string line;
+        if (kind == 1) line = r < qtop ? row_of(osc, r, qlw) + " " + row_of(qmd, r, qrw) : row_of(qvid, r - qtop, qlw) + " " + row_of(spl, r - qtop, qrw);
+        else line = row_of(qvid, r, qlw) + " " + row_of(qmd, r, qrw);
+        f << bar << std::string(static_cast<size_t>(mg), ' ') << line << std::string(static_cast<size_t>(mg), ' ') << bar << "\n";
+    }
+    for (int r = 0; kind == 0 && r < vid_rows; ++r) {
         std::string line = r < static_cast<int>(pic.size()) ? pic[static_cast<size_t>(r)] : std::string(static_cast<size_t>(vid_w), ' ');
         if (!ok && !clap.empty() && r >= vid_rows - note_rows) {
             line = r - (vid_rows - note_rows) < 2 ? centred_note(note[r - (vid_rows - note_rows)]) : std::string(static_cast<size_t>(vid_w), ' ');
@@ -1250,13 +1415,17 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
         if (right) line += " " + (r < static_cast<int>(side.size()) ? side[static_cast<size_t>(r)] : std::string(static_cast<size_t>(side_w), ' '));
         f << bar << std::string(static_cast<size_t>(mg), ' ') << line << std::string(static_cast<size_t>(mg), ' ') << bar << "\n";
     }
-    static const char* kLayoutName[4] = {"Video", "Video+Osci", "Video+Spectro", "Video+Osci+Spectro"};
+    static const char* kLayoutName[5] = {"Video", "Video+Osci", "Video+Spectro", "Video+Osci+Spectro", "Quartet"};
+    static const char* kMdLayoutName[5] = {"MilkDrop", "MilkDrop+Osci", "MilkDrop+Osci+Spectro", "Quartet", "Video+MilkDrop"};
     const std::string fx = std::string("Effect: ") + video_fx_name(video_fx_for(current_.path));
     const std::string keys = "[" + hotkey_text("HKeyVideoFull", "v") + " / ESC] Close";
-    const std::string lay = std::string("[SHIFT+UP/DOWN] Layout: ") + kLayoutName[L];
+    const std::string lay = std::string("[SHIFT+UP/DOWN] Layout: ") + (VL.source_md ? kMdLayoutName[std::clamp(settings_.milkdrop_layout, 0, 4)] : kLayoutName[VL.video_l]);
     const std::string grid = "[SHIFT+g] Grid/Scale";
-    const std::string opts = std::string("[S] Options") + (vl_has_osci(L) ? "  [" + hotkey_text("HKeyOscMenu", "O") + "] Osci" : "") +
-                             (vl_has_spectro(L) ? "  [" + hotkey_text("HKeySpectroMenu", "I") + "] Spectro" : "");
+    const bool md_here = VL.md_ok;   // (projectM installed: the m key switches)
+    const std::string opts = std::string("[S] Options") + (VL.has_o ? "  [" + hotkey_text("HKeyOscMenu", "O") + "] Osci" : "") +
+                             (VL.has_s ? "  [" + hotkey_text("HKeySpectroMenu", "I") + "] Spectro" : "") +
+                             (md_here ? std::string(VL.source_md ? "  [m] Video" : "  [m] MilkDrop") : std::string()) +
+                             (md_here ? "  [" + visuals_key_text() + "] Visuals" : "");
     std::string tab_state = "on";
     if (!lyr) tab_state = "off";
     else if (lmode >= 2) {
@@ -1276,7 +1445,10 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
     const std::string l1 = pick({"[UP/DOWN] " + fx + "   " + lay + "   " + tab + "   " + grid,
                                  "[↑↓] " + fx + "   [SHIFT+↑↓] Layout   [TAB] Lyrics   " + grid,
                                  "[↑↓] Effect   [SHIFT+↑↓] Layout   [TAB] Lyrics   [SHIFT+g] Grid"}, W - 6);
-    const std::string l2 = pick({opts + "   " + keys, "[S] Options   " + keys, keys}, W - 2);
+    const std::string ovl = "[" + hotkey_text("HKeyQueueOverlay", "K") + "] Queue  [" + hotkey_text("HKeyListOverlay", "L") + "] List  [" + hotkey_text("HKeyFolderOverlay", "F") + "] Folders";
+    const std::string ovl_short = "[" + hotkey_text("HKeyQueueOverlay", "K") + "/" + hotkey_text("HKeyListOverlay", "L").substr(hotkey_text("HKeyListOverlay", "L").rfind('+') + 1) + "/" +
+                                  hotkey_text("HKeyFolderOverlay", "F").substr(hotkey_text("HKeyFolderOverlay", "F").rfind('+') + 1) + "] Queue/List/Folders";
+    const std::string l2 = pick({opts + "   " + ovl + "   " + keys, opts + "   " + ovl_short + "   " + keys, opts + "   " + keys, "[S] Options   " + ovl_short + "   " + keys, "[S] Options   " + keys, keys}, W - 2);
     f << centred_bottom(settings_, W, l1, border_bottom) << "\n";
     const int w2 = display_width(l2);
     const int lp = std::max(0, (W - w2) / 2);

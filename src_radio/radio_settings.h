@@ -101,13 +101,18 @@ struct RadioSettings : VizPrefs {
     // --- looks / tuning (config file only for now; the settings screen has the colours only) ----------
     // --- the GENERAL tab ---------------------------------------------------------------------------
     bool on_air_ascii = true;                   // the ON AIR sign (with its colour wave)
-    bool sign_border = true;                    // the " : : " column between the ON AIR / OFF AIR sign and the station info (false: the sign sits in the middle of that space)
+    bool sign_border = false;                   // the " : : " column between the ON AIR / OFF AIR sign and the station info (false, the default: none, the sign sits in the middle of that space)
     bool pulse_wave = true;                     // the faint circle burst behind the sign
     bool dummy_buttons = true;                  // the <<< MUTE >>> boxes next to the frequency band
     bool volume_gradient = false;               // "gradient" right of the Volume indicator: the filled bar takes the oscilloscope colours (osci_left -> osci_right)
     int volume_indicator = 4;                   // what the VOLUME BAR is drawn with: 0 "#", 1 "⠶", 2 "⣿", 3 "⡾⣽", 4 "disk" (volume_bar.h; the default: the animation)
-    int scope_mode = 0;                         // right of the station info: 0 = oscilloscope, 1 = sphere, 2 = off, 3 = spectrogram; default: the oscilloscope
-    bool element_visualizer = true;             // the FFT spectrum under the station info
+    int scope_mode = 0;                         // right of the station info: 0 = oscilloscope, 1 = sphere, 2 = off, 3 = spectrogram, 4 = MilkDrop; default: the oscilloscope
+    // The MilkDrop visuals (src/milkdrop.h) in the scope block: ANIMA/VIZ -> MILKDROP and the visuals overlay (":"). The radio's own values (radio_config.txt),
+    // the same keys as the player's config.txt; MilkDropPresets= is the player's (one preset folder for all modes, read at the start).
+    bool use_milkdrop = true;
+    int md_fps = 30, md_res = 480, md_secs = 25, md_beat = 10, md_transition = 3;
+    bool md_shuffle = true, md_hard_cuts = true, md_show_name = true;
+    std::string md_presets;    bool element_visualizer = true;             // the FFT spectrum under the station info
     bool stereo = true;                         // false = fold left + right to mono
     // Which mode Mousiki starts in ("player" / "radio"): the same setting as the music player's, kept in ITS config.txt
     // (StartMode=); the radio only reads and writes that one line (player_start_mode() / set_player_start_mode()).
@@ -251,7 +256,11 @@ extern const int kOnOffRowCount;                                        // rows 
 extern const int kAnimRowCount;                                         // rows of tab 2
 inline constexpr int kTimeshiftMinutes[5] = {5, 15, 30, 45, 60};
 inline int timeshift_minutes(const RadioSettings& s) { return kTimeshiftMinutes[s.timeshift_idx < 0 ? 0 : s.timeshift_idx > 4 ? 4 : s.timeshift_idx]; }
-std::string scope_mode_name(const RadioSettings& s);                    // "osci" | "sphere" | "off" | "spectro"
+// The MilkDrop visuals (radio_milkdrop.cpp): the radio's options handed to the shared engine; can they run here (`why`: why not)?
+void radio_milkdrop_apply(const RadioSettings& c);
+bool radio_milkdrop_usable(const RadioSettings& c, std::string* why = nullptr);
+int radio_md_step(int which, int cur, int dir);   // MilkDrop rows: 0 frame rate, 1 resolution, 2 preset duration -> the next step
+std::string scope_mode_name(const RadioSettings& s);                    // "osci" | "sphere" | "off" | "spectro" | "milkdrop"
 // Start Mode lives in the music player's config.txt (StartMode=player|radio): read it / write just that line.
 std::string player_start_mode();
 bool set_player_start_mode(const std::string& mode);

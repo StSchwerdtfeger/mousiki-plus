@@ -63,6 +63,14 @@ inline int video_fxc_from_store(int field) { return field >= 1 && field <= kFxCo
 inline int video_fxc_to_store(int fxc) { return fxc >= 0 && fxc < kFxContrasts ? fxc + 1 : -1; }
 struct VideoTrackOpts { int on = -1, size = -1, fx = -1, contrast = -1, colors = -1, chroma = -1, res = -1, round = -1, lyrics = -1, brightness = -1, mp4audio = -1, dither = -1, gsat = -1, base = -1, fxc = -1; };   // (round: 0 / 1)   // contrast / colors 0..100 %, chroma 0..3, res 0..2 (standard / high / full); -1 = as in Settings; dither 0..6, base 0..5, fxc (Effect Contrast) 0..2 (video_fx.h)
 VideoTrackOpts cover_track_video_opts(const std::string& track_path);
+// The MilkDrop visuals of one track (Style Option): on -1 = as it comes, 1 = the field shows them while this track plays, 0 = never;
+// preset "" = as it comes, else the preset (its file name without .milk) shown -- and kept -- while this track plays.
+// The MilkDrop visuals of one track (Style Option): on (-1 as it comes, 0 off, 1 shown while it plays), its preset (a file path, or the
+// name of an older record; "" = as it comes), keep (-1 / 1: the preset stays while the track plays, 0: the presets go on from it) and fx
+// (a video effect of its own, -1 = the visuals' MilkDropEffect=).
+struct MilkdropTrackOpts { int on = -1; std::string preset; int keep = -1; int fx = -1; };
+MilkdropTrackOpts cover_track_milkdrop(const std::string& track_path);
+void set_cover_track_milkdrop(const std::string& track_path, const MilkdropTrackOpts& o);   // on -1 and no preset removes it
 void set_cover_track_video_opts(const std::string& track_path, const VideoTrackOpts& o);   // all -1 removes it
 std::string cover_track_choice(const std::string& track_path);               // "" = none made
 void set_cover_track_choice(const std::string& track_path, const std::string& choice);   // "" removes it

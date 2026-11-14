@@ -1,9 +1,9 @@
 // The looks of old computers, built as their hardware built a picture (included by video_player.cpp after video_fx_retro.inc):
 //   ZX Spectrum (29): 8 colours x 2 brightnesses, but only TWO colours in every 8 x 8 cell (ink and paper): the famous colour clash
 //   Amstrad CPC (30): the 27 colours of the hardware palette (three levels per colour gun), wide pixels (mode 0: 160 x 200), ordered dither
-//   Teletext (31): 40 x 24 character cells of 2 x 3 mosaic blocks, two of the eight colours in every cell
+//   Teletext (31): 40 x 24 character cells of 2 x 3 mosaic blocks, two of the eight colours in every cell; Teletext High-Res (43): 80 x 48 of them
 //   Amiga HAM (32): hold-and-modify -- a palette of 16, and every pixel either takes one of them or changes ONE colour gun of the pixel before it
-//   ASCII (37): the picture drawn with the 95 printable ASCII characters, about 100 across: edges as lines along them (| / \\ - _), every other cell the
+//   ASCII (37): the picture drawn with 224 characters, about 180 across: edges as lines along them (| / \\ - _), every other cell the
 //   character whose shape is nearest to the picture there (4 x 8 blocks of ink); the shades spread over the characters by a contrast-limited equalisation
 
 // ------------------------------------------------------------------ ZX Spectrum
@@ -131,54 +131,76 @@ void fx_cpc(const FxCtx& c) {
 }
 
 // ------------------------------------------------------------------ Teletext
-void fx_teletext(const FxCtx& c) {
+// `high` (Teletext High-Res, 43): 80 x 48 characters instead of 40 x 24 -- four times the mosaic blocks, so faces a few blocks wide keep their
+// eyes and mouth. Both: before the colours are chosen, the brightness detail of every block against its neighbourhood (5 x 5 blocks) is
+// strengthened (limited to +-80 levels, the colour left alone): a small dark eye in a bright face is no longer averaged into the white.
+void fx_teletext(const FxCtx& c, bool high) {
     const int w = c.w, h = c.h;
     static const FxGammaLut lift(0.8f);
-    const int cols = 40, rows = 24;   // characters; every one is 2 x 3 mosaic blocks
-    auto x_of = [&](int sx) { return static_cast<int>(static_cast<long long>(sx) * w / (cols * 2)); };
-    auto y_of = [&](int sy) { return static_cast<int>(static_cast<long long>(sy) * h / (rows * 3)); };
+    int cols = high ? 80 : 40, rows = high ? 48 : 24;   // characters; every one is 2 x 3 mosaic blocks
+    cols = std::max(1, std::min(cols, w / 2));           // (a tiny picture, e.g. braille dots: at least a pixel a block)
+    rows = std::max(1, std::min(rows, h / 3));
+    const int bw = cols * 2, bh = rows * 3;
+    auto x_of = [&](int sx) { return static_cast<int>(static_cast<long long>(sx) * w / bw); };
+    auto y_of = [&](int sy) { return static_cast<int>(static_cast<long long>(sy) * h / bh); };
+    // the blocks: their mean colour, a little more colourful and lighter (as before)
+    std::vector<float> blk(static_cast<size_t>(bw) * bh * 3), lum(static_cast<size_t>(bw) * bh);
+    par_rows(bh, [&](int r0, int r1) {
+        for (int sy = r0; sy < r1; ++sy)
+            for (int sx = 0; sx < bw; ++sx) {
+                const int xa = x_of(sx), xb = std::max(xa + 1, x_of(sx + 1)), ya = y_of(sy), yb = std::max(ya + 1, y_of(sy + 1));
+                float sum[3] = {0, 0, 0};
+                int n = 0;
+                for (int y = ya; y < std::min(h, yb); ++y)
+                    for (int x = xa; x < std::min(w, xb); ++x) { const uint8_t* s = c.at(x, y); sum[0] += s[0]; sum[1] += s[1]; sum[2] += s[2]; ++n; }
+                const float inv = 1.0f / static_cast<float>(std::max(1, n));
+                const float m[3] = {sum[0] * inv, sum[1] * inv, sum[2] * inv};
+                const float l = 0.299f * m[0] + 0.587f * m[1] + 0.114f * m[2];
+                float* o = &blk[(static_cast<size_t>(sy) * bw + sx) * 3];
+                for (int k = 0; k < 3; ++k) o[k] = lift.at(std::clamp((l + (m[k] - l) * 1.3f - 128.0f) * 1.12f + 128.0f, 0.0f, 255.0f));
+                lum[static_cast<size_t>(sy) * bw + sx] = 0.30f * o[0] + 0.59f * o[1] + 0.11f * o[2];
+            }
+    });
+    // local contrast: each block's brightness against the mean of the 5 x 5 blocks around it, 0.8 times stronger
+    std::vector<float> sub(static_cast<size_t>(bw) * bh * 3);
+    par_rows(bh, [&](int r0, int r1) {
+        for (int sy = r0; sy < r1; ++sy)
+            for (int sx = 0; sx < bw; ++sx) {
+                float sum = 0.0f;
+                int n = 0;
+                for (int y = std::max(0, sy - 2); y <= std::min(bh - 1, sy + 2); ++y)
+                    for (int x = std::max(0, sx - 2); x <= std::min(bw - 1, sx + 2); ++x) { sum += lum[static_cast<size_t>(y) * bw + x]; ++n; }
+                const size_t i = static_cast<size_t>(sy) * bw + sx;
+                const float d = std::clamp(0.8f * (lum[i] - sum / static_cast<float>(n)), -80.0f, 80.0f);
+                for (int k = 0; k < 3; ++k) sub[i * 3 + k] = blk[i * 3 + k] + d;
+            }
+    });
     par_rows(rows, [&](int r0, int r1) {
         for (int cy = r0; cy < r1; ++cy)
             for (int cx = 0; cx < cols; ++cx) {
-                float sub[6][3];
-                for (int j = 0; j < 6; ++j) {   // the six blocks: 2 across, 3 down
-                    const int sx = cx * 2 + (j & 1), sy = cy * 3 + (j >> 1);
-                    const int xa = x_of(sx), xb = std::max(xa + 1, x_of(sx + 1)), ya = y_of(sy), yb = std::max(ya + 1, y_of(sy + 1));
-                    float sum[3] = {0, 0, 0};
-                    int n = 0;
-                    for (int y = ya; y < std::min(h, yb); ++y)
-                        for (int x = xa; x < std::min(w, xb); ++x) { const uint8_t* s = c.at(x, y); sum[0] += s[0]; sum[1] += s[1]; sum[2] += s[2]; ++n; }
-                    const float inv = 1.0f / static_cast<float>(std::max(1, n));
-                    const float m[3] = {sum[0] * inv, sum[1] * inv, sum[2] * inv};
-                    const float l = 0.299f * m[0] + 0.587f * m[1] + 0.114f * m[2];
-                    for (int k = 0; k < 3; ++k) sub[j][k] = lift.at(std::clamp((l + (m[k] - l) * 1.3f - 128.0f) * 1.12f + 128.0f, 0.0f, 255.0f));
-                }
+                const float* cell[6];
+                for (int j = 0; j < 6; ++j) cell[j] = &sub[((static_cast<size_t>(cy) * 3 + (j >> 1)) * bw + cx * 2 + (j & 1)) * 3];   // 2 across, 3 down
+                auto dist = [&](int j, int col) {
+                    float d = 0.0f;
+                    for (int k = 0; k < 3; ++k) {
+                        const float wk = k == 0 ? 0.30f : k == 1 ? 0.59f : 0.11f;
+                        const float cc = (col >> k & 1) ? 255.0f : 0.0f;   // bit 0 red, bit 1 green, bit 2 blue
+                        d += wk * (cell[j][k] - cc) * (cell[j][k] - cc);
+                    }
+                    return d;
+                };
+                float dd[6][8];
+                for (int j = 0; j < 6; ++j) for (int a = 0; a < 8; ++a) dd[j][a] = dist(j, a);
                 int ba = 0, bb = 1;
                 float best = 1e30f;
-                for (int a = 0; a < 8; ++a)
+                for (int a = 0; a < 8; ++a)   // the two colours of the cell that fit its six blocks best
                     for (int b = a + 1; b < 8; ++b) {
                         float err = 0.0f;
-                        for (int j = 0; j < 6; ++j) {
-                            float da = 0.0f, db = 0.0f;
-                            for (int k = 0; k < 3; ++k) {
-                                const float wk = k == 0 ? 0.30f : k == 1 ? 0.59f : 0.11f;
-                                const float ca = (a >> k & 1) ? 255.0f : 0.0f, cb = (b >> k & 1) ? 255.0f : 0.0f;   // bit 0 red, bit 1 green, bit 2 blue
-                                da += wk * (sub[j][k] - ca) * (sub[j][k] - ca);
-                                db += wk * (sub[j][k] - cb) * (sub[j][k] - cb);
-                            }
-                            err += std::min(da, db);
-                        }
+                        for (int j = 0; j < 6; ++j) err += std::min(dd[j][a], dd[j][b]);
                         if (err < best) { best = err; ba = a; bb = b; }
                     }
                 for (int j = 0; j < 6; ++j) {
-                    float da = 0.0f, db = 0.0f;
-                    for (int k = 0; k < 3; ++k) {
-                        const float wk = k == 0 ? 0.30f : k == 1 ? 0.59f : 0.11f;
-                        const float ca = (ba >> k & 1) ? 255.0f : 0.0f, cb = (bb >> k & 1) ? 255.0f : 0.0f;
-                        da += wk * (sub[j][k] - ca) * (sub[j][k] - ca);
-                        db += wk * (sub[j][k] - cb) * (sub[j][k] - cb);
-                    }
-                    const int pick = da <= db ? ba : bb;
+                    const int pick = dd[j][ba] <= dd[j][bb] ? ba : bb;
                     const uint8_t col[3] = {static_cast<uint8_t>((pick & 1) ? 255 : 0), static_cast<uint8_t>((pick & 2) ? 255 : 0), static_cast<uint8_t>((pick & 4) ? 255 : 0)};
                     const int sx = cx * 2 + (j & 1), sy = cy * 3 + (j >> 1);
                     const int xa = x_of(sx), xb = std::max(xa + 1, x_of(sx + 1)), ya = y_of(sy), yb = std::max(ya + 1, y_of(sy + 1));
@@ -283,12 +305,12 @@ void fx_ham(const FxCtx& c) {
 }
 
 // ------------------------------------------------------------------ ASCII
-// The picture drawn with characters, as ASCII art is drawn by hand. About 100 across (6 x 12 pixels in a 640 wide picture: every character can be read
-// as itself; it was 180 across, where a character was a 3 x 7 smudge and they all looked alike). Two kinds of cell:
+// The picture drawn with characters, as ASCII art is drawn by hand. About 180 across (4 x 8 pixels in a 640 wide picture: the detail of the picture;
+// batch 275 had made it 100 across, which read better but lost the detail). Two kinds of cell:
 //  - an edge (the cell's brightness changes clearly in one direction, among the strongest edges of the picture): a line along it, | / \ - _ ;
-//  - every other cell: of the 95 printable ASCII characters (video_fx_ascii_font.inc; the Latin-1 letters and symbols of before -- ß, ¶, Æ -- filled the
-//    bright parts with shapes that do not look like ASCII art) the one whose
-//    SHAPE comes nearest to the picture in that cell (4 x 8 blocks of brightness against the 4 x 8 pattern of ink), among those about as bright.
+//  - every other cell: of the 224 characters (printable ASCII, Latin-1 letters and punctuation, a few symbols; video_fx_ascii_font.inc -- look-alikes
+//    too, they take turns) the one whose SHAPE comes nearest to the picture in that cell (4 x 8 blocks of brightness against the 4 x 8 pattern of
+//    ink), among those about as bright.
 // The brightness of the cells is spread over the whole range of the characters (an equalisation over the picture, mixed with the plain brightness),
 // so a bright picture is not a wall of the inkiest character but shows its shades. The character takes the colour of the cell.
 #include "video_fx_ascii_font.inc"
@@ -327,7 +349,7 @@ struct AsciiSet {
 
 void fx_ascii(const FxCtx& c) {
     const int w = c.w, h = c.h;
-    const int cw = c.braille ? 6 : std::max(4, (w + 50) / 100), ch = 2 * cw;
+    const int cw = c.braille ? 6 : std::max(3, (w + 90) / 180), ch = 2 * cw;   // (about 180 across: 4 x 8 pixels in a 640 wide picture)
     const int cols = (w + cw - 1) / cw, rows = (h + ch - 1) / ch;
     static const AsciiSet set;
     // the glyphs at the size of the cell: the 8 x 16 bitmaps averaged over the area every pixel of the cell covers (0 .. 255), a little stronger (thin strokes
@@ -469,7 +491,7 @@ void fx_ascii(const FxCtx& c) {
     static const std::array<float, 256> jit = [] { std::array<float, 256> j{}; for (size_t i = 0; i < 256; ++i) j[i] = fx_rand(static_cast<uint32_t>(i), 4242U); return j; }();
     constexpr float kBright = 3.0f * AsciiSet::kDims;   // the weight of the brightness against the shape (the shape decides between the characters that are about as bright)
     constexpr float kJitter = 0.45f;
-    constexpr int kWindow = 26;   // characters looked at on each side of the cell's own brightness (in the order of their ink)
+    constexpr int kWindow = 40;   // characters looked at on each side of the cell's own brightness (in the order of their ink)
     // (par_rows shares out rows of pixels, at least 32 for a thread: a cell row counts for 32, so that the cells are shared out too; every cell is independent)
     par_rows(rows * 32, [&](int a0, int a1) {
         for (int cy = a0 / 32; cy < a1 / 32; ++cy)

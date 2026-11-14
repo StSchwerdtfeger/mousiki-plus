@@ -130,6 +130,9 @@ bool App::browse_open_key(const std::string& action, int key, int lookup_key, si
     } else if (action == "HKeyNormMenu") { // SHIFT+v: loudness normalization overlay
         norm_menu_row_ = 0;
         mode_ = Mode::NormMenu;
+    } else if (action == "HKeyVisualsMenu") { // ":" (SHIFT+. on a German keyboard): the visuals overlay (MilkDrop)
+        md_menu_row_ = 0;
+        mode_ = Mode::MilkdropMenu;
     } else if (action == "HKeySleepTimer") { // SHIFT+z: sleep timer overlay
         sleep_->menu_row = sleep_->stop_after_track ? 5
                         : sleep_->timer_active ? (sleep_->timer_minutes == 15 ? 0 : sleep_->timer_minutes == 30 ? 1
@@ -267,9 +270,10 @@ bool App::browse_playback_key(const std::string& action, int key, int lookup_key
         // Views switched off on the ANIMA/VIZ tab (Use Lyrics / Oscilloscope / Spectrogram / Sphere) are left out.
         // The Video view (4) is the fifth place of the order (Viz Order 5) while the Video mode is on; it is the lyrics view with the picture.
         const bool vid = settings_.video_mode && !audiobook_;
-        const int cur = settings_.element_lyrics ? ((vid && settings_.video_view) ? 4 : 3) : settings_.lyric_viz == 1 ? 1 : settings_.lyric_viz == 2 ? 2 : 0;
+        const int cur = settings_.milkdrop_view ? 5 : settings_.element_lyrics ? ((vid && settings_.video_view) ? 4 : 3) : settings_.lyric_viz == 1 ? 1 : settings_.lyric_viz == 2 ? 2 : 0;
         std::vector<int> ord;
-        for (int i = 0; i < 5; ++i) if (settings_.viz_order[i] != 4 || vid) ord.push_back(settings_.viz_order[i]);   // (Viz Order 1..5)
+        for (int i = 0; i < 6; ++i) if (settings_.viz_order[i] != 4 || vid) ord.push_back(settings_.viz_order[i]);   // (Viz Order 1..6)
+        const bool md_ok = milkdrop_usable();   // MilkDrop (5): only when projectM and presets are installed (and Use MilkDrop is on)
         // the video view is skipped for a track without a video when "When No Video Shows" is *nothing* (it would show an empty field)
         const bool video_view_usable = vid && (settings_.novideo_viz != 3 || (has_track_ && !video_shown_for(current_.path).empty()));
         const int dir = action == "HKeyToggleLyricsBack" ? -1 : 1;
@@ -280,14 +284,20 @@ bool App::browse_playback_key(const std::string& action, int key, int lookup_key
             const int n = static_cast<int>(ord.size());
             for (int k = 1; k <= n; ++k) {
                 const int c = ord[static_cast<size_t>(((pos + dir * k) % n + n) % n)];
-                if (c == 4 ? video_view_usable : settings_.viz_usable(c)) { next = c; break; }
+                if (c == 4 ? video_view_usable : c == 5 ? md_ok : settings_.viz_usable(c)) { next = c; break; }
             }
         }
-        static const char* const view_names[5] = {"sphere", "oscilloscope", "spectrogram", "lyrics", "video"};
+        static const char* const view_names[6] = {"sphere", "oscilloscope", "spectrogram", "lyrics", "video", "milkdrop"};
+        if (next != cur && cur == 5) settings_.milkdrop_view = false;   // (leaving MilkDrop: the render thread stops by itself once nothing asks for pictures)
         if (!settings_.element_vizfield) {
             status_line_ = "the Viz/Lyrics field is switched off (Settings > ANIMA/VIZ > Viz/Lyrics Field)";
         } else if (next == cur) {
             status_line_ = std::string("lyrics area: ") + view_names[cur] + " (the other views are switched off on Settings -> ANIMA/VIZ)";
+        } else if (next == 5) {                    // -> MilkDrop: the field shows the visuals; the lyrics are not fetched for it
+            settings_.element_lyrics = false;
+            settings_.video_view = false;
+            settings_.milkdrop_view = true;
+            status_line_ = "lyrics area: milkdrop (" + visuals_key_text() + " opens its options)";
         } else if (next >= 3) {                    // -> lyrics, or the video (lyrics with the picture)
             // lyrics -> video (or back) keeps the lyrics that are there: fetching again would blank them for a moment (the no-lyrics visual with a "cached" caption)
             const bool have_lyrics = settings_.element_lyrics && lyrics_.ready && lyrics_.path == current_.path;
@@ -477,7 +487,10 @@ bool App::browse_rest_key(const std::string& action, int key, int lookup_key, si
         refresh_local_view();
         log_event(std::string("sort: ") + sort_mode_name(local_sort_mode_, settings_.meta_only));
     } else if (action == "HKeyPlay") {
-        if (qst_.focus) { qst_.next_run = 0; if (!queue_.empty()) play_queue_item(std::clamp(qst_.selected, 0, static_cast<int>(queue_.size()) - 1), last_key_was_shifted()); }   // ENTER in the queue pane (small or big): play the highlighted item; SHIFT+ENTER also moves the queue along up to it
+        // ENTER in the queue pane (small or big): "Reposition Queue State" -- the highlighted track plays and the queue moves along up to it (the
+        // tracks in front of it go to the end in their order, kept even when the queue is not locked); SHIFT+ENTER: "Requeue Track and Play" --
+        // only that track is taken out and played (back at the end when the queue is locked), the others stay where they are
+        if (qst_.focus) { qst_.next_run = 0; if (!queue_.empty()) play_queue_item(std::clamp(qst_.selected, 0, static_cast<int>(queue_.size()) - 1), !last_key_was_shifted()); }
         else play_selected();
     } else if (action == "HKeySearch") {
         if (qst_.overlay_open) queue_overlay_close(); // the search filters the list underneath, which the queue overlay covers

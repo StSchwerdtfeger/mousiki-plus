@@ -95,4 +95,7 @@ int run_with_stdin_file(const Args& args, const std::string& stdin_path);
 bool program_on_path(const std::string& name);
 #endif
 
+// The computer's installed RAM in MB (0 when it cannot be told).
+long long physical_memory_mb();
+
 } // namespace muisc

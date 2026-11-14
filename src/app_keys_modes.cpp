@@ -221,7 +221,7 @@ void App::handle_spectro_menu_key(int key) {
     if (act.empty() && key >= 'a' && key <= 'z') act = resolve_hotkey_action(key - 32);
     if (act.empty() && key >= 'A' && key <= 'Z') act = resolve_hotkey_action(key + 32);
     if (video_full_ && (act == "HKeySpectroFull" || act == "HKeyScopeBig")) return;   // (not out of the video layout)
-    if (video_full_ && act == "HKeyOscMenu") { if (!vl_has_osci(settings_.video_layout)) return; save_settings(settings_); osci_menu_row_ = 0; mode_ = Mode::OsciMenu; force_redraw_ = true; return; }
+    if (video_full_ && act == "HKeyOscMenu") { if (!vfull_layout().has_o) return; save_settings(settings_); osci_menu_row_ = 0; mode_ = Mode::OsciMenu; force_redraw_ = true; return; }
     if (!arrow && act == "HKeySpectroFull") {
         spectro_.full = !spectro_.full; if (spectro_.full) scope_big_ = false; force_redraw_ = true; return;
     }
@@ -260,7 +260,7 @@ void App::handle_osci_menu_key(int key) {
     if (osc_action.empty() && key >= 'a' && key <= 'z') osc_action = resolve_hotkey_action(key - 32);
     if (osc_action.empty() && key >= 'A' && key <= 'Z') osc_action = resolve_hotkey_action(key + 32);
     if (video_full_ && (osc_action == "HKeyScopeBig" || osc_action == "HKeySpectroFull")) return;   // (not out of the video layout)
-    if (video_full_ && osc_action == "HKeySpectroMenu") { if (vl_has_spectro(settings_.video_layout)) { save_settings(settings_); spectro_.menu_row = kSrView; mode_ = Mode::SpectroMenu; force_redraw_ = true; } return; }
+    if (video_full_ && osc_action == "HKeySpectroMenu") { if (vfull_layout().has_s) { save_settings(settings_); spectro_.menu_row = kSrView; mode_ = Mode::SpectroMenu; force_redraw_ = true; } return; }
     if (!arrow && osc_action == "HKeyScopeWindow") { scope_window_toggle(); return; }     // the windows: always
     if (!arrow && osc_action == "HKeySpectroWindow") { spectro_window_toggle(); return; }
     if (!arrow && osc_action == "HKeyScopeBig") { scope_big_ = !scope_big_; spectro_.full = false; scope_big_color_edit_ = false; scope_metrics_open_ = false; force_redraw_ = true; return; }

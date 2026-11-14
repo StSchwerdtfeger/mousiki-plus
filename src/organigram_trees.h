@@ -58,6 +58,7 @@ inline const Node kPlayerTree[] = {
     {2, "Video", nullptr, nullptr},
     {3, "Video Overlay", "HKeyVideo", "&", "Options"},
     {3, "Full Screen Video", "HKeyVideoFull", "v", "Overlay"},
+    {2, "MilkDrop Visuals", "HKeyVisualsMenu", ":", "MilkDrop"},
     {2, "Creator", "HKeyCreator", "^"},
     {1, "Lyrics", nullptr, nullptr, nullptr, 'L'},
     {2, "Refetch Lyrics", "HKeyRetryLyrics", "l"},
@@ -98,6 +99,7 @@ inline const Node kBookTree[] = {
     {2, "Oscilloscope", nullptr, nullptr},
     {3, "Oscilloscope Options", "HKeyOscMenu", "O", "Options"},
     {3, "Oscilloscope Overlay", "HKeyScopeBig", "=", "Overlay"},
+    {2, "MilkDrop Visuals", "HKeyVisualsMenu", ":", "MilkDrop"},
 };
 
 // The radio: the actions are the ids of its menu entries (radio_ui.h kMenusEntries).
@@ -128,6 +130,7 @@ inline const Node kRadioTree[] = {
     {3, "Oscilloscope Options", "OsciMenu", "", "Options"},
     {3, "Oscilloscope Overlay", "ScopeBig", "", "Overlay"},
     {3, "Oscilloscope Extra Window", "ScopeWindow", "", "Extra Window"},
+    {2, "MilkDrop Visuals", "VisualsMenu", "", "MilkDrop"},
 };
 
 inline Tree player_tree() { return make_tree(kPlayerTree); }

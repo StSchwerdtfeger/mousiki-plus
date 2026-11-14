@@ -1,6 +1,7 @@
 // The audio player: plays a StreamingPcm buffer through miniaudio, with volume, pause, seeking and a
 // soft limiter at the output.
 #include "player.h"
+#include "milkdrop.h"
 #include "scope_window.h"
 #include "spectrogram.h"
 #include "audio_backend.h"
@@ -8,6 +9,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <thread>
@@ -32,22 +34,90 @@ inline float soft_limit(float x) {
 Player::Player() = default;
 Player::~Player() { stop(); }
 
-void Player::data_callback(ma_device* device, void* output, const void* /*input*/, ma_uint32 frame_count) {
+namespace {
+// Where the track ends, in frames, once that is known (-1: still being decoded / the window has not reached the end yet).
+long long known_end_frames(StreamingPcm& pcm) {
+    if (pcm.windowed) {
+        size_t lo = 0, hi = 0;
+        pcm.readable(lo, hi);
+        const size_t total = pcm.total_frames.load(std::memory_order_acquire);
+        return total > 0 && hi >= total ? static_cast<long long>(total) : -1;
+    }
+    return pcm.decode_done.load() ? static_cast<long long>(pcm.available.load(std::memory_order_acquire)) : -1;
+}
+} // namespace
+
+namespace {
+// Tests only (MOUSIKI_AUDIO_TAP=<file> together with MOUSIKI_NULL_AUDIO=1): every block that goes to the (silent) device is appended to
+// <file> as float32 stereo, and <file>.t gets one line per block: the steady-clock time in microseconds and the number of frames. That is
+// how the UI tests measure the gap between two tracks (the samples between them, and the time the device was closed).
+struct AudioTap {
+    std::FILE* pcm = nullptr;
+    std::FILE* times = nullptr;
+    AudioTap() {
+        const char* n = std::getenv("MOUSIKI_NULL_AUDIO");
+        const char* p = std::getenv("MOUSIKI_AUDIO_TAP");
+        if (!n || *n != '1' || !p || !*p) return;
+        pcm = std::fopen(p, "wb");
+        times = std::fopen((std::string(p) + ".t").c_str(), "w");
+    }
+    void write(const float* out, ma_uint32 n) {
+        if (!pcm) return;
+        std::fwrite(out, sizeof(float), 2 * static_cast<size_t>(n), pcm);
+        if (times) std::fprintf(times, "%lld %u\n", static_cast<long long>(std::chrono::duration_cast<std::chrono::microseconds>(
+                                                       std::chrono::steady_clock::now().time_since_epoch()).count()), n);
+        std::fflush(pcm);
+        if (times) std::fflush(times);
+    }
+};
+AudioTap& audio_tap() { static AudioTap t; return t; }
+} // namespace
+
+void Player::data_callback(ma_device* device, void* output, const void* input, ma_uint32 frame_count) {
+    data_callback_impl(device, output, input, frame_count);
+    audio_tap().write(static_cast<const float*>(output), frame_count);
+}
+
+void Player::data_callback_impl(ma_device* device, void* output, const void* /*input*/, ma_uint32 frame_count) {
     Player* self = static_cast<Player*>(device->pUserData);
     float* out = static_cast<float*>(output); // interleaved stereo: frame_count * 2 floats
+    StreamingPcm* pcm = self ? self->active_.load(std::memory_order_acquire) : nullptr;
+    // Gapless: a track is handed over and the one that plays ends inside this block -- its last frames, then straight on into the next
+    // one (from its first frame) in the same block. Not while paused, not at another playback speed.
+    if (pcm && self->next_.load(std::memory_order_acquire) && !self->paused_.load() && std::fabs(self->speed_.load(std::memory_order_relaxed) - 1.0) <= 1e-3) {
+        const long long end = known_end_frames(*pcm);
+        const long long cur = self->cursor_frames_.load();
+        if (end >= 0 && end - cur <= static_cast<long long>(frame_count)) {   // (<=: a block that ends exactly at the end must not report it)
+            const ma_uint32 n1 = static_cast<ma_uint32>(std::clamp<long long>(end - cur, 0, frame_count));
+            if (n1 > 0) render(self, pcm, out, n1, /*may_finish=*/false);   // (the main loop must not see the end: the next one follows)
+            if (StreamingPcm* nx = self->next_.exchange(nullptr, std::memory_order_acq_rel)) {
+                self->cursor_frames_.store(0);
+                if (nx->windowed) nx->play_pos.store(0, std::memory_order_relaxed);
+                self->active_.store(nx, std::memory_order_release);
+                self->finished_.store(false);
+                if (frame_count > n1) render(self, nx, out + 2 * static_cast<size_t>(n1), frame_count - n1);
+                return;
+            }
+            if (frame_count > n1) render(self, pcm, out + 2 * static_cast<size_t>(n1), frame_count - n1);   // (taken back just now)
+            return;
+        }
+    }
+    render(self, pcm, out, frame_count);
+}
 
+void Player::render(Player* self, StreamingPcm* pcm_ptr, float* out, ma_uint32 frame_count, bool may_finish) {
     // Paused: silence. With Pause Fade the level goes down over about 8 ms first (and up again on resume), so the cut does not click.
     const bool want_paused = self && self->paused_.load();
     const bool smooth = self && self->pause_fade_.load(std::memory_order_relaxed);
     float ramp = self ? self->pause_ramp_.load(std::memory_order_relaxed) : 0.0f;
-    if (!self || !self->pcm_ || (want_paused && (!smooth || ramp <= 0.0f))) {
+    if (!self || !pcm_ptr || (want_paused && (!smooth || ramp <= 0.0f))) {
         if (self) self->pause_ramp_.store(smooth ? 0.0f : 1.0f, std::memory_order_relaxed);
         std::memset(out, 0, static_cast<size_t>(frame_count) * 2 * sizeof(float));
         return;
     }
     if (!smooth) ramp = 1.0f;
 
-    StreamingPcm& pcm = *self->pcm_;
+    StreamingPcm& pcm = *pcm_ptr;
     long long cur = self->cursor_frames_.load();
     float gain = self->gain_.load() * self->fade_.load();
 
@@ -214,6 +284,7 @@ void Player::data_callback(ma_device* device, void* output, const void* /*input*
     }
     if (self->scope_sink_) self->scope_sink_->push_frames(scope_src, frame_count);
     scope_feed_push(scope_src, frame_count, self->sample_rate_.load());   // the scope window (SHIFT+9); nothing while it is closed
+    milkdrop_feed(scope_src, frame_count, self->sample_rate_.load());   // the MilkDrop visuals (milkdrop.h); nothing while they are not drawn
 
     long long new_cur = cur + static_cast<long long>(frame_count);
     if (stretch) new_cur = static_cast<long long>(std::llround(self->ts_.heard_pos()));   // the source time of what is heard
@@ -222,15 +293,15 @@ void Player::data_callback(ma_device* device, void* output, const void* /*input*
         const size_t total = pcm.total_frames.load(std::memory_order_acquire);
         if (total > 0 && new_cur >= 0 && static_cast<size_t>(new_cur) >= total) {
             new_cur = static_cast<long long>(total);
-            self->finished_.store(true);
-        } else if (pcm.decode_failed.load()) self->finished_.store(true);
+            if (may_finish) self->finished_.store(true);
+        } else if (pcm.decode_failed.load() && may_finish) self->finished_.store(true);
     } else
     // Only truly "finished" once decode is done AND playback has caught
     // all the way up to everything it ever produced — not just the
     // current available count, which may still be growing while we play.
     if (pcm.decode_done.load() &&
         new_cur >= 0 && static_cast<size_t>(new_cur) >= pcm.available.load(std::memory_order_acquire)) {
-        self->finished_.store(true);
+        if (may_finish) self->finished_.store(true);
     }
     // a seek (seek_relative) while this block was being made wins over the position this block reached
     self->ts_last_cur_ = new_cur;
@@ -239,7 +310,7 @@ void Player::data_callback(ma_device* device, void* output, const void* /*input*
 }
 
 bool Player::play(std::shared_ptr<StreamingPcm> pcm, double start_sec, int volume_pct,
-                   FftVisualizer* fft_sink, OscilloscopeVisualizer* scope_sink) {
+                   FftVisualizer* fft_sink, OscilloscopeVisualizer* scope_sink, bool start_paused) {
     // Give the loudness measurement a moment to exist so the track starts at
     // its final level instead of gliding into it. Decoding runs far faster
     // than real time, so this normally returns immediately; capped so a slow
@@ -279,8 +350,8 @@ bool Player::play(std::shared_ptr<StreamingPcm> pcm, double start_sec, int volum
     volume_pct_.store(std::clamp(volume_pct, 0, 100));
     gain_.store(volume_pct_.load() / 100.0f);
     finished_.store(false);
-    paused_.store(false);
-    pause_ramp_.store(1.0f);
+    paused_.store(start_paused);
+    pause_ramp_.store(start_paused ? 0.0f : 1.0f);
     eq_.reset();       // device isn't running yet: safe to touch audio-thread state
     eq_seen_gen_ = 0;
     eq_sr_ = 0;
@@ -291,9 +362,51 @@ bool Player::play(std::shared_ptr<StreamingPcm> pcm, double start_sec, int volum
     norm_gain_db_.store(0.0f);
     cursor_frames_.store(static_cast<long long>(std::max(0.0, start_sec) * sample_rate_.load()));
     if (pcm_->windowed) pcm_->play_pos.store(cursor_frames_.load(), std::memory_order_relaxed);
+    active_.store(pcm_.get(), std::memory_order_release);   // (the device is not running yet)
 
-    if (!open_device_locked()) { pcm_.reset(); return false; }
+    if (!open_device_locked()) { active_.store(nullptr); pcm_.reset(); return false; }
     return true;
+}
+
+bool Player::commit_switch_locked() {
+    if (!next_pcm_ || next_.load(std::memory_order_acquire) != nullptr) return false;   // nothing handed over, or not taken yet
+    // The callback exchanged next_ out: it plays next_pcm_ now and never looks at the old buffer again (it took it after the old one's
+    // last frames). The old buffer can go.
+    pcm_ = std::move(next_pcm_);
+    next_pcm_.reset();
+    switch_unreported_ = true;
+    return true;
+}
+
+bool Player::queue_next(std::shared_ptr<StreamingPcm> next) {
+    std::unique_lock<std::mutex> lk(mutex_, std::try_to_lock);
+    if (!lk.owns_lock()) return false;
+    commit_switch_locked();
+    if (switch_unreported_) return false;   // (a switch first: the caller learns of it through take_switch())
+    if (!device_ready_ || !pcm_ || !next || next->sample_rate != sample_rate_.load()) return false;
+    if (next_.exchange(nullptr, std::memory_order_acq_rel)) next_pcm_.reset();   // (one handed over before: replaced)
+    next_pcm_ = std::move(next);
+    next_.store(next_pcm_.get(), std::memory_order_release);
+    return true;
+}
+
+int Player::clear_next() {
+    std::unique_lock<std::mutex> lk(mutex_, std::try_to_lock);
+    if (!lk.owns_lock()) return 0;
+    if (switch_unreported_) return -1;
+    if (!next_pcm_) return 1;
+    if (next_.exchange(nullptr, std::memory_order_acq_rel)) { next_pcm_.reset(); return 1; }   // taken back before the callback got it
+    commit_switch_locked();
+    return -1;   // the callback took it: a switch (take_switch() reports it)
+}
+
+bool Player::take_switch() {
+    std::unique_lock<std::mutex> lk(mutex_, std::try_to_lock);
+    if (!lk.owns_lock()) return false;
+    commit_switch_locked();
+    const bool r = switch_unreported_;
+    switch_unreported_ = false;
+    return r;
 }
 
 // Opens and starts the device for the current pcm_ / sample rate: the chosen output (set_device()) when it is there, otherwise
@@ -375,6 +488,7 @@ void Player::seek_relative(double delta_sec) {
     // the main thread on it would freeze the UI.
     std::unique_lock<std::mutex> lk(mutex_, std::try_to_lock);
     if (!lk.owns_lock() || !pcm_) return;
+    commit_switch_locked();   // (a gapless switch the main thread has not taken yet: the seek is in the track that plays now)
     long long delta_frames = static_cast<long long>(delta_sec * sample_rate_.load());
     long long cur = cursor_frames_.load();
     // Clamp against reserved capacity (the eventual max), not the
@@ -434,6 +548,10 @@ void Player::stop_locked() {
         ma_device_uninit(&device_);
         device_ready_ = false;
     }
+    active_.store(nullptr, std::memory_order_release);   // (the callback has stopped: uninit waited for it)
+    next_.store(nullptr, std::memory_order_release);
+    next_pcm_.reset();
+    switch_unreported_ = false;
     pcm_.reset();
     fft_sink_ = nullptr;
     scope_sink_ = nullptr;

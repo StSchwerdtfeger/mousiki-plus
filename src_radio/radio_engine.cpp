@@ -2,6 +2,7 @@
 // switches between stations.
 #include "radio_engine.h"
 #include "scope_window.h"
+#include "milkdrop.h"
 #include "spectrogram.h"
 #include "loudness_meter.h"
 #include <algorithm>
@@ -729,6 +730,7 @@ struct RadioEngine::Impl {
         const float* scope_src = raw_scope ? self->scope_raw.data() : out;
         self->scope.push_frames(scope_src, want);
         muisc::scope_feed_push(scope_src, want, kRate);   // the scope window (SHIFT+9); nothing while it is closed
+        muisc::milkdrop_feed(scope_src, want, kRate);     // the MilkDrop visuals (nothing while no picture is drawn)
         size_t done = 0;
         while (done < want) {
             const size_t chunk = std::min(want - done, self->mono.size());

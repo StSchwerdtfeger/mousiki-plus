@@ -184,8 +184,9 @@ void fx_crt(const FxCtx& c) {
 // A tape: the brightness has a low bandwidth (soft, with a halo of ringing at edges), the colour a much lower one (it is smeared to the right and
 // arrives late), the last lines tear (head switching), the noise comes in short horizontal streaks, now and then a white drop-out, and the colours
 // are a little paler. The lines sway only a little (well under a pixel of a 640 wide picture, slowly): a tape that tracks well is steady. Now and
-// then the tracking slips (vhs_tracking: in about one stretch of 8 seconds in three, for 1 to 3 seconds): then the lines wobble strongly and a band
-// of noise rolls up the picture, as a worn tape does.
+// then the tracking slips (vhs_tracking: in about one stretch of 8 seconds in three, for 1 to 3 seconds): then the lines wobble strongly. The band
+// of noise that rolls up the picture comes more often (vhs_band: in about three stretches of 6 seconds in four, for 2.5 to 4.5 seconds, and
+// whenever the tracking slips) -- only its own lines slip and crackle, the rest of the picture stays steady.
 float vhs_tracking(float t) {
     constexpr float kSlot = 8.0f;
     const float k = std::floor(std::max(0.0f, t) / kSlot);
@@ -197,11 +198,23 @@ float vhs_tracking(float t) {
     return fx_smoothstep(p * 4.0f) * fx_smoothstep((1.0f - p) * 4.0f);   // (it comes and goes within a quarter of its time)
 }
 
+float vhs_band(float t) {
+    constexpr float kSlot = 6.0f;
+    const float k = std::floor(std::max(0.0f, t) / kSlot);
+    const uint32_t ks = static_cast<uint32_t>(k);
+    if (fx_rand(ks, 5151U) > 0.75f) return 0.0f;
+    const float start = k * kSlot + fx_rand(ks, 5152U) * 1.5f, len = 2.5f + fx_rand(ks, 5153U) * 2.0f;
+    const float p = (t - start) / len;
+    if (p <= 0.0f || p >= 1.0f) return 0.0f;
+    return fx_smoothstep(p * 5.0f) * fx_smoothstep((1.0f - p) * 5.0f);
+}
+
 void fx_vhs(const FxCtx& c) {
     const int w = c.w, h = c.h;
     const bool braille = c.braille;
     const float t = static_cast<float>(c.t);
     const float trk = vhs_tracking(t);                       // 0 = the tape tracks well, up to 1 = it slips
+    const float band = std::max(trk, vhs_band(t));           // the rolling band of noise (with a slip, and on its own more often)
     const float band_y = std::fmod(t * 0.11f, 1.0f) * h;   // the tracking band rolls up the picture
     const float band_h = std::max(3.0f, h * 0.07f);
     const int rc = braille ? 1 : std::max(2, w / 56);       // the colour's smear
@@ -219,8 +232,8 @@ void fx_vhs(const FxCtx& c) {
             if (trk > 0.0f) wob += trk * (0.7f * std::sin(static_cast<float>(y) * 0.19f + t * 2.3f) + 0.5f * std::sin(static_cast<float>(y) * 0.043f - t * 1.1f)) * scale;
             float noise = 4.0f, bandk = 0.0f;
             const float dist = std::fabs(static_cast<float>(y) - band_y);
-            if (trk > 0.0f && dist < band_h) {   // inside the band (only while the tracking slips): a bigger slip and more noise
-                bandk = (1.0f - dist / band_h) * trk;
+            if (band > 0.0f && dist < band_h) {   // inside the band: a bigger slip and more noise
+                bandk = (1.0f - dist / band_h) * band;
                 wob += (fx_rand(c.tick, static_cast<uint32_t>(y)) - 0.35f) * 0.035f * w * bandk;
                 noise += 22.0f * bandk;
             }

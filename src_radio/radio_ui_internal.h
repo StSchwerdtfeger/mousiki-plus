@@ -337,6 +337,12 @@ constexpr int kAdevOverlayW = 64;
 // (so the bars stay in view) and gets a scroll bar when the terminal is too low for all rows.
 constexpr int kBarsOverlayW = 52;
 
+// The MilkDrop visuals (radio_milkdrop.cpp): the scope block's rows when it shows them (false: they cannot run, the caller draws the
+// oscilloscope), and the visuals overlay (":", overlay 11).
+constexpr int kMdOverlayW = 62;
+bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::vector<std::string>& rows);
+std::vector<std::string> build_md_overlay(const Style& s, const UiModel& m);
+
 // ===========================================================================================
 // Overlays over the main screen: SHIFT+o oscilloscope tuning, SHIFT+v loudness normalisation (same rows, ranges and
 // keys as the music player's).

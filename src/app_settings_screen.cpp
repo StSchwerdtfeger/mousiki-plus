@@ -513,7 +513,7 @@ void App::settings_tab_general(SettingsPaint& c) const {
             // the "disk" look of the Volume Indicator is shown as two braille blocks of the animation itself
             if ((settings_tab_ == 1 || settings_tab_ == 2) && settings_item_id(settings_tab_, r) == kSidVolIndicator && settings_.volume_indicator == kVolStyleDisk)
                 shown = volume_disk_snippet(volume_clock_angle());
-            std::string v = ed ? edit_paint(edit_field_width()).s : pad(shown, 20);
+            std::string v = ed ? edit_paint(edit_field_width()).s : pad(shown, buf_row ? 5 : 20);
             if (term_row) {   // "[ 120 ] x [ 30 ]": the field that is lit is the one ENTER types into (LEFT / RIGHT switch)
                 const std::string c0 = settings_get_value(r, 0), c1 = settings_get_value(r, 1);
                 auto field = [&](int which, const std::string& val) {
@@ -524,7 +524,7 @@ void App::settings_tab_general(SettingsPaint& c) const {
                 pos(y, 35, field(0, c0));
                 pos(y, 41, "x");
                 pos(y, 43, field(1, c1));
-                pos(y, 57, ((sel && settings_col_ == 2) ? HI : legend_sgr(settings_)) + "[ Set back to default ]" + R);   // (right of the two numbers)
+                pos(y, 51, ((sel && settings_col_ == 2) ? HI : legend_sgr(settings_)) + "[ Set back to default ]" + R);   // (right of the two numbers)
             } else
             pos(y, 35, ((sel && !(buf_row && settings_col_ == 1) && !(vol_row && settings_col_ == 1)) ? HI : "") + (ed ? change_sgr(settings_) : "") + (vol_row ? pad(shown, 9) : v) + R);
             if (vol_row) {   // right of the look: "gradient" / "no gradient" (LEFT / RIGHT switch between the two, ENTER changes the one that is lit)
@@ -532,7 +532,7 @@ void App::settings_tab_general(SettingsPaint& c) const {
                 if (sel) pos(y, 56, ansi_for(settings_.tab_current_color, false) + "[ENTER] change\x1b[0m");
             } else
             if (buf_row) {   // the button to the right of the number
-                pos(y, 57, ((sel && settings_col_ == 1) ? HI : legend_sgr(settings_)) + "[ Set back to default ]" + R);
+                pos(y, 51, ((sel && settings_col_ == 1) ? HI : legend_sgr(settings_)) + "[ Set back to default ]" + R);   // (the same column as the Terminal Size one)
             } else
             if (sel && !settings_options_for(settings_tab_, r).empty())
                 // Right behind the value, so long values such as "Cover behind Disk (Full Anima)" do not run into a fixed column.
@@ -842,6 +842,7 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
             const int want = display_width(color_edit_buffer_) + 1;
             return std::min(edge, std::max(20, want));
         }
+        if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTrackBuffer) return 5;   // Track Buffer (MB): five digits (at most 16384)
         return 20;
     };
     // The painted value itself: selection reversed, window scrolled so the

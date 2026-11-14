@@ -652,6 +652,31 @@ def bundle_windows_tools(stage, dl, a):
     write_notices(stage, notices)
 
 
+def bundle_milkdrop_windows(stage, src, dl, a):
+    """projectM (built from its pinned source), the Cream of the Crop presets and the texture pack next to mousiki.exe.
+    The work is done by tools/milkdrop-windows.ps1, the script setup.ps1 uses too (pins + per-file checksums live there)."""
+    script = Path(src) / "tools" / "milkdrop-windows.ps1"
+    if not script.is_file():
+        die("tools/milkdrop-windows.ps1 is missing from the source tree (or build with --no-milkdrop)")
+    ps = which("pwsh") or which("powershell")
+    if not ps:
+        die("PowerShell (pwsh) not found - it runs tools/milkdrop-windows.ps1 (or build with --no-milkdrop)")
+    cache = Path(dl) / "milkdrop"
+    if a.refresh_tools:
+        rmtree(cache)
+    run([ps, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script), "-Dest", str(stage / "app"), "-Cache", str(cache)])
+    if not (stage / "app" / "milkdrop" / "installed.txt").is_file():
+        die("the MilkDrop step ran but milkdrop/installed.txt is missing next to mousiki.exe")
+    if not (stage / "THIRD-PARTY.txt").is_file():   # (--no-bundle-tools: no list yet)
+        write_notices(stage, [])
+    with open(str(stage / "THIRD-PARTY.txt"), "a", encoding="utf-8") as f:
+        f.write("- projectM (LGPL-2.1, see app/milkdrop/LICENSE-projectM.txt; built unchanged from the source named in app/milkdrop/README.txt)"
+                " - https://github.com/projectM-visualizer/projectm - app/projectM-4.dll, app/projectM-4-playlist.dll: the MilkDrop visuals\n"
+                "- \"Cream of the Crop\" MilkDrop presets, curated by ISOSCELES - https://github.com/projectM-visualizer/presets-cream-of-the-crop"
+                " - app/milkdrop/presets (see its LICENSE.md)\n"
+                "- MilkDrop texture pack - https://github.com/projectM-visualizer/presets-milkdrop-texture-pack - app/milkdrop/textures\n")
+
+
 def linux_arch():
     return "arm64" if platform.machine().lower() in ("aarch64", "arm64") else "amd64"
 
@@ -1061,6 +1086,8 @@ def build_windows(a, ctx):
     write_launchers(stage, "windows")
     if not a.no_bundle_tools:
         bundle_windows_tools(stage, ctx["dl"], a)
+    if not a.no_milkdrop:
+        bundle_milkdrop_windows(stage, src, ctx["dl"], a)
     arch = "arm64" if platform.machine().lower() == "arm64" else "x64"
     ver = ctx["version"]
     outputs = []
@@ -2034,6 +2061,8 @@ def main():
     common.add_argument("--clean-all", action="store_true", help="--clean plus the download cache")
     common.add_argument("--refresh-tools", action="store_true", help="re-download ffmpeg / yt-dlp / Python")
     common.add_argument("--no-bundle-tools", action="store_true", help="do not bundle ffmpeg/yt-dlp/Python (much smaller, relies on PATH)")
+    common.add_argument("--no-milkdrop", action="store_true",
+                        help="Windows: do not build / bundle the MilkDrop visuals (projectM + the Cream of the Crop presets, about 120 MB installed)")
     common.add_argument("--install-deps", action="store_true", help="install missing build tools (winget / apt / brew)")
     common.add_argument("--sync-version", action="store_true", help="patch the CMakeLists.txt version (and so the About screens) in the build copy")
     common.add_argument("--python-embed-version", default=DEFAULT_PY_EMBED, help="Windows embedded Python version")

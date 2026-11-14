@@ -249,6 +249,55 @@ TEST(video_track_option_mp4_audio_is_kept_per_track) {
     CHECK_EQ(cover_track_video_opts("/music/a.mp3").mp4audio, -1);
 }
 
+TEST(milkdrop_choice_is_kept_per_track) {
+    mt::TempHome home;
+    MilkdropTrackOpts m = cover_track_milkdrop("/music/a.mp3");
+    CHECK_EQ(m.on, -1);                                                // as it comes
+    CHECK(m.preset.empty());
+    m.on = 1;
+    m.preset = "Geiss | Reaction\tDiffusion";                          // a bar and a tab in the name: kept / made a space
+    set_cover_track_milkdrop("/music/a.mp3", m);
+    m = cover_track_milkdrop("/music/a.mp3");
+    CHECK_EQ(m.on, 1);
+    CHECK_EQ(m.preset, std::string("Geiss | Reaction Diffusion"));
+    CHECK_EQ(cover_track_milkdrop("/music/b.mp3").on, -1);             // other tracks keep as it comes
+    m.on = 0;
+    set_cover_track_milkdrop("/music/a.mp3", m);
+    CHECK_EQ(cover_track_milkdrop("/music/a.mp3").on, 0);
+    set_cover_track_milkdrop("/music/a.mp3", MilkdropTrackOpts{});    // all as it comes: the entry is gone
+    CHECK_EQ(cover_track_milkdrop("/music/a.mp3").on, -1);
+    CHECK(cover_track_milkdrop("/music/a.mp3").preset.empty());
+}
+
+// More Options of a track: keep (the preset stays or the presets go on) and an effect of its own come after the preset; an entry of only
+// those is kept too, and a record in the older "<on>|<preset>" layout reads as keep / effect "as it comes".
+TEST(milkdrop_track_keep_and_effect_are_kept_and_old_records_read) {
+    mt::TempHome home;
+    MilkdropTrackOpts m;
+    m.preset = "/presets/Dancer/x.milk";
+    m.keep = 0;
+    m.fx = 7;
+    set_cover_track_milkdrop("/music/a.mp3", m);
+    m = cover_track_milkdrop("/music/a.mp3");
+    CHECK_EQ(m.on, -1);
+    CHECK_EQ(m.preset, std::string("/presets/Dancer/x.milk"));
+    CHECK_EQ(m.keep, 0);
+    CHECK_EQ(m.fx, 7);
+    MilkdropTrackOpts only_fx;
+    only_fx.fx = 3;
+    set_cover_track_milkdrop("/music/b.mp3", only_fx);
+    CHECK_EQ(cover_track_milkdrop("/music/b.mp3").fx, 3);
+    CHECK(cover_track_milkdrop("/music/b.mp3").preset.empty());
+    MilkdropTrackOpts old;   // (written without keep / effect: the old layout)
+    old.on = 1;
+    old.preset = "Geiss - Reaction";
+    set_cover_track_milkdrop("/music/c.mp3", old);
+    const MilkdropTrackOpts r = cover_track_milkdrop("/music/c.mp3");
+    CHECK_EQ(r.preset, std::string("Geiss - Reaction"));
+    CHECK_EQ(r.keep, -1);
+    CHECK_EQ(r.fx, -1);
+}
+
 TEST(video_track_dither_pattern_is_kept_per_track_and_old_entries_read_as_settings) {
     mt::TempHome home;
     CHECK_EQ(cover_track_video_opts("/music/a.mp3").dither, -1);        // as in Settings

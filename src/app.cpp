@@ -2,6 +2,7 @@
 // text-field pieces the panels and overlays use. The rest of App lives in the app_*.cpp files next to
 // this one, grouped by topic.
 #include "app.h"
+#include "milkdrop.h"
 #include "app_state_vf.h"
 #include "app_state_rl.h"
 #include "app_state_theme.h"
@@ -653,6 +654,13 @@ App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(sh
     cv_ = std::make_unique<CvState>();
     cheat_ = std::make_unique<CheatState>();
     if (!shared) settings_ = load_settings();
+    if (!settings_.hotkeys_left_unbound.empty()) {   // a new command whose default key was taken in this config: say so once
+        std::string l;
+        for (const auto& u : settings_.hotkeys_left_unbound) l += (l.empty() ? "" : ", ") + u;
+        status_line_ = "new command without a key: " + l + " -- give it one in Settings -> REFERENCE";
+        ConsoleLog::instance().log_basic(status_line_);
+        settings_.hotkeys_left_unbound.clear();
+    }
     translit_set_learned_file(path_utf8(config_path().parent_path() / "kanji_readings_learned.txt"));   // what was learned before (tags, folders, MusicBrainz)
     translit_set_kanji_cache_file(path_utf8(config_path().parent_path() / "kanji_readings_cache.txt"),   // what pykakasi read before ...
                                   kanji_rules_id());                                                  // ... as long as the reader's rules are the same
@@ -856,16 +864,21 @@ void App::main_translit_key() {
         toggle_latin_letters();
         return;
     }
-    if (main_lyr_tr_) {                                 // the third stop -> the original
+    const std::string tr = "translation" + (label.empty() ? std::string() : " (" + label + ")");
+    if (main_lyr_tr_ && settings_.latin_letters) {      // the fourth stop -> the lyrics as they are
         main_lyr_tr_ = false;
-        if (settings_.latin_letters) toggle_latin_letters();
-        status_line_ = "Lyrics: original (Latin letters off, no translation)";
-    } else if (settings_.latin_letters) {               // the second stop -> the translation
-        main_lyr_tr_ = true;
-        status_line_ = "Lyrics: translation" + (label.empty() ? std::string() : " (" + label + ")") + " -- " + key + " again: the original";
-    } else {                                            // the first stop -> Latin letters
         toggle_latin_letters();
-        status_line_ = "Lyrics: Latin letters -- " + key + " again: the translation";
+        status_line_ = "Lyrics: as they are -- " + key + " again: in Latin letters";
+    } else if (main_lyr_tr_) {                          // the third stop -> in Latin letters + the translation
+        toggle_latin_letters();
+        status_line_ = "Lyrics: in Latin letters + the " + tr + " -- " + key + " again: the lyrics as they are";
+    } else if (settings_.latin_letters) {               // the second stop -> the lyrics + the translation
+        toggle_latin_letters();
+        main_lyr_tr_ = true;
+        status_line_ = "Lyrics: the lyrics + the " + tr + " -- " + key + " again: in Latin letters + the translation";
+    } else {                                            // the first stop -> in Latin letters
+        toggle_latin_letters();
+        status_line_ = "Lyrics: in Latin letters -- " + key + " again: the lyrics + the translation";
     }
     force_redraw_ = true;
 }
@@ -1185,6 +1198,7 @@ void App::run_tick() {
     last_frame_time_ = now;
     viz_dt_ = dt;
 
+    gapless_tick();   // (Gapless Playback: the next track prepared in the last seconds, and the change the player made into it)
     if (has_track_) {
         player_.poll_elapsed();
         // No auto-advance while a device handoff is still in flight:
@@ -1284,6 +1298,8 @@ int App::run() {
         selected_ = 0;
         start_local_track(local_view_[0]);
     }
+    // Auto-Play off (the default): the track the program opens with is loaded and stands paused at its place (the play / pause key (p) starts it)
+    if (!settings_.auto_play && !audiobook_ && load_in_progress_.load()) autoplay_hold_ = true;
     // First start after an install: greet with the help wizard. Closing it
     // writes WizardSeen=true, so this happens exactly once -- and only on a
     // cold start, never when coming back from the radio (which keeps the
@@ -1329,6 +1345,9 @@ int App::run() {
         terminal_default_text(settings_.list_color);              // text without a colour of its own: the list text colour
         std::string frame_str;
         try {
+            sphere_turning_ = false;   // (set again by the lyrics panel when it draws a turning sphere)
+            milkdrop_drawn_ = false;   // (set by milkdrop_draw())
+            gfx3_.active = false;      // (the effect list's own picture: switched on again by fxpick_picture() when it needs the third slot)
             frame_str = render_frame(term);
         } catch (const std::exception& e) {
             ConsoleLog::instance().log_basic(std::string("render skipped (") + std::to_string(term.cols()) + "x" + std::to_string(term.rows()) + "): " + e.what());
@@ -1341,7 +1360,7 @@ int App::run() {
         // replaces the cells under it): the picture then flickers. Only the panel (and its preview picture) is live.
         bool sty_frozen = false;
         {
-            const bool freeze = ((mode_ == Mode::MetaEdit && meta_->sty_from_main) || (mode_ == Mode::VideoSearch && vs_->pic != 0) || (mode_ == Mode::VideoLink && vl_->pic != 0)) && frame_main_len_ != std::string::npos && frame_main_len_ <= frame_str.size();   // (SEARCH YT with a thumbnail picture freezes the main screen too: the line writes of the live screen next to a Sixel picture wipe it)
+            const bool freeze = ((mode_ == Mode::MetaEdit && meta_->sty_from_main && !mdb_open_) || (mode_ == Mode::VideoSearch && vs_->pic != 0) || (mode_ == Mode::VideoLink && vl_->pic != 0)) && frame_main_len_ != std::string::npos && frame_main_len_ <= frame_str.size();   // (SEARCH YT with a thumbnail picture freezes the main screen too: the line writes of the live screen next to a Sixel picture wipe it)
             // (the look chosen in the panel is shown behind it at once: the frozen screen is taken again when the look changes)
             const std::string look_sig = std::to_string(eff_cover_mode()) + "|" + std::to_string(eff_cover_contrast()) + "|" + std::to_string(eff_cover_brightness()) + "|" +
                                          std::to_string(eff_cover_colors()) + "|" + std::to_string(eff_cover_gsat()) + "|" + std::to_string(eff_cover_chroma()) + "|" + (settings_.album_cover ? "a" : "d");
@@ -1369,7 +1388,7 @@ int App::run() {
         const bool main_frame = frame_main_len_ != std::string::npos;
         // (the meta editor, the cover fetch and the video fetch lay out the main screen behind their own screen to know its height: the
         // spectrogram of that hidden screen must not be drawn -- it took the place of their pictures as soon as a track played)
-        const bool own_screen = mode_ == Mode::CoverFetch || mode_ == Mode::VideoFetch || (mode_ == Mode::MetaEdit && !meta_->sty_from_main);
+        const bool own_screen = mode_ == Mode::CoverFetch || mode_ == Mode::VideoFetch || (mode_ == Mode::MetaEdit && (!meta_->sty_from_main || mdb_open_));
         const bool sp_img = main_frame && !own_screen && spectro_.area[0] >= 0 && sp_proto != 0 && !list_overlay_active() && !queue_overlay_active();
         const bool sp_creator = sp_img && creator_->show;   // the creator's preview has its own spectrogram, settings and picture
         // The spectrogram's analysis keeps running while a track is loaded, shown or not (a menu or another view over it, a pause): it
@@ -1387,7 +1406,7 @@ int App::run() {
         const bool pv_img = (mode_ == Mode::Settings || mode_ == Mode::ColorEdit) && pv_spectro_area_[0] >= 0 && sp_proto != 0 && settings_preview_spectro();
         if (frame_str.find("\x1b[2J") != std::string::npos) { spectro_.gfx.invalidate(); creator_->spectro_gfx.invalidate(); pv_spectro_gfx_.invalidate(); }
         const bool sixel_on = (gfxs_.ok && gfxs_.proto == GfxProto::Sixel && gfx_.active && gfx_.crop < gfx_.cols) || (sp_img && sp_proto == 2) || (pv_img && sp_proto == 2);
-        if (sixel_on && (!gfx_shown || frame_str.find("\x1b[2J") != std::string::npos)) { gfx_.fresh = true; gfx2_.fresh = true; }
+        if (sixel_on && (!gfx_shown || frame_str.find("\x1b[2J") != std::string::npos)) { gfx_.fresh = true; gfx2_.fresh = true; gfx3_.fresh = true; }
         const auto frame_now = std::chrono::steady_clock::now();
         std::string wire;   // ONE write per frame (text + picture): two writes let the terminal paint in between = flicker
         // The picture must go in this very write (the text around it was written for it -- a panel came or went, a whole frame under a Sixel
@@ -1403,6 +1422,13 @@ int App::run() {
             // megabytes per second for the terminal). Full frames: every 2 s, after a clear, or when an overlay changed.
             const size_t main_len = frame_main_len_ <= frame_str.size() ? frame_main_len_ : std::string::npos;
             const std::string floating = main_len == std::string::npos ? std::string() : frame_str.substr(main_len);
+            // A floating panel whose text changed but that stands on the very same cells (its rectangle as in the frame before: a live number,
+            // another row selected) covers them all again by itself: the lines of the screen under it need not go out again. (Every such
+            // change used to send the whole screen -- with the MilkDrop visuals' overlay, whose timings change all the time, every frame.)
+            static int prev_float_rect[4] = {0, 0, 0, 0};
+            const bool same_rect = !floating.empty() && !last_floating.empty() && float_rect_[2] > 0 && float_rect_[3] > 0 &&
+                                   std::memcmp(prev_float_rect, float_rect_, sizeof(prev_float_rect)) == 0;
+            std::memcpy(prev_float_rect, float_rect_, sizeof(prev_float_rect));
             bool diffed = false;
             if (main_len != std::string::npos && frame_str.compare(0, 3, "\x1b[H") == 0) {
                 std::string d;
@@ -1412,7 +1438,7 @@ int App::run() {
                 const bool whole_lines = frame_now - last_whole_lines_at > std::chrono::seconds(2);
                 if (whole_lines) last_whole_lines_at = frame_now;
                 if (diff_frame_lines(body, prev_lines, d, whole_lines)) {
-                    if (!heal && floating == last_floating) {
+                    if (!heal && (floating == last_floating || same_rect)) {
                         // what follows the lines continues where the whole frame would have left the cursor
                         const long nl = static_cast<long>(std::count(body.begin(), body.end(), '\n'));
                         wire = d + "\x1b[" + std::to_string(nl + 1) + ";1H\x1b[0m" + floating;
@@ -1430,12 +1456,12 @@ int App::run() {
             }
             // Style Option overlay: a whole frame (another row selected) writes the screen's text again, also in the picture's cells
             // (Sixel shows that text until the picture is sent): the pictures go out again in this same write.
-            if ((sty_frozen || cov_pic) && sixel_on && !diffed) { gfx_.fresh = true; if (gfx2_.active) gfx2_.fresh = true; pic_urgent = true; }
+            if ((sty_frozen || cov_pic) && sixel_on && !diffed) { gfx_.fresh = true; if (gfx2_.active) gfx2_.fresh = true; if (gfx3_.active) gfx3_.fresh = true; pic_urgent = true; }
             // A floating panel (a question, the "<" menu, a small overlay) came or went: the text it left over the picture's cells
             // must be wiped. Sixel keeps its picture only while the cells are skipped, so then the cells are written as spaces and
             // the picture is sent again in the same write (nothing shows in between).
             // (under the Style Option overlay a change inside the panel -- another row selected -- leaves the picture's cells as they are)
-            const bool floating_changed = floating != last_floating && !((sty_frozen || cov_pic) && !floating.empty() && !last_floating.empty());
+            const bool floating_changed = floating != last_floating && !same_rect && !((sty_frozen || cov_pic) && !floating.empty() && !last_floating.empty());
             const bool resend_pic = cov_pic && !diffed && gfx_.active;   // whole frame: the picture's cells hold text again, so blank them and send the picture in the same write
             // A panel came, went or moved over the main screen (the spectrogram options, a menu ...): the spectrogram picture is drawn again
             // completely in this same write. The tiles it touches are sent anyway, but a terminal may also drop parts of a picture next
@@ -1445,7 +1471,7 @@ int App::run() {
                 if ((floating_changed && std::memcmp(last_rect, float_rect_, sizeof(last_rect)) != 0) || (heal && !floating.empty() && !sty_frozen)) { spectro_.gfx.invalidate(); creator_->spectro_gfx.invalidate(); }
                 std::memcpy(last_rect, float_rect_, sizeof(last_rect));
             }
-            if (sixel_on && floating_changed && gfx_.active) { gfx_.fresh = true; if (gfx2_.active) gfx2_.fresh = true; }
+            if (sixel_on && floating_changed && gfx_.active) { gfx_.fresh = true; if (gfx2_.active) gfx2_.fresh = true; if (gfx3_.active) gfx3_.fresh = true; }
             if (floating_changed || resend_pic) pic_urgent = true;   // (Kitty too: the hole for the panel is cut into the picture)   // (the second picture's cells are blanked too: it goes out again in the same write)
             last_floating = floating;
             last_frame_str = std::move(frame_str);
@@ -1506,6 +1532,25 @@ int App::run() {
                     gfx_shown = false;
                 }
             }
+            // The effect list's preview in its own third picture (both slots above belong to the screen behind it): Kitty image 7203; on Sixel drawn
+            // after them. The panel cuts a hole into the pictures behind (their cells there are neither blanked nor drawn), so a picture behind that
+            // goes out (the video playing under the panel) leaves the preview as it is.
+            if (gfx3_.active && gfxs_.proto != GfxProto::None) {
+                if (gfx3_.fresh && gfx3_shown_ && hold_pic) gfx3_owed_ = true;
+                else if (gfx3_.fresh || !gfx3_shown_ || gfx3_owed_) { gfx3_.fresh = true; wire += gfx_emit(gfxs_.proto, gfx3_); gfx3_shown_ = true; gfx3_owed_ = false; }
+            } else {
+                gfx3_owed_ = false;
+                if (gfx3_shown_) {
+                    wire += gfx_clear(gfxs_.proto, 2);
+                    gfx3_shown_ = false;
+                    if (gfxs_.proto == GfxProto::Sixel) {   // (no delete in Sixel: the next frame is a whole one, the pictures behind are sent again)
+                        last_frame_str.clear();
+                        prev_lines.clear();
+                        gfx_shown = false;
+                        gfx2_shown_ = false;
+                    }
+                }
+            }
         }
         if (sp_img) {
             int cw = 10, chh = 20;
@@ -1537,7 +1582,9 @@ int App::run() {
             // a frame with a picture goes to the writer thread: the next frame is built while the terminal swallows this one
             // (while a picture is shown, every frame goes to the writer -- also the small ones: a direct write would wait for the picture before it)
             const bool async_write = gfx_.active && write_frame_async_allowed();
-            if (async_write) write_frame_async(std::move(wire)); else write_frame(wire);
+            // (a picture is in it when it carries picture data: Kitty's graphics commands or a Sixel picture; a big panel of text is no picture)
+            const bool has_pic = wire.size() >= 4096 && (wire.find("\x1b_G") != std::string::npos || wire.find("\x1bP") != std::string::npos);
+            if (async_write) write_frame_async(std::move(wire), has_pic ? 1 : 0); else write_frame(wire);
             const auto done = std::chrono::steady_clock::now();
             const double build_ms = std::chrono::duration<double, std::milli>(built - frame_start).count();
             last_build_ms_ = std::clamp(build_ms, 1.0, 100.0);
@@ -1564,14 +1611,16 @@ int App::run() {
             // Reduce Motion When Paused: nothing plays (or it is paused), nobody touched a key for a few seconds and the main screen is
             // showing: about 10 frames a second are plenty for a slowly turning disk. Any key brings the full rate back (the wait below
             // ends with it). Measured (idle, paused): 2.3% of a core at 30 fps, 1.0% at 10, 0.5% with the 4 below.
-            if (settings_.reduce_motion_paused && mode_ == Mode::Browse && (!has_track_ || player_.is_paused()) &&
-                std::chrono::steady_clock::now() - last_input_ > std::chrono::seconds(3))
-                fps = std::min(fps, 10);
+            // A turning sphere is left alone (at 10 frames a second it stutters): it keeps the full rate; Pause Sphere stops it instead.
+            const bool calm = settings_.reduce_motion_paused && mode_ == Mode::Browse && (!has_track_ || player_.is_paused()) &&
+                              !sphere_turning_ && !milkdrop_drawn_ && std::chrono::steady_clock::now() - last_input_ > std::chrono::seconds(3);
+            if (calm) fps = std::min(fps, 10);
             // ... and when 20 of them in a row (2 s) were exactly the same, the screen stands still (paused, nothing moving): 4 a second are
             // enough to notice what arrives (a cover, a lyrics result, a command of the remote app); a key or a change brings the 10 back at once.
-            const bool resting = settings_.reduce_motion_paused && mode_ == Mode::Browse && (!has_track_ || player_.is_paused()) &&
-                                 std::chrono::steady_clock::now() - last_input_ > std::chrono::seconds(3) && still_frames >= 20;
+            const bool resting = calm && still_frames >= 20;
             if (resting) fps = std::min(fps, 4);
+            // MilkDrop on the screen at more pictures a second than the loop's rate: the loop follows them (MilkDrop Frame Rate 45 / 60)
+            if (milkdrop_drawn_) fps = std::max(fps, std::clamp(settings_.milkdrop_fps, 10, 60));
             // A video on the screen: the loop wakes up at the moment the next picture of the film is due (its time against the audio clock), so
             // every picture is shown at its own moment. (It used to wake 60 times a second: a 25 fps film then showed its pictures for 33 and 50 ms
             // in turn -- an uneven motion.) While the decoder has nothing waiting (starting, a seek) it looks 60 times a second as before.
@@ -1613,6 +1662,7 @@ int App::run() {
 
     if (gfx_shown) { write_frame(gfx_clear(gfxs_.proto)); gfx_shown = false; }   // the picture must not outlive the mode
     if (gfx2_shown_) { write_frame(gfx_clear(gfxs_.proto, 1)); gfx2_shown_ = false; }
+    if (gfx3_shown_) { write_frame(gfx_clear(gfxs_.proto, 2)); gfx3_shown_ = false; }
     if (spectro_.gfx.shown()) write_frame(spectro_.gfx.clear(gfxs_.proto == GfxProto::Kitty ? 1 : 2));
     if (creator_->spectro_gfx.shown()) write_frame(creator_->spectro_gfx.clear(gfxs_.proto == GfxProto::Kitty ? 1 : 2));
     if (pv_spectro_gfx_.shown()) write_frame(pv_spectro_gfx_.clear(gfxs_.proto == GfxProto::Kitty ? 1 : 2));
@@ -1663,6 +1713,7 @@ void App::shutdown() {
     history_.save();
     device_stop();          // closed by the thread that opened it
     device_->stop_device_worker();
+    Milkdrop::instance().shutdown();   // (the MilkDrop render thread and its OpenGL context, when they run)
     save_settings(settings_);
     if (settings_.autosave_enabled && !audiobook_) {
         save_snapshot(build_snapshot());

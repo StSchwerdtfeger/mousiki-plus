@@ -7,6 +7,7 @@
 // VIDEO OPTION (Mode::VideoLink): two searchable lists (tracks / video files of the library), the track is locked in with ENTER, the video
 // with ENTER; the pair is stored in video_links.txt (video_links.h) and follows the files when they are renamed or moved.
 #include "app.h"
+#include "milkdrop.h"
 #include "app_state_vf.h"
 #include "app_state_vl.h"
 #include "overlay_rows.h"
@@ -61,6 +62,13 @@ void App::video_menu_change(int row, int dir) {
             settings_.video_auto = !settings_.video_auto;
             set_config_value("VideoAuto", settings_.video_auto ? "true" : "false");
             status_line_ = settings_.video_auto ? "video: a track with a video shows it by itself, a track without one the Lyrics/Viz Default" : "video: auto video off";
+            if (settings_.video_auto && settings_.milkdrop_auto) {   // (the two take turns: Auto MilkDrop goes off)
+                settings_.milkdrop_auto = false;
+                settings_.milkdrop_auto_video_was = false;
+                set_config_value("MilkDropAuto", "false");
+                set_config_value("MilkDropAutoVideoWas", "false");
+                status_line_ += " (Auto MilkDrop is off now)";
+            }
             if (settings_.video_auto) video_auto_apply();
             force_redraw_ = true;
             break;
@@ -245,10 +253,8 @@ void App::video_opts_change(int row, int dir, bool reset) {
     if (row == kVoResolution) { video_for_track_.clear(); ++video_rev_; force_redraw_ = true; }   // (the resolution: the video is read again; the other rows only change the picture)
 }
 
-std::vector<std::string> App::build_video_opts_panel() const {
-    const int W = kVideoOptsPanelWidth, inner = W - 2;
-    const std::string border = ansi_for(settings_.border_color, false);
-    const std::string bar = border.empty() ? settings_.box_vertical : (border + settings_.box_vertical + "\x1b[0m");
+// The rows of VIDEO OPTIONS (SHIFT+s in the big video), `inner` columns each: the note, a free row, the options (the one selected lit), a free row.
+std::vector<std::string> App::video_opts_rows(int inner) const {
     const VideoTrackOpts o = cover_track_video_opts(path_utf8(current_.path));
     auto pct = [&](int own, int global) { return own >= 0 ? std::to_string(own) + " %" : std::string("as in Settings (") + std::to_string(global) + " %)"; };
     struct Row { const char* label; std::string value; };
@@ -266,19 +272,66 @@ std::vector<std::string> App::build_video_opts_panel() const {
         {"Video Rounded Corners", o.round >= 0 ? std::string(o.round ? "on" : "off") : std::string("as in Settings (") + (settings_.video_round ? "on" : "off") + ")"},
     };
     if (video_opts_pair_) rows.push_back({"Use mp4 audio for this song", o.mp4audio == 1 ? std::string("true") : std::string("false")});
-    std::vector<std::string> lines;
-    lines.push_back(box_top("VIDEO OPTIONS  " + truncate_str(path_utf8(current_.path.filename()), 36), W, border));
-    auto plain = [&](const std::string& t) { return bar + pad_right(truncate_str(t, inner), inner) + bar; };
-    lines.push_back(plain(" Only for this track."));
-    lines.push_back(plain(""));
+    std::vector<std::string> out;
+    auto plain = [&](const std::string& t) { return pad_right(truncate_str(t, inner), inner); };
+    {   // the note in the header colour, as in Style Option
+        const std::string hc = ansi_for(settings_.header_color, false);
+        out.push_back(hc + plain(" Only for this track.") + (hc.empty() ? "" : "\x1b[0m"));
+    }
+    out.push_back(plain(""));
     for (int i = 0; i < static_cast<int>(rows.size()); ++i) {
         std::string t = " " + pad_right(rows[static_cast<size_t>(i)].label, 27) + " \u25c0 " + rows[static_cast<size_t>(i)].value + " \u25b6";
         t = pad_right(truncate_str(t, inner - 1), inner - 1) + " ";
-        lines.push_back(bar + (i == video_opts_sel_ ? "\x1b[7m" + t + "\x1b[0m" : t) + bar);
+        out.push_back(i == video_opts_sel_ ? "\x1b[7m" + t + "\x1b[0m" : t);
     }
-    lines.push_back(plain(""));
+    out.push_back(plain(""));
+    return out;
+}
+
+std::vector<std::string> App::build_video_opts_panel() const {   // (a narrow window: the panel over the picture)
+    const int W = kVideoOptsPanelWidth, inner = W - 2;
+    const std::string border = ansi_for(settings_.border_color, false);
+    const std::string bar = border.empty() ? settings_.box_vertical : (border + settings_.box_vertical + "\x1b[0m");
+    std::vector<std::string> lines;
+    lines.push_back(box_top("VIDEO OPTIONS  " + truncate_str(path_utf8(current_.path.filename()), 36), W, border));
+    for (const std::string& r : video_opts_rows(inner)) lines.push_back(bar + r + bar);
     lines.push_back(box_bottom(W, "[\u2191\u2193] select  [\u2190\u2192] change  [DEL/d] reset  [S / ESC] close", settings_.border_color_bottom.empty() ? border : ansi_for(settings_.border_color_bottom, false)));
     return lines;
+}
+
+// VIDEO OPTIONS over the whole screen (like Style Option, with a preview): the options on the left, the video of the track on the right, as big as
+// the window allows, at the resolution the video has everywhere (the same drawing as the big video: every change shows at once). "" when the
+// window is too narrow for both (the panel over the picture then).
+std::string App::build_video_opts_screen(int W, const char* clear_prefix) const {
+    const int H = std::max(6, term_rows_ - 1);   // (as the big video: the last row of the terminal stays free, nothing scrolls)
+    const int left_w = kVideoOptsPanelWidth - 2;
+    const int mg = 1;
+    const int pw = W - 2 - left_w - 1 - 2 * mg, ph = H - 2;
+    if (pw < 24 || ph < 8) return std::string();
+    const std::string border = ansi_for(settings_.border_color, false);
+    const std::string border_bottom = ansi_for(settings_.border_color_bottom, false);
+    const std::string bar = border.empty() ? settings_.box_vertical : (border + settings_.box_vertical + "\x1b[0m");
+    std::vector<std::string> pic;
+    const double elapsed = has_track_ ? player_.poll_elapsed() : 0.0;
+    if (!video_draw(pic, pw, ph, 1 + left_w + 1 + mg, 1, false, elapsed, 0, {}, 0)) {
+        pic.assign(static_cast<size_t>(ph), std::string(static_cast<size_t>(pw), ' '));
+        const std::string msg = truncate_str("No video for this track.", pw);
+        const int pad = std::max(0, (pw - display_width(msg)) / 2);
+        pic[static_cast<size_t>(ph / 2)] = std::string(static_cast<size_t>(pad), ' ') + msg + std::string(static_cast<size_t>(std::max(0, pw - pad - display_width(msg))), ' ');
+    }
+    const std::vector<std::string> left = video_opts_rows(left_w);
+    const int ltop = std::max(0, (ph - static_cast<int>(left.size())) / 2);
+    std::ostringstream f;
+    f << clear_prefix << "\x1b[?25l";
+    f << box_top("VIDEO OPTIONS  " + truncate_str(path_utf8(current_.path.filename()), std::max(8, W - 24)), W, border) << "\n";
+    for (int r = 0; r < ph; ++r) {
+        const int lr = r - ltop;
+        const std::string l = lr >= 0 && lr < static_cast<int>(left.size()) ? left[static_cast<size_t>(lr)] : std::string(static_cast<size_t>(left_w), ' ');
+        const std::string p = r < static_cast<int>(pic.size()) ? pic[static_cast<size_t>(r)] : std::string(static_cast<size_t>(pw), ' ');
+        f << bar << l << bar << std::string(static_cast<size_t>(mg), ' ') << p << "\x1b[0m" << std::string(static_cast<size_t>(mg), ' ') << bar << "\n";
+    }
+    f << box_bottom(W, "[\u2191\u2193] select  [\u2190\u2192] change  [ENTER] effect list  [DEL/d] reset  [S / ESC] back to the video", border_bottom.empty() ? border : border_bottom);
+    return clamp_output_rows(f.str(), term_rows_);
 }
 
 bool App::video_full_key(int key) {
@@ -295,17 +348,51 @@ bool App::video_full_key(int key) {
     }
     if (!arrow && (key == 's' || key == 'S')) { video_opts_open_ = true; video_opts_sel_ = 0; video_opts_pair_ = song_paired_with_video(current_.path); force_redraw_ = true; return true; }
     if (!arrow && (key == 27 || key_is("HKeyVideoFull", key))) { video_full_ = false; video_opts_open_ = false; video_pic_key_.clear(); force_redraw_ = true; return true; }
-    if (arrow && (key == 'A' || key == 'B') && last_key_was_shifted()) {   // SHIFT+UP / DOWN: the layout
-        settings_.video_layout = (std::clamp(settings_.video_layout, 0, 3) + (key == 'B' ? 1 : 3)) % 4;
-        set_config_value("VideoLayout", std::to_string(settings_.video_layout));
+    if (!arrow && (key_is("HKeyQueueOverlay", key) || key_is("HKeyListOverlay", key) || key_is("HKeyFolderOverlay", key))) {   // the big queue / list / folder overlay: the big video gives way to it
+        video_full_ = false; video_opts_open_ = false; video_pic_key_.clear(); force_redraw_ = true;
+        if (key_is("HKeyQueueOverlay", key)) queue_overlay_open();
+        else if (key_is("HKeyListOverlay", key)) list_overlay_open();
+        else folder_overlay_open();
+        return true;
+    }
+    if (arrow && (key == 'A' || key == 'B') && last_key_was_shifted()) {   // SHIFT+UP / DOWN: the layout (of the video, or of the MilkDrop visuals)
+        const VFullLayout VL = vfull_layout();
+        if (VL.source_md) {
+            settings_.milkdrop_layout = (std::clamp(settings_.milkdrop_layout, 0, 4) + (key == 'B' ? 1 : 4)) % 5;
+            set_config_value("VideoFullMilkDropLayout", std::to_string(settings_.milkdrop_layout));
+            static const char* kM[5] = {"MilkDrop", "MilkDrop + oscilloscope", "MilkDrop + oscilloscope + spectrogram",
+                                        "quartet (oscilloscope, MilkDrop / video, spectrogram)", "video + MilkDrop"};
+            status_line_ = std::string("milkdrop layout: ") + kM[settings_.milkdrop_layout];
+        } else {
+            const int n = VL.md_ok ? 5 : 4;   // (the quartet only with MilkDrop)
+            settings_.video_layout = (std::clamp(settings_.video_layout, 0, n - 1) + (key == 'B' ? 1 : n - 1)) % n;
+            set_config_value("VideoLayout", std::to_string(settings_.video_layout));
+            static const char* kN[5] = {"video", "video + oscilloscope", "video + spectrogram", "video + oscilloscope + spectrogram",
+                                        "quartet (oscilloscope, MilkDrop / video, spectrogram)"};
+            status_line_ = std::string("video layout: ") + kN[settings_.video_layout];
+        }
         video_pic_key_.clear();
-        static const char* kN[4] = {"video", "video + oscilloscope", "video + spectrogram", "video + oscilloscope + spectrogram"};
-        status_line_ = std::string("video layout: ") + kN[settings_.video_layout];
+        milkdrop_pic_key_.clear();
         force_redraw_ = true;
         return true;
     }
-    if (!arrow && vl_has_osci(settings_.video_layout) && key_is("HKeyOscMenu", key)) { osci_menu_row_ = 0; mode_ = Mode::OsciMenu; force_redraw_ = true; return true; }
-    if (!arrow && vl_has_spectro(settings_.video_layout) && key_is("HKeySpectroMenu", key)) { spectro_.menu_row = kSrView; mode_ = Mode::SpectroMenu; force_redraw_ = true; return true; }
+    if (!arrow && key == 'm') {   // the video <-> the MilkDrop visuals (the play mode key is not needed over the big picture)
+        std::string why;
+        if (!settings_.vfull_milkdrop && !milkdrop_usable()) {
+            Milkdrop::instance().available(&why);
+            status_line_ = settings_.use_milkdrop ? "milkdrop: cannot run here -- " + why : "milkdrop: switched off (Settings -> ANIMA/VIZ -> Use MilkDrop)";
+            return true;
+        }
+        settings_.vfull_milkdrop = !settings_.vfull_milkdrop;
+        set_config_value("VideoFullSource", settings_.vfull_milkdrop ? "milkdrop" : "video");
+        status_line_ = settings_.vfull_milkdrop ? "big overlay: the MilkDrop visuals (SHIFT+UP / DOWN: their layouts, " + visuals_key_text() + ": their options)" : "big overlay: the video";
+        video_pic_key_.clear();
+        milkdrop_pic_key_.clear();
+        force_redraw_ = true;
+        return true;
+    }
+    if (!arrow && vfull_layout().has_o && key_is("HKeyOscMenu", key)) { osci_menu_row_ = 0; mode_ = Mode::OsciMenu; force_redraw_ = true; return true; }
+    if (!arrow && vfull_layout().has_s && key_is("HKeySpectroMenu", key)) { spectro_.menu_row = kSrView; mode_ = Mode::SpectroMenu; force_redraw_ = true; return true; }
     if (!arrow && key == 'G') {   // grid and scales of the oscilloscope / spectrogram
         settings_.vl_scales = !settings_.vl_scales;
         set_config_value("VideoLayoutScales", settings_.vl_scales ? "true" : "false");

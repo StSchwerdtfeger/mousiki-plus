@@ -116,7 +116,55 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
     std::string video_audio;
     if (is_local && settings_.video_mode && !LocalSource::is_video_file(local_path) && cover_track_video_opts(path_utf8(local_path)).mp4audio == 1)
         video_audio = video_source_for(local_path);
-    load_thread_ = std::thread([this, local_path, title, artist, location_label, is_local, video_id, want_stereo, sid_seconds, video_audio]() {
+    LoadJob job;
+    job.local_path = local_path; job.title = title; job.artist = artist; job.location_label = location_label; job.is_local = is_local;
+    job.video_id = video_id; job.want_stereo = want_stereo; job.sid_seconds = sid_seconds; job.video_audio = video_audio;
+    // Gapless: the audio thread went into this very track already (gapless_tick()); what the preload made is the load
+    if (gap_.switched && is_local && gap_.switched_job && local_path == path_from_utf8(gap_.path)) {
+        PendingLoad pl;
+        { std::lock_guard<std::mutex> lk(gap_.switched_job->mu); pl = std::move(gap_.switched_job->pl); }
+        pl.gapless = true;
+        gap_.switched = false;
+        gap_.taken_job = std::move(gap_.switched_job);   // (its waveform is handed over once the track is in: poll_pending_load())
+        gap_.switched_job.reset();
+        std::lock_guard<std::mutex> lk(load_mutex_);
+        pending_load_ = std::move(pl);
+        load_ready_ = true;
+        return;
+    }
+    load_thread_ = std::thread([this, job]() { load_job(job); });
+}
+
+// Publishes a finished (or failed) load: to the main loop (poll_pending_load()), or -- a gapless preload -- into its own GapJob.
+void App::load_publish(const LoadJob& j, PendingLoad pl) {
+    if (j.gap) {
+        std::lock_guard<std::mutex> lk(j.gap->mu);
+        j.gap->pl = std::move(pl);
+        j.gap->ready = true;
+        return;
+    }
+    std::lock_guard<std::mutex> lk(load_mutex_);
+    pending_load_ = std::move(pl);
+    load_ready_ = true;
+}
+
+bool App::load_published(const LoadJob& j) {
+    if (j.gap) { std::lock_guard<std::mutex> lk(j.gap->mu); return j.gap->ready; }
+    return load_ready_.load();
+}
+
+void App::load_job(const LoadJob& j) {
+    const fs::path& local_path = j.local_path;
+    const std::string& title = j.title;
+    const std::string& artist = j.artist;
+    const std::string& location_label = j.location_label;
+    const bool is_local = j.is_local;
+    const std::string& video_id = j.video_id;
+    const bool want_stereo = j.want_stereo;
+    const int sid_seconds = j.sid_seconds;
+    const std::string& video_audio = j.video_audio;
+    const bool preload = static_cast<bool>(j.gap);
+    std::shared_ptr<GapJob> gapjob = j.gap;   // (the decode threads below hand the waveform to it while the track does not play yet)
       run_guarded("track load", [&] {
         using clock = std::chrono::steady_clock;
         auto t_start = clock::now();
@@ -135,7 +183,7 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
 
         fs::path path = local_path;
         if (!is_local) {
-            load_stage_ = 1;
+            if (!preload) load_stage_ = 1;
             auto t0 = clock::now();
             std::string err;
             auto resolved = youtube_.resolve_by_id(video_id, title, artist, &err);
@@ -143,9 +191,7 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
             if (!resolved) {
                 pl.error = "download failed: " + err;
                 write_load_timing_log(title, is_local, t_resolve, 0, elapsed_s(t_start), pl.error);
-                std::lock_guard<std::mutex> lk(load_mutex_);
-                pending_load_ = std::move(pl);
-                load_ready_ = true;
+                load_publish(j, std::move(pl));
                 return;
             }
             path = resolved->cached_path;
@@ -172,14 +218,12 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
             if (!problem.empty()) {
                 pl.error = problem;
                 write_load_timing_log(title, is_local, 0, 0, elapsed_s(t_start), pl.error);
-                std::lock_guard<std::mutex> lk(load_mutex_);
-                pending_load_ = std::move(pl);
-                load_ready_ = true;
+                load_publish(j, std::move(pl));
                 return;
             }
         }
 
-        load_stage_ = 4;
+        if (!preload) load_stage_ = 4;
         auto t2 = clock::now();
         pl.metadata = probe_metadata(path, pl.title, pl.artist, pl.location_label);
         
@@ -197,20 +241,29 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
         t_probe = elapsed_s(t2);
         pl.total_sec = duration > 0 ? static_cast<size_t>(duration) : 0;
 
-        pl.pcm = std::make_shared<StreamingPcm>();
         // the file's own sample rate: no resampling on the way to the device
-        pl.pcm->reserve_for_seconds(duration > 0 ? duration : 300.0,
-                                    native_sample_rate(decode_from, video_audio.empty() ? pl.metadata.sampling : rate_hint, duration, settings_.rate_cap_96), want_stereo ? 2 : 1,
-                                    static_cast<double>(settings_.track_buffer_mb) * 1024.0 * 1024.0, duration <= 0);
+        int rate = native_sample_rate(decode_from, video_audio.empty() ? pl.metadata.sampling : rate_hint, duration, settings_.rate_cap_96);
+        if (preload) {
+            // Gapless: the track that follows has to come at the rate the device runs at. "album" plays it only as it is (the same album, the
+            // same rate and channel count: nothing is resampled) and says no before anything is decoded; "full" resamples it to that rate.
+            if (j.album_only) {
+                std::string why = gapless_album_mismatch(j, pl.metadata, path, rate, decode_from);
+                if (!why.empty()) {
+                    pl.error = "gapless: " + why;   // (pl.success stays false: the change is an ordinary one)
+                    load_publish(j, std::move(pl));
+                    return;
+                }
+            }
+            rate = j.force_rate;
+        }
+        pl.pcm = std::make_shared<StreamingPcm>();
+        pl.pcm->reserve_for_seconds(duration > 0 ? duration : 300.0, rate, want_stereo ? 2 : 1,
+                                    static_cast<double>(std::min(settings_.track_buffer_mb, Settings::track_buffer_cap_mb())) * 1024.0 * 1024.0, duration <= 0);
         pl.success = true;
 
-        write_load_timing_log(pl.title, is_local, t_resolve, t_probe, elapsed_s(t_start), "");
+        if (!preload) write_load_timing_log(pl.title, is_local, t_resolve, t_probe, elapsed_s(t_start), "");
 
-        {
-            std::lock_guard<std::mutex> lk(load_mutex_);
-            pending_load_ = pl;
-            load_ready_ = true;
-        }
+        load_publish(j, pl);
 
         // Decode continues independently from here — detached because it
         // may still be running when the user switches to a different
@@ -223,7 +276,7 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
         fs::path decode_path = decode_from;
         std::string wtitle = pl.title, wartist = pl.artist;
         bool waveform_smooth = settings_.waveform_smooth; // captured by value — see below, avoids a cross-thread read of settings_
-        spawn_bg("track decode", [this, decode_path, pcm, waveform_smooth]() {
+        spawn_bg("track decode", [this, decode_path, pcm, waveform_smooth, gapjob]() {
             if (pcm->windowed) {
                 // A long track: held a window at a time (see StreamingPcm). This thread keeps the window filled
                 // until nobody holds the track any more; a second one goes through the whole file once for the
@@ -234,14 +287,12 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
                 StreamingPcm* raw = pcm.get();
                 auto abandoned = [watch, raw]() { return raw->cancelled.load() || watch.use_count() <= raw->internal_refs.load(); };
                 raw->internal_refs.store(1);   // this thread's `pcm`
-                spawn_bg("track analysis", [this, decode_path, keep = pcm, waveform_smooth, abandoned]() {
+                spawn_bg("track analysis", [this, decode_path, keep = pcm, waveform_smooth, abandoned, gapjob]() {
                     analyse_track(decode_path, *keep, abandoned);
                     if (!abandoned() && !keep->env_sumsq.empty()) {
                         auto envelope = WaveformQuantizer::envelope_from_bins(keep->env_sumsq, StreamingPcm::kEnvGran,
                                                                               keep->total_frames.load(), 4096, waveform_smooth);
-                        std::lock_guard<std::mutex> lk(waveform_.mutex);
-                        pending_waveform_envelope_ = std::move(envelope);
-                        waveform_.pending_ready = true;
+                        publish_waveform(gapjob, std::move(envelope));
                     }
                     keep->internal_refs.fetch_sub(1);   // before `keep` itself goes (never counted low)
                 });
@@ -262,9 +313,7 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
                 // playback started, because it doubled the working-set
                 // size and stalled the RMS pass behind a large memcpy.
                 auto envelope = WaveformQuantizer::generate_high_res_envelope(pcm->data, 4096, waveform_smooth, pcm->channels);
-                std::lock_guard<std::mutex> lk(waveform_.mutex);
-                pending_waveform_envelope_ = std::move(envelope);
-                waveform_.pending_ready = true;
+                publish_waveform(gapjob, std::move(envelope));
             }
         });
       });
@@ -274,17 +323,26 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
       // load_in_progress_, so the app would refuse to start any track for
       // the rest of the session ("still loading the previous track ...").
       // Publish a failed load instead so the UI recovers and says why.
-      if (!load_ready_.load()) {
-          std::lock_guard<std::mutex> lk(load_mutex_);
+      if (!load_published(j)) {
           PendingLoad failed;
           failed.title = title;
           failed.is_local = is_local;
           failed.success = false;
           failed.error = "couldn't load \"" + title + "\" -- see the console log (t)";
-          pending_load_ = std::move(failed);
-          load_ready_ = true;
+          load_publish(j, std::move(failed));
       }
-    });
+}
+
+// The waveform of a finished decode: shown at once -- or, for a gapless preload whose track does not play yet, kept in its GapJob
+// until it does (poll_pending_load() hands it over then; a preload that is dropped takes it along).
+void App::publish_waveform(const std::shared_ptr<GapJob>& gap, std::vector<float> envelope) {
+    if (gap) {
+        std::lock_guard<std::mutex> lk(gap->mu);
+        if (!gap->live) { gap->wave = std::move(envelope); gap->wave_ready = true; return; }
+    }
+    std::lock_guard<std::mutex> lk(waveform_.mutex);
+    pending_waveform_envelope_ = std::move(envelope);
+    waveform_.pending_ready = true;
 }
 
 // The previous track's fetch thread is detached, not joined: joining would block the main thread
@@ -344,6 +402,8 @@ void App::poll_pending_load() {
     }
     load_in_progress_ = false;
     load_stage_ = 0;
+    const bool hold_paused = autoplay_hold_;   // Auto-Play off: the track the program opened with (only this first load; a failed one drops it)
+    autoplay_hold_ = false;
     const bool was_advancing = advancing_;
     advancing_ = false;
 
@@ -384,6 +444,7 @@ void App::poll_pending_load() {
         return;
     }
     swap_pending_ = false;
+    device_start_paused_ = hold_paused;
 
     // Player::play() stops whatever it was previously playing as its own
     // first step, so no separate explicit stop() call is needed here —
@@ -417,19 +478,33 @@ void App::poll_pending_load() {
     // is opened AFTER current_* have been reassigned (they are what
     // history_begin_current_play() records). No history record exists for a
     // failed load -- see the branch above.
+    if (pl.gapless) history_force_complete_ = true;   // (heard to its last sample: the player went on into this one without a gap)
     history_end_current_play();
+    history_force_complete_ = false;
     player_.clear_finished(); // see clear_finished()'s comment — closes the race that caused the double-skip bug
     history_begin_current_play();
     waveform_.envelope.clear();
     waveform_.ready = false;
     waveform_.pending_ready = false;
     ++waveform_.epoch; // any waveform still being computed for the previous track is now stale
+    if (pl.gapless && gap_.taken_job) {   // the waveform the preload made (or goes on making) is this track's
+        std::lock_guard<std::mutex> lk(gap_.taken_job->mu);
+        gap_.taken_job->live = true;
+        if (gap_.taken_job->wave_ready) {
+            std::lock_guard<std::mutex> wl(waveform_.mutex);
+            pending_waveform_envelope_ = std::move(gap_.taken_job->wave);
+            waveform_.pending_ready = true;
+        }
+    }
+    gap_.taken_job.reset();
     last_lyrics_status_.clear();
     hifi().reset();
     fft_.reset(); // don't let the previous track's spectrum tail linger into this one's first frame
     scope_.reset(); // ...and don't let the previous track's waveform linger in the oscilloscope either
 
     video_auto_apply();   // (Video overlay: Auto Video) before the lyrics are fetched, they depend on the view
+    milkdrop_auto_apply();   // (the visuals overlay: Auto MilkDrop -- Auto Video is off meanwhile)
+    milkdrop_track_apply();   // (Style Option: MilkDrop for this track / its preset) after it: the track's own choice wins
     // "Lyrics Engine" (settings_.element_lyrics) off means no lyrics work at all: nothing is
     // fetched, no Python is started and there is no network access.
     // The video view of a track WITHOUT a video that shows a visual ("When No Video Shows" is not the lyrics) needs no lyrics: nothing is fetched
@@ -453,7 +528,7 @@ void App::poll_pending_load() {
     // self-corrects the instant more arrives — so sound starts the
     // moment decode produces its first chunk, not after the whole track.
     // Dispatched off the main thread — see launch_device_play_async().
-    launch_device_play_async();
+    if (!pl.gapless) launch_device_play_async();   // (gapless: it plays already, the device stayed open)
     status_line_.clear();
 }
 
@@ -474,6 +549,8 @@ void App::launch_device_play_async() {
     // obvious rather than implicit.
     double start_sec = resume_start_sec_;
     resume_start_sec_ = 0.0;
+    const bool start_paused = device_start_paused_;   // (one-shot as well: Auto-Play off at the start)
+    device_start_paused_ = false;
 
     // Post to device_worker_loop() rather than spawning a thread here.
     // There's only one request slot, not a queue: if the worker is still
@@ -489,6 +566,7 @@ void App::launch_device_play_async() {
         device_->request.volume = vol;
         device_->request.start_sec = start_sec;
         device_->request.generation = my_gen;
+        device_->request.start_paused = start_paused;
         device_->request_ready = true;
     }
     device_->request_cv.notify_one();
@@ -575,7 +653,7 @@ void App::device_worker_loop() {
         // it rather than just failing one track.
         run_guarded("audio device start", [&] {
             std::lock_guard<std::mutex> lk(player_mutex_);
-            player_.play(req.pcm, req.start_sec, req.volume, &fft_, &scope_);
+            player_.play(req.pcm, req.start_sec, req.volume, &fft_, &scope_, req.start_paused);
         });
         // The new track is in and the old pcm (and its latching finished_
         // flag) is gone, so the main loop may look at finished_ again. Only
@@ -698,7 +776,13 @@ void App::play_relative_random() {
     int base = current_track_list_index();
     if (base < 0) base = selected_;
     int next;
-    do { next = dist(rng); } while (next == base);
+    // (gapless: the pick for this change was made early, so the track that was prepared is the one that follows)
+    if (list_source_ == ListSource::Local && gap_.shuffle_pick >= 0 && gap_.shuffle_pick < static_cast<int>(list_len) &&
+        path_utf8(local_view_[gap_.shuffle_pick].path) == gap_.shuffle_path)
+        next = gap_.shuffle_pick;
+    else
+        do { next = dist(rng); } while (next == base);
+    gap_.shuffle_pick = -1;
     selected_ = next;
     if (selected_ >= scroll_ + list_nav_rows()) scroll_ = selected_ - list_nav_rows() + 1;
     if (selected_ < scroll_) scroll_ = selected_;
@@ -747,7 +831,8 @@ void App::play_next_from_queue(bool random) {
 void App::play_queue_item(int idx, bool move_along) {
     if (idx < 0 || idx >= static_cast<int>(queue_.size())) return;
     const bool queue_once = settings_.play_mode == 4 && qst_.locked;
-    if (move_along && idx > 0) {   // SHIFT+ENTER: the items in front of it are passed over -- they go to the end in their order (as if they had been played)
+    if (move_along && idx > 0) {   // ENTER (Reposition Queue State): the items in front of it are passed over -- they go to the end in their order
+        // (as if they had been played). Not locked as well: they were not played, so they are not dropped -- they wait at the end, as in a locked queue.
         std::rotate(queue_.begin(), queue_.begin() + idx, queue_.end());
         for (size_t i = queue_.size() - static_cast<size_t>(idx); i < queue_.size(); ++i) queue_[i].played = queue_once;
         idx = 0;
@@ -802,7 +887,8 @@ void App::advance_track() {
         return;
     }
     if (settings_.play_mode == 1 /*loop*/) {
-        launch_device_play_async(); // same track, already fully decoded, no reload needed
+        if (gap_.switched) { gap_.switched = false; gap_.switched_job.reset(); }   // gapless: the player is at its start again already
+        else launch_device_play_async(); // same track, already fully decoded, no reload needed
         has_track_ = true;
         // One play of it just ended and looping it starts another one -- the
         // record is closed (verdict still readable: clear_finished() is

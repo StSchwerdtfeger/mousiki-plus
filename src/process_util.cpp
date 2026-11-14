@@ -28,6 +28,9 @@
 #include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#if defined(__APPLE__)
+#include <sys/sysctl.h>
+#endif
 extern char** environ;
 #endif
 
@@ -586,6 +589,24 @@ ProcResult run_capture(const Args& args, bool merge_stderr) {
 
     ConsoleLog::instance().log_command(command_text(args), result.out, result.exit_code);
     return result;
+}
+
+long long physical_memory_mb() {
+#if defined(_WIN32)
+    MEMORYSTATUSEX st;
+    st.dwLength = sizeof st;
+    if (GlobalMemoryStatusEx(&st)) return static_cast<long long>(st.ullTotalPhys / (1024ULL * 1024ULL));
+    return 0;
+#elif defined(__APPLE__)
+    int64_t bytes = 0;
+    size_t len = sizeof bytes;
+    if (sysctlbyname("hw.memsize", &bytes, &len, nullptr, 0) == 0 && bytes > 0) return static_cast<long long>(bytes / (1024LL * 1024LL));
+    return 0;
+#else
+    const long pages = sysconf(_SC_PHYS_PAGES), page = sysconf(_SC_PAGESIZE);
+    if (pages <= 0 || page <= 0) return 0;
+    return static_cast<long long>(pages) * page / (1024LL * 1024LL);
+#endif
 }
 
 } // namespace muisc

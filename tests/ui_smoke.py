@@ -69,7 +69,8 @@ def make_png(path, size=64):
 
 class Session:
     def __init__(self, binary, home, scripts, env_extra=None, quiet_stderr=False, gfx=False):
-        self.raw = b""
+        self.raw = bytearray()   # (a bytearray: bytes += copies all of it each read, and the pictures make it hundreds of MB)
+        self._sync_open = False  # inside a synchronized update (ESC[?2026h without its ESC[?2026l yet)
         # gfx=True: the Kitty graphics commands are taken out of the stream before the screen model sees it (otherwise their data ends up as text on
         # the screen) and kept: self.pics = {image id: where it is placed (row, col of the cell, c x r cells, the cropped pixels x, y, w, h)},
         # self.pic_rgba = {image id: (width, height, RGBA bytes) of the last complete transmission}
@@ -78,6 +79,17 @@ class Session:
         self.pic_rgba = {}
         self._apc_rest = b""
         self._apc_pending = None
+        # Auto-Play is off by default (the opening track stands paused); the scenarios were written for a track that plays at once: a config
+        # that does not say otherwise gets AutoPlay=true (auto_play_setting checks the default itself)
+        cfg = os.path.join(home, ".config", "mousiki", "config.txt")
+        try:
+            with open(cfg, encoding="utf-8") as f:
+                has_ap = "AutoPlay=" in f.read()
+            if not has_ap:
+                with open(cfg, "a", encoding="utf-8") as f:
+                    f.write("\nAutoPlay=true\n")
+        except OSError:
+            pass
         env = dict(os.environ, HOME=home, USERPROFILE=home, TERM="xterm-256color", LANG="C.UTF-8")
         env.pop("KITTY_WINDOW_ID", None)
         env.pop("WT_SESSION", None)
@@ -122,7 +134,7 @@ class Session:
         # in pieces: when the time is up in the middle of one, read on (at most one more second) until that frame is complete,
         # so the checks never see half a frame (on a slow machine that happened now and then: "frame broken" on a good frame).
         hard_end = end + 1.0
-        while time.time() < end or (time.time() < hard_end and self.raw.rfind(b"\x1b[?2026h") > self.raw.rfind(b"\x1b[?2026l")):
+        while time.time() < end or (time.time() < hard_end and self._sync_open):
             r, _, _ = select.select([self.fd], [], [], 0.1)
             if r:
                 try:
@@ -131,7 +143,12 @@ class Session:
                     return
                 if not data:
                     return
+                at = max(0, len(self.raw) - 8)
                 self.raw += data
+                tail = self.raw[at:]   # (only the new part is searched: the whole buffer each read made the harness lag seconds behind)
+                lh, ll = tail.rfind(b"\x1b[?2026h"), tail.rfind(b"\x1b[?2026l")
+                if lh >= 0 or ll >= 0:
+                    self._sync_open = lh > ll
                 if self.gfx:
                     self._feed_gfx(data)
                 else:
@@ -144,7 +161,10 @@ class Session:
         while True:
             a = buf.find(b"\x1b_G", pos)
             if a < 0:
-                self.stream.feed(buf[pos:])
+                # (a command whose start is cut by the read -- "...ESC" | "_G..." -- is kept for the next read: fed now, its data ended up as text)
+                keep = 2 if buf.endswith(b"\x1b_") else 1 if buf.endswith(b"\x1b") else 0
+                self.stream.feed(buf[pos:len(buf) - keep])
+                self._apc_rest = buf[len(buf) - keep:] if keep else b""
                 return
             self.stream.feed(buf[pos:a])
             e = buf.find(b"\x1b\\", a)
@@ -381,8 +401,8 @@ def radio_latin_toggle(binary, root, scripts):
 
 
 def radio_sign_border(binary, root, scripts):
-    """Radio, GENERAL tab: Sign border (SignBorder=, true by default) -- the " : : " column between the ON AIR / OFF AIR sign and the station info.
-    Off: no column, the station info stays in its place, nothing runs past the window; the row is in the settings and ENTER on it switches it."""
+    """Radio, ANIMA/VIZ tab -> ON AIR SIGN: Sign border (SignBorder=, false by default since batch 279) -- the " : : " column between the ON AIR / OFF AIR
+    sign and the station info. Off: no column, the station info stays in its place, nothing runs past the window; the row is in the settings."""
     def start(tag, border):
         home = os.path.join(root, "rsb_home_" + tag)
         cfgdir = os.path.join(home, ".config", "mousiki")
@@ -409,17 +429,17 @@ def radio_sign_border(binary, root, scripts):
                 break
             out.append(l)
         return out
-    sess, _ = start("on", None)
+    sess, _ = start("on", True)
     try:
         p_on = panel(sess)
-        check(len(p_on) >= 8 and sum(1 for l in p_on if " : : " in l) >= len(p_on) - 1, "radio sign border: on by default, the \" : : \" column runs down the info panel")
+        check(len(p_on) >= 8 and sum(1 for l in p_on if " : : " in l) >= len(p_on) - 1, "radio sign border: SignBorder=true, the \" : : \" column runs down the info panel")
         col_on = next((l.find(":") for l in p_on if " : : " in l), -1)
     finally:
         sess.kill()
-    sess, cfgdir = start("off", False)
+    sess, cfgdir = start("off", None)
     try:
         p_off = panel(sess)
-        check(len(p_off) >= 8 and not any(" : : " in l for l in p_off), "radio sign border: SignBorder=false leaves the column out")
+        check(len(p_off) >= 8 and not any(" : : " in l for l in p_off), "radio sign border: off by default -- no column")
         check_fit(sess, "radio sign border off", False)
         # the station info starts in the same column either way (the column is replaced by spaces, the sign moves into the middle)
         same = len(p_on) == len(p_off) and all(len(a) == len(b) for a, b in zip(p_on, p_off))
@@ -435,7 +455,7 @@ def radio_sign_border(binary, root, scripts):
                 found = True
                 break
             sess.send(b"\t", 0.6)
-        check(found, "radio sign border: the GENERAL tab has the Sign border row")
+        check(found and "ON AIR SIGN" in sess.text(), "radio sign border: the row is in the ON AIR SIGN part of the settings")
     finally:
         sess.kill()
 
@@ -697,9 +717,9 @@ def paging_and_translit_row(binary, root, scripts):
                 if label in line and "Preview:" not in line:   # (the preview box on the right is titled with the row)
                     return line
             return ""
-        # GENERAL tab: Playback, Start Mode, Display queue, MODES ON/OFF AND ORDER (6 rows), AUDIO (5 rows),
-        # TERMINAL: Black Background, then Use Terminal Settings (row 16, after AUDIO with Choose Audio Device and Pause Fade)
-        for _ in range(16):
+        # GENERAL tab: Playback, Start Mode, Display queue, MODES ON/OFF AND ORDER (6 rows), AUDIO (9 rows: Choose Audio Device ... Pause Fade, Auto-Play,
+        # Gapless Playback), TERMINAL: Black Background, then Use Terminal Settings (row 18)
+        for _ in range(18):
             sess.send(b"\x1b[B", 0.1)
         check("Use Terminal Settings" in find("Use Terminal Settings") and "false" in find("Use Terminal Settings"),
               "use terminal settings: the row exists and is false by default")
@@ -2393,7 +2413,7 @@ def video_fx_picker(binary, root, scripts):
         sess.wait_for(lambda t: "VIDEO EFFECT" in t)
         t = sess.text()
         check("VIDEO EFFECT" in t and "Phosphor Green Glow" in t and "Night Vision" not in t and "Game Boy High-Res Gradient" in t and "CGA" in t and "C64" in t, "effect picker: ENTER lists all the effects, the new ones too (no Night Vision): %r" % t[:0])
-        rows = [l for l in t.splitlines() if "Scanlines" in l and "Halftone CMYK" in l]
+        rows = [l for l in t.splitlines() if "Scanlines" in l and "Dither B/W" in l]   # (41 effects: the second column starts with Dither Gradient, Scanlines faces Dither B/W)
         check(bool(rows), "effect picker: the effects stand in two columns side by side")
         check("VIDEO SETTINGS" not in t and "Use Video in Lyrics Field" not in t, "effect picker: the list is the only panel while it is open (the VIDEO SETTINGS overlay it came from is not drawn beside it or behind it)")
         check("\u2580" in t, "effect picker: the preview column is drawn (half blocks)")
@@ -2472,7 +2492,7 @@ def video_fx_picker(binary, root, scripts):
         sess.send(b"\x1b[B", 0.3)
         sess.send("\r", 1.2)
         t = sess.text()
-        check("VIDEO EFFECT" not in t and "video effect: Dither Gradient" in t, "effect picker: Settings takes the choice (Dither Gradient, one below Dither B/W where the picker started: the right arrow had taken CRT one column on)")
+        check("VIDEO EFFECT" not in t and "video effect: Pixel" in t, "effect picker: Settings takes the choice (Pixel, one below Dither Gradient where the picker started: the right arrow had taken CRT one column on)")
         check(sess.alive(), "effect picker: the program is still running")
     finally:
         sess.kill()
@@ -2607,6 +2627,10 @@ def video_fx_picker_picture(binary, root, scripts):
         return PIC in sess.raw[mark:]
     def picture_in_panel(what):
         """The list is one centred panel and its preview picture (image 7202) is large and lies inside it."""
+        for _ in range(16):   # (the harness reads the terminal slower than the program writes it: wait for the panel to be on the screen)
+            if fx_panel(sess) is not None and sess.pics.get(7202):
+                break
+            sess.pump(0.25)
         pan, p2 = fx_panel(sess), sess.pics.get(7202)
         check(pan is not None, "effect list picture (%s): the panel is on the screen" % what)
         check(p2 is not None, "effect list picture (%s): the preview picture is placed" % what)
@@ -2694,8 +2718,73 @@ def video_fx_picker_picture(binary, root, scripts):
         picture_in_panel("VIDEO SETTINGS")
         mark = len(sess.raw)
         sess.send(b"\x1b", 1.0)
+        for _ in range(12):
+            if b"a=d,d=I,i=7202" in sess.raw[mark:] and "VIDEO SETTINGS" in sess.text():
+                break
+            sess.pump(0.25)
         check(b"a=d,d=I,i=7202" in sess.raw[mark:] and "VIDEO SETTINGS" in sess.text(), "effect list picture (VIDEO SETTINGS): the picture is deleted when the list closes and the overlay is back")
         check(sess.alive(), "effect list picture: the program is still running")
+    finally:
+        sess.kill()
+
+
+def video_fx_picker_third_slot(binary, root, scripts):
+    """The effect list from VIDEO SETTINGS when the main screen behind already shows two pictures (the album cover, Kitty image 7201, and the video
+    next to it, 7202): the preview is still a real picture at the video's resolution -- in a third picture of its own (7203) inside the panel -- not
+    half blocks of text (it was: the coarse, "pixelated" preview of VIDEO SETTINGS and Style Option). The cover and the video stay, cut open where the
+    panel lies; ESC deletes the preview and the overlay is back."""
+    import shutil, subprocess
+    if not shutil.which("ffmpeg"):
+        print("  skipped: effect list third picture (ffmpeg is not installed on this machine)")
+        return
+    home = os.path.join(root, "fp3_home")
+    lib = os.path.join(root, "fp3_music")
+    os.makedirs(os.path.join(home, ".config", "mousiki"))
+    os.makedirs(lib)
+    ff = ["ffmpeg", "-v", "error", "-y"]
+    ok = subprocess.run(ff + ["-f", "lavfi", "-i", "sine=frequency=440:duration=30", os.path.join(lib, "Clip Song.mp3")], capture_output=True).returncode == 0
+    ok &= subprocess.run(ff + ["-f", "lavfi", "-i", "testsrc=size=160x90:rate=10:duration=30", "-pix_fmt", "yuv420p", os.path.join(lib, "Clip Song.mp4")], capture_output=True).returncode == 0
+    if not ok:
+        print("  (skipped: ffmpeg could not make the test files)")
+        return
+    make_png(os.path.join(lib, "cover.png"))
+    with open(os.path.join(home, ".config", "mousiki", "config.txt"), "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nVideoMode=true\nVideoView=true\nHKeyVideo=Y\nWizardSeen=true\nAlbumCover=true\nCoverMode=just cover\n" % lib)
+    sess = Session(binary, home, scripts, {"KITTY_WINDOW_ID": "1", "TERM": "xterm-kitty", "MOUSIKI_NULL_AUDIO": "1"}, quiet_stderr=True, gfx=True)
+    try:
+        sess.wait_for(lambda t: "Clip Song" in t, 15)
+        for _ in range(20):
+            if 7201 in sess.pics and 7202 in sess.pics:
+                break
+            sess.pump(0.5)
+        check(7201 in sess.pics and 7202 in sess.pics, "effect list third picture: the main screen shows two pictures (the cover and the video next to it)")
+        sess.send("Y", 1.5)
+        for _ in range(14):
+            if "> Effect" in sess.text():
+                break
+            sess.send(b"\x1b[B", 0.3)
+        check("> Effect" in sess.text(), "effect list third picture: the Effect row of VIDEO SETTINGS is reached")
+        mark = len(sess.raw)
+        sess.send(b"\r", 2.0)
+        check("VIDEO EFFECT" in sess.text(), "effect list third picture: ENTER opens the list")
+        for _ in range(16):
+            if 7203 in sess.pics:
+                break
+            sess.pump(0.5)
+        p3, pan = sess.pics.get(7203), fx_panel(sess)
+        check(p3 is not None, "effect list third picture: the preview is a picture of its own (Kitty image 7203)")
+        check("\u2580".encode() not in sess.raw[mark:], "effect list third picture: no half blocks of text are drawn for it")
+        if p3 and pan:
+            top, bot, left, right = pan
+            check(p3["w"] >= 600 and p3["c"] >= 40, "effect list third picture: large and at the video's resolution (%d cells, %d pixels across)" % (p3["c"], p3["w"]))
+            check(top < p3["row"] and p3["row"] + p3["r"] <= bot and left < p3["col"] and p3["col"] + p3["c"] <= right, "effect list third picture: it lies inside the panel")
+        check(7201 in sess.pics and 7202 in sess.pics, "effect list third picture: the cover and the video behind stay on the screen")
+        hole = fx_hole(sess, pan, 7202) if pan else None
+        check(hole is None or hole[0] is None or hole[0] >= 0.98, "effect list third picture: the video behind is cut open where the panel lies (%s)" % (None if hole is None or hole[0] is None else "%.0f%%" % (100 * hole[0])))
+        mark = len(sess.raw)
+        sess.send(b"\x1b", 1.2)
+        check(b"a=d,d=I,i=7203" in sess.raw[mark:] and 7203 not in sess.pics and "VIDEO SETTINGS" in sess.text(), "effect list third picture: ESC deletes it and VIDEO SETTINGS is back")
+        check(sess.alive(), "effect list third picture: the program is still running")
     finally:
         sess.kill()
 
@@ -2722,7 +2811,7 @@ def video_fx_picker_sizes(binary, root, scripts):
         os.kill(sess.pid, signal.SIGWINCH)
         sess.screen = pyte.Screen(c, r)
         sess.stream = pyte.ByteStream(sess.screen)
-        sess.raw = b""
+        sess.raw = bytearray()
         sess.pump(1.2)
 
     try:
@@ -3138,7 +3227,7 @@ def video_library_modes(binary, root, scripts):
 
 def main_lyrics_translation_key(binary, root, scripts):
     """The Latin letters key (" = SHIFT+2 on a German keyboard) on the main screen while the lyrics field shows synced lyrics that have a saved
-    translation: original -> Latin letters -> Latin letters + the translation -> original."""
+    translation: the lyrics -> in Latin letters -> the lyrics + the translation -> in Latin letters + the translation -> the lyrics."""
     home = os.path.join(root, "mlt_home")
     lib = os.path.join(root, "mlt_music")
     os.makedirs(os.path.join(home, ".config", "mousiki"))
@@ -3167,12 +3256,15 @@ def main_lyrics_translation_key(binary, root, scripts):
         sess.send(b"\r", 3.0)
         check(sess.wait_for(lambda t: "\u3084\u3088\u3044" in t, 8), "lyrics translation key: the lyrics field shows the original lyrics")
         check("Cherry" not in sess.text(), "lyrics translation key: ... and no translation")
+        J = "\u3084\u3088\u3044"   # (the original's second line, in Japanese)
         sess.send('"', 1.0)
-        check(sess.wait_for(lambda t: "yayoino" in t, 4) and "Cherry" not in sess.text(), "lyrics translation key: 1st press = the lyrics in Latin letters")
+        check(sess.wait_for(lambda t: "yayoino" in t, 4) and "spring" not in sess.text(), "lyrics translation key: 1st press = the lyrics in Latin letters")
         sess.send('"', 1.0)
-        check(sess.wait_for(lambda t: "In the spring sky" in t, 4) and "yayoino" not in sess.text(), "lyrics translation key: 2nd press = the translation in the lyrics field")
+        check(sess.wait_for(lambda t: J in t and "In the spring sky" in t, 4) and "yayoino" not in sess.text(), "lyrics translation key: 2nd press = the lyrics + the translation")
         sess.send('"', 1.0)
-        check(sess.wait_for(lambda t: "\u3084\u3088\u3044" in t, 4) and "spring" not in sess.text() and "yayoino" not in sess.text(), "lyrics translation key: 3rd press = the original again (Latin letters off)")
+        check(sess.wait_for(lambda t: "yayoino" in t and "In the spring sky" in t, 4) and J not in sess.text(), "lyrics translation key: 3rd press = in Latin letters + the translation")
+        sess.send('"', 1.0)
+        check(sess.wait_for(lambda t: J in t, 4) and "spring" not in sess.text() and "yayoino" not in sess.text(), "lyrics translation key: 4th press = the lyrics as they are again")
         sess.send('"', 1.0)
         check(sess.wait_for(lambda t: "yayoino" in t, 4), "lyrics translation key: and round again: Latin letters")
         check(sess.alive(), "lyrics translation key: the program is still running")
@@ -3386,7 +3478,7 @@ def video_fullscreen_sizes(binary, root, scripts):
         sess.send(b"\r", 2.0)
         sess.send("v", 1.0)
         check("Effect:" in sess.text() and sess.alive(), "full screen video: a track without a video opens it too (the clapperboard)")
-        check("No video for this track." in sess.text() and "Fetch video via [" in sess.text() and "pair local video via [" in sess.text(), "full screen video: the note for a track without a video")
+        check("No video for this track." in sess.text() and "Fetch video via [" in sess.text() and "pair local video via video options in [" in sess.text(), "full screen video: the note for a track without a video")
         sess.send("v", 1.0)
         check("Effect:" not in sess.text() and sess.alive(), "full screen video: v closes it again")
         # the overlay does not depend on the Video mode: with it off a track with a video still shows its picture
@@ -3843,6 +3935,983 @@ def radio_cli(binary, root, scripts):
         sess.kill()
 
 
+def milkdrop_layouts_style(binary, root, scripts):
+    """The MilkDrop visuals in the big video overlay and in Style Option: "m" switches the big overlay between the video and the visuals
+    (VideoFullSource), SHIFT+UP / DOWN go through the MilkDrop layouts (VideoFullMilkDropLayout 0..4: the visuals, + osci, + osci and
+    spectrogram, the quartet, video | visuals) with one picture per place (Kitty ids 7201..7203); the video layouts have the quartet too
+    (VideoLayout=4); ":" opens the visuals overlay over the big overlay. Style Option has "MilkDrop for this track" and "More Options" (the preset overlay of the track):
+    "on" switches the field to the visuals while the track plays, the next track gives the view back. Skipped without projectM / ffmpeg."""
+    import shutil, subprocess
+    if not shutil.which("ffmpeg"):
+        print("  skipped: milkdrop layouts (ffmpeg is not installed on this machine)")
+        return
+    home = os.path.join(root, "mdl_home")
+    lib = os.path.join(root, "mdl_music")
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    os.makedirs(lib)
+    ff = ["ffmpeg", "-v", "error", "-y"]
+    ok = subprocess.run(ff + ["-f", "lavfi", "-i", "sine=frequency=440:duration=120", os.path.join(lib, "Alpha Clip.mp3")], capture_output=True).returncode == 0
+    ok &= subprocess.run(ff + ["-f", "lavfi", "-i", "testsrc=size=160x90:rate=10:duration=120", "-pix_fmt", "yuv420p", os.path.join(lib, "Alpha Clip.mp4")], capture_output=True).returncode == 0
+    if not ok:
+        print("  (skipped: ffmpeg could not make the test files)")
+        return
+    make_wav(os.path.join(lib, "Beta Song.wav"), 120)
+    cfg = os.path.join(cfgdir, "config.txt")
+    with open(cfg, "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=true\nUseLyrics=false\nUseSphere=false\nVizDefault=osci\n"
+                "VideoMode=true\nVideoAuto=false\nHKeyVideo=Y\n" % lib)
+    env = {"MOUSIKI_NULL_AUDIO": "1", "KITTY_WINDOW_ID": "1", "TERM": "xterm-kitty"}
+    sess = Session(binary, home, scripts, env, quiet_stderr=True, gfx=True)
+    try:
+        sess.wait_for(lambda t: "Alpha Clip" in t, 10)
+        sess.pump(2.0)
+        sess.send(":", 1.5)
+        if "Not available" in sess.text():
+            print("  skipped: milkdrop layouts (projectM 4 or presets are not installed on this machine)")
+            return
+        sess.send(b"\x1b", 0.8)
+        def conf():
+            with open(cfg, encoding="utf-8") as f:
+                return f.read()
+        def big(ids, minc=8, minr=3):   # the pictures placed now (Kitty ids) that are at least that big
+            return [i for i in ids if i in sess.pics and sess.pics[i]["c"] >= minc and sess.pics[i]["r"] >= minr]
+        def settle(cond, tries=12):
+            for _ in range(tries):
+                if cond():
+                    return True
+                sess.pump(0.5)
+            return cond()
+        # --- the big overlay: the video layouts have the quartet (SHIFT+UP from the first layout goes round to it)
+        sess.send("v", 2.0)
+        t = sess.text()
+        check("[m] MilkDrop" in t and "[:] Visuals" in t, "big overlay: the legend names [m] MilkDrop and the visuals overlay key")
+        sess.send(b"\x1b[1;2A", 1.0)
+        check("VideoLayout=4" in conf(), "big overlay: SHIFT+UP from the first video layout goes round to the quartet (VideoLayout=4)")
+        # (the oscilloscope is braille here: its picture style is not on; the spectrogram is drawn in tiles of its own)
+        check(settle(lambda: len(big([7201, 7202])) == 2), "big overlay quartet: the video and the MilkDrop visuals are pictures (%s)" % sorted(big([7201, 7202, 7203])))
+        if len(big([7201, 7202])) == 2:
+            V, M = sess.pics[7201], sess.pics[7202]
+            top_left = "".join(sess.screen.display[r][3:M["col"] - 1] for r in range(1, V["row"] - 1))
+            check(M["row"] < V["row"] and M["col"] > V["col"] and any(0x2800 < ord(ch) <= 0x28FF for ch in top_left),
+                  "big overlay quartet: oscilloscope top left, MilkDrop top right, video bottom left (video %s, milkdrop %s)" % ((V["row"], V["col"]), (M["row"], M["col"])))
+        sess.send(b"\x1b[1;2B", 1.0)
+        check("VideoLayout=0" in conf(), "big overlay: SHIFT+DOWN from the quartet goes round to the first layout")
+        # --- m: the MilkDrop visuals take the overlay
+        sess.send("m", 1.5)
+        check("VideoFullSource=milkdrop" in conf(), "big overlay: m switches to the MilkDrop visuals (VideoFullSource=milkdrop)")
+        check("MILKDROP" in sess.text() and "[m] Video" in sess.text(), "big overlay: the title says MILKDROP, the legend offers [m] Video")
+        check(settle(lambda: len(big([7201, 7202, 7203], 30, 10)) == 1), "big overlay MilkDrop layout 0: one big picture (%s)" % sorted(big([7201, 7202, 7203])))
+        names = {1: "+ osci", 2: "+ osci and spectrogram", 3: "quartet", 4: "video | visuals"}
+        want = {1: 1, 2: 1, 3: 2, 4: 2}   # the pictures (the oscilloscope is braille here, the spectrogram has tiles of its own)
+        for k in range(1, 5):
+            sess.send(b"\x1b[1;2B", 1.2)
+            check("VideoFullMilkDropLayout=%d" % k in conf(), "big overlay MilkDrop: SHIFT+DOWN -> layout %d (%s)" % (k, names[k]))
+            check(settle(lambda: len(big([7201, 7202, 7203], 20, 10)) == want[k], 16), "big overlay MilkDrop layout %d: %d pictures (%s)" % (k, want[k], {i: (p["row"], p["col"], p["c"], p["r"]) for i, p in sess.pics.items() if i < 7300}))
+        def side_by_side():
+            if len(big([7201, 7202], 6, 2)) != 2:
+                return False
+            V, M = sess.pics[7201], sess.pics[7202]
+            return V["col"] + V["c"] <= M["col"] and M["row"] <= V["row"] and V["row"] + V["r"] <= M["row"] + M["r"]
+        check(settle(side_by_side, 12), "big overlay MilkDrop layout 4: the video left (its height centred), the visuals right (%s)" % {i: (p["row"], p["col"], p["c"], p["r"]) for i, p in sess.pics.items() if i < 7300})
+        sess.send(b"\x1b[1;2B", 1.0)
+        check("VideoFullMilkDropLayout=0" in conf(), "big overlay MilkDrop: SHIFT+DOWN goes round to layout 0")
+        sess.send(":", 1.2)
+        check(settle(lambda: "Visuals: MilkDrop" in sess.text() and "MILKDROP" in sess.text(), 10), "big overlay: \":\" opens the visuals overlay over it")
+        sess.send(b"\x1b", 0.8)
+        check("Visuals: MilkDrop" not in sess.text() and "MILKDROP" in sess.text(), "big overlay: ESC closes the visuals overlay, the big overlay stays")
+        sess.send("m", 1.0)
+        check("VideoFullSource=video" in conf(), "big overlay: m again goes back to the video")
+        sess.send(b"\x1b", 1.5)
+        # --- Style Option: MilkDrop for this track (the rows above the album row)
+        def md_field():
+            p = sess.pics.get(7201)
+            return p is not None and p["c"] >= 30 and p["r"] >= 10
+        check(not md_field(), "style option: the field is not on MilkDrop before")
+        sess.send("S", 1.5)
+        check(settle(lambda: "MilkDrop for this track" in sess.text() and "More Options" in sess.text(), 10),
+              "style option: the MilkDrop rows are there (projectM installed)")
+        for _ in range(3):   # Look -> (up) the album row -> More Options -> MilkDrop for this track
+            sess.send(b"\x1b[A", 0.25)
+        sess.send(b"\x1b[C", 1.0)
+        check(settle(lambda: "on (shown while it plays)" in sess.text(), 4), "style option: RIGHT on MilkDrop for this track -> on (%r)" % next((l.strip()[:70] for l in sess.screen.display if "MilkDrop for" in l), None))
+        ok = settle(md_field, 24)
+        if not ok:
+            open(os.path.join(root, "mdl_fail_screen.txt"), "w", encoding="utf-8").write(sess.text() + "\n\n" + repr({i: p for i, p in sess.pics.items() if i < 7300}))
+        check(ok, "style option: the field switches to the MilkDrop visuals (the first picture within 12 s, also on a busy machine; %s)" % {i: (p["row"], p["col"], p["c"], p["r"]) for i, p in sess.pics.items() if i < 7300})
+        sess.pump(2.0)   # (the first preset is chosen once the visuals run)
+        sess.send(b"\x1b[B", 0.3)
+        # More Options: the preset overlay of this track -- its options on top, ENTER on a preset makes it the track's own
+        sess.send("\r", 1.5)
+        check(settle(lambda: "MILKDROP FOR THIS TRACK" in sess.text() and "Keep Preset" in sess.text(), 8), "style option: ENTER on More Options opens the preset overlay of this track")
+        sess.send(b"\x1b[H", 0.8)   # HOME: the list's first row; UP from there: the option rows (Effect is the last of them)
+        sess.send(b"\x1b[A", 0.8)
+        check(settle(lambda: "[\u2190\u2192] change" in sess.text(), 4), "style option: More Options: UP from the list's first row reaches the track's options")
+        sess.send(b"\x1b[C", 0.8)
+        check(settle(lambda: any("Effect " in l and "Off" in l and "as the visuals" not in l for l in sess.screen.display), 4), "style option: More Options: RIGHT on Effect gives the track an effect of its own (Off first)")
+        sess.send(b"\x1b[B", 0.5)   # (back to the list)
+        sess.send("/", 0.5)           # (a known preset, found with the search: the folder's rows differ from one preset pack to another)
+        for ch in "stickflower":
+            sess.send(ch, 0.1)
+        settle(lambda: "Stickflower" in sess.text(), 10)
+        sess.send("\r", 0.8)          # (from the query to the list)
+        sess.send("\r", 2.0)          # (the first result: the track's own)
+        store = os.path.join(home, ".cache", "mousiki", "covers", "choices.txt")
+        def stored():
+            return [l for l in open(store, encoding="utf-8").read().split("\n") if l.startswith("D\t")] if os.path.exists(store) else []
+        # (the message is checked loosely: the panel's turning disk makes every frame a whole one, and a reader of the terminal can catch one half
+        # written while the visuals keep the machine busy)
+        chosen = settle(lambda: "MILKDROP FOR THIS TRACK" not in sess.text() and any("Stickflower" in l for l in stored()), 15)
+        check(chosen, "style option: ENTER on a preset makes it the track's own (%r)" % next((l.strip()[:90] for l in sess.screen.display if "saved:" in l), None))
+        rec = stored()
+        check(len(rec) == 1 and "Alpha Clip" in rec[0] and rec[0].split("\t")[2].startswith("1|") and ".milk" in rec[0] and rec[0].endswith("\t-1\t0"),
+              "style option: the track's MilkDrop choice is stored with its file, keep and effect (%r)" % (rec[0][-80:] if rec else None))
+        for _ in range(3):   # (ESC closes Style Option; on a busy machine an ESC read together with the next key would be ALT+key)
+            sess.send(b"\x1b", 1.5)
+            if settle(lambda: "STYLE OPTION" not in sess.text(), 6):
+                break
+        # the next track has no choice: the view before (the oscilloscope) comes back
+        sess.send("n", 2.5)
+        check(settle(lambda: not md_field() and "Beta Song" in sess.text()), "style option: the next track gives the field back (no MilkDrop picture; %s)" % {i: (p["row"], p["col"], p["c"], p["r"]) for i, p in sess.pics.items() if i < 7300})
+        check(sess.alive(), "milkdrop layouts: the program is still running")
+    finally:
+        sess.kill()
+
+
+def settings_general_texts(binary, root, scripts):
+    """Settings -> GENERAL: Start Mode reads "music player"; Track Buffer (MB) has a five-character field, a typed number above the limit is
+    set to it (a quarter of the RAM, at most 16384) and the status line names the range; the [ Set back to default ] buttons of Track Buffer
+    and Terminal Size are in the same column (51); the transliteration previews are what Mousiki makes of the examples (Translit. Kanji:
+    the poem, Japanese text is not changed by the row; Latin Name Lookup: the name order and the names that are never looked up)."""
+    lib = os.path.join(root, "sgt_music")
+    os.makedirs(lib)
+    make_wav(os.path.join(lib, "Alpha Song.wav"), 20)
+    home = os.path.join(root, "sgt_home")
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=false\n" % lib)
+    sess = Session(binary, home, scripts, {"MOUSIKI_NULL_AUDIO": "1"}, quiet_stderr=True)
+    try:
+        sess.wait_for(lambda t: "Alpha Song" in t, 10)
+        sess.send("s", 1.2)
+        sess.send(b"\t", 0.8)   # GENERAL
+        def find(label):
+            return next((l for l in sess.screen.display if label in l and "Preview:" not in l), "")
+        check("music player" in find("Start Mode"), "settings: Start Mode reads music player (%r)" % find("Start Mode").strip()[:60])
+        tb, ts = find("Track Buffer (MB)"), find("Terminal Size")
+        check(tb.find("[ Set back to default ]") == ts.find("[ Set back to default ]") == 50, "settings: the two [ Set back to default ] buttons are in column 51 (%d, %d)" % (tb.find("[ Set back") + 1, ts.find("[ Set back") + 1))
+        def tbval():
+            l = find("Track Buffer (MB)")
+            return l.split(":", 1)[1].split("[")[0].strip() if ":" in l else ""
+        check(tbval() == "64" and tb.find("[ Set back") - tb.find(":") == 19, "settings: the Track Buffer field is five characters wide (%r)" % tb.strip()[:60])
+        for _ in range(12):   # to Track Buffer (MB)
+            sess.send(b"\x1b[B", 0.1)
+        sess.send(b"\r", 0.5)
+        for _ in range(4):
+            sess.send(b"\x7f", 0.1)
+        sess.send("999999", 0.5)   # (a sixth digit is not taken)
+        sess.send(b"\r", 1.0)
+        t = sess.text()
+        val = tbval()
+        check(val.isdigit() and 64 <= int(val) <= 16384 and int(val) < 99999, "settings: a number above the limit is set to the limit (%s)" % val)
+        check("allowed here: 64 - " in t, "settings: the status line names the range")
+        sess.send(b"\x1b[C", 0.4)
+        sess.send(b"\r", 0.8)
+        check(tbval() == "64", "settings: Set back to default restores 64 (%r)" % tbval())
+        sess.send(b"\x1b[D", 0.3)
+        for _ in range(20):   # Track Buffer -> Translit. Kanji (Rate Cap ... Latin Wo)
+            sess.send(b"\x1b[B", 0.1)
+        sess.pump(1.2)
+        t = sess.text()
+        check("Preview: Translit. Kanji" in t and "\u8349\u306e\u540d\u3082" in t and "\u6625\u306e\u96e8" in t and "not changed by this row" in t, "settings: the Translit. Kanji preview shows the poem and what the row does")
+        check("Always the same" not in t and "kusa no na mo" in t, "settings: no \"Always the same\" block; the poem's reading by the kanji reader is named")
+        sess.send(b"\x1b[B", 0.3)
+        sess.pump(1.0)
+        t = sess.text()
+        check("Preview: Latin Name Lookup" in t and "Name order" in t and "HAKU" in t and "\u67f3\u4e95" in t, "settings: the Latin Name Lookup preview explains the name order and shows HAKU and the kanji name")
+        check(sess.alive(), "settings general texts: the program is still running")
+    finally:
+        sess.kill()
+
+
+def overlays_queue_enter(binary, root, scripts):
+    """The big list overlay's legend is a tree with a Switch group and one "[ESC] Close / Clear"; SHIFT+k / SHIFT+l / SHIFT+f open the queue /
+    list / folder overlay from the big video overlay too. In the queue: ENTER (Reposition Queue State) plays the highlighted item and moves the
+    queue along -- in an unlocked queue the items it jumped over are kept at the end; SHIFT+ENTER (Requeue Track and Play) plays only that item."""
+    lib = os.path.join(root, "oqe_music")
+    os.makedirs(lib)
+    for n in "ABCD":
+        make_wav(os.path.join(lib, "Track %s.wav" % n), 60)
+    home = os.path.join(root, "oqe_home")
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=false\n" % lib)
+    sess = Session(binary, home, scripts, {"MOUSIKI_NULL_AUDIO": "1"}, quiet_stderr=True)
+    try:
+        sess.wait_for(lambda t: "Track D" in t, 10)
+        sess.pump(1.0)
+        sess.send("L", 1.0)
+        t = sess.text()
+        check("Switch" in t and "Queue overlay" in t and "Folder overlay" in t and t.count("[ESC]") == 1 and "[ESC] Close / Clear" in t,
+              "list overlay: the legend has a Switch group and one [ESC] Close / Clear")
+        sess.send(b"\x1b", 0.8)
+        check("Switch" not in sess.text(), "list overlay: ESC closes it (no search to clear)")
+        # the big video overlay: SHIFT+k / SHIFT+l / SHIFT+f open the other big overlays
+        for key, word in (("K", "SEARCH QUEUE"), ("L", "Queue overlay"), ("F", "Folder to list")):
+            sess.send("v", 1.0)
+            check("[SHIFT+k] Queue" in sess.text() and "[SHIFT+f] Folders" in sess.text(), "big video overlay: the legend names the queue / list / folder overlays (%s)" % key)
+            sess.send(key, 1.2)
+            check(word in sess.text() and "[v / ESC] Close" not in sess.text(), "big video overlay: %s opens its overlay (%s)" % (key, word))
+            sess.send(b"\x1b", 0.8)
+        # a queue of four
+        for _ in range(4):
+            sess.send("e", 0.4)
+            sess.send(b"\x1b[B", 0.3)
+        sess.send("K", 1.0)
+        def queue_rows():
+            return [l.split("|")[0].strip("\u2502 ").strip() for l in sess.screen.display if "Track " in l and "|" in l]
+        q0 = queue_rows()
+        check(len(q0) == 4, "queue: four items (%s)" % q0)
+        check("Reposition queue state" in sess.text() and "Requeue track and play" in sess.text(), "queue overlay: the legend names ENTER and SHIFT+ENTER")
+        sess.send("!", 0.6)   # unlock
+        check("Lock" in sess.text() and "QUEUE (locked)" not in sess.text(), "queue: unlocked")
+        sess.send(b"\x1b[B", 0.3)
+        sess.send(b"\x1b[B", 0.3)
+        sess.send(b"\r", 1.5)   # ENTER on the third
+        q1 = queue_rows()
+        check(len(q0) == 4 and q1 == q0[3:] + q0[:2], "queue ENTER (unlocked): the third plays, the two before it wait at the end (%s -> %s)" % (q0, q1))
+        sess.send(b"\x1b[B", 0.3)
+        sess.send(b"\x1b[13;2u", 1.5)   # SHIFT+ENTER on the second row
+        q2 = queue_rows()
+        check(len(q1) == 3 and q2 == [q1[0], q1[2]], "queue SHIFT+ENTER: only that item plays, the others stay (%s -> %s)" % (q1, q2))
+        check(sess.alive(), "overlays / queue: the program is still running")
+    finally:
+        sess.kill()
+
+
+def video_fx_list_frozen(binary, root, scripts):
+    """The effect list: in Settings its preview is a picture (Kitty) of the sample video (the cat) when the track has no video; over the main
+    screen the video in the field stands still while the list is open (one decoder: the list's preview plays) and comes back to life when it closes;
+    VIDEO OPTIONS (SHIFT+s in the big video) fills the screen with the options on the left and the video, as a picture, on the right."""
+    import shutil, subprocess
+    if not shutil.which("ffmpeg"):
+        print("  skipped: effect list frozen video (ffmpeg is not installed on this machine)")
+        return
+    lib = os.path.join(root, "vff_music")
+    os.makedirs(lib)
+    ff = ["ffmpeg", "-v", "error", "-y"]
+    ok = subprocess.run(ff + ["-f", "lavfi", "-i", "sine=frequency=440:duration=40", os.path.join(lib, "Clip Song.mp3")], capture_output=True).returncode == 0
+    ok &= subprocess.run(ff + ["-f", "lavfi", "-i", "testsrc2=size=320x180:rate=25:duration=40", "-pix_fmt", "yuv420p", os.path.join(lib, "Clip Song.mp4")], capture_output=True).returncode == 0
+    make_wav(os.path.join(lib, "Plain Song.wav"), 40)
+    if not ok:
+        print("  (skipped: ffmpeg could not make the test files)")
+        return
+    def start(tag):
+        home = os.path.join(root, "vff_home_" + tag)
+        cfgdir = os.path.join(home, ".config", "mousiki")
+        os.makedirs(cfgdir)
+        with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=true\nVideoMode=true\nHKeyVideo=Y\nVideoAuto=true\n" % lib)
+        # (MOUSIKI_SYNC_WRITE: every frame is written before the next is made -- this harness reads the terminal far slower than a terminal does, and
+        # with the frames written behind its back the pictures would wait for it; the picture logic itself is the same)
+        sess = Session(binary, home, scripts, {"MOUSIKI_NULL_AUDIO": "1", "KITTY_WINDOW_ID": "1", "TERM": "xterm-kitty", "MOUSIKI_SYNC_WRITE": "1"}, quiet_stderr=True, gfx=True)
+        sess.wait_for(lambda t: "Clip Song" in t, 10)
+        sess.pump(2.5)
+        return sess
+    sess = start("a")
+    try:
+        def big(i, c=30, r=10):
+            p = sess.pics.get(i)
+            return p is not None and p["c"] >= c and p["r"] >= r
+        # the field plays the video; the VIDEO overlay -> Effect -> ENTER: the list
+        a = sess.pic_rgba.get(7201)
+        sess.pump(1.0)
+        check(a is not None and sess.pic_rgba.get(7201) != a, "effect list: the video in the field plays before")
+        sess.send("Y", 1.0)
+        for _ in range(12):
+            if "> Effect " in sess.text():
+                break
+            sess.send(b"\x1b[B", 0.25)
+        sess.send(b"\r", 1.5)
+        check("VIDEO EFFECT" in sess.text(), "effect list: it opens from the VIDEO overlay")
+        sess.pump(1.5)
+        f0, p0 = sess.pic_rgba.get(7201), sess.pic_rgba.get(7202)
+        sess.pump(1.5)
+        f1, p1 = sess.pic_rgba.get(7201), sess.pic_rgba.get(7202)
+        check(f0 is not None and f0 == f1, "effect list: the video in the field stands still while the list is open")
+        check(p0 is not None and p1 is not None and p0 != p1, "effect list: its preview plays (the screen's decoder)")
+        sess.send(b"\x1b[B", 1.2)   # another effect: the still picture behind shows it too
+        check(sess.pic_rgba.get(7201) != f1, "effect list: the still picture behind takes the highlighted effect")
+        sess.send(b"\x1b", 1.0)
+        sess.send(b"\x1b", 1.0)
+        g0 = sess.pic_rgba.get(7201)
+        sess.pump(1.5)
+        check(g0 is not None and sess.pic_rgba.get(7201) != g0, "effect list: the video plays again after the list")
+        # VIDEO OPTIONS of the big video: the whole screen, the options and the video side by side
+        sess.send("v", 1.5)
+        sess.send("S", 1.5)
+        t = sess.text()
+        p = sess.pics.get(7201)
+        check("VIDEO OPTIONS" in t and "Video Contrast" in t and p is not None and p["col"] > 60 and p["c"] >= 40, "VIDEO OPTIONS: the options on the left, the video as a big picture on the right (%s)" % p)
+        sess.send(b"\x1b", 1.0)
+        sess.send(b"\x1b", 1.0)
+        # Settings: the list's preview is a picture; a track without a video shows the cat
+        sess.send("n", 2.5)   # (Plain Song: no video)
+        sess.send("s", 1.2)
+        sess.send(b"\t", 0.5)
+        sess.send(b"\t", 0.8)
+        for _ in range(7):
+            sess.send(b"\x1b[B", 0.15)
+        sess.send(b"\r", 2.5)
+        check("VIDEO EFFECT" in sess.text(), "effect list: it opens from Settings")
+        check(settle_pic(sess, 7201, 40, 15), "effect list in Settings: the preview is a picture (%s)" % sess.pics.get(7201))
+        c0 = sess.pic_rgba.get(7201)
+        sess.pump(1.0)
+        check(c0 is not None and sess.pic_rgba.get(7201) != c0, "effect list in Settings: the sample video plays in it (no test picture)")
+        check(sess.alive(), "effect list frozen: the program is still running")
+    finally:
+        sess.kill()
+
+
+def settle_pic(sess, i, c, r, tries=12):
+    for _ in range(tries):
+        p = sess.pics.get(i)
+        if p is not None and p["c"] >= c and p["r"] >= r:
+            return True
+        sess.pump(0.5)
+    return False
+
+
+def milkdrop_radio_book(binary, root, scripts):
+    """The MilkDrop visuals in the radio and the audio book player. Radio: "." from the spectrogram reaches MilkDrop in the scope block (a
+    Kitty picture; half blocks on a terminal without pictures), ":" opens the visuals overlay (RIGHT changes the preset, ESC closes and
+    saves OsciSphere=milkdrop and the MilkDrop keys in radio_config.txt), ANIMA/VIZ has a MILKDROP block. Audio book: "." reaches the
+    MilkDrop view in its field, ":" opens the overlay, ANIMA/VIZ has the MILKDROP block and Viz Order 5 (no video place). Skipped without
+    projectM / ffmpeg."""
+    import shutil, subprocess
+    if not shutil.which("ffmpeg"):
+        print("  skipped: milkdrop radio / book (ffmpeg is not installed on this machine)")
+        return
+    tone = os.path.join(root, "mdr_tone.mp3")
+    if subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=330:duration=240", tone], capture_output=True).returncode != 0:
+        print("  (skipped: ffmpeg could not make the test files)")
+        return
+    def settle(sess, cond, tries=12):
+        for _ in range(tries):
+            if cond():
+                return True
+            sess.pump(0.5)
+        return cond()
+    def radio(tag, gfx):
+        home = os.path.join(root, "mdr_home_" + tag)
+        cfgdir = os.path.join(home, ".config", "mousiki")
+        os.makedirs(cfgdir)
+        with open(os.path.join(cfgdir, "stations.txt"), "w", encoding="utf-8") as f:   # a local file plays like a stream
+            f.write("# name | genre | country | codec | kbps | url | [*] favorite\nLocal Tone | Rock | US | MP3 | 128 | %s | *\n" % tone)
+        with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+            f.write("LocalMusicPath=%s\nStartMode=radio\nWizardSeen=true\n" % os.path.join(root, "music"))
+        with open(os.path.join(cfgdir, "radio_config.txt"), "w", encoding="utf-8") as f:
+            f.write("WizardSeen=true\nOsciSphere=spectro\n")
+        env = {"MOUSIKI_RADIO_NULL": "1"}
+        if gfx:
+            env.update({"KITTY_WINDOW_ID": "1", "TERM": "xterm-kitty"})
+        sess = Session(binary, home, scripts, env, quiet_stderr=True, gfx=gfx)
+        sess.wait_for(lambda t: "Local Tone" in t, 15)
+        sess.send(b"\r", 2.0)   # tune it
+        return sess, os.path.join(cfgdir, "radio_config.txt")
+    # --- the radio, Kitty
+    sess, rcfg = radio("kitty", True)
+    try:
+        sess.send(":", 1.2)
+        if "Not available" in sess.text():
+            print("  skipped: milkdrop radio / book (projectM 4 or presets are not installed on this machine)")
+            return
+        check("Visuals: MilkDrop" in sess.text() and "Show in the Scope Block" in sess.text(), "radio: \":\" opens the visuals overlay")
+        sess.send(b"\x1b", 0.8)
+        check("Visuals: MilkDrop" not in sess.text(), "radio: ESC closes the visuals overlay")
+        def big():
+            p = sess.pics.get(7201)
+            return p is not None and p["c"] >= 30 and p["r"] >= 10
+        check(not big(), "radio: no MilkDrop picture on the spectrogram")
+        sess.send(".", 0.5)
+        check(settle(sess, big, 16), "radio: \".\" from the spectrogram reaches MilkDrop, a picture fills the scope block (%s)" % sess.pics.get(7201))
+        a = sess.pic_rgba.get(7201)
+        moved = False
+        for _ in range(8):   # (a busy machine draws fewer pictures a second)
+            sess.pump(0.75)
+            b = sess.pic_rgba.get(7201)
+            if a is not None and b is not None and a != b:
+                moved = True
+                break
+        check(moved, "radio: the MilkDrop picture moves")
+        sess.send(":", 1.5)
+        def preset_line():
+            return next((l for l in sess.screen.display if "> Preset" in l), "")
+        before = preset_line()
+        sess.send(b"\x1b[C", 2.5)
+        after = preset_line()
+        check(before and after and before != after, "radio: RIGHT on Preset changes the preset")
+        check("preset " in sess.text() and " of " in sess.text(), "radio: the overlay shows the preset count")
+        sess.send(b"\x1b", 1.0)
+        with open(rcfg, encoding="utf-8") as f:
+            c = f.read()
+        check("OsciSphere=milkdrop" in c and "MilkDropFrameRate=30" in c and "UseMilkDrop=true" in c, "radio: OsciSphere=milkdrop and the MilkDrop keys are saved in radio_config.txt")
+        sess.send(".", 1.5)
+        check(settle(sess, lambda: not big()), "radio: \".\" goes on from MilkDrop to the oscilloscope")
+        sess.send("s", 1.2)
+        for _ in range(2):
+            sess.send(b"\t", 0.6)
+        for _ in range(60):   # down to the last rows of the tab
+            if "Show Preset Name" in sess.text():
+                break
+            sess.send(b"\x1b[B", 0.1)
+        sess.pump(0.6)
+        t = sess.text()
+        check("MILKDROP" in t and "Use MilkDrop" in t and "Show Preset Name" in t, "radio: ANIMA/VIZ has the MILKDROP block")
+        check(sess.alive(), "radio milkdrop: the program is still running")
+    finally:
+        sess.kill()
+    # --- the radio, no pictures: half blocks
+    sess, rcfg = radio("text", False)
+    try:
+        sess.send(".", 0.5)
+        ok = settle(sess, lambda: sum(l.count("\u2580") for l in sess.screen.display[1:15]) > 200, 16)
+        check(ok, "radio: without pictures MilkDrop is drawn in half blocks (%d)" % sum(l.count("\u2580") for l in sess.screen.display[1:15]))
+    finally:
+        sess.kill()
+    # --- the audio book
+    home = os.path.join(root, "mdb_home")
+    books = os.path.join(root, "mdb_books")
+    os.makedirs(os.path.join(books, "Some Book"))
+    shutil.copy(tone, os.path.join(books, "Some Book", "01 part.mp3"))
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+        f.write("AudioBookPath=%s\nStartMode=audiobook\nUseTerminalSettings=true\nWizardSeen=true\n" % books)
+    sess = Session(binary, home, scripts, {"MOUSIKI_NULL_AUDIO": "1", "KITTY_WINDOW_ID": "1", "TERM": "xterm-kitty"}, quiet_stderr=True, gfx=True)
+    try:
+        sess.wait_for(lambda t: "Some Book" in t, 15)
+        sess.send(b"\r", 2.0)   # open the book
+        sess.send(b"\r", 3.0)   # play it
+        def field():   # the MilkDrop picture in the field (the book's cover is a picture too, but small: 30 x 15 at the left)
+            p = sess.pics.get(7201)
+            return p is not None and p["c"] >= 40 and p["col"] > 40
+        presses = 0
+        for _ in range(6):
+            if field():
+                break
+            sess.send(".", 0.3)
+            presses += 1
+            settle(sess, field, 6)
+        check(field(), "audio book: \".\" reaches the MilkDrop view in its field (%d presses)" % presses)
+        sess.send(":", 1.2)
+        check(settle(sess, lambda: "Visuals: MilkDrop" in sess.text(), 10), "audio book: \":\" opens the visuals overlay")
+        sess.send(b"\x1b", 1.0)
+        bc = os.path.join(cfgdir, "audiobook_config.txt")
+        check(os.path.exists(bc) and "MilkDropView=true" in open(bc, encoding="utf-8").read(), "audio book: the view is saved in audiobook_config.txt (its own)")
+        sess.send("s", 1.2)
+        sess.send(b"\t", 0.5)
+        sess.send(b"\t", 0.8)   # ANIMA/VIZ
+        seen = ""
+        for _ in range(90):   # down through the tab
+            seen += sess.text()
+            if "Show Preset Name" in sess.text() and "Viz Order 5" in seen:
+                break
+            sess.send(b"\x1b[B", 0.1)
+        sess.pump(0.6)
+        seen += sess.text()
+        check("MILKDROP" in seen and "Viz Order 5" in seen and "Viz Order 6" not in seen and "Show Preset Name" in seen, "audio book: ANIMA/VIZ has the MILKDROP block and Viz Order 1..5")
+        check(sess.alive(), "audio book milkdrop: the program is still running")
+    finally:
+        sess.kill()
+
+
+def milkdrop_visuals(binary, root, scripts):
+    """The MilkDrop visuals (projectM, loaded at run time when it is installed): "." reaches the MilkDrop view, which fills the field with a
+    moving picture (Kitty image) drawn from the music; ":" opens the visuals overlay (the preset, previous / next / random, the options;
+    projectM's renderer and the preset count); the view is saved. Without projectM (or without presets) the view is skipped by "." and
+    the overlay says why. Skipped on a machine without projectM."""
+    def start(tag, extra, gfx=True):
+        lib = os.path.join(root, "md_music_" + tag)
+        os.makedirs(lib)
+        make_wav(os.path.join(lib, "Alpha Song.wav"), 40)
+        home = os.path.join(root, "md_home_" + tag)
+        cfgdir = os.path.join(home, ".config", "mousiki")
+        os.makedirs(cfgdir)
+        with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=true\nUseLyrics=false\nUseSphere=false\nVizDefault=osci\n%s" % (lib, extra))
+        env = {"MOUSIKI_NULL_AUDIO": "1"}
+        if gfx:
+            env.update({"KITTY_WINDOW_ID": "1", "TERM": "xterm-kitty"})
+        sess = Session(binary, home, scripts, env, quiet_stderr=True, gfx=gfx)
+        sess.wait_for(lambda t: "Alpha Song" in t, 10)
+        sess.pump(1.5)
+        return sess, os.path.join(cfgdir, "config.txt")
+    # Is projectM here at all? (the overlay says it)
+    sess, cfg = start("probe", "", gfx=False)
+    try:
+        sess.send(":", 1.5)
+        t = sess.text()
+        check("Visuals: MilkDrop" in t, "milkdrop: \":\" opens the visuals overlay")
+        here = "Not available" not in t
+        sess.send(b"\x1b", 0.8)
+        check("Visuals: MilkDrop" not in sess.text(), "milkdrop: ESC closes the overlay")
+    finally:
+        sess.kill()
+    if not here:
+        print("  skipped: MilkDrop drawing (projectM 4 or presets are not installed on this machine)")
+        return
+    # "." reaches the view; the picture fills the field and moves
+    sess, cfg = start("view", "")
+    try:
+        def md_pic():   # the MilkDrop picture: a big picture in the field (the oscilloscope / spectrogram here are braille / tiles)
+            p = sess.pics.get(7201)
+            return p if p and p["c"] >= 30 and p["r"] >= 10 else None
+        presses = 0
+        for _ in range(4):
+            sess.send(".", 0.3)
+            presses += 1
+            for _ in range(8):
+                if md_pic():
+                    break
+                sess.pump(0.5)
+            if md_pic():
+                break
+        check(md_pic() is not None and presses == 2, "milkdrop: \".\" reaches the MilkDrop view (osci -> spectrogram -> MilkDrop: %d presses)" % presses)
+        p = sess.pics.get(7201)
+        check(p is not None and p["c"] >= 30 and p["r"] >= 10, "milkdrop: a picture fills the field (%s)" % (None if p is None else "%d x %d cells" % (p["c"], p["r"])))
+        a = sess.pic_rgba.get(7201)
+        moved = False
+        for _ in range(8):   # (a busy machine draws fewer pictures a second)
+            sess.pump(0.75)
+            b = sess.pic_rgba.get(7201)
+            if a is not None and b is not None and a != b:
+                moved = True
+                break
+        check(moved, "milkdrop: the picture moves (another picture a moment later)")
+        sess.send(":", 1.5)
+        t = sess.text()
+        check("preset " in t and " of " in t and "drawn by" in t, "milkdrop: the overlay shows the preset count and what draws")
+        def preset_line():
+            return next((l for l in sess.screen.display if "> Preset" in l), "")
+        before = preset_line()
+        sess.send(b"\x1b[C", 2.5)   # RIGHT on the Preset row: the next preset
+        after = preset_line()
+        check(before and after and before != after, "milkdrop: RIGHT on Preset changes the preset (%r -> %r)" % (before.strip()[:40], after.strip()[:40]))
+        sess.send(b"\x1b", 1.0)
+        # the preset's name in its box over the field for 3 s after a change (n in the overlay, then closed at once)
+        sess.send(":", 1.2)
+        sess.send("n", 1.0)
+        name = preset_line().split("Preset", 1)[-1].strip(" |<>\u2502")
+        sess.send(b"\x1b", 0.2)
+        frag = name[:12].strip()
+        check(frag and sess.wait_for(lambda t: "Visuals: MilkDrop" not in t and frag in t, 2.0),
+              "milkdrop: the preset's name shows in its box over the field (%r)" % frag)
+        with open(cfg, encoding="utf-8") as f:
+            c = f.read()
+        check("MilkDropView=true" in c, "milkdrop: the view is saved (MilkDropView=true)")
+        check(sess.alive(), "milkdrop: the program is still running")
+    finally:
+        sess.kill()
+    # no presets: "." leaves the view out, the overlay says why
+    sess, cfg = start("nopresets", "MilkDropPresets=%s\n" % os.path.join(root, "md_none"), gfx=False)
+    try:
+        seen = False
+        for _ in range(5):
+            sess.send(".", 0.8)
+            seen = seen or "milkdrop:" in sess.text()
+        check(not seen, "milkdrop: without presets \".\" leaves the view out")
+        sess.send(":", 1.2)
+        check("Not available" in sess.text() and "no MilkDrop presets" in sess.text(), "milkdrop: the overlay says why it cannot run")
+    finally:
+        sess.kill()
+
+
+def milkdrop_preset_overlay(binary, root, scripts):
+    """The visuals overlay's "Preset Overlay" row: the preset folder over the whole screen with the visuals beside it (the highlighted
+    preset plays at once), a "Favourites" folder on top ([a] adds, [d] in it takes out; milkdrop_favourites.txt), ENTER chooses, ESC
+    brings the preset from before back. "Shuffle Favourites" is saved. Skipped on a machine without projectM."""
+    lib = os.path.join(root, "mdp_music")
+    os.makedirs(lib)
+    make_wav(os.path.join(lib, "Alpha Song.wav"), 60)
+    home = os.path.join(root, "mdp_home")
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    cfg = os.path.join(cfgdir, "config.txt")
+    favf = os.path.join(cfgdir, "milkdrop_favourites.txt")
+    with open(cfg, "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=true\nUseLyrics=false\nUseSphere=false\nVizDefault=osci\n"
+                "MilkDropView=true\nMilkDropShuffle=false\nMilkDropPresetDuration=0\nMilkDropHardCuts=false\nVideoResolution=standard\nMilkDropFrameRate=15\nHKeyVideoWindow=\":\"\nHKeyVisualsMenu=\"\"\n" % lib)   # (15 pictures a second: the software renderer leaves room for the keys; no timed or beat changes: the preset stays while it is checked)
+    env = {"MOUSIKI_NULL_AUDIO": "1", "KITTY_WINDOW_ID": "1", "TERM": "xterm-kitty"}
+    sess = Session(binary, home, scripts, env, quiet_stderr=True, gfx=True)
+    try:
+        sess.wait_for(lambda t: "Alpha Song" in t, 10)
+        sess.pump(1.5)
+        # the old video window key is gone and ":" is the visuals key again
+        sess.send(":", 1.5)
+        t = sess.text()
+        check("Visuals: MilkDrop" in t, "preset overlay: \":\" opens the visuals overlay (the old HKeyVideoWindow gave it back)")
+        if "Not available" in t:
+            print("  skipped: MilkDrop drawing (projectM 4 or presets are not installed on this machine)")
+            return
+        check("Preset Overlay" in t and "Shuffle Favourites" in t, "preset overlay: the visuals overlay has the rows Preset Overlay and Shuffle Favourites")
+        def preset_line():
+            return next((l for l in sess.screen.display if "> Preset " in l or "  Preset   " in l), "")
+        sess.wait_for(lambda t: "(starting" not in t and "(shows when" not in t, 8)
+        before = preset_line().split("Preset", 1)[-1].strip(" |<>│")
+        sess.send(b"\x1b[B", 0.5)   # Preset Overlay
+        sess.send("\r", 1.5)
+        check(sess.wait_for(lambda t: "MILKDROP PRESETS" in t, 6), "preset overlay: ENTER on Preset Overlay opens it over the whole screen")
+        def big_pic():
+            for i, p in sess.pics.items():
+                if p and p["c"] >= 30 and p["r"] >= 10:
+                    return p
+            return None
+        check(sess.wait_for(lambda t: big_pic() is not None, 8), "preset overlay: the visuals are shown beside the list (a picture)")
+        check(before[:12] in sess.text(), "preset overlay: it opens on the preset shown (%r)" % before[:12])
+        # the next preset in the list plays at once
+        sess.send(b"\x1b[B", 1.5)
+        sess.send("a", 1.0)
+        favs = open(favf, encoding="utf-8").read() if os.path.exists(favf) else ""
+        lines = [l for l in favs.splitlines() if l and not l.startswith("#")]
+        check(len(lines) == 1 and lines[0].endswith(".milk"), "preset overlay: [a] writes the preset into milkdrop_favourites.txt (%d lines)" % len(lines))
+        added = os.path.splitext(os.path.basename(lines[0]))[0] if lines else "?"
+        # ESC: back to the visuals overlay, the preset from before again
+        sess.send(b"\x1b", 2.5)
+        check(sess.wait_for(lambda t: "MILKDROP PRESETS" not in t and "Visuals: MilkDrop" in t, 6), "preset overlay: ESC goes back to the visuals overlay")
+        check(sess.wait_for(lambda t: before[:12] in preset_line(), 6), "preset overlay: ESC brings the preset from before back (%r)" % preset_line().strip()[:50])
+        # open again, go up to the top: the Favourites folder is first and holds the preset; the other folders are there too
+        sess.send("\r", 1.5)
+        sess.send(b"\x1b[D", 1.0)
+        check(sess.wait_for(lambda t: "▸ " in t and "◂ .." in t, 4), "preset overlay: LEFT goes up one folder and lists its folders")
+        for _ in range(3):
+            sess.send(b"\x1b[D", 0.6)
+        t = sess.text()
+        check("★ Favourites (1)" in t and "▸ Dancer" in t and "▸ Waveform" in t or ("★ Favourites (1)" in t and t.count("▸ ") >= 5),
+              "preset overlay: the top folder lists ★ Favourites (1) and the preset folders")
+        # the search: "/" and a misspelt word still finds the presets (fuzzy), ESC goes back to the folder
+        sess.send("/", 0.5)
+        for c in "stikflower":
+            sess.send(c, 0.1)
+        check(sess.wait_for(lambda t: "Search: stikflower" in t and "Stickflower" in t, 6), "preset overlay: \"/\" searches every preset, fuzzy (stikflower -> Stickflower)")
+        sess.send(b"\x1b", 1.0)
+        check(sess.wait_for(lambda t: "Search:" not in t and "★ Favourites (1)" in t, 4), "preset overlay: ESC clears the search, back in the folder")
+        sess.send(b"\x1b[H", 0.8)   # HOME: the first row, the Favourites folder
+        sess.send(b"\x1b[C", 1.5)
+        check(sess.wait_for(lambda t: "Favourites" in t and added[:12] in t and "remove from favourites" in t, 4), "preset overlay: RIGHT opens the Favourites folder with the preset (%r)" % added[:12])
+        # ENTER chooses it: back in the visuals overlay with that preset
+        sess.send("\r", 2.0)
+        check(sess.wait_for(lambda t: "MILKDROP PRESETS" not in t and added[:12] in preset_line(), 6), "preset overlay: ENTER chooses the preset (%r)" % preset_line().strip()[:50])
+        # [d] in the favourites takes it out
+        sess.send("\r", 1.5)
+        for _ in range(4):
+            sess.send(b"\x1b[D", 0.5)
+        sess.send(b"\x1b[H", 0.8)
+        sess.send(b"\x1b[C", 1.5)
+        sess.send("d", 1.0)
+        favs = open(favf, encoding="utf-8").read()
+        check(not [l for l in favs.splitlines() if l and not l.startswith("#")], "preset overlay: [d] in the Favourites folder takes the preset out")
+        sess.send(b"\x1b", 1.5)
+        # Shuffle Favourites is saved
+        for _ in range(5):
+            sess.send(b"\x1b[B", 0.3)
+        t = sess.text()
+        check(sess.wait_for(lambda t: any("> Shuffle Favourites" in l for l in sess.screen.display), 6), "preset overlay: DOWN reaches Shuffle Favourites")
+        sess.send(b"\x1b[C", 0.8)
+        # Effect and Sixel Colours (6 rows further down): the effect is the visuals' own, the colours adaptive by default
+        def big_rgba():
+            best = None
+            for i, p in sess.pics.items():
+                if p and p["c"] >= 30 and p["r"] >= 10 and i in sess.pic_rgba:
+                    best = sess.pic_rgba[i]
+            return best
+        cube = {v & 0xF8 for v in (0, 40, 85, 135, 190, 255)}   # (Kitty pictures are sent with 5 bits per channel)
+        greys = {round(i * 255 / 23) & 0xF8 for i in range(24)}
+        def fixed_share():   # the share of pixels that are colours of the fixed palette (Kitty at standard resolution: a palette picture)
+            px = big_rgba()
+            if not px:
+                return -1.0
+            w, h, raw = px
+            n = fixed = 0
+            for k in range(0, len(raw), 4 * 7):
+                r, g, b = raw[k], raw[k + 1], raw[k + 2]
+                if r + g + b < 30:
+                    continue
+                n += 1
+                if (r in cube and g in cube and b in cube) or (r == g == b and r in greys):
+                    fixed += 1
+            return fixed / n if n else -1.0
+        sess.pump(2.0)
+        a = fixed_share()
+        for _ in range(6):
+            sess.send(b"\x1b[B", 0.3)
+        check(sess.wait_for(lambda t: any("> Effect" in l for l in sess.screen.display), 4), "preset overlay: DOWN reaches Effect")
+        sess.send(b"\x1b[C", 0.8)
+        check(sess.wait_for(lambda t: any("> Effect" in l and "Scanlines" in l for l in sess.screen.display), 4), "preset overlay: RIGHT on Effect: Scanlines")
+        sess.send(b"\x1b[D", 0.5)
+        sess.send(b"\x1b[B", 0.5)
+        check(sess.wait_for(lambda t: any("> Sixel Colours" in l and "adaptive" in l for l in sess.screen.display), 4), "preset overlay: Sixel Colours is adaptive by default")
+        sess.send(b"\x1b[C", 2.5)
+        sess.pump(2.0)
+        f2 = fixed_share()
+        check(a >= 0 and f2 >= 0 and a < 0.5 and f2 > 0.9, "preset overlay: adaptive colours are the picture's own, fixed the fixed palette (fixed-palette pixels: adaptive %.2f, fixed %.2f)" % (a, f2))
+        sess.send(b"\x1b[A", 0.5)
+        sess.send(b"\x1b[C", 0.5)   # (Effect again: Scanlines, saved)
+        sess.send(b"\x1b", 1.0)
+        c = open(cfg, encoding="utf-8").read()
+        check("MilkDropShuffleFavourites=true" in c, "preset overlay: Shuffle Favourites is saved")
+        check("MilkDropEffect=scanlines" in c and "MilkDropSixelColors=fixed" in c, "preset overlay: MilkDropEffect= and MilkDropSixelColors= are saved")
+        check("HKeyVideoWindow" not in c, "preset overlay: the old HKeyVideoWindow line is gone from config.txt")
+        # Shuffle Favourites off again: the preset shown stays (it used to jump to the list's first one, "fast transition to black")
+        sess.send(":", 1.5)
+        def go_row(label):   # UP until the row is selected (the overlay opens on the row used last); a busy machine draws late: it must stay
+            for _ in range(24):
+                if any("> " + label in l for l in sess.screen.display):
+                    sess.pump(1.0)
+                    if any("> " + label in l for l in sess.screen.display):
+                        return True
+                    continue
+                sess.send(b"\x1b[A", 0.6)
+            return False
+        def preset_name():
+            l = next((l for l in sess.screen.display if "Preset    <" in l or "Preset   <" in l), "")
+            return l.split("<", 1)[-1].split(">", 1)[0].strip() if "<" in l else ""
+        # (a panel over the running visuals can be read half drawn now and then: the rows are read until they are there)
+        go_row("Shuffle Favourites")
+        sess.wait_for(lambda t: preset_name() != "", 4)
+        shown = preset_name()
+        fav_row = lambda: next((l for l in sess.screen.display if "> Shuffle Favourites" in l), "")
+        turned = False
+        for _ in range(2):   # (once more when the row still says on: a key can be lost while the panel is drawn late)
+            go_row("Shuffle Favourites")
+            if not fav_row().rstrip(" \u2502").endswith("off"):
+                sess.send(b"\x1b[D", 1.0)
+            turned = sess.wait_for(lambda t: fav_row().rstrip(" \u2502").endswith("off"), 8)
+            if turned:
+                break
+        sess.pump(2.0)
+        sess.wait_for(lambda t: preset_name() != "", 4)
+        after = preset_name()
+        check(turned and shown and after == shown and "transition to black" not in after,
+              "preset overlay: Shuffle Favourites off keeps the preset shown (%r -> %r)" % (shown[:40], after[:40]))
+        # Auto MilkDrop (the last row): on switches Auto Video off, off brings it back
+        def close_overlay():   # ESC until the visuals overlay is gone (an ESC read together with the next key would be ALT+key)
+            for _ in range(3):
+                sess.send(b"\x1b", 1.5)
+                if sess.wait_for(lambda t: "Visuals: MilkDrop" not in t, 5):
+                    sess.pump(1.0)
+                    if "Visuals: MilkDrop" not in sess.text():
+                        return
+        def set_auto(want):   # (tries again when the row did not turn: a key can be lost under load; the file is written a moment later)
+            key = "MilkDropAuto=" + ("true" if want == "on" else "false")
+            for _ in range(2):
+                if "Visuals: MilkDrop" not in sess.text():
+                    sess.send(":", 1.5)
+                    sess.wait_for(lambda t: "Visuals: MilkDrop" in t, 5)
+                go_row("Auto MilkDrop")
+                if not any("> Auto MilkDrop" in l and l.rstrip(" \u2502").endswith(want) for l in sess.screen.display):
+                    sess.send(b"\x1b[C", 1.0)
+                sess.wait_for(lambda t: any("> Auto MilkDrop" in l and l.rstrip(" \u2502").endswith(want) for l in sess.screen.display), 8)
+                close_overlay()
+                deadline = time.time() + 8
+                while time.time() < deadline and key not in open(cfg, encoding="utf-8").read():
+                    sess.pump(0.5)
+                if key in open(cfg, encoding="utf-8").read():
+                    break
+            return open(cfg, encoding="utf-8").read()
+        check(any("Auto MilkDrop" in l and "off" in l for l in sess.screen.display), "preset overlay: the last row is Auto MilkDrop (off)")
+        c = set_auto("on")
+        check("MilkDropAuto=true" in c and "VideoAuto=false" in c and "MilkDropAutoVideoWas=true" in c, "preset overlay: Auto MilkDrop on switches Auto Video off (and remembers it)")
+        c = set_auto("off")
+        check("MilkDropAuto=false" in c and "VideoAuto=true" in c and "MilkDropAutoVideoWas=false" in c, "preset overlay: Auto MilkDrop off brings Auto Video back")
+        check(sess.alive(), "preset overlay: the program is still running")
+    finally:
+        sess.kill()
+
+
+def gapless_playback(binary, root, scripts):
+    """Settings -> GENERAL -> AUDIO -> Gapless Playback (Gapless=off|album|full, off by default). The sound that goes to the (silent test)
+    device is recorded (MOUSIKI_AUDIO_TAP) and the change from one track to the next is measured in samples: off leaves a gap of silence
+    (the device is opened anew); album goes on without a single silent sample into the next track of the same album and keeps the gap
+    before a track of another album; full goes on without a gap into that one too. The screen follows the change (the next title, the
+    time from 0 again). A track queued while the next one was already prepared is the one that follows -- without a gap as well."""
+    import array, shutil, subprocess
+    if not shutil.which("ffmpeg"):
+        print("  skipped: gapless (ffmpeg is not installed on this machine)")
+        return
+    def make(lib, name, freq, secs, album):
+        meta = ["-metadata", "album=" + album, "-metadata", "artist=Tester"] if album else []
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=%d:duration=%s:sample_rate=44100" % (freq, secs),
+                        "-ac", "2"] + meta + [os.path.join(lib, name + ".flac")], check=True)
+    def silent_runs(tap):
+        d = array.array("f")
+        with open(tap, "rb") as f:
+            d.frombytes(f.read())
+        m = d[0::2]
+        first = next((i for i in range(len(m)) if abs(m[i]) > 1e-4), None)
+        last = next((i for i in range(len(m) - 1, -1, -1) if abs(m[i]) > 1e-4), None)
+        runs, i = [], first
+        while first is not None and i < last:
+            if abs(m[i]) <= 1e-4:
+                j = i
+                while j < last and abs(m[j]) <= 1e-4:
+                    j += 1
+                if j - i > 8:
+                    runs.append((j - i) / 44.1)
+                i = j
+            else:
+                i += 1
+        return runs
+    def play(tag, mode, tracks, wait, keys=None):
+        lib = os.path.join(root, "gl_music_" + tag)
+        os.makedirs(lib)
+        for t in tracks:
+            make(lib, *t)
+        home = os.path.join(root, "gl_home_" + tag)
+        os.makedirs(os.path.join(home, ".config", "mousiki"))
+        with open(os.path.join(home, ".config", "mousiki", "config.txt"), "w", encoding="utf-8") as f:
+            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=true\nNormalizeVolume=false\nPauseFade=false\nUseLyrics=false\n%s" %
+                    (lib, "" if mode is None else "Gapless=%s\n" % mode))
+        tap = os.path.join(root, "gl_tap_" + tag + ".raw")
+        sess = Session(binary, home, scripts, {"MOUSIKI_NULL_AUDIO": "1", "MOUSIKI_AUDIO_TAP": tap}, quiet_stderr=True)
+        try:
+            sess.wait_for(lambda t: tracks[0][0] in t, 10)
+            if keys:
+                keys(sess)
+            sess.pump(wait)
+            return sess, silent_runs(tap)
+        except Exception:
+            sess.kill()
+            raise
+    # off (the default: no Gapless= line)
+    sess, runs = play("off", None, [("01 Alpha", 440, 4, "One"), ("02 Beta", 660, 4, "One")], 5.0)
+    try:
+        check(any(r >= 40 for r in runs), "gapless off (default): a gap of silence between the tracks (%s ms)" % [round(r) for r in runs])
+        sess.send("s", 1.2)
+        sess.send(b"\t", 0.8)                # GENERAL
+        row = next((l for l in sess.screen.display if "Gapless Playback" in l), "")
+        check("off" in row and "AUDIO" in sess.text(), "gapless: the row is in GENERAL -> AUDIO, off by default (%r)" % row.strip()[:70])
+    finally:
+        sess.kill()
+    # album, the same album
+    sess, runs = play("album", "album", [("01 Alpha", 440, 4, "One"), ("02 Beta", 660, 4, "One")], 5.0)
+    try:
+        check(not runs, "gapless album: not one silent sample between two tracks of the same album (%s)" % [round(r) for r in runs])
+        fl = [l for l in sess.screen.display if "File      :" in l]
+        check(fl and "02 Beta" in fl[0], "gapless album: the screen shows the next track")
+        check(any("[ 00:0" in l for l in sess.screen.display), "gapless album: the time runs from 0 again")
+        check(sess.alive(), "gapless album: the program is still running")
+    finally:
+        sess.kill()
+    # album, another album: the gap stays; full: no gap
+    sess, runs = play("album2", "album", [("01 Alpha", 440, 4, "One"), ("02 Beta", 660, 4, "Two")], 5.0)
+    try:
+        check(any(r >= 40 for r in runs), "gapless album: another album keeps the gap (%s ms)" % [round(r) for r in runs])
+    finally:
+        sess.kill()
+    sess, runs = play("full", "full", [("01 Alpha", 440, 4, "One"), ("02 Beta", 660, 4, "Two")], 5.0)
+    try:
+        check(not runs, "gapless full: no gap into a track of another album (%s)" % [round(r) for r in runs])
+    finally:
+        sess.kill()
+    # full: a track queued while the next one was prepared already is the one that follows, without a gap
+    def queue_third(sess):
+        sess.pump(1.5)                     # (the track is shorter than the lead: the next one in the list is prepared at once)
+        sess.send(b"\x1b[B", 0.3)
+        sess.send(b"\x1b[B", 0.3)
+        sess.send("a", 0.5)                # 03 Gamma goes to the front of the queue
+    sess, runs = play("queue", "full", [("01 Alpha", 440, 5, "One"), ("02 Beta", 660, 5, "One"), ("03 Gamma", 550, 5, "One")], 4.5, keys=queue_third)
+    try:
+        t = sess.text()
+        check(not runs, "gapless full: no gap into the queued track either (%s)" % [round(r) for r in runs])
+        fl = [l for l in sess.screen.display if "File      :" in l]
+        check(fl and "03 Gamma" in fl[0], "gapless full: the queued track (not the one prepared before, the next in the list) follows (%r)" % (fl[0].strip()[:60] if fl else None))
+    finally:
+        sess.kill()
+
+
+def autoplay_and_sphere(binary, root, scripts):
+    """Settings -> GENERAL -> AUDIO -> Auto-Play (AutoPlay=, false by default): off, the track the player opens with is loaded and stands paused (the play
+    button shows PLAY, the time stays at 0:00) until the play / pause key (p); on, it plays at once. ANIMA/VIZ -> SPHERE -> Pause Sphere (PauseSphere=, false by default):
+    off, a turning sphere keeps the full frame rate while the track is paused (Reduce Motion When Paused cut it to 10 a second: the sphere stuttered);
+    on, the sphere stops while paused and the screen calms down. The two rows are in their categories and RIGHT switches them."""
+    lib = os.path.join(root, "aps_music")
+    os.makedirs(lib, exist_ok=True)
+    make_wav(os.path.join(lib, "Alpha Song.wav"), 30)
+    def start(tag, extra):
+        home = os.path.join(root, "aps_home_" + tag)
+        cfgdir = os.path.join(home, ".config", "mousiki")
+        os.makedirs(cfgdir)
+        with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nElimentDummyButtons=true\nUseLyrics=false\nVizDefault=sphere\nNoLyricsViz=sphere\n%s" % (lib, extra))
+        sess = Session(binary, home, scripts, {"MOUSIKI_NULL_AUDIO": "1"}, quiet_stderr=True)
+        sess.wait_for(lambda t: "Alpha Song" in t)
+        sess.pump(3.0)
+        return sess, os.path.join(cfgdir, "config.txt")
+    def frames(sess, secs):
+        b0 = len(sess.raw); sess.pump(secs)
+        return sess.raw[b0:].count(b"\x1b[?2026h")
+    # --- Auto-Play off: paused at the start, the sphere turns at the full rate
+    sess, cfg = start("off", "AutoPlay=false\n")
+    try:
+        t = sess.text()
+        check("PLAY" in t and "PAUSE" not in t, "auto-play off: the opening track stands paused (the button shows PLAY)")
+        check("0:00" in t, "auto-play off: the time stays at 0:00")
+        sess.pump(6.0)                       # quiet for more than 3 s: Reduce Motion When Paused would be on
+        n = frames(sess, 3.0)
+        check(n >= 3 * 30 * 0.6, "pause sphere off: paused and untouched, the turning sphere keeps the full frame rate (%d frames in 3 s)" % n)
+        sess.send("p", 1.5)
+        check("PAUSE" in sess.text(), "auto-play off: the play / pause key (p) starts the track (the button shows PAUSE)")
+        # the rows
+        sess.send("s", 1.2)
+        sess.send(b"\t", 0.8)                # GENERAL
+        check("Auto-Play" in sess.text() and "AUDIO" in sess.text(), "auto-play: the row is in GENERAL -> AUDIO")
+        sess.send(b"\t", 0.8)                # ANIMA/VIZ
+        label = "Pause Sphere"
+        def row():
+            for y, line in enumerate(sess.screen.display):
+                if label in line and "Preview:" not in line:
+                    return y, line
+            return None, ""
+        for _ in range(150):
+            sess.send(b"\x1b[B", 0.1)
+            y, line = row()
+            if y is not None and any(c.reverse for c in sess.screen.buffer[y].values()):
+                break
+        sess.pump(0.4)
+        y, line = row()
+        disp = sess.screen.display
+        hdr = next((i for i, l in enumerate(disp) if l.strip().strip("│|").strip() == "SPHERE" or " SPHERE " in l.replace("│", " ")), None)
+        cover = next((i for i, l in enumerate(disp) if "DISK / COVER OPTIONS" in l), None)
+        check(y is not None and hdr is not None and hdr < y, "pause sphere: the row is under its own SPHERE category")
+        check(cover is None or hdr is None or cover < hdr, "pause sphere: SPHERE comes below DISK / COVER OPTIONS")
+        check("false" in line, "pause sphere: false by default: %r" % line)
+        sess.send(b"\x1b[C", 0.8)
+        y, line = row()
+        check("true" in line and "pause sphere: on" in sess.text(), "pause sphere: RIGHT switches it on and the status line says so")
+        sess.send("s", 1.5)
+        check("PauseSphere=true" in open(cfg, encoding="utf-8").read(), "pause sphere: config.txt has PauseSphere=true once the settings are saved")
+        check(sess.alive(), "auto-play / pause sphere: the program is still running")
+    finally:
+        sess.kill()
+    # --- Pause Sphere on: paused, the sphere stands still and the screen calms down
+    sess, cfg = start("still", "AutoPlay=false\nPauseSphere=true\n")
+    try:
+        sess.pump(6.0)
+        n = frames(sess, 3.0)
+        check(n <= 40, "pause sphere on: paused and untouched, the sphere stands still and the frame rate is low (%d frames in 3 s)" % n)
+    finally:
+        sess.kill()
+    # --- Auto-Play on: it plays at once
+    sess, cfg = start("on", "AutoPlay=true\n")
+    try:
+        check("PAUSE" in sess.text(), "auto-play on: the opening track plays at once (the button shows PAUSE)")
+    finally:
+        sess.kill()
+
+
 def spectro_history_setting(binary, root, scripts):
     """Settings -> ANIMA/VIZ -> OSCI/SPECTRO SETTINGS: the row Keep Spectrogram History is true by default, LEFT / RIGHT switch it, the status line says what
     it does, and the choice reaches config.txt (SpectroHistory=)."""
@@ -3936,7 +5005,7 @@ def settings_cli_row(binary, root, scripts):
         check("false" in find("Pause Fade"), "pause fade: RIGHT switches it off")
         sess.send(b"\x1b[D", 0.6)
         check("true" in find("Pause Fade"), "pause fade: LEFT switches it on again")
-        for _ in range(5):           # Black Background, Use Terminal Settings, Terminal Size, Full Screen, Reduce Motion
+        for _ in range(7):           # Auto-Play, Gapless Playback, Black Background, Use Terminal Settings, Terminal Size, Full Screen, Reduce Motion
             sess.send(b"\x1b[B", 0.15)
         sess.send(b"\x1b[B", 0.5)    # CLI Scripts
         check("CLI / REMOTE / UPDATES" in sess.text() and "CLI Scripts" in find("CLI Scripts"), "cli row: the category is CLI / REMOTE / UPDATES and has the row CLI Scripts")
@@ -4360,7 +5429,7 @@ def shrinking_window(binary, root, scripts):
         if not same:   # (a real terminal keeps what it shows when the size stays the same: only a new size makes a new screen)
             sess.screen = pyte.Screen(c, r)
             sess.stream = pyte.ByteStream(sess.screen)
-        sess.raw = b""
+        sess.raw = bytearray()
         sess.pump(1.2)
 
     def braille_cols(row_text, lo, hi):
@@ -4497,6 +5566,26 @@ def run_scenario(name, binary, root, scripts):
         video_fx_picker_sizes(binary, root, scripts)
     elif name == "radio_sign_border":
         radio_sign_border(binary, root, scripts)
+    elif name == "video_fx_picker_third_slot":
+        video_fx_picker_third_slot(binary, root, scripts)
+    elif name == "milkdrop_visuals":
+        milkdrop_visuals(binary, root, scripts)
+    elif name == "milkdrop_preset_overlay":
+        milkdrop_preset_overlay(binary, root, scripts)
+    elif name == "milkdrop_layouts_style":
+        milkdrop_layouts_style(binary, root, scripts)
+    elif name == "overlays_queue_enter":
+        overlays_queue_enter(binary, root, scripts)
+    elif name == "video_fx_list_frozen":
+        video_fx_list_frozen(binary, root, scripts)
+    elif name == "settings_general_texts":
+        settings_general_texts(binary, root, scripts)
+    elif name == "milkdrop_radio_book":
+        milkdrop_radio_book(binary, root, scripts)
+    elif name == "gapless_playback":
+        gapless_playback(binary, root, scripts)
+    elif name == "autoplay_and_sphere":
+        autoplay_and_sphere(binary, root, scripts)
     elif name == "main_lyrics_translation_key":
         main_lyrics_translation_key(binary, root, scripts)
     elif name == "radio_cli_extras":
@@ -4540,7 +5629,7 @@ def run_scenario(name, binary, root, scripts):
 
 
 SCENARIOS = ["narrow80", "narrow100", "main", "read_lyrics_play", "karaoke_timing", "book_speed_and_devices", "paging_and_translit_row",
-             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting"]
+             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "milkdrop_visuals", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "overlays_queue_enter", "video_fx_list_frozen"]
 
 
 def main():
@@ -4552,9 +5641,10 @@ def main():
     scripts = None
     keep = "--keep" in args
     # a hang must not use up the whole CTest timeout without a trace: after this many seconds Python prints where every
-    # thread is stuck and ends the test (MOUSIKI_SMOKE_LIMIT, default 780 s; the CTest timeout is longer)
+    # thread is stuck and ends the test (MOUSIKI_SMOKE_LIMIT, default 1500 s -- 63 scenarios two at a time take about 14 minutes on two cores;
+    # the CTest timeout, 1800 s, is longer)
     import faulthandler
-    faulthandler.dump_traceback_later(int(os.environ.get("MOUSIKI_SMOKE_LIMIT", "780")), exit=True)
+    faulthandler.dump_traceback_later(int(os.environ.get("MOUSIKI_SMOKE_LIMIT", "1500")), exit=True)
     if "--scripts" in args:
         scripts = os.path.abspath(args[args.index("--scripts") + 1])
     if not os.path.exists(binary):
@@ -4576,7 +5666,18 @@ def main():
     only = args[args.index("--only") + 1].split(",") if "--only" in args else SCENARIOS
     progress("%d scenarios, %d at a time" % (len(only), jobs))
 
+    import threading
+    # The MilkDrop scenarios draw with the software renderer when there is no graphics card: two of them at once on a small machine
+    # (two cores) leave the keys of the harness waiting for seconds. They run one after the other (the others still run beside them).
+    heavy_lock = threading.Lock()
+
     def work(name):
+        if name.startswith("milkdrop_"):
+            with heavy_lock:
+                return work_now(name)
+        return work_now(name)
+
+    def work_now(name):
         sub = os.path.join(root, "w_" + name)
         shutil.copytree(root, sub, ignore=shutil.ignore_patterns("w_*"))
         cmd = [sys.executable, os.path.abspath(__file__), binary, "--worker", name, "--root", sub]

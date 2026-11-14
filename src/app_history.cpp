@@ -86,7 +86,7 @@ void App::history_end_current_play() {
     // letting it run out). Everything else -- a skip, an app closed
     // mid-track -- is not a completion, and that is what the Habits tab's
     // completion rate is built on.
-    const bool completed = player_.finished() || (len > 0.0 && heard >= 0.9 * len);
+    const bool completed = player_.finished() || history_force_complete_ || (len > 0.0 && heard >= 0.9 * len);
     history_.finish_live(completed);
     history_.save(); // one small JSON write per finished track
 }

@@ -57,7 +57,7 @@ TEST(organigram_player_tree_has_the_asked_structure) {
     CHECK_EQ(org::children_of(t, cats[1]).size(), static_cast<size_t>(4));
     CHECK_EQ(org::children_of(t, cats[2]).size(), static_cast<size_t>(3));   // the three big overlays
     CHECK_EQ(org::children_of(t, cats[3]).size(), static_cast<size_t>(2));   // playlists, listening history
-    CHECK_EQ(org::children_of(t, cats[5]).size(), static_cast<size_t>(5));   // Spectrum Bars, Spectrogram, Oscilloscope, Video, Creator
+    CHECK_EQ(org::children_of(t, cats[5]).size(), static_cast<size_t>(6));   // Spectrum Bars, Spectrogram, Oscilloscope, Video, Creator, MilkDrop
     CHECK_EQ(org::children_of(t, cats[6]).size(), static_cast<size_t>(4));
     // Meta Data Menu has two branches: fetch / convert and the looks
     const auto meta = org::children_of(t, cats[4]);
@@ -243,7 +243,7 @@ TEST(organigram_visualizations_are_grouped) {
     int vis = -1;
     for (int i = 0; i < t.count; ++i) if (std::string(t.n[i].title) == "Visualizations") vis = i;
     const auto kids = org::children_of(t, vis);
-    CHECK_EQ(kids.size(), static_cast<size_t>(5));   // bars, Spectrogram, Oscilloscope, Video, Creator
+    CHECK_EQ(kids.size(), static_cast<size_t>(6));   // bars, Spectrogram, Oscilloscope, Video, Creator, MilkDrop
     int groups = 0;
     for (int k : kids) if (!t.n[k].action) { ++groups; CHECK(org::children_of(t, k).size() >= 2); }   // options, overlay (, extra window)
     CHECK_EQ(groups, 3);

@@ -2,8 +2,8 @@
 """Generates src/video_fx_ascii_font.inc: the glyphs of the ASCII look (video effect 37) as 8 x 16 bitmaps.
 
 The glyphs are the characters of DejaVu Sans Mono (Bitstream Vera licence: free to use and embed; the notice is written into the generated file),
-drawn at 13.3 px so that the cell is 8 x 16, hinted to pixels. The set: the printable ASCII characters (no box-drawing lines or blocks: they join up into stripes; no Latin-1 letters or symbols since batch 275),
-ordered by the ink they carry.
+drawn at 13.3 px so that the cell is 8 x 16, hinted to pixels. The set: printable ASCII, the Latin-1 punctuation / letters, and some symbols (no box-drawing lines or blocks: they join up into stripes), all of
+them, ordered by the ink they carry.
 
 Usage:  python3 tools/gen_ascii_font.py [path to DejaVuSansMono.ttf]      (needs Pillow)
 """
@@ -14,9 +14,11 @@ path = sys.argv[1] if len(sys.argv) > 1 else "/usr/share/fonts/truetype/dejavu/D
 font = ImageFont.truetype(path, 13.3)
 W, H = 8, 16
 
-# only the printable ASCII characters (since batch 275): the Latin-1 letters and symbols (ß, ¶, Æ ...) filled the bright parts with shapes that do not look
-# like ASCII art at all. Every one of them is kept (look-alikes too: at the size the look draws them they can be told apart, and they take turns).
+# The printable ASCII characters, the Latin-1 letters and punctuation and a few symbols (batch 279: as many different characters as there are; batch 275
+# had cut the set to ASCII alone). Every one of them is kept, look-alikes too: they take turns, so a plain area is not one character over and over.
 chars = [chr(c) for c in range(0x21, 0x7F)]
+chars += [chr(c) for c in range(0xA1, 0x100) if c != 0xAD]
+chars += [chr(c) for c in (0x2219, 0x2022, 0x25E6, 0x25CB, 0x25CF, 0x2666, 0x2660, 0x2663, 0x2665, 0x266A, 0x263C, 0x221E, 0x2248, 0x2261, 0x2260, 0x2264, 0x2265, 0x221A, 0x2211, 0x220F, 0x03C0, 0x03A9, 0x0394, 0x2020, 0x2021, 0x2030, 0x0192, 0x20AC, 0x0152, 0x0153, 0x0160, 0x0161, 0x017D, 0x017E, 0x0178)]
 
 def render(ch):
     im = Image.new("L", (W, H), 0)

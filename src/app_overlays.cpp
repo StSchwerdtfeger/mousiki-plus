@@ -103,7 +103,7 @@ bool App::list_overlay_active() const {
     if (mode_ == Mode::AudioDevice) return !adev_->from_settings;
     switch (mode_) {
         case Mode::Browse: case Mode::Search: case Mode::BulkAdd:
-        case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::BarsMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: case Mode::BookOverlay: case Mode::VideoMenu: case Mode::VideoLink: case Mode::VideoSearch: return true;
+        case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::MilkdropMenu: case Mode::BarsMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::MenuIndex: case Mode::Creator: case Mode::LyricsEdit: case Mode::BookOverlay: case Mode::VideoMenu: case Mode::VideoLink: case Mode::VideoSearch: return true;
         default: return false;
     }
 }
@@ -127,23 +127,6 @@ std::string App::hotkey_text(const char* action, const char* fallback) const {
 }
 
 namespace {
-// "[a] first  [b] second ..." packed greedily into lines of at most `inner_w`
-// columns, at most `max_lines` of them (items that no longer fit are dropped
-// from the end, which is why the most important ones come first).
-std::vector<std::string> pack_legend(const std::vector<std::string>& items, int inner_w, int max_lines) {
-    std::vector<std::string> lines;
-    if (max_lines <= 0) return lines;
-    std::string cur;
-    for (const auto& it : items) {
-        const std::string candidate = cur.empty() ? it : cur + "   " + it;
-        if (cur.empty() || display_width(candidate) <= inner_w) { cur = candidate; continue; }
-        lines.push_back(cur);
-        if (static_cast<int>(lines.size()) >= max_lines) return lines;
-        cur = it;
-    }
-    if (!cur.empty()) lines.push_back(cur);
-    return lines;
-}
 // "SHIFT+4" + "SHIFT+5" -> "SHIFT+4/5", anything else -> "a/b".
 std::string join_keys(const std::string& a, const std::string& b) {
     const std::string pre = "SHIFT+";
@@ -159,21 +142,23 @@ std::string join_keys(const std::string& a, const std::string& b) {
 // width so they also wipe the background underneath. Never more lines than
 // leave >= 3 list rows. Geometry (which shortens the frame by these lines)
 // and painter both ask this.
-std::vector<std::string> App::list_overlay_legend(int panel_w) const {
+std::vector<LegendRow> App::list_overlay_legend(int panel_w) const {
     const int max_lines = std::clamp(term_rows_ - kListOverlayChromeRows - 5, 1, 3);
-    std::vector<std::string> items = {
-        "[" + hotkey_text("HKeyAddHoveringSongToQueue", "a") + "] add to queue (next)",
-        "[" + hotkey_text("HKeyQueueAddEnd", "e") + "] add to end of queue",
-        "[SHIFT+UP/DOWN] page",
-        "[ESC] close",
+    const std::vector<LegendGroup> groups = {
+        {"Queue", {"[" + hotkey_text("HKeyAddHoveringSongToQueue", "a") + "] Add to queue (next)\001Add next",
+                   "[" + hotkey_text("HKeyQueueAddEnd", "e") + "] Add to end of queue\001Add to end"}},
+        {"Switch", {"[" + hotkey_text("HKeyQueueOverlay", "K") + "] Queue overlay\001Queue",
+                    "[" + hotkey_text("HKeyFolderOverlay", "F") + "] Folder overlay\001Folders"}},
+        {"Other", {"[SHIFT+\u2191\u2193] Next/Prev. page\001Page", "[ESC] Close / Clear"}},
     };
-    return pack_legend(items, std::max(0, panel_w), max_lines);
+    return layout_legend_tree(groups, std::max(0, panel_w), max_lines);
 }
 
 // Key legend of the big queue overlay: a small tree table (Edit / Order / Other), see layout_legend_tree().
 std::vector<LegendRow> App::queue_overlay_legend(int panel_w) const {
-    const int max_lines = std::clamp(term_rows_ - kQueueOverlayChromeRows - 5, 1, 3);
+    const int max_lines = std::clamp(term_rows_ - kQueueOverlayChromeRows - 5, 1, 4);   // (four groups: Play, Edit, Order, Other)
     std::vector<LegendGroup> groups = {
+        {"Play", {"[ENTER] Reposition queue state\001Reposition", "[SHIFT+ENTER] Requeue track and play\001Requeue + play"}},
         {"Edit", {"[" + hotkey_text("HKeyRemoveHoveringSongFromQueue", "d") + "] Delete",
                   "[" + hotkey_text("HKeyClearQueue", "X") + "] Clear all",
                   "[" + hotkey_text("HKeyQueueUndoClear", "CTRL+SHIFT+Z") + "] Undo clear"}},
@@ -182,26 +167,12 @@ std::vector<LegendRow> App::queue_overlay_legend(int panel_w) const {
                    "[" + hotkey_text("HKeyQueueLock", "!") + "] " + (qst_.locked ? "Unlock" : "Lock"),
                    "[SHIFT+s] Shuffle order\001Shuffle", "[SHIFT+u] Undo shuffle\001Unshuffle"}},
         {"Other", {"[" + hotkey_text("HKeyQueueToPlaylist", "CTRL+SHIFT+U") + "] Queue to playlist\001To playlist",
+                   "[" + join_keys(hotkey_text("HKeyListOverlay", "L"), hotkey_text("HKeyFolderOverlay", "F")) + "] List/Folder overlay\001List/Folders",
                    "[SHIFT+\u2191\u2193] Next/Prev. page\001Page", "[" + hotkey_text("HKeySearch", "/") + "] Search\001Search", "[ESC] Close"}},
     };
     return layout_legend_tree(groups, std::max(0, panel_w), max_lines);
 }
 
-namespace {
-// One legend line as drawn below an overlay frame: in the legend color (the
-// Colors tab's LEGEND row, `sgr` = legend_sgr()), padded to the panel width
-// (so it overwrites whatever the background has under it).
-std::string legend_row(const std::string& text, int panel_w, const std::string& sgr) {
-    const int pad = std::max(0, panel_w - display_width(text));
-    return sgr + text + std::string(pad, ' ') + "\x1b[0m";
-}
-// A legend with several lines hangs under the frame in the border colour, centred on the main screen's bottom border line (see
-// overlay_legend_shift()); a single line keeps the key / command colours of the Colors tab.
-std::string overlay_legend_line(const Settings& s, const std::string& text, int panel_w, bool several) {
-    if (several) return legend_row(text, panel_w, ansi_for(s.border_color, false));
-    return legend_colored(s, text) + std::string(static_cast<size_t>(std::max(0, panel_w - display_width(text))), ' ');
-}
-} // namespace
 
 void App::list_overlay_geometry(int W, int& panel_w, int& list_rows) const {
     panel_w = std::min(W, std::max(40, std::min(W - 6, 160)));
@@ -292,8 +263,8 @@ std::vector<std::string> App::build_list_overlay_panel(int panel_w, int list_row
         list.back() = box_bottom(panel_w, footer, ansi_for(settings_.border_color_bottom, false));
         // Key legend: below the frame, outside it, in the legend color.
         {
-            const auto lines = list_overlay_legend(panel_w);
-            for (const auto& l : lines) list.push_back(overlay_legend_line(settings_, l, panel_w, lines.size() > 1));
+            const auto lrows = list_overlay_legend(panel_w);
+            for (size_t i = 0; i < lrows.size(); ++i) list.push_back(paint_legend(settings_, lrows, i, ansi_for(settings_.border_color, false), panel_w, false));
         }
     }
     out.insert(out.end(), list.begin(), list.end());
@@ -661,26 +632,14 @@ std::vector<LegendRow> App::folder_overlay_book_legend(int panel_w) const {
     return layout_legend_tree(groups, std::max(0, panel_w), 3);
 }
 
-std::vector<std::string> App::folder_overlay_legend(int panel_w) const {
+std::vector<LegendRow> App::folder_overlay_legend(int panel_w) const {   // (the music player's; the audio book has folder_overlay_book_legend())
     const int max_lines = std::clamp(term_rows_ - kListOverlayChromeRows - 5, 1, 3);
-    std::vector<std::string> items = audiobook_ ? std::vector<std::string>{
-        "[←→] open/close book",
-        "[ENTER] open the book / play the chapter",
-        "[" + hotkey_text("HKeyFilterForFolder", "f") + "] book to the chapter pane",
-        "[CTRL+p] play from the start",
-        "[/] search",
-        "[SHIFT+↑↓] page",
-        "[ESC] close",
-    } : std::vector<std::string>{
-        "[ENTER/←→] open/close folder",
-        "[" + hotkey_text("HKeyFilterForFolder", "f") + "] folder to list",
-        "[CTRL+p] play",
-        "[/] search",
-        "[SHIFT+v] audio/video",
-        "[SHIFT+↑↓] page",
-        "[ESC] close",
+    const std::vector<LegendGroup> groups = {
+        {"Open", {"[ENTER/\u2190\u2192] Open/close folder\001Open/close", "[" + hotkey_text("HKeyFilterForFolder", "f") + "] Folder to list\001To list", "[CTRL+p] Play"}},
+        {"Switch", {"[" + hotkey_text("HKeyListOverlay", "L") + "] List overlay\001List", "[" + hotkey_text("HKeyQueueOverlay", "K") + "] Queue overlay\001Queue"}},
+        {"Other", {"[/] Search", "[SHIFT+v] Audio/video", "[SHIFT+\u2191\u2193] Page", "[ESC] Close"}},
     };
-    return pack_legend(items, std::max(0, panel_w), max_lines);
+    return layout_legend_tree(groups, std::max(0, panel_w), max_lines);
 }
 
 std::vector<std::string> App::build_folder_overlay_panel(int panel_w, int list_rows) const {
@@ -759,8 +718,8 @@ std::vector<std::string> App::build_folder_overlay_panel(int panel_w, int list_r
             const auto lrows = folder_overlay_book_legend(panel_w);
             for (size_t i = 0; i < lrows.size(); ++i) out.push_back(paint_legend(settings_, lrows, i, border_ansi, panel_w, false));
         } else {
-            const auto lines = folder_overlay_legend(panel_w);
-            for (const auto& l : lines) out.push_back(overlay_legend_line(settings_, l, panel_w, lines.size() > 1));
+            const auto lrows = folder_overlay_legend(panel_w);
+            for (size_t i = 0; i < lrows.size(); ++i) out.push_back(paint_legend(settings_, lrows, i, border_ansi, panel_w, false));
         }
     }
     return out;

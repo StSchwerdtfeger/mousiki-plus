@@ -81,15 +81,18 @@ enum StyleRow : int {
     kStVideoResolution,
     kStVideoRounded,
     kStMp4Audio,        // Use mp4 audio for this song            (a song paired with a video)
+    kStMilkdropOn,      // MilkDrop for this track                (projectM installed)
+    kStMilkdropPreset,  // More Options: the MilkDrop preset overlay of this track (preset, keep it, effect)
     kStAlbum            // Look of the whole album (always the last row)
 };
 inline bool style_row_is_video(StyleRow r) { return r >= kStVideoOn && r <= kStMp4Audio; }   // the rows of the "Video" block
-inline std::vector<StyleRow> style_rows(bool video_mode, bool paired) {
+inline std::vector<StyleRow> style_rows(bool video_mode, bool paired, bool milkdrop = false) {
     std::vector<StyleRow> v = {kStLook, kStCoverContrast, kStCoverBrightness, kStCoverColors, kStCoverGradSat, kStCoverChroma};
     if (video_mode) {
         for (int r = kStCoverOrThumb; r <= kStVideoRounded; ++r) v.push_back(static_cast<StyleRow>(r));
         if (paired) v.push_back(kStMp4Audio);
     }
+    if (milkdrop) { v.push_back(kStMilkdropOn); v.push_back(kStMilkdropPreset); }
     v.push_back(kStAlbum);
     return v;
 }

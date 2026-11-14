@@ -25,6 +25,10 @@ bool translit_possible(const std::string& utf8);
 // The Latin spelling; the text itself when there is nothing to convert.
 std::string transliterate(const std::string& utf8);
 
+// The Latin spelling as it would be with other settings (-1 = the one in use): `macrons` / `wo` as translit_set_style(), `hanzi` as
+// translit_set_default_hanzi(). For previews of those settings; the settings in use and their cache are left alone.
+std::string transliterate_as(const std::string& utf8, int macrons, int wo, int hanzi);
+
 // For searching: the text, and behind it (space-separated) its Latin spelling when that differs.
 std::string with_latin_spelling(const std::string& utf8);
 

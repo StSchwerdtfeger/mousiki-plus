@@ -308,6 +308,22 @@ packages are built and listed again in THIRD-PARTY.txt inside each package:
       (CascadiaCode-OFL.txt); the app copies the font into the user's ~/Library/Fonts. On Windows the font
       comes with Windows Terminal, on other systems the user installs it; Mousiki does not ship it there.
     (the Python scripts use only Python's standard library: no PyPI packages are bundled)
+  - projectM (Windows: app/projectM-4.dll, app/projectM-4-playlist.dll; the MilkDrop visuals) .... LGPL-2.1
+      https://github.com/projectM-visualizer/projectm -- built UNCHANGED from the source of commit
+      eae22de40144ee8ded92f3c04b93a4c2f82adcc0 (with projectm-eval 22fb0cfd8f2dfbcd2b68f2443e7f44e19b32c09a, MIT) by
+      tools/milkdrop-windows.ps1, which pins both and checks every file (SHA-256). That source is the corresponding source
+      code (LGPL-2.1 section 6); app/milkdrop/README.txt names it in every package. Mousiki loads the DLLs at run time
+      (no linking), so they can be replaced by any other build of projectM 4.2. Licence texts: app/milkdrop/LICENSE-projectM.txt
+      (LGPL-2.1), LICENSE-projectm-eval.md and LICENSE-hlslparser.txt (MIT); also compiled in: GLM (MIT), glad (generated;
+      WTFPL or CC0-1.0, Apache-2.0 for the Khronos registry), stb_image (public domain or MIT).
+  - "Cream of the Crop" MilkDrop presets (Windows: app/milkdrop/presets) ... 9,795 presets curated and sorted by ISOSCELES,
+      the default preset pack of projectM, "meant to be included in any projectM-based applications as a preset pack":
+      https://github.com/projectM-visualizer/presets-cream-of-the-crop (commit 0180df21f5e0bd39b9060cc5de420ed2f1f9e509).
+      The presets were released freely by their many authors without a specific licence (see presets/LICENSE.md: projectM
+      removes a preset from future releases when its author asks). More about the collection:
+      https://www.patreon.com/posts/pack-nestdrop-91682111
+  - MilkDrop texture pack (Windows: app/milkdrop/textures) ... the textures released with MilkDrop and many more used by
+      presets: https://github.com/projectM-visualizer/presets-milkdrop-texture-pack (commit 6368812f27bc747b517218fbf89d21d59afce4d9)
 
 ==============================================================================
 Optional programs and libraries Mousiki can use (not bundled)
@@ -320,6 +336,9 @@ Optional programs and libraries Mousiki can use (not bundled)
   - libgme (game console music) ............. LGPL-2.1-or-later, used through FFmpeg
   - curl (radio station search) ............. curl licence (MIT-style), run as a program
   - ALSA / PulseAudio (Linux audio) ......... LGPL-2.1-or-later, loaded at run time by miniaudio
+  - projectM 4 + libprojectM-4-playlist (the MilkDrop visuals) ... LGPL-2.1, loaded at run time when the user has installed it
+    (Linux / macOS: not shipped; the presets, e.g. the Cream of the Crop pack, are installed by the user too, under their own
+    licences; Windows: bundled, see above); EGL / OpenGL (Mesa, MIT; Windows: the system's opengl32.dll) loaded the same way
   - libdbus-1 (Linux media keys / MPRIS) .... AFL-2.1 or GPL-2.0-or-later, loaded at run time (dlopen); not linked
   - System Media Transport Controls (Windows) part of Windows, used through C++/WinRT (MIT, Windows SDK headers)
   - MediaPlayer framework (macOS) ........... part of macOS, used for Now Playing and the media keys

@@ -190,6 +190,21 @@ TEST(fuzzy_accents_and_swaps) {
 }
 
 #include "translit.h"
+TEST(transliterate_as_reads_with_other_settings_and_leaves_them) {
+    translit_set_style(false, false);
+    translit_set_default_hanzi(0);
+    CHECK_EQ(transliterate_as("\u30b3\u30fc\u30d2\u30fc", 1, -1, -1), std::string("k\xC5\x8Dh\xC4\xAB"));   // コーヒー with macrons
+    CHECK_EQ(transliterate_as("\u3042\u3044\u3092\u3053\u3081\u3066", -1, 1, -1), std::string("aiwokomete"));
+    CHECK_EQ(transliterate_as("\u6771\u4eac", -1, -1, 1), std::string("d\xC5\x8Dng j\xC4\xABng"));   // 東京 as Chinese
+    CHECK_EQ(transliterate_as("\u6771\u4eac", -1, -1, 0), std::string("\u6771\u4eac"));
+    // the settings in use (and their cache) are untouched
+    CHECK_EQ(transliterate("\u30b3\u30fc\u30d2\u30fc"), std::string("koohii"));
+    CHECK_EQ(transliterate("\u3042\u3044\u3092\u3053\u3081\u3066"), std::string("aiokomete"));
+    CHECK_EQ(transliterate("\u6771\u4eac"), std::string("\u6771\u4eac"));
+    // a text with kana is Japanese: the default for Chinese characters does not touch it (its kanji stay without a reader)
+    CHECK_EQ(transliterate_as("\u8349\u306e\u540d\u3082", -1, -1, 1), transliterate_as("\u8349\u306e\u540d\u3082", -1, -1, 0));
+}
+
 TEST(translit_japanese_styles) {
     translit_set_style(false, false);
     CHECK_EQ(transliterate("こえ を きかせて"), std::string("koe o kikasete"));

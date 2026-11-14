@@ -65,7 +65,7 @@
 namespace muisc {
 namespace org { struct Theme; }   // (organigram.h)
 
-enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, CoverFetch, History, ClearQueue, OsciMenu, NormMenu, BarsMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex, UpdateNotice, QueueToPlaylist, BookOverlay, AudioDevice, VideoMenu, VideoLink, VideoSearch, VideoFetch, CliScripts };
+enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, CoverFetch, History, ClearQueue, OsciMenu, NormMenu, BarsMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex, UpdateNotice, QueueToPlaylist, BookOverlay, AudioDevice, VideoMenu, VideoLink, VideoSearch, VideoFetch, CliScripts, MilkdropMenu };
 enum class ListSource { Local, Online, Playlist, Folder };
 
 // One row of the main UI's "/f:" folder list: a folder that directly
@@ -323,6 +323,79 @@ private:
     void clap_loading_fill(std::vector<std::string>& rows, int W, int H, int abs_col, int abs_row, GfxFrame& g, std::string& key_ref, int id) const;   // the small clapperboard while a video loads (picture or braille)
     bool video_draw(std::vector<std::string>& rows, int W, int H, int abs_col, int abs_row, bool second_slot, double t, int mode,
                     const std::vector<std::string>& ov, int ov_w, bool flush_bottom = false, bool trim_right = false, VideoPlayer* vp = nullptr, const fs::path* look_track = nullptr) const;
+    // The MilkDrop visuals (milkdrop.h) drawn like the video: see app_video.cpp.
+    bool milkdrop_draw(std::vector<std::string>& rows, int W, int H, int abs_col, int abs_row, bool second_slot, int mode,
+                       const std::vector<std::string>& ov, int ov_w, bool flush_bottom = false, bool trim_right = false) const;
+    template <class Src>
+    bool video_draw_src(Src& V, bool playing_one, bool is_video, std::string& pic_key, std::vector<std::string>& rows, int W, int H, int abs_col, int abs_row,
+                        bool second_slot, double t, int mode, const std::vector<std::string>& ov, int ov_w, bool flush_bottom, bool trim_right,
+                        const fs::path* look_track) const;
+    mutable std::string milkdrop_pic_key_;
+    // Style Option: the MilkDrop visuals of the track playing (milkdrop_track_apply(), at every new track). What it changed for the
+    // track before is given back at the next one: md_track_view_ (it switched the field to MilkDrop; md_prev_* the view before),
+    // md_track_off_ (it switched MilkDrop off), md_track_locked_ (it locked the track's preset).
+    bool md_track_view_ = false, md_track_off_ = false, md_track_locked_ = false;
+    bool md_user_locked_ = false;   // the lock as it was before a track's preset locked it (given back after that track)
+    int md_track_fx_ = -1;          // the effect of the track that plays (Style Option -> More Options), -1 = MilkDropEffect=
+    bool md_prev_lyrics_ = false, md_prev_video_ = false;
+    int md_prev_viz_ = 0;
+    // The field's MilkDrop view (the "." cycle): the whole field, the preset's name in a small box for a few seconds after it changed.
+    bool milkdrop_field_rows(std::vector<std::string>& rows, int W, int H, int area_col, bool second_slot, bool trim_right) const;
+    std::vector<std::string> milkdrop_name_box(int width) const;   // the rows of that box (none when it is not shown)
+    std::string visuals_key_text() const;
+    VideoLook milkdrop_look() const;
+    mutable int md_pic_w_ = 0, md_pic_h_ = 0;   // the size of the last MilkDrop picture sent (the visuals overlay's numbers)        // the look of the MilkDrop pictures (their own effect, MilkDropEffect=)
+    mutable std::array<std::array<uint8_t, 3>, 256> pic_pal_buf_{};   // (a picture's own palette, taken from the worker)   // the visuals overlay's key for legends / status lines ("no key: ..." when it has none)
+    void milkdrop_apply_settings() const;   // Settings -> the engine (cheap when nothing changed)
+    void milkdrop_track_apply();
+    bool milkdrop_usable() const;           // the view can be shown (switched on and projectM installed)
+    // The visuals overlay (":", HKeyVisualsMenu): the MilkDrop preset and options.
+    int md_menu_row_ = 0;
+    static constexpr int kMdMenuPanelWidth = 60;
+    std::vector<std::string> build_milkdrop_menu_panel() const;
+    void handle_milkdrop_menu_key(int key);
+    void milkdrop_menu_adjust(int row, int dir);
+    // The preset overlay (the visuals overlay's "Preset Overlay" row): the preset folder like the folder overlay, the live visuals on the
+    // right as the preview (the highlighted preset is played at once), a "Favourites" folder on top. ENTER chooses, [a] adds to the
+    // favourites, [d] takes one out of them, ESC goes back (the preset from before comes back unless one was chosen).
+    struct MdbItem { int kind = 0; std::string name, path, where; };   // where: the folder of a search result   // kind: 0 up, 1 the favourites, 2 a folder, 3 a preset, 4 a favourite whose file is gone
+    bool mdb_open_ = false;
+    std::string mdb_track_;              // "" = the visuals overlay's preset overlay; a track: Style Option -> More Options of that track
+    int mdb_opt_ = -1;                   // (track mode) the option row selected (0 preset, 1 keep, 2 effect), -1 = the list
+    std::string mdb_track_title_;
+    void mdb_open_track(const std::string& track, const std::string& title);
+    void mdb_track_adjust(int row, int dir, bool reset);
+    void milkdrop_auto_set(bool on);   // Auto MilkDrop on / off (Auto Video off meanwhile, back after)
+    void milkdrop_auto_apply();        // at a track's start: the field to the visuals (Auto MilkDrop)
+    bool mdb_in_favs_ = false;           // the favourites folder is shown
+    std::string mdb_root_, mdb_dir_;     // the preset folder, the folder shown (UTF-8)
+    std::vector<MdbItem> mdb_items_;
+    int mdb_sel_ = 0;
+    mutable int mdb_top_ = 0;
+    std::string mdb_prev_path_;          // the preset shown when the overlay opened (back to it on ESC)
+    bool mdb_prev_locked_ = false;
+    bool mdb_moved_ = false;             // another preset was played from the overlay
+    mutable std::vector<std::string> md_favs_;   // the favourite presets (milkdrop_favourites.txt, full paths)
+    mutable bool md_favs_loaded_ = false;
+    void md_favs_load() const;
+    void md_favs_save() const;
+    void mdb_open();
+    void mdb_close(bool chosen);
+    void mdb_list(const std::string& dir, bool favs, const std::string& select_path);
+    void mdb_preview();
+    void handle_mdb_key(int key);
+    std::string build_mdb_screen(int W, const char* clear_prefix) const;
+    // Its search ("/"): every preset under the preset folder, matched like the library search (exact part first, then fuzzy, per word).
+    struct MdbIdx { std::string name, path, where, name_n, where_n, all_n; };
+    std::vector<MdbIdx> mdb_index_;      // (built at the first search of the overlay's folder)
+    std::string mdb_index_root_;
+    bool mdb_typing_ = false;            // the query takes the keys
+    bool mdb_searching_ = false;         // the list shows the results
+    std::string mdb_query_;
+    std::string mdb_before_dir_;         // the folder to go back to when the search is cleared
+    bool mdb_before_favs_ = false;
+    void mdb_search_run();
+    void mdb_search_clear();
     // The Style Option preview of a track that is not the playing one: a decoder of its own (stopped when the overlay is closed)
     mutable VideoPlayer sty_video_;
     // The effect list's picture preview decodes the video itself, at the size and resolution the preview is shown in (the video behind it is decoded for
@@ -333,11 +406,17 @@ private:
     mutable std::string sty_video_src_;
     mutable std::chrono::steady_clock::time_point sty_video_t0_{}, sty_video_seen_{};
     std::string build_video_full(int W, const char* clear_prefix) const;
+    std::string build_video_opts_screen(int W, const char* clear_prefix) const;   // VIDEO OPTIONS over the whole screen with the video beside it ("" = too narrow)
+    std::vector<std::string> video_opts_rows(int inner) const;
     bool video_full_key(int key);
     // The layout of the full screen video (SHIFT+UP / DOWN): video, video + oscilloscope, video + oscilloscope + spectrogram. The
     // oscilloscope / spectrogram options opened from there show (and change) the layout's own style / mode / view (Settings::vl_*);
     // layout_osci_view() / layout_spectro_view() are the shared settings with these laid over them (what the layout draws).
     bool video_layout_menu() const { return video_full_ && settings_.video_layout > 0; }
+    // The big video overlay's layout as it is drawn (app_video.cpp): with the video or the MilkDrop visuals as its source (VideoFullSource=),
+    // kind 0 = the main picture with a column on the right (oscilloscope and / or spectrogram), 1 = the quartet, 2 = video | MilkDrop.
+    struct VFullLayout { int kind = 0; bool main_md = false, source_md = false, has_o = false, has_s = false, md_ok = false; int video_l = 0; };
+    VFullLayout vfull_layout() const;
     static bool vl_has_osci(int layout) { return layout == 1 || layout == 3; }
     static bool vl_has_spectro(int layout) { return layout == 2 || layout == 3; }
     VizPrefs layout_osci_view() const;
@@ -363,10 +442,20 @@ private:
     // Fills `out` (cols x rows cells: the picture's cells are placeholders) and returns true when the picture is on.
     bool fxpick_picture(int fx, int cols, int rows, int abs_col, int abs_row, std::vector<std::string>& out) const;
     bool fxpick_picture_possible() const;
-    mutable int fxpick_pic_ = 0;                 // 0 = no picture of the picker this frame, 1 = it is in gfx_, 2 = in gfx2_ (see app_render.cpp: such a picture lies inside its panel)
+    mutable int fxpick_pic_ = 0;                 // 0 = no picture of the picker this frame, 1 = it is in gfx_, 2 = in gfx2_ (see app_render.cpp: such a picture lies inside its panel), 3 = in gfx3_ (both were taken)
     mutable std::string fxpick_pic_key_;         // what the picture in the slot shows (made again 25 times a second at most)
     std::vector<std::string> fxpick_preview(int fx, int cols, int rows) const;   // the preview column: the video (or a test picture) with the effect on it, as half blocks in true colour
     VideoLook fxpick_look(int fx) const;                                          // the look the picker shows for `fx`: the target's own grade, the effect of the entry
+    // The video of the preview at w x h (`t`: its time; `have`: a video, else nullptr / the caller's test picture): the playing track's video comes from the
+    // decoder of the screen (video_: one decoder -- the picture behind the list stands still meanwhile, see fxpick_freeze_), another track's from
+    // fxpick_video_, and where there is none the sample video of the Settings preview (the cat, scripts/preview_video.mp4).
+    const VideoFrame* fxpick_source(int w, int h, double& t, double* aspect = nullptr) const;   // w / h 0: no frame, only `aspect` (width / height)
+    // While the list is open the video behind it stands still on the frame it had (no second picture is decoded for it), and it shows the
+    // highlighted effect too, where that effect would apply to it: fxpick_freeze_ (taken when the list opens), fxpick_bg_look().
+    mutable VideoFrame fxpick_freeze_;
+    mutable bool fxpick_src_main_ = false;   // (fxpick_source(): the frames came from video_, else from fxpick_video_)
+    mutable VideoFrame fxpick_freeze_scaled_;
+    VideoLook fxpick_bg_look(const fs::path& track, const VideoLook& own) const;
     mutable std::vector<std::string> fxpick_prev_;                                // (the preview rows of the last tick: made again 25 times a second at most)
     mutable std::string fxpick_prev_key_;
     void draw_fxpick(std::ostringstream& frame, int W) const;   // over what the frame has drawn so far (with a picture protocol it replaces the panel under it: see app_render.cpp)
@@ -416,7 +505,7 @@ private:
     // the overlay never grows past the terminal (term_rows_ - 2 rows, from
     // row 2): geometry and painter both ask this. Entries are never split
     // across two lines.
-    std::vector<std::string> list_overlay_legend(int panel_w) const;
+    std::vector<LegendRow> list_overlay_legend(int panel_w) const;
     bool list_overlay_active() const; // open AND in a mode that shows the main UI underneath it
     int list_nav_rows() const { return list_overlay_active() ? overlay_list_rows_ : list_visible_rows_; }
     void list_overlay_geometry(int W, int& panel_w, int& list_rows) const;
@@ -469,7 +558,7 @@ private:
     bool folder_overlay_key(int key);        // true = consumed
     void folder_overlay_filter();            // `f`: show the hovered folder / the folder of the hovered file in the list
     void folder_overlay_geometry(int W, int& panel_w, int& rows) const;
-    std::vector<std::string> folder_overlay_legend(int panel_w) const;
+    std::vector<LegendRow> folder_overlay_legend(int panel_w) const;
     std::vector<LegendRow> folder_overlay_book_legend(int panel_w) const;   // the tree-table legend of the audio book library overlay
     std::vector<std::string> build_folder_overlay_panel(int panel_w, int rows) const;
 
@@ -1036,6 +1125,13 @@ private:
     static constexpr double kAngularVelocity = (2.0 * 3.14159265358979323846 / 48.0) / 0.035;
     mutable FftVisualizer fft_;
     mutable SphereVisualizer sphere_;
+    // The frame just built showed a turning sphere (set by the lyrics panel, cleared at the start of each frame): Reduce Motion When
+    // Paused leaves the frame rate alone for it (at 10 frames a second the turning sphere stuttered).
+    mutable bool sphere_turning_ = false;
+    mutable bool milkdrop_drawn_ = false;   // the frame just built shows MilkDrop visuals (they move: no Reduce Motion for them)
+    // Auto-Play off: the track the music player opens with is loaded paused (set at the start, used by the first load that arrives)
+    bool autoplay_hold_ = false;
+    bool device_start_paused_ = false;   // the next device start opens paused (consumed by launch_device_play_async)
     // The scope alternative to sphere_ (Settings -> ANIMA/VIZ -> "Lyrics/Viz"):
     // fed live by the audio callback via player_.play(..., &scope_), drawn
     // by whoever renders the lyrics panel. mutable, like sphere_, because
@@ -1048,9 +1144,9 @@ private:
     double last_build_ms_ = 15.0;     // how long the last frame took to build
     // A picture the terminal could not take yet (the writer was still busy with the one before): made / sent with the first frame after.
     mutable bool video_owed_[2] = {false, false};   // video_draw(): a new frame of the film was not made into a picture yet
-    bool gfx_owed_ = false, gfx2_owed_ = false;     // a picture that was made was not sent yet
+    bool gfx_owed_ = false, gfx2_owed_ = false, gfx3_owed_ = false;     // a picture that was made was not sent yet
     mutable bool gfx_urgent_ = false;               // the picture's place or size changed: it is sent at once
-    bool picture_owed() const { return video_owed_[0] || video_owed_[1] || gfx_owed_ || gfx2_owed_; }
+    bool picture_owed() const { return video_owed_[0] || video_owed_[1] || gfx_owed_ || gfx2_owed_ || gfx3_owed_; }
     // gfxs_: the `gfx_*` data of this feature, grouped (they were 7 loose members of App)
     struct GfxState {
         // The scope as a pixel image (Settings osci_style 1): filled while the lyrics column is built, emitted by run().
@@ -1067,10 +1163,14 @@ private:
     mutable GfxFrame gfx2_;                    // the big oscilloscope overlay's second picture (gfx_ is its YT picture there)
     mutable VideoPipe video_pipe_[2];          // the worker that makes the video's picture for gfx_ / gfx2_ when a look is heavy (video_pipe.h)
     mutable bool gfx2_shown_ = false;
+    // A third picture, only for the preview of the effect list when both slots above are taken by the screen behind it (an album cover and the video
+    // next to it, the video and the oscilloscope beside it): Kitty image 7203; off at the start of every frame, switched on by fxpick_picture().
+    mutable GfxFrame gfx3_;
+    bool gfx3_shown_ = false;
     mutable int gfx2_last_crop_ = -1;
     mutable std::vector<uint8_t> gfx2_full_level_;     // the same for the second picture slot (the video next to the disk)
     mutable int gfx2_last_cut_[4] = {0, 0, 0, 0};
-    mutable int scope_cut_last_[8] = {-1, -1, -1, -1, -1, -1, -1, -1};   // the panel cut-outs of the overlay's pictures of the last frame
+    mutable int scope_cut_last_[12] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};   // the panel cut-outs of the overlay's pictures of the last frame
     mutable int cell_w_ = 9, cell_h_ = 18;
     // The "fetching lyrics ..." box laid over the bottom row of the lyrics area's visual this frame (0-based row, col,
     // width; width 0 = none) and its text with colours: the image styles keep these cells free / write it again on top.
@@ -1169,9 +1269,10 @@ private:
     // build_console_screen().
     void log_event(const std::string& msg);
     void toggle_latin_letters();
-    // SHIFT+2 / SHIFT+' (HKeyTranslit) on the main screen while the lyrics field shows synced lyrics that have a saved translation: three stops --
-    // original -> Latin letters -> Latin letters + the translation in the lyrics field -> original. Anywhere else it is the Latin letters switch.
-    bool main_lyr_tr_ = false;   // the lyrics field shows the translation (where a line has one; this session only)
+    // SHIFT+2 / SHIFT+' (HKeyTranslit) on the main screen while the lyrics field shows synced lyrics that have a saved translation: four stops --
+    // the lyrics -> in Latin letters -> the lyrics + the translation -> in Latin letters + the translation -> the lyrics. Anywhere else it is the
+    // Latin letters switch.
+    bool main_lyr_tr_ = false;   // the lyrics field shows the translation after every line that has one (this session only)
     bool main_lyrics_translation_possible(std::string* label = nullptr) const;
     void main_translit_key();
     // The status messages ("Latin letters: on", "added to queue", Settings notes ...) are not shown on the main screen: every new one is
@@ -1349,6 +1450,8 @@ private:
 
     // --- async track loading ---
     using PendingLoad = app_types::PendingLoad;
+    using GapJob = app_types::GapJob;
+    using LoadJob = app_types::LoadJob;
     std::thread load_thread_;
     std::mutex load_mutex_;
     std::atomic<bool> load_ready_{false};
@@ -1390,7 +1493,39 @@ private:
     PendingLoad pending_load_;
     void launch_load_async(fs::path local_path, std::string title, std::string artist,
                             std::string location_label, bool is_local, std::string video_id);
+    void load_job(const LoadJob& j);                      // the load itself (its own thread): probe, then the decode threads
+    void load_publish(const LoadJob& j, PendingLoad pl);
+    bool load_published(const LoadJob& j);
+    void publish_waveform(const std::shared_ptr<GapJob>& gap, std::vector<float> envelope);
     void poll_pending_load();
+
+    // Gapless playback (Settings -> GENERAL -> AUDIO -> Gapless Playback; app_gapless.cpp). In the last seconds of a track the one that
+    // follows is predicted the way advance_track() will pick it, loaded ahead (decoded at the rate the device runs at) and handed to the
+    // player, which goes on into it at the exact sample where the first one ends. advance_track() then runs as at any end of a track and
+    // picks that very track; launch_load_async() takes the preloaded one instead of loading it again and poll_pending_load() starts no
+    // device. Whatever changes the prediction meanwhile (the queue, the play mode, another track) takes the preload back.
+    struct GapTarget { std::string path, title; bool loop = false; };
+    struct GaplessState {
+        int phase = 0;                   // 0 nothing yet, 1 loading the next track, 2 handed to the player, 3 not gapless (this track)
+        std::string key;                 // the prediction it was made for (path, "|loop" for a repeat)
+        std::string path;                // the next track's file
+        const StreamingPcm* for_pcm = nullptr;   // the track that plays, that it was made for
+        std::shared_ptr<GapJob> job;
+        std::chrono::steady_clock::time_point next_check{};
+        int shuffle_pick = -1;           // shuffle: the random pick for the next track, made early and kept for play_relative_random()
+        std::string shuffle_path;
+        bool switched = false;           // the player went on into it: launch_load_async() / advance_track() take it from here
+        std::shared_ptr<GapJob> switched_job, taken_job;
+        int switches = 0;                // (count, for the console log and the tests)
+        std::string last_why;            // why the last one was not gapless (console log)
+    };
+    GaplessState gap_;
+    bool gapless_predict(GapTarget& t);
+    void gapless_tick();
+    void gapless_cancel();
+    void gapless_on_switch();
+    std::string gapless_album_mismatch(const LoadJob& j, const TrackMetadata& next, const fs::path& next_path, int next_rate, const fs::path& decode_from);
+    bool history_force_complete_ = false;   // the play that ends now was heard to its last sample (a gapless change: finished() is already reset)
     static void write_load_timing_log(const std::string& title, bool is_local, double t_resolve,
                                        double t_probe, double t_total, const std::string& error);
 

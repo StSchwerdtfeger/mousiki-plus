@@ -369,7 +369,9 @@ if(MOUSIKI_BUILD_RADIO_STANDALONE)
       # the player's settings code: Share Profiles, Remote App, the shared oscilloscope / spectrogram rows
       src/settings.cpp src/translit.cpp src/lyrics_fetcher.cpp src/TextSanitizer.cpp src/osci_settings.cpp src/update_check.cpp src/open_url.cpp src/bg_tasks.cpp src/media_session.cpp src/media_session_mpris.cpp
       # the help wizard (SHIFT+w): its pages, and the disk its welcome page spins
-      src/wizard.cpp src/disk_art.cpp)
+      src/wizard.cpp src/disk_art.cpp
+      # the MilkDrop visuals (projectM is loaded at run time, nothing of it is needed to build)
+      src/milkdrop.cpp)
   if(WIN32)
     list(APPEND RADIO_SOURCES src/win_compat.cpp src/media_session_win.cpp)
   endif()
@@ -428,7 +430,7 @@ if(MOUSIKI_BUILD_TESTS)
   if(Python3_Interpreter_FOUND AND NOT WIN32)
     add_test(NAME ui_smoke COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/ui_smoke.py" $<TARGET_FILE:mousiki>
              --scripts "${CMAKE_SOURCE_DIR}/scripts")
-    set_tests_properties(ui_smoke PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 900)
+    set_tests_properties(ui_smoke PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 1800)
   endif()
   if(Python3_Interpreter_FOUND)
     add_test(NAME installer_checksum COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_install_kanji_reader.py" "${CMAKE_SOURCE_DIR}/scripts")

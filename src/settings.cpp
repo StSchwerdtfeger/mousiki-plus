@@ -2,6 +2,7 @@
 // defaults and the key bindings of the program.
 #include "app_dirs.h"
 #include "settings.h"
+#include "process_util.h"   // physical_memory_mb(): the cap of TrackBufferMB
 #include "utf8_util.h"
 #include "string_util.h"
 #include "keyboard_layout.h"
@@ -440,6 +441,7 @@ void apply_default_hotkeys(Settings& s) {
             // level, max boost, live). Uppercase on purpose -- plain "v" is
             // HKeyToggleNormalize, same convention as the other overlays.
             {"HKeyNormMenu",                    "V"},
+            {"HKeyVisualsMenu",                 ":"},
             {"HKeyBarsMenu",                    "B"},   // SHIFT+b: the spectrum bars' options (in the audio book mode the bookmark has this key)
             // Shift+E: the equaliser overlay (10 bands + presets). Uppercase
             // on purpose -- plain "e" is HKeyQueueAddEnd.
@@ -473,7 +475,7 @@ void apply_default_hotkeys(Settings& s) {
 #else
             {"HKeyLyricsTiming",                "ALT+L"},         // lyrics timing overlay
 #endif
-            {"HKeyTranslit",                    "\""},           // SHIFT+' (US keyboard): Japanese / Korean / Chinese text in Latin letters on / off (main screen, synced lyrics with a translation: original -> Latin letters -> + translation)
+            {"HKeyTranslit",                    "\""},           // SHIFT+' (US keyboard): Japanese / Korean / Chinese text in Latin letters on / off (main screen, synced lyrics with a translation: lyrics -> Latin -> lyrics + translation -> Latin + translation)
 #if defined(__APPLE__)
             {"HKeyCoverFetch",                  "Q"},             // cover fetch overlay (SHIFT+q on a Mac: no OPTION key, which types special characters there)
 #else
@@ -562,6 +564,21 @@ void apply_default_hotkeys(Settings& s) {
                 s.hotkeys["HKeyVideoFull"] = "v";
             }
         }
+        // HKeyVideoWindow belonged to the video window, which is gone: the line is dropped whatever its key (and not written back).
+        // It kept its key from the defaults of new commands: the visuals overlay (":") was left unbound by it. That one comes back.
+        {
+            auto vw = s.hotkeys.find("HKeyVideoWindow");
+            if (vw != s.hotkeys.end()) {
+                const std::string freed = vw->second;
+                s.hotkeys.erase(vw);
+                auto vm = s.hotkeys.find("HKeyVisualsMenu");
+                if (vm != s.hotkeys.end() && vm->second.empty() && freed == ":") {
+                    bool taken = false;
+                    for (const auto& [action, key] : s.hotkeys) if (key == ":") taken = true;
+                    if (!taken) vm->second = ":";
+                }
+            }
+        }
         std::vector<std::string> added_now;   // commands that came with a newer version
         for (const auto& [action, key] : defaults) {
             // Only fill actions that are entirely absent from the config.
@@ -591,6 +608,8 @@ void apply_default_hotkeys(Settings& s) {
                     // two commands that are both new keep their defaults (a fresh config); only the user's own key wins
                     if (std::find(added_now.begin(), added_now.end(), action) != added_now.end() &&
                         std::find(added_now.begin(), added_now.end(), name) != added_now.end()) continue;
+                    if (std::find(added_now.begin(), added_now.end(), name) != added_now.end())
+                        s.hotkeys_left_unbound.push_back(name + " (its key \"" + wiz->second + "\" is " + action + "'s)");
                     wiz->second = ""; break;
                 }
             }
@@ -850,6 +869,20 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_FLAG("UseOscilloscope", nullptr, use_osci, "\n"),
     SIMPLE_FLAG("UseSpectrogram", nullptr, use_spectro, "\n"),
     SIMPLE_FLAG("UseSphere", nullptr, use_sphere, "\n"),
+    SIMPLE_FLAG("UseMilkDrop", nullptr, use_milkdrop, "\n## true , false (default true) -- the MilkDrop visuals in the \".\" cycle (when projectM and presets are installed: see the manual)\n"),
+    SIMPLE_FLAG("MilkDropView", nullptr, milkdrop_view, "\n"),
+    SIMPLE_TEXT("MilkDropPresets", nullptr, milkdrop_presets, "\n## the folder of the MilkDrop presets (.milk); empty = the usual places (~/.local/share/projectM/presets, /usr/local/share/projectM/presets, /usr/share/projectM/presets; Windows: milkdrop\\presets next to mousiki.exe, %LOCALAPPDATA%\\projectM\\presets)\n"),
+    SIMPLE_NUM("MilkDropFrameRate", nullptr, milkdrop_fps, 10, 60, "\n## 15 , 20 , 25 , 30 , 45 , 60 (default 30) -- MilkDrop pictures a second (each one is drawn by the graphics card, or the processor when there is none)\n"),
+    SIMPLE_NUM("MilkDropResolution", nullptr, milkdrop_res, 160, 1920, "\n## 320 , 480 , 640 , 960 , 1280 (default 480) -- the MilkDrop pictures are drawn at most this many pixels across (then scaled to the place); more is sharper and costs more\n"),
+    SIMPLE_NUM("MilkDropPresetDuration", nullptr, milkdrop_preset_secs, 0, 600, "\n## 0 - 600 (default 25) -- seconds until the next MilkDrop preset (0 = it stays until you change it)\n"),
+    SIMPLE_FLAG("MilkDropShuffle", nullptr, milkdrop_shuffle, "\n## true , false (default true) -- the next preset at random (false: in the order of the files)\n"),
+    SIMPLE_FLAG("MilkDropAuto", nullptr, milkdrop_auto, "\n## true , false (default false) -- Auto MilkDrop: the field shows the MilkDrop visuals for every track (a track's Style Option can say no); it switches Auto Video off meanwhile and back on after\n"),
+    SIMPLE_FLAG("MilkDropAutoVideoWas", nullptr, milkdrop_auto_video_was, "\n## (set by Mousiki) Auto Video was on when Auto MilkDrop switched it off: it comes back on with Auto MilkDrop off\n"),
+    SIMPLE_FLAG("MilkDropShuffleFavourites", nullptr, milkdrop_fav_shuffle, "\n## true , false (default false) -- only the favourite presets are played (milkdrop_favourites.txt; the preset overlay's [a]); without favourites all of them\n"),
+    SIMPLE_NUM("MilkDropBeatSensitivity", nullptr, milkdrop_beat, 0, 20, "\n## 0 - 20 (default 10 = 1.0) -- how strongly the visuals react to the beat\n"),
+    SIMPLE_FLAG("MilkDropHardCuts", nullptr, milkdrop_hard_cuts, "\n## true , false (default true) -- a strong beat may change the preset at once\n"),
+    SIMPLE_NUM("MilkDropTransition", nullptr, milkdrop_transition, 0, 10, "\n## 0 - 10 (default 3) -- seconds of the blend from one preset into the next (0 = a cut)\n"),
+    SIMPLE_FLAG("MilkDropShowName", nullptr, milkdrop_show_name, "\n## true , false (default true) -- the preset's name in a small box for 3 seconds after it changed\n"),
     SIMPLE_FLAG("MenuIndexClassic", nullptr, menu_index_classic, "\n## the \"<\" menus overlay: false = the tree (organigram), true = the classic view with every category as a box (SHIFT+t switches, the last view is kept)\n"),
     SIMPLE_FLAG("SleepFade", nullptr, sleep_fade, "\n## sleep timer: fade the volume out over the last 10 % of the time (30 s .. 10 min), then pause\n"),
     SIMPLE_FLAG("WizardSeen", nullptr, wizard_seen, "\n## the help wizard (SHIFT+w) opened itself once already; false makes it greet you again on the next start\n"),
@@ -861,7 +894,8 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_FLAG("VideoView", "video_view", video_view, "\n"),
     SIMPLE_FLAG("VideoAuto", "video_auto", video_auto, "\n"),
     SIMPLE_FLAG("MetaDataOnly", "meta_only", meta_only, "\n"),
-    SIMPLE_NUM("VideoLayout", nullptr, video_layout, 0, 3, "\n"),
+    SIMPLE_NUM("VideoLayout", nullptr, video_layout, 0, 4, "\n"),
+    SIMPLE_NUM("VideoFullMilkDropLayout", nullptr, milkdrop_layout, 0, 4, "\n"),
     SIMPLE_NUM("VideoDownHeight", "video_down_height", video_down_height, 144, 2160, "\n"),
     SIMPLE_NUM("VisualizerFluidity", "visualizer_fluidity", visualizer_fluidity, 1, 10, "\n## 1 to 10\n"),
     SIMPLE_NUM("VisualizerDegradationSpeed", "visualizer_degradation_speed", visualizer_degradation_speed, 1, 10, "\n## 1 to 10\n"),
@@ -924,6 +958,8 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_QUOTED("Horizontal", "horizontal", box_horizontal, ";\n"),
     SIMPLE_QUOTED("ListSeparator", "list_separator", list_separator, "\n"),
     SIMPLE_COLOUR("ColorLegendCommand", "legend_cmd_color", legend_cmd_color),
+    SIMPLE_FLAG("AutoPlay", nullptr, auto_play, "\n## true , false (default false) -- false: when the music player starts, the track it opens with (the restored session or the first track of the library) is loaded and stands paused; the play / pause key (p) starts it. true: it starts playing at once\n"),
+    SIMPLE_FLAG("PauseSphere", nullptr, pause_sphere, "\n## true , false (default false) -- true: the sphere stops turning while the track is paused; false: it goes on turning (at the full frame rate, also with ReduceMotionWhenPaused)\n"),
     SIMPLE_FLAG("ElimentDiskBorder", "eliment_disk_border", disk_border, "\n## true , false -- the \":  :\" column between the disk (or cover) and the meta data; false: it is left out and the disk sits in the middle of the space between the left border and the meta data\n"),
     SIMPLE_FLAG("TerminalDefaultFont", nullptr, terminal_default_font, "\n## true , false -- true = Mousiki leaves the terminal's own font alone; false = Mousiki's window uses the font of TerminalFont= (Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Terminal Default Font)\n"),
     SIMPLE_FLAG("MarqueeScrolling", nullptr, marquee, "\n"),
@@ -1276,7 +1312,7 @@ static Settings load_from_config(const fs::path& path) {
             continue;
         }
         if (key == "TrackBufferMB") {
-            if (const auto n_ = muisc::parse_int(trim_ws(unquote(value)))) { s.track_buffer_mb = std::clamp(*n_, Settings::kTrackBufferMinMB, Settings::kTrackBufferMaxMB); }
+            if (const auto n_ = muisc::parse_int(trim_ws(unquote(value)))) { s.track_buffer_mb = std::clamp(*n_, Settings::kTrackBufferMinMB, Settings::track_buffer_cap_mb()); }
             continue;
         }
         if (key == "TerminalCols" || key == "TerminalRows") {
@@ -1299,6 +1335,13 @@ static Settings load_from_config(const fs::path& path) {
             std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
             s.pause_fade = !(v == "false" || v == "0" || v == "off" || v == "no");
+            continue;
+        }
+        if (key == "VideoFullSource") { s.vfull_milkdrop = trim_ws(unquote(value)) == "milkdrop"; continue; }
+        if (key == "Gapless") {
+            std::string v = trim_ws(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.gapless = (v == "full" || v == "2" || v == "always") ? 2 : (v == "album" || v == "albums" || v == "1" || v == "related") ? 1 : 0;
             continue;
         }
         if (key == "RateCap96") {
@@ -1377,6 +1420,8 @@ static Settings load_from_config(const fs::path& path) {
         if (key == "video_frame_rate") { s.video_fps = muisc::atoi_safe(trim_ws(unquote(value)).c_str()) >= 60 ? 60 : 25; continue; }
         if (key == "video_buffer") { int mb = muisc::atoi_safe(trim_ws(unquote(value)).c_str()); int best = 32; for (int c : kVideoBufferChoices) if (mb >= c) best = c; if (mb < kVideoBufferChoices[0]) best = kVideoBufferChoices[0]; s.video_buffer = best; continue; }
         if (key == "video_fx") { std::string v = ascii_lower_str(trim_ws(unquote(value))); s.video_fx = video_fx_from(v); continue; }
+        if (key == "MilkDropEffect") { s.milkdrop_fx = video_fx_from(ascii_lower_str(trim_ws(unquote(value)))); continue; }
+        if (key == "MilkDropSixelColors") { s.milkdrop_fixed_colors = ascii_lower_str(trim_ws(unquote(value))) == "fixed"; continue; }
         if (key == "video_full_lyrics") continue;   // (older versions: the lyrics of the big video overlay are the track's "Use Lyrics on Video" now)
         if (key == "VideoFullTranslation") continue;   // (older versions: see above)
         if (key == "VideoLayoutOsciStyle" || key == "VideoLayoutSpectroStyle" || key == "VideoLayoutOsciMode" || key == "VideoLayoutSpectroView") {
@@ -1395,7 +1440,8 @@ static Settings load_from_config(const fs::path& path) {
                 if (ch != ',' && ch != ' ' && ch != '>' && ch != ';') { item += static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); continue; }
                 if (item.empty()) continue;
                 int id = (item == "sphere") ? 0 : (item == "osci" || item == "oscilloscope") ? 1
-                       : (item == "spectro" || item == "spectrogram") ? 2 : (item == "lyrics") ? 3 : (item == "video") ? 4 : -1;
+                       : (item == "spectro" || item == "spectrogram") ? 2 : (item == "lyrics") ? 3 : (item == "video") ? 4
+                       : (item == "milkdrop") ? 5 : -1;
                 if (id >= 0 && std::find(order.begin(), order.end(), id) == order.end()) order.push_back(id);
                 item.clear();
             }
@@ -1404,8 +1450,8 @@ static Settings load_from_config(const fs::path& path) {
                 auto it = std::find(order.begin(), order.end(), 3);
                 order.insert(it == order.end() ? order.end() : it + 1, 4);
             }
-            for (int id = 0; id < 5; ++id) if (std::find(order.begin(), order.end(), id) == order.end()) order.push_back(id);
-            for (int i = 0; i < 5; ++i) s.viz_order[i] = order[static_cast<size_t>(i)];
+            for (int id = 0; id < 6; ++id) if (std::find(order.begin(), order.end(), id) == order.end()) order.push_back(id);   // (an older list: MilkDrop last)
+            for (int i = 0; i < 6; ++i) s.viz_order[i] = order[static_cast<size_t>(i)];
             continue;
         }
         if (key == "Eliment_lyrics_placeholder_ball" || key == "Element_lyrics_placeholder_ball") {
@@ -2176,7 +2222,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "VideoSize=" << (s.video_size == 1 ? "cropped" : s.video_size == 2 ? "full" : s.video_size == 3 ? "framed" : "regular") << "\n";
     out << "## the video's picture in the small field: regular = the whole picture | cropped = two columns cut off each side | full = fills the field (the oscilloscope's space), cropped to fit, the lyric line as a small black box over it\n";
     out << "VideoFx=" << video_fx_key(s.video_fx) << "\n";
-    out << "## a retro effect on the video's picture (small field and full screen): off | scanlines | crt | vhs | laserdisc | interlace | glitch | quiet glitch | phosphor green | phosphor green glow | phosphor amber | thermal | vector | neon edge | neon edge gradient | film | silent film | technicolor | risograph | halftone | halftone cmyk | halftone cmyk high-res | dither b/w | dither gradient | pixel | gradient | game boy high-res (+ gradient, b/w) | game boy low-res (+ gradient, b/w) | ega 16 | cga | zx spectrum | amstrad cpc | c64 | amiga ham | teletext | ascii\n";
+    out << "## a retro effect on the video's picture (small field and full screen): off | scanlines | crt | vhs | laserdisc | interlace | glitch | quiet glitch | phosphor green | phosphor green glow | phosphor amber | thermal | vector | neon edge | neon edge gradient | film | silent film | technicolor | risograph | halftone | halftone cmyk | halftone cmyk high-res | dither b/w | dither gradient | pixel | gradient | game boy high-res (+ gradient, b/w) | game boy low-res (+ gradient, b/w) | ega 16 | cga | zx spectrum | amstrad cpc | c64 | amiga ham | teletext | teletext high-res | ascii\n";
     write_simple_setting(out, s, "VideoContrast");
     write_simple_setting(out, s, "VideoBrightness");
     write_simple_setting(out, s, "VideoColors");
@@ -2196,7 +2242,10 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "## megabytes of decoded video frames kept ahead of the picture: 8 | 16 | 32 | 64 | 128 | 256 (a wider picture holds fewer seconds in it)\n";
     out << "VideoMp3=" << tf(s.video_mp3) << "\n## yt-dlp mp3 from mp4: SEARCH YT also saves the sound of a downloaded video as an mp3 song in the download folder when no song is the target (CTRL+o in SEARCH YT changes it per download): true | false\n";
 write_simple_setting(out, s, "VideoLayout");
-    out << "## the layout of the full screen video (SHIFT+UP / SHIFT+DOWN there): 0 video | 1 video + oscilloscope | 2 video + spectrogram | 3 video + oscilloscope + spectrogram\n";
+    out << "## the layout of the full screen video (SHIFT+UP / SHIFT+DOWN there): 0 video | 1 video + oscilloscope | 2 video + spectrogram | 3 video + oscilloscope + spectrogram | 4 quartet (oscilloscope top left, MilkDrop top right, video bottom left, spectrogram bottom right; needs MilkDrop)\n";
+    out << "VideoFullSource=" << (s.vfull_milkdrop ? "milkdrop" : "video") << "\n## what the big video overlay shows (its m key): video | milkdrop (the MilkDrop visuals, when projectM is installed)\n";
+    write_simple_setting(out, s, "VideoFullMilkDropLayout");
+    out << "## its layout with MilkDrop (SHIFT+UP / SHIFT+DOWN there): 0 MilkDrop | 1 MilkDrop + oscilloscope | 2 MilkDrop + oscilloscope + spectrogram | 3 quartet | 4 video + MilkDrop\n";
     out << "VideoLayoutOsciStyle=" << (s.vl_osci_style < 0 ? "default" : s.vl_osci_style == 1 ? "image" : "braille") << "\n";
     out << "VideoLayoutOsciMode=" << (s.vl_osci_mode < 0 ? "default" : s.vl_osci_mode == 1 ? "yt" : "xy") << "\n";
     out << "VideoLayoutSpectroStyle=" << (s.vl_spec_style < 0 ? "default" : s.vl_spec_style == 1 ? "image" : "braille") << "\n";
@@ -2219,13 +2268,18 @@ write_simple_setting(out, s, "VideoLayout");
     write_simple_setting(out, s, "UseOscilloscope");
     write_simple_setting(out, s, "UseSpectrogram");
     write_simple_setting(out, s, "UseSphere");
+    for (const char* k : {"UseMilkDrop", "MilkDropView", "MilkDropPresets", "MilkDropFrameRate", "MilkDropResolution", "MilkDropPresetDuration",
+                          "MilkDropAuto", "MilkDropAutoVideoWas", "MilkDropShuffle", "MilkDropShuffleFavourites", "MilkDropBeatSensitivity", "MilkDropHardCuts", "MilkDropTransition", "MilkDropShowName"})
+        write_simple_setting(out, s, k);
+    out << "MilkDropEffect=" << video_fx_key(s.milkdrop_fx) << "\n## off (default) or a video effect name (as VideoFx=) -- an effect over the MilkDrop pictures, their own (the video's effect belongs to the track's video)\n";
+    out << "MilkDropSixelColors=" << (s.milkdrop_fixed_colors ? "fixed" : "adaptive") << "\n## adaptive (default) , fixed -- the colours of the MilkDrop pictures on Sixel (and Kitty at standard resolution): adaptive = up to 240 colours taken from each picture (smooth gradients, a little more CPU), fixed = the fixed 256-colour palette of the videos\n";
     out << "## false = left out of the lyrics area: not in the \".\" cycle. The windows\n";
     out << "## (SHIFT+8 spectrogram, SHIFT+9 oscilloscope) and the full screen (SHIFT+u) work either way.\n";
     {
-        static const char* const viz_names[5] = {"sphere", "osci", "spectro", "lyrics", "video"};
+        static const char* const viz_names[6] = {"sphere", "osci", "spectro", "lyrics", "video", "milkdrop"};
         out << "VizOrder=";
-        for (int i = 0; i < 5; ++i) out << (i ? "," : "") << viz_names[std::clamp(s.viz_order[i], 0, 4)];
-        out << "\n## the order of the views when you press \".\" (sphere, osci, spectro, lyrics, video in any order); set it on Settings -> ANIMA/VIZ -> Viz Order 1..5\n";
+        for (int i = 0; i < 6; ++i) out << (i ? "," : "") << viz_names[std::clamp(s.viz_order[i], 0, 5)];
+        out << "\n## the order of the views when you press \".\" (sphere, osci, spectro, lyrics, video, milkdrop in any order); set it on Settings -> ANIMA/VIZ -> Viz Order 1..6\n";
     }
     osci_config_write(out, s, "##");
     spectro_config_write(out, s.spectro, "##");
@@ -2270,13 +2324,16 @@ write_simple_setting(out, s, "VideoLayout");
     }
     out << "BookCover=" << (s.book_cover ? "true" : "false") << "\n## true , false -- audio book mode: false = the standard picture (a woman reading), true = the cover image found in the book's folder (cover / folder / front / albumart .jpg .png ..., or the only picture there); the colour wave runs over either one\n";
     out << "UpdateCheck=" << (s.update_check ? "true" : "false") << "\n## true , false -- at start-up Mousiki looks (at most once a day, in the background) whether a newer release exists and tells you once per version; nothing is installed and nothing about you is sent (needs Python 3)\n";
-    out << "TrackBufferMB=" << s.track_buffer_mb << "\n## 64 - 16384 (default 256) -- a track whose decoded audio is bigger than this many MB (about 10 MB per minute of CD-quality stereo, double at 96 kHz) is not held whole in RAM but in a moving 2-minute window; seeking inside the window is instant, a jump outside it takes a moment. A bigger value = fast seeking in longer tracks, more RAM in use\n";
+    out << "TrackBufferMB=" << s.track_buffer_mb << "\n## 64 up to a quarter of the RAM, at most 16384 (default 64) -- a track whose decoded audio is bigger than this many MB (about 21 MB per minute of CD-quality stereo, double at 96 kHz; 64 MB = about 3 minutes) is not held whole in RAM but in a moving 2-minute window; seeking inside the window is instant, a jump outside it takes a moment. A bigger value = fast seeking in longer tracks, more RAM in use\n";
     out << "TerminalCols=" << s.terminal_cols << "\nTerminalRows=" << s.terminal_rows << "\n## columns and rows (default 120 x 32; at least 100 x 28, at most what fits on the screen; 0 in either = leave the terminal as it is) -- Mousiki asks the terminal for this size when it starts and when you change it in Settings -> GENERAL -> TERMINAL -> Terminal Size. Terminals decide for themselves: xterm, GNOME Terminal, iTerm2, Terminal.app and recent versions of Windows Terminal usually obey, others (Konsole, kitty, Alacritty, tmux, tiling window managers) ignore it\n";
     out << "UseTerminalSettings=" << (s.use_terminal_settings ? "true" : "false") << "\n## true , false -- true: Mousiki leaves the terminal as it is (its own window size and full screen), whatever TerminalCols / TerminalRows / FullScreen say\n";
     out << "FullScreen=" << (s.full_screen ? "true" : "false") << "\n## true , false -- ask the terminal for full screen when Mousiki starts (overrides TerminalCols / TerminalRows while on)\n";
-    out << "ReduceMotionWhenPaused=" << (s.reduce_motion_paused ? "true" : "false") << "\n## true , false (default true) -- paused (or with nothing playing) and untouched for a few seconds, the screen is redrawn only about 10 times a second (the disk turns slower, the sphere is calmer) -- much less CPU and terminal traffic (a screen that has not changed for 2 seconds is looked at only 4 times a second); any key brings the full frame rate back at once.\n";
+    out << "ReduceMotionWhenPaused=" << (s.reduce_motion_paused ? "true" : "false") << "\n## true , false (default true) -- paused (or with nothing playing) and untouched for a few seconds, the screen is redrawn only about 10 times a second (the disk turns slower; a turning sphere keeps the full rate, see PauseSphere) -- much less CPU and terminal traffic (a screen that has not changed for 2 seconds is looked at only 4 times a second); any key brings the full frame rate back at once.\n";
     out << "RateCap96=" << (s.rate_cap_96 ? "true" : "false") << "\n## true , false (default true) -- a track above 96 kHz (e.g. 176.4 / 192 kHz) is brought down to 96 kHz; false plays it at its own rate: more RAM (the decoded audio grows with the rate, see TrackBufferMB) and the audio device must accept the rate. The next track that is loaded uses it\n";
     out << "PauseFade=" << (s.pause_fade ? "true" : "false") << "\n## true , false (default true) -- pausing and resuming fade the sound over about 8 ms instead of cutting it off at once (no click; music player and audio books)\n";
+    write_simple_setting(out, s, "AutoPlay");
+    out << "Gapless=" << (s.gapless == 2 ? "full" : s.gapless == 1 ? "album" : "off") << "\n## off , album , full (default off) -- album: a track goes on into the next one without a gap when the next one (the track that follows in the play order) is of the same album (album tag and the same artist or folder; untagged files: the same folder) and has the same sample rate and channel count; full: every automatic change to the next local track (a different sample rate is resampled to the one that plays); off: the audio device is opened anew for every track (a short gap). Not for online tracks, the radio and audio books\n";
+    write_simple_setting(out, s, "PauseSphere");
     out << "MediaKeys=" << (s.media_keys ? "true" : "false") << "\n## true , false -- the system's media controls: Windows shows Mousiki in the media pop-up and its media keys work, Linux shows it in the desktop's media widgets (MPRIS; playerctl works), macOS shows Now Playing and handles the media keys (read at the next start; player and radio)\n";
     out << "RemoteAppCli=" << (s.remote_cli ? "true" : "false") << "\n## true , false (default false) -- the remote app's web server also answers /api/cli: a command line of `mousiki --cli` with its reply (Home Assistant, scripts on other computers; needs the PIN, a restricted set: no quit, set, edit, alias, force, clear-queue)\n";
     out << "RemoteAppHosts=" << s.remote_hosts << "\n## names (comma separated, e.g. mousiki.home,nas) the remote app's web server answers to besides IP addresses and localhost; a request with any other Host is refused (DNS rebinding protection). Empty (default): addresses only\n";
@@ -2544,8 +2601,11 @@ void copy_look(const Settings& src, Settings& dst) {
     MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(disk_border); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
     MOUSIKI_LOOK(volume_indicator); MOUSIKI_LOOK(volume_gradient); MOUSIKI_LOOK(element_vizfield); MOUSIKI_LOOK(element_lyrics);
     MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
+    MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res);
+    MOUSIKI_LOOK(milkdrop_preset_secs); MOUSIKI_LOOK(milkdrop_shuffle); MOUSIKI_LOOK(milkdrop_fav_shuffle); MOUSIKI_LOOK(milkdrop_auto); MOUSIKI_LOOK(milkdrop_auto_video_was); MOUSIKI_LOOK(milkdrop_fx); MOUSIKI_LOOK(milkdrop_fixed_colors); MOUSIKI_LOOK(milkdrop_beat); MOUSIKI_LOOK(milkdrop_hard_cuts);
+    MOUSIKI_LOOK(milkdrop_transition); MOUSIKI_LOOK(milkdrop_show_name);
     MOUSIKI_LOOK(use_sphere); MOUSIKI_LOOK(viz_default); MOUSIKI_LOOK(element_visualizer); MOUSIKI_LOOK(waveform_smooth);
-    for (int i = 0; i < 5; ++i) dst.viz_order[i] = src.viz_order[i];
+    for (int i = 0; i < 6; ++i) dst.viz_order[i] = src.viz_order[i];
     MOUSIKI_LOOK(meta_only); MOUSIKI_LOOK(visualizer_fluidity); MOUSIKI_LOOK(visualizer_degradation_speed); MOUSIKI_LOOK(visualizer_viscosity);
     MOUSIKI_LOOK(bars_style); MOUSIKI_LOOK(hifi_resolution); MOUSIKI_LOOK(hifi_channels); MOUSIKI_LOOK(hifi_color); MOUSIKI_LOOK(hifi_scale); MOUSIKI_LOOK(hifi_adapt); MOUSIKI_LOOK(hifi_fluidity); MOUSIKI_LOOK(hifi_degradation); MOUSIKI_LOOK(hifi_viscosity); MOUSIKI_LOOK(hifi_fscale); MOUSIKI_LOOK(hifi_gain); MOUSIKI_LOOK(hifi_range); MOUSIKI_LOOK(hifi_split);
     MOUSIKI_LOOK(viz_style); MOUSIKI_LOOK(viz_bands); MOUSIKI_LOOK(viz_density); MOUSIKI_LOOK(disk_rotation_speed);
@@ -2565,6 +2625,15 @@ void sync_shared(const Settings& from, Settings& to) {
     copy_look(to, merged);            // the look of `to` stays
     merged.book_profile = to.book_profile;
     to = std::move(merged);
+}
+
+int Settings::track_buffer_cap_mb() {
+    static const int cap = [] {
+        const long long ram = physical_memory_mb();
+        if (ram <= 0) return kTrackBufferMaxMB;
+        return static_cast<int>(std::clamp<long long>(ram / 4, kTrackBufferMinMB, kTrackBufferMaxMB));
+    }();
+    return cap;
 }
 
 fs::path book_config_path() { return config_path().parent_path() / "audiobook_config.txt"; }
@@ -2610,7 +2679,7 @@ Settings load_book_settings(const Settings& player, bool* wants_default_theme) {
 // The keys of config.txt that belong to the look (see copy_look): only these go into audiobook_config.txt.
 static bool is_look_key(const std::string& key) {
     static const char* const prefixes[] = {"Color", "BorderGradient", "Eliment", "Volume", "VizLyricsField", "LyricViz", "VizDefault", "NoLyricsViz",
-                                           "UseLyrics", "UseOscilloscope", "UseSpectrogram", "UseSphere", "VizOrder", "Osci", "Scope", "Spectro",
+                                           "UseLyrics", "UseOscilloscope", "UseSpectrogram", "UseSphere", "UseMilkDrop", "MilkDrop", "VizOrder", "Osci", "Scope", "Spectro",
                                            "Visualizer", "WaveformStyle", "DiskRotationSpeed", "MetaDataOnly", "PlaybackMode", "UpperLeftCorner",
                                            "UpperRightCorner", "BottomLeftCorner", "LowerRightCorner", "Vertical", "Horizontal", "Seprator", "ListSeparator",
                                            "Normalize", "EqualizerEnabled", "EqualizerBands", "StereoPlayback"};

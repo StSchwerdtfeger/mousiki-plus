@@ -201,6 +201,8 @@ void App::handle_key(int key) {
 
     if (mode_ == Mode::NormMenu) { handle_norm_menu_key(key); return; }
 
+    if (mode_ == Mode::MilkdropMenu) { handle_milkdrop_menu_key(key); return; }
+
     if (mode_ == Mode::LyricsEdit) { handle_lyrics_edit_key(key); return; }
 
     if (mode_ == Mode::BookOverlay) { book_overlay_key(key); return; }
@@ -248,7 +250,18 @@ void App::handle_browse_key(int key) {
             list_overlay_page(key == 'A' ? -1 : 1);
             return;
         }
-        if (key == 27) { list_overlay_close(); return; }
+        if (key == 27) {   // ESC: a search / filter of the list is cleared first (the full library again), then the overlay closes
+            if (list_source_ != ListSource::Local || !last_local_query_.empty() || !folder_filter_.empty()) {
+                list_source_ = ListSource::Local;
+                last_local_query_.clear();
+                folder_filter_.clear();
+                refresh_local_view();
+                status_line_ = "list: the search is cleared (ESC again closes the overlay)";
+            } else {
+                list_overlay_close();
+            }
+            return;
+        }
     }
     // Big queue overlay (SHIFT+k): same keys as the list overlay above.
     if (queue_overlay_active()) {

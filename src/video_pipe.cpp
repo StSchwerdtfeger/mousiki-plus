@@ -24,8 +24,13 @@ void video_make_picture(const VideoFrame& src0, const VideoFrame* prev, const Vi
         else out.rgb = src->rgb;
         out.level.assign(static_cast<size_t>(out.w) * out.h, 255);
         out.hue.clear();
+    } else if (p.adaptive) {
+        VideoPlayer::quantize_adaptive(*src, out.hue, out.level, out.pal);
+        out.own_pal = true;
+        out.rgb.clear();
     } else {
         VideoPlayer::quantize(*src, out.hue, out.level, p.look.dither);
+        out.own_pal = false;
         out.rgb.clear();
     }
     const int w = out.w, h = out.h;
@@ -118,7 +123,8 @@ bool VideoPipe::submit(const std::string& key, const VideoFrame& f, int cx0, int
     return true;
 }
 
-bool VideoPipe::take(const std::string& key, int w, int h, std::vector<uint8_t>& rgb, std::vector<uint8_t>& hue, std::vector<uint8_t>& level) {
+bool VideoPipe::take(const std::string& key, int w, int h, std::vector<uint8_t>& rgb, std::vector<uint8_t>& hue, std::vector<uint8_t>& level,
+                     std::array<std::array<uint8_t, 3>, 256>* pal, bool* own_pal) {
     std::lock_guard<std::mutex> lk(m_);
     if (!has_result_) return false;
     has_result_ = false;
@@ -126,6 +132,8 @@ bool VideoPipe::take(const std::string& key, int w, int h, std::vector<uint8_t>&
     rgb.swap(result_.rgb);
     hue.swap(result_.hue);
     level.swap(result_.level);
+    if (pal) *pal = result_.pal;
+    if (own_pal) *own_pal = result_.own_pal;
     return true;
 }
 

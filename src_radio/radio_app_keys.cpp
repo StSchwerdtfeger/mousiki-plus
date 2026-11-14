@@ -1,4 +1,5 @@
 #include "radio_app.h"
+#include "milkdrop.h"
 #include "string_util.h"
 #if defined(_WIN32)
 #include "win_compat.h"
@@ -327,6 +328,24 @@ bool RadioApp::key_overlays_b(KeyCtx& kc) {
     [[maybe_unused]] const bool arrow = kc.arrow;
     [[maybe_unused]] const int nvis = kc.nvis;
     [[maybe_unused]] int& menus_inject = kc.menus_inject;
+    if (ui.model.overlay == 11 && !ui.model.cheat_open) {  // the MilkDrop visuals overlay (":")
+        int& orow = ui.model.overlay_row;
+        std::string note;
+        if (k == 3 || k == kKeyCtrlC) { ui.model.overlay = 0; settings_save(); running = false; return true; }
+        if (arrow) {
+            if (k == 'A') orow = orow <= 0 ? kMdRowCount - 1 : orow - 1;
+            else if (k == 'B') orow = orow >= kMdRowCount - 1 ? 0 : orow + 1;
+            else if (k == 'C' || k == 'D') { md_overlay_adjust(cfg, orow, k == 'C' ? +1 : -1, note); ui.model.settings.dirty = true; }
+        } else if (k == 13 || k == 10) {
+            if (orow <= 1) Milkdrop::instance().random_preset(); else { md_overlay_adjust(cfg, orow, +1, note); ui.model.settings.dirty = true; }
+        } else if (k == ' ') { md_overlay_adjust(cfg, orow, +1, note); ui.model.settings.dirty = true; }
+        else if (k == 'n' || k == 'N') Milkdrop::instance().next_preset();
+        else if (k == 'b' || k == 'B') Milkdrop::instance().prev_preset();
+        else if (k == 'l' || k == 'L') md_overlay_adjust(cfg, 2, +1, note);
+        else if (k == 27 || k == key_of(cfg, "VisualsMenu")) { ui.model.overlay = 0; settings_save(); return true; }
+        if (!note.empty()) { ui.model.notice = note; notice_until = ui.model.t_sec + 4; }
+        return true;
+    }
     if (ui.model.overlay == 10 && !ui.model.cheat_open) {  // spectrum bars options (SHIFT+b)
         int& orow = ui.model.overlay_row;
         const std::vector<int> brow = muisc::bars_rows(cfg);
@@ -565,15 +584,19 @@ bool RadioApp::key_main(KeyCtx& kc) {
         case 'L': ui.model.stov = StationsOverlay{}; ui.model.stov.open = true; break;   // the big STATIONS overlay
         case ')': toggle_scope_window(); break;     // SHIFT+9: the oscilloscope in its own window
         case '(': toggle_spectro_window(); break;   // SHIFT+8: the spectrogram in its own window
-        case '.':                              // the scope block: oscilloscope -> sphere -> spectrogram -> oscilloscope
-            // (what is switched off on the GENERAL tab is skipped; the sphere is always there)
-            for (int n = 0; n < 3; ++n) {
-                cfg.scope_mode = cfg.scope_mode == 0 ? 1 : cfg.scope_mode == 1 ? 3 : 0;
-                if ((cfg.scope_mode == 0 && !cfg.use_osci) || (cfg.scope_mode == 3 && !cfg.use_spectro)) continue;
+        case '.': {                            // the scope block: oscilloscope -> sphere -> spectrogram -> MilkDrop -> oscilloscope
+            // (what is switched off on the ANIMA/VIZ tab is skipped, MilkDrop also when projectM is not installed; the sphere is always there)
+            const bool md_ok = radio_milkdrop_usable(cfg);
+            for (int n = 0; n < 4; ++n) {
+                cfg.scope_mode = cfg.scope_mode == 0 ? 1 : cfg.scope_mode == 1 ? 3 : cfg.scope_mode == 3 ? 4 : 0;
+                if ((cfg.scope_mode == 0 && !cfg.use_osci) || (cfg.scope_mode == 3 && !cfg.use_spectro) || (cfg.scope_mode == 4 && !md_ok)) continue;
                 break;
             }
+            if (cfg.scope_mode == 4) { ui.model.notice = "scope block: milkdrop (" + window_key_label("VisualsMenu") + " opens its options)"; notice_until = ui.model.t_sec + 4; }
             ui.model.settings.dirty = true;
             break;
+        }
+        case ':': ui.model.overlay = 11; ui.model.overlay_row = 0; break;   // the MilkDrop visuals overlay
         case 'B': ui.model.overlay = 10; ui.model.overlay_row = 0; ui.model.bars_scroll = 0; break;   // Shift+B: spectrum bars options
         case 'I': ui.model.overlay = 6; ui.model.overlay_row = kSrView; break;   // Shift+I: spectrogram options
         case 'U':                              // Shift+U: spectrogram full screen

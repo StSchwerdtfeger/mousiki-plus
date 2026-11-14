@@ -88,6 +88,33 @@ struct PendingLoad {
     bool is_local = true;   // for snapshot/resume identity -- which of path/video_id is authoritative
     std::string video_id;   // valid if !is_local
     bool fresh = false;     // online: the file was made by this load (it was not in the download folder / cache before)
+    bool gapless = false;   // the player went into this track without a gap already (gapless_tick()): no device start for it
+};
+
+// Gapless playback: what one preload of the track that follows fills in (its thread holds a reference of its own, so dropping ours
+// simply lets its result go). mu guards everything.
+struct GapJob {
+    std::mutex mu;
+    bool ready = false;      // pl is there (success, or why not)
+    PendingLoad pl;
+    bool live = false;       // the track plays: a waveform that is still being made goes straight to the screen
+    bool wave_ready = false; // ...else it waits here
+    std::vector<float> wave;
+};
+
+// The arguments of one load (App::load_job()): the track itself, and for a gapless preload the job it fills, the sample rate it has to
+// come at and -- Gapless "album" -- what it is compared with.
+struct LoadJob {
+    fs::path local_path;
+    std::string title, artist, location_label, video_id, video_audio;
+    bool is_local = true;
+    bool want_stereo = true;
+    int sid_seconds = 0;
+    std::shared_ptr<GapJob> gap;   // set: a gapless preload
+    int force_rate = 0;            // the rate the device runs at
+    bool album_only = false;       // Gapless "album": only a track of the same album with the same rate and channels
+    fs::path cur_path;             // the track that plays now ...
+    std::string cur_album, cur_artist;   // ... and its tags ("" / "-" = none)
 };
 
 struct DevicePlayRequest {
@@ -95,6 +122,7 @@ struct DevicePlayRequest {
     int volume = 70;
     double start_sec = 0.0;
     int generation = 0;
+    bool start_paused = false;   // the track is loaded and stands at its place, paused (Auto-Play off at the program's start)
 };
 
 struct PathRow {
