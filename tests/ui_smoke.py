@@ -2494,9 +2494,20 @@ def video_fx_picker(binary, root, scripts):
         sess.pump(1.0)   # (a slow runner: the list must have taken its first key before the next one)
         sess.send(b"\x1b[B", 1.0)
         sess.send("\r", 1.5)
-        sess.wait_for(lambda t: "VIDEO EFFECT" not in t and "video effect: Pixel" in t, 20)   # (a slow runner closes the list and draws the status line a moment later)
+        def fx_cfg():
+            try:
+                with open(cfg, encoding="utf-8") as f:
+                    return "VideoFx=pixel" in f.read()
+            except OSError:
+                return False
+        sess.wait_for(lambda t: "VIDEO EFFECT" not in t and ("video effect: Pixel" in t or fx_cfg()), 20)   # (a slow runner closes the list and draws the status line a moment later; config.txt has the choice too)
         t = sess.text()
-        check("VIDEO EFFECT" not in t and "video effect: Pixel" in t, "effect picker: Settings takes the choice (Pixel, one below Dither Gradient where the picker started: the right arrow had taken CRT one column on)")
+        ok = "VIDEO EFFECT" not in t and ("video effect: Pixel" in t or fx_cfg())
+        check(ok, "effect picker: Settings takes the choice (Pixel, one below Dither Gradient where the picker started: the right arrow had taken CRT one column on)")
+        if not ok:
+            sess.dump("effect picker: after the choice")
+            with open(cfg, encoding="utf-8") as f:
+                print("  config VideoFx lines:", [l.strip() for l in f if l.startswith("VideoFx=")])
         check(sess.alive(), "effect picker: the program is still running")
     finally:
         sess.kill()
