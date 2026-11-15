@@ -13,6 +13,7 @@
 #include "lyrics_translate.h"
 #include "scope_big.h"
 
+#include <type_traits>
 #include <algorithm>
 #include <sstream>
 #include <system_error>
@@ -576,9 +577,15 @@ namespace {
 // (the visuals are drawn for that very aspect), has no length and no frame before.
 class MilkdropSource {
 public:
-    explicit MilkdropSource(Milkdrop& m) : m_(m) {}
+    // cap: the widest picture (width / height in pixels) that is drawn; 0 = the whole place. A preset's scene is scaled to the picture's width, so
+    // a picture much wider than 16:9 shows only a band of it (a circle cut at the top and bottom): wider places get bars at the sides instead.
+    explicit MilkdropSource(Milkdrop& m, double cap = 0.0) : m_(m), cap_(cap) {}
     bool has_video() const { return true; }
-    void fit(int bw, int bh, double, int& ow, int& oh) const { ow = bw; oh = bh; }
+    double cap() const { return cap_; }
+    void fit(int bw, int bh, double par, int& ow, int& oh) const {
+        ow = bw; oh = bh;
+        if (cap_ > 0 && bh > 0 && bw * par / bh > cap_) ow = std::max(2, static_cast<int>(std::lround(bh * cap_ / std::max(0.01, par))));
+    }
     void fit_cover(int bw, int bh, double, int& ow, int& oh) const { ow = bw; oh = bh; }
     double duration() const { return 0.0; }
     void set_buffer_mb(int) {}
@@ -604,6 +611,7 @@ private:
     static VideoFrame& prev_slot() { static VideoFrame v; return v; }
     static bool& have_prev() { static bool h = false; return h; }
     Milkdrop& m_;
+    double cap_;
 };
 } // namespace
 
@@ -630,7 +638,7 @@ bool App::milkdrop_draw(std::vector<std::string>& rows, int W, int H, int abs_co
         return true;
     }
     milkdrop_drawn_ = true;
-    MilkdropSource src(Milkdrop::instance());
+    MilkdropSource src(Milkdrop::instance(), settings_.milkdrop_aspect ? 16.0 / 9.0 : 0.0);   // (Aspect Correction: no wider than 16:9, bars at the sides)
     // The effects that move with the time (Glitch, VHS, Film ...) get the clock of the program, like a video gets its position: with a fixed 0 they
     // stood still (one glitch picture for ever).
     static const auto t0 = std::chrono::steady_clock::now();
@@ -672,6 +680,10 @@ bool App::video_draw_src(Src& V, bool playing_one, bool is_video, std::string& p
         int fw = 0, fh = 0;
         if (mode == 2) {
             vcols = W; vrows = H;
+            if constexpr (std::is_same_v<Src, MilkdropSource>) {   // (a place wider than the cap: the picture is centred, bars at the sides)
+                if (V.cap() > 0 && static_cast<double>(W) * cw0 / (static_cast<double>(H) * ch0) > V.cap())
+                    vcols = std::clamp(static_cast<int>(std::lround(H * ch0 * V.cap() / cw0)), 4, W);
+            }
             if (picture) {
                 const int maxw = md_maxw;
                 const double f = std::min(1.0, static_cast<double>(maxw) / (vcols * cw0));

@@ -250,20 +250,28 @@ struct MdPic {
 };
 MdPic& md_pic() { static MdPic p; return p; }
 
-// nearest-neighbour: the frame (any size) onto w x h pixels
-void md_scale(const VideoFrame& f, int w, int h, std::vector<uint8_t>& out) {
-    out.resize(static_cast<size_t>(w) * h * 3);
-    if (f.w <= 0 || f.h <= 0) { std::fill(out.begin(), out.end(), 0); return; }
+// nearest-neighbour: the frame (any size) onto w x h pixels, centred in iw pixels across (the rest black: the bars of a place wider than 16:9)
+void md_scale(const VideoFrame& f, int w, int h, std::vector<uint8_t>& out, int iw = 0) {
+    out.assign(static_cast<size_t>(w) * h * 3, 0);
+    if (f.w <= 0 || f.h <= 0) return;
+    if (iw <= 0 || iw > w) iw = w;
+    const int x0 = (w - iw) / 2;
     for (int y = 0; y < h; ++y) {
         const int sy = std::min(f.h - 1, static_cast<int>((static_cast<int64_t>(y) * f.h) / h));
         const uint8_t* srow = f.rgb.data() + static_cast<size_t>(sy) * f.w * 3;
-        uint8_t* d = out.data() + static_cast<size_t>(y) * w * 3;
-        for (int x = 0; x < w; ++x) {
-            const int sx = std::min(f.w - 1, static_cast<int>((static_cast<int64_t>(x) * f.w) / w));
-            const uint8_t* s = srow + static_cast<size_t>(sx) * 3;
-            d[0] = s[0]; d[1] = s[1]; d[2] = s[2]; d += 3;
+        uint8_t* d = out.data() + (static_cast<size_t>(y) * w + x0) * 3;
+        for (int x = 0; x < iw; ++x) {
+            const int sx = std::min(f.w - 1, static_cast<int>((static_cast<int64_t>(x) * f.w) / iw));
+            const uint8_t* sp = srow + static_cast<size_t>(sx) * 3;
+            d[0] = sp[0]; d[1] = sp[1]; d[2] = sp[2]; d += 3;
         }
     }
+}
+// How many of `total` units across the picture takes: no wider than 16:9 (Aspect Correction); a unit is par times as wide as high.
+int md_inner_w(int total, int h, double par, bool cap) {
+    if (!cap || h <= 0) return total;
+    const int iw = static_cast<int>(std::lround(h * (16.0 / 9.0) / std::max(0.01, par)));
+    return std::clamp(iw, 2, total);
 }
 } // namespace
 
@@ -284,8 +292,10 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
     const int cws = std::max(2, cw0 / scale);
     const int chs = std::max(4, static_cast<int>(std::lround(static_cast<double>(cws) * ch0 / cw0)));
     const int pw = scope_w * cws, ph = kPanelH * chs;
+    // Aspect Correction: the picture is no wider than 16:9 (a wide block gets bars at the sides, not a cut-off preset)
+    const int ipw = md_inner_w(pw, ph, 1.0, s.c.md_aspect);
     bool fresh = false;
-    const VideoFrame* f = md.frame(pw, ph, fresh);   // (the render thread starts here and learns the size)
+    const VideoFrame* f = md.frame(ipw, ph, fresh);   // (the render thread starts here and learns the size)
     // the preset's name for 3 s after a change, in a small box on the bottom row
     std::string name;
     if (s.c.md_show_name && md.since_change() <= 3.0) name = truncate_str(md.preset_name(), std::max(4, scope_w - 4));
@@ -306,7 +316,7 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
     if (pic) {
         GfxFrame& g = m.gfx;
         const bool tc = m.gfx_proto == GfxProto::Kitty;
-        const std::string key = std::to_string(pw) + "x" + std::to_string(ph) + "|" + std::to_string(scope_w) + "|" + std::to_string(nl) + "," +
+        const std::string key = std::to_string(pw) + "x" + std::to_string(ph) + "|" + std::to_string(ipw) + "|" + std::to_string(scope_w) + "|" + std::to_string(nl) + "," +
                                 std::to_string(nw) + (tc ? "|t" : "|p") + (s.c.black_background ? "|b" : "|-");
         const bool remake = key != st.key || !g.plain || g.w != pw || g.h != ph || g.level.size() != static_cast<size_t>(pw) * ph;
         g.plain = true; g.direct = true; g.truecolor = tc;
@@ -320,7 +330,7 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
         g.fresh = fresh || remake;
         if (g.fresh) {
             std::vector<uint8_t> px;
-            md_scale(*f, pw, ph, px);
+            md_scale(*f, pw, ph, px, ipw);
             g.level.assign(static_cast<size_t>(pw) * ph, 255);
             if (tc) g.rgb.swap(px);
             else {   // Sixel: a 6 x 6 x 6 colour cube (216 colours of the 240 there are)
@@ -343,7 +353,8 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
     }
     // other terminals: half blocks, two pixels a cell (the upper one the text colour, the lower one the background)
     std::vector<uint8_t> px;
-    md_scale(*f, scope_w, kPanelH * 2, px);
+    const int icells = md_inner_w(scope_w, kPanelH * 2, 2.0 * cw0 / ch0, s.c.md_aspect);   // (a half block is cw0 wide, ch0 / 2 high)
+    md_scale(*f, scope_w, kPanelH * 2, px, icells);
     rows.assign(kPanelH, std::string());
     for (int r = 0; r < kPanelH; ++r) {
         std::string line;

@@ -4378,6 +4378,10 @@ def milkdrop_radio_book(binary, root, scripts):
         sess.send(".", 0.5)
         check(settle(sess, big, 16), "radio: \".\" from the spectrogram reaches MilkDrop, a picture fills the scope block (%s)" % sess.pics.get(7201))
         a = sess.pic_rgba.get(7201)
+        def bars_black(img):   # the radio block is wider than 16:9: the picture is centred, the first and last columns are black bars
+            w_, h_, px_ = img
+            return all(px_[(y * w_ + x) * 4 + c] == 0 for y in range(h_) for x in (0, 1, w_ - 2, w_ - 1) for c in range(3))
+        check(a is not None and bars_black(a), "milkdrop radio: Aspect Correction (on by default): a block wider than 16:9 has black bars at the sides (%s)" % (None if a is None else "%dx%d" % (a[0], a[1])))
         moved = False
         for _ in range(8):   # (a busy machine draws fewer pictures a second)
             sess.pump(0.75)
@@ -4546,6 +4550,7 @@ def milkdrop_visuals(binary, root, scripts):
         p = sess.pics.get(7201)
         check(p is not None and p["c"] >= 30 and p["r"] >= 10, "milkdrop: a picture fills the field (%s)" % (None if p is None else "%d x %d cells" % (p["c"], p["r"])))
         a = sess.pic_rgba.get(7201)
+        check(a is not None and a[0] / a[1] <= 16 / 9 + 0.03, "milkdrop: Aspect Correction (on by default): the picture is never wider than 16:9 (%s)" % (None if a is None else "%dx%d" % (a[0], a[1])))
         moved = False
         for _ in range(8):   # (a busy machine draws fewer pictures a second)
             sess.pump(0.75)

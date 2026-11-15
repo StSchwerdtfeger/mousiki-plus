@@ -807,6 +807,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidMdCutSens: { char b[8]; std::snprintf(b, sizeof b, "%.1f", std::clamp(settings_.milkdrop_cut_sens, 5, 60) / 10.0); return b; }
             case kSidMdPreset: return (settings_.milkdrop_default_preset.empty() ? std::string("none (one from the list)") : truncate_str(path_utf8(path_from_utf8(settings_.milkdrop_default_preset).stem()), 40)) + "  [ENTER] choose";
             case kSidMdBrowse: return "[ENTER] open";
+            case kSidMdRandom: return "[ENTER] random";
             case kSidMdGpu: return milkdrop_gpu_label(settings_.milkdrop_gpu);
             case kSidMdHcd: return std::to_string(std::clamp(settings_.milkdrop_hcd, 3, 120)) + " s";
             case kSidMdMesh: return mesh_name(settings_.milkdrop_mesh);
@@ -1005,7 +1006,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidMdMesh: return {mesh_name(0), mesh_name(1), mesh_name(2), mesh_name(3)};
             case kSidMdVar: return {"off", "2 s", "5 s", "10 s", "15 s", "20 s", "30 s"};
             case kSidMdGpu: { std::vector<std::string> o{"automatic"}; for (const MilkdropGpu& g : Milkdrop::gpus()) o.push_back(g.label); return o; }
-            case kSidMdPreset: case kSidMdBrowse: return {};   // not a switch: ENTER opens the preset overlay
+            case kSidMdPreset: case kSidMdBrowse: case kSidMdRandom: return {};   // not a switch: ENTER opens the preset overlay
             case kSidMdTransition: { std::vector<std::string> o; for (int i = 0; i <= 10; ++i) o.push_back(i == 0 ? std::string("cut") : std::to_string(i) + " s"); return o; }
             case kSidMdFx: { std::vector<std::string> o; for (int i = 0; i < kVideoFxShown; ++i) o.push_back(video_fx_name(kVideoFxOrder[i])); return o; }
             case kSidMdColors: return {"adaptive", "fixed"};
@@ -1781,6 +1782,13 @@ void App::handle_settings_key(int key) {
         if ((sid == kSidMdPreset || sid == kSidMdBrowse) && (key == '\r' || key == '\n' || (last_key_was_arrow() && (key == 'C' || key == 'D') && sid == kSidMdPreset))) {
             mdb_open_default();
             if (!mdb_open_) force_redraw_ = true;
+            return;
+        }
+        if (sid == kSidMdRandom && (key == '\r' || key == '\n' || (last_key_was_arrow() && (key == 'C' || key == 'D')))) {
+            std::string why;
+            if (!Milkdrop::instance().available(&why)) status_line_ = "random preset: MilkDrop is not available here -- " + why;
+            else if (!Milkdrop::instance().running()) status_line_ = "random preset: the visuals are not running now (they run while the MilkDrop view shows)";
+            else { Milkdrop::instance().random_preset(); status_line_ = "random preset: another one is shown"; }
             return;
         }
         if (sid == kSidMdPreset && !last_key_was_arrow() && (key == 'd' || key == 'D' || key == kKeyDelete || key == 127 || key == 8)) {
