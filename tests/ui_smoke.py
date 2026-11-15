@@ -2500,9 +2500,11 @@ def video_fx_picker(binary, root, scripts):
                     return "VideoFx=pixel" in f.read()
             except OSError:
                 return False
-        sess.wait_for(lambda t: "VIDEO EFFECT" not in t and ("video effect: Pixel" in t or fx_cfg()), 20)   # (a slow runner closes the list and draws the status line a moment later; config.txt has the choice too)
+        def row_pixel(t):   # (the Settings row itself: the status line may already say "Unsaved changes!")
+            return any("Video Effect " in l and ": Pixel" in l and "Contrast" not in l and "Preview" not in l for l in t.splitlines())
+        sess.wait_for(lambda t: "VIDEO EFFECT" not in t and ("video effect: Pixel" in t or row_pixel(t) or fx_cfg()), 20)   # (a slow runner closes the list and draws the status line a moment later; config.txt has the choice too)
         t = sess.text()
-        ok = "VIDEO EFFECT" not in t and ("video effect: Pixel" in t or fx_cfg())
+        ok = "VIDEO EFFECT" not in t and ("video effect: Pixel" in t or row_pixel(t) or fx_cfg())
         check(ok, "effect picker: Settings takes the choice (Pixel, one below Dither Gradient where the picker started: the right arrow had taken CRT one column on)")
         if not ok:
             sess.dump("effect picker: after the choice")
