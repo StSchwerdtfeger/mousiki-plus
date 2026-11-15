@@ -119,6 +119,9 @@ struct RadioSettings : VizPrefs {
     // the warp mesh (0 low .. 3 very high), aspect correction, a clean start per preset, and only the favourites in the list
     int md_hcd = 20, md_var = 0, md_mesh = 1;
     bool md_aspect = true, md_clean = false, md_fav_shuffle = false;
+    // a video effect over the pictures (MilkDropEffect=, MilkDropEffectOn=: off keeps the choice) and the Sixel colours (MilkDropSixelColors=: fixed or taken from each picture)
+    int md_fx = 0;
+    bool md_fx_on = true, md_fixed_colors = false;
     std::vector<std::string> md_extra;   // the player's MilkDropExtraPresets= lines (more preset folders)
     std::string md_presets;    bool element_visualizer = true;             // the FFT spectrum under the station info
     bool stereo = true;                         // false = fold left + right to mono

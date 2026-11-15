@@ -4401,6 +4401,25 @@ def milkdrop_radio_book(binary, root, scripts):
         t = sess.text()
         check("Preset Overlay" in t and "Shuffle Favourites" in t and "Hard Cut Interval" in t and "Mesh Detail" in t and "Clean Start" in t,
               "radio: the overlay has the player's rows (Preset Overlay, Shuffle Favourites, Hard Cut Interval, Mesh Detail, Clean Start ...)")
+        def go_to(label):
+            for _ in range(30):
+                if any(("> " + label) in l for l in sess.screen.display): return True
+                sess.send(b"\x1b[B", 0.12)
+            return False
+        check(go_to("MilkDrop Effect"), "radio: the overlay has the video effect rows (MilkDrop Effect)")
+        efx = lambda: next((l for l in sess.screen.display if "> MilkDrop Effect" in l), "")
+        e0 = efx()
+        sess.send(b"\x1b[C", 1.0)
+        check(efx() != e0 and "Off" in e0, "radio: RIGHT on MilkDrop Effect picks an effect (%r -> %r)" % (e0.strip()[-12:], efx().strip()[-14:]))
+        check(go_to("Sixel Colours") and "adaptive" in "".join(sess.screen.display), "radio: the overlay has Sixel Colours (adaptive)")
+        sess.send(b"\x1b[C", 1.0)
+        check(any("> Sixel Colours" in l and "fixed" in l for l in sess.screen.display), "radio: RIGHT on Sixel Colours switches to fixed")
+        sess.send(b"\x1b[C", 0.6)
+        sess.send(b"\x1b[A", 0.2)
+        sess.send(b"\x1b[A", 0.2)
+        for _ in range(30):   # back to the Preset row
+            if any(("> Preset" in l and "< " in l) for l in sess.screen.display): break
+            sess.send(b"\x1b[A", 0.12)
         # the preset overlay: "p" opens it, Favourites on top, [a] adds the preset under the cursor, [d] takes it out, ESC goes back to the visuals overlay
         favf = os.path.join(os.path.dirname(rcfg), "milkdrop_favourites.txt")
         sess.send("p", 1.5)
@@ -4431,12 +4450,17 @@ def milkdrop_radio_book(binary, root, scripts):
         for _ in range(2):
             sess.send(b"\t", 0.6)
         for _ in range(60):   # down to the last rows of the tab
-            if "Show Preset Name" in sess.text():
+            if "Sixel Colours" in sess.text():
                 break
             sess.send(b"\x1b[B", 0.1)
         sess.pump(0.6)
         t = sess.text()
         check("MILKDROP" in t and "Use MilkDrop" in t and "Show Preset Name" in t, "radio: ANIMA/VIZ has the MILKDROP block")
+        check("Sixel Colours" in t and "MilkDrop Effect" in t, "radio: ANIMA/VIZ has the effect rows too")
+        for _ in range(3):   # SHIFT+UP: ten rows at a time (three presses cannot reach this far with single steps)
+            sess.send(b"\x1b[1;2A", 0.3)
+        sess.pump(0.5)
+        check("Sixel Colours" not in sess.text(), "radio: SHIFT+UP in the settings tab moves ten rows at a time")
         check(sess.alive(), "radio milkdrop: the program is still running")
     finally:
         sess.kill()

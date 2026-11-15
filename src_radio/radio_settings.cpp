@@ -11,6 +11,7 @@
 #include "terminal_ui.h"
 #include "path_utf8.h"
 #include "milkdrop.h"
+#include "video_fx.h"
 #include "settings.h"   // kModeNames, ModeConfig, read_mode_config(): the mode switch is the player's config.txt
 #include <algorithm>
 #include <cctype>
@@ -124,7 +125,7 @@ enum RsId {
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc, kRsBehavior, kRsBarStyle, kRsHifiRes, kRsHifiChan, kRsHifiColor, kRsHifiScale, kRsHifiAdapt, kRsHifiSplit, kRsHifiFScale, kRsHifiGain, kRsHifiRange,
     kRsScope, kRsOsciStyle,
     kRsUseMilkdrop, kRsMdFps, kRsMdRes, kRsMdGpu, kRsMdDuration, kRsMdShuffle, kRsMdBeat, kRsMdHardCuts, kRsMdTransition, kRsMdShowName,
-    kRsMdFavShuffle, kRsMdHcd, kRsMdVar, kRsMdMesh, kRsMdAspect, kRsMdClean,
+    kRsMdFavShuffle, kRsMdHcd, kRsMdVar, kRsMdMesh, kRsMdAspect, kRsMdClean, kRsMdUseFx, kRsMdFx, kRsMdColors,
     kRsAudioDevice,   // [ENTER]: the CHOOSE AUDIO DEVICE overlay
     kRsCliScripts,    // [ENTER]: the script overlay
     kRsTermDefaultFont, // leave the terminal's own font alone (one value for all modes: TerminalDefaultFont= in the player's config.txt)
@@ -181,6 +182,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {false, kRsMdHardCuts, "Hard Cuts"}, {false, kRsMdTransition, "Preset Transition"}, {false, kRsMdShowName, "Show Preset Name"},
         {false, kRsMdFavShuffle, "Shuffle Favourites"}, {false, kRsMdHcd, "Hard Cut Interval"}, {false, kRsMdVar, "Duration Variance"},
         {false, kRsMdMesh, "Mesh Detail"}, {false, kRsMdAspect, "Aspect Correction"}, {false, kRsMdClean, "Clean Start"},
+        {false, kRsMdUseFx, "Use Effect"}, {false, kRsMdFx, "MilkDrop Effect"}, {false, kRsMdColors, "Sixel Colours"},
     };
     if (tab == 1) return on_off;
     if (g_rs_hifi) return anima;
@@ -262,6 +264,7 @@ bool* flag_of(RadioSettings& s, int id) {
         case kRsMdFavShuffle: return &s.md_fav_shuffle;
         case kRsMdAspect: return &s.md_aspect;
         case kRsMdClean: return &s.md_clean;
+        case kRsMdUseFx: return &s.md_fx_on;
         default: return nullptr;
     }
 }
@@ -335,6 +338,8 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsMdHcd: return std::to_string(std::clamp(s.md_hcd, 3, 120)) + " s";
         case kRsMdVar: return s.md_var <= 0 ? std::string("off") : std::to_string(s.md_var) + " s";
         case kRsMdMesh: return mesh_name(s.md_mesh);
+        case kRsMdFx: return video_fx_name(video_fx_canon(s.md_fx));
+        case kRsMdColors: return s.md_fixed_colors ? "fixed" : "adaptive";
     }
     return "";
 }
@@ -413,6 +418,8 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
         case kRsMdHcd: s.md_hcd = radio_md_step(3, s.md_hcd, dir == 0 ? 1 : dir); break;
         case kRsMdVar: s.md_var = radio_md_step(4, s.md_var, dir == 0 ? 1 : dir); break;
         case kRsMdMesh: s.md_mesh = std::clamp(s.md_mesh + (dir == 0 ? 1 : dir), 0, 3); break;
+        case kRsMdFx: s.md_fx = video_fx_step(s.md_fx, dir == 0 ? 1 : dir); break;
+        case kRsMdColors: s.md_fixed_colors = !s.md_fixed_colors; break;
     }
 }
 
@@ -1055,6 +1062,9 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("MilkDropMeshDetail")) s.md_mesh = std::clamp(muisc::atoi_safe(v->c_str()), 0, 3);
     if (auto v = get("MilkDropAspectCorrection")) s.md_aspect = as_bool(*v, s.md_aspect);
     if (auto v = get("MilkDropCleanStart")) s.md_clean = as_bool(*v, s.md_clean);
+    if (auto v = get("MilkDropEffect")) s.md_fx = video_fx_from(ascii_lower_str(trim_ws(*v)));
+    if (auto v = get("MilkDropEffectOn")) s.md_fx_on = as_bool(*v, s.md_fx_on);
+    if (auto v = get("MilkDropSixelColors")) s.md_fixed_colors = ascii_lower_str(trim_ws(*v)) == "fixed";
     for (const auto& [k, v] : kv) { if (!spectro_profile_key(s, k, v)) spectro_config_key(s.spectro, k, v); }
     spectro_profiles_finish(s);
     if (auto v = get("TuneNoise")) s.tune_noise = as_bool(*v, s.tune_noise);
@@ -1253,6 +1263,9 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "MilkDropMeshDetail=" << s.md_mesh << "\n"
          "MilkDropAspectCorrection=" << (s.md_aspect ? "true" : "false") << "\n"
          "MilkDropCleanStart=" << (s.md_clean ? "true" : "false") << "\n"
+         "MilkDropEffect=" << video_fx_key(s.md_fx) << "\n"
+         "MilkDropEffectOn=" << (s.md_fx_on ? "true" : "false") << "\n"
+         "MilkDropSixelColors=" << (s.md_fixed_colors ? "fixed" : "adaptive") << "\n"
          "Visualizer=" << (s.element_visualizer ? "true" : "false") << "\n"
          "StereoSound=" << (s.stereo ? "true" : "false") << "\n"
          "# false = left out entirely: not in the \".\" cycle of the scope block (the sphere always is); the windows\n"

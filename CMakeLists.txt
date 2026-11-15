@@ -371,7 +371,9 @@ if(MOUSIKI_BUILD_RADIO_STANDALONE)
       # the help wizard (SHIFT+w): its pages, and the disk its welcome page spins
       src/wizard.cpp src/disk_art.cpp
       # the MilkDrop visuals (projectM is loaded at run time, nothing of it is needed to build)
-      src/milkdrop.cpp)
+      src/milkdrop.cpp
+      # the effect over the MilkDrop pictures (Use Effect / MilkDrop Effect) and the adaptive Sixel colours
+      src/video_pipe.cpp src/video_player.cpp src/par_pool.cpp src/library_search.cpp)
   if(WIN32)
     list(APPEND RADIO_SOURCES src/win_compat.cpp src/media_session_win.cpp)
   endif()

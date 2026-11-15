@@ -364,8 +364,9 @@ bool RadioApp::key_settings(KeyCtx& kc) {
             apply_audio();
         };
         if (arrow) {
-            if (k == 'A') sm.row = std::max(0, sm.row - 1);
-            else if (k == 'B') sm.row = std::min(nrows - 1, sm.row + 1);
+            const int step = last_key_was_shifted() ? 10 : 1;   // SHIFT+UP / DOWN (also PgUp / PgDn): ten rows at a time
+            if (k == 'A') sm.row = std::max(0, sm.row - step);
+            else if (k == 'B') sm.row = std::min(nrows - 1, sm.row + step);
             else if (sm.tab >= 1 && sm.tab <= 3) toggle(k == 'C' ? +1 : -1);
             else if (sm.row == 2) { cfg.border_smooth = !cfg.border_smooth; sm.dirty = true; sm.status.clear(); }   // SMOOTHNESS
             else if (k == 'C') sm.col = 1;

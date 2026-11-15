@@ -7,6 +7,11 @@
 #include "milkdrop.h"
 #include "path_utf8.h"
 #include "settings.h"
+#include "video_fx.h"
+#include "library_search.h"
+#include "text_edit.h"   // normalize_for_search()
+#include "video_pipe.h"
+#include "video_player.h"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -44,7 +49,7 @@ void md_favs_reload() { favs_loaded() = false; }
 
 // ---- the preset overlay: folders, Favourites, Recommended, search ------------------------------------------------------
 namespace {
-struct Idx { std::string path, name, lname, lwhere; };
+struct Idx { std::string path, name, lname, lwhere, name_n, where_n, all_n; };   // (*_n: normalised for the search, as the player's)
 std::vector<Idx>& index_of() { static std::vector<Idx> v; return v; }
 std::string index_key;   // what the index was built for (the folders)
 std::string lower(std::string t) { for (char& ch : t) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch))); return t; }
@@ -87,6 +92,9 @@ void build_index() {
             x.name = path_utf8(it->path().stem());
             x.lname = lower(x.name);
             x.lwhere = lower(path_utf8(it->path().parent_path().filename()));
+            x.name_n = normalize_for_search(x.name);
+            x.where_n = normalize_for_search(path_utf8(it->path().parent_path().filename()));
+            x.all_n = x.name_n + " " + x.where_n;
             index_of().push_back(std::move(x));
         }
     }
@@ -184,23 +192,18 @@ void search_run(MdBrowse& b) {
     build_index();
     b.items.clear();
     b.sel = b.top = 0;
-    std::vector<std::string> words;
-    { std::istringstream is(lower(b.query)); std::string w; while (is >> w) words.push_back(w); }
-    if (words.empty()) return;
-    std::vector<std::pair<int, const Idx*>> hits;
+    if (b.query.empty()) return;
+    // the player's match: the name first (exact part, earlier = better), then the folder, then fuzzy over both (a close word, an abbreviation)
+    const PreparedQuery pq = prepare_query(b.query);
+    std::vector<std::pair<double, const Idx*>> hits;
     for (const Idx& e : index_of()) {
-        int score = 0;
-        bool all = true;
-        for (const std::string& w : words) {
-            const size_t at = e.lname.find(w);
-            if (at != std::string::npos) score += at == 0 ? 3 : 2;
-            else if (e.lwhere.find(w) != std::string::npos) score += 1;
-            else { all = false; break; }
-        }
-        if (all) hits.push_back({score, &e});
+        double sc = substring_score(pq, e.name_n);
+        if (sc < 0.0) { sc = substring_score(pq, e.where_n); if (sc >= 0.0) sc *= 0.5; }
+        if (sc < 0.0) sc = word_fuzzy_score(pq, e.all_n);
+        if (sc > 0.0) hits.push_back({sc, &e});
     }
     std::stable_sort(hits.begin(), hits.end(), [](const auto& x, const auto& y) { return x.first > y.first; });
-    for (size_t i = 0; i < hits.size() && i < 500; ++i) b.items.push_back({3, hits[i].second->name, hits[i].second->path, path_utf8(path_from_utf8(hits[i].second->path).parent_path().filename())});
+    for (size_t i = 0; i < hits.size() && i < 2000; ++i) b.items.push_back({3, hits[i].second->name, hits[i].second->path, path_utf8(path_from_utf8(hits[i].second->path).parent_path().filename())});
 }
 
 void play_selected(MdBrowse& b) {   // the preset under the cursor plays at once (the overlay locks the preset while it is open)
@@ -267,6 +270,22 @@ void md_scale(const VideoFrame& f, int w, int h, std::vector<uint8_t>& out, int 
         }
     }
 }
+// The effect over the pictures (Use Effect, MilkDrop Effect): the radio has no video settings of its own, so the video defaults (dither, base, contrast, gradient).
+VideoLook md_look(const RadioSettings& c) {
+    static const Settings dflt;
+    VideoLook l;
+    l.fx = c.md_fx_on ? video_fx_canon(std::clamp(c.md_fx, 0, kVideoFxCount - 1)) : 0;
+    l.dither = dflt.video_dither; l.base = dflt.video_base; l.fxc = dflt.video_fxc;
+    if (video_fx_uses_gradient(l.fx)) {   // (the gradient of the player's default colours: left, middle halfway, right)
+        int r0, g0, b0, r1, g1, b1;
+        l.grad.sat = std::clamp(dflt.video_grad_sat, 0, 100);
+        if (try_parse_rgb(dflt.visualizer_color, r0, g0, b0) && try_parse_rgb(dflt.visualizer_color_end, r1, g1, b1)) {
+            const int v[3][3] = {{r0, g0, b0}, {(r0 + r1) / 2, (g0 + g1) / 2, (b0 + b1) / 2}, {r1, g1, b1}};
+            for (int i = 0; i < 3; ++i) for (int k = 0; k < 3; ++k) l.grad.c[i][k] = static_cast<unsigned char>(std::clamp(v[i][k], 0, 255));
+        }
+    }
+    return l;
+}
 // How many of `total` units across the picture takes: no wider than 16:9 (Aspect Correction); a unit is par times as wide as high.
 int md_inner_w(int total, int h, double par, bool cap) {
     if (!cap || h <= 0) return total;
@@ -294,6 +313,7 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
     const int pw = scope_w * cws, ph = kPanelH * chs;
     // Aspect Correction: the picture is no wider than 16:9 (a wide block gets bars at the sides, not a cut-off preset)
     const int ipw = md_inner_w(pw, ph, 1.0, s.c.md_aspect);
+    const VideoLook look = md_look(s.c);
     bool fresh = false;
     const VideoFrame* f = md.frame(ipw, ph, fresh);   // (the render thread starts here and learns the size)
     // the preset's name for 3 s after a change, in a small box on the bottom row
@@ -317,7 +337,7 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
         GfxFrame& g = m.gfx;
         const bool tc = m.gfx_proto == GfxProto::Kitty;
         const std::string key = std::to_string(pw) + "x" + std::to_string(ph) + "|" + std::to_string(ipw) + "|" + std::to_string(scope_w) + "|" + std::to_string(nl) + "," +
-                                std::to_string(nw) + (tc ? "|t" : "|p") + (s.c.black_background ? "|b" : "|-");
+                                std::to_string(nw) + (tc ? "|t" : s.c.md_fixed_colors ? "|p" : "|a") + (s.c.black_background ? "|b" : "|-") + look.sig();
         const bool remake = key != st.key || !g.plain || g.w != pw || g.h != ph || g.level.size() != static_cast<size_t>(pw) * ph;
         g.plain = true; g.direct = true; g.truecolor = tc;
         g.scale = scale; g.out_cw = cw0; g.out_ch = ch0;
@@ -332,7 +352,24 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
             std::vector<uint8_t> px;
             md_scale(*f, pw, ph, px, ipw);
             g.level.assign(static_cast<size_t>(pw) * ph, 255);
-            if (tc) g.rgb.swap(px);
+            const bool adaptive = !tc && !s.c.md_fixed_colors;   // (Sixel: up to 240 colours taken from each picture)
+            if (look.active() || adaptive) {   // the player's way: look, then the colours, the name box cut out
+                VideoFrame vf;
+                vf.w = pw; vf.h = ph; vf.rgb.swap(px);
+                VideoPicParams pp;
+                pp.look = look; pp.t = m.t_sec; pp.truecolor = tc; pp.adaptive = adaptive;
+                pp.vcols = scope_w; pp.vrows = kPanelH;
+                pp.cut_c = nl; pp.cut_r = kPanelH - 1; pp.cut_w = nw; pp.cut_h = nw > 0 ? 1 : 0;
+                VideoPic pic;
+                video_make_picture(vf, nullptr, pp, pic);
+                g.level.swap(pic.level);
+                if (tc) g.rgb.swap(pic.rgb);
+                else {
+                    g.hue.swap(pic.hue);
+                    if (pic.own_pal) g.pal = pic.pal;
+                    else { const auto& pal = VideoPlayer::palette(); for (size_t i = 0; i < pal.size() && i < g.pal.size(); ++i) g.pal[i] = pal[i]; }
+                }
+            } else if (tc) g.rgb.swap(px);
             else {   // Sixel: a 6 x 6 x 6 colour cube (216 colours of the 240 there are)
                 g.hue.resize(static_cast<size_t>(pw) * ph);
                 for (size_t i = 0, n = g.hue.size(); i < n; ++i) {
@@ -355,6 +392,12 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
     std::vector<uint8_t> px;
     const int icells = md_inner_w(scope_w, kPanelH * 2, 2.0 * cw0 / ch0, s.c.md_aspect);   // (a half block is cw0 wide, ch0 / 2 high)
     md_scale(*f, scope_w, kPanelH * 2, px, icells);
+    if (look.active()) {
+        VideoFrame vf;
+        vf.w = scope_w; vf.h = kPanelH * 2; vf.rgb.swap(px);
+        VideoPlayer::apply_look(vf, look, m.t_sec, false, nullptr);
+        px.swap(vf.rgb);
+    }
     rows.assign(kPanelH, std::string());
     for (int r = 0; r < kPanelH; ++r) {
         std::string line;
@@ -391,7 +434,7 @@ std::vector<std::string> build_md_overlay(const Style& s, const UiModel& m) {
     char beat[8];
     std::snprintf(beat, sizeof beat, "%.1f", std::clamp(c.md_cut_sens, 5, 60) / 10.0);
     const std::string labels[kMdRowCount] = {"Preset", "Preset Overlay", "Random Preset", "Lock Preset", "Preset Duration", "Shuffle Presets", "Shuffle Favourites",
-                                             "Hard Cut Sensitivity", "Hard Cuts", "Preset Transition", "Frame Rate", "Resolution", "GPU", "Hard Cut Interval",
+                                             "Hard Cut Sensitivity", "Hard Cuts", "Preset Transition", "Frame Rate", "Resolution", "GPU", "Use Effect", "MilkDrop Effect", "Sixel Colours", "Hard Cut Interval",
                                              "Duration Variance", "Mesh Detail", "Aspect Correction", "Clean Start", "Show Preset Name", "Show in the Scope Block"};
     const std::string vals[kMdRowCount] = {
         preset, "[ENTER]", "[ENTER]", md.locked() ? "on" : "off",
@@ -399,6 +442,7 @@ std::vector<std::string> build_md_overlay(const Style& s, const UiModel& m) {
         c.md_shuffle ? "on" : "off", c.md_fav_shuffle ? "on" : "off", beat, c.md_hard_cuts ? "on" : "off",
         c.md_transition <= 0 ? std::string("cut") : std::to_string(c.md_transition) + " s",
         std::to_string(c.md_fps) + " fps", std::to_string(c.md_res) + " px", milkdrop_gpu_label(c.md_gpu),
+        c.md_fx_on ? "on" : "off", video_fx_name(video_fx_canon(c.md_fx)), c.md_fixed_colors ? "fixed" : "adaptive",
         std::to_string(std::clamp(c.md_hcd, 3, 120)) + " s", c.md_var <= 0 ? std::string("off") : std::to_string(c.md_var) + " s", mesh_name(c.md_mesh),
         c.md_aspect ? "on" : "off", c.md_clean ? "on" : "off",
         c.md_show_name ? "on" : "off", c.scope_mode == 4 ? "on" : "off",
@@ -500,6 +544,9 @@ void md_overlay_adjust(RadioSettings& c, int row, int dir, std::string& notice) 
         case kMdFps: c.md_fps = radio_md_step(0, c.md_fps, dir); break;
         case kMdRes: c.md_res = radio_md_step(1, c.md_res, dir); break;
         case kMdGpu: c.md_gpu = radio_md_gpu_step(c.md_gpu, dir); notice = "milkdrop GPU: " + milkdrop_gpu_label(c.md_gpu) + " -- the visuals restart on it"; break;
+        case kMdUseFx: c.md_fx_on = !c.md_fx_on; notice = c.md_fx_on ? "milkdrop: the effect is on again" : "milkdrop: no effect on the visuals"; break;
+        case kMdFx: c.md_fx = video_fx_step(c.md_fx, dir); notice = std::string("milkdrop effect: ") + video_fx_name(video_fx_canon(c.md_fx)); break;
+        case kMdColors: c.md_fixed_colors = !c.md_fixed_colors; notice = c.md_fixed_colors ? "milkdrop: the fixed 256 colours (Sixel)" : "milkdrop: the colours taken from each picture (Sixel)"; break;
         case kMdHcd: c.md_hcd = radio_md_step(3, c.md_hcd, dir); break;
         case kMdVar: c.md_var = radio_md_step(4, c.md_var, dir); break;
         case kMdMesh: c.md_mesh = std::clamp(c.md_mesh + dir, 0, 3); notice = "milkdrop mesh: " + mesh_name(c.md_mesh) + " -- the visuals restart"; break;
