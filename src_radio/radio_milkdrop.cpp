@@ -523,6 +523,8 @@ std::vector<std::string> build_mdb_overlay(const Style& s, const UiModel& m) {
 
 } // namespace detail
 
+VideoLook radio_milkdrop_look(const RadioSettings& c) { return detail::md_look(c); }
+
 void md_overlay_adjust(RadioSettings& c, int row, int dir, std::string& notice) {
     Milkdrop& md = Milkdrop::instance();
     switch (row) {

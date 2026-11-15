@@ -306,8 +306,12 @@ std::vector<App::PathRow> App::build_path_rows() const {
         rows.push_back(add);
         PathRow n;
         n.kind = PathRow::Kind::Note;
-        n.label = "The first is the regular folder (emptied: the usual places). The presets of every folder join one list (restarts the visuals).";
+        n.label = "The first is the regular folder (emptied: the usual places).";
         rows.push_back(n);
+        PathRow n2;
+        n2.kind = PathRow::Kind::Note;
+        n2.label = "The presets of every folder join one list (restarts the visuals).";
+        rows.push_back(n2);
     }
 
     return rows;

@@ -13,6 +13,7 @@
 // (scope_feed_push: one atomic load while the window is closed); a sender thread moves it every few milliseconds through
 // a pipe to the window process, together with the scope settings (ScopeWinConfig) whenever they change. The window
 // draws EVERY sample once, as a beam that leaves phosphor afterglow, at the monitor's refresh rate.
+#include "video_fx.h"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -124,6 +125,8 @@ void milkdrop_window_close();
 bool milkdrop_window_running();
 std::string milkdrop_window_take_error();
 void milkdrop_window_set_config(const MilkWinConfig& c);
+// The video effect over the pictures (the one of the terminal view: Use Effect / MilkDrop Effect); applied to each picture before it is sent. Cheap to call every frame.
+void milkdrop_window_set_look(const VideoLook& l);
 // The size the engine draws for the window (pixels across x down); cheap to call every frame.
 void milkdrop_window_set_size(int w, int h);
 // Entry point of the window process (`mousiki --milkdrop-window`).

@@ -4682,6 +4682,32 @@ def milkdrop_window(binary, root, scripts):
         check(sess.alive(), "milkdrop window: the program is still running")
     finally:
         sess.kill()
+    # the effect of the terminal view (MilkDropEffect=) is on the window's pictures too: Phosphor Green leaves (almost) no red and blue
+    shot2 = os.path.join(root, "mdw_shot2.ppm")
+    with open(cfgf, "a", encoding="utf-8") as f:
+        f.write("MilkDropEffect=phosphor green\n")
+    env2 = dict(env); env2["MOUSIKI_MILK_SHOT"] = shot2
+    sess = Session(binary, home, scripts, env2, quiet_stderr=True, gfx=True)
+    try:
+        sess.wait_for(lambda t: "Alpha Song" in t, 10)
+        sess.pump(1.5)
+        sess.send("|", 1.0)
+        got = False
+        for _ in range(60):
+            if os.path.exists(shot2) and os.path.getsize(shot2) > 1000:
+                got = True
+                break
+            sess.pump(0.5)
+        check(got, "milkdrop window: with an effect a picture reaches the window")
+        if got:
+            data = open(shot2, "rb").read()
+            head, rest = data.split(b"\n255\n", 1)
+            n = len(rest) // 3
+            mr = sum(rest[0::3]) / max(1, n); mg = sum(rest[1::3]) / max(1, n); mb = sum(rest[2::3]) / max(1, n)
+            check(mg > 8 and mr < mg * 0.5 and mb < mg * 0.5, "milkdrop window: the effect (Phosphor Green) is on the window's picture too (mean R %.1f G %.1f B %.1f)" % (mr, mg, mb))
+        sess.send("|", 1.0)
+    finally:
+        sess.kill()
 
 
 def milkdrop_preset_overlay(binary, root, scripts):

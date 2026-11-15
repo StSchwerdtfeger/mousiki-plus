@@ -4,6 +4,7 @@
 #include "scope_window.h"
 #include "scope_sdl.h"
 #include "milkdrop.h"
+#include "video_player.h"
 
 #include <algorithm>
 #include <atomic>
@@ -39,6 +40,8 @@ namespace {
 // Two windows run the same way: the oscilloscope (`--scope-window`) and the spectrogram (`--spectro-window`). Each has
 // its own feed, link and process.
 constexpr size_t kFeedFrames = 1u << 16;
+std::mutex g_look_mu;
+VideoLook g_look;   // the effect over the MilkDrop window's pictures (milkdrop_window_set_look)
 std::atomic<int> g_milk_w{1280}, g_milk_h{720};   // what the engine draws for the MilkDrop window   // ~1.4 s at 48 kHz; far more than the sender's 4 ms rhythm needs
 
 struct Link {
@@ -221,6 +224,16 @@ void sender_main(Link* Lp) {
             int fw = 0, fh = 0;
             if (Milkdrop::instance().take_window_frame(g_milk_w.load(), g_milk_h.load(), frame_rgb, fw, fh) && fw > 0 && fh > 0 &&
                 frame_rgb.size() == static_cast<size_t>(fw) * fh * 3) {
+                VideoLook look;
+                { std::lock_guard<std::mutex> lk(g_look_mu); look = g_look; }
+                if (look.active()) {   // the effect of the terminal view, on the picture that goes to the window
+                    VideoFrame vf;
+                    vf.w = fw; vf.h = fh; vf.rgb.swap(frame_rgb);
+                    static const auto t0 = std::chrono::steady_clock::now();
+                    VideoPlayer::apply_look(vf, look, std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count(), false, nullptr);
+                    frame_rgb.swap(vf.rgb);
+                    if (frame_rgb.size() != static_cast<size_t>(fw) * fh * 3) continue;
+                }
                 uint8_t hd[8] = {static_cast<uint8_t>(fw), static_cast<uint8_t>(fw >> 8), static_cast<uint8_t>(fw >> 16), static_cast<uint8_t>(fw >> 24),
                                  static_cast<uint8_t>(fh), static_cast<uint8_t>(fh >> 8), static_cast<uint8_t>(fh >> 16), static_cast<uint8_t>(fh >> 24)};
                 frame_pkt.assign(hd, hd + 8);
@@ -421,6 +434,7 @@ bool spectro_window_feed_active() { return link_of(1).feed_on.load(std::memory_o
 
 // ---- the MilkDrop window ----------------------------------------------------------------------------------------------
 bool milkdrop_window_running() { return win_running(link_of(2)); }
+void milkdrop_window_set_look(const VideoLook& l) { std::lock_guard<std::mutex> lk(g_look_mu); g_look = l; }
 bool milkdrop_window_open(std::string* err) { return win_open(link_of(2), err); }
 void milkdrop_window_close() { win_close(link_of(2)); }
 std::string milkdrop_window_take_error() { return win_take_error(link_of(2)); }

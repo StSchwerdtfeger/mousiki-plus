@@ -430,6 +430,7 @@ void RadioApp::frame_tick() {
         const bool running_md = milkdrop_window_running();
         if (running_md) {
             radio_milkdrop_apply(cfg);
+            milkdrop_window_set_look(radio_milkdrop_look(cfg));
             const int w = std::clamp(cfg.md_win_res, 320, 1920) & ~1;
             milkdrop_window_set_size(w, (w * 9 / 16) & ~1);
         }

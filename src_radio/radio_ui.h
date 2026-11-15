@@ -1,4 +1,5 @@
 #pragma once
+#include "video_fx.h"
 #include "organigram_trees.h"
 #include "audio_backend.h"
 // Radio mode -- the 120x30 screen. Pure rendering: takes a model and a status
@@ -440,6 +441,7 @@ inline constexpr int kMdRowCount = 23;
 enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdDuration, kMdShuffle, kMdFavShuffle, kMdCutSens, kMdHardCuts, kMdTransition, kMdFps, kMdRes, kMdGpu, kMdUseFx, kMdFx, kMdColors,
              kMdHcd, kMdVar, kMdMesh, kMdAspect, kMdClean, kMdName, kMdScope };
 void md_overlay_adjust(RadioSettings& c, int row, int dir, std::string& notice);
+VideoLook radio_milkdrop_look(const RadioSettings& c);   // the effect over the pictures (also the MilkDrop window's)
 // The preset overlay (overlay 12): open it (false + notice when there is no preset folder), a key (true = handled; `close` = leave it), the text a search needs.
 bool md_browse_open(RadioSettings& c, UiModel& m, std::string& notice);
 bool md_browse_key(RadioSettings& c, UiModel& m, int k, bool arrow, std::string& notice, bool& close);

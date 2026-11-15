@@ -191,6 +191,7 @@ void App::milkdrop_window_toggle() {
 void App::milkdrop_window_sync(bool check_alive) {
     if (!milkdrop_win_on_ && check_alive && milkdrop_window_running()) milkdrop_win_on_ = true;   // opened in the radio
     if (!milkdrop_win_on_) return;
+    milkdrop_window_set_look(milkdrop_look());   // (the effect of the terminal view: Use Effect / MilkDrop Effect, the track's own first)
     if (check_alive && !milkdrop_window_running()) {   // closed from its side (its X, ESC, q) or failed
         milkdrop_win_on_ = false;
         force_redraw_ = true;
