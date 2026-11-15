@@ -1,3 +1,4 @@
+#include "milkdrop.h"
 #include "radio_app.h"
 #include "console_log.h"
 #include "path_utf8.h"
@@ -230,7 +231,7 @@ void RadioApp::toggle_milkdrop_window() {
         return;
     }
     const int w = std::clamp(cfg.md_win_res, 320, 1920) & ~1;
-    milkdrop_window_set_size(w, (w * 9 / 16) & ~1);
+    milkdrop_window_set_size(w, milkdrop_window_height(w, cfg.md_aspect, cfg.md_ratio));
     MilkWinConfig c;
     std::snprintf(c.title, sizeof c.title, "%s", engine.status().tuned_name.c_str());
     milkdrop_window_set_config(c);

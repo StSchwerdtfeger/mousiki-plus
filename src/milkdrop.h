@@ -19,6 +19,7 @@
 
 #include "video_player.h"   // VideoFrame
 
+#include <algorithm>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -29,6 +30,37 @@
 #include <vector>
 
 namespace muisc {
+
+// Aspect Ratio of the MilkDrop pictures (with Aspect Correction on): the shape of the picture inside its place, never cropped (the rest of the place stays empty).
+// 0 = auto: the place's own shape, but no wider than 16:9; the others are exactly that shape, wider or narrower places get bars.
+constexpr int kMilkRatioCount = 9;
+inline const char* milkdrop_ratio_name(int i) {
+    static const char* const n[kMilkRatioCount] = {"auto", "1:1", "5:4", "4:3", "3:2", "16:10", "16:9", "2:1", "21:9"};
+    return i >= 0 && i < kMilkRatioCount ? n[i] : "auto";
+}
+inline double milkdrop_ratio_value(int i) {   // width / height; 0 = auto
+    static const double v[kMilkRatioCount] = {0.0, 1.0, 5.0 / 4, 4.0 / 3, 3.0 / 2, 16.0 / 10, 16.0 / 9, 2.0, 21.0 / 9};
+    return i >= 0 && i < kMilkRatioCount ? v[i] : 0.0;
+}
+inline int milkdrop_ratio_from(const std::string& s) {
+    for (int i = 0; i < kMilkRatioCount; ++i) if (s == milkdrop_ratio_name(i)) return i;
+    return 0;
+}
+// The picture's shape for the options: `fixed` = exactly that shape; else (auto) at most `cap` wide; cap 0 = the whole place (Aspect Correction off).
+struct MilkShape { double ratio = 0.0; bool fixed = false; };
+inline MilkShape milkdrop_shape(bool aspect_on, int ratio_idx) {
+    MilkShape m;
+    if (!aspect_on) return m;
+    const double r = milkdrop_ratio_value(ratio_idx);
+    if (r > 0) { m.ratio = r; m.fixed = true; } else m.ratio = 16.0 / 9.0;
+    return m;
+}
+// The extra window's height for a width: the chosen shape (16:9 for auto and for Aspect Correction off).
+inline int milkdrop_window_height(int w, bool aspect_on, int ratio_idx) {
+    const MilkShape m = milkdrop_shape(aspect_on, ratio_idx);
+    const double r = m.fixed ? m.ratio : 16.0 / 9.0;
+    return std::max(64, static_cast<int>(w / r + 0.5)) & ~1;
+}
 
 struct MilkdropGpu { std::string id, label; };   // id: the render node ("renderD129"), label: what the lists show ("NVIDIA (nvidia) renderD129")
 

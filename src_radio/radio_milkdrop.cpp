@@ -253,16 +253,17 @@ struct MdPic {
 };
 MdPic& md_pic() { static MdPic p; return p; }
 
-// nearest-neighbour: the frame (any size) onto w x h pixels, centred in iw pixels across (the rest black: the bars of a place wider than 16:9)
-void md_scale(const VideoFrame& f, int w, int h, std::vector<uint8_t>& out, int iw = 0) {
+// nearest-neighbour: the frame (any size) onto w x h pixels, centred as iw x ih pixels (the rest black: the bars of a place that is not the picture's shape)
+void md_scale(const VideoFrame& f, int w, int h, std::vector<uint8_t>& out, int iw = 0, int ih = 0) {
     out.assign(static_cast<size_t>(w) * h * 3, 0);
     if (f.w <= 0 || f.h <= 0) return;
     if (iw <= 0 || iw > w) iw = w;
-    const int x0 = (w - iw) / 2;
-    for (int y = 0; y < h; ++y) {
-        const int sy = std::min(f.h - 1, static_cast<int>((static_cast<int64_t>(y) * f.h) / h));
+    if (ih <= 0 || ih > h) ih = h;
+    const int x0 = (w - iw) / 2, y0 = (h - ih) / 2;
+    for (int y = 0; y < ih; ++y) {
+        const int sy = std::min(f.h - 1, static_cast<int>((static_cast<int64_t>(y) * f.h) / ih));
         const uint8_t* srow = f.rgb.data() + static_cast<size_t>(sy) * f.w * 3;
-        uint8_t* d = out.data() + (static_cast<size_t>(y) * w + x0) * 3;
+        uint8_t* d = out.data() + (static_cast<size_t>(y + y0) * w + x0) * 3;
         for (int x = 0; x < iw; ++x) {
             const int sx = std::min(f.w - 1, static_cast<int>((static_cast<int64_t>(x) * f.w) / iw));
             const uint8_t* sp = srow + static_cast<size_t>(sx) * 3;
@@ -286,11 +287,15 @@ VideoLook md_look(const RadioSettings& c) {
     }
     return l;
 }
-// How many of `total` units across the picture takes: no wider than 16:9 (Aspect Correction); a unit is par times as wide as high.
-int md_inner_w(int total, int h, double par, bool cap) {
-    if (!cap || h <= 0) return total;
-    const int iw = static_cast<int>(std::lround(h * (16.0 / 9.0) / std::max(0.01, par)));
-    return std::clamp(iw, 2, total);
+// The size of the picture inside w x h units (a unit is par times as wide as high), by Aspect Correction / Aspect Ratio: the whole place (off), the
+// place's own shape but no wider than 16:9 (auto), or exactly the chosen shape; never cropped, the rest is bars.
+void md_inner(int w, int h, double par, bool aspect, int ratio_idx, int& iw, int& ih) {
+    iw = w; ih = h;
+    const MilkShape m = milkdrop_shape(aspect, ratio_idx);
+    if (m.ratio <= 0 || h <= 0 || w <= 0) return;
+    const double real = w * par / h;
+    if (real > m.ratio) iw = std::clamp(static_cast<int>(std::lround(h * m.ratio / std::max(0.01, par))), 2, w);
+    else if (m.fixed && real < m.ratio) ih = std::clamp(static_cast<int>(std::lround(w * par / m.ratio)), 2, h);
 }
 } // namespace
 
@@ -312,10 +317,11 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
     const int chs = std::max(4, static_cast<int>(std::lround(static_cast<double>(cws) * ch0 / cw0)));
     const int pw = scope_w * cws, ph = kPanelH * chs;
     // Aspect Correction: the picture is no wider than 16:9 (a wide block gets bars at the sides, not a cut-off preset)
-    const int ipw = md_inner_w(pw, ph, 1.0, s.c.md_aspect);
+    int ipw = pw, iph = ph;
+    md_inner(pw, ph, 1.0, s.c.md_aspect, s.c.md_ratio, ipw, iph);
     const VideoLook look = md_look(s.c);
     bool fresh = false;
-    const VideoFrame* f = md.frame(ipw, ph, fresh);   // (the render thread starts here and learns the size)
+    const VideoFrame* f = md.frame(ipw, iph, fresh);   // (the render thread starts here and learns the size)
     // the preset's name for 3 s after a change, in a small box on the bottom row
     std::string name;
     if (s.c.md_show_name && md.since_change() <= 3.0) name = truncate_str(md.preset_name(), std::max(4, scope_w - 4));
@@ -336,7 +342,7 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
     if (pic) {
         GfxFrame& g = m.gfx;
         const bool tc = m.gfx_proto == GfxProto::Kitty;
-        const std::string key = std::to_string(pw) + "x" + std::to_string(ph) + "|" + std::to_string(ipw) + "|" + std::to_string(scope_w) + "|" + std::to_string(nl) + "," +
+        const std::string key = std::to_string(pw) + "x" + std::to_string(ph) + "|" + std::to_string(ipw) + "x" + std::to_string(iph) + "|" + std::to_string(scope_w) + "|" + std::to_string(nl) + "," +
                                 std::to_string(nw) + (tc ? "|t" : s.c.md_fixed_colors ? "|p" : "|a") + (s.c.black_background ? "|b" : "|-") + look.sig();
         const bool remake = key != st.key || !g.plain || g.w != pw || g.h != ph || g.level.size() != static_cast<size_t>(pw) * ph;
         g.plain = true; g.direct = true; g.truecolor = tc;
@@ -350,7 +356,7 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
         g.fresh = fresh || remake;
         if (g.fresh) {
             std::vector<uint8_t> px;
-            md_scale(*f, pw, ph, px, ipw);
+            md_scale(*f, pw, ph, px, ipw, iph);
             g.level.assign(static_cast<size_t>(pw) * ph, 255);
             const bool adaptive = !tc && !s.c.md_fixed_colors;   // (Sixel: up to 240 colours taken from each picture)
             if (look.active() || adaptive) {   // the player's way: look, then the colours, the name box cut out
@@ -390,8 +396,9 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
     }
     // other terminals: half blocks, two pixels a cell (the upper one the text colour, the lower one the background)
     std::vector<uint8_t> px;
-    const int icells = md_inner_w(scope_w, kPanelH * 2, 2.0 * cw0 / ch0, s.c.md_aspect);   // (a half block is cw0 wide, ch0 / 2 high)
-    md_scale(*f, scope_w, kPanelH * 2, px, icells);
+    int icw = scope_w, ich = kPanelH * 2;
+    md_inner(scope_w, kPanelH * 2, 2.0 * cw0 / ch0, s.c.md_aspect, s.c.md_ratio, icw, ich);   // (a half block is cw0 wide, ch0 / 2 high)
+    md_scale(*f, scope_w, kPanelH * 2, px, icw, ich);
     if (look.active()) {
         VideoFrame vf;
         vf.w = scope_w; vf.h = kPanelH * 2; vf.rgb.swap(px);
@@ -435,7 +442,7 @@ std::vector<std::string> build_md_overlay(const Style& s, const UiModel& m) {
     std::snprintf(beat, sizeof beat, "%.1f", std::clamp(c.md_cut_sens, 5, 60) / 10.0);
     const std::string labels[kMdRowCount] = {"Preset", "Preset Overlay", "Random Preset", "Lock Preset", "Preset Duration", "Shuffle Presets", "Shuffle Favourites",
                                              "Hard Cut Sensitivity", "Hard Cuts", "Preset Transition", "Frame Rate", "Resolution", "GPU", "Use Effect", "MilkDrop Effect", "Sixel Colours", "Hard Cut Interval",
-                                             "Duration Variance", "Mesh Detail", "Aspect Correction", "Clean Start", "Show Preset Name", "Show in the Scope Block"};
+                                             "Duration Variance", "Mesh Detail", "Aspect Correction", "Aspect Ratio", "Clean Start", "Show Preset Name", "Show in the Scope Block"};
     const std::string vals[kMdRowCount] = {
         preset, "[ENTER]", "[ENTER]", md.locked() ? "on" : "off",
         c.md_secs <= 0 ? std::string("off") : std::to_string(c.md_secs) + " s",
@@ -444,7 +451,7 @@ std::vector<std::string> build_md_overlay(const Style& s, const UiModel& m) {
         std::to_string(c.md_fps) + " fps", std::to_string(c.md_res) + " px", milkdrop_gpu_label(c.md_gpu),
         c.md_fx_on ? "on" : "off", video_fx_name(video_fx_canon(c.md_fx)), c.md_fixed_colors ? "fixed" : "adaptive",
         std::to_string(std::clamp(c.md_hcd, 3, 120)) + " s", c.md_var <= 0 ? std::string("off") : std::to_string(c.md_var) + " s", mesh_name(c.md_mesh),
-        c.md_aspect ? "on" : "off", c.md_clean ? "on" : "off",
+        c.md_aspect ? "on" : "off", milkdrop_ratio_name(c.md_ratio), c.md_clean ? "on" : "off",
         c.md_show_name ? "on" : "off", c.scope_mode == 4 ? "on" : "off",
     };
     // a small terminal shows a window of the rows, following the selection
@@ -553,6 +560,7 @@ void md_overlay_adjust(RadioSettings& c, int row, int dir, std::string& notice) 
         case kMdVar: c.md_var = radio_md_step(4, c.md_var, dir); break;
         case kMdMesh: c.md_mesh = std::clamp(c.md_mesh + dir, 0, 3); notice = "milkdrop mesh: " + mesh_name(c.md_mesh) + " -- the visuals restart"; break;
         case kMdAspect: c.md_aspect = !c.md_aspect; break;
+        case kMdRatio: c.md_ratio = (c.md_ratio + (dir < 0 ? kMilkRatioCount - 1 : 1)) % kMilkRatioCount; notice = std::string("milkdrop aspect ratio: ") + milkdrop_ratio_name(c.md_ratio) + (c.md_aspect ? "" : " (Aspect Correction is off)"); break;
         case kMdClean: c.md_clean = !c.md_clean; break;
         case kMdName: c.md_show_name = !c.md_show_name; break;
         case kMdScope: {

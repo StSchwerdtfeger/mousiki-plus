@@ -234,7 +234,9 @@ MilkDropEffect=off
 MilkDropHardCutInterval=20
 ## 3 - 120 seconds (default 20) -- the shortest time between two hard cuts (Hard Cuts)
 MilkDropAspectCorrection=true
-## true , false (default true) -- presets keep their proportions on a wide picture (false: they are stretched to it)
+## true , false (default true) -- the picture keeps a shape (MilkDropAspectRatio) and is never cropped: a place of another shape gets bars (false: it fills the whole place, a wide one cuts the preset)
+MilkDropAspectRatio=auto
+## auto (default) , 1:1 , 5:4 , 4:3 , 3:2 , 16:10 , 16:9 , 2:1 , 21:9 -- the shape of the MilkDrop picture (with Aspect Correction on): auto = the place's own shape but no wider than 16:9. Also the shape of the extra MilkDrop window
 MilkDropMeshDetail=1
 ## 0 low (16 x 12) , 1 normal (32 x 24, default) , 2 high (64 x 48) , 3 very high (96 x 72) -- the warp mesh of the presets: finer = more detail, more work for the graphics card
 MilkDropDurationVariance=0

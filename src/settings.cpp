@@ -1,6 +1,7 @@
 // Settings: reads and writes config.txt, converts colour names to terminal codes, and holds the
 // defaults and the key bindings of the program.
 #include "app_dirs.h"
+#include "milkdrop.h"
 #include "settings.h"
 #include "process_util.h"   // physical_memory_mb(): the cap of TrackBufferMB
 #include "utf8_util.h"
@@ -1433,6 +1434,7 @@ static Settings load_from_config(const fs::path& path) {
         if (key == "video_buffer") { int mb = muisc::atoi_safe(trim_ws(unquote(value)).c_str()); int best = 32; for (int c : kVideoBufferChoices) if (mb >= c) best = c; if (mb < kVideoBufferChoices[0]) best = kVideoBufferChoices[0]; s.video_buffer = best; continue; }
         if (key == "video_fx") { std::string v = ascii_lower_str(trim_ws(unquote(value))); s.video_fx = video_fx_from(v); continue; }
         if (key == "MilkDropEffect") { s.milkdrop_fx = video_fx_from(ascii_lower_str(trim_ws(unquote(value)))); continue; }
+        if (key == "MilkDropAspectRatio") { s.milkdrop_ratio = milkdrop_ratio_from(ascii_lower_str(trim_ws(unquote(value)))); continue; }
         if (key == "MilkDropSixelColors") { s.milkdrop_fixed_colors = ascii_lower_str(trim_ws(unquote(value))) == "fixed"; continue; }
         if (key == "video_full_lyrics") continue;   // (older versions: the lyrics of the big video overlay are the track's "Use Lyrics on Video" now)
         if (key == "VideoFullTranslation") continue;   // (older versions: see above)
@@ -2296,6 +2298,7 @@ write_simple_setting(out, s, "VideoLayout");
         write_simple_setting(out, s, k);
     out << "MilkDropEffect=" << video_fx_key(s.milkdrop_fx) << "\n## off (default) or a video effect name (as VideoFx=) -- an effect over the MilkDrop pictures, their own (the video's effect belongs to the track's video)\n";
     write_simple_setting(out, s, "MilkDropEffectOn");
+    out << "MilkDropAspectRatio=" << milkdrop_ratio_name(s.milkdrop_ratio) << "\n## auto (default) , 1:1 , 5:4 , 4:3 , 3:2 , 16:10 , 16:9 , 2:1 , 21:9 -- the shape of the MilkDrop picture (with Aspect Correction on): the whole picture, never cropped, centred in its place with bars where it does not fill it; auto = the place's own shape but no wider than 16:9. Also the shape of the extra MilkDrop window\n";
     out << "MilkDropSixelColors=" << (s.milkdrop_fixed_colors ? "fixed" : "adaptive") << "\n## adaptive (default) , fixed -- the colours of the MilkDrop pictures on Sixel (and Kitty at standard resolution): adaptive = up to 240 colours taken from each picture (smooth gradients, a little more CPU), fixed = the fixed 256-colour palette of the videos\n";
     out << "## false = left out of the lyrics area: not in the \".\" cycle. The windows\n";
     out << "## (SHIFT+8 spectrogram, SHIFT+9 oscilloscope) and the full screen (SHIFT+u) work either way.\n";
@@ -2627,7 +2630,7 @@ void copy_look(const Settings& src, Settings& dst) {
     MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(disk_border); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
     MOUSIKI_LOOK(volume_indicator); MOUSIKI_LOOK(volume_gradient); MOUSIKI_LOOK(element_vizfield); MOUSIKI_LOOK(element_lyrics);
     MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
-    MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_extra_paths); MOUSIKI_LOOK(milkdrop_gpu); MOUSIKI_LOOK(milkdrop_lock); MOUSIKI_LOOK(milkdrop_hcd); MOUSIKI_LOOK(milkdrop_aspect); MOUSIKI_LOOK(milkdrop_mesh); MOUSIKI_LOOK(milkdrop_var); MOUSIKI_LOOK(milkdrop_clean); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res); MOUSIKI_LOOK(milkdrop_win_res);
+    MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_extra_paths); MOUSIKI_LOOK(milkdrop_gpu); MOUSIKI_LOOK(milkdrop_lock); MOUSIKI_LOOK(milkdrop_hcd); MOUSIKI_LOOK(milkdrop_aspect); MOUSIKI_LOOK(milkdrop_ratio); MOUSIKI_LOOK(milkdrop_mesh); MOUSIKI_LOOK(milkdrop_var); MOUSIKI_LOOK(milkdrop_clean); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res); MOUSIKI_LOOK(milkdrop_win_res);
     MOUSIKI_LOOK(milkdrop_preset_secs); MOUSIKI_LOOK(milkdrop_shuffle); MOUSIKI_LOOK(milkdrop_fav_shuffle); MOUSIKI_LOOK(milkdrop_auto); MOUSIKI_LOOK(milkdrop_auto_video_was); MOUSIKI_LOOK(milkdrop_fx); MOUSIKI_LOOK(milkdrop_fixed_colors); MOUSIKI_LOOK(milkdrop_cut_sens); MOUSIKI_LOOK(milkdrop_fx_on); MOUSIKI_LOOK(milkdrop_default_preset); MOUSIKI_LOOK(milkdrop_hard_cuts);
     MOUSIKI_LOOK(milkdrop_transition); MOUSIKI_LOOK(milkdrop_show_name);
     MOUSIKI_LOOK(use_sphere); MOUSIKI_LOOK(viz_default); MOUSIKI_LOOK(element_visualizer); MOUSIKI_LOOK(waveform_smooth);

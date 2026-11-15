@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdio>
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -224,6 +225,13 @@ int milkdrop_window_main() {
                 if (!tex) { write_error(std::string("MilkDrop window: cannot create a texture: ") + A.GetError()); break; }
                 A.SetTextureBlendMode(tex, sdl::kBlendNone);
                 if (A.SetTextureScaleMode) A.SetTextureScaleMode(tex, sdl::kScaleLinear);
+                if (A.SetWindowSize && (tw != pw || th != ph) && (A.GetWindowFlags(win) & sdl::kWinFullscreenDesktop) != sdl::kWinFullscreenDesktop) {
+                    // the picture's shape changed (the first picture, a new Aspect Ratio): the window takes that shape, keeping its width
+                    int cw = 0, ch = 0;
+                    A.GetWindowSize(win, &cw, &ch);
+                    if (cw > 0 && ch > 0 && std::abs(static_cast<double>(cw) / ch - static_cast<double>(pw) / ph) > 0.02)
+                        A.SetWindowSize(win, cw, std::max(120, static_cast<int>(std::lround(static_cast<double>(cw) * ph / pw))));
+                }
                 tw = pw; th = ph;
             }
             px.resize(static_cast<size_t>(pw) * ph);

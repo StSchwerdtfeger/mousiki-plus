@@ -437,9 +437,9 @@ std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus&
 // The node to select after UP / DOWN / LEFT / RIGHT (dir 0 / 1 / 2 / 3) from node `sel`.
 // The MilkDrop visuals overlay (":", overlay 11; radio_milkdrop.cpp): its rows (0 Preset .. 11 Show in the Scope Block); a change of one
 // (dir -1 / +1; `notice` gets the status text when there is one).
-inline constexpr int kMdRowCount = 23;
+inline constexpr int kMdRowCount = 24;
 enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdDuration, kMdShuffle, kMdFavShuffle, kMdCutSens, kMdHardCuts, kMdTransition, kMdFps, kMdRes, kMdGpu, kMdUseFx, kMdFx, kMdColors,
-             kMdHcd, kMdVar, kMdMesh, kMdAspect, kMdClean, kMdName, kMdScope };
+             kMdHcd, kMdVar, kMdMesh, kMdAspect, kMdRatio, kMdClean, kMdName, kMdScope };
 void md_overlay_adjust(RadioSettings& c, int row, int dir, std::string& notice);
 VideoLook radio_milkdrop_look(const RadioSettings& c);   // the effect over the pictures (also the MilkDrop window's)
 // The preset overlay (overlay 12): open it (false + notice when there is no preset folder), a key (true = handled; `close` = leave it), the text a search needs.

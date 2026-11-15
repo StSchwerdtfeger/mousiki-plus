@@ -51,6 +51,7 @@ struct Api {
     uint32_t (*GetWindowFlags)(Window*) = nullptr;
     void (*GetWindowPosition)(Window*, int*, int*) = nullptr;
     void (*GetWindowSize)(Window*, int*, int*) = nullptr;
+    void (*SetWindowSize)(Window*, int, int) = nullptr;
     void (*SetWindowTitle)(Window*, const char*) = nullptr;
     void (*SetWindowAlwaysOnTop)(Window*, int) = nullptr;            // 2.0.16, optional
     Renderer* (*CreateRenderer)(Window*, int, uint32_t) = nullptr;
@@ -137,7 +138,7 @@ inline bool load(Api& a, std::string* err) {
     get(a.SetHint, "SDL_SetHint", true); get(a.GetVersion, "SDL_GetVersion", true);
     get(a.CreateWin, "SDL_CreateWindow", true); get(a.DestroyWindow, "SDL_DestroyWindow", true);
     get(a.SetWindowFullscreen, "SDL_SetWindowFullscreen", true); get(a.GetWindowFlags, "SDL_GetWindowFlags", true);
-    get(a.GetWindowPosition, "SDL_GetWindowPosition", true); get(a.GetWindowSize, "SDL_GetWindowSize", true);
+    get(a.GetWindowPosition, "SDL_GetWindowPosition", true); get(a.GetWindowSize, "SDL_GetWindowSize", true); get(a.SetWindowSize, "SDL_SetWindowSize", false);
     get(a.SetWindowTitle, "SDL_SetWindowTitle", true); get(a.SetWindowAlwaysOnTop, "SDL_SetWindowAlwaysOnTop", false);
     get(a.CreateRenderer, "SDL_CreateRenderer", true); get(a.DestroyRenderer, "SDL_DestroyRenderer", true);
     get(a.GetRendererOutputSize, "SDL_GetRendererOutputSize", true); get(a.GetRendererInfo, "SDL_GetRendererInfo", true);

@@ -117,6 +117,7 @@ MilkDropHardCutInterval=20
 MilkDropDurationVariance=0
 MilkDropMeshDetail=1
 MilkDropAspectCorrection=true
+MilkDropAspectRatio=auto
 MilkDropCleanStart=false
 Visualizer=true
 StereoSound=true

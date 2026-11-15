@@ -577,14 +577,19 @@ namespace {
 // (the visuals are drawn for that very aspect), has no length and no frame before.
 class MilkdropSource {
 public:
-    // cap: the widest picture (width / height in pixels) that is drawn; 0 = the whole place. A preset's scene is scaled to the picture's width, so
-    // a picture much wider than 16:9 shows only a band of it (a circle cut at the top and bottom): wider places get bars at the sides instead.
-    explicit MilkdropSource(Milkdrop& m, double cap = 0.0) : m_(m), cap_(cap) {}
+    // ratio: the shape of the picture (width / height in pixels); 0 = the whole place. fixed: exactly that shape (bars at the sides or above and below);
+    // else no wider than the ratio. A preset's scene is scaled to the picture's width, so a picture much wider than 16:9 shows only a band of it (a
+    // circle cut at the top and bottom): the picture is never cropped to fit, a place of another shape gets bars.
+    explicit MilkdropSource(Milkdrop& m, double ratio = 0.0, bool fixed = false) : m_(m), cap_(ratio), fixed_(fixed) {}
     bool has_video() const { return true; }
     double cap() const { return cap_; }
+    bool fixed() const { return fixed_; }
     void fit(int bw, int bh, double par, int& ow, int& oh) const {
         ow = bw; oh = bh;
-        if (cap_ > 0 && bh > 0 && bw * par / bh > cap_) ow = std::max(2, static_cast<int>(std::lround(bh * cap_ / std::max(0.01, par))));
+        if (cap_ <= 0 || bh <= 0 || bw <= 0) return;
+        const double real = bw * par / bh;
+        if (real > cap_) ow = std::max(2, static_cast<int>(std::lround(bh * cap_ / std::max(0.01, par))));
+        else if (fixed_ && real < cap_) oh = std::max(2, static_cast<int>(std::lround(bw * par / cap_)));
     }
     void fit_cover(int bw, int bh, double, int& ow, int& oh) const { ow = bw; oh = bh; }
     double duration() const { return 0.0; }
@@ -612,6 +617,7 @@ private:
     static bool& have_prev() { static bool h = false; return h; }
     Milkdrop& m_;
     double cap_;
+    bool fixed_;
 };
 } // namespace
 
@@ -638,7 +644,8 @@ bool App::milkdrop_draw(std::vector<std::string>& rows, int W, int H, int abs_co
         return true;
     }
     milkdrop_drawn_ = true;
-    MilkdropSource src(Milkdrop::instance(), settings_.milkdrop_aspect ? 16.0 / 9.0 : 0.0);   // (Aspect Correction: no wider than 16:9, bars at the sides)
+    const MilkShape shp = milkdrop_shape(settings_.milkdrop_aspect, settings_.milkdrop_ratio);   // (Aspect Correction: auto = no wider than 16:9; or exactly the chosen shape; bars where the place is not that shape)
+    MilkdropSource src(Milkdrop::instance(), shp.ratio, shp.fixed);
     // The effects that move with the time (Glitch, VHS, Film ...) get the clock of the program, like a video gets its position: with a fixed 0 they
     // stood still (one glitch picture for ever).
     static const auto t0 = std::chrono::steady_clock::now();
@@ -681,8 +688,11 @@ bool App::video_draw_src(Src& V, bool playing_one, bool is_video, std::string& p
         if (mode == 2) {
             vcols = W; vrows = H;
             if constexpr (std::is_same_v<Src, MilkdropSource>) {   // (a place wider than the cap: the picture is centred, bars at the sides)
-                if (V.cap() > 0 && static_cast<double>(W) * cw0 / (static_cast<double>(H) * ch0) > V.cap())
+                const double real = static_cast<double>(W) * cw0 / (static_cast<double>(H) * ch0);
+                if (V.cap() > 0 && real > V.cap())
                     vcols = std::clamp(static_cast<int>(std::lround(H * ch0 * V.cap() / cw0)), 4, W);
+                else if (V.cap() > 0 && V.fixed() && real < V.cap())   // (a fixed shape in a taller place: bars above and below)
+                    vrows = std::clamp(static_cast<int>(std::lround(W * cw0 / (V.cap() * ch0))), 2, H);
             }
             if (picture) {
                 const int maxw = md_maxw;

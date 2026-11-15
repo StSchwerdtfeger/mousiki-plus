@@ -815,6 +815,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidMdGpu: return milkdrop_gpu_label(settings_.milkdrop_gpu);
             case kSidMdHcd: return std::to_string(std::clamp(settings_.milkdrop_hcd, 3, 120)) + " s";
             case kSidMdMesh: return mesh_name(settings_.milkdrop_mesh);
+            case kSidMdRatio: return milkdrop_ratio_name(settings_.milkdrop_ratio);
             case kSidMdVar: return settings_.milkdrop_var <= 0 ? std::string("off") : std::to_string(std::clamp(settings_.milkdrop_var, 0, 30)) + " s";
             case kSidMdTransition: return settings_.milkdrop_transition <= 0 ? std::string("cut") : std::to_string(settings_.milkdrop_transition) + " s";
             case kSidMdFx: return video_fx_name(video_fx_canon(settings_.milkdrop_fx));
@@ -1008,6 +1009,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidMdCutSens: { std::vector<std::string> o; for (int i = 5; i <= 60; ++i) { char b[8]; std::snprintf(b, sizeof b, "%.1f", i / 10.0); o.push_back(b); } return o; }
             case kSidMdHcd: return {"3 s", "5 s", "10 s", "15 s", "20 s", "30 s", "45 s", "60 s", "90 s", "120 s"};
             case kSidMdMesh: return {mesh_name(0), mesh_name(1), mesh_name(2), mesh_name(3)};
+            case kSidMdRatio: { std::vector<std::string> o; for (int i = 0; i < kMilkRatioCount; ++i) o.push_back(milkdrop_ratio_name(i)); return o; }
             case kSidMdVar: return {"off", "2 s", "5 s", "10 s", "15 s", "20 s", "30 s"};
             case kSidMdGpu: { std::vector<std::string> o{"automatic"}; for (const MilkdropGpu& g : Milkdrop::gpus()) o.push_back(g.label); return o; }
             case kSidMdPreset: case kSidMdBrowse: case kSidMdRandom: return {};   // not a switch: ENTER opens the preset overlay
@@ -1123,6 +1125,7 @@ void App::settings_commit_edit_impl() {
             return;
         }
         if (id == kSidMdHcd) { settings_.milkdrop_hcd = std::clamp(std::atoi(v.c_str()), 3, 120); return; }
+        if (id == kSidMdRatio) { settings_.milkdrop_ratio = milkdrop_ratio_from(v); return; }
         if (id == kSidMdMesh) { for (int i = 0; i < 4; ++i) if (v == mesh_name(i)) settings_.milkdrop_mesh = i; return; }
         if (id == kSidMdVar) { settings_.milkdrop_var = v == "off" ? 0 : std::clamp(std::atoi(v.c_str()), 0, 30); return; }
         if (id == kSidMdRes) { settings_.milkdrop_res = std::clamp(std::atoi(v.c_str()), 160, 1920); milkdrop_pic_key_.clear(); return; }

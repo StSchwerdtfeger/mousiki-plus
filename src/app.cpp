@@ -1356,12 +1356,14 @@ int App::run() {
             std::this_thread::sleep_for(std::chrono::milliseconds(40));
             continue;
         }
+        // The effect list over the VIDEO SETTINGS overlay (its preview is a picture) stands over a still main screen too: the animated spectrum / volume bars behind it
+        // wrote their changed lines into the preview's cells (glitches through the picture).
         // The Style Option overlay opened from the main screen (SHIFT+s), and SEARCH YT while its thumbnail is a picture: the main screen behind it stands still. Its disk and
         // visualizations would change lines every frame, and each of those line writes lands next to the preview picture (Sixel
         // replaces the cells under it): the picture then flickers. Only the panel (and its preview picture) is live.
         bool sty_frozen = false;
         {
-            const bool freeze = ((mode_ == Mode::MetaEdit && meta_->sty_from_main) || (mode_ == Mode::VideoSearch && vs_->pic != 0) || (mode_ == Mode::VideoLink && vl_->pic != 0)) && frame_main_len_ != std::string::npos && frame_main_len_ <= frame_str.size();   // (SEARCH YT with a thumbnail picture freezes the main screen too: the line writes of the live screen next to a Sixel picture wipe it)
+            const bool freeze = ((mode_ == Mode::MetaEdit && meta_->sty_from_main) || (mode_ == Mode::VideoSearch && vs_->pic != 0) || (mode_ == Mode::VideoLink && vl_->pic != 0) || (mode_ == Mode::VideoMenu && fxpick_.open && fxpick_pic_ != 0)) && frame_main_len_ != std::string::npos && frame_main_len_ <= frame_str.size();   // (SEARCH YT with a thumbnail picture freezes the main screen too: the line writes of the live screen next to a Sixel picture wipe it)
             // (the look chosen in the panel is shown behind it at once: the frozen screen is taken again when the look changes)
             const std::string look_sig = std::to_string(eff_cover_mode()) + "|" + std::to_string(eff_cover_contrast()) + "|" + std::to_string(eff_cover_brightness()) + "|" +
                                          std::to_string(eff_cover_colors()) + "|" + std::to_string(eff_cover_gsat()) + "|" + std::to_string(eff_cover_chroma()) + "|" + (settings_.album_cover ? "a" : "d");

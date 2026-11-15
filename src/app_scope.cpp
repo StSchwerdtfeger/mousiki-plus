@@ -201,10 +201,14 @@ void App::milkdrop_window_sync(bool check_alive) {
     }
     milkdrop_apply_settings();   // the engine's options (preset time, GPU, mesh ...) are the same as for the terminal
     const int w = std::clamp(settings_.milkdrop_win_res, 320, 1920) & ~1;
-    milkdrop_window_set_size(w, (w * 9 / 16) & ~1);
+    milkdrop_window_set_size(w, milkdrop_window_height(w, settings_.milkdrop_aspect, settings_.milkdrop_ratio));   // (Aspect Correction / Aspect Ratio: the window's shape)
     MilkWinConfig c;
     std::string title;
     if (has_track_) { const TrackMetadata dm = display_metadata(); title = dm.artist.empty() ? dm.name : dm.artist + " - " + dm.name; }
+    if (settings_.milkdrop_show_name) {   // Show Preset Name: the window has no box for it, the title says which preset is on
+        const std::string pn = Milkdrop::instance().preset_name();
+        if (!pn.empty()) title += (title.empty() ? "" : "  |  ") + pn;
+    }
     std::snprintf(c.title, sizeof c.title, "%s", title.c_str());
     milkdrop_window_set_config(c);
 }

@@ -1,3 +1,4 @@
+#include "milkdrop.h"
 #include "app_dirs.h"
 #include "radio_app.h"
 #include "console_log.h"
@@ -431,8 +432,16 @@ void RadioApp::frame_tick() {
         if (running_md) {
             radio_milkdrop_apply(cfg);
             milkdrop_window_set_look(radio_milkdrop_look(cfg));
+            if (cfg.md_show_name) {   // Show Preset Name: the window's title says which preset is on
+                MilkWinConfig wc;
+                const std::string pn = Milkdrop::instance().preset_name();
+                std::string tt = engine.status().tuned_name;
+                if (!pn.empty()) tt += (tt.empty() ? "" : "  |  ") + pn;
+                std::snprintf(wc.title, sizeof wc.title, "%s", tt.c_str());
+                milkdrop_window_set_config(wc);
+            }
             const int w = std::clamp(cfg.md_win_res, 320, 1920) & ~1;
-            milkdrop_window_set_size(w, (w * 9 / 16) & ~1);
+            milkdrop_window_set_size(w, milkdrop_window_height(w, cfg.md_aspect, cfg.md_ratio));
         }
         if (milkdrop_win_was && !running_md) {
             const std::string e = milkdrop_window_take_error();

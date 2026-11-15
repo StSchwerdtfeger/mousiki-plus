@@ -37,7 +37,7 @@ template <size_t N> int md_step(const int (&a)[N], int cur, int dir) {
     const long n = std::clamp<long>(static_cast<long>(k) + dir, 0, static_cast<long>(N) - 1);
     return a[static_cast<size_t>(n)];
 }
-enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdDuration, kMdShuffle, kMdFavShuffle, kMdCutSens, kMdHardCuts, kMdTransition, kMdFps, kMdRes, kMdGpu, kMdUseFx, kMdFx, kMdColors, kMdName, kMdHcd, kMdVar, kMdMesh, kMdAspect, kMdClean, kMdView, kMdRows };
+enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdDuration, kMdShuffle, kMdFavShuffle, kMdCutSens, kMdHardCuts, kMdTransition, kMdFps, kMdRes, kMdGpu, kMdUseFx, kMdFx, kMdColors, kMdName, kMdHcd, kMdVar, kMdMesh, kMdAspect, kMdRatio, kMdClean, kMdView, kMdRows };
 const int kMdCutSensSteps[] = {5, 10, 15, 20, 25, 30, 40, 50, 60};
 } // namespace
 
@@ -222,7 +222,7 @@ bool App::md_row_shown(int row) const {
 }
 
 static bool md_global_row(int row) {   // (how the pictures are drawn: not a matter of one track)
-    return row == kMdFps || row == kMdRes || row == kMdGpu || row == kMdColors || row == kMdHcd || row == kMdVar || row == kMdMesh || row == kMdAspect || row == kMdClean;
+    return row == kMdFps || row == kMdRes || row == kMdGpu || row == kMdColors || row == kMdHcd || row == kMdVar || row == kMdMesh || row == kMdAspect || row == kMdRatio || row == kMdClean;
 }
 
 std::string App::milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const {
@@ -270,6 +270,7 @@ std::string App::milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const
         case kMdVar: return secs(settings_.milkdrop_var);
         case kMdMesh: return mesh_name(settings_.milkdrop_mesh);
         case kMdAspect: return onoff(settings_.milkdrop_aspect);
+        case kMdRatio: return milkdrop_ratio_name(settings_.milkdrop_ratio);
         case kMdClean: return onoff(settings_.milkdrop_clean);
         case kMdView:
             if (ts) return rec->on < 0 ? "as Settings" : rec->on == 1 ? "on" : "off";
@@ -297,7 +298,7 @@ std::vector<std::string> App::build_milkdrop_menu_panel() const {
     const MilkdropTrackOpts rec = ts ? cover_track_milkdrop(md_scope_track_) : MilkdropTrackOpts();
     md_favs_load();
     const char* labels[kMdRows] = {"Preset", "Preset Overlay", "Random Preset", "Lock Preset", "Preset Duration", "Shuffle Presets", "Shuffle Favourites", "Hard Cut Sensitivity",
-                                   "Hard Cuts", "Preset Transition", "Frame Rate", "Resolution", "GPU", "Use Effect", "Effect", "Sixel Colours", "Show Preset Name", "Hard Cut Interval", "Duration Variance", "Mesh Detail", "Aspect Correction", "Clean Start", ts ? "MilkDrop (this track)" : "Auto MilkDrop"};
+                                   "Hard Cuts", "Preset Transition", "Frame Rate", "Resolution", "GPU", "Use Effect", "Effect", "Sixel Colours", "Show Preset Name", "Hard Cut Interval", "Duration Variance", "Mesh Detail", "Aspect Correction", "Aspect Ratio", "Clean Start", ts ? "MilkDrop (this track)" : "Auto MilkDrop"};
     std::vector<std::string> lines;
     lines.push_back(box_top(ts ? "Visuals: MilkDrop (this track)" : "Visuals: MilkDrop", W, border));
     if (ts) {   // (the note in the highlight colours, as in the video options)
@@ -411,7 +412,7 @@ void App::milkdrop_menu_track_adjust(int row, int dir, bool reset) {
     }
     set_cover_track_milkdrop(md_scope_track_, mo);
     const char* labels[kMdRows] = {"preset", "", "", "lock", "preset duration", "shuffle", "shuffle favourites", "hard cut sensitivity",
-                                   "hard cuts", "preset transition", "", "", "", "effect on / off", "effect", "", "preset name", "", "", "", "", "", "MilkDrop"};
+                                   "hard cuts", "preset transition", "", "", "", "effect on / off", "effect", "", "preset name", "", "", "", "", "", "", "MilkDrop"};
     const std::string msg = std::string("this track: ") + labels[row] + " " + milkdrop_row_value(row, &mo);
     status_line_ = "milkdrop: " + msg;
     if (meta_) meta_->sty_msg = "saved: " + msg;
@@ -457,6 +458,7 @@ void App::milkdrop_menu_adjust(int row, int dir) {
         case kMdVar: settings_.milkdrop_var = md_step(kMdVarSteps, settings_.milkdrop_var, dir); break;
         case kMdMesh: settings_.milkdrop_mesh = std::clamp(settings_.milkdrop_mesh + dir, 0, 3); status_line_ = "milkdrop mesh: " + mesh_name(settings_.milkdrop_mesh) + " -- the visuals restart"; break;
         case kMdAspect: settings_.milkdrop_aspect = !settings_.milkdrop_aspect; break;
+        case kMdRatio: settings_.milkdrop_ratio = (settings_.milkdrop_ratio + (dir < 0 ? kMilkRatioCount - 1 : 1)) % kMilkRatioCount; status_line_ = std::string("milkdrop aspect ratio: ") + milkdrop_ratio_name(settings_.milkdrop_ratio) + (settings_.milkdrop_aspect ? "" : " (Aspect Correction is off: the picture fills the place)"); break;
         case kMdClean: settings_.milkdrop_clean = !settings_.milkdrop_clean; break;
         case kMdUseFx:
             settings_.milkdrop_fx_on = !settings_.milkdrop_fx_on;

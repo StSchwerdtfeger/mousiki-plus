@@ -117,6 +117,7 @@ struct Settings : VizPrefs {
     bool milkdrop_fav_shuffle = false; // MilkDropShuffleFavourites=: only the favourite presets (milkdrop_favourites.txt) are played
     bool milkdrop_lock = false;        // MilkDropLockPreset=: the preset stays (Lock Preset in ":" and Settings) -- also the next time Mousiki starts
     int milkdrop_hcd = 20;             // MilkDropHardCutInterval=: 3 .. 120 s, the shortest time between two hard cuts (projectM's default 20)
+    int milkdrop_ratio = 0;            // MilkDropAspectRatio=: auto (default), 1:1, 5:4, 4:3, 3:2, 16:10, 16:9, 2:1, 21:9 (milkdrop_ratio_name): the picture's shape with Aspect Correction on
     bool milkdrop_aspect = true;       // MilkDropAspectCorrection=: presets keep their proportions on a wide picture
     int milkdrop_mesh = 1;             // MilkDropMeshDetail=: 0 low (16 x 12), 1 normal (32 x 24, projectM's default), 2 high (64 x 48), 3 very high (96 x 72)
     int milkdrop_var = 0;              // MilkDropDurationVariance=: 0 .. 30 s, how far the time of a preset may stray at random (0 = it stays the same)

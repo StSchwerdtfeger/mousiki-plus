@@ -125,7 +125,7 @@ enum RsId {
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc, kRsBehavior, kRsBarStyle, kRsHifiRes, kRsHifiChan, kRsHifiColor, kRsHifiScale, kRsHifiAdapt, kRsHifiSplit, kRsHifiFScale, kRsHifiGain, kRsHifiRange,
     kRsScope, kRsOsciStyle,
     kRsUseMilkdrop, kRsMdFps, kRsMdRes, kRsMdGpu, kRsMdDuration, kRsMdShuffle, kRsMdBeat, kRsMdHardCuts, kRsMdTransition, kRsMdShowName,
-    kRsMdFavShuffle, kRsMdHcd, kRsMdVar, kRsMdMesh, kRsMdAspect, kRsMdClean, kRsMdUseFx, kRsMdFx, kRsMdColors,
+    kRsMdFavShuffle, kRsMdHcd, kRsMdVar, kRsMdMesh, kRsMdAspect, kRsMdRatio, kRsMdClean, kRsMdUseFx, kRsMdFx, kRsMdColors,
     kRsAudioDevice,   // [ENTER]: the CHOOSE AUDIO DEVICE overlay
     kRsCliScripts,    // [ENTER]: the script overlay
     kRsTermDefaultFont, // leave the terminal's own font alone (one value for all modes: TerminalDefaultFont= in the player's config.txt)
@@ -181,7 +181,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {false, kRsMdDuration, "Preset Duration"}, {false, kRsMdShuffle, "Shuffle Presets"}, {false, kRsMdBeat, "Hard Cut Sensitivity"},
         {false, kRsMdHardCuts, "Hard Cuts"}, {false, kRsMdTransition, "Preset Transition"}, {false, kRsMdShowName, "Show Preset Name"},
         {false, kRsMdFavShuffle, "Shuffle Favourites"}, {false, kRsMdHcd, "Hard Cut Interval"}, {false, kRsMdVar, "Duration Variance"},
-        {false, kRsMdMesh, "Mesh Detail"}, {false, kRsMdAspect, "Aspect Correction"}, {false, kRsMdClean, "Clean Start"},
+        {false, kRsMdMesh, "Mesh Detail"}, {false, kRsMdAspect, "Aspect Correction"}, {false, kRsMdRatio, "Aspect Ratio"}, {false, kRsMdClean, "Clean Start"},
         {false, kRsMdUseFx, "Use Effect"}, {false, kRsMdFx, "MilkDrop Effect"}, {false, kRsMdColors, "Sixel Colours"},
     };
     if (tab == 1) return on_off;
@@ -338,6 +338,7 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsMdHcd: return std::to_string(std::clamp(s.md_hcd, 3, 120)) + " s";
         case kRsMdVar: return s.md_var <= 0 ? std::string("off") : std::to_string(s.md_var) + " s";
         case kRsMdMesh: return mesh_name(s.md_mesh);
+        case kRsMdRatio: return milkdrop_ratio_name(s.md_ratio);
         case kRsMdFx: return video_fx_name(video_fx_canon(s.md_fx));
         case kRsMdColors: return s.md_fixed_colors ? "fixed" : "adaptive";
     }
@@ -418,6 +419,7 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
         case kRsMdHcd: s.md_hcd = radio_md_step(3, s.md_hcd, dir == 0 ? 1 : dir); break;
         case kRsMdVar: s.md_var = radio_md_step(4, s.md_var, dir == 0 ? 1 : dir); break;
         case kRsMdMesh: s.md_mesh = std::clamp(s.md_mesh + (dir == 0 ? 1 : dir), 0, 3); break;
+        case kRsMdRatio: s.md_ratio = (s.md_ratio + (dir < 0 ? kMilkRatioCount - 1 : 1)) % kMilkRatioCount; break;
         case kRsMdFx: s.md_fx = video_fx_step(s.md_fx, dir == 0 ? 1 : dir); break;
         case kRsMdColors: s.md_fixed_colors = !s.md_fixed_colors; break;
     }
@@ -1060,6 +1062,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("MilkDropHardCutInterval")) s.md_hcd = std::clamp(muisc::atoi_safe(v->c_str()), 3, 120);
     if (auto v = get("MilkDropDurationVariance")) s.md_var = std::clamp(muisc::atoi_safe(v->c_str()), 0, 30);
     if (auto v = get("MilkDropMeshDetail")) s.md_mesh = std::clamp(muisc::atoi_safe(v->c_str()), 0, 3);
+    if (auto v = get("MilkDropAspectRatio")) s.md_ratio = milkdrop_ratio_from(ascii_lower_str(trim_ws(*v)));
     if (auto v = get("MilkDropAspectCorrection")) s.md_aspect = as_bool(*v, s.md_aspect);
     if (auto v = get("MilkDropCleanStart")) s.md_clean = as_bool(*v, s.md_clean);
     if (auto v = get("MilkDropEffect")) s.md_fx = video_fx_from(ascii_lower_str(trim_ws(*v)));
@@ -1262,6 +1265,7 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "MilkDropDurationVariance=" << s.md_var << "\n"
          "MilkDropMeshDetail=" << s.md_mesh << "\n"
          "MilkDropAspectCorrection=" << (s.md_aspect ? "true" : "false") << "\n"
+         "MilkDropAspectRatio=" << milkdrop_ratio_name(s.md_ratio) << "\n"
          "MilkDropCleanStart=" << (s.md_clean ? "true" : "false") << "\n"
          "MilkDropEffect=" << video_fx_key(s.md_fx) << "\n"
          "MilkDropEffectOn=" << (s.md_fx_on ? "true" : "false") << "\n"

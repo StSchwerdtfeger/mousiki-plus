@@ -118,6 +118,7 @@ struct RadioSettings : VizPrefs {
     // the same options as the player's ":" overlay (the same config keys): the shortest time between hard cuts, the random spread of a preset's time,
     // the warp mesh (0 low .. 3 very high), aspect correction, a clean start per preset, and only the favourites in the list
     int md_hcd = 20, md_var = 0, md_mesh = 1;
+    int md_ratio = 0;   // MilkDropAspectRatio= (milkdrop_ratio_name)
     bool md_aspect = true, md_clean = false, md_fav_shuffle = false;
     // a video effect over the pictures (MilkDropEffect=, MilkDropEffectOn=: off keeps the choice) and the Sixel colours (MilkDropSixelColors=: fixed or taken from each picture)
     int md_fx = 0;

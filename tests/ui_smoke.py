@@ -2501,7 +2501,7 @@ def video_fx_picker(binary, root, scripts):
             except OSError:
                 return False
         def row_pixel(t):   # (the Settings row itself: the status line may already say "Unsaved changes!")
-            return any("Video Effect " in l and ": Pixel" in l and "Contrast" not in l and "Preview" not in l for l in t.splitlines())
+            return any(re.search(r"Video Effect\s+:\s+Pixel\b", l) and "Preview" not in l for l in t.splitlines())
         sess.wait_for(lambda t: "VIDEO EFFECT" not in t and ("video effect: Pixel" in t or row_pixel(t) or fx_cfg()), 20)   # (a slow runner closes the list and draws the status line a moment later; config.txt has the choice too)
         t = sess.text()
         ok = "VIDEO EFFECT" not in t and ("video effect: Pixel" in t or row_pixel(t) or fx_cfg())
@@ -4698,7 +4698,7 @@ def milkdrop_window(binary, root, scripts):
     # the effect of the terminal view (MilkDropEffect=) is on the window's pictures too: Phosphor Green leaves (almost) no red and blue
     shot2 = os.path.join(root, "mdw_shot2.ppm")
     with open(cfgf, "a", encoding="utf-8") as f:
-        f.write("MilkDropEffect=phosphor green\n")
+        f.write("MilkDropEffect=phosphor green\nMilkDropAspectRatio=4:3\n")
     env2 = dict(env); env2["MOUSIKI_MILK_SHOT"] = shot2
     sess = Session(binary, home, scripts, env2, quiet_stderr=True, gfx=True)
     try:
@@ -4717,6 +4717,8 @@ def milkdrop_window(binary, root, scripts):
             head, rest = data.split(b"\n255\n", 1)
             n = len(rest) // 3
             mr = sum(rest[0::3]) / max(1, n); mg = sum(rest[1::3]) / max(1, n); mb = sum(rest[2::3]) / max(1, n)
+            w2, h2 = (int(x) for x in head.split(b"\n")[1].split())
+            check(abs(w2 / h2 - 4 / 3) < 0.03, "milkdrop window: Aspect Ratio 4:3 gives the window that shape (%dx%d)" % (w2, h2))
             check(mg > 8 and mr < mg * 0.5 and mb < mg * 0.5, "milkdrop window: the effect (Phosphor Green) is on the window's picture too (mean R %.1f G %.1f B %.1f)" % (mr, mg, mb))
         sess.send("|", 1.0)
     finally:

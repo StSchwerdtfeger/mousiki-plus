@@ -68,6 +68,7 @@ TEST(config_milkdrop_options_round_trip) {
     Settings s = load_settings();
     CHECK_EQ(s.milkdrop_hcd, 20);                 // projectM's own defaults
     CHECK(s.milkdrop_aspect);
+    CHECK(s.milkdrop_ratio == 0);
     CHECK_EQ(s.milkdrop_mesh, 1);
     CHECK_EQ(s.milkdrop_var, 0);
     CHECK(!s.milkdrop_clean);
@@ -75,7 +76,7 @@ TEST(config_milkdrop_options_round_trip) {
     CHECK(s.hotkeys.count("HKeyMilkdropWindow") == 1 && !s.hotkeys["HKeyMilkdropWindow"].empty());   // ";" or "|" by keyboard layout
     s.milkdrop_win_res = 960;
     s.milkdrop_lock = true; s.milkdrop_extra_paths = {"/tmp/more presets", "/tmp/even more"};
-    s.milkdrop_hcd = 45; s.milkdrop_aspect = false; s.milkdrop_mesh = 3; s.milkdrop_var = 10; s.milkdrop_clean = true; s.milkdrop_gpu = "renderD129";
+    s.milkdrop_hcd = 45; s.milkdrop_aspect = false; s.milkdrop_ratio = 3; s.milkdrop_mesh = 3; s.milkdrop_var = 10; s.milkdrop_clean = true; s.milkdrop_gpu = "renderD129";
     save_settings(s);
     const Settings t = load_settings();
     CHECK_EQ(t.milkdrop_hcd, 45);
@@ -83,6 +84,7 @@ TEST(config_milkdrop_options_round_trip) {
     CHECK_EQ(t.milkdrop_extra_paths.size(), size_t(2));      // MILKDROP PRESET PATH: one line a folder
     CHECK_EQ(t.milkdrop_extra_paths[1], std::string("/tmp/even more"));
     CHECK(!t.milkdrop_aspect);
+    CHECK(t.milkdrop_ratio == 3);
     CHECK_EQ(t.milkdrop_mesh, 3);
     CHECK_EQ(t.milkdrop_var, 10);
     CHECK(t.milkdrop_clean);
