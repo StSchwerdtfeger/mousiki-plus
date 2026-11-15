@@ -685,6 +685,12 @@ bool App::video_draw_src(Src& V, bool playing_one, bool is_video, std::string& p
     int vcols = 0, vrows = 0, dw = 0, dh = 0, outw = 0, outh = 0, cx0 = 0, cy0 = 0;
     {
         int fw = 0, fh = 0;
+        // (MilkDrop: a picture that is not as big as its place sits exactly in the middle -- the bars on both sides equal -- so its size in cells has the parity
+        // of the place's: the nearer of the two sizes, not the rounded one that leaves half a cell more on one side)
+        auto centred = [](int v, int total, double ideal, int lo) {
+            if (v >= total || ((total - v) & 1) == 0) return v;
+            return std::clamp(ideal > v ? v + 1 : v - 1, lo, total);
+        };
         if (mode == 2) {
             vcols = W; vrows = H;
             if constexpr (std::is_same_v<Src, MilkdropSource>) {   // (a place wider than the cap: the picture is centred, bars at the sides)
@@ -693,6 +699,10 @@ bool App::video_draw_src(Src& V, bool playing_one, bool is_video, std::string& p
                     vcols = std::clamp(static_cast<int>(std::lround(H * ch0 * V.cap() / cw0)), 4, W);
                 else if (V.cap() > 0 && V.fixed() && real < V.cap())   // (a fixed shape in a taller place: bars above and below)
                     vrows = std::clamp(static_cast<int>(std::lround(W * cw0 / (V.cap() * ch0))), 2, H);
+                if (V.cap() > 0) {
+                    vcols = centred(vcols, W, H * ch0 * V.cap() / cw0, 4);
+                    vrows = centred(vrows, H, W * cw0 / (V.cap() * ch0), 2);
+                }
             }
             if (picture) {
                 const int maxw = md_maxw;
@@ -710,6 +720,7 @@ bool App::video_draw_src(Src& V, bool playing_one, bool is_video, std::string& p
                 V.fit(W * cw0, H * ch0, 1.0, fw, fh);
                 vcols = std::clamp((fw + cw0 / 2) / cw0, 1, W);
                 vrows = std::clamp((fh + ch0 / 2) / ch0, 1, H);
+                if constexpr (std::is_same_v<Src, MilkdropSource>) { vcols = centred(vcols, W, static_cast<double>(fw) / cw0, 1); vrows = centred(vrows, H, static_cast<double>(fh) / ch0, 1); }
                 const int maxw = md_maxw;
                 const double f = std::min(1.0, static_cast<double>(maxw) / (vcols * cw0));
                 dw = std::max(2, static_cast<int>(vcols * cw0 * f) & ~1);
@@ -718,6 +729,7 @@ bool App::video_draw_src(Src& V, bool playing_one, bool is_video, std::string& p
                 V.fit(W * 2, H * 4, 2.0 * cw0 / ch0, fw, fh);   // a braille dot is cw0 / 2 wide and ch0 / 4 high
                 vcols = std::clamp((fw + 1) / 2, 1, W);
                 vrows = std::clamp((fh + 3) / 4, 1, H);
+                if constexpr (std::is_same_v<Src, MilkdropSource>) { vcols = centred(vcols, W, fw / 2.0, 1); vrows = centred(vrows, H, fh / 4.0, 1); }
                 dw = vcols * 2; dh = vrows * 4;
             }
             outw = dw; outh = dh;
