@@ -63,7 +63,9 @@ std::string kitty_emit(const GfxFrame& f) {
     const int cropx = static_cast<int>(static_cast<long long>(std::clamp(f.crop, 0, f.cols)) * f.w / std::max(1, f.cols));
     const int vis_cols = f.cols - std::clamp(f.crop, 0, f.cols);
     if (vis_cols <= 0) return gfx_clear(GfxProto::Kitty, f.id);
-    std::vector<uint8_t> rgba(static_cast<size_t>(f.w) * f.h * 4);
+    // (buffers kept between pictures: a new vector of a few MB is zeroed and page-faulted in at every picture -- a measurable part of a big picture's cost)
+    static thread_local std::vector<uint8_t> rgba;
+    rgba.resize(static_cast<size_t>(f.w) * f.h * 4);
     const bool true_colour = f.plain && f.direct && f.truecolor && f.rgb.size() >= static_cast<size_t>(f.w) * f.h * 3 && f.level.size() >= static_cast<size_t>(f.w) * f.h;
     for (size_t i = 0; i < static_cast<size_t>(f.w) * f.h; ++i) {
         if (true_colour) {   // the video's own colours, all 8 bits
@@ -87,7 +89,8 @@ std::string kitty_emit(const GfxFrame& f) {
     std::string comp = "";
     {   // zlib stream (miniz, vendored in third_party/miniz): level 1 is fast and the picture is mostly empty
         mz_ulong n = mz_compressBound(static_cast<mz_ulong>(rgba.size()));
-        std::vector<uint8_t> z(n);
+        static thread_local std::vector<uint8_t> z;
+        z.resize(n);
         if (mz_compress2(z.data(), &n, rgba.data(), static_cast<mz_ulong>(rgba.size()), 1) == MZ_OK) { payload = base64(z.data(), n); comp = ",o=z"; }
     }
     if (comp.empty()) payload = base64(rgba.data(), rgba.size());
@@ -96,11 +99,14 @@ std::string kitty_emit(const GfxFrame& f) {
     if (cropx > 0) keys += ",x=" + std::to_string(cropx) + ",y=0,w=" + std::to_string(f.w - cropx) + ",h=" + std::to_string(f.h);
     std::string o = at_cell(f.row, f.col + (f.cols - vis_cols));
     constexpr size_t kChunk = 4096;
+    o.reserve(o.size() + payload.size() + payload.size() / kChunk * 12 + keys.size() + 32);   // (one allocation, no copy per chunk)
     for (size_t off = 0; off < payload.size() || off == 0; off += kChunk) {
         const bool more = off + kChunk < payload.size();
         o += "\x1b_G";
-        if (off == 0) o += keys + ",";
-        o += std::string("m=") + (more ? "1" : "0") + ";" + payload.substr(off, kChunk) + "\x1b\\";
+        if (off == 0) { o += keys; o += ','; }
+        o += more ? "m=1;" : "m=0;";
+        o.append(payload, off, kChunk);
+        o += "\x1b\\";
         if (!more) break;
     }
     return o;

@@ -115,6 +115,7 @@ struct Settings : VizPrefs {
     bool milkdrop_fav_shuffle = false; // MilkDropShuffleFavourites=: only the favourite presets (milkdrop_favourites.txt) are played
     int milkdrop_cut_sens = 20;        // MilkDropHardCutSensitivity=: 5 .. 60 (tenths; 20 = 2.0, projectM's own default): the louder jump in volume that makes a hard cut (less = cuts more often)
     bool milkdrop_fx_on = true;        // MilkDropEffectOn=: the effect (MilkDropEffect=) is used (false: none on top of the visuals; the choice is kept)
+    std::string milkdrop_gpu;              // MilkDropGpu=: the graphics card that draws the visuals (a render node such as renderD129; "" = automatic)
     std::string milkdrop_default_preset;   // MilkDropDefaultPreset=: the preset the visuals start with (a file; "" = one from the list)
     bool milkdrop_hard_cuts = true;    // MilkDropHardCuts=: a strong beat may change the preset at once
     int milkdrop_transition = 3;       // MilkDropTransition=: seconds of the blend into the next preset (0 = a cut)

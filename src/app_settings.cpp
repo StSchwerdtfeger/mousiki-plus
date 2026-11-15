@@ -773,6 +773,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidMdCutSens: { char b[8]; std::snprintf(b, sizeof b, "%.1f", std::clamp(settings_.milkdrop_cut_sens, 5, 60) / 10.0); return b; }
             case kSidMdPreset: return (settings_.milkdrop_default_preset.empty() ? std::string("none (one from the list)") : truncate_str(path_utf8(path_from_utf8(settings_.milkdrop_default_preset).stem()), 40)) + "  [ENTER] choose";
             case kSidMdBrowse: return "[ENTER] open";
+            case kSidMdGpu: return milkdrop_gpu_label(settings_.milkdrop_gpu);
             case kSidMdTransition: return settings_.milkdrop_transition <= 0 ? std::string("cut") : std::to_string(settings_.milkdrop_transition) + " s";
             case kSidMdFx: return video_fx_name(video_fx_canon(settings_.milkdrop_fx));
             case kSidMdColors: return settings_.milkdrop_fixed_colors ? "fixed" : "adaptive";
@@ -951,6 +952,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidMdRes: return {"320", "480", "640", "960", "1280"};
             case kSidMdDuration: return {"off", "10 s", "15 s", "20 s", "25 s", "30 s", "45 s", "60 s", "90 s", "120 s", "180 s", "300 s"};
             case kSidMdCutSens: { std::vector<std::string> o; for (int i = 5; i <= 60; ++i) { char b[8]; std::snprintf(b, sizeof b, "%.1f", i / 10.0); o.push_back(b); } return o; }
+            case kSidMdGpu: { std::vector<std::string> o{"automatic"}; for (const MilkdropGpu& g : Milkdrop::gpus()) o.push_back(g.label); return o; }
             case kSidMdPreset: case kSidMdBrowse: return {};   // not a switch: ENTER opens the preset overlay
             case kSidMdTransition: { std::vector<std::string> o; for (int i = 0; i <= 10; ++i) o.push_back(i == 0 ? std::string("cut") : std::to_string(i) + " s"); return o; }
             case kSidMdFx: { std::vector<std::string> o; for (int i = 0; i < kVideoFxShown; ++i) o.push_back(video_fx_name(kVideoFxOrder[i])); return o; }
@@ -1056,6 +1058,13 @@ void App::settings_commit_edit_impl() {
         if (id == kSidVideoClap) { settings_.video_clap = v == "none" ? 2 : v == "text note" ? 0 : 1; video_pic_key_.clear(); return; }
         if (id == kSidVideoRound) { settings_.video_round = v == "on"; video_pic_key_.clear(); return; }
         if (id == kSidMdFps) { settings_.milkdrop_fps = std::clamp(std::atoi(v.c_str()), 10, 60); return; }
+        if (id == kSidMdGpu) {
+            settings_.milkdrop_gpu.clear();
+            for (const MilkdropGpu& g : Milkdrop::gpus()) if (g.label == v) settings_.milkdrop_gpu = g.id;
+            status_line_ = settings_.milkdrop_gpu.empty() ? "MilkDrop GPU: automatic -- what the system gives (on a laptop usually the integrated one)"
+                                                           : "MilkDrop GPU: " + v + " -- the visuals restart on it";
+            return;
+        }
         if (id == kSidMdRes) { settings_.milkdrop_res = std::clamp(std::atoi(v.c_str()), 160, 1920); milkdrop_pic_key_.clear(); return; }
         if (id == kSidMdDuration) { settings_.milkdrop_preset_secs = v == "off" ? 0 : std::clamp(std::atoi(v.c_str()), 0, 600); return; }
         if (id == kSidMdCutSens) { settings_.milkdrop_cut_sens = std::clamp(static_cast<int>(std::lround(std::atof(v.c_str()) * 10.0)), 5, 60); return; }
@@ -1908,6 +1917,13 @@ void App::handle_settings_key(int key) {
     if (key == kKeyCtrlShiftU) { ref_undo_pop(); return; }   // undo the last key change (up to 5, newest first)
     if (key == kKeyDelete && settings_tab_ == 4 && settings_row_ >= kRefStart && settings_row_ < kRefEnd) {
         ref_reset_keys(settings_row_);                           // the default key of this row
+        return;
+    }
+    if (key == kKeyShiftLeft || key == kKeyShiftRight || ((key == 'C' || key == 'D') && last_key_was_arrow() && last_key_was_shifted())) {   // SHIFT+left / right: the previous / next tab
+        const bool left = key == kKeyShiftLeft || key == 'D';
+        settings_tab_ = (settings_tab_ + (left ? kSettingsTabCount - 1 : 1)) % kSettingsTabCount;
+        settings_row_ = 0;
+        settings_col_ = 0;
         return;
     }
     if (key == 9) { // Tab

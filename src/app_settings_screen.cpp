@@ -947,9 +947,9 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
     pos(y, 1, legend_colored(settings_, truncate_str(mode_ == Mode::ColorEdit
         ? "[ENTER] Apply  [ESC] Cancel  [\u2190\u2192] Cursor  [SHIFT+\u2190\u2192] Mark  [HOME/END] Jump  [Ctrl+C/X/V] Copy/Cut/Paste"
         : settings_tab_ == 4
-        ? "[TAB] Switch  [ENTER] Change  [DEL] Default  [Ctrl+Shift+U] Undo  [s] Save settings  [SHIFT+\u2191\u2193] Page  [ESC/q] Discard"
-        : settings_tab_ == 0 ? "[TAB] Switch  [ENTER] Edit  [e] Edit/Save current state  [SHIFT+e/i] Ex-/Import theme  [s] Save settings  [SHIFT+\u2191\u2193] Page  [ESC/q] Discard"
-        : "[TAB] Switch  [ENTER] Edit  [s] Save settings  [SHIFT+\u2191\u2193] Page  [ESC/q] Discard", std::max(1, W - 1))) + "\x1b[0m");
+        ? "[SHIFT+\u2190\u2192/TAB] Switch tab  [ENTER] Change  [DEL] Default  [Ctrl+Shift+U] Undo  [s] Save settings  [SHIFT+\u2191\u2193] Page  [ESC/q] Discard"
+        : settings_tab_ == 0 ? "[SHIFT+\u2190\u2192/TAB] Switch tab  [ENTER] Edit  [e] Edit/Save current state  [SHIFT+e/i] Ex-/Import theme  [s] Save settings  [SHIFT+\u2191\u2193] Page  [ESC/q] Discard"
+        : "[SHIFT+\u2190\u2192/TAB] Switch tab  [ENTER] Edit  [s] Save settings  [SHIFT+\u2191\u2193] Page  [ESC/q] Discard", std::max(1, W - 1))) + "\x1b[0m");
     y++;
     // The log/status line lives here now -- render_frame() deliberately no
     // longer prints it under the Browse list (an untruncated message there

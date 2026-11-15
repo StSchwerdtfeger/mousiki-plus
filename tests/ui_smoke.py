@@ -879,7 +879,7 @@ def book_speed_and_devices(binary, root, scripts):
         sess.send(b"\x1b", 0.8)
         sess.send("s", 1.2)
         for _ in range(20):            # a slow machine: wait for the settings screen before TAB
-            if "[TAB] Switch" in sess.text():
+            if "Switch tab" in sess.text():
                 break
             sess.pump(0.5)
         sess.send(b"\t", 1.0)          # COLORS -> GENERAL
@@ -4000,6 +4000,11 @@ def milkdrop_layouts_style(binary, root, scripts):
         # --- m: the MilkDrop visuals take the overlay
         sess.send("m", 1.5)
         check("VideoFullSource=milkdrop" in conf(), "big overlay: m switches to the MilkDrop visuals (VideoFullSource=milkdrop)")
+        check("Queue/List/Folders" in sess.text() and "Queue  [" not in sess.text(), "big overlay: the list overlays are one legend entry, Queue/List/Folders")
+        check("Preset" in sess.text() and "Effect:" in sess.text(), "big overlay MilkDrop: the legend names the preset keys and the (MilkDrop) effect")
+        sess.send(b"\x1b[B", 1.0)   # DOWN: the MilkDrop visuals' own effect (this track's), not the video's
+        check(settle(lambda: "milkdrop effect of this track" in sess.text() or "Effect: Scanlines" in sess.text(), 6), "big overlay MilkDrop: DOWN changes the effect of the visuals (%r)" % next((l.strip()[:80] for l in sess.screen.display if "Effect:" in l), None))
+        sess.send(b"\x1b[A", 1.0)
         check("MILKDROP" in sess.text() and "[m] Video" in sess.text(), "big overlay: the title says MILKDROP, the legend offers [m] Video")
         check(settle(lambda: len(big([7201, 7202, 7203], 30, 10)) == 1), "big overlay MilkDrop layout 0: one big picture (%s)" % sorted(big([7201, 7202, 7203])))
         names = {1: "+ osci", 2: "+ osci and spectrogram", 3: "quartet", 4: "video | visuals"}
@@ -4130,6 +4135,22 @@ def settings_general_texts(binary, root, scripts):
         sess.pump(1.0)
         t = sess.text()
         check("Preview: Latin Name Lookup" in t and "MusicBrainz" in t and "HAKU" in t and "\u67f3\u4e95" in t, "settings: the Latin Name Lookup preview explains the lookup and shows HAKU and the kanji name")
+        # SHIFT+RIGHT / LEFT switch the tabs (the legend names them); Use MilkDrop is the last row of MAIN UI VIZ/LYRICS FIELD
+        check("[SHIFT+\u2190\u2192/TAB] Switch tab" in sess.text(), "settings: the legend reads [SHIFT+<-->/TAB] Switch tab")
+        sess.send(b"\x1b[1;2C", 1.0)
+        check("ANIMA/VIZ" in sess.text() and sess.wait_for(lambda t: "DISK" in t and "Start Mode" not in t, 4), "settings: SHIFT+RIGHT goes to the next tab (ANIMA/VIZ)")
+        seen = ""
+        for _ in range(14):
+            seen += "\n" + sess.text()
+            if "Use MilkDrop" in sess.text():
+                break
+            sess.send(b"\x1b[1;2B", 0.5)
+        seen += "\n" + sess.text()
+        check("Use MilkDrop" in seen and seen.rfind("Use Sphere") < seen.rfind("Use MilkDrop") and seen.rfind("MAIN UI VIZ/LYRICS FIELD") < seen.rfind("Use MilkDrop"),
+              "settings: Use MilkDrop is in MAIN UI VIZ/LYRICS FIELD, under Use Sphere")
+        check("MilkDrop GPU" in seen, "settings: the MILKDROP block has the MilkDrop GPU row")
+        sess.send(b"\x1b[1;2D", 1.0)
+        check(sess.wait_for(lambda t: "Start Mode" in t, 4), "settings: SHIFT+LEFT goes back to the previous tab (GENERAL)")
         check(sess.alive(), "settings general texts: the program is still running")
     finally:
         sess.kill()
@@ -4161,7 +4182,7 @@ def overlays_queue_enter(binary, root, scripts):
         # the big video overlay: SHIFT+k / SHIFT+l / SHIFT+f open the other big overlays
         for key, word in (("K", "SEARCH QUEUE"), ("L", "Queue overlay"), ("F", "Folder to list")):
             sess.send("v", 1.0)
-            check("[SHIFT+k] Queue" in sess.text() and "[SHIFT+f] Folders" in sess.text(), "big video overlay: the legend names the queue / list / folder overlays (%s)" % key)
+            check("[SHIFT+k/l/f] Queue/List/Folders" in sess.text(), "big video overlay: the legend names the queue / list / folder overlays (%s)" % key)
             sess.send(key, 1.2)
             check(word in sess.text() and "[v / ESC] Close" not in sess.text(), "big video overlay: %s opens its overlay (%s)" % (key, word))
             sess.send(b"\x1b", 0.8)
@@ -4647,7 +4668,7 @@ def milkdrop_preset_overlay(binary, root, scripts):
             return fixed / n if n else -1.0
         sess.pump(2.0)
         a = fixed_share()
-        for _ in range(7):
+        for _ in range(8):
             sess.send(b"\x1b[B", 0.3)
         check(sess.wait_for(lambda t: any("> Effect" in l for l in sess.screen.display), 4), "preset overlay: DOWN reaches Effect")
         sess.send(b"\x1b[C", 0.8)

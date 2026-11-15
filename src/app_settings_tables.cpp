@@ -56,7 +56,7 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidPauseSphere, "Pause Sphere"},
         {true, -1, ""},
         {true, -1, "MILKDROP"},
-        {false, kSidUseMilkdrop, "Use MilkDrop"}, {false, kSidMdFps, "MilkDrop Frame Rate"}, {false, kSidMdRes, "MilkDrop Resolution"},
+        {false, kSidMdFps, "MilkDrop Frame Rate"}, {false, kSidMdRes, "MilkDrop Resolution"}, {false, kSidMdGpu, "MilkDrop GPU"},
         {false, kSidMdPreset, "Default Preset"}, {false, kSidMdBrowse, "Preset Overlay"},
         {false, kSidMdDuration, "Preset Duration"}, {false, kSidMdShuffle, "Shuffle Presets"}, {false, kSidMdFavShuffle, "Shuffle Favourites"}, {false, kSidMdCutSens, "Hard Cut Sensitivity"},
         {false, kSidMdHardCuts, "Hard Cuts"}, {false, kSidMdTransition, "Preset Transition"}, {false, kSidMdUseFx, "Use Effect"}, {false, kSidMdFx, "MilkDrop Effect"}, {false, kSidMdColors, "Sixel Colours"}, {false, kSidMdShowName, "Show Preset Name"}, {false, kSidMdAuto, "Auto MilkDrop"},
@@ -85,7 +85,7 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {true, -1, "MAIN UI VIZ/LYRICS FIELD"},   // the field right of the meta data
         {false, kSidVizField, "Viz/Lyrics Field"}, {false, kSidUseLyrics, "Use Lyrics Engine"}, {false, kSidUseVideo, "Use Video"},
         {false, kSidUseOsci, "Use Oscilloscope"},                                            // false: left out entirely
-        {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"},    // (not in the "." cycle)
+        {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"}, {false, kSidUseMilkdrop, "Use MilkDrop"},    // (not in the "." cycle)
     };
     // The audio book player: the same tabs without what only the music player uses (the play mode, the lyrics, the disk's
     // speed, the display queue), the lyrics view called "notes", the disk's place taken by the book cover.
@@ -150,7 +150,7 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidOrder3, "Viz Order 3"}, {false, kSidOrder4, "Viz Order 4"}, {false, kSidOrder5, "Viz Order 5"},
         {true, -1, ""},
         {true, -1, "MILKDROP"},
-        {false, kSidUseMilkdrop, "Use MilkDrop"}, {false, kSidMdFps, "MilkDrop Frame Rate"}, {false, kSidMdRes, "MilkDrop Resolution"},
+        {false, kSidMdFps, "MilkDrop Frame Rate"}, {false, kSidMdRes, "MilkDrop Resolution"}, {false, kSidMdGpu, "MilkDrop GPU"},
         {false, kSidMdPreset, "Default Preset"}, {false, kSidMdBrowse, "Preset Overlay"},
         {false, kSidMdDuration, "Preset Duration"}, {false, kSidMdShuffle, "Shuffle Presets"}, {false, kSidMdFavShuffle, "Shuffle Favourites"}, {false, kSidMdCutSens, "Hard Cut Sensitivity"},
         {false, kSidMdHardCuts, "Hard Cuts"}, {false, kSidMdTransition, "Preset Transition"}, {false, kSidMdUseFx, "Use Effect"}, {false, kSidMdFx, "MilkDrop Effect"}, {false, kSidMdColors, "Sixel Colours"}, {false, kSidMdShowName, "Show Preset Name"}, {false, kSidMdAuto, "Auto MilkDrop"},
@@ -158,7 +158,7 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {true, -1, "MAIN UI VIZ/NOTES FIELD"},
         {false, kSidVizField, "Viz/Notes Field"}, {false, kSidUseLyrics, "Use Book Notes"},
         {false, kSidUseOsci, "Use Oscilloscope"},
-        {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"},
+        {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"}, {false, kSidUseMilkdrop, "Use MilkDrop"},
     };
     const std::vector<SetLine>& base = g_settings_book_layout ? (tab == 1 ? book_on_off : book_anima) : (tab == 1 ? on_off : anima);
     if (g_settings_hifi_rows) return base;

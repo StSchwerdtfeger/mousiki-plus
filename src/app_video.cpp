@@ -588,11 +588,21 @@ public:
         bool f = false;
         const VideoFrame* p = m_.frame(w, h, f);
         if (fresh) *fresh = f;
+        if (keep_prev() && p) {   // a new picture: the one shown until now becomes "the frame before"
+            if (f && last_slot().w == p->w && last_slot().h == p->h) { prev_slot() = last_slot(); have_prev() = true; }
+            else if (f) have_prev() = false;
+            if (f) last_slot() = *p;
+        }
         return p;
     }
-    const VideoFrame* previous_frame() const { return nullptr; }
+    // (the Interlace look combs against the frame before: kept only while that look is on, see milkdrop_draw)
+    const VideoFrame* previous_frame() const { return keep_prev() && have_prev() ? &prev_slot() : nullptr; }
     std::string status() const { const std::string s = m_.status(); return s.empty() ? std::string("milkdrop: starting ...") : s; }
+    static bool& keep_prev() { static bool k = false; return k; }
 private:
+    static VideoFrame& last_slot() { static VideoFrame v; return v; }
+    static VideoFrame& prev_slot() { static VideoFrame v; return v; }
+    static bool& have_prev() { static bool h = false; return h; }
     Milkdrop& m_;
 };
 } // namespace
@@ -612,12 +622,17 @@ bool App::milkdrop_draw(std::vector<std::string>& rows, int W, int H, int abs_co
     milkdrop_apply_settings();
     milkdrop_drawn_ = true;
     MilkdropSource src(Milkdrop::instance());
+    // The effects that move with the time (Glitch, VHS, Film ...) get the clock of the program, like a video gets its position: with a fixed 0 they
+    // stood still (one glitch picture for ever).
+    static const auto t0 = std::chrono::steady_clock::now();
+    const double fx_t = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+    MilkdropSource::keep_prev() = milkdrop_look().fx == 17;
     // The box over the picture is the preset's name, never a lyric line: video_ov_ref_ (the lyric line fully revealed, which sizes the
     // video's lyric box) is put aside meanwhile. With it the name box took the size of whatever lyric line had the same number of
     // rows -- cut off, too wide, or (an empty lyric row) not there at all.
     std::vector<std::string> lyric_ref;
     lyric_ref.swap(video_ov_ref_);
-    const bool r = video_draw_src(src, false, false, milkdrop_pic_key_, rows, W, H, abs_col, abs_row, second_slot, 0.0, mode, ov, ov_w, flush_bottom, trim_right, nullptr);
+    const bool r = video_draw_src(src, false, false, milkdrop_pic_key_, rows, W, H, abs_col, abs_row, second_slot, fx_t, mode, ov, ov_w, flush_bottom, trim_right, nullptr);
     video_ov_ref_.swap(lyric_ref);
     if (r) { const GfxFrame& g = second_slot ? gfx2_ : gfx_; if (g.active && g.w > 0) { md_pic_w_ = g.w; md_pic_h_ = g.h; } }
     return r;
@@ -1417,7 +1432,8 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
     }
     static const char* kLayoutName[5] = {"Video", "Video+Osci", "Video+Spectro", "Video+Osci+Spectro", "Quartet"};
     static const char* kMdLayoutName[5] = {"MilkDrop", "MilkDrop+Osci", "MilkDrop+Osci+Spectro", "Quartet", "Video+MilkDrop"};
-    const std::string fx = std::string("Effect: ") + video_fx_name(video_fx_for(current_.path));
+    const std::string fx = std::string("Effect: ") + (VL.source_md ? (milkdrop_eff().fx_on ? video_fx_name(video_fx_canon(std::clamp(md_track_fx_ >= 0 ? md_track_fx_ : settings_.milkdrop_fx, 0, kVideoFxCount - 1))) : "Off")
+                                                                    : video_fx_name(video_fx_for(current_.path)));
     const std::string keys = "[" + hotkey_text("HKeyVideoFull", "v") + " / ESC] Close";
     const std::string lay = std::string("[SHIFT+UP/DOWN] Layout: ") + (VL.source_md ? kMdLayoutName[std::clamp(settings_.milkdrop_layout, 0, 4)] : kLayoutName[VL.video_l]);
     const std::string grid = "[SHIFT+g] Grid/Scale";
@@ -1448,7 +1464,10 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
     const std::string ovl = "[" + hotkey_text("HKeyQueueOverlay", "K") + "] Queue  [" + hotkey_text("HKeyListOverlay", "L") + "] List  [" + hotkey_text("HKeyFolderOverlay", "F") + "] Folders";
     const std::string ovl_short = "[" + hotkey_text("HKeyQueueOverlay", "K") + "/" + hotkey_text("HKeyListOverlay", "L").substr(hotkey_text("HKeyListOverlay", "L").rfind('+') + 1) + "/" +
                                   hotkey_text("HKeyFolderOverlay", "F").substr(hotkey_text("HKeyFolderOverlay", "F").rfind('+') + 1) + "] Queue/List/Folders";
-    const std::string l2 = pick({opts + "   " + ovl + "   " + keys, opts + "   " + ovl_short + "   " + keys, opts + "   " + keys, "[S] Options   " + ovl_short + "   " + keys, "[S] Options   " + keys, keys}, W - 2);
+    const bool md_vis = VL.source_md || VL.kind == 1;   // (the visuals are on the screen: their preset keys)
+    const std::string pre = md_vis ? "  [" + hotkey_text("HKeyToggleLyricsBack", ",") + "/" + hotkey_text("HKeyToggleLyrics", ".") + "] Preset" : std::string();
+    const std::string l2 = pick({opts + pre + "   " + ovl_short + "   " + keys, opts + "   " + ovl_short + "   " + keys, opts + "   " + keys,
+                                 "[S] Options" + pre + "   " + ovl_short + "   " + keys, "[S] Options   " + ovl_short + "   " + keys, "[S] Options   " + keys, keys}, W - 2);
     f << centred_bottom(settings_, W, l1, border_bottom) << "\n";
     const int w2 = display_width(l2);
     const int lp = std::max(0, (W - w2) / 2);

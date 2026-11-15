@@ -401,9 +401,30 @@ bool App::video_full_key(int key) {
         force_redraw_ = true;
         return true;
     }
+    if (arrow && (key == 'A' || key == 'B') && vfull_layout().source_md) {   // the MilkDrop visuals are shown: UP / DOWN change THEIR effect (this track's own, as the video's)
+        MilkdropTrackOpts mo = cover_track_milkdrop(path_utf8(current_.path));
+        const MdEff e = milkdrop_eff();
+        const int start = mo.fx >= 0 ? mo.fx : settings_.milkdrop_fx;
+        mo.fx = video_fx_step(e.fx_on ? start : 0, key == 'B' ? 1 : -1);
+        mo.fxon = 1;   // (stepping to an effect switches Use Effect on for the track; stepping back to Off is the plain Off effect)
+        set_cover_track_milkdrop(path_utf8(current_.path), mo);
+        milkdrop_track_live(mo);
+        status_line_ = std::string("milkdrop effect of this track: ") + video_fx_name(mo.fx);
+        return true;
+    }
     if (arrow && (key == 'A' || key == 'B')) {
         video_track_fx_step(key == 'B' ? 1 : -1);
         return true;
+    }
+    if (!arrow && (key_is("HKeyToggleLyricsBack", key) || key_is("HKeyToggleLyrics", key))) {   // , / . : the previous / next preset while the visuals are shown
+        const VFullLayout VL = vfull_layout();
+        if (VL.source_md || VL.kind == 1) {
+            const bool back = key_is("HKeyToggleLyricsBack", key);
+            if (back) Milkdrop::instance().prev_preset(); else Milkdrop::instance().next_preset();
+            status_line_ = back ? "milkdrop: the previous preset" : "milkdrop: the next preset";
+            milkdrop_pic_key_.clear();
+            return true;
+        }
     }
     if (!arrow && key == 9) {   // TAB: the lyrics of this track: none -> lyrics -> (for every saved translation:) lyrics + translation -> translation only -> none
         // The choice is the track's own "Use Lyrics on Video" (Style Option), so the small lyrics field shows the same.

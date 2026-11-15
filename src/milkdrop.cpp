@@ -8,6 +8,8 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <random>
 
 #if defined(__linux__) || defined(__APPLE__)
@@ -76,6 +78,13 @@ void Milkdrop::stop_thread() {
 void Milkdrop::configure(const MilkdropOptions& o) {
     if (o == opts_) return;
     const bool dir_changed = o.presets_dir != opts_.presets_dir;
+    if (o.gpu != opts_.gpu && th_.joinable()) {   // another graphics card: the context is made anew (the preset shown comes back)
+        std::string keep;
+        { std::lock_guard<std::mutex> lk(mu_); keep = path_; }
+        stop_thread();
+        std::lock_guard<std::mutex> lk(mu_);
+        if (!keep.empty()) want_path_ = keep;
+    }
     opts_ = o;
     std::lock_guard<std::mutex> lk(mu_);
     thread_opts_ = o;
@@ -131,6 +140,8 @@ bool Milkdrop::available(std::string* why) {
 }
 void Milkdrop::run() { running_.store(false); }
 std::string Milkdrop::find_presets_dir() const { return {}; }
+std::vector<MilkdropGpu> Milkdrop::gpus() { return {}; }
+std::string milkdrop_gpu_label(const std::string& id) { return id.empty() ? "automatic" : id; }
 
 #else
 
@@ -154,7 +165,10 @@ using EGLenum = unsigned int;
 constexpr EGLint kEGL_NONE = 0x3038, kEGL_RENDERABLE_TYPE = 0x3040, kEGL_OPENGL_BIT = 0x0008, kEGL_SURFACE_TYPE = 0x3033,
                  kEGL_PBUFFER_BIT = 0x0001, kEGL_WIDTH = 0x3057, kEGL_HEIGHT = 0x3056, kEGL_CONTEXT_MAJOR_VERSION = 0x3098,
                  kEGL_CONTEXT_MINOR_VERSION = 0x30FB, kEGL_CONTEXT_OPENGL_PROFILE_MASK = 0x30FD, kEGL_CONTEXT_OPENGL_CORE_PROFILE_BIT = 0x1;
-constexpr EGLenum kEGL_OPENGL_API = 0x30A2, kEGL_PLATFORM_SURFACELESS_MESA = 0x31DD;
+constexpr EGLenum kEGL_OPENGL_API = 0x30A2, kEGL_PLATFORM_SURFACELESS_MESA = 0x31DD, kEGL_PLATFORM_DEVICE_EXT = 0x313F;
+constexpr EGLint kEGL_DRM_RENDER_NODE_FILE_EXT = 0x3377;
+using PFN_eglQueryDevicesEXT = EGLBoolean (*)(EGLint, void**, EGLint*);
+using PFN_eglQueryDeviceStringEXT = const char* (*)(void*, EGLint);
 
 using PFN_eglGetProcAddress = void* (*)(const char*);
 using PFN_eglGetDisplay = EGLDisplay (*)(void*);
@@ -363,11 +377,27 @@ struct GlContext {
 };
 
 // Makes the context and makes it current. "" = fine, else why not.
-std::string gl_open(GlContext& c) {
-    if (auto gpd = reinterpret_cast<PFN_eglGetPlatformDisplayEXT>(g_egl.GetProcAddress("eglGetPlatformDisplayEXT")))
-        c.dpy = gpd(kEGL_PLATFORM_SURFACELESS_MESA, nullptr, nullptr);
+std::string gl_open(GlContext& c, const std::string& gpu) {
     EGLint maj = 0, min = 0;
-    if (!c.dpy || !g_egl.Initialize(c.dpy, &maj, &min)) {
+    if (!gpu.empty()) {   // the graphics card of the choice (Settings -> MilkDrop GPU): its EGL device; if that fails the usual way below is tried
+        auto qd = reinterpret_cast<PFN_eglQueryDevicesEXT>(g_egl.GetProcAddress("eglQueryDevicesEXT"));
+        auto qs = reinterpret_cast<PFN_eglQueryDeviceStringEXT>(g_egl.GetProcAddress("eglQueryDeviceStringEXT"));
+        auto gpd = reinterpret_cast<PFN_eglGetPlatformDisplayEXT>(g_egl.GetProcAddress("eglGetPlatformDisplayEXT"));
+        void* devs[32] = {};
+        EGLint n = 0;
+        if (qd && qs && gpd && qd(32, devs, &n))
+            for (EGLint i = 0; i < n && !c.dpy; ++i) {
+                const char* node = qs(devs[i], kEGL_DRM_RENDER_NODE_FILE_EXT);
+                if (!node || fs::path(node).filename().string() != gpu) continue;
+                EGLDisplay d = gpd(kEGL_PLATFORM_DEVICE_EXT, devs[i], nullptr);
+                if (d && g_egl.Initialize(d, &maj, &min)) c.dpy = d;
+            }
+    }
+    if (!c.dpy)
+        if (auto gpd = reinterpret_cast<PFN_eglGetPlatformDisplayEXT>(g_egl.GetProcAddress("eglGetPlatformDisplayEXT")))
+            c.dpy = gpd(kEGL_PLATFORM_SURFACELESS_MESA, nullptr, nullptr);
+    if (c.dpy && maj == 0 && !g_egl.Initialize(c.dpy, &maj, &min)) c.dpy = nullptr;
+    if (!c.dpy) {
         c.dpy = g_egl.GetDisplay(nullptr);
         if (!c.dpy || !g_egl.Initialize(c.dpy, &maj, &min)) { c.dpy = nullptr; return "no EGL display (no offscreen OpenGL here)"; }
     }
@@ -520,7 +550,7 @@ void* gl_proc(const char* name, void*) { return g_gl_lib ? dlsym(g_gl_lib, name)
 
 struct GlContext { CGLContextObj ctx = nullptr; };
 
-std::string gl_open(GlContext& c) {
+std::string gl_open(GlContext& c, const std::string&) {
     // OpenGL 4.1 core where the Mac has it (every Mac since 2013), else 3.2 core; projectM needs 3.3, which is the same family
     for (const int profile : {kCGLOGLPVersion_GL4_Core, kCGLOGLPVersion_3_2_Core}) {
         const int attr[] = {kCGLPFAOpenGLProfile, profile, kCGLPFAColorSize, 24, kCGLPFADepthSize, 16, kCGLPFAAccelerated, kCGLPFAAllowOfflineRenderers, 0};
@@ -704,7 +734,7 @@ void gl_close(GlContext& c) {
     c = GlContext{};
 }
 
-std::string gl_open(GlContext& c) {
+std::string gl_open(GlContext& c, const std::string&) {
     const HINSTANCE hi = GetModuleHandleW(nullptr);
     const wchar_t* cls = L"MousikiMilkDropGL";
     WNDCLASSW wc{};
@@ -807,6 +837,49 @@ std::string Milkdrop::find_presets_dir() const {
     return p.empty() ? std::string() : to_utf8(p);
 }
 
+std::string milkdrop_gpu_label(const std::string& id) {
+    if (id.empty()) return "automatic";
+    for (const MilkdropGpu& g : Milkdrop::gpus()) if (g.id == id) return g.label;
+    return id + " (not found: automatic)";
+}
+
+// The graphics cards MilkDrop can draw with. Linux: the EGL devices that are DRM render nodes (a laptop with an integrated and a dedicated
+// card lists both); named from /sys/class/drm. Windows / macOS: the system decides (Windows: Settings > Graphics; macOS: automatic).
+std::vector<MilkdropGpu> Milkdrop::gpus() {
+    static std::vector<MilkdropGpu> out;   // (asked once: the graphics cards do not come and go while the program runs)
+    static bool done = false;
+    if (done) return out;
+#if defined(__linux__)
+    if (!load_libraries().empty()) return out;
+    auto qd = reinterpret_cast<PFN_eglQueryDevicesEXT>(g_egl.GetProcAddress("eglQueryDevicesEXT"));
+    auto qs = reinterpret_cast<PFN_eglQueryDeviceStringEXT>(g_egl.GetProcAddress("eglQueryDeviceStringEXT"));
+    void* devs[32] = {};
+    EGLint n = 0;
+    if (!qd || !qs || !qd(32, devs, &n)) return out;
+    auto slurp = [](const fs::path& f) {
+        std::ifstream in(f);
+        std::string t((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        return t;
+    };
+    for (EGLint i = 0; i < n; ++i) {
+        const char* node = qs(devs[i], kEGL_DRM_RENDER_NODE_FILE_EXT);
+        if (!node || !*node) continue;   // (the software device has no render node)
+        MilkdropGpu g;
+        g.id = fs::path(node).filename().string();
+        const fs::path dev = fs::path("/sys/class/drm") / g.id / "device";
+        std::string vendor = slurp(dev / "vendor"), uev = slurp(dev / "uevent"), drv;
+        while (!vendor.empty() && (vendor.back() == '\n' || vendor.back() == ' ')) vendor.pop_back();
+        const size_t at = uev.find("DRIVER=");
+        if (at != std::string::npos) { drv = uev.substr(at + 7, uev.find('\n', at) - at - 7); }
+        const std::string v = vendor == "0x8086" ? "Intel" : vendor == "0x10de" ? "NVIDIA" : (vendor == "0x1002" || vendor == "0x1022") ? "AMD" : "GPU";
+        g.label = v + (drv.empty() ? "" : " (" + drv + ")") + " " + g.id;
+        out.push_back(std::move(g));
+    }
+#endif
+    done = true;
+    return out;
+}
+
 bool Milkdrop::available(std::string* why) {
     if (broken_.load()) {
         if (why) { std::lock_guard<std::mutex> lk(mu_); *why = broken_why_; }
@@ -832,7 +905,9 @@ void Milkdrop::run() {
     };
     // --- the OpenGL context (offscreen: EGL on Linux, a hidden window's WGL context on Windows)
     GlContext glc;
-    if (const std::string why = gl_open(glc); !why.empty()) { fail(why); return; }
+    std::string o_gpu;
+    { std::lock_guard<std::mutex> lk(mu_); o_gpu = thread_opts_.gpu; }
+    if (const std::string why = gl_open(glc, o_gpu); !why.empty()) { fail(why); return; }
     auto glGenFramebuffers = reinterpret_cast<PFN_glGenFramebuffers>(gl_proc("glGenFramebuffers", nullptr));
     auto glDeleteFramebuffers = reinterpret_cast<PFN_glDeleteFramebuffers>(gl_proc("glDeleteFramebuffers", nullptr));
     auto glBindFramebuffer = reinterpret_cast<PFN_glBindFramebuffer>(gl_proc("glBindFramebuffer", nullptr));

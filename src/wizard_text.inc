@@ -2145,8 +2145,8 @@ R"WIZ(                                                  only where it is shown t
 
 
 [MILKDROP:][[Header]]
-[Use MilkDrop:][[Legend]]                                     true (default) = the MilkDrop view is in the [,/.] cycle
-                                                  (when projectM and presets are installed).
+[MilkDrop GPU:][[Legend]]                                     automatic (default), or the graphics card that draws the
+                                                  visuals (Linux; elsewhere the system decides).
 [MilkDrop Frame Rate / Resolution:][[Legend]]                 30 pictures a second, 480 pixels across (defaults);
                                                   more costs more (no graphics card: the processor draws).
 [Preset Duration / Shuffle / Transition:][[Legend]]           25 s, random, a 3 s blend (defaults).
@@ -2258,7 +2258,7 @@ R"WIZ(                                                  values of the row, [ENTE
 [Use Video:][[Legend]]                                        The video mode ([&] key) as a setting; the video view
                                                   is the 5th place of the [,/.] cycle (Viz Order 5).
                                                   The preview plays a short sample video in a loop.
-[Use Lyrics Engine / Use Oscilloscope / Use Spectrogram / Use Sphere:][[Legend]]
+[Use Lyrics Engine / Use Oscilloscope / Use Spectrogram / Use Sphere / Use MilkDrop:][[Legend]]
                                                   When a Viz. is set to false it leaves that view out of
                                                   the [,/.] cycle entirely. The oscilloscope/spectrogram,
                                                   overlays and their extra window modes remain functional!
@@ -2276,9 +2276,9 @@ R"WIZ(                                                  values of the row, [ENTE
 [HISTORY PATH][[Header]]                                      holds history.json
 [CONVERSION EXPORT PATH][[Header]]                            where converted files go
 [AUDIO BOOK PATH][[Header]]                                   One folder only, since books are sorted by book folders
-                                                  with the chapters themselves (doesn't happen inside
 )WIZ",
-R"WIZ(                                                  Mousiki). Every book folder within it with audio files is
+R"WIZ(                                                  with the chapters themselves (doesn't happen inside
+                                                  Mousiki). Every book folder within it with audio files is
                                                   considered one book. A .cue file rests beside each book
                                                   and keeps its narrator, publisher and year and other meta
                                                   data. The music player's library leaves files stored in
@@ -2413,9 +2413,9 @@ THE BIG STATIONS OVERLAY: [[Header]]
 [SHIFT+l] shows the STATIONS pane over the whole screen plus a PRESET NAME column.
 [a] adds a station by its stream URL ([TAB] switches URL <-> NAME; an empty name becomes the host name).
 [SHIFT+c] edits the hovered entry: name, preset name (a shorter second name shown in the PRESETS pane,
-which only has little space), URL, genre, country, codec and kbps. [TAB] or [UP]/[DOWN] switch the field,
 )WIZ",
-R"WIZ([ENTER] saves, [ESC] cancels.
+R"WIZ(which only has little space), URL, genre, country, codec and kbps. [TAB] or [UP]/[DOWN] switch the field,
+[ENTER] saves, [ESC] cancels.
 [DEL] deletes the hovered station after a warning ([Y] deletes, [N] keeps it); it leaves the stations file,
 the presets and the station lists, the stream that plays goes on.
 [SHIFT+u] undoes the last deletion or edit (up to 20 steps while the radio runs).
@@ -2578,9 +2578,9 @@ figures.
 HEARD A SONG ON THE RADIO? DOWNLOAD IT: [[Header]]
 The radio writes down the artist and title the stream sends. On the HISTORY tab [y] on a line opens an
 overlay that searches YouTube for "artist title". [ENTER] downloads the hovered result into the
-download folder (yt-dlp, opus), [TAB] edits the search query, [ESC] closes. A result is marked
 )WIZ",
-R"WIZ([ok] done, [..] downloading, [!!] failed.
+R"WIZ(download folder (yt-dlp, opus), [TAB] edits the search query, [ESC] closes. A result is marked
+[ok] done, [..] downloading, [!!] failed.
 This is the online search of the music player reached from the radio, so a song you only heard once
 on air ends up in your local library (after a rescan with [SHIFT+r] in the player).
 
@@ -2709,9 +2709,9 @@ image is done by Kamara Rahmat (iyaniyan; taken from Unsplash).
 
 BOOK COVER: [[Header]]
 The option [Book Cover] in Settings, GENERAL, set to true shows the cover image found in the book's 
-folder instead (a file named cover, folder, front or albumart, else the first picture there; 
 )WIZ",
-R"WIZ(jpg, png, webp ...; no picture file: the cover art inside the first audio file is used). The 
+R"WIZ(folder instead (a file named cover, folder, front or albumart, else the first picture there; 
+jpg, png, webp ...; no picture file: the cover art inside the first audio file is used). The 
 gradient wave can also be toggled via [Book gradient]. With the wave on, [Cover Brightness]
 (50% = as it is) and [Cover Colors] (how much of the cover's own colours shines through the
 gradient) work on the book's cover too (Settings, ANIMA/VIZ, BOOK COVER).
@@ -2834,11 +2834,11 @@ It has a search pane on top ([/] types, the words narrow the list) and the audio
                a diamond marks a bookmark.
 [ENTER]        on a chapter plays it (the bookmark question first), [CTRL+p] plays it from its start 
                and the overlay stays,
-[f]            opens the book in the chapter pane.
+)WIZ",
+R"WIZ([f]            opens the book in the chapter pane.
 
 LISTENING/READING HISTORY [SHIFT+h]: [[Header]] 
-)WIZ",
-R"WIZ(The listening history made for books, in its own file reading_history.json. Every chapter
+The listening history made for books, in its own file reading_history.json. Every chapter
 you listen to is recorded. Change tab via  [<-]/[->] or [1] to [4]. 
 Given tabs are HISTORY, TOP CHAPTERS, TOP BOOKS, HABITS.
 [ENTER] on a chapter opens its book and plays it. [ESC] closes.
@@ -2966,11 +2966,11 @@ A LINE IS A CHAIN: [[Header]]
  command starts with -   (-next; echo done  goes on even if next fails).
    volume 30; wait 2s; next                 quieter, wait two seconds, next title
    play tonight; seek 45                    start "Tonight, Tonight", jump to 0:45
-
+)WIZ",
+R"WIZ(
 WHAT THE REPLIES LOOK LIKE: [[Header]]
    > pause
-)WIZ",
-R"WIZ(     paused: Tonight, Tonight - The Smashing Pumpkins  01:23/04:14  vol 60%
+     paused: Tonight, Tonight - The Smashing Pumpkins  01:23/04:14  vol 60%
    > seek 30
      seek +30 s -> Tonight, Tonight - The Smashing Pumpkins  01:53/04:14  vol 60%
    > volume 40
@@ -3090,11 +3090,11 @@ characters are taken out of them: a title can never start a second command). A h
 causes its own event (on pause = play) is stopped: at most 8 runs in 10 seconds.
 
 [[New Page]]
-5.1.7 CLI: SAFETY [[Header]]
+)WIZ",
+R"WIZ(5.1.7 CLI: SAFETY [[Header]]
 
  * No command deletes anything: scripts go to cli/deleted/, files are never removed.
-)WIZ",
-R"WIZ( * set changes flags and numbers only (never paths, keys, the PIN).
+ * set changes flags and numbers only (never paths, keys, the PIN).
  * Typed at the keyboard, quit / clear-queue / queue clear ask: type  yes  within 20 seconds.
  * force <command> runs such a command without asking. In scripts, timers, hooks and from outside it
    is needed, because nobody is there to confirm:  force queue clear

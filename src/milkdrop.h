@@ -30,7 +30,10 @@
 
 namespace muisc {
 
+struct MilkdropGpu { std::string id, label; };   // id: the render node ("renderD129"), label: what the lists show ("NVIDIA (nvidia) renderD129")
+
 struct MilkdropOptions {
+    std::string gpu;              // the graphics card (MilkdropGpu::id; "" = automatic: what the system gives)
     std::string presets_dir;      // "" = the usual places (~/.local/share/projectM/presets, /usr/share/...; Windows: milkdrop\\presets next to the exe)
     int fps = 30;                 // pictures a second
     int max_width = 480;          // rendered at most this many pixels across (the picture is scaled to the screen from there)
@@ -45,10 +48,13 @@ struct MilkdropOptions {
     bool operator==(const MilkdropOptions& o) const {
         return presets_dir == o.presets_dir && fps == o.fps && max_width == o.max_width && preset_seconds == o.preset_seconds &&
                shuffle == o.shuffle && cut_sens == o.cut_sens && start_preset == o.start_preset && hard_cuts == o.hard_cuts && transition == o.transition &&
-               favourites_only == o.favourites_only && favourites == o.favourites;
+               favourites_only == o.favourites_only && favourites == o.favourites && gpu == o.gpu;
     }
     bool operator!=(const MilkdropOptions& o) const { return !(*this == o); }
 };
+
+class Milkdrop;
+std::string milkdrop_gpu_label(const std::string& id);   // what the lists show for a choice: "automatic" or the card's label
 
 class Milkdrop {
 public:
@@ -56,6 +62,7 @@ public:
 
     // Can the visuals run here? Loads the libraries once and looks for presets; `why` gets the reason when not (shown in the overlay).
     bool available(std::string* why = nullptr);
+    static std::vector<MilkdropGpu> gpus();     // the graphics cards that can be chosen (Linux; empty elsewhere: the system decides)
     void configure(const MilkdropOptions& o);   // taken over by the render thread at its next picture
     const MilkdropOptions& options() const { return opts_; }
 

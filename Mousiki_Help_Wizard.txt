@@ -2127,8 +2127,8 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 
 
 [MILKDROP:][[Header]]
-[Use MilkDrop:][[Legend]]                                     true (default) = the MilkDrop view is in the [,/.] cycle
-                                                  (when projectM and presets are installed).
+[MilkDrop GPU:][[Legend]]                                     automatic (default), or the graphics card that draws the
+                                                  visuals (Linux; elsewhere the system decides).
 [MilkDrop Frame Rate / Resolution:][[Legend]]                 30 pictures a second, 480 pixels across (defaults);
                                                   more costs more (no graphics card: the processor draws).
 [Preset Duration / Shuffle / Transition:][[Legend]]           25 s, random, a 3 s blend (defaults).
@@ -2239,7 +2239,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 [Use Video:][[Legend]]                                        The video mode ([&] key) as a setting; the video view
                                                   is the 5th place of the [,/.] cycle (Viz Order 5).
                                                   The preview plays a short sample video in a loop.
-[Use Lyrics Engine / Use Oscilloscope / Use Spectrogram / Use Sphere:][[Legend]]
+[Use Lyrics Engine / Use Oscilloscope / Use Spectrogram / Use Sphere / Use MilkDrop:][[Legend]]
                                                   When a Viz. is set to false it leaves that view out of
                                                   the [,/.] cycle entirely. The oscilloscope/spectrogram,
                                                   overlays and their extra window modes remain functional!
