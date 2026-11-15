@@ -879,7 +879,9 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_FLAG("MilkDropAuto", nullptr, milkdrop_auto, "\n## true , false (default false) -- Auto MilkDrop: the field shows the MilkDrop visuals for every track (a track's Style Option can say no); it switches Auto Video off meanwhile and back on after\n"),
     SIMPLE_FLAG("MilkDropAutoVideoWas", nullptr, milkdrop_auto_video_was, "\n## (set by Mousiki) Auto Video was on when Auto MilkDrop switched it off: it comes back on with Auto MilkDrop off\n"),
     SIMPLE_FLAG("MilkDropShuffleFavourites", nullptr, milkdrop_fav_shuffle, "\n## true , false (default false) -- only the favourite presets are played (milkdrop_favourites.txt; the preset overlay's [a]); without favourites all of them\n"),
-    SIMPLE_NUM("MilkDropBeatSensitivity", nullptr, milkdrop_beat, 0, 20, "\n## 0 - 20 (default 10 = 1.0) -- how strongly the visuals react to the beat\n"),
+    SIMPLE_NUM("MilkDropHardCutSensitivity", nullptr, milkdrop_cut_sens, 5, 60, "\n## 5 - 60 (default 20 = 2.0) -- how big a jump in volume must be to change the preset at once (Hard Cuts); less = more cuts\n"),
+    SIMPLE_FLAG("MilkDropEffectOn", nullptr, milkdrop_fx_on, "\n## true , false (default true) -- the effect (MilkDropEffect) is put on the visuals; false: none, the choice stays\n"),
+    SIMPLE_TEXT("MilkDropDefaultPreset", nullptr, milkdrop_default_preset, "\n## the preset the visuals start with (a .milk file; Settings -> ANIMA/VIZ -> MILKDROP -> Default Preset); empty = one from the list\n"),
     SIMPLE_FLAG("MilkDropHardCuts", nullptr, milkdrop_hard_cuts, "\n## true , false (default true) -- a strong beat may change the preset at once\n"),
     SIMPLE_NUM("MilkDropTransition", nullptr, milkdrop_transition, 0, 10, "\n## 0 - 10 (default 3) -- seconds of the blend from one preset into the next (0 = a cut)\n"),
     SIMPLE_FLAG("MilkDropShowName", nullptr, milkdrop_show_name, "\n## true , false (default true) -- the preset's name in a small box for 3 seconds after it changed\n"),
@@ -2268,10 +2270,11 @@ write_simple_setting(out, s, "VideoLayout");
     write_simple_setting(out, s, "UseOscilloscope");
     write_simple_setting(out, s, "UseSpectrogram");
     write_simple_setting(out, s, "UseSphere");
-    for (const char* k : {"UseMilkDrop", "MilkDropView", "MilkDropPresets", "MilkDropFrameRate", "MilkDropResolution", "MilkDropPresetDuration",
-                          "MilkDropAuto", "MilkDropAutoVideoWas", "MilkDropShuffle", "MilkDropShuffleFavourites", "MilkDropBeatSensitivity", "MilkDropHardCuts", "MilkDropTransition", "MilkDropShowName"})
+    for (const char* k : {"UseMilkDrop", "MilkDropView", "MilkDropPresets", "MilkDropDefaultPreset", "MilkDropFrameRate", "MilkDropResolution", "MilkDropPresetDuration",
+                          "MilkDropAuto", "MilkDropAutoVideoWas", "MilkDropShuffle", "MilkDropShuffleFavourites", "MilkDropHardCutSensitivity", "MilkDropHardCuts", "MilkDropTransition", "MilkDropShowName"})
         write_simple_setting(out, s, k);
     out << "MilkDropEffect=" << video_fx_key(s.milkdrop_fx) << "\n## off (default) or a video effect name (as VideoFx=) -- an effect over the MilkDrop pictures, their own (the video's effect belongs to the track's video)\n";
+    write_simple_setting(out, s, "MilkDropEffectOn");
     out << "MilkDropSixelColors=" << (s.milkdrop_fixed_colors ? "fixed" : "adaptive") << "\n## adaptive (default) , fixed -- the colours of the MilkDrop pictures on Sixel (and Kitty at standard resolution): adaptive = up to 240 colours taken from each picture (smooth gradients, a little more CPU), fixed = the fixed 256-colour palette of the videos\n";
     out << "## false = left out of the lyrics area: not in the \".\" cycle. The windows\n";
     out << "## (SHIFT+8 spectrogram, SHIFT+9 oscilloscope) and the full screen (SHIFT+u) work either way.\n";
@@ -2602,7 +2605,7 @@ void copy_look(const Settings& src, Settings& dst) {
     MOUSIKI_LOOK(volume_indicator); MOUSIKI_LOOK(volume_gradient); MOUSIKI_LOOK(element_vizfield); MOUSIKI_LOOK(element_lyrics);
     MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
     MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res);
-    MOUSIKI_LOOK(milkdrop_preset_secs); MOUSIKI_LOOK(milkdrop_shuffle); MOUSIKI_LOOK(milkdrop_fav_shuffle); MOUSIKI_LOOK(milkdrop_auto); MOUSIKI_LOOK(milkdrop_auto_video_was); MOUSIKI_LOOK(milkdrop_fx); MOUSIKI_LOOK(milkdrop_fixed_colors); MOUSIKI_LOOK(milkdrop_beat); MOUSIKI_LOOK(milkdrop_hard_cuts);
+    MOUSIKI_LOOK(milkdrop_preset_secs); MOUSIKI_LOOK(milkdrop_shuffle); MOUSIKI_LOOK(milkdrop_fav_shuffle); MOUSIKI_LOOK(milkdrop_auto); MOUSIKI_LOOK(milkdrop_auto_video_was); MOUSIKI_LOOK(milkdrop_fx); MOUSIKI_LOOK(milkdrop_fixed_colors); MOUSIKI_LOOK(milkdrop_cut_sens); MOUSIKI_LOOK(milkdrop_fx_on); MOUSIKI_LOOK(milkdrop_default_preset); MOUSIKI_LOOK(milkdrop_hard_cuts);
     MOUSIKI_LOOK(milkdrop_transition); MOUSIKI_LOOK(milkdrop_show_name);
     MOUSIKI_LOOK(use_sphere); MOUSIKI_LOOK(viz_default); MOUSIKI_LOOK(element_visualizer); MOUSIKI_LOOK(waveform_smooth);
     for (int i = 0; i < 6; ++i) dst.viz_order[i] = src.viz_order[i];

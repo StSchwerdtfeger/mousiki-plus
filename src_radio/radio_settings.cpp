@@ -175,7 +175,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {true, -1, ""},
         {true, -1, "MILKDROP"},   // the MilkDrop visuals in the scope block (projectM, when installed)
         {false, kRsUseMilkdrop, "Use MilkDrop"}, {false, kRsMdFps, "MilkDrop Frame Rate"}, {false, kRsMdRes, "MilkDrop Resolution"},
-        {false, kRsMdDuration, "Preset Duration"}, {false, kRsMdShuffle, "Shuffle Presets"}, {false, kRsMdBeat, "Beat Sensitivity"},
+        {false, kRsMdDuration, "Preset Duration"}, {false, kRsMdShuffle, "Shuffle Presets"}, {false, kRsMdBeat, "Hard Cut Sensitivity"},
         {false, kRsMdHardCuts, "Hard Cuts"}, {false, kRsMdTransition, "Preset Transition"}, {false, kRsMdShowName, "Show Preset Name"},
     };
     if (tab == 1) return on_off;
@@ -311,7 +311,7 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsMdFps: return std::to_string(s.md_fps) + " fps";
         case kRsMdRes: return std::to_string(s.md_res) + " px";
         case kRsMdDuration: return s.md_secs <= 0 ? std::string("off") : std::to_string(s.md_secs) + " s";
-        case kRsMdBeat: { char b[8]; std::snprintf(b, sizeof b, "%.1f", std::clamp(s.md_beat, 0, 20) / 10.0); return b; }
+        case kRsMdBeat: { char b[8]; std::snprintf(b, sizeof b, "%.1f", std::clamp(s.md_cut_sens, 5, 60) / 10.0); return b; }
         case kRsMdTransition: return s.md_transition <= 0 ? std::string("cut") : std::to_string(s.md_transition) + " s";
     }
     return "";
@@ -385,7 +385,7 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
         case kRsMdFps: s.md_fps = radio_md_step(0, s.md_fps, dir == 0 ? 1 : dir); break;
         case kRsMdRes: s.md_res = radio_md_step(1, s.md_res, dir == 0 ? 1 : dir); break;
         case kRsMdDuration: s.md_secs = radio_md_step(2, s.md_secs, dir == 0 ? 1 : dir); break;
-        case kRsMdBeat: s.md_beat = std::clamp(s.md_beat + (dir == 0 ? 1 : dir), 0, 20); break;
+        case kRsMdBeat: s.md_cut_sens = std::clamp(s.md_cut_sens + (dir == 0 ? 1 : dir), 5, 60); break;
         case kRsMdTransition: s.md_transition = std::clamp(s.md_transition + (dir == 0 ? 1 : dir), 0, 10); break;
     }
 }
@@ -998,7 +998,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("MilkDropResolution")) s.md_res = std::clamp(muisc::atoi_safe(v->c_str()), 160, 1920);
     if (auto v = get("MilkDropPresetDuration")) s.md_secs = std::clamp(muisc::atoi_safe(v->c_str()), 0, 3600);
     if (auto v = get("MilkDropShuffle")) s.md_shuffle = as_bool(*v, s.md_shuffle);
-    if (auto v = get("MilkDropBeatSensitivity")) s.md_beat = std::clamp(muisc::atoi_safe(v->c_str()), 0, 20);
+    if (auto v = get("MilkDropHardCutSensitivity")) s.md_cut_sens = std::clamp(muisc::atoi_safe(v->c_str()), 5, 60);
     if (auto v = get("MilkDropHardCuts")) s.md_hard_cuts = as_bool(*v, s.md_hard_cuts);
     if (auto v = get("MilkDropTransition")) s.md_transition = std::clamp(muisc::atoi_safe(v->c_str()), 0, 10);
     if (auto v = get("MilkDropShowName")) s.md_show_name = as_bool(*v, s.md_show_name);
@@ -1182,7 +1182,7 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "# seconds a preset stays (0 = until changed by hand), next preset at random, beat sensitivity 0 .. 20 (= 0.0 .. 2.0)\n"
          "MilkDropPresetDuration=" << s.md_secs << "\n"
          "MilkDropShuffle=" << (s.md_shuffle ? "true" : "false") << "\n"
-         "MilkDropBeatSensitivity=" << s.md_beat << "\n"
+         "MilkDropHardCutSensitivity=" << s.md_cut_sens << "\n"
          "# a strong beat may change the preset at once; seconds of the blend into the next preset (0 = a cut); the preset's name for 3 s after a change\n"
          "MilkDropHardCuts=" << (s.md_hard_cuts ? "true" : "false") << "\n"
          "MilkDropTransition=" << s.md_transition << "\n"

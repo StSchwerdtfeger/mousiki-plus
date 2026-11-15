@@ -349,7 +349,7 @@ VideoLook App::video_look_for(const fs::path& track) const {
 // gradient; no grade (contrast, colours, brightness, chromatic aberration stay as projectM draws them).
 VideoLook App::milkdrop_look() const {
     VideoLook l;
-    l.fx = video_fx_canon(std::clamp(md_track_fx_ >= 0 ? md_track_fx_ : settings_.milkdrop_fx, 0, kVideoFxCount - 1));   // (the track's own first)
+    l.fx = !milkdrop_eff().fx_on ? 0 : video_fx_canon(std::clamp(md_track_fx_ >= 0 ? md_track_fx_ : settings_.milkdrop_fx, 0, kVideoFxCount - 1));   // (the track's own first; Use Effect off: none)
     l.dither = settings_.video_dither;
     l.base = settings_.video_base;
     l.fxc = settings_.video_fxc;

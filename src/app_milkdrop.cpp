@@ -35,20 +35,36 @@ template <size_t N> int md_step(const int (&a)[N], int cur, int dir) {
     const long n = std::clamp<long>(static_cast<long>(k) + dir, 0, static_cast<long>(N) - 1);
     return a[static_cast<size_t>(n)];
 }
-enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdDuration, kMdShuffle, kMdFavShuffle, kMdBeat, kMdHardCuts, kMdTransition, kMdFps, kMdRes, kMdFx, kMdColors, kMdName, kMdView, kMdRows };
+enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdDuration, kMdShuffle, kMdFavShuffle, kMdCutSens, kMdHardCuts, kMdTransition, kMdFps, kMdRes, kMdUseFx, kMdFx, kMdColors, kMdName, kMdView, kMdRows };
+const int kMdCutSensSteps[] = {5, 10, 15, 20, 25, 30, 40, 50, 60};
 } // namespace
 
+App::MdEff App::milkdrop_eff(const MilkdropTrackOpts& t) const {
+    MdEff e;
+    e.dur = t.dur >= 0 ? t.dur : std::max(0, settings_.milkdrop_preset_secs);
+    e.shuffle = t.shuf >= 0 ? t.shuf == 1 : settings_.milkdrop_shuffle;
+    e.favs = t.favs >= 0 ? t.favs == 1 : settings_.milkdrop_fav_shuffle;
+    e.cuts = t.cuts >= 0 ? t.cuts == 1 : settings_.milkdrop_hard_cuts;
+    e.fx_on = t.fxon >= 0 ? t.fxon == 1 : settings_.milkdrop_fx_on;
+    e.name = t.name >= 0 ? t.name == 1 : settings_.milkdrop_show_name;
+    e.cut_sens = std::clamp(t.hcs >= 0 ? t.hcs : settings_.milkdrop_cut_sens, 5, 60);
+    e.trans = std::clamp(t.trans >= 0 ? t.trans : settings_.milkdrop_transition, 0, 10);
+    return e;
+}
+
 void App::milkdrop_apply_settings() const {
+    const MdEff e = milkdrop_eff();
     MilkdropOptions o;
     o.presets_dir = settings_.milkdrop_presets;
     o.fps = std::clamp(settings_.milkdrop_fps, 10, 60);
     o.max_width = std::clamp(settings_.milkdrop_res, 160, 1920);
-    o.preset_seconds = std::max(0, settings_.milkdrop_preset_secs);
-    o.shuffle = settings_.milkdrop_shuffle;
-    o.beat = static_cast<float>(std::clamp(settings_.milkdrop_beat, 0, 20)) / 10.0f;
-    o.hard_cuts = settings_.milkdrop_hard_cuts;
-    o.transition = std::clamp(settings_.milkdrop_transition, 0, 10);
-    o.favourites_only = settings_.milkdrop_fav_shuffle;
+    o.preset_seconds = e.dur;
+    o.shuffle = e.shuffle;
+    o.cut_sens = static_cast<float>(e.cut_sens) / 10.0f;
+    o.hard_cuts = e.cuts;
+    o.transition = e.trans;
+    o.start_preset = settings_.milkdrop_default_preset;
+    o.favourites_only = e.favs;
     if (o.favourites_only) { md_favs_load(); o.favourites = md_favs_; }
     Milkdrop::instance().configure(o);
 }
@@ -66,7 +82,7 @@ std::string App::visuals_key_text() const {
 
 std::vector<std::string> App::milkdrop_name_box(int width) const {
     Milkdrop& m = Milkdrop::instance();
-    if (!settings_.milkdrop_show_name || m.since_change() > 3.0) return {};
+    if (!milkdrop_eff().name || m.since_change() > 3.0) return {};
     const std::string n = m.preset_name();
     if (n.empty()) return {};
     // centred in the width of the place (width + 2 = the ov_w the callers pass): the box is measured on the row's padding, and a row
@@ -84,12 +100,30 @@ bool App::milkdrop_field_rows(std::vector<std::string>& rows, int W, int H, int 
     return milkdrop_draw(rows, W, H, area_col, 1, second_slot, 2, box, box.empty() ? 0 : W, false, trim_right);
 }
 
+namespace {
+// The track's preset stays while it plays: when it has one (unless it says no), or when it says yes.
+bool md_track_wants_lock(const MilkdropTrackOpts& mo) { return (!mo.preset.empty() && mo.keep != 0) || mo.keep == 1; }
+}
+
+void App::milkdrop_track_live(const MilkdropTrackOpts& mo) {
+    md_trk_ = mo;
+    md_track_fx_ = mo.fx >= 0 && mo.fx < kVideoFxCount ? mo.fx : -1;
+    Milkdrop& m = Milkdrop::instance();
+    const bool want = md_track_wants_lock(mo);
+    if (want && !md_track_locked_) { md_user_locked_ = m.locked(); m.set_locked(true); md_track_locked_ = true; }
+    else if (!want && md_track_locked_) { m.set_locked(md_user_locked_); md_track_locked_ = false; }
+    milkdrop_pic_key_.clear();
+    milkdrop_apply_settings();
+}
+
 void App::milkdrop_track_apply() {
     MilkdropTrackOpts mo;
     if (!audiobook_ && has_track_ && current_.is_local && !current_.path.empty()) mo = cover_track_milkdrop(path_utf8(current_.path));
+    md_trk_ = mo;
+    const bool want_lock = md_track_wants_lock(mo);
     // first give back what was done for the track before (unless the view was changed by hand meanwhile)
     // (the lock as it was before the track before locked its preset: what was set by hand comes back, not "unlocked")
-    if (md_track_locked_ && (mo.preset.empty() || mo.keep == 0)) { Milkdrop::instance().set_locked(md_user_locked_); md_track_locked_ = false; }
+    if (md_track_locked_ && !want_lock) { Milkdrop::instance().set_locked(md_user_locked_); md_track_locked_ = false; }
     md_track_fx_ = mo.fx >= 0 && mo.fx < kVideoFxCount ? mo.fx : -1;
     if (md_track_view_ && mo.on != 1) {
         md_track_view_ = false;
@@ -109,7 +143,6 @@ void App::milkdrop_track_apply() {
         md_track_off_ = false;
         if (!settings_.milkdrop_view && !settings_.element_lyrics && !settings_.video_view && milkdrop_usable()) settings_.milkdrop_view = true;
     }
-    if (mo.on < 0 && mo.preset.empty()) return;   // (nothing set for this track: nothing is loaded)
     if (mo.on == 1 && !settings_.milkdrop_view && settings_.element_vizfield && milkdrop_usable()) {
         md_track_view_ = true;
         md_prev_lyrics_ = settings_.element_lyrics; md_prev_video_ = settings_.video_view; md_prev_viz_ = settings_.lyric_viz;
@@ -120,17 +153,21 @@ void App::milkdrop_track_apply() {
         md_track_off_ = true;
         settings_.milkdrop_view = false;   // (the visual under it shows: the sphere, the oscilloscope or the spectrogram)
     }
-    if (!mo.preset.empty() && settings_.use_milkdrop && milkdrop_usable()) {
+    if (mo.on < 0 && mo.preset.empty() && !want_lock) { milkdrop_apply_settings(); return; }   // (nothing of its own to load)
+    if (settings_.use_milkdrop && milkdrop_usable()) {
         Milkdrop& m = Milkdrop::instance();
-        // a path (chosen in More Options) is played by its file; an older record has only the name (looked up in the list)
-        if (mo.preset.find('/') != std::string::npos || mo.preset.find('\\') != std::string::npos) m.play_path(mo.preset);
-        else m.play_named(mo.preset);
-        if (mo.keep != 0) {   // (kept while the track plays)
-            if (!md_track_locked_) md_user_locked_ = m.locked();
+        if (!mo.preset.empty()) {
+            // a path (chosen in More Options) is played by its file; an older record has only the name (looked up in the list)
+            if (mo.preset.find('/') != std::string::npos || mo.preset.find('\\') != std::string::npos) m.play_path(mo.preset);
+            else m.play_named(mo.preset);
+        }
+        if (want_lock && !md_track_locked_) {   // (kept while the track plays)
+            md_user_locked_ = m.locked();
             m.set_locked(true);
             md_track_locked_ = true;
         }
     }
+    milkdrop_apply_settings();
 }
 
 // Auto MilkDrop: the field shows the visuals for every track. Auto Video would take the field for a track with a video, so it is
@@ -168,6 +205,58 @@ void App::milkdrop_auto_apply() {
 
 // ---- the overlay ----
 
+bool App::md_row_shown(int row) const {
+    if (md_scope_track_.empty()) return true;
+    return row != kMdFps && row != kMdRes && row != kMdColors;   // (how the pictures are drawn: not a matter of one track)
+}
+
+std::string App::milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const {
+    Milkdrop& m = Milkdrop::instance();
+    const bool ts = rec != nullptr;
+    auto secs = [](int v) { return v <= 0 ? std::string("off") : std::to_string(v) + " s"; };
+    auto onoff = [](bool b) { return std::string(b ? "on" : "off"); };
+    auto tenths = [](int v) { char b[8]; std::snprintf(b, sizeof b, "%.1f", v / 10.0); return std::string(b); };
+    auto cut = [](int v) { return v <= 0 ? std::string("cut") : std::to_string(v) + " s"; };
+    auto own = [&](int v, const std::string& mine, const std::string& dflt) { return !ts || v >= 0 ? mine : "as Settings (" + dflt + ")"; };
+    const int sd = std::max(0, settings_.milkdrop_preset_secs);
+    switch (row) {
+        case kMdPreset: {
+            if (ts && !rec->preset.empty()) return truncate_str(path_utf8(path_from_utf8(rec->preset).stem()), 40) + " (this track)";
+            std::string preset = m.preset_name();
+            if (preset.empty()) preset = m.running() ? "(starting ...)" : "(shows when the visuals run)";
+            return preset;
+        }
+        case kMdBrowse: return "[ENTER]";
+        case kMdRandom: return "[ENTER]";
+        case kMdLock:
+            if (ts) return md_track_wants_lock(*rec) ? (rec->keep < 0 ? "on (it has a preset)" : "on") : "off";
+            return onoff(m.locked());
+        case kMdDuration: return own(ts ? rec->dur : 0, secs(ts ? rec->dur : sd), secs(sd));
+        case kMdShuffle: return own(ts ? rec->shuf : 0, onoff(ts ? rec->shuf == 1 : settings_.milkdrop_shuffle), onoff(settings_.milkdrop_shuffle));
+        case kMdFavShuffle: {
+            md_favs_load();
+            auto fav = [&](bool b) { return !b ? std::string("off") : md_favs_.empty() ? std::string("on (none yet: all)") : "on (" + std::to_string(md_favs_.size()) + ")"; };
+            return own(ts ? rec->favs : 0, fav(ts ? rec->favs == 1 : settings_.milkdrop_fav_shuffle), fav(settings_.milkdrop_fav_shuffle));
+        }
+        case kMdCutSens: return own(ts ? rec->hcs : 0, tenths(ts ? rec->hcs : std::clamp(settings_.milkdrop_cut_sens, 5, 60)), tenths(std::clamp(settings_.milkdrop_cut_sens, 5, 60)));
+        case kMdHardCuts: return own(ts ? rec->cuts : 0, onoff(ts ? rec->cuts == 1 : settings_.milkdrop_hard_cuts), onoff(settings_.milkdrop_hard_cuts));
+        case kMdTransition: return own(ts ? rec->trans : 0, cut(ts ? rec->trans : settings_.milkdrop_transition), cut(settings_.milkdrop_transition));
+        case kMdFps: return std::to_string(settings_.milkdrop_fps) + " fps";
+        case kMdRes: return std::to_string(settings_.milkdrop_res) + " px";
+        case kMdUseFx: return own(ts ? rec->fxon : 0, onoff(ts ? rec->fxon == 1 : settings_.milkdrop_fx_on), onoff(settings_.milkdrop_fx_on));
+        case kMdFx: {
+            const std::string dflt = video_fx_name(video_fx_canon(settings_.milkdrop_fx));
+            return ts && rec->fx < 0 ? "as Settings (" + dflt + ")" : ts ? std::string(video_fx_name(video_fx_canon(rec->fx))) : dflt;
+        }
+        case kMdColors: return settings_.milkdrop_fixed_colors ? "fixed" : "adaptive";
+        case kMdName: return own(ts ? rec->name : 0, onoff(ts ? rec->name == 1 : settings_.milkdrop_show_name), onoff(settings_.milkdrop_show_name));
+        case kMdView:
+            if (ts) return rec->on < 0 ? "as Settings" : rec->on == 1 ? "on" : "off";
+            return onoff(settings_.milkdrop_auto);
+        default: return {};
+    }
+}
+
 std::vector<std::string> App::build_milkdrop_menu_panel() const {
     const int W = kMdMenuPanelWidth;
     const int inner = W - 4;
@@ -183,41 +272,27 @@ std::vector<std::string> App::build_milkdrop_menu_panel() const {
     milkdrop_apply_settings();
     std::string why;
     const bool ok = m.available(&why);
-    char beat[8];
-    std::snprintf(beat, sizeof beat, "%.1f", std::clamp(settings_.milkdrop_beat, 0, 20) / 10.0);
-    std::string preset = m.preset_name();
-    if (preset.empty()) preset = m.running() ? "(starting ...)" : "(shows when the visuals run)";
+    const bool ts = !md_scope_track_.empty();
+    const MilkdropTrackOpts rec = ts ? cover_track_milkdrop(md_scope_track_) : MilkdropTrackOpts();
     md_favs_load();
-    const std::string labels[kMdRows] = {"Preset", "Preset Overlay", "Random Preset", "Lock Preset", "Preset Duration", "Shuffle Presets", "Shuffle Favourites", "Beat Sensitivity",
-                                         "Hard Cuts", "Preset Transition", "Frame Rate", "Resolution", "Effect", "Sixel Colours", "Show Preset Name", "Auto MilkDrop"};
-    const std::string vals[kMdRows] = {
-        preset,
-        "[ENTER]",
-        "[ENTER]",
-        m.locked() ? "on" : "off",
-        settings_.milkdrop_preset_secs <= 0 ? std::string("off") : std::to_string(settings_.milkdrop_preset_secs) + " s",
-        settings_.milkdrop_shuffle ? "on" : "off",
-        !settings_.milkdrop_fav_shuffle ? std::string("off") : md_favs_.empty() ? std::string("on (none yet: all)") : "on (" + std::to_string(md_favs_.size()) + ")",
-        beat,
-        settings_.milkdrop_hard_cuts ? "on" : "off",
-        settings_.milkdrop_transition <= 0 ? std::string("cut") : std::to_string(settings_.milkdrop_transition) + " s",
-        std::to_string(settings_.milkdrop_fps) + " fps",
-        std::to_string(settings_.milkdrop_res) + " px",
-        video_fx_name(video_fx_canon(settings_.milkdrop_fx)),
-        settings_.milkdrop_fixed_colors ? "fixed" : "adaptive",
-        settings_.milkdrop_show_name ? "on" : "off",
-        settings_.milkdrop_auto ? "on" : "off",
-    };
+    const char* labels[kMdRows] = {"Preset", "Preset Overlay", "Random Preset", "Lock Preset", "Preset Duration", "Shuffle Presets", "Shuffle Favourites", "Hard Cut Sensitivity",
+                                   "Hard Cuts", "Preset Transition", "Frame Rate", "Resolution", "Use Effect", "Effect", "Sixel Colours", "Show Preset Name", ts ? "MilkDrop (this track)" : "Auto MilkDrop"};
     std::vector<std::string> lines;
-    lines.push_back(box_top("Visuals: MilkDrop", W, border));
+    lines.push_back(box_top(ts ? "Visuals: MilkDrop (this track)" : "Visuals: MilkDrop", W, border));
+    if (ts) {   // (the note in the highlight colours, as in the video options)
+        const std::string t = truncate_str("Only for this track: " + md_scope_title_, inner);
+        lines.push_back(bar + " " + ansi_for(settings_.header_color, false) + pad_right(t, inner) + R + " " + bar);
+    }
     for (int i = 0; i < kMdRows; ++i) {
+        if (!md_row_shown(i)) continue;
         const bool sel = i == md_menu_row_;
+        const std::string val = milkdrop_row_value(i, ts ? &rec : nullptr);
         std::string plain;
         if (i == kMdPreset) {   // the preset's name gets the room the label leaves
             const std::string lab = std::string(sel ? "> " : "  ") + pad_right(labels[i], 10);
-            plain = lab + "< " + truncate_str(vals[i], std::max(4, inner - display_width(lab) - 4)) + " >";
+            plain = lab + "< " + truncate_str(val, std::max(4, inner - display_width(lab) - 4)) + " >";
         } else {
-            plain = std::string(sel ? "> " : "  ") + pad_right(labels[i], 22) + pad_left(vals[i], std::max(1, inner - 24));
+            plain = std::string(sel ? "> " : "  ") + pad_right(labels[i], 22) + pad_left(val, std::max(1, inner - 24));
         }
         lines.push_back(row(plain, sel, !ok));
     }
@@ -249,8 +324,68 @@ std::vector<std::string> App::build_milkdrop_menu_panel() const {
         return bar + " " + border_bottom + std::string(static_cast<size_t>(left), ' ') + tx + std::string(static_cast<size_t>(std::max(0, inner - left - display_width(tx))), ' ') + "\x1b[0m" + " " + bar;
     };
     auto leg_bot = [&](const std::string& tx) { return centred_bottom(settings_, W, tx, border_bottom); };
-    push_legend_block(lines, W, border_bottom, {"[UP/DOWN] select   [LEFT/RIGHT] change   [ENTER] random", "[N] / [B] next / previous   [L] lock   [" + (hotkey_text("HKeyVisualsMenu", ":") == "-" ? std::string() : hotkey_text("HKeyVisualsMenu", ":") + " / ") + "ESC] close"}, leg_in, leg_bot);
+    const std::string close_keys = (hotkey_text("HKeyVisualsMenu", ":") == "-" ? std::string() : hotkey_text("HKeyVisualsMenu", ":") + " / ") + "ESC";
+    if (ts) push_legend_block(lines, W, border_bottom, {"[UP/DOWN] select   [LEFT/RIGHT] change   [ENTER] pin / change", "[d] as in Settings   [N] / [B] next / previous   [" + close_keys + "] back"}, leg_in, leg_bot);
+    else push_legend_block(lines, W, border_bottom, {"[UP/DOWN] select   [LEFT/RIGHT] change   [ENTER] random", "[N] / [B] next / previous   [L] lock   [" + close_keys + "] close"}, leg_in, leg_bot);
     return lines;
+}
+
+// The visuals overlay for one track (Style Option -> More Options; the big video overlay's): the values are the track's own, kept in its
+// record (-1 = as in Settings), and in force at once when it plays. [d] / DEL puts the row back to "as in Settings".
+void App::milkdrop_menu_open(const std::string& track, const std::string& title, Mode back) {
+    md_scope_track_ = track;
+    md_scope_title_ = title.empty() && !track.empty() ? path_utf8(path_from_utf8(track).stem()) : title;
+    md_return_mode_ = back;
+    md_menu_row_ = 0;
+    mode_ = Mode::MilkdropMenu;
+    force_redraw_ = true;
+}
+
+void App::milkdrop_menu_track_adjust(int row, int dir, bool reset) {
+    if (md_scope_track_.empty()) return;
+    Milkdrop& m = Milkdrop::instance();
+    MilkdropTrackOpts mo = cover_track_milkdrop(md_scope_track_);
+    const MdEff e = milkdrop_eff(mo);
+    const bool playing = has_track_ && path_utf8(current_.path) == md_scope_track_;
+    auto flag = [&](int& f, bool eff_now) { f = reset ? -1 : eff_now ? 0 : 1; };
+    switch (row) {
+        case kMdPreset:
+            if (reset) mo.preset.clear();
+            else if (dir == 2) {   // ENTER: the preset shown now is this track's
+                const std::string now = m.preset_path();
+                if (now.empty()) { status_line_ = "milkdrop: no preset is shown yet"; return; }
+                mo.preset = now;
+            } else { if (dir > 0) m.next_preset(); else m.prev_preset(); status_line_ = "milkdrop: [ENTER] makes the preset shown this track's own"; return; }
+            break;
+        case kMdRandom: m.random_preset(); return;
+        case kMdBrowse: return;
+        case kMdLock: mo.keep = reset ? -1 : md_track_wants_lock(mo) ? 0 : 1; break;
+        case kMdDuration: mo.dur = reset ? -1 : md_step(kMdDurSteps, e.dur, dir); break;
+        case kMdShuffle: flag(mo.shuf, e.shuffle); break;
+        case kMdFavShuffle: flag(mo.favs, e.favs); break;
+        case kMdCutSens: mo.hcs = reset ? -1 : md_step(kMdCutSensSteps, e.cut_sens, dir); break;
+        case kMdHardCuts: flag(mo.cuts, e.cuts); break;
+        case kMdTransition: mo.trans = reset ? -1 : std::clamp(e.trans + dir, 0, 10); break;
+        case kMdUseFx: flag(mo.fxon, e.fx_on); break;
+        case kMdFx:
+            if (reset) mo.fx = -1;
+            else mo.fx = video_fx_step(mo.fx >= 0 ? mo.fx : video_fx_canon(settings_.milkdrop_fx), dir);
+            break;
+        case kMdName: flag(mo.name, e.name); break;
+        case kMdView: mo.on = reset ? -1 : mo.on < 0 ? (dir > 0 ? 1 : 0) : mo.on == 1 ? (dir > 0 ? 0 : -1) : (dir > 0 ? -1 : 1); break;   // as in Settings -> on -> off
+        default: return;
+    }
+    set_cover_track_milkdrop(md_scope_track_, mo);
+    const char* labels[kMdRows] = {"preset", "", "", "lock", "preset duration", "shuffle", "shuffle favourites", "hard cut sensitivity",
+                                   "hard cuts", "preset transition", "", "", "effect on / off", "effect", "", "preset name", "MilkDrop"};
+    const std::string msg = std::string("this track: ") + labels[row] + " " + milkdrop_row_value(row, &mo);
+    status_line_ = "milkdrop: " + msg;
+    if (meta_) meta_->sty_msg = "saved: " + msg;
+    if (playing) {
+        if (row == kMdView || (row == kMdPreset && !mo.preset.empty())) milkdrop_track_apply();   // (the view / the preset itself changed)
+        else milkdrop_track_live(mo);
+    }
+    milkdrop_pic_key_.clear();
 }
 
 void App::milkdrop_menu_adjust(int row, int dir) {
@@ -269,11 +404,16 @@ void App::milkdrop_menu_adjust(int row, int dir) {
                          : md_favs_.empty() ? "milkdrop: only favourites -- there are none yet ([a] in the Preset Overlay): all presets until then"
                          : "milkdrop: only the " + std::to_string(md_favs_.size()) + " favourites";
             break;
-        case kMdBeat: settings_.milkdrop_beat = std::clamp(settings_.milkdrop_beat + dir, 0, 20); break;
+        case kMdCutSens: settings_.milkdrop_cut_sens = md_step(kMdCutSensSteps, settings_.milkdrop_cut_sens, dir); break;
         case kMdHardCuts: settings_.milkdrop_hard_cuts = !settings_.milkdrop_hard_cuts; break;
         case kMdTransition: settings_.milkdrop_transition = std::clamp(settings_.milkdrop_transition + dir, 0, 10); break;
         case kMdFps: settings_.milkdrop_fps = md_step(kMdFpsSteps, settings_.milkdrop_fps, dir); break;
         case kMdRes: settings_.milkdrop_res = md_step(kMdResSteps, settings_.milkdrop_res, dir); milkdrop_pic_key_.clear(); break;
+        case kMdUseFx:
+            settings_.milkdrop_fx_on = !settings_.milkdrop_fx_on;
+            milkdrop_pic_key_.clear();
+            status_line_ = settings_.milkdrop_fx_on ? "milkdrop: the effect is on again" : "milkdrop: no effect on the visuals";
+            break;
         case kMdFx:
             settings_.milkdrop_fx = video_fx_step(settings_.milkdrop_fx, dir);
             milkdrop_pic_key_.clear();
@@ -293,24 +433,37 @@ void App::milkdrop_menu_adjust(int row, int dir) {
 
 void App::handle_milkdrop_menu_key(int key) {
     if (mdb_open_) { handle_mdb_key(key); return; }
+    const bool ts = !md_scope_track_.empty();
     const bool arrow = last_key_was_arrow();
-    if (arrow && key == 'A') { md_menu_row_ = (md_menu_row_ + kMdRows - 1) % kMdRows; return; }
-    if (arrow && key == 'B') { md_menu_row_ = (md_menu_row_ + 1) % kMdRows; return; }
-    if (arrow && (key == 'C' || key == 'D')) { milkdrop_menu_adjust(md_menu_row_, key == 'C' ? 1 : -1); return; }
+    auto move = [&](int d) {
+        for (int i = 0; i < kMdRows; ++i) { md_menu_row_ = (md_menu_row_ + d + kMdRows) % kMdRows; if (md_row_shown(md_menu_row_)) break; }
+    };
+    auto change = [&](int row, int dir) { if (ts) milkdrop_menu_track_adjust(row, dir, false); else milkdrop_menu_adjust(row, dir); };
+    if (!md_row_shown(md_menu_row_)) move(1);
+    if (arrow && key == 'A') { move(-1); return; }
+    if (arrow && key == 'B') { move(1); return; }
+    if (arrow && (key == 'C' || key == 'D')) { change(md_menu_row_, key == 'C' ? 1 : -1); return; }
     if (arrow) return;
     if (key == '\r' || key == '\n') {
-        if (md_menu_row_ == kMdBrowse) { mdb_open(); return; }
-        if (md_menu_row_ == kMdRandom || md_menu_row_ == kMdPreset) Milkdrop::instance().random_preset();
-        else milkdrop_menu_adjust(md_menu_row_, 1);
+        if (md_menu_row_ == kMdBrowse) { if (ts) mdb_open_track(md_scope_track_, md_scope_title_); else mdb_open(); return; }
+        if (md_menu_row_ == kMdRandom) { Milkdrop::instance().random_preset(); return; }
+        if (md_menu_row_ == kMdPreset) { if (ts) milkdrop_menu_track_adjust(kMdPreset, 2, false); else Milkdrop::instance().random_preset(); return; }
+        change(md_menu_row_, 1);
         return;
     }
-    if (key == ' ') { milkdrop_menu_adjust(md_menu_row_, 1); return; }
+    if (key == ' ') { change(md_menu_row_, 1); return; }
+    if (ts && (key == 'd' || key == 'D' || key == kKeyDelete || key == 127 || key == 8)) { milkdrop_menu_track_adjust(md_menu_row_, 0, true); return; }
     if (key == 'n' || key == 'N') { Milkdrop::instance().next_preset(); return; }
     if (key == 'b' || key == 'B') { Milkdrop::instance().prev_preset(); return; }
-    if (key == 'l' || key == 'L') { milkdrop_menu_adjust(kMdLock, 1); return; }
+    if (key == 'l' || key == 'L') { change(kMdLock, 1); return; }
     if (key == 27 || key_is("HKeyVisualsMenu", key)) {
-        mode_ = Mode::Browse;
-        save_settings(settings_);
+        mode_ = md_return_mode_;
+        md_return_mode_ = Mode::Browse;
+        const bool was_track = ts;
+        md_scope_track_.clear();
+        md_scope_title_.clear();
+        if (!was_track) save_settings(settings_);
+        force_redraw_ = true;
     }
 }
 
@@ -391,7 +544,7 @@ void App::mdb_list(const std::string& dir, bool favs, const std::string& select_
 
 void App::mdb_open() {
     mdb_track_.clear();
-    mdb_opt_ = -1;
+    mdb_default_ = false;
     Milkdrop& m = Milkdrop::instance();
     std::string why;
     if (!settings_.use_milkdrop || !m.available(&why)) {
@@ -434,7 +587,6 @@ void App::mdb_open_track(const std::string& track, const std::string& title) {
     Milkdrop::instance().set_locked(mdb_prev_locked_);
     mdb_track_ = track;
     mdb_track_title_ = title.empty() ? path_utf8(path_from_utf8(track).stem()) : title;
-    mdb_opt_ = -1;
     Milkdrop& m = Milkdrop::instance();
     mdb_open_ = true;
     mdb_moved_ = false;
@@ -453,35 +605,16 @@ void App::mdb_open_track(const std::string& track, const std::string& title) {
     mdb_list(dir, false, at);
 }
 
-void App::mdb_track_adjust(int row, int dir, bool reset) {
-    MilkdropTrackOpts mo = cover_track_milkdrop(mdb_track_);
-    const bool playing = has_track_ && path_utf8(current_.path) == mdb_track_;
-    std::string msg;
-    if (row == 0) {
-        if (!reset) { status_line_ = "milkdrop: choose the track's preset in the list below ([ENTER]); [d] here: as it comes"; return; }
-        mo.preset.clear();
-        msg = "this track: the presets come as they come";
-    } else if (row == 1) {
-        mo.keep = reset ? -1 : mo.keep == 0 ? 1 : 0;
-        msg = mo.keep == 0 ? "this track: its preset first, then the presets go on" : "this track: its preset stays while it plays";
-    } else {
-        if (reset) mo.fx = -1;
-        else if (mo.fx < 0) mo.fx = dir > 0 ? 0 : -1;
-        else if (mo.fx == 0 && dir < 0) mo.fx = -1;
-        else mo.fx = video_fx_step(mo.fx, dir);
-        msg = mo.fx < 0 ? "this track: the visuals' effect" : std::string("this track: the effect ") + video_fx_name(video_fx_canon(mo.fx));
-    }
-    set_cover_track_milkdrop(mdb_track_, mo);
-    status_line_ = "milkdrop: " + msg;
-    if (meta_) meta_->sty_msg = "saved: " + msg;
-    if (playing) {
-        md_track_fx_ = mo.fx >= 0 && mo.fx < kVideoFxCount ? mo.fx : -1;
-        if (row == 1) {   // (the lock of the track: given now, not only at the next start; the overlay gives it back when it closes)
-            if (mo.keep == 0 && md_track_locked_) { mdb_prev_locked_ = md_user_locked_; md_track_locked_ = false; }
-            else if (mo.keep != 0 && !mo.preset.empty() && !md_track_locked_) { md_user_locked_ = mdb_prev_locked_; mdb_prev_locked_ = true; md_track_locked_ = true; }
-        }
-        if (row == 0 && md_track_locked_) { mdb_prev_locked_ = md_user_locked_; md_track_locked_ = false; }
-        milkdrop_pic_key_.clear();
+// Settings -> MILKDROP -> Default Preset / Preset Overlay: the same overlay; ENTER on a preset makes it the one the visuals start with.
+void App::mdb_open_default() {
+    mdb_open();
+    if (!mdb_open_) return;
+    mdb_default_ = true;
+    const std::string& d = settings_.milkdrop_default_preset;
+    if (d.find('/') != std::string::npos || d.find('\\') != std::string::npos) {   // (on the default preset, when there is one)
+        const fs::path p = path_from_utf8(d), r = path_from_utf8(mdb_root_);
+        const std::string pr = path_utf8(p.parent_path().lexically_normal()), rr = path_utf8(r.lexically_normal());
+        if (pr.size() >= rr.size() && pr.compare(0, rr.size(), rr) == 0) mdb_list(path_utf8(p.parent_path()), false, d);
     }
 }
 
@@ -491,7 +624,7 @@ void App::mdb_close(bool chosen) {
     m.set_locked(mdb_prev_locked_);
     mdb_open_ = false;
     mdb_track_.clear();
-    mdb_opt_ = -1;
+    mdb_default_ = false;
     milkdrop_pic_key_.clear();
     force_redraw_ = true;
 }
@@ -572,19 +705,6 @@ void App::handle_mdb_key(int key) {
         else if (it.kind == 2) mdb_list(it.path, false, "");
         mdb_preview();
     };
-    // --- More Options of a track: the option rows on top (UP from the first row of the list reaches them)
-    if (!mdb_track_.empty() && !mdb_typing_) {
-        if (mdb_opt_ >= 0) {
-            if (arrow && key == 'A') { mdb_opt_ = std::max(0, mdb_opt_ - 1); return; }
-            if (arrow && key == 'B') { if (++mdb_opt_ > 2) mdb_opt_ = -1; return; }
-            if (arrow && (key == 'C' || key == 'D')) { mdb_track_adjust(mdb_opt_, key == 'C' ? 1 : -1, false); return; }
-            if (!arrow && (key == '\r' || key == '\n' || key == ' ')) { mdb_track_adjust(mdb_opt_, 1, false); return; }
-            if (!arrow && (key == 'd' || key == 'D' || key == kKeyDelete || key == 127 || key == 8)) { mdb_track_adjust(mdb_opt_, 0, true); return; }
-            if (!arrow && key == 27) { mdb_close(false); return; }
-            if (!arrow && (key == '/' || key_is("HKeySearch", key))) mdb_opt_ = -1;   // (on to the search below)
-            else return;
-        } else if (arrow && key == 'A' && mdb_sel_ == 0 && !last_key_was_shifted()) { mdb_opt_ = 2; return; }
-    }
     if (arrow && (key == 'A' || key == 'B')) { move_to(mdb_sel_ + (key == 'B' ? 1 : -1) * (last_key_was_shifted() ? page : 1)); return; }
     // --- the search: "/" types a query; the results are every preset that matches, best first
     if (mdb_typing_ && !arrow) {
@@ -633,14 +753,28 @@ void App::handle_mdb_key(int key) {
             set_cover_track_milkdrop(track, mo);
             const bool playing = has_track_ && path_utf8(current_.path) == track;
             if (meta_) meta_->sty_msg = "saved: this track shows \"" + it.name + "\"" + (mo.keep == 0 ? " first" : "");
+            status_line_ = "milkdrop: this track shows \"" + it.name + "\"";
             mdb_close(playing);   // (another track's choice: the preset of this one comes back)
             if (playing) milkdrop_track_apply();
+        } else if (it.kind == 3 && mdb_default_) {   // Settings: the preset the visuals start with
+            settings_.milkdrop_default_preset = it.path;
+            settings_dirty_ = true;
+            status_line_ = "milkdrop: the visuals start with \"" + it.name + "\" (s saves)";
+            mdb_close(false);   // (the preset shown before comes back)
+            milkdrop_apply_settings();
         } else if (it.kind == 3) {
             Milkdrop::instance().play_path(it.path);
             status_line_ = "milkdrop: " + it.name;
             mdb_close(true);
         } else if (it.kind == 4) status_line_ = "milkdrop: this favourite's file is gone ([d] takes it out)";
         else enter(it);
+        return;
+    }
+    if (key == 'f' || key == 'F') {   // [f]: straight to the Favourites folder
+        if (mdb_searching_) { mdb_typing_ = mdb_searching_ = false; mdb_query_.clear(); }
+        md_favs_load();
+        mdb_list(mdb_root_, true, "");
+        mdb_preview();
         return;
     }
     if (key == 'a' || key == 'A') {
@@ -689,25 +823,9 @@ std::string App::build_mdb_screen(int W, const char* clear_prefix) const {
             pic[static_cast<size_t>(ph / 2)] = std::string(static_cast<size_t>(pad), ' ') + msg + std::string(static_cast<size_t>(std::max(0, pw - pad - display_width(msg))), ' ');
         }
     }
-    // the left column: (More Options of a track: its options first) where we are, then the list
+    // the left column: where we are, then the list
     const int inner = left_w - 2;
     std::vector<std::string> left;
-    if (!mdb_track_.empty()) {
-        const MilkdropTrackOpts mo = cover_track_milkdrop(mdb_track_);
-        const std::string fxn = video_fx_name(video_fx_canon(settings_.milkdrop_fx));
-        const std::string vals[3] = {
-            mo.preset.empty() ? std::string("as it comes") : path_utf8(path_from_utf8(mo.preset).stem()),
-            mo.preset.empty() ? std::string("(with a preset)") : mo.keep == 0 ? std::string("off (it starts, then the presets go on)") : std::string("on (while it plays)"),
-            mo.fx < 0 ? "as the visuals (" + fxn + ")" : std::string(video_fx_name(video_fx_canon(mo.fx)))};
-        const char* labels[3] = {"Preset", "Keep Preset", "Effect"};
-        const int lw = 13;
-        for (int r = 0; r < 3; ++r) {
-            const std::string body = pad_right(truncate_str(pad_right(labels[r], lw) + vals[r], inner), inner);
-            if (mdb_opt_ == r) left.push_back(" " + cursor_sgr(settings_.list_cursor_color, settings_.list_cursor_bg_color) + body + "\x1b[0m ");
-            else left.push_back(" " + ansi_for(settings_.list_color, false) + body + "\x1b[0m ");
-        }
-        left.push_back(" " + std::string(static_cast<size_t>(inner), '-') + " ");
-    }
     {
         std::string where;
         if (mdb_searching_) {
@@ -751,15 +869,15 @@ std::string App::build_mdb_screen(int W, const char* clear_prefix) const {
             const std::string w = truncate_str("  " + it.where, inner - display_width(text));
             body = text + (k == mdb_sel_ ? w : "\x1b[90m" + w + "\x1b[0m" + sgr) + std::string(static_cast<size_t>(std::max(0, inner - display_width(text) - display_width(w))), ' ');
         }
-        if (k == mdb_sel_ && mdb_opt_ < 0) left.push_back(" " + cursor_sgr(settings_.list_cursor_color, settings_.list_cursor_bg_color) + body + "\x1b[0m ");
-        else if (k == mdb_sel_) left.push_back(" \x1b[1m" + body + "\x1b[0m ");
+        if (k == mdb_sel_) left.push_back(" " + cursor_sgr(settings_.list_cursor_color, settings_.list_cursor_bg_color) + body + "\x1b[0m ");
         else if (it.kind == 3 && it.path == shown) left.push_back(" " + ansi_for(settings_.list_playing_color) + body + "\x1b[0m ");
         else left.push_back(" " + sgr + body + "\x1b[0m ");
     }
     std::ostringstream f;
     f << clear_prefix << "\x1b[?25l";
     const std::string count = mdb_in_favs_ ? std::to_string(md_favs_.size()) + " favourites" : std::to_string(Milkdrop::instance().preset_count()) + " presets";
-    f << box_top(mdb_track_.empty() ? "MILKDROP PRESETS  " + count : "MILKDROP FOR THIS TRACK: " + truncate_str(mdb_track_title_, std::max(10, W - 40)), W, border) << "\n";
+    f << box_top(!mdb_track_.empty() ? "MILKDROP FOR THIS TRACK: " + truncate_str(mdb_track_title_, std::max(10, W - 40))
+                 : mdb_default_ ? "MILKDROP DEFAULT PRESET  " + count : "MILKDROP PRESETS  " + count, W, border) << "\n";
     for (int r = 0; r < ph; ++r) {
         const std::string l = r < static_cast<int>(left.size()) ? left[static_cast<size_t>(r)] : std::string(static_cast<size_t>(left_w), ' ');
         f << bar << l;
@@ -769,12 +887,12 @@ std::string App::build_mdb_screen(int W, const char* clear_prefix) const {
         }
         f << bar << "\n";
     }
-    const std::string legend = !mdb_track_.empty() && mdb_opt_ >= 0 ? "[\u2191\u2193] select  [\u2190\u2192] change  [d] as it comes  [\u2193] the presets  [ESC] back"
-                             : !mdb_track_.empty() && !mdb_typing_ && !mdb_searching_ ? "[ENTER] the track's preset  [\u2191] its options  [/] search  [\u2190] up  [a] favourite  [ESC] back"
-                             : mdb_typing_ ? "type to search (fuzzy)  [\u2191\u2193] select  [ENTER] to the list  [ESC] clear"
+    const std::string legend = mdb_typing_ ? "type to search (fuzzy)  [\u2191\u2193] select  [ENTER] to the list  [ESC] clear"
                              : mdb_searching_ ? "[\u2191\u2193] select  [ENTER] choose  [a] add to favourites  [/] search  [ESC/\u2190] clear"
-                             : mdb_in_favs_ ? "[↑↓] select  [ENTER] choose  [d] remove from favourites  [/] search  [←] back  [ESC] close"
-                                            : "[↑↓] select  [ENTER] choose / open  [a] add to favourites  [/] search  [←] up  [ESC] close";
+                             : mdb_in_favs_ ? "[\u2191\u2193] select  [ENTER] choose  [d] remove from favourites  [/] search  [\u2190] back  [ESC] close"
+                             : !mdb_track_.empty() ? "[ENTER] this track's preset  [f] favourites  [a] add to favourites  [/] search  [\u2190] up  [ESC] back"
+                             : mdb_default_ ? "[ENTER] the default preset  [f] favourites  [a] add to favourites  [/] search  [\u2190] up  [ESC] back"
+                                            : "[\u2191\u2193] select  [ENTER] choose / open  [f] favourites  [a] add to favourites  [/] search  [\u2190] up  [ESC] close";
     f << box_bottom(W, legend, border_bottom.empty() ? border : border_bottom);
     return clamp_output_rows(f.str(), term_rows_);
 }

@@ -2150,7 +2150,10 @@ R"WIZ(                                                  only where it is shown t
 [MilkDrop Frame Rate / Resolution:][[Legend]]                 30 pictures a second, 480 pixels across (defaults);
                                                   more costs more (no graphics card: the processor draws).
 [Preset Duration / Shuffle / Transition:][[Legend]]           25 s, random, a 3 s blend (defaults).
-[Beat Sensitivity / Hard Cuts / Show Preset Name:][[Legend]]  1.0, on, on (defaults). The same rows are in [:].
+[Hard Cut Sensitivity / Hard Cuts / Show Preset Name:][[Legend]]  2.0, on, on (defaults). The same rows are in [:].
+[Default Preset / Use Effect:][[Legend]]                      the preset the visuals start with ([ENTER] opens the preset list); Use Effect = off
+                                                  switches the effect over the visuals off. [:] from the big video overlay
+                                                  changes the current track only.
 
 
 [SPHERE:][[Header]]
@@ -2174,13 +2177,13 @@ R"WIZ(                                                  only where it is shown t
                                                   the toggle: gradient / no gradient, where gradient = the
                                                   VIZ colours gradient from left to right, like the
                                                   oscilloscope is using... [<-/->] switch between the two
-                                                  values of the row, [ENTER] changes the options.
+)WIZ",
+R"WIZ(                                                  values of the row, [ENTER] changes the options.
                                                   Default: the moving braille blocks (disk), in all modes.
 
 [SPECTRUM BARS:][[Header]]               
 [On/Off:][[Legend]]                                           shows or hides the spectrum bars under the meta data
-)WIZ",
-R"WIZ(                                                  field.
+                                                  field.
 
 [Bars Style:][[Legend]]                                       Classic is the bar display as before. Hi-Fi is a stereo
                                                   analyzer in braille dots without gaps, one dot column per
@@ -2274,11 +2277,11 @@ R"WIZ(                                                  field.
 [CONVERSION EXPORT PATH][[Header]]                            where converted files go
 [AUDIO BOOK PATH][[Header]]                                   One folder only, since books are sorted by book folders
                                                   with the chapters themselves (doesn't happen inside
-                                                  Mousiki). Every book folder within it with audio files is
+)WIZ",
+R"WIZ(                                                  Mousiki). Every book folder within it with audio files is
                                                   considered one book. A .cue file rests beside each book
                                                   and keeps its narrator, publisher and year and other meta
-)WIZ",
-R"WIZ(                                                  data. The music player's library leaves files stored in
+                                                  data. The music player's library leaves files stored in
                                                   this folder out (also from its searches): the book folder
                                                   may lie INSIDE a music folder, but may not be one (a
                                                   conflict message will says so!).
@@ -2411,12 +2414,12 @@ THE BIG STATIONS OVERLAY: [[Header]]
 [a] adds a station by its stream URL ([TAB] switches URL <-> NAME; an empty name becomes the host name).
 [SHIFT+c] edits the hovered entry: name, preset name (a shorter second name shown in the PRESETS pane,
 which only has little space), URL, genre, country, codec and kbps. [TAB] or [UP]/[DOWN] switch the field,
-[ENTER] saves, [ESC] cancels.
+)WIZ",
+R"WIZ([ENTER] saves, [ESC] cancels.
 [DEL] deletes the hovered station after a warning ([Y] deletes, [N] keeps it); it leaves the stations file,
 the presets and the station lists, the stream that plays goes on.
 [SHIFT+u] undoes the last deletion or edit (up to 20 steps while the radio runs).
-)WIZ",
-R"WIZ(The key legend at the bottom takes as many rows as it needs.
+The key legend at the bottom takes as many rows as it needs.
 
 [[New Page]]
 3.1.2 PRESETS [[Header]]
@@ -2576,15 +2579,15 @@ HEARD A SONG ON THE RADIO? DOWNLOAD IT: [[Header]]
 The radio writes down the artist and title the stream sends. On the HISTORY tab [y] on a line opens an
 overlay that searches YouTube for "artist title". [ENTER] downloads the hovered result into the
 download folder (yt-dlp, opus), [TAB] edits the search query, [ESC] closes. A result is marked
-[ok] done, [..] downloading, [!!] failed.
+)WIZ",
+R"WIZ([ok] done, [..] downloading, [!!] failed.
 This is the online search of the music player reached from the radio, so a song you only heard once
 on air ends up in your local library (after a rescan with [SHIFT+r] in the player).
 
 
 [[New Page]]
 3.4.1 RADIO SETTINGS: COLORS, GENERAL AND ANIMA/VIZ [[Header]]
-)WIZ",
-R"WIZ(
+
 OPEN:[[Header]] 
 As usual [s] opens the radio settings. Same frame, tab strip and editing keys as the other:
 [TAB] next tab, [UP]/[DOWN] rows, [<-/->] or [ENTER] change a value, [s] saves and closes,
@@ -2707,11 +2710,11 @@ image is done by Kamara Rahmat (iyaniyan; taken from Unsplash).
 BOOK COVER: [[Header]]
 The option [Book Cover] in Settings, GENERAL, set to true shows the cover image found in the book's 
 folder instead (a file named cover, folder, front or albumart, else the first picture there; 
-jpg, png, webp ...; no picture file: the cover art inside the first audio file is used). The 
+)WIZ",
+R"WIZ(jpg, png, webp ...; no picture file: the cover art inside the first audio file is used). The 
 gradient wave can also be toggled via [Book gradient]. With the wave on, [Cover Brightness]
 (50% = as it is) and [Cover Colors] (how much of the cover's own colours shines through the
-)WIZ",
-R"WIZ(gradient) work on the book's cover too (Settings, ANIMA/VIZ, BOOK COVER).
+gradient) work on the book's cover too (Settings, ANIMA/VIZ, BOOK COVER).
 
 A book without a cover image keeps the default picture. Switching Book Cover on shows in the 
 status line which protocol is used and the cover file found (or why there is none; the console log, t, 
@@ -2834,12 +2837,12 @@ It has a search pane on top ([/] types, the words narrow the list) and the audio
 [f]            opens the book in the chapter pane.
 
 LISTENING/READING HISTORY [SHIFT+h]: [[Header]] 
-The listening history made for books, in its own file reading_history.json. Every chapter
+)WIZ",
+R"WIZ(The listening history made for books, in its own file reading_history.json. Every chapter
 you listen to is recorded. Change tab via  [<-]/[->] or [1] to [4]. 
 Given tabs are HISTORY, TOP CHAPTERS, TOP BOOKS, HABITS.
 [ENTER] on a chapter opens its book and plays it. [ESC] closes.
-)WIZ",
-R"WIZ(
+
 [[New Page]]
 4.1.5 CHAPTER MARKS AND CUTTING [[Header]]
 
@@ -2966,15 +2969,15 @@ A LINE IS A CHAIN: [[Header]]
 
 WHAT THE REPLIES LOOK LIKE: [[Header]]
    > pause
-     paused: Tonight, Tonight - The Smashing Pumpkins  01:23/04:14  vol 60%
+)WIZ",
+R"WIZ(     paused: Tonight, Tonight - The Smashing Pumpkins  01:23/04:14  vol 60%
    > seek 30
      seek +30 s -> Tonight, Tonight - The Smashing Pumpkins  01:53/04:14  vol 60%
    > volume 40
      volume 60% -> 40%
    > next
      next: Cupid de Locke - The Smashing Pumpkins  00:00/04:20  vol 40%  (was: Tonight, Tonight)
-)WIZ",
-R"WIZ(
+
 [[New Page]]
 5.1.4 CLI COMMANDS: PLAYBACK [[Header]]
 
@@ -3090,11 +3093,11 @@ causes its own event (on pause = play) is stopped: at most 8 runs in 10 seconds.
 5.1.7 CLI: SAFETY [[Header]]
 
  * No command deletes anything: scripts go to cli/deleted/, files are never removed.
- * set changes flags and numbers only (never paths, keys, the PIN).
+)WIZ",
+R"WIZ( * set changes flags and numbers only (never paths, keys, the PIN).
  * Typed at the keyboard, quit / clear-queue / queue clear ask: type  yes  within 20 seconds.
  * force <command> runs such a command without asking. In scripts, timers, hooks and from outside it
-)WIZ",
-R"WIZ(   is needed, because nobody is there to confirm:  force queue clear
+   is needed, because nobody is there to confirm:  force queue clear
  * From the network (5.1.9) there is no quit, force, yes, set, alias, unalias, edit, open,
    clear-queue, queue clear, rescan, wizard, switch-mode. Scripts started from the network run with
    the same limits.

@@ -10,8 +10,11 @@
 #include <filesystem>
 #include <random>
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__APPLE__)
 #include <dlfcn.h>
+#if defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
 #elif defined(_WIN32)
 #include <windows.h>
 #endif
@@ -120,10 +123,10 @@ const VideoFrame* Milkdrop::frame(int w, int h, bool& fresh) {
     return shown_.w > 0 ? &shown_ : nullptr;
 }
 
-#if !defined(__linux__) && !defined(_WIN32)
+#if !defined(__linux__) && !defined(_WIN32) && !defined(__APPLE__)
 
 bool Milkdrop::available(std::string* why) {
-    if (why) *why = "MilkDrop visuals need Linux or Windows for now (macOS is not done yet)";
+    if (why) *why = "MilkDrop visuals need Linux, macOS or Windows";
     return false;
 }
 void Milkdrop::run() { running_.store(false); }
@@ -215,7 +218,7 @@ struct PM {
     unsigned int (*pcm_get_max_samples)() = nullptr;
     void (*set_texture_search_paths)(pm_handle, const char**, size_t) = nullptr;
     void (*set_preset_duration)(pm_handle, double) = nullptr;
-    void (*set_beat_sensitivity)(pm_handle, float) = nullptr;
+    void (*set_hard_cut_sensitivity)(pm_handle, float) = nullptr;
     void (*set_hard_cut_enabled)(pm_handle, bool) = nullptr;
     void (*set_soft_cut_duration)(pm_handle, double) = nullptr;
     void (*set_preset_locked)(pm_handle, bool) = nullptr;
@@ -246,7 +249,7 @@ template <class F> bool sym(void* lib, const char* name, F& out) {
     out = reinterpret_cast<F>(dlsym(lib, name));
     return out != nullptr;
 }
-void* open_first(std::initializer_list<const char*> names) {
+[[maybe_unused]] void* open_first(std::initializer_list<const char*> names) {
     for (const char* n : names) if (void* h = dlopen(n, RTLD_NOW | RTLD_LOCAL)) return h;
     return nullptr;
 }
@@ -263,7 +266,7 @@ std::string load_projectm(void* pm, void* pl) {
          sym(pm, "projectm_pcm_add_float", g_pm.pcm_add_float) && sym(pm, "projectm_pcm_get_max_samples", g_pm.pcm_get_max_samples) &&
          sym(pm, "projectm_set_texture_search_paths", g_pm.set_texture_search_paths) &&
          sym(pm, "projectm_set_preset_duration", g_pm.set_preset_duration) &&
-         sym(pm, "projectm_set_beat_sensitivity", g_pm.set_beat_sensitivity) &&
+         sym(pm, "projectm_set_hard_cut_sensitivity", g_pm.set_hard_cut_sensitivity) &&
          sym(pm, "projectm_set_hard_cut_enabled", g_pm.set_hard_cut_enabled) &&
          sym(pm, "projectm_set_soft_cut_duration", g_pm.set_soft_cut_duration) &&
          sym(pm, "projectm_set_preset_locked", g_pm.set_preset_locked) && sym(pm, "projectm_set_fps", g_pm.set_fps) &&
@@ -296,6 +299,33 @@ struct EGL {
 EGL g_egl;
 void* g_gl_lib = nullptr;
 
+fs::path exe_dir() {   // (the program's own folder, the real one when it was started through a link: /usr/bin/mousiki -> /opt/mousiki/app/mousiki)
+    std::error_code ec;
+    const fs::path p = fs::read_symlink("/proc/self/exe", ec);
+    return ec ? fs::path() : p.parent_path();
+}
+std::string home_dir() { const char* h = std::getenv("HOME"); return h ? h : ""; }
+
+// projectM where setup.sh (~/.local/lib) or the installer (next to the program) put it, then wherever the system finds it.
+std::vector<fs::path> lib_places() {
+    std::vector<fs::path> v;
+    const fs::path d = exe_dir();
+    if (!d.empty()) { v.push_back(d); v.push_back(d / "lib"); }
+    const std::string home = home_dir();
+    if (!home.empty()) v.push_back(fs::path(home) / ".local/lib");
+    return v;
+}
+void* open_first_in(const std::vector<fs::path>& dirs, std::initializer_list<const char*> names) {
+    for (const fs::path& d : dirs)
+        for (const char* n : names) {
+            std::error_code ec;
+            const fs::path f = d / n;
+            if (fs::exists(f, ec))
+                if (void* h = dlopen(f.c_str(), RTLD_NOW | RTLD_LOCAL)) return h;
+        }
+    return open_first(names);
+}
+
 // Loads the libraries once (they stay loaded). "" = fine, else why not.
 std::string load_libraries() {
     static std::string result = [] {
@@ -309,9 +339,10 @@ std::string load_libraries() {
                   sym(egl, "eglDestroySurface", g_egl.DestroySurface);
         if (!ok) return std::string("libEGL lacks functions Mousiki needs");
         g_gl_lib = open_first({"libGL.so.1", "libOpenGL.so.0", "libGL.so"});   // (glReadPixels & co. are found here or through EGL)
-        void* pm = open_first({"libprojectM-4.so.4", "libprojectM-4.so"});
-        if (!pm) return std::string("projectM 4 is not installed (libprojectM-4)");
-        void* pl = open_first({"libprojectM-4-playlist.so.4", "libprojectM-4-playlist.so"});
+        const std::vector<fs::path> places = lib_places();
+        void* pm = open_first_in(places, {"libprojectM-4.so.4", "libprojectM-4.so"});
+        if (!pm) return std::string("projectM 4 is not installed (libprojectM-4: run setup.sh again, or the installer)");
+        void* pl = open_first_in(places, {"libprojectM-4-playlist.so.4", "libprojectM-4-playlist.so"});
         if (!pl) return std::string("projectM's playlist library is not installed (libprojectM-4-playlist)");
         return load_projectm(pm, pl);
     }();
@@ -373,12 +404,11 @@ void gl_close(GlContext& c) {
 
 void gl_pump(GlContext&) {}
 
-std::string home_dir() { const char* h = std::getenv("HOME"); return h ? h : ""; }
-
-// The usual preset folders, in the order they are tried.
+// The usual preset folders, in the order they are tried (next to the program first: the installers put them there).
 std::vector<fs::path> preset_places() {
     const std::string home = home_dir();
     std::vector<fs::path> c;
+    if (!exe_dir().empty()) c.push_back(exe_dir() / "milkdrop" / "presets");
     if (!home.empty()) {
         c.push_back(fs::path(home) / ".local/share/projectM/presets");
         c.push_back(fs::path(home) / ".projectM/presets");
@@ -390,16 +420,165 @@ std::vector<fs::path> preset_places() {
     return c;
 }
 std::vector<fs::path> texture_places() {
-    return {fs::path(home_dir()) / ".local/share/projectM/textures", fs::path("/usr/local/share/projectM/textures"),
-            fs::path("/usr/share/projectM/textures")};
+    std::vector<fs::path> c;
+    if (!exe_dir().empty()) c.push_back(exe_dir() / "milkdrop" / "textures");
+    c.push_back(fs::path(home_dir()) / ".local/share/projectM/textures");
+    c.push_back("/usr/local/share/projectM/textures");
+    c.push_back("/usr/share/projectM/textures");
+    return c;
 }
-const char* kNoPresetsWhere = "~/.local/share/projectM/presets, /usr/share/projectM/presets";
+const char* kNoPresetsWhere = "milkdrop/presets next to mousiki, ~/.local/share/projectM/presets, /usr/share/projectM/presets";
 
 fs::path from_utf8(const std::string& s) { return fs::path(s); }
 std::string to_utf8(const fs::path& p) { return p.string(); }
 // A path as projectM's char* functions want it ("" = it cannot be said that way).
 std::string native_path(const fs::path& p) { return p.string(); }
 // A name projectM gave back (char*), as UTF-8.
+std::string utf8_from_native(const char* s) { return s ? std::string(s) : std::string(); }
+
+#elif defined(__APPLE__)
+
+// ---- macOS: CGL (the OpenGL of the system, deprecated but there on every Mac) -- a core-profile context without a window; the
+// pictures go into an offscreen framebuffer like on the other systems. Everything is found at run time (dlopen / dlsym): the build needs
+// neither the OpenGL framework's headers nor projectM.
+using CGLContextObj = void*;
+using CGLPixelFormatObj = void*;
+using CGLError = int;
+using PFN_CGLChoosePixelFormat = CGLError (*)(const int*, CGLPixelFormatObj*, GLint*);
+using PFN_CGLDestroyPixelFormat = CGLError (*)(CGLPixelFormatObj);
+using PFN_CGLCreateContext = CGLError (*)(CGLPixelFormatObj, CGLContextObj, CGLContextObj*);
+using PFN_CGLDestroyContext = CGLError (*)(CGLContextObj);
+using PFN_CGLSetCurrentContext = CGLError (*)(CGLContextObj);
+constexpr int kCGLPFAColorSize = 8, kCGLPFADepthSize = 12, kCGLPFAAccelerated = 73, kCGLPFAOpenGLProfile = 99,
+              kCGLPFAAllowOfflineRenderers = 96;
+constexpr int kCGLOGLPVersion_3_2_Core = 0x3200, kCGLOGLPVersion_GL4_Core = 0x4100;
+struct CGL {
+    PFN_CGLChoosePixelFormat ChoosePixelFormat = nullptr;
+    PFN_CGLDestroyPixelFormat DestroyPixelFormat = nullptr;
+    PFN_CGLCreateContext CreateContext = nullptr;
+    PFN_CGLDestroyContext DestroyContext = nullptr;
+    PFN_CGLSetCurrentContext SetCurrentContext = nullptr;
+};
+CGL g_cgl;
+void* g_gl_lib = nullptr;
+
+fs::path exe_dir() {
+    // (the program's own folder: a portable copy keeps projectM's libraries and milkdrop/ next to mousiki)
+    std::string buf(4096, '\0');
+    uint32_t n = static_cast<uint32_t>(buf.size());
+    if (_NSGetExecutablePath(&buf[0], &n) != 0) return {};
+    buf.resize(std::strlen(buf.c_str()));
+    std::error_code ec;
+    const fs::path p = fs::weakly_canonical(fs::path(buf), ec);
+    return (ec ? fs::path(buf) : p).parent_path();
+}
+std::string home_dir() { const char* h = std::getenv("HOME"); return h ? h : ""; }
+
+void* open_first_in(const std::vector<fs::path>& dirs, std::initializer_list<const char*> names) {
+    for (const fs::path& d : dirs)
+        for (const char* n : names) {
+            std::error_code ec;
+            const fs::path f = d / n;
+            if (fs::exists(f, ec))
+                if (void* h = dlopen(f.c_str(), RTLD_NOW | RTLD_LOCAL)) return h;
+        }
+    for (const char* n : names) if (void* h = dlopen(n, RTLD_NOW | RTLD_LOCAL)) return h;
+    return nullptr;
+}
+
+// Where setup.sh / the installer / Homebrew put projectM (Apple silicon and Intel).
+std::vector<fs::path> lib_places() {
+    std::vector<fs::path> v;
+    const fs::path d = exe_dir();
+    if (!d.empty()) { v.push_back(d); v.push_back(d / "lib"); v.push_back(d.parent_path() / "lib"); v.push_back(d.parent_path() / "Frameworks"); }
+    const std::string home = home_dir();
+    if (!home.empty()) v.push_back(fs::path(home) / ".local/lib");
+    v.push_back("/opt/homebrew/lib");
+    v.push_back("/usr/local/lib");
+    return v;
+}
+
+std::string load_libraries() {
+    static std::string result = [] {
+        g_gl_lib = dlopen("/System/Library/Frameworks/OpenGL.framework/OpenGL", RTLD_NOW | RTLD_LOCAL);
+        if (!g_gl_lib) return std::string("the system's OpenGL could not be loaded");
+        const bool ok = sym(g_gl_lib, "CGLChoosePixelFormat", g_cgl.ChoosePixelFormat) && sym(g_gl_lib, "CGLDestroyPixelFormat", g_cgl.DestroyPixelFormat) &&
+                        sym(g_gl_lib, "CGLCreateContext", g_cgl.CreateContext) && sym(g_gl_lib, "CGLDestroyContext", g_cgl.DestroyContext) &&
+                        sym(g_gl_lib, "CGLSetCurrentContext", g_cgl.SetCurrentContext);
+        if (!ok) return std::string("the system's OpenGL lacks functions Mousiki needs");
+        const std::vector<fs::path> places = lib_places();
+        void* pm = open_first_in(places, {"libprojectM-4.4.dylib", "libprojectM-4.dylib"});
+        if (!pm) return std::string("projectM 4 is not installed (libprojectM-4.dylib: run setup.sh again, or the installer)");
+        void* pl = open_first_in(places, {"libprojectM-4-playlist.4.dylib", "libprojectM-4-playlist.dylib"});
+        if (!pl) return std::string("projectM's playlist library is not installed (libprojectM-4-playlist.dylib)");
+        return load_projectm(pm, pl);
+    }();
+    return result;
+}
+
+void* gl_proc(const char* name, void*) { return g_gl_lib ? dlsym(g_gl_lib, name) : nullptr; }
+
+struct GlContext { CGLContextObj ctx = nullptr; };
+
+std::string gl_open(GlContext& c) {
+    // OpenGL 4.1 core where the Mac has it (every Mac since 2013), else 3.2 core; projectM needs 3.3, which is the same family
+    for (const int profile : {kCGLOGLPVersion_GL4_Core, kCGLOGLPVersion_3_2_Core}) {
+        const int attr[] = {kCGLPFAOpenGLProfile, profile, kCGLPFAColorSize, 24, kCGLPFADepthSize, 16, kCGLPFAAccelerated, kCGLPFAAllowOfflineRenderers, 0};
+        CGLPixelFormatObj pf = nullptr;
+        GLint n = 0;
+        if (g_cgl.ChoosePixelFormat(attr, &pf, &n) != 0 || !pf || n <= 0) continue;
+        CGLContextObj ctx = nullptr;
+        const CGLError e = g_cgl.CreateContext(pf, nullptr, &ctx);
+        g_cgl.DestroyPixelFormat(pf);
+        if (e != 0 || !ctx) continue;
+        if (g_cgl.SetCurrentContext(ctx) != 0) { g_cgl.DestroyContext(ctx); continue; }
+        c.ctx = ctx;
+        return {};
+    }
+    return "could not make an OpenGL 3.3 core context (is a graphics driver there?)";
+}
+
+void gl_close(GlContext& c) {
+    if (!c.ctx) return;
+    g_cgl.SetCurrentContext(nullptr);
+    g_cgl.DestroyContext(c.ctx);
+    c = GlContext{};
+}
+
+void gl_pump(GlContext&) {}
+
+// The usual preset folders: next to the program, the user's own, Homebrew's, the system's.
+std::vector<fs::path> preset_places() {
+    std::vector<fs::path> c;
+    const fs::path d = exe_dir();
+    if (!d.empty()) { c.push_back(d / "milkdrop" / "presets"); c.push_back(d.parent_path() / "Resources" / "milkdrop" / "presets"); }
+    const std::string home = home_dir();
+    if (!home.empty()) {
+        c.push_back(fs::path(home) / ".local/share/projectM/presets");
+        c.push_back(fs::path(home) / "Library/Application Support/projectM/presets");
+    }
+    c.push_back("/opt/homebrew/share/projectM/presets");
+    c.push_back("/usr/local/share/projectM/presets");
+    return c;
+}
+std::vector<fs::path> texture_places() {
+    std::vector<fs::path> c;
+    const fs::path d = exe_dir();
+    if (!d.empty()) { c.push_back(d / "milkdrop" / "textures"); c.push_back(d.parent_path() / "Resources" / "milkdrop" / "textures"); }
+    const std::string home = home_dir();
+    if (!home.empty()) {
+        c.push_back(fs::path(home) / ".local/share/projectM/textures");
+        c.push_back(fs::path(home) / "Library/Application Support/projectM/textures");
+    }
+    c.push_back("/opt/homebrew/share/projectM/textures");
+    c.push_back("/usr/local/share/projectM/textures");
+    return c;
+}
+const char* kNoPresetsWhere = "milkdrop/presets next to mousiki, ~/.local/share/projectM/presets, /opt/homebrew/share/projectM/presets";
+
+fs::path from_utf8(const std::string& s) { return fs::path(s); }
+std::string to_utf8(const fs::path& p) { return p.string(); }
+std::string native_path(const fs::path& p) { return p.string(); }
 std::string utf8_from_native(const char* s) { return s ? std::string(s) : std::string(); }
 
 #else   // _WIN32
@@ -757,7 +936,7 @@ void Milkdrop::run() {
     auto apply = [&](const MilkdropOptions& a) {
         g_pm.pl_set_shuffle(pl, a.shuffle);
         g_pm.set_preset_duration(pm, a.preset_seconds > 0 ? a.preset_seconds : 1e9);
-        g_pm.set_beat_sensitivity(pm, std::clamp(a.beat, 0.0f, 2.0f));
+        g_pm.set_hard_cut_sensitivity(pm, std::clamp(a.cut_sens, 0.5f, 6.0f));
         g_pm.set_hard_cut_enabled(pm, a.hard_cuts && !locked_.load());
         g_pm.set_soft_cut_duration(pm, std::max(0, a.transition));
         g_pm.set_preset_locked(pm, locked_.load());
@@ -781,7 +960,12 @@ void Milkdrop::run() {
         if (resume_index_ >= 0 && resume_index_ < static_cast<int>(count) && is_it(static_cast<uint32_t>(resume_index_))) resume_at = resume_index_;
         for (uint32_t i = 0; i < count && resume_at < 0; ++i) if (is_it(i)) resume_at = static_cast<int>(i);
     }
+    std::error_code start_ec;
     if (resume_at >= 0) g_pm.pl_set_position(pl, static_cast<uint32_t>(resume_at), true);
+    else if (!o.start_preset.empty() && fs::is_regular_file(from_utf8(o.start_preset), start_ec)) {   // the default preset (Settings): the loop below loads it, in the list or on its own
+        std::lock_guard<std::mutex> lk(mu_);
+        want_path_ = o.start_preset;
+    }
     else if (o.shuffle) g_pm.pl_play_next(pl, true);   // (not in the list -- e.g. the favourites only, it is none of them: the list's way)
     else g_pm.pl_set_position(pl, 0, true);
 

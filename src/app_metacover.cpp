@@ -270,7 +270,6 @@ void App::meta_open_style_playing() {
 
 bool App::handle_meta_sty_key(int key) {
     if (!meta_->sty_open) return false;
-    if (mdb_open_ && !mdb_track_.empty()) { handle_mdb_key(key); return true; }   // (More Options: the preset overlay of this track)
     const bool arrow = last_key_was_arrow();
     if (key == 27) {
         meta_->sty_open = false;
@@ -308,14 +307,13 @@ bool App::handle_meta_sty_key(int key) {
         if (sel == kStMilkdropOn) {
             mo.on = reset ? -1 : mo.on < 0 ? (dir > 0 ? 1 : 0) : mo.on == 1 ? (dir > 0 ? 0 : -1) : (dir > 0 ? -1 : 1);   // as it comes -> on -> off -> ...
             meta_->sty_msg = mo.on < 0 ? "saved: MilkDrop as it comes" : mo.on == 1 ? "saved: MilkDrop shows while this track plays" : "saved: no MilkDrop for this track";
-        } else if (reset) {   // More Options: all of them back to "as it comes"
-            mo.preset.clear();
-            mo.keep = -1;
-            mo.fx = -1;
-            meta_->sty_msg = "saved: the MilkDrop options of this track are as they come";
-        } else if (dir > 0) {   // More Options: the preset overlay for this track
-            mdb_open_track(meta_->sty_track, meta_->hover_values[static_cast<size_t>(MetaField::Title)]);
-            if (!mdb_open_) meta_->sty_msg = status_line_;
+        } else if (reset) {   // More Options: all of them back to "as in Settings" (whether MilkDrop shows for this track stays: its own row)
+            const int on = mo.on;
+            mo = MilkdropTrackOpts();
+            mo.on = on;
+            meta_->sty_msg = "saved: the MilkDrop options of this track are as in Settings";
+        } else if (dir > 0) {   // More Options: the visuals overlay for this track (ESC comes back here)
+            milkdrop_menu_open(meta_->sty_track, meta_->hover_values[static_cast<size_t>(MetaField::Title)], Mode::MetaEdit);
             return true;
         } else return true;
         set_cover_track_milkdrop(meta_->sty_track, mo);
@@ -615,6 +613,8 @@ std::vector<std::string> App::build_meta_sty_panel(int screen_w) const {
                 std::string v;
                 if (!mo.preset.empty()) v = path_utf8(path_from_utf8(mo.preset).stem()) + (mo.keep == 0 ? " (then on)" : "");
                 if (mo.fx >= 0) v += (v.empty() ? "" : ", ") + std::string(video_fx_name(video_fx_canon(mo.fx)));
+                { int n = 0; for (int x : {mo.keep, mo.dur, mo.shuf, mo.favs, mo.cuts, mo.hcs, mo.trans, mo.fxon, mo.name}) if (x >= 0) ++n;
+                  if (n > 0) v += (v.empty() ? "" : ", ") + std::to_string(n) + (n == 1 ? " option" : " options"); }
                 return {"More Options", truncate_str(v.empty() ? std::string("as it comes") : v, 18) + " [ENTER]"}; }   // (a preset name can be long)
             case kStAlbum: break;
         }

@@ -677,6 +677,32 @@ def bundle_milkdrop_windows(stage, src, dl, a):
                 "- MilkDrop texture pack - https://github.com/projectM-visualizer/presets-milkdrop-texture-pack - app/milkdrop/textures\n")
 
 
+def bundle_milkdrop_unix(stage, src, dl, a, target, archs=""):
+    """Linux / macOS: projectM (built from its pinned source), the Cream of the Crop presets and the texture pack next to the program
+    (stage/app: libprojectM-4*, libprojectM-4-playlist*, milkdrop/). The work is done by tools/milkdrop-unix.sh, the script setup.sh uses
+    too (pins + per-file checksums live there); the build is kept in the download cache for the next release."""
+    script = Path(src) / "tools" / "milkdrop-unix.sh"
+    if not script.is_file():
+        die("tools/milkdrop-unix.sh is missing from the source tree (or build with --no-milkdrop)")
+    cache = Path(dl) / ("milkdrop-" + target + ("-" + archs.replace(";", "+") if archs else ""))
+    if a.refresh_tools:
+        rmtree(cache)
+    cmd = ["bash", str(script), "--exe-dir", str(stage / "app"), "--cache", str(cache)]
+    if archs and target == "macos":
+        cmd += ["--archs", archs]
+    run(cmd)
+    if not (stage / "app" / "milkdrop" / "installed.txt").is_file():
+        die("the MilkDrop step ran but milkdrop/installed.txt is missing next to the program")
+    if not (stage / "THIRD-PARTY.txt").is_file():   # (--no-bundle-tools: no list yet)
+        write_notices(stage, [])
+    with open(str(stage / "THIRD-PARTY.txt"), "a", encoding="utf-8") as f:
+        f.write("- projectM (LGPL-2.1, see app/milkdrop/LICENSE-projectM.txt; built unchanged from the source named in app/milkdrop/README.txt)"
+                " - https://github.com/projectM-visualizer/projectm - app/libprojectM-4*, app/libprojectM-4-playlist*: the MilkDrop visuals\n"
+                "- \"Cream of the Crop\" MilkDrop presets, curated by ISOSCELES - https://github.com/projectM-visualizer/presets-cream-of-the-crop"
+                " - app/milkdrop/presets (see its LICENSE.md)\n"
+                "- MilkDrop texture pack - https://github.com/projectM-visualizer/presets-milkdrop-texture-pack - app/milkdrop/textures\n")
+
+
 def linux_arch():
     return "arm64" if platform.machine().lower() in ("aarch64", "arm64") else "amd64"
 
@@ -1129,7 +1155,7 @@ def deps_linux(install):
     if install:
         sudo = [] if os.geteuid() == 0 else ["sudo"]
         run(sudo + ["apt-get", "update"])
-        run(sudo + ["apt-get", "install", "-y", "build-essential", "cmake", "python3", "python3-pip", "dpkg-dev"])
+        run(sudo + ["apt-get", "install", "-y", "build-essential", "cmake", "python3", "python3-pip", "dpkg-dev", "curl", "libgl1-mesa-dev", "libegl1-mesa-dev"])
     elif need:
         die("missing tools: %s\n    Install with:  sudo apt-get install -y build-essential cmake python3 python3-pip dpkg-dev\n"
             "    (or re-run with --install-deps)" % ", ".join(need))
@@ -1218,7 +1244,7 @@ Architecture: %s
 Installed-Size: %d
 Maintainer: Mousiki release toolkit <noreply@localhost>
 Depends: libc6, libstdc++6, python3, ffmpeg, curl, libasound2 | libasound2t64, libpulse0
-Recommends: pulseaudio-utils | pipewire-pulse, xclip | wl-clipboard, xdg-utils, libsdl2-2.0-0, fonts-cascadia-code
+Recommends: pulseaudio-utils | pipewire-pulse, xclip | wl-clipboard, xdg-utils, libsdl2-2.0-0, fonts-cascadia-code, libegl1, libgl1
 Homepage: https://github.com/StSchwerdtfeger/mousiki-plus
 Description: Terminal music player and online radio (TUI)
  Mousiki plays local files and online sources (via the bundled yt-dlp) in the
@@ -1253,6 +1279,8 @@ def build_linux(a, ctx):
     write_launchers(stage, "linux")
     if not a.no_bundle_tools:
         bundle_unix_tools(stage, ctx["dl"], a, "linux")
+    if not a.no_milkdrop:
+        bundle_milkdrop_unix(stage, src, ctx["dl"], a, "linux")
     ver, arch = ctx["version"], linux_arch()
     outputs = [build_deb(stage, ws, dist, ver)]
     extra = None if a.no_bundle_tools else (lambda p: add_static_ffmpeg_linux(p, ctx["dl"], a))
@@ -1452,11 +1480,13 @@ def build_macos_one(a, ctx, label, archs):
     write_launchers(stage, "macos")
     if not a.no_bundle_tools:
         bundle_unix_tools(stage, ctx["dl"], a, "macos")   # (yt-dlp_macos is one universal binary: the same in every flavour)
+    if not a.no_milkdrop:
+        bundle_milkdrop_unix(stage, src, ctx["dl"], a, "macos", archs)   # (projectM is built for the same architectures as the program)
     run(["xattr", "-cr", stage], check=False)
     sign_id = a.sign_identity or os.environ.get("MOUSIKI_CODESIGN_ID") or "-"
     sign_opts = ["--options", "runtime", "--timestamp"] if sign_id != "-" else []
-    for f in (stage / "app" / "mousiki", stage / "scripts" / "fpcalc"):
-        if f.is_file():
+    for f in [stage / "app" / "mousiki", stage / "scripts" / "fpcalc"] + sorted((stage / "app").glob("libprojectM-4*.dylib")):
+        if f.is_file() and not f.is_symlink():   # (projectM's libraries are signed too: the hardened runtime only loads libraries of the same signature)
             run(["codesign", "--force", "--sign", sign_id] + sign_opts + [f], check=False)
     if sign_id == "-":
         warn("binaries are only ad-hoc signed (no Apple Developer ID) - Gatekeeper will warn on other Macs")
@@ -2062,7 +2092,7 @@ def main():
     common.add_argument("--refresh-tools", action="store_true", help="re-download ffmpeg / yt-dlp / Python")
     common.add_argument("--no-bundle-tools", action="store_true", help="do not bundle ffmpeg/yt-dlp/Python (much smaller, relies on PATH)")
     common.add_argument("--no-milkdrop", action="store_true",
-                        help="Windows: do not build / bundle the MilkDrop visuals (projectM + the Cream of the Crop presets, about 120 MB installed)")
+                        help="do not build / bundle the MilkDrop visuals (projectM + the Cream of the Crop presets, about 120 MB installed)")
     common.add_argument("--install-deps", action="store_true", help="install missing build tools (winget / apt / brew)")
     common.add_argument("--sync-version", action="store_true", help="patch the CMakeLists.txt version (and so the About screens) in the build copy")
     common.add_argument("--python-embed-version", default=DEFAULT_PY_EMBED, help="Windows embedded Python version")

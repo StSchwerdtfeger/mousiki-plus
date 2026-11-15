@@ -472,7 +472,18 @@ static std::string translit_uncached_locked(const std::string& text) {
     {
         const auto w = g_whole.find(trimmed(text));
         LatinCjk pair;
-        if (w != g_whole.end()) r = g_reader_keys.count(w->first) ? style_reader_text(w->second, g_macrons.load()) : w->second;
+        // (a reading of the kanji reader is for Japanese text only: 東京 with "Leave" or "Chin." must not turn into the Japanese reading)
+        bool reader_hit = false;
+        if (w != g_whole.end() && g_reader_keys.count(w->first)) {
+            const std::vector<char32_t> cps = compose_marks(decode(w->first));
+            bool has_kana = false;
+            for (char32_t c : cps) if (is_kana(c)) { has_kana = true; break; }
+            Script sc = has_kana ? Script::Japanese : script_of_cps(cps);
+            if (sc == Script::Unknown) { const auto h = g_hints.find(w->first); if (h != g_hints.end()) sc = h->second; }
+            if (sc == Script::Unknown && g_default_hanzi.load() == 2) sc = Script::Japanese;
+            reader_hit = sc == Script::Japanese;
+        }
+        if (w != g_whole.end() && (reader_hit || !g_reader_keys.count(w->first))) r = reader_hit ? style_reader_text(w->second, g_macrons.load()) : w->second;
         else if (split_latin_cjk(text, pair) && latin_cjk_agree(pair)) r = pair.latin;   // (the pair is written both ways: the Latin one)
         else {
             r = transliterate_impl(text);

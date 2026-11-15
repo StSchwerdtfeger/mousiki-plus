@@ -450,15 +450,22 @@ MilkdropTrackOpts cover_track_milkdrop(const std::string& track_path) {
     const int on = muisc::atoi_safe(it->second.substr(0, bar).c_str());
     o.on = on == 0 || on == 1 ? on : -1;
     if (bar != std::string::npos) o.preset = it->second.substr(bar + 1);
-    // "<on>|<preset>[\t<keep>\t<fx>]" (the two after a tab came later; a preset never has a tab)
+    // "<on>|<preset>[\t<keep>\t<fx>[\t<dur>\t<shuf>\t<favs>\t<cuts>\t<hcs>\t<trans>\t<fxon>\t<name>]]" (what follows a tab came later; a preset never has a tab)
     const size_t tab = o.preset.find('\t');
     if (tab != std::string::npos) {
-        const std::string rest = o.preset.substr(tab + 1);
+        std::string rest = o.preset.substr(tab + 1);
         o.preset.resize(tab);
-        const size_t tab2 = rest.find('\t');
-        const int keep = muisc::atoi_safe(rest.substr(0, tab2).c_str());
-        o.keep = keep == 0 || keep == 1 ? keep : -1;
-        if (tab2 != std::string::npos) o.fx = std::max(-1, muisc::atoi_safe(rest.substr(tab2 + 1).c_str()));
+        int* f[] = {&o.keep, &o.fx, &o.dur, &o.shuf, &o.favs, &o.cuts, &o.hcs, &o.trans, &o.fxon, &o.name};
+        size_t k = 0;
+        while (k < sizeof f / sizeof f[0]) {
+            const size_t t = rest.find('\t');
+            const int v = muisc::atoi_safe(rest.substr(0, t).c_str());
+            *f[k++] = std::max(-1, v);
+            if (t == std::string::npos) break;
+            rest = rest.substr(t + 1);
+        }
+        if (o.keep > 1) o.keep = -1;
+        for (int* q : {&o.shuf, &o.favs, &o.cuts, &o.fxon, &o.name}) if (*q > 1) *q = -1;
     }
     return o;
 }
@@ -470,10 +477,19 @@ void set_cover_track_milkdrop(const std::string& track_path, const MilkdropTrack
     load_locked(c);
     std::string p = o.preset;
     for (char& ch : p) if (ch == '\t' || ch == '\n' || ch == '\r') ch = ' ';
-    const int keep = o.keep == 0 || o.keep == 1 ? o.keep : -1, fx = std::max(-1, o.fx);
-    if (o.on < 0 && p.empty() && keep < 0 && fx < 0) c.mdopts.erase(track_path);
-    else c.mdopts[track_path] = std::to_string(o.on == 0 || o.on == 1 ? o.on : -1) + "|" + p +
-                                (keep >= 0 || fx >= 0 ? "\t" + std::to_string(keep) + "\t" + std::to_string(fx) : std::string());
+    MilkdropTrackOpts q = o;
+    q.keep = o.keep == 0 || o.keep == 1 ? o.keep : -1;
+    for (int* v : {&q.fx, &q.dur, &q.hcs, &q.trans}) *v = std::max(-1, *v);
+    for (int* v : {&q.shuf, &q.favs, &q.cuts, &q.fxon, &q.name}) *v = *v == 0 || *v == 1 ? *v : -1;
+    const int* all[] = {&q.keep, &q.fx, &q.dur, &q.shuf, &q.favs, &q.cuts, &q.hcs, &q.trans, &q.fxon, &q.name};
+    int last = -1;   // (the fields are written up to the last one that is set: older versions read the first two)
+    for (int i = 0; i < 10; ++i) if (*all[i] >= 0) last = i;
+    if (o.on < 0 && p.empty() && last < 0) c.mdopts.erase(track_path);
+    else {
+        std::string v = std::to_string(o.on == 0 || o.on == 1 ? o.on : -1) + "|" + p;
+        for (int i = 0; i <= std::max(last, last >= 0 ? 1 : -1); ++i) v += "\t" + std::to_string(*all[i]);
+        c.mdopts[track_path] = v;
+    }
     save_locked(c);
 }
 

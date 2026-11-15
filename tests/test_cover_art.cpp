@@ -298,6 +298,23 @@ TEST(milkdrop_track_keep_and_effect_are_kept_and_old_records_read) {
     CHECK_EQ(r.fx, -1);
 }
 
+// The "this track only" options of the visuals menu: every one comes back, and the ones that were not set stay "as in Settings" (-1).
+TEST(milkdrop_track_menu_options_are_kept_per_track) {
+    mt::TempHome home;
+    MilkdropTrackOpts m;
+    m.dur = 40; m.shuf = 0; m.favs = 1; m.cuts = 0; m.hcs = 35; m.trans = 5; m.fxon = 0; m.name = 1;
+    set_cover_track_milkdrop("/music/d.mp3", m);
+    const MilkdropTrackOpts r = cover_track_milkdrop("/music/d.mp3");
+    CHECK_EQ(r.dur, 40); CHECK_EQ(r.shuf, 0); CHECK_EQ(r.favs, 1); CHECK_EQ(r.cuts, 0);
+    CHECK_EQ(r.hcs, 35); CHECK_EQ(r.trans, 5); CHECK_EQ(r.fxon, 0); CHECK_EQ(r.name, 1);
+    CHECK_EQ(r.keep, -1);
+    MilkdropTrackOpts one;
+    one.trans = 2;
+    set_cover_track_milkdrop("/music/e.mp3", one);
+    const MilkdropTrackOpts q = cover_track_milkdrop("/music/e.mp3");
+    CHECK_EQ(q.trans, 2); CHECK_EQ(q.dur, -1); CHECK_EQ(q.fxon, -1); CHECK_EQ(q.name, -1);
+}
+
 TEST(video_track_dither_pattern_is_kept_per_track_and_old_entries_read_as_settings) {
     mt::TempHome home;
     CHECK_EQ(cover_track_video_opts("/music/a.mp3").dither, -1);        // as in Settings

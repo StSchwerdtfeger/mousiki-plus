@@ -337,6 +337,23 @@ private:
     bool md_track_view_ = false, md_track_off_ = false, md_track_locked_ = false;
     bool md_user_locked_ = false;   // the lock as it was before a track's preset locked it (given back after that track)
     int md_track_fx_ = -1;          // the effect of the track that plays (Style Option -> More Options), -1 = MilkDropEffect=
+    MilkdropTrackOpts md_trk_;      // everything the track that plays has of its own (More Options): the values laid over Settings, -1 = as in Settings
+    // The values in force: Settings, with the playing track's own over them (the visuals overlay of the big video, and Style Option ->
+    // More Options, change the track's; Settings and the visuals overlay of the main screen change Settings).
+    struct MdEff { int dur; bool shuffle, favs, cuts, fx_on, name; int cut_sens, trans; };
+    MdEff milkdrop_eff(const MilkdropTrackOpts& t) const;
+    MdEff milkdrop_eff() const { return milkdrop_eff(md_trk_); }
+    std::string milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const;   // the visuals overlay's value text (rec: of that track, else Settings')
+    void milkdrop_track_live(const MilkdropTrackOpts& mo);   // a track's value changed while it plays: in force now (no preset is loaded again)
+    // The visuals overlay for ONE track: from Style Option -> More Options, and from the big video overlay (the track that plays).
+    std::string md_scope_track_;    // "" = the visuals overlay changes Settings; else the track whose values it changes
+    std::string md_scope_title_;
+    Mode md_return_mode_ = Mode::Browse;   // where ESC leaves the visuals overlay to
+    bool mdb_default_ = false;      // the preset overlay chooses Settings' Default Preset (opened from Settings)
+    void milkdrop_menu_open(const std::string& track, const std::string& title, Mode back);
+    bool md_row_shown(int row) const;
+    void milkdrop_menu_track_adjust(int row, int dir, bool reset);
+    void mdb_open_default();
     bool md_prev_lyrics_ = false, md_prev_video_ = false;
     int md_prev_viz_ = 0;
     // The field's MilkDrop view (the "." cycle): the whole field, the preset's name in a small box for a few seconds after it changed.
@@ -361,10 +378,8 @@ private:
     struct MdbItem { int kind = 0; std::string name, path, where; };   // where: the folder of a search result   // kind: 0 up, 1 the favourites, 2 a folder, 3 a preset, 4 a favourite whose file is gone
     bool mdb_open_ = false;
     std::string mdb_track_;              // "" = the visuals overlay's preset overlay; a track: Style Option -> More Options of that track
-    int mdb_opt_ = -1;                   // (track mode) the option row selected (0 preset, 1 keep, 2 effect), -1 = the list
     std::string mdb_track_title_;
     void mdb_open_track(const std::string& track, const std::string& title);
-    void mdb_track_adjust(int row, int dir, bool reset);
     void milkdrop_auto_set(bool on);   // Auto MilkDrop on / off (Auto Video off meanwhile, back after)
     void milkdrop_auto_apply();        // at a track's start: the field to the visuals (Auto MilkDrop)
     bool mdb_in_favs_ = false;           // the favourites folder is shown

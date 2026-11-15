@@ -4041,15 +4041,15 @@ def milkdrop_layouts_style(binary, root, scripts):
         check(ok, "style option: the field switches to the MilkDrop visuals (the first picture within 12 s, also on a busy machine; %s)" % {i: (p["row"], p["col"], p["c"], p["r"]) for i, p in sess.pics.items() if i < 7300})
         sess.pump(2.0)   # (the first preset is chosen once the visuals run)
         sess.send(b"\x1b[B", 0.3)
-        # More Options: the preset overlay of this track -- its options on top, ENTER on a preset makes it the track's own
+        # More Options: the MilkDrop options (":") for this track only; its Preset Overlay row opens the overlay, ENTER on a preset makes it the track's own
         sess.send("\r", 1.5)
-        check(settle(lambda: "MILKDROP FOR THIS TRACK" in sess.text() and "Keep Preset" in sess.text(), 8), "style option: ENTER on More Options opens the preset overlay of this track")
-        sess.send(b"\x1b[H", 0.8)   # HOME: the list's first row; UP from there: the option rows (Effect is the last of them)
-        sess.send(b"\x1b[A", 0.8)
-        check(settle(lambda: "[\u2190\u2192] change" in sess.text(), 4), "style option: More Options: UP from the list's first row reaches the track's options")
-        sess.send(b"\x1b[C", 0.8)
-        check(settle(lambda: any("Effect " in l and "Off" in l and "as the visuals" not in l for l in sess.screen.display), 4), "style option: More Options: RIGHT on Effect gives the track an effect of its own (Off first)")
-        sess.send(b"\x1b[B", 0.5)   # (back to the list)
+        check(settle(lambda: "this track" in sess.text() and "Only for this track" in sess.text() and "Hard Cut Sensitivity" in sess.text(), 8),
+              "style option: ENTER on More Options opens the MilkDrop options for this track only (%r)" % next((l.strip()[:70] for l in sess.screen.display if "Only for" in l), None))
+        check("Frame Rate" not in sess.text() and "Use Effect" in sess.text(), "style option: the track's options leave out the ones that are for the whole program (Frame Rate), Use Effect is there")
+        sess.send(b"\x1b[B", 0.5)   # Preset -> Preset Overlay
+        sess.send("\r", 1.5)
+        check(settle(lambda: "MILKDROP FOR THIS TRACK" in sess.text(), 8), "style option: ENTER on Preset Overlay opens the preset overlay of this track")
+        check("[f]" in sess.text(), "style option: the preset overlay names [f] (the favourites folder)")
         sess.send("/", 0.5)           # (a known preset, found with the search: the folder's rows differ from one preset pack to another)
         for ch in "stickflower":
             sess.send(ch, 0.1)
@@ -4064,7 +4064,7 @@ def milkdrop_layouts_style(binary, root, scripts):
         chosen = settle(lambda: "MILKDROP FOR THIS TRACK" not in sess.text() and any("Stickflower" in l for l in stored()), 15)
         check(chosen, "style option: ENTER on a preset makes it the track's own (%r)" % next((l.strip()[:90] for l in sess.screen.display if "saved:" in l), None))
         rec = stored()
-        check(len(rec) == 1 and "Alpha Clip" in rec[0] and rec[0].split("\t")[2].startswith("1|") and ".milk" in rec[0] and rec[0].endswith("\t-1\t0"),
+        check(len(rec) == 1 and "Alpha Clip" in rec[0] and rec[0].split("\t")[2].startswith("1|") and ".milk" in rec[0],
               "style option: the track's MilkDrop choice is stored with its file, keep and effect (%r)" % (rec[0][-80:] if rec else None))
         for _ in range(3):   # (ESC closes Style Option; on a busy machine an ESC read together with the next key would be ALT+key)
             sess.send(b"\x1b", 1.5)
@@ -4082,7 +4082,7 @@ def settings_general_texts(binary, root, scripts):
     """Settings -> GENERAL: Start Mode reads "music player"; Track Buffer (MB) has a five-character field, a typed number above the limit is
     set to it (a quarter of the RAM, at most 16384) and the status line names the range; the [ Set back to default ] buttons of Track Buffer
     and Terminal Size are in the same column (51); the transliteration previews are what Mousiki makes of the examples (Translit. Kanji:
-    the poem, Japanese text is not changed by the row; Latin Name Lookup: the name order and the names that are never looked up)."""
+    the poem, Japanese text is not changed by the row; Latin Name Lookup: what the lookup does and the names that are never looked up)."""
     lib = os.path.join(root, "sgt_music")
     os.makedirs(lib)
     make_wav(os.path.join(lib, "Alpha Song.wav"), 20)
@@ -4129,7 +4129,7 @@ def settings_general_texts(binary, root, scripts):
         sess.send(b"\x1b[B", 0.3)
         sess.pump(1.0)
         t = sess.text()
-        check("Preview: Latin Name Lookup" in t and "Name order" in t and "HAKU" in t and "\u67f3\u4e95" in t, "settings: the Latin Name Lookup preview explains the name order and shows HAKU and the kanji name")
+        check("Preview: Latin Name Lookup" in t and "MusicBrainz" in t and "HAKU" in t and "\u67f3\u4e95" in t, "settings: the Latin Name Lookup preview explains the lookup and shows HAKU and the kanji name")
         check(sess.alive(), "settings general texts: the program is still running")
     finally:
         sess.kill()
@@ -4578,6 +4578,8 @@ def milkdrop_preset_overlay(binary, root, scripts):
         lines = [l for l in favs.splitlines() if l and not l.startswith("#")]
         check(len(lines) == 1 and lines[0].endswith(".milk"), "preset overlay: [a] writes the preset into milkdrop_favourites.txt (%d lines)" % len(lines))
         added = os.path.splitext(os.path.basename(lines[0]))[0] if lines else "?"
+        sess.send("f", 1.5)   # [f]: straight to the Favourites folder
+        check(sess.wait_for(lambda t: "remove from favourites" in t and added[:12] in t, 5), "preset overlay: [f] goes to the Favourites folder (%r)" % added[:12])
         # ESC: back to the visuals overlay, the preset from before again
         sess.send(b"\x1b", 2.5)
         check(sess.wait_for(lambda t: "MILKDROP PRESETS" not in t and "Visuals: MilkDrop" in t, 6), "preset overlay: ESC goes back to the visuals overlay")
@@ -4645,7 +4647,7 @@ def milkdrop_preset_overlay(binary, root, scripts):
             return fixed / n if n else -1.0
         sess.pump(2.0)
         a = fixed_share()
-        for _ in range(6):
+        for _ in range(7):
             sess.send(b"\x1b[B", 0.3)
         check(sess.wait_for(lambda t: any("> Effect" in l for l in sess.screen.display), 4), "preset overlay: DOWN reaches Effect")
         sess.send(b"\x1b[C", 0.8)

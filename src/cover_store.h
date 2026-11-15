@@ -68,7 +68,12 @@ VideoTrackOpts cover_track_video_opts(const std::string& track_path);
 // The MilkDrop visuals of one track (Style Option): on (-1 as it comes, 0 off, 1 shown while it plays), its preset (a file path, or the
 // name of an older record; "" = as it comes), keep (-1 / 1: the preset stays while the track plays, 0: the presets go on from it) and fx
 // (a video effect of its own, -1 = the visuals' MilkDropEffect=).
-struct MilkdropTrackOpts { int on = -1; std::string preset; int keep = -1; int fx = -1; };
+struct MilkdropTrackOpts {
+    int on = -1; std::string preset; int keep = -1; int fx = -1;
+    // More Options of the track (-1 = as in Settings): the preset duration in seconds (0 = off), shuffle presets / favourites (0 / 1), hard cuts (0 / 1),
+    // the hard cut sensitivity in tenths, the transition in seconds, the effect on top (0 / 1), the preset's name shown (0 / 1)
+    int dur = -1, shuf = -1, favs = -1, cuts = -1, hcs = -1, trans = -1, fxon = -1, name = -1;
+};
 MilkdropTrackOpts cover_track_milkdrop(const std::string& track_path);
 void set_cover_track_milkdrop(const std::string& track_path, const MilkdropTrackOpts& o);   // on -1 and no preset removes it
 void set_cover_track_video_opts(const std::string& track_path, const VideoTrackOpts& o);   // all -1 removes it

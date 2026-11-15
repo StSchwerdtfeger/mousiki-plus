@@ -201,6 +201,8 @@ UseMilkDrop=true
 MilkDropView=false
 MilkDropPresets=
 ## the folder of the MilkDrop presets (.milk); empty = the usual places (~/.local/share/projectM/presets, /usr/local/share/projectM/presets, /usr/share/projectM/presets; Windows: milkdrop\presets next to mousiki.exe, %LOCALAPPDATA%\projectM\presets)
+MilkDropDefaultPreset=
+## the preset the visuals start with (a .milk file; Settings -> ANIMA/VIZ -> MILKDROP -> Default Preset); empty = one from the list
 MilkDropFrameRate=30
 ## 15 , 20 , 25 , 30 , 45 , 60 (default 30) -- MilkDrop pictures a second (each one is drawn by the graphics card, or the processor when there is none)
 MilkDropResolution=480
@@ -215,8 +217,8 @@ MilkDropShuffle=true
 ## true , false (default true) -- the next preset at random (false: in the order of the files)
 MilkDropShuffleFavourites=false
 ## true , false (default false) -- only the favourite presets are played (milkdrop_favourites.txt; the preset overlay's [a]); without favourites all of them
-MilkDropBeatSensitivity=10
-## 0 - 20 (default 10 = 1.0) -- how strongly the visuals react to the beat
+MilkDropHardCutSensitivity=20
+## 5 - 60 (default 20 = 2.0) -- how big a jump in volume must be to change the preset at once (Hard Cuts); less = more cuts
 MilkDropHardCuts=true
 ## true , false (default true) -- a strong beat may change the preset at once
 MilkDropTransition=3
@@ -225,6 +227,8 @@ MilkDropShowName=true
 ## true , false (default true) -- the preset's name in a small box for 3 seconds after it changed
 MilkDropEffect=off
 ## off (default) or a video effect name (as VideoFx=) -- an effect over the MilkDrop pictures, their own (the video's effect belongs to the track's video)
+MilkDropEffectOn=true
+## true , false (default true) -- the effect (MilkDropEffect) is put on the visuals; false: none, the choice stays
 MilkDropSixelColors=adaptive
 ## adaptive (default) , fixed -- the colours of the MilkDrop pictures on Sixel (and Kitty at standard resolution): adaptive = up to 240 colours taken from each picture (smooth gradients, a little more CPU), fixed = the fixed 256-colour palette of the videos
 ## false = left out entirely: not in the "." cycle of the lyrics area. The windows

@@ -36,14 +36,15 @@ struct MilkdropOptions {
     int max_width = 480;          // rendered at most this many pixels across (the picture is scaled to the screen from there)
     int preset_seconds = 25;      // a new preset after this long (0 = it stays until changed by hand)
     bool shuffle = true;          // the next preset at random (else in the order of the files)
-    float beat = 1.0f;            // beat sensitivity (0 .. 2)
+    float cut_sens = 2.0f;        // hard cut sensitivity: the jump in volume that makes a hard cut (projectM's default 2.0; less = more cuts)
+    std::string start_preset;     // the preset the visuals start with (a file; "" = one from the list)
     bool hard_cuts = true;        // a strong beat may change the preset at once
     int transition = 3;           // seconds of the blend from one preset into the next (0 = a cut)
     bool favourites_only = false; // the list is the favourites (when there are any) instead of the whole preset folder
     std::vector<std::string> favourites;   // the favourite presets (full paths, UTF-8)
     bool operator==(const MilkdropOptions& o) const {
         return presets_dir == o.presets_dir && fps == o.fps && max_width == o.max_width && preset_seconds == o.preset_seconds &&
-               shuffle == o.shuffle && beat == o.beat && hard_cuts == o.hard_cuts && transition == o.transition &&
+               shuffle == o.shuffle && cut_sens == o.cut_sens && start_preset == o.start_preset && hard_cuts == o.hard_cuts && transition == o.transition &&
                favourites_only == o.favourites_only && favourites == o.favourites;
     }
     bool operator!=(const MilkdropOptions& o) const { return !(*this == o); }

@@ -277,6 +277,12 @@ std::optional<std::string> App::render_takeover_screen(int term_cols, int W, boo
         return fullscreen_out(frame);
     }
 
+    if (mode_ == Mode::Settings && mdb_open_) {   // Settings -> MILKDROP -> Default Preset / Preset Overlay: the preset overlay over the whole screen
+        std::string out = build_mdb_screen(W, hard_clear ? "\x1b[2J\x1b[H" : "\x1b[H");
+        frame_main_len_ = out.size();
+        gfxs_.ok = gfx_.active;
+        return out;
+    }
     if (mode_ == Mode::Settings || mode_ == Mode::ColorEdit || (mode_ == Mode::AudioDevice && adev_->from_settings)) {
         std::ostringstream frame;
         frame << "\x1b[2J\x1b[H\x1b[?25l";
@@ -391,14 +397,6 @@ std::optional<std::string> App::render_takeover_screen(int term_cols, int W, boo
         frame_main_len_ = shown.size();
         gfxs_.ok = gfx_.active;
         return shown;
-    }
-
-    // Style Option -> More Options: the MilkDrop preset overlay of one track, over the whole screen (as from the visuals overlay)
-    if (mode_ == Mode::MetaEdit && mdb_open_ && !mdb_track_.empty()) {
-        std::string out = build_mdb_screen(W, hard_clear ? "\x1b[2J\x1b[H" : "\x1b[H");
-        frame_main_len_ = out.size();
-        gfxs_.ok = gfx_.active;
-        return out;
     }
 
     if (mode_ == Mode::MetaEdit && !(meta_->sty_open && meta_->sty_from_main)) {
@@ -728,7 +726,7 @@ std::string App::render_frame(TerminalIO& term) {
     }
 
     // the MilkDrop preset overlay (from the visuals overlay): the preset folder and the visuals beside it, over the whole screen
-    if ((mode_ == Mode::MilkdropMenu || (mode_ == Mode::MetaEdit && !mdb_track_.empty())) && mdb_open_) {   // (also More Options of Style Option over the main screen)
+    if (mode_ == Mode::MilkdropMenu && mdb_open_) {   // (also from Style Option -> More Options, and the big video overlay)
         std::string out = build_mdb_screen(W, clear_prefix);
         frame_main_len_ = out.size();
         gfxs_.ok = gfx_.active;

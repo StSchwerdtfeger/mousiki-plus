@@ -1360,7 +1360,7 @@ int App::run() {
         // replaces the cells under it): the picture then flickers. Only the panel (and its preview picture) is live.
         bool sty_frozen = false;
         {
-            const bool freeze = ((mode_ == Mode::MetaEdit && meta_->sty_from_main && !mdb_open_) || (mode_ == Mode::VideoSearch && vs_->pic != 0) || (mode_ == Mode::VideoLink && vl_->pic != 0)) && frame_main_len_ != std::string::npos && frame_main_len_ <= frame_str.size();   // (SEARCH YT with a thumbnail picture freezes the main screen too: the line writes of the live screen next to a Sixel picture wipe it)
+            const bool freeze = ((mode_ == Mode::MetaEdit && meta_->sty_from_main) || (mode_ == Mode::VideoSearch && vs_->pic != 0) || (mode_ == Mode::VideoLink && vl_->pic != 0)) && frame_main_len_ != std::string::npos && frame_main_len_ <= frame_str.size();   // (SEARCH YT with a thumbnail picture freezes the main screen too: the line writes of the live screen next to a Sixel picture wipe it)
             // (the look chosen in the panel is shown behind it at once: the frozen screen is taken again when the look changes)
             const std::string look_sig = std::to_string(eff_cover_mode()) + "|" + std::to_string(eff_cover_contrast()) + "|" + std::to_string(eff_cover_brightness()) + "|" +
                                          std::to_string(eff_cover_colors()) + "|" + std::to_string(eff_cover_gsat()) + "|" + std::to_string(eff_cover_chroma()) + "|" + (settings_.album_cover ? "a" : "d");
@@ -1388,7 +1388,7 @@ int App::run() {
         const bool main_frame = frame_main_len_ != std::string::npos;
         // (the meta editor, the cover fetch and the video fetch lay out the main screen behind their own screen to know its height: the
         // spectrogram of that hidden screen must not be drawn -- it took the place of their pictures as soon as a track played)
-        const bool own_screen = mode_ == Mode::CoverFetch || mode_ == Mode::VideoFetch || (mode_ == Mode::MetaEdit && (!meta_->sty_from_main || mdb_open_));
+        const bool own_screen = mode_ == Mode::CoverFetch || mode_ == Mode::VideoFetch || (mode_ == Mode::MetaEdit && !meta_->sty_from_main);
         const bool sp_img = main_frame && !own_screen && spectro_.area[0] >= 0 && sp_proto != 0 && !list_overlay_active() && !queue_overlay_active();
         const bool sp_creator = sp_img && creator_->show;   // the creator's preview has its own spectrogram, settings and picture
         // The spectrogram's analysis keeps running while a track is loaded, shown or not (a menu or another view over it, a pause): it

@@ -770,7 +770,9 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidMdFps: return std::to_string(settings_.milkdrop_fps);
             case kSidMdRes: return std::to_string(settings_.milkdrop_res);
             case kSidMdDuration: return settings_.milkdrop_preset_secs <= 0 ? std::string("off") : std::to_string(settings_.milkdrop_preset_secs) + " s";
-            case kSidMdBeat: { char b[8]; std::snprintf(b, sizeof b, "%.1f", std::clamp(settings_.milkdrop_beat, 0, 20) / 10.0); return b; }
+            case kSidMdCutSens: { char b[8]; std::snprintf(b, sizeof b, "%.1f", std::clamp(settings_.milkdrop_cut_sens, 5, 60) / 10.0); return b; }
+            case kSidMdPreset: return (settings_.milkdrop_default_preset.empty() ? std::string("none (one from the list)") : truncate_str(path_utf8(path_from_utf8(settings_.milkdrop_default_preset).stem()), 40)) + "  [ENTER] choose";
+            case kSidMdBrowse: return "[ENTER] open";
             case kSidMdTransition: return settings_.milkdrop_transition <= 0 ? std::string("cut") : std::to_string(settings_.milkdrop_transition) + " s";
             case kSidMdFx: return video_fx_name(video_fx_canon(settings_.milkdrop_fx));
             case kSidMdColors: return settings_.milkdrop_fixed_colors ? "fixed" : "adaptive";
@@ -793,6 +795,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidMdFavShuffle: v = settings_.milkdrop_fav_shuffle; break;
             case kSidMdHardCuts: v = settings_.milkdrop_hard_cuts; break;
             case kSidMdShowName: v = settings_.milkdrop_show_name; break;
+            case kSidMdUseFx: v = settings_.milkdrop_fx_on; break;
             case kSidMdAuto: v = settings_.milkdrop_auto; break;
             case kSidBlackBg: v = settings_.black_background; break;
             case kSidShareProfiles: v = settings_.share_profiles; break;
@@ -947,7 +950,8 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidMdFps: return {"15", "20", "25", "30", "45", "60"};
             case kSidMdRes: return {"320", "480", "640", "960", "1280"};
             case kSidMdDuration: return {"off", "10 s", "15 s", "20 s", "25 s", "30 s", "45 s", "60 s", "90 s", "120 s", "180 s", "300 s"};
-            case kSidMdBeat: { std::vector<std::string> o; for (int i = 0; i <= 20; ++i) { char b[8]; std::snprintf(b, sizeof b, "%.1f", i / 10.0); o.push_back(b); } return o; }
+            case kSidMdCutSens: { std::vector<std::string> o; for (int i = 5; i <= 60; ++i) { char b[8]; std::snprintf(b, sizeof b, "%.1f", i / 10.0); o.push_back(b); } return o; }
+            case kSidMdPreset: case kSidMdBrowse: return {};   // not a switch: ENTER opens the preset overlay
             case kSidMdTransition: { std::vector<std::string> o; for (int i = 0; i <= 10; ++i) o.push_back(i == 0 ? std::string("cut") : std::to_string(i) + " s"); return o; }
             case kSidMdFx: { std::vector<std::string> o; for (int i = 0; i < kVideoFxShown; ++i) o.push_back(video_fx_name(kVideoFxOrder[i])); return o; }
             case kSidMdColors: return {"adaptive", "fixed"};
@@ -1054,7 +1058,7 @@ void App::settings_commit_edit_impl() {
         if (id == kSidMdFps) { settings_.milkdrop_fps = std::clamp(std::atoi(v.c_str()), 10, 60); return; }
         if (id == kSidMdRes) { settings_.milkdrop_res = std::clamp(std::atoi(v.c_str()), 160, 1920); milkdrop_pic_key_.clear(); return; }
         if (id == kSidMdDuration) { settings_.milkdrop_preset_secs = v == "off" ? 0 : std::clamp(std::atoi(v.c_str()), 0, 600); return; }
-        if (id == kSidMdBeat) { settings_.milkdrop_beat = std::clamp(static_cast<int>(std::lround(std::atof(v.c_str()) * 10.0)), 0, 20); return; }
+        if (id == kSidMdCutSens) { settings_.milkdrop_cut_sens = std::clamp(static_cast<int>(std::lround(std::atof(v.c_str()) * 10.0)), 5, 60); return; }
         if (id == kSidMdTransition) { settings_.milkdrop_transition = v == "cut" ? 0 : std::clamp(std::atoi(v.c_str()), 0, 10); return; }
         if (id == kSidMdFx) { settings_.milkdrop_fx = video_fx_from(v); milkdrop_pic_key_.clear(); return; }
         if (id == kSidMdColors) { settings_.milkdrop_fixed_colors = v == "fixed"; milkdrop_pic_key_.clear(); return; }
@@ -1241,6 +1245,7 @@ void App::settings_commit_edit_impl() {
             case kSidMdFavShuffle: settings_.milkdrop_fav_shuffle = is_true; break;
             case kSidMdHardCuts: settings_.milkdrop_hard_cuts = is_true; break;
             case kSidMdShowName: settings_.milkdrop_show_name = is_true; break;
+            case kSidMdUseFx: settings_.milkdrop_fx_on = is_true; milkdrop_pic_key_.clear(); break;
             case kSidMdAuto: milkdrop_auto_set(is_true); break;
             case kSidQueue: settings_.element_queue = is_true; break;
             case kSidWave: settings_.element_waveform = is_true; break;
@@ -1685,6 +1690,22 @@ void App::ref_undo_pop() {
 
 void App::handle_settings_key(int key) {
     g_settings_hifi_rows = settings_.bars_style == 1;   // (the Hi-Fi rows of SPECTRUM BARS are listed only with that style)
+    if (mdb_open_ && mode_ == Mode::Settings) { handle_mdb_key(key); return; }   // (the preset overlay of Default Preset / Preset Overlay)
+    if (mode_ == Mode::Settings && settings_tab_ == 2 && leave_prompt_ == 0) {
+        const int sid = settings_item_id(2, settings_row_);
+        if ((sid == kSidMdPreset || sid == kSidMdBrowse) && (key == '\r' || key == '\n' || (last_key_was_arrow() && (key == 'C' || key == 'D') && sid == kSidMdPreset))) {
+            mdb_open_default();
+            if (!mdb_open_) force_redraw_ = true;
+            return;
+        }
+        if (sid == kSidMdPreset && !last_key_was_arrow() && (key == 'd' || key == 'D' || key == kKeyDelete || key == 127 || key == 8)) {
+            settings_.milkdrop_default_preset.clear();
+            settings_update_dirty();
+            status_line_ = "default preset: none -- the visuals start with one from the list (s saves)";
+            milkdrop_apply_settings();
+            return;
+        }
+    }
     if (leave_prompt_ != 0 && mode_ != Mode::ColorEdit) {
         // "unsaved changes" question: [s] / ENTER save, [d] discard, anything else (ESC) goes back to editing
         const int kind = leave_prompt_;

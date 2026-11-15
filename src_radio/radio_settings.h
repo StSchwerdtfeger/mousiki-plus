@@ -110,7 +110,7 @@ struct RadioSettings : VizPrefs {
     // The MilkDrop visuals (src/milkdrop.h) in the scope block: ANIMA/VIZ -> MILKDROP and the visuals overlay (":"). The radio's own values (radio_config.txt),
     // the same keys as the player's config.txt; MilkDropPresets= is the player's (one preset folder for all modes, read at the start).
     bool use_milkdrop = true;
-    int md_fps = 30, md_res = 480, md_secs = 25, md_beat = 10, md_transition = 3;
+    int md_fps = 30, md_res = 480, md_secs = 25, md_cut_sens = 20, md_transition = 3;
     bool md_shuffle = true, md_hard_cuts = true, md_show_name = true;
     std::string md_presets;    bool element_visualizer = true;             // the FFT spectrum under the station info
     bool stereo = true;                         // false = fold left + right to mono

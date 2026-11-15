@@ -98,10 +98,10 @@ UseMilkDrop=true
 # pictures a second (15 .. 60), drawn at most this many pixels across (320 .. 1280; then scaled to the block)
 MilkDropFrameRate=30
 MilkDropResolution=480
-# seconds a preset stays (0 = until changed by hand), next preset at random, beat sensitivity 0 .. 20 (= 0.0 .. 2.0)
+# seconds a preset stays (0 = until changed by hand), next preset at random, hard cut sensitivity 5 .. 60 (= 0.5 .. 6.0; 20 = 2.0: less = more cuts)
 MilkDropPresetDuration=25
 MilkDropShuffle=true
-MilkDropBeatSensitivity=10
+MilkDropHardCutSensitivity=20
 # a strong beat may change the preset at once; seconds of the blend into the next preset (0 = a cut); the preset's name for 3 s after a change
 MilkDropHardCuts=true
 MilkDropTransition=3

@@ -15,7 +15,7 @@ void radio_milkdrop_apply(const RadioSettings& c) {
     o.max_width = std::clamp(c.md_res, 160, 1920);
     o.preset_seconds = std::max(0, c.md_secs);
     o.shuffle = c.md_shuffle;
-    o.beat = static_cast<float>(std::clamp(c.md_beat, 0, 20)) / 10.0f;
+    o.cut_sens = static_cast<float>(std::clamp(c.md_cut_sens, 5, 60)) / 10.0f;
     o.hard_cuts = c.md_hard_cuts;
     o.transition = std::clamp(c.md_transition, 0, 10);
     Milkdrop::instance().configure(o);
@@ -158,8 +158,8 @@ std::vector<std::string> build_md_overlay(const Style& s, const UiModel& m) {
     std::string preset = md.preset_name();
     if (preset.empty()) preset = md.running() ? "(starting ...)" : "(shows when the visuals run)";
     char beat[8];
-    std::snprintf(beat, sizeof beat, "%.1f", std::clamp(c.md_beat, 0, 20) / 10.0);
-    const std::string labels[kMdRowCount] = {"Preset", "Random Preset", "Lock Preset", "Preset Duration", "Shuffle Presets", "Beat Sensitivity",
+    std::snprintf(beat, sizeof beat, "%.1f", std::clamp(c.md_cut_sens, 5, 60) / 10.0);
+    const std::string labels[kMdRowCount] = {"Preset", "Random Preset", "Lock Preset", "Preset Duration", "Shuffle Presets", "Hard Cut Sensitivity",
                                              "Hard Cuts", "Preset Transition", "Frame Rate", "Resolution", "Show Preset Name", "Show in the Scope Block"};
     const std::string vals[kMdRowCount] = {
         preset, "[ENTER]", md.locked() ? "on" : "off",
@@ -211,7 +211,7 @@ void md_overlay_adjust(RadioSettings& c, int row, int dir, std::string& notice) 
         case 2: md.set_locked(!md.locked()); notice = md.locked() ? "milkdrop: the preset stays" : "milkdrop: the presets change again"; break;
         case 3: c.md_secs = radio_md_step(2, c.md_secs, dir); break;
         case 4: c.md_shuffle = !c.md_shuffle; break;
-        case 5: c.md_beat = std::clamp(c.md_beat + dir, 0, 20); break;
+        case 5: c.md_cut_sens = std::clamp(c.md_cut_sens + dir, 5, 60); break;
         case 6: c.md_hard_cuts = !c.md_hard_cuts; break;
         case 7: c.md_transition = std::clamp(c.md_transition + dir, 0, 10); break;
         case 8: c.md_fps = radio_md_step(0, c.md_fps, dir); break;

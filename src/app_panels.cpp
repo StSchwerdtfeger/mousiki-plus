@@ -960,25 +960,26 @@ void App::meta_panel_field(MetaPanel& m) const {
             lyric_rows[0] = pad_right(std::string(pad, ' ') + lyrics_status, lyrics_w);
         }
     } else {
-        // SHIFT+2 (main_translit_key): the translation after every line that has one, in ( ) -- the line keeps its timing; with word timing the
-        // translation is the last "word" of the line and lights up with the line's last word
+        // SHIFT+2 (main_translit_key): the translation under every line that has one, on a line of its own, in ( ) -- it is shown with its lyric line
+        std::vector<LyricLine> tr_lines;   // (one per lyric line; an empty full_text = no translation)
         if (main_lyr_tr_ && !lines_orig.empty() && lines_orig.size() == lines_copy.size()) {
             const std::vector<VTr>& all = video_translations(lines_orig);
             if (!all.empty()) {
                 const std::vector<std::string>& tr = all[static_cast<size_t>(std::clamp(vfull_tr_idx_, 0, static_cast<int>(all.size()) - 1))].lines;
+                tr_lines.resize(lines_copy.size());
                 for (size_t i = 0; i < lines_copy.size() && i < tr.size(); ++i) {
-                    if (tr[i].empty()) continue;
-                    const std::string add = "(" + (translit_enabled() ? transliterate(tr[i]) : tr[i]) + ")";
-                    lines_copy[i].full_text += " " + add;
-                    if (!lines_copy[i].words.empty()) {   // (word by word, so the line wraps between them)
-                        const double at = lines_copy[i].words.back().first;
-                        std::istringstream ws(add);
-                        std::string w;
-                        while (ws >> w) lines_copy[i].words.push_back({at, w});
-                    }
+                    if (tr[i].empty() || tr[i] == lines_orig[i].full_text) continue;
+                    tr_lines[i].start_time = lines_copy[i].start_time;
+                    tr_lines[i].full_text = "(" + (translit_enabled() ? transliterate(tr[i]) : tr[i]) + ")";
                 }
             }
         }
+        const double lyric_t_tr = elapsed - lyrics_delay;
+        auto with_translation = [&](size_t li, std::vector<std::string> rows) {
+            if (li < tr_lines.size() && !tr_lines[li].full_text.empty())
+                for (auto& r : render_lyric_line_wrapped(tr_lines[li], lyric_t_tr, lyrics_w, false, settings_)) rows.push_back(std::move(r));
+            return rows;
+        };
         const double lyric_t = elapsed - lyrics_delay; // the time the lyrics are looked up at
         int active = 0;
         for (size_t i = 0; i < lines_copy.size(); ++i) {
@@ -1005,7 +1006,7 @@ void App::meta_panel_field(MetaPanel& m) const {
         } else if (settings_.lyrics_animation == 3) {
             // Only active line: same per-word rendering as the default
             // view, just without the scrolling context lines around it.
-            auto wrapped = render_lyric_line_wrapped(lines_copy[active], lyric_t, lyrics_w, true, settings_);
+            auto wrapped = with_translation(static_cast<size_t>(active), render_lyric_line_wrapped(lines_copy[active], lyric_t, lyrics_w, true, settings_));
             int start_row = std::max(0, (panel_h - static_cast<int>(wrapped.size())) / 2);
             for (size_t i = 0; i < wrapped.size() && start_row + static_cast<int>(i) < panel_h; ++i) {
                 lyric_rows[start_row + i] = wrapped[i];
@@ -1024,7 +1025,7 @@ void App::meta_panel_field(MetaPanel& m) const {
             std::vector<std::string> flat_rows;
             int active_row_start = 0, active_row_count = 1;
             for (int li = lo; li <= hi; ++li) {
-                auto wrapped = render_lyric_line_wrapped(lines_copy[li], lyric_t, lyrics_w, li == active, settings_);
+                auto wrapped = with_translation(static_cast<size_t>(li), render_lyric_line_wrapped(lines_copy[li], lyric_t, lyrics_w, li == active, settings_));
                 if (li == active) {
                     active_row_start = static_cast<int>(flat_rows.size());
                     active_row_count = static_cast<int>(wrapped.size());

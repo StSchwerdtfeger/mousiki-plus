@@ -49,6 +49,10 @@
 #   (All the downloads above -- compilers, ffmpeg, yt-dlp, pykakasi -- need an internet connection.)
 #   --with-kanji        Also install pykakasi (pip install --user pykakasi): kanji are then shown in
 #                       Latin letters too (SHIFT+'). Optional; GPL-3.0, not part of Mousiki.
+#   --skip-milkdrop     Don't build the MilkDrop visuals. By default tools/milkdrop-unix.sh builds projectM (LGPL-2.1) from a pinned,
+#                       checksummed source and installs it with the "Cream of the Crop" presets (ISOSCELES) and the MilkDrop
+#                       texture pack under ~/.local (lib/ and share/projectM/): about 80 MB of downloads and a few minutes of
+#                       building, once (a later run skips it while it is up to date). Without it the MilkDrop view is left out.
 #   -y, --yes           Don't ask before installing packages (uses sudo if needed).
 #   -h, --help          Show this help.
 
@@ -63,6 +67,7 @@ BUILD_TYPE="Release"
 DO_INSTALL=1
 ASSUME_YES=0
 UPGRADE_FFMPEG=1
+SKIP_MILKDROP=0
 
 # ---------------------------------------------------------------------------
 # Output helpers
@@ -99,6 +104,7 @@ while [ $# -gt 0 ]; do
         --no-install) DO_INSTALL=0 ;;
         --no-upgrade) UPGRADE_FFMPEG=0 ;;
         --with-kanji) WITH_KANJI=1 ;;
+        --skip-milkdrop) SKIP_MILKDROP=1 ;;
         -y|--yes)     ASSUME_YES=1 ;;
         -h|--help)    usage; exit 0 ;;
         *)            die "unknown option: $1 (try --help)" ;;
@@ -545,6 +551,33 @@ fi
 # Recording in the radio converts to MP3 through ffmpeg's libmp3lame.
 if have ffmpeg && ! ffmpeg -hide_banner -encoders 2>/dev/null | grep -q libmp3lame; then
     warn "your ffmpeg has no libmp3lame encoder -- recording a radio stream to MP3 will fail (everything else works)."
+fi
+
+# ---------------------------------------------------------------------------
+# MilkDrop visuals (optional): projectM + presets, under ~/.local
+# ---------------------------------------------------------------------------
+# tools/milkdrop-unix.sh does the work (packaging/release.py uses the same script for the installers); it returns at once when what is
+# installed matches its pins. A failure only costs the MilkDrop view.
+if [ "$SKIP_MILKDROP" -eq 1 ]; then
+    echo "MilkDrop visuals skipped (--skip-milkdrop): run  $ROOT/tools/milkdrop-unix.sh  for them later."
+elif [ ! -f "$ROOT/tools/milkdrop-unix.sh" ]; then
+    warn "tools/milkdrop-unix.sh is missing - the MilkDrop visuals are not installed (everything else works)."
+else
+    if [ "$SKIP_DEPS" -eq 0 ] && [ "$PLATFORM" = "linux" ] && [ -n "$PM" ]; then
+        # projectM draws with OpenGL (through EGL, without a window): its development files build it, Mesa's EGL runs it
+        step "Installing the OpenGL development files (to build projectM)"
+        case "$PM" in
+            apt)    pkg_install_optional "OpenGL development files" libgl1-mesa-dev libegl1-mesa-dev libegl1 ;;
+            dnf)    pkg_install_optional "OpenGL development files" mesa-libGL-devel mesa-libEGL-devel mesa-libEGL ;;
+            pacman) pkg_install_optional "OpenGL development files" mesa libglvnd ;;
+            zypper) pkg_install_optional "OpenGL development files" Mesa-libGL-devel Mesa-libEGL-devel Mesa-libEGL1 ;;
+            apk)    pkg_install_optional "OpenGL development files" mesa-dev mesa-egl ;;
+        esac
+    fi
+    step "MilkDrop visuals (projectM + the Cream of the Crop presets)"
+    if ! bash "$ROOT/tools/milkdrop-unix.sh" --cache "$BUILD_DIR/milkdrop"; then
+        warn "The MilkDrop visuals were not installed. Everything else works; run setup again later, or with --skip-milkdrop to leave them out."
+    fi
 fi
 
 # ---------------------------------------------------------------------------

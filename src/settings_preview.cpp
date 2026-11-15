@@ -217,10 +217,10 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
     const std::string R = "\x1b[0m";
     const int iw = W - 77;                                        // inside the box
     const int visible = std::max(1, MAX_Y - 3);
-    const int bh = std::min(visible - 1, 19);                         // the box, borders included
-    const int ih = bh - 2;                                        // rows inside
+    int bh = std::min(visible - 1, 19);                           // the box, borders included (the transliteration previews may make it taller)
+    int ih = bh - 2;                                              // rows inside
     if (ih < 6 || iw < 30) return;
-    const int body_h = ih - 1;                                    // the last row is the caption
+    int body_h = ih - 1;                                    // the last row is the caption
 
     // ---- the signal, only for what is shown ------------------------------------------------------------------
     std::vector<float> lr;
@@ -582,8 +582,8 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
         auto tw = [&](const char* t, int v) { return transliterate_as(t, -1, v, -1); };
         auto th = [&](const char* t, int v) { return transliterate_as(t, -1, -1, v); };
         // the optional kanji reader (pykakasi; janome cuts the words): what it does here, in one line
-        const std::string reader = kanji_->broken ? "the kanji reader is not installed (pip install pykakasi janome)"
-                                 : !settings_.latin_letters ? "the kanji reader reads while the Latin letters are on (" + hotkey_text("HKeyTranslit", "\"") + ")"
+        const std::string reader = kanji_->broken ? "kanji reader: not installed (pip install pykakasi janome)"
+                                 : !settings_.latin_letters ? "kanji reader: reads while Latin letters are on (" + hotkey_text("HKeyTranslit", "\"") + ")"
                                                             : "kanji reader: on (its readings come in after a moment)";
         std::string cap;
         if (id == kSidLatinMacrons) {
@@ -594,18 +594,17 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             line("off: the long vowel spelled out (ou, oo, ii); on: a line over it (\u014d, \u012b).");
             cap = std::string("Latin Macrons: ") + (m ? "on" : "off");
         } else if (id == kSidLatinWo) {
-            line("The particle \u3092 (object marker): wo | o");
+            line("The particle \u3092: wo | o");
             example("\u3042\u3044\u3092\u3053\u3081\u3066", {tw("\u3042\u3044\u3092\u3053\u3081\u3066", 1), tw("\u3042\u3044\u3092\u3053\u3081\u3066", 0)}, wo ? 0 : 1, {"wo", "o"});   // あいをこめて
             example("\u3053\u3048\u3092\u304d\u304b\u305b\u3066", {tw("\u3053\u3048\u3092\u304d\u304b\u305b\u3066", 1), tw("\u3053\u3048\u3092\u304d\u304b\u305b\u3066", 0)}, wo ? 0 : 1, {"wo", "o"});   // こえをきかせて
-            line("It is written \"wo\" and spoken \"o\". Kana have no spaces: the words run together unless the kanji reader cuts them.");
-            line(reader);
+            line("Written \"wo\", spoken \"o\".");
             cap = std::string("Latin Wo: ") + (wo ? "wo" : "o");
         } else if (id == kSidLatinHanzi) {
-            line("Chinese characters with no hint of the language (no kana, no other tag that tells): Leave | Chin. | Jap.");
+            line("Kanji/hanzi with no hint of the language: Leave | Chin. | Jap.");
             example("\u6771\u4eac", {th("\u6771\u4eac", 0), th("\u6771\u4eac", 1), th("\u6771\u4eac", 2)}, hz, {"Leave", "Chin.", "Jap."});   // 東京
             example("\u5f20\u60ac", {th("\u5f20\u60ac", hz) + "  (only Chinese writes \u5f20 \u60ac)"}, 0);   // 张悬 (Deserts Chang, a Taiwanese singer-songwriter): a hint of its own
-            line("Jap.: the kanji reader reads them; without it they stay.");
-            line("Japanese text (kana in it) is not changed by this row: its kanji are read by the kanji reader. A short poem, phrase by phrase:");
+            if (hz == 2 && th("\u6771\u4eac", 2) == "\u6771\u4eac") line("Jap. needs the kanji reader; without it they stay.");
+            line("Text with kana is not changed by this row. A short poem:");
             example("\u8349\u306e\u540d\u3082", {th("\u8349\u306e\u540d\u3082", hz)}, 0);   // 草の名も
             example("\u5bc2\u3057\u3046\u306a\u308a\u3051\u308a", {th("\u5bc2\u3057\u3046\u306a\u308a\u3051\u308a", hz)}, 0);   // 寂しうなりけり
             example("\u6625\u306e\u96e8", {th("\u6625\u306e\u96e8", hz)}, 0);   // 春の雨
@@ -614,14 +613,13 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             line(reader);
             cap = std::string("Translit. Kanji: ") + (hz == 1 ? "Chin." : hz == 2 ? "Jap." : "Leave");
         } else {   // kSidLatinLookup
-            line("An artist name in kanji that Mousiki has no reading for: on, MusicBrainz is asked for the Latin spelling the artist uses (the name is sent there); off, the name stays as the rules make it.");
+            line("Asks MusicBrainz how an artist spells a kanji name in Latin letters (the name is sent there). Off: the name is spelled by the rules.");
             const std::string yanai = transliterate("\u67f3\u4e95 \u611b\u5b50");   // 柳井 愛子
-            line("shown now | when found, e.g.:");
-            example("\u67f3\u4e95 \u611b\u5b50", {yanai, "Aiko Yanai"}, -1, {"shown now", "when found, e.g."});
-            line("Name order: Japanese puts the family name first (\u67f3\u4e95 Yanai = family name, \u611b\u5b50 Aiko = given name); the Latin spelling on MusicBrainz mostly puts the given name first, so the two parts swap.");
-            line("Never looked up:");
-            example("HAKU \u30cf\u30af\u3002", {transliterate("HAKU \u30cf\u30af\u3002") + "  (the tag has it in Latin)"}, 0);   // the tag holds the Latin name itself
-            example("\u30ab\u30cd\u30b3\u30a2\u30e4\u30ce", {transliterate("\u30ab\u30cd\u30b3\u30a2\u30e4\u30ce") + "  (kana only)"}, 0);   // kana only: read by the rules (or what your tags taught)
+            example("\u67f3\u4e95 \u611b\u5b50", {yanai, "Aiko Yanai"}, settings_.latin_lookup ? 1 : 0, {"off: by the rules", "on: when found"});
+            line("(the given name comes first in the Latin spelling.)");
+            line("Not asked for names already in Latin or in kana only:");
+            example("HAKU \u30cf\u30af\u3002", {transliterate("HAKU \u30cf\u30af\u3002")}, 0);   // the tag holds the Latin name itself
+            example("\u30ab\u30cd\u30b3\u30a2\u30e4\u30ce", {transliterate("\u30ab\u30cd\u30b3\u30a2\u30e4\u30ce")}, 0);   // kana only
             cap = std::string("Latin Name Lookup: ") + (settings_.latin_lookup ? "on" : "off");
         }
         for (const PRow& r : rows) {
@@ -631,6 +629,10 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             const int period = std::max(1, display_width(loop));
             const int at = static_cast<int>(P.t * 5.0) % period;
             out.rows.push_back(utf8_skip_take(loop + loop, at, cw));
+        }
+        {   // longer than the box: the box grows (as far as the screen allows) so that nothing is cut off
+            const int want = std::min(visible - 1, static_cast<int>(out.rows.size()) + 3);
+            if (want > bh) { bh = want; ih = bh - 2; body_h = ih - 1; }
         }
         if (static_cast<int>(out.rows.size()) > body_h) out.rows.resize(static_cast<size_t>(body_h));
         out.w = 0;   // left aligned

@@ -39,6 +39,10 @@
 .PARAMETER Generator
     A CMake generator for the projectM build (default: CMake's choice, as for Mousiki itself).
 
+.PARAMETER ShowBuild
+    Show the output of projectM's configure / build / install (by default it goes to build.log in -Cache and is shown only
+    when a step fails).
+
 .PARAMETER PrintManifests
     Only print the checksums of the archives in -Cache (to update a pin) and stop.
 #>
@@ -48,7 +52,8 @@ param(
     [string]$Cache = '',
     [switch]$Force,
     [string]$Generator = '',
-    [switch]$PrintManifests
+    [switch]$PrintManifests,
+    [switch]$ShowBuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -189,19 +194,39 @@ Write-Step "Unpacking projectM"
 Expand-ZipFiles $zips['projectm'] $src
 Expand-ZipFiles $zips['projectm-eval'] (Join-Path $src 'vendor\projectm-eval')
 
+# projectM's own compiler warnings (a hundred or so with MSVC) say nothing to do here: the output of configure / build / install
+# goes to build.log in the cache and is shown only when a step fails (its last lines; -ShowBuild shows all of it).
+$log = Join-Path $Cache 'build.log'
+Set-Content -LiteralPath $log -Value '' -Encoding utf8
+function Invoke-CMakeStep([string]$What, [string[]]$CmArgs) {
+    Add-Content -LiteralPath $log -Value "`n==== cmake $($CmArgs -join ' ')" -Encoding utf8
+    # (Windows PowerShell 5.1 turns a native program's stderr lines into errors under 'Stop'; the exit code decides here)
+    $ErrorActionPreference = 'Continue'
+    if ($ShowBuild) {
+        & cmake @CmArgs 2>&1 | Tee-Object -FilePath $log -Append | Out-Host
+    } else {
+        & cmake @CmArgs 2>&1 | ForEach-Object { "$_" } | Add-Content -LiteralPath $log -Encoding utf8
+    }
+    if ($LASTEXITCODE -ne 0) {
+        if (-not $ShowBuild) {
+            Write-Host "---- the last lines of $log :" -ForegroundColor Yellow
+            Get-Content -LiteralPath $log -Tail 40 | Out-Host
+        }
+        throw "projectM: $What failed (the whole output: $log)"
+    }
+}
+
 Write-Step "Configuring projectM"
-$cfg = @('-S', $src, '-B', $bld, '-DCMAKE_BUILD_TYPE=Release', '-DBUILD_SHARED_LIBS=ON', '-DENABLE_PLAYLIST=ON',
+# (--no-warn-unused-cli: Visual Studio's multi-config generator ignores CMAKE_BUILD_TYPE, single-config ones need it)
+$cfg = @('--no-warn-unused-cli', '-S', $src, '-B', $bld, '-DCMAKE_BUILD_TYPE=Release', '-DBUILD_SHARED_LIBS=ON', '-DENABLE_PLAYLIST=ON',
          '-DENABLE_SYSTEM_GLM=OFF', '-DENABLE_SYSTEM_PROJECTM_EVAL=OFF', '-DENABLE_SDL_UI=OFF', '-DBUILD_TESTING=OFF',
          '-DBUILD_DOCS=OFF', "-DCMAKE_INSTALL_PREFIX=$inst")
 if ($Generator -ne '') { $cfg = @('-G', $Generator) + $cfg }
-& cmake @cfg
-if ($LASTEXITCODE -ne 0) { throw "projectM: cmake configure failed" }
-Write-Step "Building projectM (a few minutes)"
+Invoke-CMakeStep 'cmake configure' $cfg
+Write-Step "Building projectM (a few minutes; the output goes to $log)"
 $jobs = if ($env:NUMBER_OF_PROCESSORS) { $env:NUMBER_OF_PROCESSORS } else { '2' }
-& cmake --build $bld --config Release --parallel $jobs
-if ($LASTEXITCODE -ne 0) { throw "projectM: the build failed" }
-& cmake --install $bld --config Release
-if ($LASTEXITCODE -ne 0) { throw "projectM: cmake --install failed" }
+Invoke-CMakeStep 'the build' @('--build', $bld, '--config', 'Release', '--parallel', "$jobs")
+Invoke-CMakeStep 'cmake --install' @('--install', $bld, '--config', 'Release')
 [IO.File]::WriteAllText($buildStamp, $Stamp)
 
 # ---- copy next to mousiki.exe ----

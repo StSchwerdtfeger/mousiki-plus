@@ -2132,7 +2132,10 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 [MilkDrop Frame Rate / Resolution:][[Legend]]                 30 pictures a second, 480 pixels across (defaults);
                                                   more costs more (no graphics card: the processor draws).
 [Preset Duration / Shuffle / Transition:][[Legend]]           25 s, random, a 3 s blend (defaults).
-[Beat Sensitivity / Hard Cuts / Show Preset Name:][[Legend]]  1.0, on, on (defaults). The same rows are in [:].
+[Hard Cut Sensitivity / Hard Cuts / Show Preset Name:][[Legend]]  2.0, on, on (defaults). The same rows are in [:].
+[Default Preset / Use Effect:][[Legend]]                      the preset the visuals start with ([ENTER] opens the preset list); Use Effect = off
+                                                  switches the effect over the visuals off. [:] from the big video overlay
+                                                  changes the current track only.
 
 
 [SPHERE:][[Header]]
