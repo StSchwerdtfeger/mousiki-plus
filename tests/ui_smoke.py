@@ -4976,9 +4976,11 @@ def spectro_history_setting(binary, root, scripts):
         check(y is not None and "OSCI/SPECTRO SETTINGS" in sess.text(), "spectro history: the row is under OSCI/SPECTRO SETTINGS")
         check("true" in line, "spectro history: true by default: %r" % line)
         sess.send(b"\x1b[C", 0.8)
+        sess.wait_for(lambda t: "keep spectrogram history: off" in t, 6)   # (a slow machine draws the status line a moment after the row)
         y, line = row()
         check("false" in line and "keep spectrogram history: off" in sess.text(), "spectro history: RIGHT switches it off and the status line says so: %r" % line)
         sess.send(b"\x1b[D", 0.8)
+        sess.wait_for(lambda t: "keep spectrogram history: on" in t, 6)
         y, line = row()
         check("true" in line and "keep spectrogram history: on" in sess.text(), "spectro history: LEFT switches it on again: %r" % line)
         sess.send(b"\x1b[C", 0.6)                           # off; "s" saves and closes the settings

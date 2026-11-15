@@ -774,6 +774,9 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidMdPreset: return (settings_.milkdrop_default_preset.empty() ? std::string("none (one from the list)") : truncate_str(path_utf8(path_from_utf8(settings_.milkdrop_default_preset).stem()), 40)) + "  [ENTER] choose";
             case kSidMdBrowse: return "[ENTER] open";
             case kSidMdGpu: return milkdrop_gpu_label(settings_.milkdrop_gpu);
+            case kSidMdHcd: return std::to_string(std::clamp(settings_.milkdrop_hcd, 3, 120)) + " s";
+            case kSidMdMesh: return mesh_name(settings_.milkdrop_mesh);
+            case kSidMdVar: return settings_.milkdrop_var <= 0 ? std::string("off") : std::to_string(std::clamp(settings_.milkdrop_var, 0, 30)) + " s";
             case kSidMdTransition: return settings_.milkdrop_transition <= 0 ? std::string("cut") : std::to_string(settings_.milkdrop_transition) + " s";
             case kSidMdFx: return video_fx_name(video_fx_canon(settings_.milkdrop_fx));
             case kSidMdColors: return settings_.milkdrop_fixed_colors ? "fixed" : "adaptive";
@@ -795,6 +798,8 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidMdShuffle: v = settings_.milkdrop_shuffle; break;
             case kSidMdFavShuffle: v = settings_.milkdrop_fav_shuffle; break;
             case kSidMdHardCuts: v = settings_.milkdrop_hard_cuts; break;
+            case kSidMdAspect: v = settings_.milkdrop_aspect; break;
+            case kSidMdClean: v = settings_.milkdrop_clean; break;
             case kSidMdShowName: v = settings_.milkdrop_show_name; break;
             case kSidMdUseFx: v = settings_.milkdrop_fx_on; break;
             case kSidMdAuto: v = settings_.milkdrop_auto; break;
@@ -952,6 +957,9 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidMdRes: return {"320", "480", "640", "960", "1280"};
             case kSidMdDuration: return {"off", "10 s", "15 s", "20 s", "25 s", "30 s", "45 s", "60 s", "90 s", "120 s", "180 s", "300 s"};
             case kSidMdCutSens: { std::vector<std::string> o; for (int i = 5; i <= 60; ++i) { char b[8]; std::snprintf(b, sizeof b, "%.1f", i / 10.0); o.push_back(b); } return o; }
+            case kSidMdHcd: return {"3 s", "5 s", "10 s", "15 s", "20 s", "30 s", "45 s", "60 s", "90 s", "120 s"};
+            case kSidMdMesh: return {mesh_name(0), mesh_name(1), mesh_name(2), mesh_name(3)};
+            case kSidMdVar: return {"off", "2 s", "5 s", "10 s", "15 s", "20 s", "30 s"};
             case kSidMdGpu: { std::vector<std::string> o{"automatic"}; for (const MilkdropGpu& g : Milkdrop::gpus()) o.push_back(g.label); return o; }
             case kSidMdPreset: case kSidMdBrowse: return {};   // not a switch: ENTER opens the preset overlay
             case kSidMdTransition: { std::vector<std::string> o; for (int i = 0; i <= 10; ++i) o.push_back(i == 0 ? std::string("cut") : std::to_string(i) + " s"); return o; }
@@ -1065,6 +1073,9 @@ void App::settings_commit_edit_impl() {
                                                            : "MilkDrop GPU: " + v + " -- the visuals restart on it";
             return;
         }
+        if (id == kSidMdHcd) { settings_.milkdrop_hcd = std::clamp(std::atoi(v.c_str()), 3, 120); return; }
+        if (id == kSidMdMesh) { for (int i = 0; i < 4; ++i) if (v == mesh_name(i)) settings_.milkdrop_mesh = i; return; }
+        if (id == kSidMdVar) { settings_.milkdrop_var = v == "off" ? 0 : std::clamp(std::atoi(v.c_str()), 0, 30); return; }
         if (id == kSidMdRes) { settings_.milkdrop_res = std::clamp(std::atoi(v.c_str()), 160, 1920); milkdrop_pic_key_.clear(); return; }
         if (id == kSidMdDuration) { settings_.milkdrop_preset_secs = v == "off" ? 0 : std::clamp(std::atoi(v.c_str()), 0, 600); return; }
         if (id == kSidMdCutSens) { settings_.milkdrop_cut_sens = std::clamp(static_cast<int>(std::lround(std::atof(v.c_str()) * 10.0)), 5, 60); return; }
@@ -1253,6 +1264,8 @@ void App::settings_commit_edit_impl() {
             case kSidMdShuffle: settings_.milkdrop_shuffle = is_true; break;
             case kSidMdFavShuffle: settings_.milkdrop_fav_shuffle = is_true; break;
             case kSidMdHardCuts: settings_.milkdrop_hard_cuts = is_true; break;
+            case kSidMdAspect: settings_.milkdrop_aspect = is_true; break;
+            case kSidMdClean: settings_.milkdrop_clean = is_true; break;
             case kSidMdShowName: settings_.milkdrop_show_name = is_true; break;
             case kSidMdUseFx: settings_.milkdrop_fx_on = is_true; milkdrop_pic_key_.clear(); break;
             case kSidMdAuto: milkdrop_auto_set(is_true); break;

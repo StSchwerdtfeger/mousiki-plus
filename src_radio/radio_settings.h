@@ -111,6 +111,7 @@ struct RadioSettings : VizPrefs {
     // the same keys as the player's config.txt; MilkDropPresets= is the player's (one preset folder for all modes, read at the start).
     bool use_milkdrop = true;
     int md_fps = 30, md_res = 480, md_secs = 25, md_cut_sens = 20, md_transition = 3;
+    std::string md_gpu;   // MilkDropGpu=: "" = automatic, else the card (Linux: its render node, e.g. renderD129)
     bool md_shuffle = true, md_hard_cuts = true, md_show_name = true;
     std::string md_presets;    bool element_visualizer = true;             // the FFT spectrum under the station info
     bool stereo = true;                         // false = fold left + right to mono
@@ -259,6 +260,7 @@ inline int timeshift_minutes(const RadioSettings& s) { return kTimeshiftMinutes[
 // The MilkDrop visuals (radio_milkdrop.cpp): the radio's options handed to the shared engine; can they run here (`why`: why not)?
 void radio_milkdrop_apply(const RadioSettings& c);
 bool radio_milkdrop_usable(const RadioSettings& c, std::string* why = nullptr);
+std::string radio_md_gpu_step(const std::string& cur, int dir);   // MilkDrop GPU row: automatic, then every card (Linux) -> the next one
 int radio_md_step(int which, int cur, int dir);   // MilkDrop rows: 0 frame rate, 1 resolution, 2 preset duration -> the next step
 std::string scope_mode_name(const RadioSettings& s);                    // "osci" | "sphere" | "off" | "spectro" | "milkdrop"
 // Start Mode lives in the music player's config.txt (StartMode=player|radio): read it / write just that line.

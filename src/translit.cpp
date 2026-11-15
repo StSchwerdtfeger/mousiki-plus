@@ -255,10 +255,19 @@ const char* const kBuiltinReadings[][2] = {
 };
 bool g_builtin_done = false;
 
+// Words that are Japanese when they are read as Japanese (Translit. Kanji: Jap., or a text with kana): their reading is built in, so the
+// setting works without the optional kanji reader. Written like the reader writes: a circumflex is a long o (ou), shown as "ou" or with a macron.
+const char* const kBuiltinJapanese[][2] = {
+    {"東京", "T\xC3\xB4ky\xC3\xB4"}, {"大阪", "\xC3\x94saka"}, {"京都", "Ky\xC3\xB4to"}, {"日本", "Nihon"}, {"日本語", "Nihongo"}, {"横浜", "Yokohama"},
+    {"名古屋", "Nagoya"}, {"札幌", "Sapporo"}, {"福岡", "Fukuoka"}, {"神戸", "K\xC3\xB4" "be"}, {"広島", "Hiroshima"}, {"沖縄", "Okinawa"},
+    {"北海道", "Hokkaid\xC3\xB4"}, {"草の名も", "kusa no na mo"}, {"寂しうなりけり", "sabishiunarikeri"}, {"春の雨", "haru no ame"},
+};
+
 void ensure_builtin_locked() {
     if (g_builtin_done) return;
     g_builtin_done = true;
     for (const auto& e : kBuiltinReadings) add_reading_locked(e[0], e[1]);
+    for (const auto& e : kBuiltinJapanese) { g_whole.emplace(e[0], e[1]); g_reader_keys.insert(e[0]); }   // (a reader key: used only for Japanese text, see translit_uncached_locked)
 }
 
 // "Kenshi Yonezu - 米津玄師", "米津玄師 (Kenshi Yonezu)": the Latin and the Chinese-character part of a name written both ways.
@@ -421,14 +430,14 @@ static int g_cache_style = 0;
 // o with a circumflex = o + u. Here they get the style of the settings: macrons (the circumflex one is an o macron as well) or
 // the plain spelling (aa ii uu ee oo, ou).
 static std::string style_reader_text(const std::string& in, bool macrons) {
-    static const char* const kMarked[][2] = {{"\xC4\x81", "aa"}, {"\xC4\xAB", "ii"}, {"\xC5\xAB", "uu"}, {"\xC4\x93", "ee"}, {"\xC5\x8D", "oo"}, {"\xC3\xB4", "ou"}};
+    static const char* const kMarked[][2] = {{"\xC4\x81", "aa"}, {"\xC4\xAB", "ii"}, {"\xC5\xAB", "uu"}, {"\xC4\x93", "ee"}, {"\xC5\x8D", "oo"}, {"\xC3\xB4", "ou"}, {"\xC3\x94", "Ou"}};
     std::string out;
     for (size_t i = 0; i < in.size();) {
         bool hit = false;
         if (static_cast<unsigned char>(in[i]) >= 0xC3) {
             for (const auto& m : kMarked)
                 if (in.compare(i, 2, m[0]) == 0) {
-                    out += macrons ? (std::string(m[0]) == "\xC3\xB4" ? std::string("\xC5\x8D") : std::string(m[0])) : std::string(m[1]);
+                    out += macrons ? (std::string(m[0]) == "\xC3\xB4" ? std::string("\xC5\x8D") : std::string(m[0]) == "\xC3\x94" ? std::string("\xC5\x8C") : std::string(m[0])) : std::string(m[1]);
                     i += 2;
                     hit = true;
                     break;

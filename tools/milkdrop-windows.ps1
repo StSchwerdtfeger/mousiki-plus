@@ -258,6 +258,8 @@ visualizer MilkDrop: https://github.com/projectM-visualizer/projectm -- LGPL-2.1
 unchanged from this source (the corresponding source code):
   $($Pins[0].Url)
   $($Pins[1].Url)  (projectM-eval, MIT, in vendor\projectm-eval)
+Both archives are also attached to every Mousiki release on GitHub, as projectm-source-<commit>.zip:
+https://github.com/StSchwerdtfeger/mousiki-plus/releases
 Compiled into them (from projectM's vendor folder): projectM-eval (MIT, LICENSE-projectm-eval.md), hlslparser (MIT,
 LICENSE-hlslparser.txt), GLM (MIT), glad (a generated OpenGL loader: WTFPL or CC0-1.0, and Apache-2.0 for the Khronos
 OpenGL registry it is made from), stb_image (public domain or MIT).

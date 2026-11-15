@@ -10,6 +10,7 @@
 #include "keyboard_layout.h"
 #include "terminal_ui.h"
 #include "path_utf8.h"
+#include "milkdrop.h"
 #include "settings.h"   // kModeNames, ModeConfig, read_mode_config(): the mode switch is the player's config.txt
 #include <algorithm>
 #include <cctype>
@@ -122,7 +123,7 @@ enum RsId {
     kRsOnAir, kRsSignBorder, kRsPulse, kRsDummy, kRsVolIndicator, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc, kRsBehavior, kRsBarStyle, kRsHifiRes, kRsHifiChan, kRsHifiColor, kRsHifiScale, kRsHifiAdapt, kRsHifiSplit, kRsHifiFScale, kRsHifiGain, kRsHifiRange,
     kRsScope, kRsOsciStyle,
-    kRsUseMilkdrop, kRsMdFps, kRsMdRes, kRsMdDuration, kRsMdShuffle, kRsMdBeat, kRsMdHardCuts, kRsMdTransition, kRsMdShowName,
+    kRsUseMilkdrop, kRsMdFps, kRsMdRes, kRsMdGpu, kRsMdDuration, kRsMdShuffle, kRsMdBeat, kRsMdHardCuts, kRsMdTransition, kRsMdShowName,
     kRsAudioDevice,   // [ENTER]: the CHOOSE AUDIO DEVICE overlay
     kRsCliScripts,    // [ENTER]: the script overlay
     kRsTermDefaultFont, // leave the terminal's own font alone (one value for all modes: TerminalDefaultFont= in the player's config.txt)
@@ -174,7 +175,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {false, kRsScope, "Osci/sphere"}, {false, kRsOsciStyle, "Osci style"},
         {true, -1, ""},
         {true, -1, "MILKDROP"},   // the MilkDrop visuals in the scope block (projectM, when installed)
-        {false, kRsUseMilkdrop, "Use MilkDrop"}, {false, kRsMdFps, "MilkDrop Frame Rate"}, {false, kRsMdRes, "MilkDrop Resolution"},
+        {false, kRsUseMilkdrop, "Use MilkDrop"}, {false, kRsMdFps, "MilkDrop Frame Rate"}, {false, kRsMdRes, "MilkDrop Resolution"}, {false, kRsMdGpu, "MilkDrop GPU"},
         {false, kRsMdDuration, "Preset Duration"}, {false, kRsMdShuffle, "Shuffle Presets"}, {false, kRsMdBeat, "Hard Cut Sensitivity"},
         {false, kRsMdHardCuts, "Hard Cuts"}, {false, kRsMdTransition, "Preset Transition"}, {false, kRsMdShowName, "Show Preset Name"},
     };
@@ -270,6 +271,16 @@ int radio_md_step(int which, int cur, int dir) {
     return a[std::clamp(k + (dir > 0 ? 1 : dir < 0 ? -1 : 0), 0, n - 1)];
 }
 
+std::string radio_md_gpu_step(const std::string& cur, int dir) {
+    const std::vector<MilkdropGpu> g = Milkdrop::gpus();   // (empty where the system chooses: Windows, macOS)
+    if (g.empty()) return std::string();
+    int at = 0;
+    for (size_t i = 0; i < g.size(); ++i) if (g[i].id == cur) at = static_cast<int>(i) + 1;
+    const int n = static_cast<int>(g.size()) + 1;
+    at = ((at + (dir < 0 ? -1 : 1)) % n + n) % n;
+    return at == 0 ? std::string() : g[static_cast<size_t>(at) - 1].id;
+}
+
 std::string rs_row_value(const RadioSettings& s, int tab, int row) {
     g_rs_hifi = s.bars_style == 1;
     const int id = rs_id(tab, row);
@@ -310,6 +321,7 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsOsciStyle: return s.osci_style == 1 ? "image" : "braille";
         case kRsMdFps: return std::to_string(s.md_fps) + " fps";
         case kRsMdRes: return std::to_string(s.md_res) + " px";
+        case kRsMdGpu: return milkdrop_gpu_label(s.md_gpu);
         case kRsMdDuration: return s.md_secs <= 0 ? std::string("off") : std::to_string(s.md_secs) + " s";
         case kRsMdBeat: { char b[8]; std::snprintf(b, sizeof b, "%.1f", std::clamp(s.md_cut_sens, 5, 60) / 10.0); return b; }
         case kRsMdTransition: return s.md_transition <= 0 ? std::string("cut") : std::to_string(s.md_transition) + " s";
@@ -384,6 +396,7 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
         case kRsOsciStyle: step(s.osci_style, 2); break;
         case kRsMdFps: s.md_fps = radio_md_step(0, s.md_fps, dir == 0 ? 1 : dir); break;
         case kRsMdRes: s.md_res = radio_md_step(1, s.md_res, dir == 0 ? 1 : dir); break;
+        case kRsMdGpu: s.md_gpu = radio_md_gpu_step(s.md_gpu, dir == 0 ? 1 : dir); break;
         case kRsMdDuration: s.md_secs = radio_md_step(2, s.md_secs, dir == 0 ? 1 : dir); break;
         case kRsMdBeat: s.md_cut_sens = std::clamp(s.md_cut_sens + (dir == 0 ? 1 : dir), 5, 60); break;
         case kRsMdTransition: s.md_transition = std::clamp(s.md_transition + (dir == 0 ? 1 : dir), 0, 10); break;
@@ -997,6 +1010,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("MilkDropFrameRate")) s.md_fps = std::clamp(muisc::atoi_safe(v->c_str()), 10, 60);
     if (auto v = get("MilkDropResolution")) s.md_res = std::clamp(muisc::atoi_safe(v->c_str()), 160, 1920);
     if (auto v = get("MilkDropPresetDuration")) s.md_secs = std::clamp(muisc::atoi_safe(v->c_str()), 0, 3600);
+    if (auto v = get("MilkDropGpu")) s.md_gpu = *v;
     if (auto v = get("MilkDropShuffle")) s.md_shuffle = as_bool(*v, s.md_shuffle);
     if (auto v = get("MilkDropHardCutSensitivity")) s.md_cut_sens = std::clamp(muisc::atoi_safe(v->c_str()), 5, 60);
     if (auto v = get("MilkDropHardCuts")) s.md_hard_cuts = as_bool(*v, s.md_hard_cuts);
@@ -1179,6 +1193,8 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "# pictures a second (15 .. 60), drawn at most this many pixels across (320 .. 1280; then scaled to the block)\n"
          "MilkDropFrameRate=" << s.md_fps << "\n"
          "MilkDropResolution=" << s.md_res << "\n"
+         "# the graphics card for the visuals (empty = automatic; Linux: a card from the list in Settings -> MilkDrop GPU; elsewhere the system decides)\n"
+         "MilkDropGpu=" << s.md_gpu << "\n"
          "# seconds a preset stays (0 = until changed by hand), next preset at random, beat sensitivity 0 .. 20 (= 0.0 .. 2.0)\n"
          "MilkDropPresetDuration=" << s.md_secs << "\n"
          "MilkDropShuffle=" << (s.md_shuffle ? "true" : "false") << "\n"

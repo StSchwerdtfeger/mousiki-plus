@@ -880,6 +880,11 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_FLAG("MilkDropAutoVideoWas", nullptr, milkdrop_auto_video_was, "\n## (set by Mousiki) Auto Video was on when Auto MilkDrop switched it off: it comes back on with Auto MilkDrop off\n"),
     SIMPLE_FLAG("MilkDropShuffleFavourites", nullptr, milkdrop_fav_shuffle, "\n## true , false (default false) -- only the favourite presets are played (milkdrop_favourites.txt; the preset overlay's [a]); without favourites all of them\n"),
     SIMPLE_NUM("MilkDropHardCutSensitivity", nullptr, milkdrop_cut_sens, 5, 60, "\n## 5 - 60 (default 20 = 2.0) -- how big a jump in volume must be to change the preset at once (Hard Cuts); less = more cuts\n"),
+    SIMPLE_NUM("MilkDropHardCutInterval", nullptr, milkdrop_hcd, 3, 120, "\n## 3 - 120 seconds (default 20) -- the shortest time between two hard cuts (Hard Cuts)\n"),
+    SIMPLE_FLAG("MilkDropAspectCorrection", nullptr, milkdrop_aspect, "\n## true , false (default true) -- presets keep their proportions on a wide picture (false: they are stretched to it)\n"),
+    SIMPLE_NUM("MilkDropMeshDetail", nullptr, milkdrop_mesh, 0, 3, "\n## 0 low (16 x 12) , 1 normal (32 x 24, default) , 2 high (64 x 48) , 3 very high (96 x 72) -- the warp mesh of the presets: finer = more detail, more work for the graphics card\n"),
+    SIMPLE_NUM("MilkDropDurationVariance", nullptr, milkdrop_var, 0, 30, "\n## 0 - 30 seconds (default 0) -- how far the time of a preset (Preset Duration) may stray at random; 0 = every preset stays the same time\n"),
+    SIMPLE_FLAG("MilkDropCleanStart", nullptr, milkdrop_clean, "\n## true , false (default false) -- a preset starts from a blank picture, not from what the one before left\n"),
     SIMPLE_FLAG("MilkDropEffectOn", nullptr, milkdrop_fx_on, "\n## true , false (default true) -- the effect (MilkDropEffect) is put on the visuals; false: none, the choice stays\n"),
     SIMPLE_TEXT("MilkDropGpu", nullptr, milkdrop_gpu, "\n## the graphics card that draws the MilkDrop visuals (Linux): a render node such as renderD129, as listed under Settings -> ANIMA/VIZ -> MILKDROP -> MilkDrop GPU; empty = automatic (what the system gives)\n"),
     SIMPLE_TEXT("MilkDropDefaultPreset", nullptr, milkdrop_default_preset, "\n## the preset the visuals start with (a .milk file; Settings -> ANIMA/VIZ -> MILKDROP -> Default Preset); empty = one from the list\n"),
@@ -2272,7 +2277,8 @@ write_simple_setting(out, s, "VideoLayout");
     write_simple_setting(out, s, "UseSpectrogram");
     write_simple_setting(out, s, "UseSphere");
     for (const char* k : {"UseMilkDrop", "MilkDropView", "MilkDropPresets", "MilkDropDefaultPreset", "MilkDropGpu", "MilkDropFrameRate", "MilkDropResolution", "MilkDropPresetDuration",
-                          "MilkDropAuto", "MilkDropAutoVideoWas", "MilkDropShuffle", "MilkDropShuffleFavourites", "MilkDropHardCutSensitivity", "MilkDropHardCuts", "MilkDropTransition", "MilkDropShowName"})
+                          "MilkDropAuto", "MilkDropAutoVideoWas", "MilkDropShuffle", "MilkDropShuffleFavourites", "MilkDropHardCutSensitivity", "MilkDropHardCuts", "MilkDropHardCutInterval", "MilkDropTransition", "MilkDropShowName",
+                          "MilkDropAspectCorrection", "MilkDropMeshDetail", "MilkDropDurationVariance", "MilkDropCleanStart"})
         write_simple_setting(out, s, k);
     out << "MilkDropEffect=" << video_fx_key(s.milkdrop_fx) << "\n## off (default) or a video effect name (as VideoFx=) -- an effect over the MilkDrop pictures, their own (the video's effect belongs to the track's video)\n";
     write_simple_setting(out, s, "MilkDropEffectOn");
@@ -2605,7 +2611,7 @@ void copy_look(const Settings& src, Settings& dst) {
     MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(disk_border); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
     MOUSIKI_LOOK(volume_indicator); MOUSIKI_LOOK(volume_gradient); MOUSIKI_LOOK(element_vizfield); MOUSIKI_LOOK(element_lyrics);
     MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
-    MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_gpu); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res);
+    MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_gpu); MOUSIKI_LOOK(milkdrop_hcd); MOUSIKI_LOOK(milkdrop_aspect); MOUSIKI_LOOK(milkdrop_mesh); MOUSIKI_LOOK(milkdrop_var); MOUSIKI_LOOK(milkdrop_clean); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res);
     MOUSIKI_LOOK(milkdrop_preset_secs); MOUSIKI_LOOK(milkdrop_shuffle); MOUSIKI_LOOK(milkdrop_fav_shuffle); MOUSIKI_LOOK(milkdrop_auto); MOUSIKI_LOOK(milkdrop_auto_video_was); MOUSIKI_LOOK(milkdrop_fx); MOUSIKI_LOOK(milkdrop_fixed_colors); MOUSIKI_LOOK(milkdrop_cut_sens); MOUSIKI_LOOK(milkdrop_fx_on); MOUSIKI_LOOK(milkdrop_default_preset); MOUSIKI_LOOK(milkdrop_hard_cuts);
     MOUSIKI_LOOK(milkdrop_transition); MOUSIKI_LOOK(milkdrop_show_name);
     MOUSIKI_LOOK(use_sphere); MOUSIKI_LOOK(viz_default); MOUSIKI_LOOK(element_visualizer); MOUSIKI_LOOK(waveform_smooth);

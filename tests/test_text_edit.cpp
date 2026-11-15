@@ -239,7 +239,7 @@ TEST(translit_hanzi_default_modes) {
     translit_set_default_hanzi(1);
     CHECK(transliterate("\xE6\x9D\xB1\xE4\xBA\xAC") != std::string("\xE6\x9D\xB1\xE4\xBA\xAC"));  // pinyin
     translit_set_default_hanzi(2);
-    CHECK_EQ(transliterate("\xE6\x9D\xB1\xE4\xBA\xAC"), std::string("\xE6\x9D\xB1\xE4\xBA\xAC"));   // Japanese: stays without a kanji reader
+    CHECK_EQ(transliterate("\xE6\x9D\xB1\xE4\xBA\xAC"), std::string("Toukyou"));   // Japanese: the built-in readings know it (no kanji reader needed)
     CHECK_EQ(transliterate("\xE6\x9D\xB1\xE4\xBA\xAC\xE3\x81\xAE\xE7\xA9\xBA"), std::string("\xE6\x9D\xB1\xE4\xBA\xAC no \xE7\xA9\xBA"));   // kana in the text: Japanese in every mode
     translit_set_default_hanzi(0);
 }

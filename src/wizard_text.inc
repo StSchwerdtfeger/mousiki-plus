@@ -2151,6 +2151,10 @@ R"WIZ(                                                  only where it is shown t
                                                   more costs more (no graphics card: the processor draws).
 [Preset Duration / Shuffle / Transition:][[Legend]]           25 s, random, a 3 s blend (defaults).
 [Hard Cut Sensitivity / Hard Cuts / Show Preset Name:][[Legend]]  2.0, on, on (defaults). The same rows are in [:].
+[Mesh Detail / Aspect Correction:][[Legend]]                  normal, on (defaults): the warp grid of the presets (finer =
+                                                  more detail, more work for the card); proportions kept.
+[Duration Variance / Hard Cut Interval / Clean Start:][[Legend]]  off, 20 s, off (defaults): random stray of a preset's time,
+                                                  the shortest time between hard cuts, start from a blank picture.
 [Default Preset / Use Effect:][[Legend]]                      the preset the visuals start with ([ENTER] opens the preset list); Use Effect = off
                                                   switches the effect over the visuals off. [:] from the big video overlay
                                                   changes the current track only.
@@ -2173,12 +2177,12 @@ R"WIZ(                                                  only where it is shown t
                                                   fixed row of braille characters that does not repeat) or
                                                   two moving braille blocks = uses the braille effect of
                                                   the disk: the bar follows the disk animation, with the
-                                                  centre of the circle two cells in from the left. Right of
+)WIZ",
+R"WIZ(                                                  centre of the circle two cells in from the left. Right of
                                                   the toggle: gradient / no gradient, where gradient = the
                                                   VIZ colours gradient from left to right, like the
                                                   oscilloscope is using... [<-/->] switch between the two
-)WIZ",
-R"WIZ(                                                  values of the row, [ENTER] changes the options.
+                                                  values of the row, [ENTER] changes the options.
                                                   Default: the moving braille blocks (disk), in all modes.
 
 [SPECTRUM BARS:][[Header]]               
@@ -2272,12 +2276,12 @@ R"WIZ(                                                  values of the row, [ENTE
 [DOWNLOAD PATH][[Header]]                                     where [y] saves streams
 [PLAYLIST PATH][[Header]]                                     one folder for all playlists
 [PLAYLIST EXPORT PATH][[Header]]                              where [e] writes M3U8 / M3U (default: playlists\export)
-[PLAYLIST IMPORT PATH][[Header]]                              where [i] reads M3U8 / M3U (default: playlists\import)
+)WIZ",
+R"WIZ([PLAYLIST IMPORT PATH][[Header]]                              where [i] reads M3U8 / M3U (default: playlists\import)
 [HISTORY PATH][[Header]]                                      holds history.json
 [CONVERSION EXPORT PATH][[Header]]                            where converted files go
 [AUDIO BOOK PATH][[Header]]                                   One folder only, since books are sorted by book folders
-)WIZ",
-R"WIZ(                                                  with the chapters themselves (doesn't happen inside
+                                                  with the chapters themselves (doesn't happen inside
                                                   Mousiki). Every book folder within it with audio files is
                                                   considered one book. A .cue file rests beside each book
                                                   and keeps its narrator, publisher and year and other meta
@@ -2407,14 +2411,14 @@ KEYS ON THE MAIN SCREEN: [[Header]]
 [+] / [-]    volume                     [/]      search        [SHIFT+t]  sort list order <-> A-Z
 [SHIFT+p] presets   [SHIFT+s] radio browser   [SHIFT+k] station lists   [SHIFT+l] big stations overlay
 [h] history   [s] settings   [?] cheat sheet   [<] menus index   [SHIFT+w] this wizard   [q] quit
-[°] (German [SHIFT+^]; other keyboards [&])  choose the audio device (2.6.5)
+)WIZ",
+R"WIZ([°] (German [SHIFT+^]; other keyboards [&])  choose the audio device (2.6.5)
 
 THE BIG STATIONS OVERLAY: [[Header]]
 [SHIFT+l] shows the STATIONS pane over the whole screen plus a PRESET NAME column.
 [a] adds a station by its stream URL ([TAB] switches URL <-> NAME; an empty name becomes the host name).
 [SHIFT+c] edits the hovered entry: name, preset name (a shorter second name shown in the PRESETS pane,
-)WIZ",
-R"WIZ(which only has little space), URL, genre, country, codec and kbps. [TAB] or [UP]/[DOWN] switch the field,
+which only has little space), URL, genre, country, codec and kbps. [TAB] or [UP]/[DOWN] switch the field,
 [ENTER] saves, [ESC] cancels.
 [DEL] deletes the hovered station after a warning ([Y] deletes, [N] keeps it); it leaves the stations file,
 the presets and the station lists, the stream that plays goes on.
@@ -2571,15 +2575,15 @@ move, [HOME]/[END] jump to the ends.
 [2] TOP CHANNELS   channels by time listened ([r] flips the order)
 [3] HABITS         sessions, time per day, channels, and listening by hour and by weekday
 A new HISTORY line starts whenever the channel, the artist or the title changes. Lines heard for less
-than 3 seconds are dropped. A session ends after a gap of 30 minutes. The newest 10 000 lines are
+)WIZ",
+R"WIZ(than 3 seconds are dropped. A session ends after a gap of 30 minutes. The newest 10 000 lines are
 kept one by one; older ones are folded into lifetime totals, so TOP CHANNELS and HABITS stay lifetime
 figures.
 
 HEARD A SONG ON THE RADIO? DOWNLOAD IT: [[Header]]
 The radio writes down the artist and title the stream sends. On the HISTORY tab [y] on a line opens an
 overlay that searches YouTube for "artist title". [ENTER] downloads the hovered result into the
-)WIZ",
-R"WIZ(download folder (yt-dlp, opus), [TAB] edits the search query, [ESC] closes. A result is marked
+download folder (yt-dlp, opus), [TAB] edits the search query, [ESC] closes. A result is marked
 [ok] done, [..] downloading, [!!] failed.
 This is the online search of the music player reached from the radio, so a song you only heard once
 on air ends up in your local library (after a rescan with [SHIFT+r] in the player).
@@ -2702,15 +2706,15 @@ THE DEFAULT PICTURE: [[Header]]
 An image of a women rading a book (a grey version of a colour picture) takes the place of the disk. 
 It is drawn as small braille dots (a 60 x 60 dot field) and stays still; the colour wave of the 
 radio's ON AIR sign runs over it diagonally, from the upper left to the lower right. In a terminal 
-with Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm ...) it is a real transparent 
+)WIZ",
+R"WIZ(with Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm ...) it is a real transparent 
 image at full pixel resolution instead of braille dots (a terminal without them gets the braille 
 version, which does not look nice though, to be honest). The original of the beautiful default 
 image is done by Kamara Rahmat (iyaniyan; taken from Unsplash).
 
 BOOK COVER: [[Header]]
 The option [Book Cover] in Settings, GENERAL, set to true shows the cover image found in the book's 
-)WIZ",
-R"WIZ(folder instead (a file named cover, folder, front or albumart, else the first picture there; 
+folder instead (a file named cover, folder, front or albumart, else the first picture there; 
 jpg, png, webp ...; no picture file: the cover art inside the first audio file is used). The 
 gradient wave can also be toggled via [Book gradient]. With the wave on, [Cover Brightness]
 (50% = as it is) and [Cover Colors] (how much of the cover's own colours shines through the
@@ -2826,7 +2830,8 @@ book, chapter, time; the newest first, notes last.
            and the furthest mark first).
 [ESC]      back to the date sorting, and closes.
 [CTRL+SHIFT+u] brings the last discarded one back.
-[ESC]      closes/clears sorting.
+)WIZ",
+R"WIZ([ESC]      closes/clears sorting.
 
 BIG LIBRARY OVERLAY [SHIFT+s]: [[Header]] 
 It has a search pane on top ([/] types, the words narrow the list) and the audio book pane below it.
@@ -2834,8 +2839,7 @@ It has a search pane on top ([/] types, the words narrow the list) and the audio
                a diamond marks a bookmark.
 [ENTER]        on a chapter plays it (the bookmark question first), [CTRL+p] plays it from its start 
                and the overlay stays,
-)WIZ",
-R"WIZ([f]            opens the book in the chapter pane.
+[f]            opens the book in the chapter pane.
 
 LISTENING/READING HISTORY [SHIFT+h]: [[Header]] 
 The listening history made for books, in its own file reading_history.json. Every chapter
@@ -2959,15 +2963,15 @@ KEYS IN A COMMAND LINE: [[Header]]
  [ENTER] run     [UP]/[DOWN] earlier lines     [ESC] clear / leave     [CTRL+u] clear the line
  [CTRL+RIGHT] completes: a command (several candidates: up to what they share, the candidates are
  listed), a title after play / queue / search, a script after run / edit, a setting after set / get.
- ([TAB] is not used for that: it moves between the panes of the console.)
+)WIZ",
+R"WIZ( ([TAB] is not used for that: it moves between the panes of the console.)
 
 A LINE IS A CHAIN: [[Header]]
  Commands are separated by ;   They run one after the other. An error ends the chain, unless the
  command starts with -   (-next; echo done  goes on even if next fails).
    volume 30; wait 2s; next                 quieter, wait two seconds, next title
    play tonight; seek 45                    start "Tonight, Tonight", jump to 0:45
-)WIZ",
-R"WIZ(
+
 WHAT THE REPLIES LOOK LIKE: [[Header]]
    > pause
      paused: Tonight, Tonight - The Smashing Pumpkins  01:23/04:14  vol 60%
@@ -3082,7 +3086,8 @@ the pane, [ESC] closes. [/cs:]words searches the scripts by name and text, [ENTE
 
 EVENT HOOKS: [[Header]] hooks.cli (edit hooks) runs commands when something happens, one line each:
    on <event> = <commands>      events: track-change  pause  resume  queue-empty  idle
-   on track-change = log now: {title} by {artist}
+)WIZ",
+R"WIZ(   on track-change = log now: {title} by {artist}
    on pause = in 20m volume 25
    on queue-empty = playlist 1
 {title} {artist} {album} {state} {volume} {queue} {position} are filled in (";" and control
@@ -3090,8 +3095,7 @@ characters are taken out of them: a title can never start a second command). A h
 causes its own event (on pause = play) is stopped: at most 8 runs in 10 seconds.
 
 [[New Page]]
-)WIZ",
-R"WIZ(5.1.7 CLI: SAFETY [[Header]]
+5.1.7 CLI: SAFETY [[Header]]
 
  * No command deletes anything: scripts go to cli/deleted/, files are never removed.
  * set changes flags and numbers only (never paths, keys, the PIN).

@@ -62,3 +62,25 @@ TEST(remote_app_config_round_trip) {
     save_settings(s);                                                 // ... and writes them back unchanged
     CHECK_EQ(read_remote_app().pin, rc.pin);
 }
+
+TEST(config_milkdrop_options_round_trip) {
+    mt::TempHome home;
+    Settings s = load_settings();
+    CHECK_EQ(s.milkdrop_hcd, 20);                 // projectM's own defaults
+    CHECK(s.milkdrop_aspect);
+    CHECK_EQ(s.milkdrop_mesh, 1);
+    CHECK_EQ(s.milkdrop_var, 0);
+    CHECK(!s.milkdrop_clean);
+    s.milkdrop_hcd = 45; s.milkdrop_aspect = false; s.milkdrop_mesh = 3; s.milkdrop_var = 10; s.milkdrop_clean = true; s.milkdrop_gpu = "renderD129";
+    save_settings(s);
+    const Settings t = load_settings();
+    CHECK_EQ(t.milkdrop_hcd, 45);
+    CHECK(!t.milkdrop_aspect);
+    CHECK_EQ(t.milkdrop_mesh, 3);
+    CHECK_EQ(t.milkdrop_var, 10);
+    CHECK(t.milkdrop_clean);
+    CHECK_EQ(t.milkdrop_gpu, std::string("renderD129"));
+    const std::string txt = read_all(config_path());
+    CHECK(txt.find("MilkDropHardCutInterval=45") != std::string::npos);
+    CHECK(txt.find("MilkDropMeshDetail=3") != std::string::npos);
+}

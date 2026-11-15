@@ -88,6 +88,10 @@ std::vector<std::pair<int, std::string>> spectro_axis(const SpectroSettings& s, 
 
 class SpectroAnalyzer {
 public:
+    SpectroAnalyzer() = default;
+    SpectroAnalyzer(const SpectroAnalyzer&) = delete;            // (owns the FFT plan)
+    SpectroAnalyzer& operator=(const SpectroAnalyzer&) = delete;
+    ~SpectroAnalyzer();                                          // gives the FFT plan back (a leak the sanitizer build found)
     // Audio thread: the decoded signal, interleaved L/R. Does nothing while no spectrogram is shown.
     void push(const float* lr, size_t frames, int rate);
     // UI thread, once per frame while a spectrogram is visible (it also switches the feed on). Turns the new samples

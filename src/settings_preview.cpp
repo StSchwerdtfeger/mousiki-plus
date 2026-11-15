@@ -602,7 +602,8 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
         } else if (id == kSidLatinHanzi) {
             line("Kanji/hanzi with no hint of the language: Leave | Chin. | Jap.");
             example("\u6771\u4eac", {th("\u6771\u4eac", 0), th("\u6771\u4eac", 1), th("\u6771\u4eac", 2)}, hz, {"Leave", "Chin.", "Jap."});   // 東京
-            example("\u5f20\u60ac", {th("\u5f20\u60ac", hz) + "  (only Chinese writes \u5f20 \u60ac)"}, 0);   // 张悬 (Deserts Chang, a Taiwanese singer-songwriter): a hint of its own
+            example("\u5f20\u60ac", {th("\u5f20\u60ac", 0), th("\u5f20\u60ac", 1), th("\u5f20\u60ac", 2)}, hz, {"Leave", "Chin.", "Jap."});   // 张悬 (Deserts Chang, a Taiwanese singer-songwriter): only Chinese writes it, so every value reads it as Chinese
+            line("(\u5f20 \u60ac are only used in Chinese: the same for every value)");
             if (hz == 2 && th("\u6771\u4eac", 2) == "\u6771\u4eac") line("Jap. needs the kanji reader; without it they stay.");
             line("Text with kana is not changed by this row. A short poem:");
             example("\u8349\u306e\u540d\u3082", {th("\u8349\u306e\u540d\u3082", hz)}, 0);   // 草の名も
@@ -613,9 +614,9 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             line(reader);
             cap = std::string("Translit. Kanji: ") + (hz == 1 ? "Chin." : hz == 2 ? "Jap." : "Leave");
         } else {   // kSidLatinLookup
-            line("Asks MusicBrainz how an artist spells a kanji name in Latin letters (the name is sent there). Off: the name is spelled by the rules.");
+            line("Asks MusicBrainz how an artist spells a kanji name in Latin letters (the name is sent there). Off: the name is spelled by the internal transliteration rules.");
             const std::string yanai = transliterate("\u67f3\u4e95 \u611b\u5b50");   // 柳井 愛子
-            example("\u67f3\u4e95 \u611b\u5b50", {yanai, "Aiko Yanai"}, settings_.latin_lookup ? 1 : 0, {"off: by the rules", "on: when found"});
+            example("\u67f3\u4e95 \u611b\u5b50", {yanai, "Aiko Yanai"}, settings_.latin_lookup ? 1 : 0, {"off: internal rules", "on: when found"});
             line("(the given name comes first in the Latin spelling.)");
             line("Not asked for names already in Latin or in kana only:");
             example("HAKU \u30cf\u30af\u3002", {transliterate("HAKU \u30cf\u30af\u3002")}, 0);   // the tag holds the Latin name itself

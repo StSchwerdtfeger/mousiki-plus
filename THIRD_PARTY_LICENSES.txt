@@ -312,8 +312,9 @@ packages are built and listed again in THIRD-PARTY.txt inside each package:
       https://github.com/projectM-visualizer/projectm -- built UNCHANGED from the source of commit
       eae22de40144ee8ded92f3c04b93a4c2f82adcc0 (with projectm-eval 22fb0cfd8f2dfbcd2b68f2443e7f44e19b32c09a, MIT) by
       tools/milkdrop-windows.ps1, which pins both and checks every file (SHA-256). That source is the corresponding source
-      code (LGPL-2.1 section 6); app/milkdrop/README.txt names it in every package. Mousiki loads the DLLs at run time
-      (no linking), so they can be replaced by any other build of projectM 4.2. Licence texts: app/milkdrop/LICENSE-projectM.txt
+      code (LGPL-2.1 section 6); app/milkdrop/README.txt names it in every package, and both archives are attached to every
+      GitHub release as projectm-source-eae22de4.zip (tools/make_projectm_source.py, workflow milkdrop-source). Mousiki loads
+      the DLLs at run time (no linking), so they can be replaced by any other build of projectM 4.2. Licence texts: app/milkdrop/LICENSE-projectM.txt
       (LGPL-2.1), LICENSE-projectm-eval.md and LICENSE-hlslparser.txt (MIT); also compiled in: GLM (MIT), glad (generated;
       WTFPL or CC0-1.0, Apache-2.0 for the Khronos registry), stb_image (public domain or MIT).
   - "Cream of the Crop" MilkDrop presets (Windows: app/milkdrop/presets) ... 9,795 presets curated and sorted by ISOSCELES,

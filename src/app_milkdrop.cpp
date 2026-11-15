@@ -27,6 +27,8 @@ namespace muisc {
 namespace {
 const int kMdFpsSteps[] = {15, 20, 25, 30, 45, 60};
 const int kMdResSteps[] = {320, 480, 640, 960, 1280};
+const int kMdHcdSteps[] = {3, 5, 10, 15, 20, 30, 45, 60, 90, 120};
+const int kMdVarSteps[] = {0, 2, 5, 10, 15, 20, 30};
 const int kMdDurSteps[] = {0, 10, 15, 20, 25, 30, 45, 60, 90, 120, 180, 300};
 template <size_t N> int md_step(const int (&a)[N], int cur, int dir) {
     // the nearest step, then one on (a value from config.txt between two steps snaps onto them)
@@ -35,7 +37,7 @@ template <size_t N> int md_step(const int (&a)[N], int cur, int dir) {
     const long n = std::clamp<long>(static_cast<long>(k) + dir, 0, static_cast<long>(N) - 1);
     return a[static_cast<size_t>(n)];
 }
-enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdDuration, kMdShuffle, kMdFavShuffle, kMdCutSens, kMdHardCuts, kMdTransition, kMdFps, kMdRes, kMdGpu, kMdUseFx, kMdFx, kMdColors, kMdName, kMdView, kMdRows };
+enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdDuration, kMdShuffle, kMdFavShuffle, kMdCutSens, kMdHardCuts, kMdTransition, kMdFps, kMdRes, kMdGpu, kMdUseFx, kMdFx, kMdColors, kMdName, kMdHcd, kMdVar, kMdMesh, kMdAspect, kMdClean, kMdView, kMdRows };
 const int kMdCutSensSteps[] = {5, 10, 15, 20, 25, 30, 40, 50, 60};
 } // namespace
 
@@ -65,6 +67,11 @@ void App::milkdrop_apply_settings() const {
     o.transition = e.trans;
     o.start_preset = settings_.milkdrop_default_preset;
     o.gpu = settings_.milkdrop_gpu;
+    o.hard_cut_secs = std::clamp(settings_.milkdrop_hcd, 3, 120);
+    o.aspect = settings_.milkdrop_aspect;
+    { static const int mw[] = {16, 32, 64, 96}, mh[] = {12, 24, 48, 72}; const int mi = std::clamp(settings_.milkdrop_mesh, 0, 3); o.mesh_w = mw[mi]; o.mesh_h = mh[mi]; }
+    o.variance = static_cast<float>(std::clamp(settings_.milkdrop_var, 0, 30));
+    o.clean_start = settings_.milkdrop_clean;
     o.favourites_only = e.favs;
     if (o.favourites_only) { md_favs_load(); o.favourites = md_favs_; }
     Milkdrop::instance().configure(o);
@@ -208,7 +215,7 @@ void App::milkdrop_auto_apply() {
 
 bool App::md_row_shown(int row) const {
     if (md_scope_track_.empty()) return true;
-    return row != kMdFps && row != kMdRes && row != kMdGpu && row != kMdColors;   // (how the pictures are drawn: not a matter of one track)
+    return row != kMdFps && row != kMdRes && row != kMdGpu && row != kMdColors && row != kMdHcd && row != kMdVar && row != kMdMesh && row != kMdAspect && row != kMdClean;   // (how the pictures are drawn: not a matter of one track)
 }
 
 std::string App::milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const {
@@ -252,6 +259,11 @@ std::string App::milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const
         }
         case kMdColors: return settings_.milkdrop_fixed_colors ? "fixed" : "adaptive";
         case kMdName: return own(ts ? rec->name : 0, onoff(ts ? rec->name == 1 : settings_.milkdrop_show_name), onoff(settings_.milkdrop_show_name));
+        case kMdHcd: return std::to_string(std::clamp(settings_.milkdrop_hcd, 3, 120)) + " s";
+        case kMdVar: return secs(settings_.milkdrop_var);
+        case kMdMesh: return mesh_name(settings_.milkdrop_mesh);
+        case kMdAspect: return onoff(settings_.milkdrop_aspect);
+        case kMdClean: return onoff(settings_.milkdrop_clean);
         case kMdView:
             if (ts) return rec->on < 0 ? "as Settings" : rec->on == 1 ? "on" : "off";
             return onoff(settings_.milkdrop_auto);
@@ -278,7 +290,7 @@ std::vector<std::string> App::build_milkdrop_menu_panel() const {
     const MilkdropTrackOpts rec = ts ? cover_track_milkdrop(md_scope_track_) : MilkdropTrackOpts();
     md_favs_load();
     const char* labels[kMdRows] = {"Preset", "Preset Overlay", "Random Preset", "Lock Preset", "Preset Duration", "Shuffle Presets", "Shuffle Favourites", "Hard Cut Sensitivity",
-                                   "Hard Cuts", "Preset Transition", "Frame Rate", "Resolution", "GPU", "Use Effect", "Effect", "Sixel Colours", "Show Preset Name", ts ? "MilkDrop (this track)" : "Auto MilkDrop"};
+                                   "Hard Cuts", "Preset Transition", "Frame Rate", "Resolution", "GPU", "Use Effect", "Effect", "Sixel Colours", "Show Preset Name", "Hard Cut Interval", "Duration Variance", "Mesh Detail", "Aspect Correction", "Clean Start", ts ? "MilkDrop (this track)" : "Auto MilkDrop"};
     std::vector<std::string> lines;
     lines.push_back(box_top(ts ? "Visuals: MilkDrop (this track)" : "Visuals: MilkDrop", W, border));
     if (ts) {   // (the note in the highlight colours, as in the video options)
@@ -288,7 +300,14 @@ std::vector<std::string> App::build_milkdrop_menu_panel() const {
     for (int i = 0; i < kMdRows; ++i) {
         if (!md_row_shown(i)) continue;
         const bool sel = i == md_menu_row_;
-        const std::string val = milkdrop_row_value(i, ts ? &rec : nullptr);
+        std::string val = milkdrop_row_value(i, ts ? &rec : nullptr);
+        if (!ts && has_track_ && !audiobook_) {   // (a value the playing track has of its own wins over Settings: say so, or the change looks lost)
+            const MilkdropTrackOpts& t = md_trk_;
+            const bool mine = (i == kMdDuration && t.dur >= 0) || (i == kMdShuffle && t.shuf >= 0) || (i == kMdFavShuffle && t.favs >= 0) || (i == kMdCutSens && t.hcs >= 0) ||
+                              (i == kMdHardCuts && t.cuts >= 0) || (i == kMdTransition && t.trans >= 0) || (i == kMdUseFx && t.fxon >= 0) || (i == kMdFx && t.fx >= 0) ||
+                              (i == kMdName && t.name >= 0);
+            if (mine) val += "  (this track has its own)";
+        }
         std::string plain;
         if (i == kMdPreset) {   // the preset's name gets the room the label leaves
             const std::string lab = std::string(sel ? "> " : "  ") + pad_right(labels[i], 10);
@@ -379,7 +398,7 @@ void App::milkdrop_menu_track_adjust(int row, int dir, bool reset) {
     }
     set_cover_track_milkdrop(md_scope_track_, mo);
     const char* labels[kMdRows] = {"preset", "", "", "lock", "preset duration", "shuffle", "shuffle favourites", "hard cut sensitivity",
-                                   "hard cuts", "preset transition", "", "", "", "effect on / off", "effect", "", "preset name", "MilkDrop"};
+                                   "hard cuts", "preset transition", "", "", "", "effect on / off", "effect", "", "preset name", "", "", "", "", "", "MilkDrop"};
     const std::string msg = std::string("this track: ") + labels[row] + " " + milkdrop_row_value(row, &mo);
     status_line_ = "milkdrop: " + msg;
     if (meta_) meta_->sty_msg = "saved: " + msg;
@@ -421,6 +440,11 @@ void App::milkdrop_menu_adjust(int row, int dir) {
             status_line_ = "milkdrop GPU: " + milkdrop_gpu_label(settings_.milkdrop_gpu) + " -- the visuals restart on it";
             break;
         }
+        case kMdHcd: settings_.milkdrop_hcd = md_step(kMdHcdSteps, settings_.milkdrop_hcd, dir); break;
+        case kMdVar: settings_.milkdrop_var = md_step(kMdVarSteps, settings_.milkdrop_var, dir); break;
+        case kMdMesh: settings_.milkdrop_mesh = std::clamp(settings_.milkdrop_mesh + dir, 0, 3); status_line_ = "milkdrop mesh: " + mesh_name(settings_.milkdrop_mesh) + " -- the visuals restart"; break;
+        case kMdAspect: settings_.milkdrop_aspect = !settings_.milkdrop_aspect; break;
+        case kMdClean: settings_.milkdrop_clean = !settings_.milkdrop_clean; break;
         case kMdUseFx:
             settings_.milkdrop_fx_on = !settings_.milkdrop_fx_on;
             milkdrop_pic_key_.clear();
@@ -441,6 +465,7 @@ void App::milkdrop_menu_adjust(int row, int dir) {
         default: break;
     }
     milkdrop_apply_settings();
+    if (row != kMdPreset && row != kMdRandom && row != kMdLock && row != kMdBrowse) save_settings(settings_);   // (saved with every change: not only when the menu is closed by ESC)
 }
 
 void App::handle_milkdrop_menu_key(int key) {

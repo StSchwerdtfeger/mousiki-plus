@@ -113,6 +113,11 @@ struct Settings : VizPrefs {
     int milkdrop_fx = 0;               // MilkDropEffect=: a video effect over the MilkDrop pictures (its own: the video's are the track's), 0 off
     bool milkdrop_fixed_colors = false; // MilkDropSixelColors=adaptive|fixed: the colours of a palette picture (Sixel) from the picture itself, or the fixed 256
     bool milkdrop_fav_shuffle = false; // MilkDropShuffleFavourites=: only the favourite presets (milkdrop_favourites.txt) are played
+    int milkdrop_hcd = 20;             // MilkDropHardCutInterval=: 3 .. 120 s, the shortest time between two hard cuts (projectM's default 20)
+    bool milkdrop_aspect = true;       // MilkDropAspectCorrection=: presets keep their proportions on a wide picture
+    int milkdrop_mesh = 1;             // MilkDropMeshDetail=: 0 low (16 x 12), 1 normal (32 x 24, projectM's default), 2 high (64 x 48), 3 very high (96 x 72)
+    int milkdrop_var = 0;              // MilkDropDurationVariance=: 0 .. 30 s, how far the time of a preset may stray at random (0 = it stays the same)
+    bool milkdrop_clean = false;       // MilkDropCleanStart=: a preset starts from a blank picture
     int milkdrop_cut_sens = 20;        // MilkDropHardCutSensitivity=: 5 .. 60 (tenths; 20 = 2.0, projectM's own default): the louder jump in volume that makes a hard cut (less = cuts more often)
     bool milkdrop_fx_on = true;        // MilkDropEffectOn=: the effect (MilkDropEffect=) is used (false: none on top of the visuals; the choice is kept)
     std::string milkdrop_gpu;              // MilkDropGpu=: the graphics card that draws the visuals (a render node such as renderD129; "" = automatic)

@@ -18,6 +18,7 @@ void radio_milkdrop_apply(const RadioSettings& c) {
     o.cut_sens = static_cast<float>(std::clamp(c.md_cut_sens, 5, 60)) / 10.0f;
     o.hard_cuts = c.md_hard_cuts;
     o.transition = std::clamp(c.md_transition, 0, 10);
+    o.gpu = c.md_gpu;
     Milkdrop::instance().configure(o);
 }
 
@@ -160,13 +161,13 @@ std::vector<std::string> build_md_overlay(const Style& s, const UiModel& m) {
     char beat[8];
     std::snprintf(beat, sizeof beat, "%.1f", std::clamp(c.md_cut_sens, 5, 60) / 10.0);
     const std::string labels[kMdRowCount] = {"Preset", "Random Preset", "Lock Preset", "Preset Duration", "Shuffle Presets", "Hard Cut Sensitivity",
-                                             "Hard Cuts", "Preset Transition", "Frame Rate", "Resolution", "Show Preset Name", "Show in the Scope Block"};
+                                             "Hard Cuts", "Preset Transition", "Frame Rate", "Resolution", "GPU", "Show Preset Name", "Show in the Scope Block"};
     const std::string vals[kMdRowCount] = {
         preset, "[ENTER]", md.locked() ? "on" : "off",
         c.md_secs <= 0 ? std::string("off") : std::to_string(c.md_secs) + " s",
         c.md_shuffle ? "on" : "off", beat, c.md_hard_cuts ? "on" : "off",
         c.md_transition <= 0 ? std::string("cut") : std::to_string(c.md_transition) + " s",
-        std::to_string(c.md_fps) + " fps", std::to_string(c.md_res) + " px",
+        std::to_string(c.md_fps) + " fps", std::to_string(c.md_res) + " px", milkdrop_gpu_label(c.md_gpu),
         c.md_show_name ? "on" : "off", c.scope_mode == 4 ? "on" : "off",
     };
     std::vector<std::string> lines;
@@ -216,8 +217,9 @@ void md_overlay_adjust(RadioSettings& c, int row, int dir, std::string& notice) 
         case 7: c.md_transition = std::clamp(c.md_transition + dir, 0, 10); break;
         case 8: c.md_fps = radio_md_step(0, c.md_fps, dir); break;
         case 9: c.md_res = radio_md_step(1, c.md_res, dir); break;
-        case 10: c.md_show_name = !c.md_show_name; break;
-        case 11: {
+        case 10: c.md_gpu = radio_md_gpu_step(c.md_gpu, dir); notice = "milkdrop GPU: " + milkdrop_gpu_label(c.md_gpu) + " -- the visuals restart on it"; break;
+        case 11: c.md_show_name = !c.md_show_name; break;
+        case 12: {
             std::string why;
             if (c.scope_mode == 4) { c.scope_mode = c.use_osci ? 0 : 1; notice = "scope block: back to the " + scope_mode_name(c); }
             else if (!radio_milkdrop_usable(c, &why)) notice = "milkdrop: cannot run here -- " + why;

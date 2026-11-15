@@ -233,6 +233,12 @@ struct PM {
     void (*set_texture_search_paths)(pm_handle, const char**, size_t) = nullptr;
     void (*set_preset_duration)(pm_handle, double) = nullptr;
     void (*set_hard_cut_sensitivity)(pm_handle, float) = nullptr;
+    // (optional: left out where this projectM lacks them)
+    void (*set_hard_cut_duration)(pm_handle, double) = nullptr;
+    void (*set_aspect_correction)(pm_handle, bool) = nullptr;
+    void (*set_mesh_size)(pm_handle, size_t, size_t) = nullptr;
+    void (*set_easter_egg)(pm_handle, float) = nullptr;
+    void (*set_preset_start_clean)(pm_handle, bool) = nullptr;
     void (*set_hard_cut_enabled)(pm_handle, bool) = nullptr;
     void (*set_soft_cut_duration)(pm_handle, double) = nullptr;
     void (*set_preset_locked)(pm_handle, bool) = nullptr;
@@ -291,6 +297,11 @@ std::string load_projectm(void* pm, void* pl) {
          sym(pl, "projectm_playlist_size", g_pm.pl_size) && sym(pl, "projectm_playlist_item", g_pm.pl_item) &&
          sym(pl, "projectm_playlist_free_string", g_pm.pl_free_string) &&
          sym(pl, "projectm_playlist_set_preset_switched_event_callback", g_pm.pl_set_switched_cb);
+    sym(pm, "projectm_set_hard_cut_duration", g_pm.set_hard_cut_duration);
+    sym(pm, "projectm_set_aspect_correction", g_pm.set_aspect_correction);
+    sym(pm, "projectm_set_mesh_size", g_pm.set_mesh_size);
+    sym(pm, "projectm_set_easter_egg", g_pm.set_easter_egg);
+    sym(pm, "projectm_set_preset_start_clean", g_pm.set_preset_start_clean);
     // (4.1.x, the releases so far, lack the first and the fourth: they draw only into the window's own framebuffer)
     return ok ? std::string() : std::string("this projectM is too old (4.2 is needed: today the git version, see the manual)");
 }
@@ -1016,6 +1027,11 @@ void Milkdrop::run() {
         g_pm.set_soft_cut_duration(pm, std::max(0, a.transition));
         g_pm.set_preset_locked(pm, locked_.load());
         g_pm.set_fps(pm, std::clamp(a.fps, 5, 60));
+        if (g_pm.set_hard_cut_duration) g_pm.set_hard_cut_duration(pm, std::clamp(a.hard_cut_secs, 1, 120));
+        if (g_pm.set_aspect_correction) g_pm.set_aspect_correction(pm, a.aspect);
+        if (g_pm.set_mesh_size) g_pm.set_mesh_size(pm, static_cast<size_t>(std::clamp(a.mesh_w, 8, 192)), static_cast<size_t>(std::clamp(a.mesh_h, 6, 144)));
+        if (g_pm.set_easter_egg) g_pm.set_easter_egg(pm, static_cast<float>(std::clamp(a.variance, 0, 30)));
+        if (g_pm.set_preset_start_clean) g_pm.set_preset_start_clean(pm, a.clean_start);
     };
     apply(o);
     // after an idle stop: the preset from before, found by its file (the list may be another one now: the favourites or all of them);

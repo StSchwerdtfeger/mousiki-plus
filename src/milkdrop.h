@@ -33,6 +33,11 @@ namespace muisc {
 struct MilkdropGpu { std::string id, label; };   // id: the render node ("renderD129"), label: what the lists show ("NVIDIA (nvidia) renderD129")
 
 struct MilkdropOptions {
+    int hard_cut_secs = 20;       // the shortest time between two hard cuts (projectM's default 20)
+    bool aspect = true;           // aspect correction: presets keep their proportions on a wide picture
+    int mesh_w = 32, mesh_h = 24; // the warp mesh (projectM's default 32 x 24): finer = more detail and more work
+    int variance = 0;             // seconds: how far the time of a preset may stray, at random (projectM's "easter egg"; 0 = every preset stays the same time)
+    bool clean_start = false;     // a preset starts from a blank picture, not from what the one before left
     std::string gpu;              // the graphics card (MilkdropGpu::id; "" = automatic: what the system gives)
     std::string presets_dir;      // "" = the usual places (~/.local/share/projectM/presets, /usr/share/...; Windows: milkdrop\\presets next to the exe)
     int fps = 30;                 // pictures a second
@@ -48,12 +53,17 @@ struct MilkdropOptions {
     bool operator==(const MilkdropOptions& o) const {
         return presets_dir == o.presets_dir && fps == o.fps && max_width == o.max_width && preset_seconds == o.preset_seconds &&
                shuffle == o.shuffle && cut_sens == o.cut_sens && start_preset == o.start_preset && hard_cuts == o.hard_cuts && transition == o.transition &&
-               favourites_only == o.favourites_only && favourites == o.favourites && gpu == o.gpu;
+               favourites_only == o.favourites_only && favourites == o.favourites && gpu == o.gpu &&
+               hard_cut_secs == o.hard_cut_secs && aspect == o.aspect && mesh_w == o.mesh_w && mesh_h == o.mesh_h && variance == o.variance && clean_start == o.clean_start;
     }
     bool operator!=(const MilkdropOptions& o) const { return !(*this == o); }
 };
 
 class Milkdrop;
+inline std::string mesh_name(int i) {   // the warp mesh of the presets (Settings, ":" menu)
+    static const char* const n[] = {"low (16 x 12)", "normal (32 x 24)", "high (64 x 48)", "very high (96 x 72)"};
+    return n[i < 0 ? 0 : i > 3 ? 3 : i];
+}
 std::string milkdrop_gpu_label(const std::string& id);   // what the lists show for a choice: "automatic" or the card's label
 
 class Milkdrop {

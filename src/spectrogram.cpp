@@ -425,6 +425,10 @@ void SpectroAnalyzer::reset() {
     ++gen_;
 }
 
+SpectroAnalyzer::~SpectroAnalyzer() {
+    if (fft_cfg_) kiss_fftr_free(static_cast<kiss_fftr_cfg>(fft_cfg_));
+}
+
 void SpectroAnalyzer::configure(const SpectroSettings& s, int rate) {
     const int win = 1 << std::clamp(s.window_log2, 8, 13);
     const int fft = std::min(16384, win * std::clamp(s.zero_pad, 1, 8));   // memory: the history keeps fft / 2 bins per column

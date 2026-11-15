@@ -1,0 +1,39 @@
+# The LGPL-2.1 wants the source of the projectM build that ships with Mousiki (MilkDrop visuals) to be available. This workflow
+# downloads the two pinned source archives (tools/make_projectm_source.py checks their SHA-256), packs them as
+# projectm-source-<commit>.zip and attaches that to the release you name. Run it once for every release:
+#   Actions -> milkdrop-source -> Run workflow -> tag of the release (e.g. v5.1.0)
+# (A release made by another workflow does not start this one by itself, so it is started by hand; the zip is also kept as a
+# run artifact.)
+name: milkdrop-source
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag of the release the source zip is attached to (empty: only keep it as a run artifact)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0   # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Download, check and pack the projectM source
+        run: python tools/make_projectm_source.py --out "$RUNNER_TEMP/src"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+        with:
+          name: projectm-source
+          path: ${{ runner.temp }}/src/projectm-source-*.zip
+      - name: Attach it to the release
+        if: ${{ inputs.tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: gh release upload "$TAG" "$RUNNER_TEMP"/src/projectm-source-*.zip --clobber --repo "$GITHUB_REPOSITORY"

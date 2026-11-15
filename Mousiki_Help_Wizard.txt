@@ -2133,6 +2133,10 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   more costs more (no graphics card: the processor draws).
 [Preset Duration / Shuffle / Transition:][[Legend]]           25 s, random, a 3 s blend (defaults).
 [Hard Cut Sensitivity / Hard Cuts / Show Preset Name:][[Legend]]  2.0, on, on (defaults). The same rows are in [:].
+[Mesh Detail / Aspect Correction:][[Legend]]                  normal, on (defaults): the warp grid of the presets (finer =
+                                                  more detail, more work for the card); proportions kept.
+[Duration Variance / Hard Cut Interval / Clean Start:][[Legend]]  off, 20 s, off (defaults): random stray of a preset's time,
+                                                  the shortest time between hard cuts, start from a blank picture.
 [Default Preset / Use Effect:][[Legend]]                      the preset the visuals start with ([ENTER] opens the preset list); Use Effect = off
                                                   switches the effect over the visuals off. [:] from the big video overlay
                                                   changes the current track only.

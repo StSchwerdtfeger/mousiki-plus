@@ -425,7 +425,7 @@ std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus&
 // The node to select after UP / DOWN / LEFT / RIGHT (dir 0 / 1 / 2 / 3) from node `sel`.
 // The MilkDrop visuals overlay (":", overlay 11; radio_milkdrop.cpp): its rows (0 Preset .. 11 Show in the Scope Block); a change of one
 // (dir -1 / +1; `notice` gets the status text when there is one).
-inline constexpr int kMdRowCount = 12;
+inline constexpr int kMdRowCount = 13;
 void md_overlay_adjust(RadioSettings& c, int row, int dir, std::string& notice);
 int menus_move(int sel, int dir, bool classic = false);
 int menus_classic_sel(int sel);   // the classic view has no choosable category headers
