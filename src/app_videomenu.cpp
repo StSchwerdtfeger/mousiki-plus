@@ -206,6 +206,23 @@ void App::video_track_fx_step(int dir) {
     status_line_ = std::string("video effect of this track: ") + video_fx_name(nx);
 }
 
+void App::milkdrop_overlay_open() {
+    if (audiobook_) { status_line_ = "milkdrop: not available in the audio book player"; return; }
+    std::string why;
+    if (!milkdrop_usable()) {
+        Milkdrop::instance().available(&why);
+        status_line_ = settings_.use_milkdrop ? "milkdrop: cannot run here -- " + why : "milkdrop: switched off (Settings -> ANIMA/VIZ -> Use MilkDrop)";
+        return;
+    }
+    if (!video_full_) video_full_toggle();
+    settings_.vfull_milkdrop = true;   // (the MilkDrop visuals, not the toggle: already on stays on)
+    set_config_value("VideoFullSource", "milkdrop");
+    status_line_ = "big overlay: the MilkDrop visuals (SHIFT+UP / DOWN: their layouts, " + visuals_key_text() + ": their options)";
+    video_pic_key_.clear();
+    milkdrop_pic_key_.clear();
+    force_redraw_ = true;
+}
+
 void App::video_full_toggle() {
     if (audiobook_) { status_line_ = "video: not available in the audio book player"; return; }
     video_full_ = !video_full_;

@@ -524,7 +524,7 @@ void App::settings_tab_general(SettingsPaint& c) const {
                 pos(y, 35, field(0, c0));
                 pos(y, 41, "x");
                 pos(y, 43, field(1, c1));
-                pos(y, 51, ((sel && settings_col_ == 2) ? HI : legend_sgr(settings_)) + "[ Set back to default ]" + R);   // (right of the two numbers)
+                pos(y, 49, ((sel && settings_col_ == 2) ? HI : legend_sgr(settings_)) + "[ Back to default ]" + R);   // (right of the two numbers)
             } else
             pos(y, 35, ((sel && !(buf_row && settings_col_ == 1) && !(vol_row && settings_col_ == 1)) ? HI : "") + (ed ? change_sgr(settings_) : "") + (vol_row ? pad(shown, 9) : v) + R);
             if (vol_row) {   // right of the look: "gradient" / "no gradient" (LEFT / RIGHT switch between the two, ENTER changes the one that is lit)
@@ -532,7 +532,7 @@ void App::settings_tab_general(SettingsPaint& c) const {
                 if (sel) pos(y, 56, ansi_for(settings_.tab_current_color, false) + "[ENTER] change\x1b[0m");
             } else
             if (buf_row) {   // the button to the right of the number
-                pos(y, 51, ((sel && settings_col_ == 1) ? HI : legend_sgr(settings_)) + "[ Set back to default ]" + R);   // (the same column as the Terminal Size one)
+                pos(y, 49, ((sel && settings_col_ == 1) ? HI : legend_sgr(settings_)) + "[ Back to default ]" + R);   // (the same column as the Terminal Size one)
             } else
             if (sel && !settings_options_for(settings_tab_, r).empty())
                 // Right behind the value, so long values such as "Cover behind Disk (Full Anima)" do not run into a fixed column.

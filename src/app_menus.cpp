@@ -741,7 +741,9 @@ void App::menu_index_key(int key) {
         const auto it = e.action[0] == '#' ? settings_.hotkeys.end() : settings_.hotkeys.find(e.action);
         mode_ = Mode::Browse;
         force_redraw_ = true;
-        if (e.action[0] == '#') {   // a fixed key
+        if (std::strcmp(e.action, "#mdoverlay") == 0) {   // MilkDrop Overlay: the big video overlay on the MilkDrop visuals
+            milkdrop_overlay_open();
+        } else if (e.action[0] == '#') {   // a fixed key
             handle_key(static_cast<unsigned char>(e.fallback[0]));
         } else if (it != settings_.hotkeys.end()) {
             const int k = hotkey_string_to_key(it->second);

@@ -178,8 +178,8 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {true, -1, ""},
         {true, -1, "MILKDROP"},   // the MilkDrop visuals in the scope block (projectM, when installed)
         {false, kRsUseMilkdrop, "Use MilkDrop"}, {false, kRsMdFps, "MilkDrop Frame Rate"}, {false, kRsMdRes, "MilkDrop Resolution"}, {false, kRsMdGpu, "MilkDrop GPU"},
-        {false, kRsMdDuration, "Preset Duration"}, {false, kRsMdShuffle, "Shuffle Presets"}, {false, kRsMdBeat, "Hard Cut Sensitivity"},
-        {false, kRsMdHardCuts, "Hard Cuts"}, {false, kRsMdTransition, "Preset Transition"}, {false, kRsMdShowName, "Show Preset Name"},
+        {false, kRsMdDuration, "Preset Duration"}, {false, kRsMdShuffle, "Shuffle Presets"}, {false, kRsMdHardCuts, "Hard Cuts"},
+        {false, kRsMdBeat, "Hard Cut Sensitivity"}, {false, kRsMdTransition, "Preset Transition"}, {false, kRsMdShowName, "Show Preset Name"},
         {false, kRsMdFavShuffle, "Shuffle Favourites"}, {false, kRsMdHcd, "Hard Cut Interval"}, {false, kRsMdVar, "Duration Variance"},
         {false, kRsMdMesh, "Mesh Detail"}, {false, kRsMdAspect, "Aspect Correction"}, {false, kRsMdRatio, "Aspect Ratio"}, {false, kRsMdClean, "Clean Start"},
         {false, kRsMdUseFx, "Use Effect"}, {false, kRsMdFx, "MilkDrop Effect"}, {false, kRsMdColors, "Sixel Colours"},

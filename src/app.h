@@ -342,8 +342,13 @@ private:
     // More Options, change the track's; Settings and the visuals overlay of the main screen change Settings).
     struct MdEff { int dur; bool shuffle, favs, cuts, fx_on, name; int cut_sens, trans; };
     MdEff milkdrop_eff(const MilkdropTrackOpts& t) const;
-    MdEff milkdrop_eff() const { return milkdrop_eff(md_trk_); }
+    MdEff milkdrop_eff() const { return milkdrop_eff(mode_ == Mode::Settings ? MilkdropTrackOpts{} : md_trk_); }   // (Settings shows its own values: the playing track's overrides do not hide a change there)
     std::string milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const;   // the visuals overlay's value text (rec: of that track, else Settings')
+    // The effect of the MilkDrop visuals from a key (g / h in the main UI and in the preset overlay, e in the overlay): the playing track's own effect
+    // (as for a video), or Settings' (`global`, or no local track playing). Stepping also switches the effect on.
+    void milkdrop_effect_step(int dir, bool global);
+    void milkdrop_effect_toggle(bool global);
+    bool milkdrop_shown_in_field() const;
     void milkdrop_track_live(const MilkdropTrackOpts& mo);   // a track's value changed while it plays: in force now (no preset is loaded again)
     // The visuals overlay for ONE track: from Style Option -> More Options, and from the big video overlay (the track that plays).
     std::string md_scope_track_;    // "" = the visuals overlay changes Settings; else the track whose values it changes
@@ -358,7 +363,7 @@ private:
     int md_prev_viz_ = 0;
     // The field's MilkDrop view (the "." cycle): the whole field, the preset's name in a small box for a few seconds after it changed.
     bool milkdrop_field_rows(std::vector<std::string>& rows, int W, int H, int area_col, bool second_slot, bool trim_right) const;
-    std::vector<std::string> milkdrop_name_box(int width) const;   // the rows of that box (none when it is not shown)
+    std::vector<std::string> milkdrop_name_box(int width, bool always = false) const;   // the rows of that box (none when it is not shown)
     std::string visuals_key_text() const;
     VideoLook milkdrop_look() const;
     mutable int md_pic_w_ = 0, md_pic_h_ = 0;   // the size of the last MilkDrop picture sent (the visuals overlay's numbers)        // the look of the MilkDrop pictures (their own effect, MilkDropEffect=)
@@ -486,6 +491,7 @@ private:
     std::vector<std::string> build_video_opts_panel() const;
     void video_opts_change(int row, int dir, bool reset);
     void video_full_toggle();
+    void milkdrop_overlay_open();   // the big video overlay, on the MilkDrop visuals ("<" -> MilkDrop -> Overlay: v, then m there)
     void video_set_size(int size);
     void video_set_fx(int fx);
     void video_track_fx_step(int dir);   // the next / previous effect of this track (Style Option's "Video Effect")

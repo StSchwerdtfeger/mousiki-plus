@@ -1846,7 +1846,7 @@ marquee.
                                                   so seeking is instant; a bigger one uses a moving 2-minute
                                                   window (a jump outside it takes a moment). [ENTER] types a
                                                   number (64 up to a quarter of the RAM, at most 16384), [->]
-                                                  then [ENTER] on [ Set back to default ] restores 64;
+                                                  then [ENTER] on [ Back to default ] restores 64;
                                                   applies to the next track.
 
 [Rate Cap at 96 kHz:][[Legend]]                               on (default) = a track above 96 kHz is brought down to 96
@@ -1876,7 +1876,7 @@ marquee.
 
 [Terminal Size:][[Legend]]                                    columns x rows (default 120 x 32, which shows 4 rows in
                                                   the list and the queue) Use [<-/->] to choose the field
-                                                  or the [ Set back to default ] button, where [ENTER]
+                                                  or the [ Back to default ] button, where [ENTER]
                                                   makes input possible / resets the value. Choosing 0 =
                                                   leaves the terminal alone, similar to setting the
                                                   previous option to true. Minimum is set to at least 100 x

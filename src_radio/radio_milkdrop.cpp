@@ -441,7 +441,7 @@ std::vector<std::string> build_md_overlay(const Style& s, const UiModel& m) {
     char beat[8];
     std::snprintf(beat, sizeof beat, "%.1f", std::clamp(c.md_cut_sens, 5, 60) / 10.0);
     const std::string labels[kMdRowCount] = {"Preset", "Preset Overlay", "Random Preset", "Lock Preset", "Preset Duration", "Shuffle Presets", "Shuffle Favourites",
-                                             "Hard Cut Sensitivity", "Hard Cuts", "Preset Transition", "Frame Rate", "Resolution", "GPU", "Use Effect", "MilkDrop Effect", "Sixel Colours", "Hard Cut Interval",
+                                             "Hard Cuts", "Hard Cut Sensitivity", "Preset Transition", "Frame Rate", "Resolution", "GPU", "Use Effect", "MilkDrop Effect", "Sixel Colours", "Hard Cut Interval",
                                              "Duration Variance", "Mesh Detail", "Aspect Correction", "Aspect Ratio", "Clean Start", "Show Preset Name", "Show in the Scope Block"};
     const std::string vals[kMdRowCount] = {
         preset, "[ENTER]", "[ENTER]", md.locked() ? "on" : "off",

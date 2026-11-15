@@ -39,7 +39,7 @@ constexpr int kPreviewX = 71;      // the column of the box's left border
 constexpr int kPreviewMinW = 107;  // narrower terminals have no room: no preview
 
 enum PvKind { kPvNone, kPvLyrics, kPvDisk, kPvCover, kPvVolume, kPvBars, kPvWave, kPvScope, kPvSpectro, kPvSphere,
-              kPvTranslit, kPvEmoji, kPvMarquee, kPvVideo, kPvClap };
+              kPvTranslit, kPvEmoji, kPvMarquee, kPvVideo, kPvClap, kPvDesc, kPvPlayback };
 
 }  // namespace
 
@@ -118,10 +118,88 @@ void make_sample_cover(CoverImage& c) {
     c.ok = true;
 }
 
+
+std::vector<std::string> split_lines_nl(const std::string& t) {
+    std::vector<std::string> v;
+    size_t a = 0;
+    while (a <= t.size()) {
+        const size_t b = t.find('\n', a);
+        v.push_back(t.substr(a, b == std::string::npos ? std::string::npos : b - a));
+        if (b == std::string::npos) break;
+        a = b + 1;
+    }
+    return v;
+}
+
+// The short texts of the DESCRIPTION box: what an option does, in a few plain lines. "" = no description (the row has a preview or none).
+std::string pv_desc(int id, const Settings& s) {
+    switch (id) {
+        case kSidNormalize:
+            return "Plays quiet and loud tracks at about the same loudness, so the volume need not be changed between songs. Target and boost are set in the SHIFT+v overlay.";
+        case kSidRateCap:
+            return "true: a file above 96 kHz (176.4, 192 kHz ...) is played at 96 kHz. That is far beyond hearing, uses less memory and works on more sound devices.\nfalse: it plays at its own rate, up to 768 kHz.";
+        case kSidGapless:
+            return "off: a short gap between two tracks.\nalbum: no gap between tracks with the same album tag (and the same artist or folder; no tag: the same folder) and the same sample rate.\nfull: no gap between any two tracks that follow by themselves; another sample rate is converted.";
+        case kSidUseTermSettings:
+            return "true: Mousiki leaves the terminal as it is. Terminal Size and Full Screen are ignored (they keep their values).\nfalse: Mousiki sets the window to Terminal Size / Full Screen at the start.";
+        case kSidMediaKeys:
+            return "Lets the system's media keys, headphone buttons and now-playing widgets control Mousiki (Windows: media pop-up; Linux: MPRIS, playerctl; macOS: Now Playing). Read at the next start.";
+        case kSidVideoMp3:
+            return "In SEARCH YT a video that is downloaded without a song as its target also gets its sound saved as an mp3 in the download folder, connected to the video.\nWith a song as the target the video is attached to that song and no mp3 is made (CTRL+o in SEARCH YT asks for one per download).";
+        case kSidMdGpu:
+            return "The graphics card that draws the visuals. automatic: what the system gives.\nLinux: choose a card here.\nWindows: Settings > System > Display > Graphics, add mousiki.exe and set High performance or Power saving.\nmacOS: the system decides, there is no choice (a MacBook with two graphics chips switches by itself).";
+        case kSidMdMesh:
+            return "The grid a preset warps the picture with. Finer = smoother warps, but more work for the graphics card; low helps a weak card or battery mode. The visuals restart.";
+        case kSidMdAspect:
+            return "true: the picture keeps the shape of Aspect Ratio and is never cut off; a wider or taller area gets bars.\nfalse: it fills the whole area, and a wide area cuts the preset at the top and bottom.";
+        case kSidMdRatio:
+            return "The shape of the picture: auto (the area's own shape, at most 16:9) or a fixed ratio from 1:1 to 21:9, with bars where the area has another shape. Needs Aspect Correction on.";
+        case kSidReduceMotion:
+            return "true: when paused (or nothing plays) and no key was pressed for 3 seconds, the screen is redrawn about 10 times a second instead of at the full frame rate (4 when nothing moves). Saves CPU and terminal traffic, useful over SSH. Any key brings the full rate back; a turning sphere keeps it.";
+        case kSidMdPreset:
+            return "The preset the visuals start with. [ENTER] opens the preset overlay to choose it.";
+        case kSidMdUseFx:
+            return "true: the effect chosen in MilkDrop Effect is put over the visuals.\nfalse: they are shown as they are drawn.";
+        case kSidMdFx:
+            return "The video effect (the same list as Video Effect) put over the visuals while Use Effect is on.";
+        case kSidMdColors:
+            return "Sixel terminals only. adaptive: the colours are taken from each picture. fixed: one fixed colour set for all pictures (steadier, less exact).";
+        case kSidMdShowName:
+            return "true: the preset's name shows in a small box over the picture for 3 seconds after it changed.";
+        case kSidMdLock:
+            return "true: the preset stays until you change it yourself via n / b, Random or the preset overlay, whatever the time or a beat says.";
+        case kSidMdDuration:
+            return "How long a preset plays before the next one follows. off: no change by time (hard cuts can still change it).";
+        case kSidMdVar:
+            return "Lets the time of a preset stray by up to this many seconds at random, so the changes do not come like clockwork.";
+        case kSidMdShuffle:
+            return "true: the next preset is chosen at random.\nfalse: the presets follow in the order of their files.";
+        case kSidMdFavShuffle:
+            return "true: only your favourite presets play (add them with a in the preset overlay). Without favourites all presets play.";
+        case kSidMdHardCuts:
+            return "true: a strong beat cuts to the next preset at once. Hard Cut Sensitivity and Hard Cut Interval decide how easily.";
+        case kSidMdCutSens:
+            return "How strong a beat must be for a hard cut. Lower = more cuts. Only matters with Hard Cuts on.";
+        case kSidMdHcd:
+            return "The shortest time between two hard cuts. Lower = strong beats may cut more often. Only matters with Hard Cuts on.";
+        case kSidMdClean:
+            return "true: a preset starts from a blank picture, not from what the one before left behind (sharper, but no blend of the remains).";
+        case kSidMdTransition:
+            return "How long one preset blends into the next. cut: an instant change.";
+        case kSidShareProfiles:
+            return "true: the radio uses the player's oscilloscope and spectrogram settings, so both look the same. The radio's own values are kept and come back when you turn this off.";
+        case kSidSpectroHistory:
+            return "true: the spectrogram keeps analysing the sound while it is not on screen, so its picture is complete when you open it (about 11 MB of memory).\nfalse: only while it is shown (less memory).";
+        default: break;
+    }
+    (void)s;
+    return "";
+}
+
 PvKind kind_of(int id, const Settings& s) {
     switch (id) {
         case kSidLyrAlign: case kSidLyrAnim: case kSidUseLyrics: return kPvLyrics;
-        case kSidUseVideo: case kSidVideoLyrics: case kSidVideoSize: case kSidVideoFx: case kSidVideoRes: case kSidVideoFps: case kSidVideoBuffer: case kSidVideoMp3: case kSidVideoContrast: case kSidVideoBrightness: case kSidVideoColors: case kSidVideoChroma: case kSidVideoDither: case kSidVideoBase: case kSidVideoFxContrast: case kSidVideoGradSat: case kSidVideoRound: return kPvVideo;   // (a sample video; the lyrics preview when it is not there)
+        case kSidUseVideo: case kSidVideoLyrics: case kSidVideoSize: case kSidVideoFx: case kSidVideoRes: case kSidVideoFps: case kSidVideoBuffer: case kSidVideoContrast: case kSidVideoBrightness: case kSidVideoColors: case kSidVideoChroma: case kSidVideoDither: case kSidVideoBase: case kSidVideoFxContrast: case kSidVideoGradSat: case kSidVideoRound: return kPvVideo;   // (a sample video; the lyrics preview when it is not there)
         case kSidVideoCover: return kPvNone;
         case kSidVideoClap: return kPvClap;
         case kSidDisk: case kSidDiskSpeed: case kSidDiskBorder: return kPvDisk;
@@ -145,7 +223,8 @@ PvKind kind_of(int id, const Settings& s) {
         case kSidLatinMacrons: case kSidLatinWo: case kSidLatinHanzi: case kSidLatinLookup: return kPvTranslit;
         case kSidEmoji: return kPvEmoji;
         case kSidMarquee: return kPvMarquee;
-        default: return kPvNone;
+        case kSidPlayback: return kPvPlayback;
+        default: return pv_desc(id, s).empty() ? kPvNone : kPvDesc;
     }
 }
 
@@ -732,6 +811,37 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
         out.w = vcols;
         break;
     }
+    case kPvDesc: {   // a few lines of text: what the highlighted option does
+        for (const std::string& para : split_lines_nl(pv_desc(id, settings_))) {
+            if (para.empty()) continue;
+            if (!out.rows.empty()) out.rows.push_back("");
+            for (const std::string& w : wrap_lines(para, cw, 10)) out.rows.push_back(w);
+        }
+        const int want = std::min(visible - 1, static_cast<int>(out.rows.size()) + 3);
+        if (want > bh) { bh = want; ih = bh - 2; body_h = ih - 1; }
+        out.w = 0;
+        break;
+    }
+    case kPvPlayback: {   // the small play-mode box beside the search bar (the letter changes with the value), then what each mode does
+        const int mode = std::clamp(settings_.play_mode, 0, 4);
+        const std::string border = ansi_for(settings_.border_color, false);
+        const std::string lit = ansi_for(settings_.tab_current_color, false);
+        const std::string letter(1, play_mode_letter());
+        const int pad = std::max(0, (cw - 5) / 2);
+        const std::string sp(static_cast<size_t>(pad), ' ');
+        out.rows.push_back(sp + border + "\u256d\u2500\u2500\u2500\u256e" + R);
+        out.rows.push_back(sp + border + settings_.box_vertical + R + " " + border + letter + R + " " + border + settings_.box_vertical + R);
+        out.rows.push_back(sp + border + "\u2570\u2500\u2500\u2500\u256f" + R);
+        out.rows.push_back("");
+        static const char* const kModes[] = {"L  list: play along the list", "R  loop: repeat this track", "S  shuffle: a random next track", "O  stop: stop after this track", "Q  queue: play the queue, then stop"};
+        for (int i = 0; i < 5; ++i) out.rows.push_back((i == mode ? lit : std::string()) + truncate_str(kModes[i], cw) + (i == mode ? R : std::string()));
+        out.rows.push_back("");
+        for (const std::string& w : wrap_lines("The letter is shown in the box next to the search bar; m / j change it.", cw, 3)) out.rows.push_back(w);
+        const int want = std::min(visible - 1, static_cast<int>(out.rows.size()) + 3);
+        if (want > bh) { bh = want; ih = bh - 2; body_h = ih - 1; }
+        out.w = 0;
+        break;
+    }
     case kPvMarquee: {
         const std::string text = "Meowsome Moew Orchestra And The Best-Of-All-Meows feat. Bozai   ";
         const int w = std::max(8, std::min(cw - 8, 24));
@@ -768,6 +878,7 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             break;
         }
     }
+    if (kind == kPvDesc || kind == kPvPlayback) label = "DESCRIPTION";
     if (display_width(label) > iw - 2) label = "Preview";
     const int top = 4;                                            // one row below the first option row
     const int bottom = top + bh - 1;

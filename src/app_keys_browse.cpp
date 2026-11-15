@@ -485,7 +485,8 @@ bool App::browse_rest_key(const std::string& action, int key, int lookup_key, si
         }
     } else if (action == "HKeyVideoFx" || action == "HKeyVideoFxBack") {   // the next / previous effect for this track's video (small field)
         const int fxdir = action == "HKeyVideoFxBack" ? -1 : 1;
-        if (audiobook_) status_line_ = "video effect: not available in the audio book player";
+        if (!audiobook_ && milkdrop_shown_in_field() && !(settings_.video_mode && settings_.video_view && !video_shown_for(current_.path).empty())) milkdrop_effect_step(fxdir, false);   // (the MilkDrop visuals are what the field shows: the effect of those)
+        else if (audiobook_) status_line_ = "video effect: not available in the audio book player";
         else if (!settings_.video_mode || !settings_.video_view || video_shown_for(current_.path).empty()) status_line_ = "video effect: needs the video view in the field with a track that has a video";
         else video_track_fx_step(fxdir);
     } else if (action == "HKeyVideoFull") {   // ">": the video over the whole screen (on / off)

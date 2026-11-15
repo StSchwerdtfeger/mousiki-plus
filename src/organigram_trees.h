@@ -60,6 +60,7 @@ inline const Node kPlayerTree[] = {
     {3, "Full Screen Video", "HKeyVideoFull", "v", "Overlay"},
     {2, "MilkDrop", nullptr, nullptr},
     {3, "MilkDrop Options", "HKeyVisualsMenu", ":", "Options"},
+    {3, "MilkDrop Overlay", "#mdoverlay", "v", "Overlay"},   // (the big video overlay, switched to the MilkDrop visuals: v, then m there)
     {3, "MilkDrop Extra Window (Max. Screen Refresh Rate)", "HKeyMilkdropWindow", ";", "Extra Window"},
     {2, "Creator", "HKeyCreator", "^"},
     {1, "Lyrics", nullptr, nullptr, nullptr, 'L'},

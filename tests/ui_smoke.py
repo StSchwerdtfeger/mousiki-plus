@@ -726,7 +726,7 @@ def paging_and_translit_row(binary, root, scripts):
         sess.send(b"\x1b[B", 0.1)
         check("Terminal Size" in find("Terminal Size") and "120" in find("Terminal Size") and "32" in find("Terminal Size"),
               "terminal size: the row shows 120 x 32 by default")
-        check("Set back to default" in find("Terminal Size"), "terminal size: the Set back to default button is next to it")
+        check("Back to default" in find("Terminal Size"), "terminal size: the Back to default button is next to it")
         sess.send(b"\x1b[C", 0.4)   # RIGHT: the rows field
         sess.send(b"\r", 0.5)
         for _ in range(3):
@@ -4107,9 +4107,79 @@ def milkdrop_layouts_style(binary, root, scripts):
         sess.kill()
 
 
+def settings_descriptions(binary, root, scripts):
+    """Settings: the DESCRIPTION box (not "Preview: ...") for the General rows Playback (with the small play-mode box and the five modes),
+    Normalize Volume, Rate Cap, Gapless, Use Terminal Settings, Media Keys and for the Anima/Viz rows yt-dlp mp3 from mp4, MilkDrop GPU (with the
+    notes for Windows and macOS), Mesh Detail ... Spectrogram History; the MilkDrop rows Default Preset, Use Effect, MilkDrop Effect, Sixel Colours
+    and Show Preset Name have a DESCRIPTION too. The Back to default buttons sit left of the box."""
+    lib = os.path.join(root, "sds_music")
+    os.makedirs(lib)
+    make_wav(os.path.join(lib, "Alpha Song.wav"), 20)
+    home = os.path.join(root, "sds_home")
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=false\n" % lib)
+    sess = Session(binary, home, scripts, {"MOUSIKI_NULL_AUDIO": "1"}, quiet_stderr=True)
+    def walk(wanted, limit=70):
+        """Down through the rows; each wanted (text) is looked for on the screen after every step."""
+        found = {}
+        pending = dict(wanted)
+        for _ in range(limit):
+            t = sess.text()
+            for k, v in list(pending.items()):
+                if v in t:
+                    found[k] = t
+                    del pending[k]
+            if not pending:
+                break
+            sess.send(b"\x1b[B", 0.2)
+        return found, pending
+    try:
+        sess.wait_for(lambda t: "Alpha Song" in t, 10)
+        sess.send("s", 1.2)
+        sess.send(b"\t", 0.8)   # GENERAL
+        want = {"Playback": "R  loop: repeat this track", "Normalize": "Plays quiet and loud", "Rate": "a file above 96 kHz", "Gapless": "same album tag",
+                "Terminal": "Mousiki leaves the terminal", "Reduce": "redrawn about 10 times", "Media": "media keys, headphone"}
+        found, missing = walk(want, 40)
+        check(not missing, "descriptions (General): every row has its text (missing: %s)" % ", ".join(missing))
+        t = found.get("Playback", "")
+        check("DESCRIPTION" in t and "Preview: Playback" not in t, "descriptions: the box is called DESCRIPTION, not Preview")
+        check("\u256d\u2500\u2500\u2500\u256e" in t and "Q  queue: play the queue, then stop" in t, "descriptions: Playback shows the small play-mode box and all five modes")
+        t = found.get("Terminal", "")
+        check("[ Back to default ]" not in "".join(l[70:] for l in t.splitlines()), "descriptions: the Back to default buttons do not reach into the box")
+        sess.send(b"\t", 0.8)   # ANIMA/VIZ
+        want = {"mp3": "In SEARCH YT a video", "gpu": "Windows: Settings > System", "mesh": "The grid a preset warps", "aspect": "keeps the shape of Aspect Ratio",
+                "lock": "the preset stays until you change", "dur": "How long a preset plays", "var": "Lets the time of a preset", "shuf": "chosen at random",
+                "favs": "only your favourite presets play", "cuts": "a strong beat cuts", "sens": "How strong a beat must be", "hcd": "shortest time between two hard cuts",
+                "clean": "starts from a blank picture", "trans": "blends into the next", "share": "uses the player's oscilloscope", "hist": "keeps analysing the sound",
+                "mac": "macOS: the system decides"}
+        found, missing = walk(want, 120)
+        check(not missing, "descriptions (Anima/Viz): every row has its text (missing: %s)" % ", ".join(missing))
+        check("yt-dlp mp3" not in "".join(l for l in found.get("mp3", "").splitlines() if "Preview:" in l), "descriptions: yt-dlp mp3 from mp4 has no video preview")
+        # the MilkDrop rows Default Preset, Use Effect, MilkDrop Effect, Sixel Colours, Show Preset Name: a description, no preview box
+        found, missing = walk({"preset": "The preset the visuals start with", "usefx": "the effect chosen in MilkDrop Effect", "fx": "The video effect (the same list",
+                               "colors": "Sixel terminals only", "name": "preset's name shows in a small box"}, 1)
+        sess.send(b"\x1b[A", 0.3)
+        seen = {}
+        for _ in range(130):
+            t = sess.text()
+            for k, v in (("preset", "The preset the visuals start with"), ("usefx", "the effect chosen in MilkDrop Effect"), ("fx", "The video effect (the same list"),
+                         ("colors", "Sixel terminals only"), ("name", "preset's name shows in a small box")):
+                if v in t:
+                    seen[k] = t
+            if len(seen) == 5:
+                break
+            sess.send(b"\x1b[A", 0.25)   # (the walk above ended below the MilkDrop rows)
+        check(len(seen) == 5, "descriptions: the MilkDrop rows have a DESCRIPTION (seen: %s)" % ", ".join(sorted(seen)))
+        check(all("Preview: " not in "".join(l for l in t.splitlines() if "MilkDrop" in l and "Preview" in l) for t in seen.values()), "descriptions: they have no Preview box")
+    finally:
+        sess.kill()
+
+
 def settings_general_texts(binary, root, scripts):
     """Settings -> GENERAL: Start Mode reads "music player"; Track Buffer (MB) has a five-character field, a typed number above the limit is
-    set to it (a quarter of the RAM, at most 16384) and the status line names the range; the [ Set back to default ] buttons of Track Buffer
+    set to it (a quarter of the RAM, at most 16384) and the status line names the range; the [ Back to default ] buttons of Track Buffer
     and Terminal Size are in the same column (51); the transliteration previews are what Mousiki makes of the examples (Translit. Kanji:
     the poem, Japanese text is not changed by the row; Latin Name Lookup: what the lookup does and the names that are never looked up)."""
     lib = os.path.join(root, "sgt_music")
@@ -4129,11 +4199,11 @@ def settings_general_texts(binary, root, scripts):
             return next((l for l in sess.screen.display if label in l and "Preview:" not in l), "")
         check("music player" in find("Start Mode"), "settings: Start Mode reads music player (%r)" % find("Start Mode").strip()[:60])
         tb, ts = find("Track Buffer (MB)"), find("Terminal Size")
-        check(tb.find("[ Set back to default ]") == ts.find("[ Set back to default ]") == 50, "settings: the two [ Set back to default ] buttons are in column 51 (%d, %d)" % (tb.find("[ Set back") + 1, ts.find("[ Set back") + 1))
+        check(tb.find("[ Back to default ]") == ts.find("[ Back to default ]") == 48, "settings: the two [ Back to default ] buttons are in column 49 (%d, %d)" % (tb.find("[ Back") + 1, ts.find("[ Back") + 1))
         def tbval():
             l = find("Track Buffer (MB)")
             return l.split(":", 1)[1].split("[")[0].strip() if ":" in l else ""
-        check(tbval() == "64" and tb.find("[ Set back") - tb.find(":") == 19, "settings: the Track Buffer field is five characters wide (%r)" % tb.strip()[:60])
+        check(tbval() == "64" and tb.find("[ Back") - tb.find(":") == 17, "settings: the Track Buffer field is five characters wide (%r)" % tb.strip()[:60])
         for _ in range(12):   # to Track Buffer (MB)
             sess.send(b"\x1b[B", 0.1)
         sess.send(b"\r", 0.5)
@@ -4147,7 +4217,7 @@ def settings_general_texts(binary, root, scripts):
         check("allowed here: 64 - " in t, "settings: the status line names the range")
         sess.send(b"\x1b[C", 0.4)
         sess.send(b"\r", 0.8)
-        check(tbval() == "64", "settings: Set back to default restores 64 (%r)" % tbval())
+        check(tbval() == "64", "settings: Back to default restores 64 (%r)" % tbval())
         sess.send(b"\x1b[D", 0.3)
         for _ in range(20):   # Track Buffer -> Translit. Kanji (Rate Cap ... Latin Wo)
             sess.send(b"\x1b[B", 0.1)
@@ -4767,6 +4837,15 @@ def milkdrop_preset_overlay(binary, root, scripts):
             return None
         check(sess.wait_for(lambda t: big_pic() is not None, 8), "preset overlay: the visuals are shown beside the list (a picture)")
         check(before[:12] in sess.text(), "preset overlay: it opens on the preset shown (%r)" % before[:12])
+        # [e] turns the effect on the visuals on / off, [g] / [h] change it (the title names it)
+        sess.send("g", 1.0)
+        check(sess.wait_for(lambda t: re.search(r"MILKDROP PRESETS.*effect: (?!off)\S", t) is not None, 5), "preset overlay: [g] turns an effect on the visuals (title: %r)" % next((l.strip()[:90] for l in sess.screen.display if "MILKDROP PRESETS" in l), ""))
+        sess.send("e", 1.0)
+        check(sess.wait_for(lambda t: "effect: off" in t, 5), "preset overlay: [e] turns the effect off")
+        sess.send("e", 1.0)
+        check(sess.wait_for(lambda t: re.search(r"MILKDROP PRESETS.*effect: (?!off)\S", t) is not None, 5), "preset overlay: [e] turns it on again")
+        sess.send("h", 1.0)
+        check(sess.alive(), "preset overlay: [h] changes it back")
         # the next preset in the list plays at once
         sess.send(b"\x1b[B", 1.5)
         sess.send("a", 1.0)
@@ -5601,6 +5680,30 @@ def organigram_menu(binary, root, scripts):
         sess.wait_for(lambda t: "Equalizer" in t and "Karaoke Mode" in t and "Playlists" in t and "Fetch Cover" in t)
         t = sess.text()
         check("Equalizer" in t and "Karaoke Mode" in t and "Playlists" in t and "Fetch Cover" in t, "organigram: SHIFT+t shows the classic view with every category's options")
+        # MilkDrop -> Overlay [v]: the big video overlay on the MilkDrop visuals (as v, then m there); where MilkDrop cannot run the main screen stays
+        def lit_rows():
+            out = []
+            for _y, line in sess.screen.buffer.items():
+                if any(line[x].reverse for x in line if line[x].data.strip()):
+                    out.append("".join(line[x].data for x in sorted(line)))
+            return out
+        opened = False
+        for _ in range(90):
+            if any("Options" in r and "[:]" in r for r in lit_rows()):
+                sess.send(b"\x1b[B", 0.4)
+                check(any("Overlay" in r and "[v]" in r for r in lit_rows()), "organigram: MilkDrop has an Overlay entry with the key [v] after Options")
+                sess.send(b"\r", 2.0)
+                opened = True
+                break
+            sess.send(b"\x1b[B", 0.2)
+        check(opened, "organigram: the MilkDrop Options entry is reached in the classic view")
+        t = sess.text()
+        if "MILKDROP -" in t:
+            check(True, "organigram: ENTER on MilkDrop Overlay opens the big video overlay on the MilkDrop visuals")
+            sess.send(b"\x1b", 1.0)
+        else:
+            check("Alpha Song" in t or "cannot run" in t or "switched off" in t, "organigram: MilkDrop Overlay where MilkDrop cannot run leaves the main screen")
+        sess.send("<", 1.0)
         sess.send(b"\x1b", 1.0)
         sess.send("<", 1.0)
         sess.wait_for(lambda t: "Equalizer" in t and "Karaoke Mode" in t)
@@ -5790,6 +5893,8 @@ def run_scenario(name, binary, root, scripts):
         overlays_queue_enter(binary, root, scripts)
     elif name == "video_fx_list_frozen":
         video_fx_list_frozen(binary, root, scripts)
+    elif name == "settings_descriptions":
+        settings_descriptions(binary, root, scripts)
     elif name == "settings_general_texts":
         settings_general_texts(binary, root, scripts)
     elif name == "milkdrop_radio_book":
@@ -5841,7 +5946,7 @@ def run_scenario(name, binary, root, scripts):
 
 
 SCENARIOS = ["narrow80", "narrow100", "main", "read_lyrics_play", "karaoke_timing", "book_speed_and_devices", "paging_and_translit_row",
-             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "overlays_queue_enter", "video_fx_list_frozen"]
+             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen"]
 
 
 def main():
