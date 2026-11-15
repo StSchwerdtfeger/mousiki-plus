@@ -60,6 +60,7 @@ inline const RefHotkeyRow kRefRows[] = {
     {nullptr, "HKeySpectroFull", "Spectrogram Full Screen"},
     {nullptr, "HKeyScopeBig", "Oscilloscope Full Screen"},   // YT left, XY right, grid
     {nullptr, "HKeyScopeWindow", "Scope Window"},     // the oscilloscope in its own (graphics card) window
+    {nullptr, "HKeyMilkdropWindow", "MilkDrop Window"},   // the MilkDrop pictures in their own (graphics card) window
     {nullptr, "HKeySpectroWindow", "Spectrogram Window"}, // the spectrogram in its own (graphics card) window
     // --- Search ---
     {"SEARCH", "HKeySearch", "Search Local"},   // the prefixes typed in the box (y: sc: b: p: f: r: a:) are fixed, see the cheat sheet

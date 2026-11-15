@@ -333,6 +333,9 @@ menus of a mode that you have switched off are not there).
 │ Video                   │
 │  ├ Options [&]          │
 │  └ Overlay [v]          │
+│ MilkDrop                │
+│  ├ Options [:]          │
+│  └ Extra Window [;]     │
 │ Creator [^]             │
 └─────────────────────────┘
 
@@ -377,6 +380,9 @@ menus of a mode that you have switched off are not there).
                                    │  ├ Options [SHIFT+o]    │
                                    │  ├ Overlay [=]          │
                                    │  └ Extra Window [)]     │
+                                   │ MilkDrop                │
+                                   │  ├ Options [:]          │
+                                   │  └ Extra Window [;]     │
                                    └─────────────────────────┘
 =>>> MENU GRID END
 [[New Page]]
@@ -1404,15 +1410,16 @@ MILKDROP:[[Header]] the Winamp visualizer, drawn by projectM (Windows: in the in
 setup.ps1; Linux: installed separately; see the manual: MilkDrop visuals). Thousands of presets. [:] opens its overlay: the preset (left / right,
 [ENTER] random, [n] / [b], [l] lock) and its options. Its row Preset Overlay opens the preset folder
 with the visuals beside it as the preview: [ENTER] chooses, [a] adds a favourite, [d] takes one out
-(in the Favourites folder on top), [/] searches every preset (fuzzy); Shuffle Favourites plays only
-the favourites. Effect puts a video effect over the visuals; Sixel Colours (adaptive) takes the
+(in the Favourites folder on top), [/] searches every preset (fuzzy); the Recommended folder under
+it is a hand-picked list that ships with Mousiki; Shuffle Favourites plays only the favourites. Effect puts a video effect over the visuals; Sixel Colours (adaptive) takes the
 colours of a Sixel picture from the picture itself (smooth gradients), fixed = the old palette.
 Lock Preset keeps the preset (no timer, no beat cut); Shuffle only picks what comes next. Auto
 MilkDrop shows the visuals for every track (Auto Video is off meanwhile). Style Option -> More
 Options: the preset overlay for one track (its preset, keep it, its own effect). They also fill the big video overlay ([v],
 then [m]), and Style Option [SHIFT+s] switches them on / off for one track and pins a preset to it.
 All of them analyze the decoded signal, so volume, equalizer and normalization never change
-the picture.
+the picture. [;] (US / UK: [|]) shows the MilkDrop pictures in their own window at the monitor's
+refresh rate, without the terminal's picture conversion (see 2.5.3; size: MilkDropWindowResolution).
 
 TUNING AND EXTRA VIEWS: [[Header]]
 [SHIFT+o/0] oscilloscope tuning/overlay; [SHIFT+i/u] spectrogram options/overlay; 
@@ -1487,6 +1494,7 @@ Both visualizations can leave the terminal and open a real window, redrawn at yo
 refresh rate (60, 120, 165 Hz ...):
 [)]   scope window            German keyboard SHIFT+9, English keyboard SHIFT+0
 [(]   spectrogram window      German keyboard SHIFT+8, English keyboard SHIFT+9
+[;]   MilkDrop window         German keyboard SHIFT+, (beside [:]), US / UK keyboard [|] (SHIFT+\)
 With the waterfall chosen ([SHIFT+i], View) the spectrogram window shows it too, at the refresh rate of the
 monitor, the graphs gliding back smoothly.
 Spectrogram and waterfall, image and braille, each keep their own values (colors, scale, gain ...):
@@ -1495,6 +1503,8 @@ View or Style in [SHIFT+i] brings that look's values in. Each view also remember
 for the spectrogram does not make the waterfall braille, and a view never opened starts as an image with
 defaults.
 In the window: [F] or [F11] switches to fullscreen, [T] always on top, [ESC] or [Q] close.
+The MilkDrop window gets finished pictures instead of audio: the engine stays in the player, so presets,
+[:] and the preset overlay work as before; the terminal shows a note meanwhile.
 Each window is a separate process that gets the audio through a pipe, so a graphics driver
 problem can only close the window, never stall the music or the terminal.
 Position and size are remembered, and the windows stay open when you switch player <-> radio.
@@ -2357,8 +2367,9 @@ and overlays as described in chapters 2.5 to 2.8. Differences: the radio keeps i
 oscilloscope values and settings in radio_config.txt; the sleep timer stops the stream (no "Stop after
 current song"); the visualization field is the scope block right of the station info and [,/.] cycles
 oscilloscope, sphere, spectrogram and MilkDrop (there are no lyrics). The spectrogram has its waterfall view
-here too ([SHIFT+i], View). [:] opens the MilkDrop visuals overlay, as in the player; the radio keeps its
-own MilkDrop options (radio_config.txt, ANIMA/VIZ -> MILKDROP).
+here too ([SHIFT+i], View). [:] opens the MilkDrop visuals overlay with the player's rows and its preset overlay ([P]:
+folders, Favourites, Recommended, search); the radio keeps its own MilkDrop options
+(radio_config.txt, ANIMA/VIZ -> MILKDROP). No video effect rows there.
 
 LETTERS ARE MORE OFTEN CASE SENSITIVE IN THE RADIO: [[Header]]
 [r] recalls a preset slot, [R] reconnects the station.

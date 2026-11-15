@@ -106,6 +106,7 @@ struct Settings : VizPrefs {
     std::vector<std::string> milkdrop_extra_paths;   // MilkDropExtraPresets= (one line per folder): more preset folders, their presets join the list
     std::string milkdrop_presets;      // MilkDropPresets=: the preset folder ("" = the usual places)
     int milkdrop_fps = 30;             // MilkDropFrameRate=: pictures a second (15, 20, 25, 30, 45, 60)
+    int milkdrop_win_res = 1280;       // MilkDropWindowResolution=: the extra MilkDrop window's pictures are drawn this many pixels across (16:9)
     int milkdrop_res = 480;            // MilkDropResolution=: drawn at most this many pixels across (320, 480, 640, 960, 1280)
     int milkdrop_preset_secs = 25;     // MilkDropPresetDuration=: seconds until the next preset (0 = it stays)
     bool milkdrop_shuffle = true;      // MilkDropShuffle=: the next preset at random

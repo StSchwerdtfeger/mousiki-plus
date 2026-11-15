@@ -20,6 +20,7 @@
 #include "chiptune.h"
 #include "scope_big.h"
 #include "scope_window.h"
+#include "milkdrop.h"
 #include "wizard.h"
 #include "creator.h"
 #include "mic_capture.h"
@@ -163,6 +164,48 @@ void App::spectro_window_sync(bool check_alive) {
     if (has_track_) { const TrackMetadata dm = display_metadata(); title = dm.artist.empty() ? dm.name : dm.artist + " - " + dm.name; }
     std::snprintf(c.title, sizeof c.title, "%s", title.c_str());
     spectro_window_set_config(c);
+}
+
+// ---- MilkDrop window (";" / "|") ----------------------------------------------------------------------------------
+void App::milkdrop_window_toggle() {
+    if (milkdrop_window_running()) {
+        milkdrop_window_close();
+        milkdrop_win_on_ = false;
+        force_redraw_ = true;
+        status_line_ = "MilkDrop window closed";
+        return;
+    }
+    std::string err;
+    if (!Milkdrop::instance().available(&err)) { status_line_ = err.empty() ? "MilkDrop is not available here" : err; return; }
+    milkdrop_win_on_ = true;
+    milkdrop_window_sync(false);   // the size and title are there before the first picture
+    if (!milkdrop_window_open(&err)) {
+        milkdrop_win_on_ = false;
+        status_line_ = err;
+        return;
+    }
+    force_redraw_ = true;
+    status_line_ = "MilkDrop window opened: F / double-click fullscreen, T always on top, ESC or " + hotkey_text("HKeyMilkdropWindow", ";") + " closes";
+}
+
+void App::milkdrop_window_sync(bool check_alive) {
+    if (!milkdrop_win_on_ && check_alive && milkdrop_window_running()) milkdrop_win_on_ = true;   // opened in the radio
+    if (!milkdrop_win_on_) return;
+    if (check_alive && !milkdrop_window_running()) {   // closed from its side (its X, ESC, q) or failed
+        milkdrop_win_on_ = false;
+        force_redraw_ = true;
+        const std::string e = milkdrop_window_take_error();
+        status_line_ = e.empty() ? "MilkDrop window closed" : e;
+        return;
+    }
+    milkdrop_apply_settings();   // the engine's options (preset time, GPU, mesh ...) are the same as for the terminal
+    const int w = std::clamp(settings_.milkdrop_win_res, 320, 1920) & ~1;
+    milkdrop_window_set_size(w, (w * 9 / 16) & ~1);
+    MilkWinConfig c;
+    std::string title;
+    if (has_track_) { const TrackMetadata dm = display_metadata(); title = dm.artist.empty() ? dm.name : dm.artist + " - " + dm.name; }
+    std::snprintf(c.title, sizeof c.title, "%s", title.c_str());
+    milkdrop_window_set_config(c);
 }
 
 // The switches of the Viz/Lyrics field depend on each other. This brings them in line, so no combination is left

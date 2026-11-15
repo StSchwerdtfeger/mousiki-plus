@@ -159,8 +159,15 @@ have_libs() {
         ls "$d"/libprojectM-4.so.4 >/dev/null 2>&1 && ls "$d"/libprojectM-4-playlist.so.4 >/dev/null 2>&1
     fi
 }
+# The list of recommended presets (milkdrop_recommended.txt) goes beside the presets folder: Mousiki shows it as the "Recommended" folder
+# of the preset overlay, looking every line up in the presets that are installed.
+copy_recommended() {
+    [ -f "$ROOT/milkdrop_recommended.txt" ] && cp -f "$ROOT/milkdrop_recommended.txt" "$(dirname "$PRESETS_DEST")/recommended.txt" 2>/dev/null
+    return 0
+}
 if [ "$FORCE" -eq 0 ] && [ -f "$STAMP_FILE" ] && have_libs "$LIB_DEST" && [ "$(cat "$STAMP_FILE")" = "${STAMP%$'\n'}" ]; then
     step "MilkDrop (projectM + presets) is already installed and up to date"
+    copy_recommended
     exit 0
 fi
 
@@ -243,6 +250,7 @@ if [ "$OS" = "Darwin" ]; then
 fi
 zip_extract "$ZIP_PRESETS" "$PRESETS_DEST"
 zip_extract "$ZIP_TEXTURES" "$TEXTURES_DEST"
+copy_recommended
 cp -f "$SRC/COPYING" "$DOC_DEST/LICENSE-projectM.txt"
 cp -f "$SRC/vendor/projectm-eval/LICENSE.md" "$DOC_DEST/LICENSE-projectm-eval.md"
 cp -f "$SRC/vendor/hlslparser/LICENSE" "$DOC_DEST/LICENSE-hlslparser.txt"

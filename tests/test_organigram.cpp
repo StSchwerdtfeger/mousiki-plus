@@ -246,13 +246,27 @@ TEST(organigram_visualizations_are_grouped) {
     CHECK_EQ(kids.size(), static_cast<size_t>(6));   // bars, Spectrogram, Oscilloscope, Video, Creator, MilkDrop
     int groups = 0;
     for (int k : kids) if (!t.n[k].action) { ++groups; CHECK(org::children_of(t, k).size() >= 2); }   // options, overlay (, extra window)
-    CHECK_EQ(groups, 3);
+    CHECK_EQ(groups, 4);   // Spectrogram, Oscilloscope, Video, MilkDrop
     const org::Theme th = theme();
     int spec = kids[1];
     const auto leaves = org::children_of(t, spec);
     const std::string p = plain(org::render(t, leaves[0], 90, 30, 0.0, th, "x"));
     CHECK(p.find("Options") != std::string::npos && p.find("Overlay") != std::string::npos && p.find("Extra Window") != std::string::npos);
     CHECK(p.find("Spectrogram") != std::string::npos && p.find("Oscilloscope") != std::string::npos);
+    // MilkDrop is a group too: its options (":") and its extra window
+    int md = -1;
+    for (int k : kids) if (std::string(t.n[k].title) == "MilkDrop") md = k;
+    CHECK(md > 0);
+    bool win = false, opts = false;
+    for (int k : org::children_of(t, md)) {
+        if (t.n[k].action && std::string(t.n[k].action) == "HKeyMilkdropWindow") win = true;
+        if (t.n[k].action && std::string(t.n[k].action) == "HKeyVisualsMenu") opts = true;
+    }
+    CHECK(win && opts);
+    const org::Tree rt = org::radio_tree();
+    bool rwin = false;
+    for (int i = 0; i < rt.count; ++i) if (rt.n[i].action && std::string(rt.n[i].action) == "MilkdropWindow") rwin = true;
+    CHECK(rwin);
 }
 
 TEST(organigram_colours_header_on_the_path_progress_colours_for_the_branches) {

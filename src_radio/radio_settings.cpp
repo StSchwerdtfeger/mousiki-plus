@@ -124,6 +124,7 @@ enum RsId {
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc, kRsBehavior, kRsBarStyle, kRsHifiRes, kRsHifiChan, kRsHifiColor, kRsHifiScale, kRsHifiAdapt, kRsHifiSplit, kRsHifiFScale, kRsHifiGain, kRsHifiRange,
     kRsScope, kRsOsciStyle,
     kRsUseMilkdrop, kRsMdFps, kRsMdRes, kRsMdGpu, kRsMdDuration, kRsMdShuffle, kRsMdBeat, kRsMdHardCuts, kRsMdTransition, kRsMdShowName,
+    kRsMdFavShuffle, kRsMdHcd, kRsMdVar, kRsMdMesh, kRsMdAspect, kRsMdClean,
     kRsAudioDevice,   // [ENTER]: the CHOOSE AUDIO DEVICE overlay
     kRsCliScripts,    // [ENTER]: the script overlay
     kRsTermDefaultFont, // leave the terminal's own font alone (one value for all modes: TerminalDefaultFont= in the player's config.txt)
@@ -178,6 +179,8 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {false, kRsUseMilkdrop, "Use MilkDrop"}, {false, kRsMdFps, "MilkDrop Frame Rate"}, {false, kRsMdRes, "MilkDrop Resolution"}, {false, kRsMdGpu, "MilkDrop GPU"},
         {false, kRsMdDuration, "Preset Duration"}, {false, kRsMdShuffle, "Shuffle Presets"}, {false, kRsMdBeat, "Hard Cut Sensitivity"},
         {false, kRsMdHardCuts, "Hard Cuts"}, {false, kRsMdTransition, "Preset Transition"}, {false, kRsMdShowName, "Show Preset Name"},
+        {false, kRsMdFavShuffle, "Shuffle Favourites"}, {false, kRsMdHcd, "Hard Cut Interval"}, {false, kRsMdVar, "Duration Variance"},
+        {false, kRsMdMesh, "Mesh Detail"}, {false, kRsMdAspect, "Aspect Correction"}, {false, kRsMdClean, "Clean Start"},
     };
     if (tab == 1) return on_off;
     if (g_rs_hifi) return anima;
@@ -256,6 +259,9 @@ bool* flag_of(RadioSettings& s, int id) {
         case kRsMdShuffle: return &s.md_shuffle;
         case kRsMdHardCuts: return &s.md_hard_cuts;
         case kRsMdShowName: return &s.md_show_name;
+        case kRsMdFavShuffle: return &s.md_fav_shuffle;
+        case kRsMdAspect: return &s.md_aspect;
+        case kRsMdClean: return &s.md_clean;
         default: return nullptr;
     }
 }
@@ -264,8 +270,9 @@ bool* flag_of(RadioSettings& s, int id) {
 int radio_md_step(int which, int cur, int dir) {
     // the steps of the MilkDrop rows (as the player's): 0 frame rate, 1 resolution, 2 preset duration; the nearest step, then one on
     static const int fps[] = {15, 20, 25, 30, 45, 60}, res[] = {320, 480, 640, 960, 1280}, dur[] = {0, 10, 15, 20, 25, 30, 45, 60, 90, 120, 180, 300};
-    const int* a = which == 0 ? fps : which == 1 ? res : dur;
-    const int n = which == 0 ? 6 : which == 1 ? 5 : 12;
+    static const int hcd[] = {3, 5, 10, 15, 20, 30, 45, 60, 90, 120}, var[] = {0, 2, 5, 10, 15, 20, 30};   // (as the player's: hard cut interval, duration variance)
+    const int* a = which == 0 ? fps : which == 1 ? res : which == 2 ? dur : which == 3 ? hcd : var;
+    const int n = which == 0 ? 6 : which == 1 ? 5 : which == 2 ? 12 : which == 3 ? 10 : 7;
     int k = 0;
     for (int i = 0; i < n; ++i) if (std::abs(a[i] - cur) < std::abs(a[k] - cur)) k = i;
     return a[std::clamp(k + (dir > 0 ? 1 : dir < 0 ? -1 : 0), 0, n - 1)];
@@ -325,6 +332,9 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsMdDuration: return s.md_secs <= 0 ? std::string("off") : std::to_string(s.md_secs) + " s";
         case kRsMdBeat: { char b[8]; std::snprintf(b, sizeof b, "%.1f", std::clamp(s.md_cut_sens, 5, 60) / 10.0); return b; }
         case kRsMdTransition: return s.md_transition <= 0 ? std::string("cut") : std::to_string(s.md_transition) + " s";
+        case kRsMdHcd: return std::to_string(std::clamp(s.md_hcd, 3, 120)) + " s";
+        case kRsMdVar: return s.md_var <= 0 ? std::string("off") : std::to_string(s.md_var) + " s";
+        case kRsMdMesh: return mesh_name(s.md_mesh);
     }
     return "";
 }
@@ -400,6 +410,9 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
         case kRsMdDuration: s.md_secs = radio_md_step(2, s.md_secs, dir == 0 ? 1 : dir); break;
         case kRsMdBeat: s.md_cut_sens = std::clamp(s.md_cut_sens + (dir == 0 ? 1 : dir), 5, 60); break;
         case kRsMdTransition: s.md_transition = std::clamp(s.md_transition + (dir == 0 ? 1 : dir), 0, 10); break;
+        case kRsMdHcd: s.md_hcd = radio_md_step(3, s.md_hcd, dir == 0 ? 1 : dir); break;
+        case kRsMdVar: s.md_var = radio_md_step(4, s.md_var, dir == 0 ? 1 : dir); break;
+        case kRsMdMesh: s.md_mesh = std::clamp(s.md_mesh + (dir == 0 ? 1 : dir), 0, 3); break;
     }
 }
 
@@ -815,6 +828,7 @@ const KeyAction kKeyActions[] = {
     {nullptr, "OsciMenu", "Oscilloscope Overlay", "O"},
     {nullptr, "ScopeWindow", "Scope Window", ")"},            // SHIFT+9 on a German keyboard (was SHIFT+w)
     {nullptr, "SpectroWindow", "Spectrogram Window", "("},    // SHIFT+8 on a German keyboard
+    {nullptr, "MilkdropWindow", "MilkDrop Window", "|"},      // ";" (SHIFT+, on a German keyboard) by default there, "|" on US / UK layouts (key_binding)
     {nullptr, "SpectroMenu", "Spectrogram Options", "I"},
     {nullptr, "BarsMenu", "Spectrum Bars Options", "B"},   // SHIFT+b, as in the music player
     {nullptr, "SpectroFull", "Spectrogram Full Screen", "U"},
@@ -842,6 +856,7 @@ std::string key_binding(const RadioSettings& s, int a) {
     if (a < 0 || a >= kKeyActionCount) return "";
     const auto it = s.keys.find(kKeyActions[a].id);
     if (it != s.keys.end() && !it->second.empty()) return it->second;
+    if (std::strcmp(kKeyActions[a].id, "MilkdropWindow") == 0) return muisc::default_milkdrop_window_key();   // ";" or "|", by keyboard layout
     if (std::strcmp(kKeyActions[a].id, "AudioDevice") == 0) return muisc::default_audio_device_key();   // "°" or "&", by keyboard layout
     return kKeyActions[a].def;
 }
@@ -1025,6 +1040,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("UseMilkDrop")) s.use_milkdrop = as_bool(*v, s.use_milkdrop);
     if (auto v = get("MilkDropFrameRate")) s.md_fps = std::clamp(muisc::atoi_safe(v->c_str()), 10, 60);
     if (auto v = get("MilkDropResolution")) s.md_res = std::clamp(muisc::atoi_safe(v->c_str()), 160, 1920);
+    if (auto v = get("MilkDropWindowResolution")) s.md_win_res = std::clamp(muisc::atoi_safe(v->c_str()), 320, 1920);
     if (auto v = get("MilkDropPresetDuration")) s.md_secs = std::clamp(muisc::atoi_safe(v->c_str()), 0, 3600);
     if (auto v = get("MilkDropGpu")) s.md_gpu = *v;
     if (auto v = get("MilkDropLockPreset")) s.md_lock = as_bool(*v, s.md_lock);
@@ -1033,6 +1049,12 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("MilkDropHardCuts")) s.md_hard_cuts = as_bool(*v, s.md_hard_cuts);
     if (auto v = get("MilkDropTransition")) s.md_transition = std::clamp(muisc::atoi_safe(v->c_str()), 0, 10);
     if (auto v = get("MilkDropShowName")) s.md_show_name = as_bool(*v, s.md_show_name);
+    if (auto v = get("MilkDropShuffleFavourites")) s.md_fav_shuffle = as_bool(*v, s.md_fav_shuffle);
+    if (auto v = get("MilkDropHardCutInterval")) s.md_hcd = std::clamp(muisc::atoi_safe(v->c_str()), 3, 120);
+    if (auto v = get("MilkDropDurationVariance")) s.md_var = std::clamp(muisc::atoi_safe(v->c_str()), 0, 30);
+    if (auto v = get("MilkDropMeshDetail")) s.md_mesh = std::clamp(muisc::atoi_safe(v->c_str()), 0, 3);
+    if (auto v = get("MilkDropAspectCorrection")) s.md_aspect = as_bool(*v, s.md_aspect);
+    if (auto v = get("MilkDropCleanStart")) s.md_clean = as_bool(*v, s.md_clean);
     for (const auto& [k, v] : kv) { if (!spectro_profile_key(s, k, v)) spectro_config_key(s.spectro, k, v); }
     spectro_profiles_finish(s);
     if (auto v = get("TuneNoise")) s.tune_noise = as_bool(*v, s.tune_noise);
@@ -1210,6 +1232,7 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "# pictures a second (15 .. 60), drawn at most this many pixels across (320 .. 1280; then scaled to the block)\n"
          "MilkDropFrameRate=" << s.md_fps << "\n"
          "MilkDropResolution=" << s.md_res << "\n"
+         "MilkDropWindowResolution=" << s.md_win_res << "\n"
          "# the graphics card for the visuals (empty = automatic; Linux: a card from the list in Settings -> MilkDrop GPU; elsewhere the system decides)\n"
          "MilkDropGpu=" << s.md_gpu << "\n"
          "# true keeps the preset (Lock Preset in the \":\" overlay) -- also at the next start\n"
@@ -1222,6 +1245,14 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "MilkDropHardCuts=" << (s.md_hard_cuts ? "true" : "false") << "\n"
          "MilkDropTransition=" << s.md_transition << "\n"
          "MilkDropShowName=" << (s.md_show_name ? "true" : "false") << "\n"
+         "# only the favourites (milkdrop_favourites.txt: [a] in the preset overlay), shortest seconds between hard cuts (3 .. 120), random spread of a preset's time (0 .. 30 s),\n"
+         "# warp mesh 0 low .. 3 very high, presets keep their proportions on a wide picture, a preset starts from a blank picture\n"
+         "MilkDropShuffleFavourites=" << (s.md_fav_shuffle ? "true" : "false") << "\n"
+         "MilkDropHardCutInterval=" << s.md_hcd << "\n"
+         "MilkDropDurationVariance=" << s.md_var << "\n"
+         "MilkDropMeshDetail=" << s.md_mesh << "\n"
+         "MilkDropAspectCorrection=" << (s.md_aspect ? "true" : "false") << "\n"
+         "MilkDropCleanStart=" << (s.md_clean ? "true" : "false") << "\n"
          "Visualizer=" << (s.element_visualizer ? "true" : "false") << "\n"
          "StereoSound=" << (s.stereo ? "true" : "false") << "\n"
          "# false = left out entirely: not in the \".\" cycle of the scope block (the sphere always is); the windows\n"

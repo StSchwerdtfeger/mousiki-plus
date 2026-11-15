@@ -208,6 +208,8 @@ MilkDropDefaultPreset=
 MilkDropFrameRate=30
 ## 15 , 20 , 25 , 30 , 45 , 60 (default 30) -- MilkDrop pictures a second (each one is drawn by the graphics card, or the processor when there is none)
 MilkDropResolution=480
+## 640 , 960 , 1280 , 1920 (default 1280) -- the pixels across of the pictures the extra MilkDrop window shows (HKeyMilkdropWindow; 16:9; the window scales them to its own size)
+MilkDropWindowResolution=1280
 ## 320 , 480 , 640 , 960 , 1280 (default 480) -- the MilkDrop pictures are drawn at most this many pixels across (then scaled to the place); more is sharper and costs more
 MilkDropPresetDuration=25
 ## 0 - 600 (default 25) -- seconds until the next MilkDrop preset (0 = it stays until you change it)
@@ -737,8 +739,9 @@ HKeyToggleLyricsBack=","
 HKeyWizard="W"
 HKeyCheatsheet="?"
 HKeyMenus="<"
-# Keys that depend on the keyboard layout (shown: the default of a US keyboard; German: HKeyAudioDevice SHIFT+^, mode keys * and _)
+# Keys that depend on the keyboard layout (shown: the default of a US keyboard; German: HKeyAudioDevice SHIFT+^, mode keys * and _, HKeyMilkdropWindow ";" = SHIFT+,)
 HKeyAudioDevice="&"
+HKeyMilkdropWindow="|"
 HKeyModeNext="*"
 HKeyModePrev="_"
 HKeyKaraokeBigger="*"

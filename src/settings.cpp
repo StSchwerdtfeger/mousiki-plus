@@ -431,6 +431,8 @@ void apply_default_hotkeys(Settings& s) {
             // the characters of SHIFT+9 / SHIFT+8 on a German keyboard (on a US keyboard SHIFT+0 / SHIFT+9).
             {"HKeyScopeWindow",                 ")"},
             {"HKeySpectroWindow",               "("},
+            // The MilkDrop pictures in their own window: ";" (SHIFT+, on a German keyboard, beside ":") -- "_" is the previous-mode key there; on a US / UK keyboard "|" (SHIFT+\), as ";" is a size-mode key
+            {"HKeyMilkdropWindow",              default_milkdrop_window_key()},
             // Shift+I / Shift+U: spectrogram options overlay / spectrogram full screen.
             {"HKeySpectroMenu",                 "I"},
             {"HKeySpectroFull",                 "U"},
@@ -874,6 +876,7 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_TEXT("MilkDropPresets", nullptr, milkdrop_presets, "\n## the folder of the MilkDrop presets (.milk); empty = the usual places (~/.local/share/projectM/presets, /usr/local/share/projectM/presets, /usr/share/projectM/presets; Windows: milkdrop\\presets next to mousiki.exe, %LOCALAPPDATA%\\projectM\\presets)\n"),
     SIMPLE_NUM("MilkDropFrameRate", nullptr, milkdrop_fps, 10, 60, "\n## 15 , 20 , 25 , 30 , 45 , 60 (default 30) -- MilkDrop pictures a second (each one is drawn by the graphics card, or the processor when there is none)\n"),
     SIMPLE_NUM("MilkDropResolution", nullptr, milkdrop_res, 160, 1920, "\n## 320 , 480 , 640 , 960 , 1280 (default 480) -- the MilkDrop pictures are drawn at most this many pixels across (then scaled to the place); more is sharper and costs more\n"),
+    SIMPLE_NUM("MilkDropWindowResolution", nullptr, milkdrop_win_res, 320, 1920, "\n## 640 , 960 , 1280 , 1920 (default 1280) -- the pixels across of the pictures the extra MilkDrop window shows (16:9; the engine draws them at this size, the window scales them to its own)\n"),
     SIMPLE_NUM("MilkDropPresetDuration", nullptr, milkdrop_preset_secs, 0, 600, "\n## 0 - 600 (default 25) -- seconds until the next MilkDrop preset (0 = it stays until you change it)\n"),
     SIMPLE_FLAG("MilkDropShuffle", nullptr, milkdrop_shuffle, "\n## true , false (default true) -- the next preset at random (false: in the order of the files)\n"),
     SIMPLE_FLAG("MilkDropAuto", nullptr, milkdrop_auto, "\n## true , false (default false) -- Auto MilkDrop: the field shows the MilkDrop visuals for every track (a track's Style Option can say no); it switches Auto Video off meanwhile and back on after\n"),
@@ -2287,7 +2290,7 @@ write_simple_setting(out, s, "VideoLayout");
     write_simple_setting(out, s, "UseOscilloscope");
     write_simple_setting(out, s, "UseSpectrogram");
     write_simple_setting(out, s, "UseSphere");
-    for (const char* k : {"UseMilkDrop", "MilkDropView", "MilkDropPresets", "MilkDropDefaultPreset", "MilkDropGpu", "MilkDropFrameRate", "MilkDropResolution", "MilkDropPresetDuration",
+    for (const char* k : {"UseMilkDrop", "MilkDropView", "MilkDropPresets", "MilkDropDefaultPreset", "MilkDropGpu", "MilkDropFrameRate", "MilkDropResolution", "MilkDropWindowResolution", "MilkDropPresetDuration",
                           "MilkDropAuto", "MilkDropAutoVideoWas", "MilkDropShuffle", "MilkDropShuffleFavourites", "MilkDropHardCutSensitivity", "MilkDropHardCuts", "MilkDropHardCutInterval", "MilkDropLockPreset", "MilkDropTransition", "MilkDropShowName",
                           "MilkDropAspectCorrection", "MilkDropMeshDetail", "MilkDropDurationVariance", "MilkDropCleanStart"})
         write_simple_setting(out, s, k);
@@ -2624,7 +2627,7 @@ void copy_look(const Settings& src, Settings& dst) {
     MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(disk_border); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
     MOUSIKI_LOOK(volume_indicator); MOUSIKI_LOOK(volume_gradient); MOUSIKI_LOOK(element_vizfield); MOUSIKI_LOOK(element_lyrics);
     MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
-    MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_extra_paths); MOUSIKI_LOOK(milkdrop_gpu); MOUSIKI_LOOK(milkdrop_lock); MOUSIKI_LOOK(milkdrop_hcd); MOUSIKI_LOOK(milkdrop_aspect); MOUSIKI_LOOK(milkdrop_mesh); MOUSIKI_LOOK(milkdrop_var); MOUSIKI_LOOK(milkdrop_clean); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res);
+    MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_extra_paths); MOUSIKI_LOOK(milkdrop_gpu); MOUSIKI_LOOK(milkdrop_lock); MOUSIKI_LOOK(milkdrop_hcd); MOUSIKI_LOOK(milkdrop_aspect); MOUSIKI_LOOK(milkdrop_mesh); MOUSIKI_LOOK(milkdrop_var); MOUSIKI_LOOK(milkdrop_clean); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res); MOUSIKI_LOOK(milkdrop_win_res);
     MOUSIKI_LOOK(milkdrop_preset_secs); MOUSIKI_LOOK(milkdrop_shuffle); MOUSIKI_LOOK(milkdrop_fav_shuffle); MOUSIKI_LOOK(milkdrop_auto); MOUSIKI_LOOK(milkdrop_auto_video_was); MOUSIKI_LOOK(milkdrop_fx); MOUSIKI_LOOK(milkdrop_fixed_colors); MOUSIKI_LOOK(milkdrop_cut_sens); MOUSIKI_LOOK(milkdrop_fx_on); MOUSIKI_LOOK(milkdrop_default_preset); MOUSIKI_LOOK(milkdrop_hard_cuts);
     MOUSIKI_LOOK(milkdrop_transition); MOUSIKI_LOOK(milkdrop_show_name);
     MOUSIKI_LOOK(use_sphere); MOUSIKI_LOOK(viz_default); MOUSIKI_LOOK(element_visualizer); MOUSIKI_LOOK(waveform_smooth);

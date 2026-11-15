@@ -227,6 +227,7 @@ void App::handle_spectro_menu_key(int key) {
     }
     if (!arrow && act == "HKeyScopeWindow") { scope_window_toggle(); return; }     // the windows: always
     if (!arrow && act == "HKeySpectroWindow") { spectro_window_toggle(); return; }
+    if (!arrow && act == "HKeyMilkdropWindow") { milkdrop_window_toggle(); return; }
     // the oscilloscope's overlays take over without closing this one first
     if (!arrow && act == "HKeyOscMenu") { save_settings(settings_); spectro_.full = false; osci_menu_row_ = 0; mode_ = Mode::OsciMenu; force_redraw_ = true; return; }
     if (!arrow && act == "HKeyScopeBig") {
@@ -263,6 +264,7 @@ void App::handle_osci_menu_key(int key) {
     if (video_full_ && osc_action == "HKeySpectroMenu") { if (vfull_layout().has_s) { save_settings(settings_); spectro_.menu_row = kSrView; mode_ = Mode::SpectroMenu; force_redraw_ = true; } return; }
     if (!arrow && osc_action == "HKeyScopeWindow") { scope_window_toggle(); return; }     // the windows: always
     if (!arrow && osc_action == "HKeySpectroWindow") { spectro_window_toggle(); return; }
+    if (!arrow && osc_action == "HKeyMilkdropWindow") { milkdrop_window_toggle(); return; }
     if (!arrow && osc_action == "HKeyScopeBig") { scope_big_ = !scope_big_; spectro_.full = false; scope_big_color_edit_ = false; scope_metrics_open_ = false; force_redraw_ = true; return; }
     // the spectrogram's overlays take over without closing this one first
     if (!arrow && osc_action == "HKeySpectroMenu") { save_settings(settings_); scope_big_ = false; spectro_.menu_row = kSrView; mode_ = Mode::SpectroMenu; force_redraw_ = true; return; }

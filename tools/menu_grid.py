@@ -47,6 +47,9 @@ TREES = {
         '      Video',
         '        Options [&]',
         '        Overlay [v]',
+        '      MilkDrop',
+        '        Options [:]',
+        '        Extra Window [;]',
         '      Creator [^]',
         '    Lyrics',
         '      Refetch Lyrics [l]',
@@ -113,6 +116,9 @@ TREES = {
         '        Options [SHIFT+o]',
         '        Overlay [=]',
         '        Extra Window [)]',
+        '      MilkDrop',
+        '        Options [:]',
+        '        Extra Window [;]',
     ],
 }
 

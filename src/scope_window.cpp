@@ -3,6 +3,7 @@
 #include "app_dirs.h"
 #include "scope_window.h"
 #include "scope_sdl.h"
+#include "milkdrop.h"
 
 #include <algorithm>
 #include <atomic>
@@ -37,7 +38,8 @@ namespace {
 
 // Two windows run the same way: the oscilloscope (`--scope-window`) and the spectrogram (`--spectro-window`). Each has
 // its own feed, link and process.
-constexpr size_t kFeedFrames = 1u << 16;   // ~1.4 s at 48 kHz; far more than the sender's 4 ms rhythm needs
+constexpr size_t kFeedFrames = 1u << 16;
+std::atomic<int> g_milk_w{1280}, g_milk_h{720};   // what the engine draws for the MilkDrop window   // ~1.4 s at 48 kHz; far more than the sender's 4 ms rhythm needs
 
 struct Link {
     // ---- lock-free single-producer / single-consumer ring: audio thread -> sender thread ---------------------------
@@ -57,6 +59,7 @@ struct Link {
     const char* arg = "";              // the command line switch of the window process
     const char* what = "";             // for messages
     const char* err_name = "";         // its error file
+    bool frames = false;               // this window is fed pictures (the MilkDrop window), pulled from the engine by the sender
 #if defined(_WIN32)
     HANDLE proc = nullptr;
     HANDLE pipe_w = nullptr;
@@ -67,7 +70,7 @@ struct Link {
 };
 
 Link& link_of(int k) {
-    static Link links[2];
+    static Link links[3];
     static const bool init = [] {
         links[0].arg = "--scope-window"; links[0].what = "scope window"; links[0].err_name = "scope_window_error.txt";
         links[0].cfg.resize(sizeof(ScopeWinConfig));
@@ -77,6 +80,11 @@ Link& link_of(int k) {
         links[1].cfg.resize(sizeof(SpectroWinConfig));
         { SpectroWinConfig c; std::memcpy(links[1].cfg.data(), &c, sizeof c); }
         links[1].rate_at = offsetof(SpectroWinConfig, rate);
+        links[2].arg = "--milkdrop-window"; links[2].what = "MilkDrop window"; links[2].err_name = "milkdrop_window_error.txt";
+        links[2].cfg.resize(sizeof(MilkWinConfig));
+        { MilkWinConfig c; std::memcpy(links[2].cfg.data(), &c, sizeof c); }
+        links[2].rate_at = offsetof(MilkWinConfig, rate);
+        links[2].frames = true;
         return true;
     }();
     (void)init;
@@ -175,6 +183,7 @@ void sender_main(Link* Lp) {
     unsigned sent_gen = ~0u;
     int sent_rate = 0;
     std::vector<float> chunk;
+    std::vector<uint8_t> frame_rgb, frame_pkt;
     auto last_check = std::chrono::steady_clock::now();
     while (!L.stop.load()) {
         // settings (and the sample rate) first, so samples are never drawn with stale values
@@ -207,6 +216,18 @@ void sender_main(Link* Lp) {
             L.feed_r.store(w, std::memory_order_release);
             if (!send_packet(L, 2, chunk.data(), static_cast<uint32_t>(chunk.size() * sizeof(float)))) break;
         }
+        // MilkDrop: the newest picture of the engine (nothing when there is none newer than the last one sent)
+        if (L.frames) {
+            int fw = 0, fh = 0;
+            if (Milkdrop::instance().take_window_frame(g_milk_w.load(), g_milk_h.load(), frame_rgb, fw, fh) && fw > 0 && fh > 0 &&
+                frame_rgb.size() == static_cast<size_t>(fw) * fh * 3) {
+                uint8_t hd[8] = {static_cast<uint8_t>(fw), static_cast<uint8_t>(fw >> 8), static_cast<uint8_t>(fw >> 16), static_cast<uint8_t>(fw >> 24),
+                                 static_cast<uint8_t>(fh), static_cast<uint8_t>(fh >> 8), static_cast<uint8_t>(fh >> 16), static_cast<uint8_t>(fh >> 24)};
+                frame_pkt.assign(hd, hd + 8);
+                frame_pkt.insert(frame_pkt.end(), frame_rgb.begin(), frame_rgb.end());
+                if (!send_packet(L, 3, frame_pkt.data(), static_cast<uint32_t>(frame_pkt.size()))) break;
+            }
+        }
         // a window closed by the user: nothing may be written for a while (paused), so look at the process itself
         const auto now = std::chrono::steady_clock::now();
         if (now - last_check > std::chrono::milliseconds(250)) {
@@ -214,7 +235,7 @@ void sender_main(Link* Lp) {
             std::lock_guard<std::mutex> lk(L.mtx);
             if (process_exited(L, nullptr)) break;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(4));
+        std::this_thread::sleep_for(std::chrono::milliseconds(L.frames ? 2 : 4));
     }
     L.feed_on.store(false);
     L.alive.store(false);
@@ -397,5 +418,13 @@ std::string spectro_window_take_error() { return win_take_error(link_of(1)); }
 void spectro_window_set_config(const SpectroWinConfig& c) { win_set_config(link_of(1), &c, sizeof c); }
 void spectro_window_feed_push(const float* lr, size_t frames, int rate) { win_feed_push(link_of(1), lr, frames, rate); }
 bool spectro_window_feed_active() { return link_of(1).feed_on.load(std::memory_order_relaxed); }
+
+// ---- the MilkDrop window ----------------------------------------------------------------------------------------------
+bool milkdrop_window_running() { return win_running(link_of(2)); }
+bool milkdrop_window_open(std::string* err) { return win_open(link_of(2), err); }
+void milkdrop_window_close() { win_close(link_of(2)); }
+std::string milkdrop_window_take_error() { return win_take_error(link_of(2)); }
+void milkdrop_window_set_config(const MilkWinConfig& c) { win_set_config(link_of(2), &c, sizeof c); }
+void milkdrop_window_set_size(int w, int h) { g_milk_w.store(std::clamp(w, 64, 3840)); g_milk_h.store(std::clamp(h, 64, 2160)); }
 
 } // namespace muisc

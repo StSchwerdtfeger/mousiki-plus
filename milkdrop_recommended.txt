@@ -1,0 +1,65 @@
+# Recommended MilkDrop presets -- shown as the "Recommended" folder at the top of Mousiki's preset overlay (":" -> Preset Overlay).
+# One preset a line: its path inside the preset collection ("Fractal/some preset.milk") or just its file name (the extension and the
+# case may be left out). Mousiki looks every line up in the presets that are installed; a line that fits nothing is skipped.
+# Lines starting with # are comments. tools/make_recommended.py writes this file from your favourites.
+$$$ Royal - Mashup (342).milk
+$$$ Royal - Mashup (409).milk
+c lesions.milk
+cleave and cleave to thine w maid in spain.milk
+cpe domains flacc - vs cpe rrr nz.milk
+fed + Rovastar - colormuze v1 flacc roams.milk
+fed - glowing 5 - fingers rmx nz+ round squarishness.milk
+fed - glowing 5 - fingers rmx nz+ round squarishness chin raction.milk
+fed - glowing 5 - fingers rmx nz+ round squarishness chin raction topical tropic.milk
+fed - glowing 5 - fingers rmx nz+ round squarishness you can't escape it.milk
+fleekus flokus - ap3 roam2 as fuck would have it nz2 jaos.milk
+LuxXx - Boiling Phosphene Soup I.milk
+LuxXx - Storm on the Surface of the Wasteland War War never Changes i.milk
+suksma - chernobyl pie for dessert - as a man thinketh, so he aint so far.milk
+suksma - chernobyl pie for dessert - flippant patience breeding indoctrinated skeptics.milk
+suksma - chernobyl pie for dessert - morriband flame goate.milk
+A HD ADAMFX Creation  !!FT  Martin + flexi +  Rovastar MDropFX Collaboration E Adam HD INFECTIONFX A.milk
+BEST OF ADAMFX 2 Flexi + Geiss - Bipolar vs reaction diffusion + Aderassi Phat Zylot4 --- Isosceles edit.milk
+BEST OF ADAMFX 2 Flexi + Geiss - Bipolar vs reaction diffusion + Aderassi Phat Zylot6.milk
+BEST OF ADAMFX 2 Flexi + Geiss - Bipolar vs reaction diffusion + Another Flexi + Fishbrain  + Phat Zylot 8.milk
+beta106i - Brilliance (Space-Time Breaking) - mash0000 - it's 2009 and you haven't replaced your analog tv with digital.milk
+EoS - particle daemon (forge) - mash0000 - the itchy and scratchy show meets the adam's family.milk
+suksma - barium titanate --- Isosceles edit07.milk
+suksma - barium titanate --- Isosceles edit16.milk
+suksma - twinkling en masse wagon.milk
+Serge circles007.milk
+Serge circles007b.milk
+out of the paradigm nz nicheckraph.milk
+flexi - patternton, district of media, capitol of the united abstractions of fractopia.milk
+flexi - what is the matrix.milk
+suksma - Hexcollie - Julian Carnival - shimmy dumb grid dogmaklyasm.milk
+shifter - mosaic mitosis - will they find me roam2.milk
+shifter - mosaique.milk
+suksma - fed and feed empty perceptions.milk
+suksma - league fathom slide molech.milk
+suksma - wait for it - 1-ret.milk
+amandio c - green machinery 1a hell if i could nz+2 why not, right3 maniq jestre radar preserves.milk
+amandio c - the green machine 4 - radial nature sludge cpe neg.milk
+amandio c - the green machine 4 - radial nature sludge super.milk
+amandio c - future engines.milk
+amandio c - Sierpinsky's triangle.milk
+amandio c - interference pattern 5.milk
+amandio c - green machinery 1a hell if i could nz+2 why not, right3 what is the adulation but a crutch.milk
+amandio c - prime forms keylontiq pseudoskienke blanco membership tape aural lancastre cockydood.milk
+amandio c - prime forms keylontiq pseudoskienke blanco membership tape aural plasticopule.milk
+amandio c - prime forms keylontiq pseudoskienke qomplet svorthles.milk
+amandio c - typhoon season.milk
+amandio c - tendrils reflected 2 director of sliderule festivity beef slodsths.milk
+amandio c - the green machine 4 - radial nature sludge ngastraiq tendwrill.milk
+amandio c - epicenter the end of the world we never knew.milk
+amandio c - circles intersection 1.milk
+amandio c - circles intersection 2.milk
+amandio c - iterative - squares 1.milk
+amandio c - secret garden 4.milk
+amandio c - op illusion blue spiral 612 edo.milk
+Stahlregen + Amandio C - Rototranslate difference layers 2 + on dotes5 - flacc dungeon cam.milk
+Stahlregen + Amandio C - Rototranslate difference layers 2 + on dotes.milk
+fiShbRaiN - witchcraft (shaman remix) zyl inf spr nz+ aural stim.milk
+New Creation Sensation Ft AdamFx Amandio c n Martin - Star to Another World .milk
+amandio c - moving ripple - no motherfuckers like symmetry.milk
+carved in skin nz.milk

@@ -217,8 +217,12 @@ void App::milkdrop_auto_apply() {
 // ---- the overlay ----
 
 bool App::md_row_shown(int row) const {
-    if (md_scope_track_.empty()) return true;
-    return row != kMdFps && row != kMdRes && row != kMdGpu && row != kMdColors && row != kMdHcd && row != kMdVar && row != kMdMesh && row != kMdAspect && row != kMdClean;   // (how the pictures are drawn: not a matter of one track)
+    (void)row;   // (every row is shown in the track menu too: the drawing rows are global and say so)
+    return true;
+}
+
+static bool md_global_row(int row) {   // (how the pictures are drawn: not a matter of one track)
+    return row == kMdFps || row == kMdRes || row == kMdGpu || row == kMdColors || row == kMdHcd || row == kMdVar || row == kMdMesh || row == kMdAspect || row == kMdClean;
 }
 
 std::string App::milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const {
@@ -304,6 +308,7 @@ std::vector<std::string> App::build_milkdrop_menu_panel() const {
         if (!md_row_shown(i)) continue;
         const bool sel = i == md_menu_row_;
         std::string val = milkdrop_row_value(i, ts ? &rec : nullptr);
+        if (ts && md_global_row(i)) val += "  (all tracks)";
         if (!ts && has_track_ && !audiobook_) {   // (a value the playing track has of its own wins over Settings: say so, or the change looks lost)
             const MilkdropTrackOpts& t = md_trk_;
             const bool mine = (i == kMdDuration && t.dur >= 0) || (i == kMdShuffle && t.shuf >= 0) || (i == kMdFavShuffle && t.favs >= 0) || (i == kMdCutSens && t.hcs >= 0) ||
@@ -367,6 +372,11 @@ void App::milkdrop_menu_open(const std::string& track, const std::string& title,
 
 void App::milkdrop_menu_track_adjust(int row, int dir, bool reset) {
     if (md_scope_track_.empty()) return;
+    if (md_global_row(row)) {   // (the same for every track: changed in Settings, as in the main menu)
+        if (reset) { status_line_ = "milkdrop: this row is the same for all tracks (no own value to reset)"; return; }
+        milkdrop_menu_adjust(row, dir);
+        return;
+    }
     Milkdrop& m = Milkdrop::instance();
     MilkdropTrackOpts mo = cover_track_milkdrop(md_scope_track_);
     const MdEff e = milkdrop_eff(mo);
@@ -555,12 +565,25 @@ bool App::mdb_inside(const std::string& file) const {
     return false;
 }
 
+static const char* const kMdbRecs = "<recommended>";   // (mdb_dir_ while the Recommended folder is shown)
+
 void App::mdb_list(const std::string& dir, bool favs, const std::string& select_path) {
     mdb_items_.clear();
     mdb_in_favs_ = favs;
+    mdb_in_recs_ = !favs && dir == kMdbRecs;
     mdb_dir_ = dir;
     const fs::path root = path_from_utf8(mdb_root_);
-    if (favs) {
+    if (mdb_in_recs_) {
+        mdb_items_.push_back({0, "..", mdb_root_, ""});
+        for (const std::string& f : md_recommended_paths()) {
+            const fs::path p = path_from_utf8(f);
+            fs::path rel = p.parent_path().lexically_relative(root);
+            std::string where;
+            if (!rel.empty() && *rel.begin() != "..") { for (const auto& part : rel) if (part != ".") where += (where.empty() ? "" : " / ") + path_utf8(part); }
+            else where = path_utf8(p.parent_path().filename());
+            mdb_items_.push_back({3, path_utf8(p.stem()), f, where});
+        }
+    } else if (favs) {
         mdb_items_.push_back({0, "..", mdb_root_, ""});
         md_favs_load();
         std::error_code ec;
@@ -575,6 +598,7 @@ void App::mdb_list(const std::string& dir, bool favs, const std::string& select_
         else {
             md_favs_load();
             mdb_items_.push_back({1, "Favourites", "", ""});
+            { const size_t nrec = md_recommended_paths().size(); if (nrec > 0) mdb_items_.push_back({5, "Recommended", std::to_string(nrec), ""}); }   // (path: how many)
         }
         std::vector<MdbItem> folders, presets;
         std::error_code ec;
@@ -691,10 +715,12 @@ void App::mdb_preview() {
     mdb_moved_ = true;
 }
 
-void App::mdb_search_run() {
-    if (mdb_index_root_ != mdb_root_) {   // all presets under the preset folder, once
+void App::mdb_build_index() {
+    std::string key = mdb_root_;
+    for (const std::string& x : Milkdrop::instance().extra_preset_dirs()) key += "\n" + x;
+    if (mdb_index_root_ != key) {   // all presets under the preset folder(s), once
         mdb_index_.clear();
-        mdb_index_root_ = mdb_root_;
+        mdb_index_root_ = key;
         std::vector<std::string> roots{mdb_root_};
         for (const std::string& x : Milkdrop::instance().extra_preset_dirs()) roots.push_back(x);
         for (size_t ri = 0; ri < roots.size(); ++ri) {
@@ -716,6 +742,58 @@ void App::mdb_search_run() {
             }
         }
     }
+}
+
+// The Recommended list: milkdrop_recommended.txt -- the one that ships with Mousiki (recommended.txt beside the preset folder) and the
+// user's own in the config folder. A line is a preset's path inside the collection ("Fractal/some preset.milk") or only its file name
+// (the extension may be left out); it is looked up in the presets that are installed, so the list fits any copy of the collection.
+std::vector<std::string> App::md_recommended_paths() {
+    const std::string root = Milkdrop::instance().find_presets_dir();
+    if (root.empty()) return {};
+    mdb_root_ = root;
+    mdb_build_index();
+    std::vector<fs::path> files;
+    files.push_back(path_from_utf8(root).parent_path() / "recommended.txt");
+    files.push_back(config_path().parent_path() / "milkdrop_recommended.txt");
+    std::vector<std::string> lowered;
+    lowered.reserve(mdb_index_.size());
+    for (const MdbIdx& e : mdb_index_) { std::string l = lower_ascii(e.path); std::replace(l.begin(), l.end(), '\\', '/'); lowered.push_back(std::move(l)); }
+    std::vector<std::string> out;
+    for (const fs::path& f : files) {
+        std::ifstream in(f, std::ios::binary);
+        std::string line;
+        bool first = true;
+        while (std::getline(in, line)) {
+            if (first && line.compare(0, 3, "\xEF\xBB\xBF") == 0) line.erase(0, 3);
+            first = false;
+            while (!line.empty() && (line.back() == '\r' || line.back() == ' ' || line.back() == '\t')) line.pop_back();
+            size_t b = 0;
+            while (b < line.size() && (line[b] == ' ' || line[b] == '\t')) ++b;
+            line.erase(0, b);
+            if (line.empty() || line[0] == '#') continue;
+            std::replace(line.begin(), line.end(), '\\', '/');
+            while (line.compare(0, 2, "./") == 0) line.erase(0, 2);
+            std::string want = lower_ascii(line);
+            const bool has_ext = want.size() > 5 && want.compare(want.size() - 5, 5, ".milk") == 0;
+            for (size_t k = 0; k < lowered.size(); ++k) {
+                const std::string& cand = lowered[k];
+                // the path ends with the line ("/" before it, unless the line is the whole path); without an extension: the line plus ".milk"
+                bool hit = false;
+                for (const std::string& w : has_ext ? std::vector<std::string>{want} : std::vector<std::string>{want + ".milk", want + ".milk2"}) {
+                    if (cand.size() < w.size() || cand.compare(cand.size() - w.size(), w.size(), w) != 0) continue;
+                    if (cand.size() == w.size() || cand[cand.size() - w.size() - 1] == '/') { hit = true; break; }
+                }
+                if (!hit) continue;
+                if (std::find(out.begin(), out.end(), mdb_index_[k].path) == out.end()) out.push_back(mdb_index_[k].path);
+                break;   // (the first preset that fits)
+            }
+        }
+    }
+    return out;
+}
+
+void App::mdb_search_run() {
+    mdb_build_index();
     mdb_items_.clear();
     mdb_sel_ = 0;
     mdb_top_ = 0;
@@ -755,11 +833,12 @@ void App::handle_mdb_key(int key) {
     };
     auto enter = [&](const MdbItem it) {   // (a copy: mdb_list() replaces the list the item came from)
         if (it.kind == 0) {   // up
-            const bool from_favs = mdb_in_favs_;
-            const std::string from = from_favs ? std::string() : mdb_dir_;
+            const bool from_favs = mdb_in_favs_, from_recs = mdb_in_recs_;
+            const std::string from = from_favs || from_recs ? std::string() : mdb_dir_;
             mdb_list(it.path, false, from);   // (on the folder it came from)
-            if (from_favs) for (size_t k = 0; k < mdb_items_.size(); ++k) if (mdb_items_[k].kind == 1) mdb_sel_ = static_cast<int>(k);
-        } else if (it.kind == 1) mdb_list(mdb_root_, true, "");
+            if (from_favs || from_recs) for (size_t k = 0; k < mdb_items_.size(); ++k) if (mdb_items_[k].kind == (from_favs ? 1 : 5)) mdb_sel_ = static_cast<int>(k);
+        } else if (it.kind == 5) mdb_list(kMdbRecs, false, "");
+        else if (it.kind == 1) mdb_list(mdb_root_, true, "");
         else if (it.kind == 2) mdb_list(it.path, false, "");
         mdb_preview();
     };
@@ -791,7 +870,7 @@ void App::handle_mdb_key(int key) {
     if (!arrow && key == kKeyEnd) { move_to(n - 1); return; }
     if (n > 0 && arrow && key == 'C') {
         const MdbItem it = mdb_items_[static_cast<size_t>(mdb_sel_)];
-        if (it.kind == 1 || it.kind == 2) enter(it);
+        if (it.kind == 1 || it.kind == 2 || it.kind == 5) enter(it);
         return;
     }
     if (arrow && key == 'D') {   // up a folder
@@ -892,6 +971,7 @@ std::string App::build_mdb_screen(int W, const char* clear_prefix) const {
             left.push_back(" " + search_idle_sgr(settings_) + pad_right(truncate_str(where + cnt, inner), inner) + "\x1b[0m ");
             left.push_back(std::string(static_cast<size_t>(left_w), ' '));
         } else if (mdb_in_favs_) where = "Favourites";
+        else if (mdb_in_recs_) where = "Recommended";
         else {
             fs::path rel = path_from_utf8(mdb_dir_).lexically_relative(path_from_utf8(mdb_root_));
             where = "Presets";
@@ -920,6 +1000,7 @@ std::string App::build_mdb_screen(int W, const char* clear_prefix) const {
         switch (it.kind) {
             case 0: text = "◂ .."; break;
             case 1: text = "★ Favourites (" + std::to_string(md_favs_.size()) + ")"; sgr = "\x1b[1m" + ansi_for(settings_.header_color, false); break;
+            case 5: text = "\u2714 Recommended (" + it.path + ")"; sgr = "\x1b[1m" + ansi_for(settings_.header_color, false); break;
             case 2: text = "▸ " + it.name; break;
             case 3: text = "  " + it.name; break;   // (a search result: its folder follows, grey)
             default: text = "  " + it.name + "  (file gone)"; sgr = "\x1b[90m"; break;
@@ -937,7 +1018,7 @@ std::string App::build_mdb_screen(int W, const char* clear_prefix) const {
     }
     std::ostringstream f;
     f << clear_prefix << "\x1b[?25l";
-    const std::string count = mdb_in_favs_ ? std::to_string(md_favs_.size()) + " favourites" : std::to_string(Milkdrop::instance().preset_count()) + " presets";
+    const std::string count = mdb_in_recs_ ? std::to_string(mdb_items_.size() > 0 ? mdb_items_.size() - 1 : 0) + " recommended" : mdb_in_favs_ ? std::to_string(md_favs_.size()) + " favourites" : std::to_string(Milkdrop::instance().preset_count()) + " presets";
     f << box_top(!mdb_track_.empty() ? "MILKDROP FOR THIS TRACK: " + truncate_str(mdb_track_title_, std::max(10, W - 40))
                  : mdb_default_ ? "MILKDROP DEFAULT PRESET  " + count : "MILKDROP PRESETS  " + count, W, border) << "\n";
     for (int r = 0; r < ph; ++r) {

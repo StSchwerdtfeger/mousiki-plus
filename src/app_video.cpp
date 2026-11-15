@@ -620,6 +620,15 @@ bool App::video_draw(std::vector<std::string>& rows, int W, int H, int abs_col, 
 bool App::milkdrop_draw(std::vector<std::string>& rows, int W, int H, int abs_col, int abs_row, bool second_slot, int mode,
                         const std::vector<std::string>& ov, int ov_w, bool flush_bottom, bool trim_right) const {
     milkdrop_apply_settings();
+    if (milkdrop_win_on_) {   // the pictures are in the extra window: nothing is drawn (or converted, or sent) here; a note in the place instead
+        rows.assign(static_cast<size_t>(std::max(0, H)), std::string(static_cast<size_t>(std::max(0, W)), ' '));
+        if (H > 0 && W > 8) {
+            const std::string msg = truncate_str("MilkDrop is in its own window (" + hotkey_text("HKeyMilkdropWindow", ";") + " brings it back)", W);
+            const int pad = std::max(0, (W - display_width(msg)) / 2);
+            rows[static_cast<size_t>(H / 2)] = std::string(static_cast<size_t>(pad), ' ') + msg + std::string(static_cast<size_t>(std::max(0, W - pad - display_width(msg))), ' ');
+        }
+        return true;
+    }
     milkdrop_drawn_ = true;
     MilkdropSource src(Milkdrop::instance());
     // The effects that move with the time (Glitch, VHS, Film ...) get the clock of the program, like a video gets its position: with a fixed 0 they

@@ -328,6 +328,16 @@ bool RadioApp::key_overlays_b(KeyCtx& kc) {
     [[maybe_unused]] const bool arrow = kc.arrow;
     [[maybe_unused]] const int nvis = kc.nvis;
     [[maybe_unused]] int& menus_inject = kc.menus_inject;
+    if (ui.model.overlay == 12 && !ui.model.cheat_open) {  // the MilkDrop preset overlay (from the ":" overlay)
+        if (k == 3 || k == kKeyCtrlC) { bool closed = false; std::string n2; ui.model.mdb.typing = false; md_browse_key(cfg, ui.model, 27, false, n2, closed); ui.model.overlay = 0; set_text_entry(false); settings_save(); running = false; return true; }
+        std::string note;
+        bool closed = false;
+        md_browse_key(cfg, ui.model, k, arrow, note, closed);
+        set_text_entry(ui.model.overlay == 12 && ui.model.mdb.typing);
+        if (closed) { settings_save(); ui.model.settings.dirty = true; }
+        if (!note.empty()) { ui.model.notice = note; notice_until = ui.model.t_sec + 4; }
+        return true;
+    }
     if (ui.model.overlay == 11 && !ui.model.cheat_open) {  // the MilkDrop visuals overlay (":")
         int& orow = ui.model.overlay_row;
         std::string note;
@@ -335,13 +345,17 @@ bool RadioApp::key_overlays_b(KeyCtx& kc) {
         if (arrow) {
             if (k == 'A') orow = orow <= 0 ? kMdRowCount - 1 : orow - 1;
             else if (k == 'B') orow = orow >= kMdRowCount - 1 ? 0 : orow + 1;
+            else if (k == 'C' && orow == kMdBrowse) md_browse_open(cfg, ui.model, note);
             else if (k == 'C' || k == 'D') { md_overlay_adjust(cfg, orow, k == 'C' ? +1 : -1, note); ui.model.settings.dirty = true; }
         } else if (k == 13 || k == 10) {
-            if (orow <= 1) Milkdrop::instance().random_preset(); else { md_overlay_adjust(cfg, orow, +1, note); ui.model.settings.dirty = true; }
+            if (orow == kMdBrowse) md_browse_open(cfg, ui.model, note);
+            else if (orow == kMdPreset) Milkdrop::instance().random_preset();
+            else { md_overlay_adjust(cfg, orow, +1, note); ui.model.settings.dirty = true; }
         } else if (k == ' ') { md_overlay_adjust(cfg, orow, +1, note); ui.model.settings.dirty = true; }
+        else if (k == 'p' || k == 'P') md_browse_open(cfg, ui.model, note);
         else if (k == 'n' || k == 'N') Milkdrop::instance().next_preset();
         else if (k == 'b' || k == 'B') Milkdrop::instance().prev_preset();
-        else if (k == 'l' || k == 'L') md_overlay_adjust(cfg, 2, +1, note);
+        else if (k == 'l' || k == 'L') md_overlay_adjust(cfg, kMdLock, +1, note);
         else if (k == 27 || k == key_of(cfg, "VisualsMenu")) { ui.model.overlay = 0; settings_save(); return true; }
         if (!note.empty()) { ui.model.notice = note; notice_until = ui.model.t_sec + 4; }
         return true;
@@ -584,6 +598,7 @@ bool RadioApp::key_main(KeyCtx& kc) {
         case 'L': ui.model.stov = StationsOverlay{}; ui.model.stov.open = true; break;   // the big STATIONS overlay
         case ')': toggle_scope_window(); break;     // SHIFT+9: the oscilloscope in its own window
         case '(': toggle_spectro_window(); break;   // SHIFT+8: the spectrogram in its own window
+        case '|': toggle_milkdrop_window(); break;  // the MilkDrop pictures in their own window (key_translate() hands ";" over as this)
         case '.': {                            // the scope block: oscilloscope -> sphere -> spectrogram -> MilkDrop -> oscilloscope
             // (what is switched off on the ANIMA/VIZ tab is skipped, MilkDrop also when projectM is not installed; the sphere is always there)
             const bool md_ok = radio_milkdrop_usable(cfg);

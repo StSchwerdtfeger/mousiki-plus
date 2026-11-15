@@ -308,6 +308,16 @@ inline bool search_is_cs(const std::string& b) {
 // The record overlay's choices (y): seconds back from the moment it opened; 0 = from now on, -1 = the whole buffer.
 inline constexpr int kRecordBack[] = {0, 60, 300, 600, 900, 1800, -1};
 
+// The preset overlay of the MilkDrop visuals (overlay 12, radio_milkdrop.cpp): the preset folder (and the extra ones) with Favourites and
+// Recommended on top, a search over every preset; the preset under the cursor plays at once.
+struct MdBrowseItem { int kind = 3; std::string name, path, extra; };   // kind: 0 "..", 1 Favourites, 2 folder, 3 preset, 5 Recommended (extra = how many)
+struct MdBrowse {
+    bool typing = false, searching = false, in_favs = false, in_recs = false, moved = false, prev_locked = false;
+    std::string root, dir, prev_path, query;
+    std::vector<MdBrowseItem> items;
+    int sel = 0, top = 0;
+};
+
 struct UiModel {
     // Terminal graphics (oscilloscope "image" style): what the terminal speaks, its cell size in pixels, and the picture the
     // last frame produced (written by render_radio_frame, sent by the main loop).
@@ -358,6 +368,7 @@ struct UiModel {
     double sleep_left = 0.0;        // seconds until it stops
     double sleep_fade_sec = 0.0;    // length of the fade-out of the running / selected timer (0 = fade off)
     int overlay_row = 0;
+    MdBrowse mdb;                   // overlay 12: the MilkDrop preset overlay
     int bars_scroll = 0;            // overlay 10 (spectrum bars): the first row shown
     std::string update_latest, update_current, update_url;   // overlay 8: the new version, the one in use, the release page
     bool sort_az = false;         // SHIFT+t: the main STATIONS pane (and its search results) sorted by name A-Z instead of list order
@@ -425,8 +436,14 @@ std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus&
 // The node to select after UP / DOWN / LEFT / RIGHT (dir 0 / 1 / 2 / 3) from node `sel`.
 // The MilkDrop visuals overlay (":", overlay 11; radio_milkdrop.cpp): its rows (0 Preset .. 11 Show in the Scope Block); a change of one
 // (dir -1 / +1; `notice` gets the status text when there is one).
-inline constexpr int kMdRowCount = 13;
+inline constexpr int kMdRowCount = 20;
+enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdDuration, kMdShuffle, kMdFavShuffle, kMdCutSens, kMdHardCuts, kMdTransition, kMdFps, kMdRes, kMdGpu,
+             kMdHcd, kMdVar, kMdMesh, kMdAspect, kMdClean, kMdName, kMdScope };
 void md_overlay_adjust(RadioSettings& c, int row, int dir, std::string& notice);
+// The preset overlay (overlay 12): open it (false + notice when there is no preset folder), a key (true = handled; `close` = leave it), the text a search needs.
+bool md_browse_open(RadioSettings& c, UiModel& m, std::string& notice);
+bool md_browse_key(RadioSettings& c, UiModel& m, int k, bool arrow, std::string& notice, bool& close);
+void md_favs_reload();   // after the favourites file changed (the engine's list follows)
 int menus_move(int sel, int dir, bool classic = false);
 int menus_classic_sel(int sel);   // the classic view has no choosable category headers
 const ::muisc::org::Node& menus_node(int sel);

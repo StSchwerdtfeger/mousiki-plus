@@ -111,6 +111,7 @@ The key shown for each command is the **default binding**. Your own bindings may
       - [Mode: Text to sound](#mode-text-to-sound)
       - [Mode: Microphone](#mode-microphone)
   - [MilkDrop visuals](#milkdrop-visuals)
+    - [MilkDrop window (`;`: German `SHIFT+,`, English `|`)](#milkdrop-window--german-shift-english-)
   - [Spectrogram](#spectrogram)
     - [Spectrogram (`SHIFT+i`, `SHIFT+u`)](#spectrogram-shifti-shiftu)
     - [Spectrogram window (`(`: German `SHIFT+8`, English `SHIFT+9`)](#spectrogram-window--german-shift8-english-shift9)
@@ -251,6 +252,7 @@ Mousiki reacts to the **character** a key types, not to the key itself. Most com
 | `*` | Next mode (karaoke: lyrics bigger) | `SHIFT` and `+` | `'` (a config.txt from an older version: `SHIFT+8`) |
 | `_` | Previous mode (karaoke: lyrics smaller) | `SHIFT` and `-` | `;` (older: `SHIFT` and `-`) |
 | `(` | Spectrogram window | `SHIFT+8` | `SHIFT+9` |
+| `;` | MilkDrop window | `SHIFT+,` (right beside `:`) | `\|` (`SHIFT+\`; `;` is a size mode key there) |
 | `)` | Oscilloscope window | `SHIFT+9` | `SHIFT+0` |
 | `=` | Oscilloscope full screen | `SHIFT+0` | the `=` key |
 | `+` | Volume up | the `+` key | `SHIFT` and `=` |
@@ -423,6 +425,9 @@ The `<` organigram is also the map of this guide and of the help wizard: every m
     - **Video**
       - **Options** (the VIDEO SETTINGS overlay, `&`)
       - **Overlay** (Full Screen Video, `v`)
+    - **MilkDrop**
+      - **Options** (the visuals overlay, `:`)
+      - **Extra Window (Max. Screen Refresh Rate)** (`;`, US / UK keyboards `|`)
     - **Creator** (`^`)
   - **Lyrics**
     - **Refetch Lyrics** (`l`)
@@ -491,6 +496,9 @@ In the **radio** it has System, Sound, Stations and Presets and Visualizations (
       - **Options** (`SHIFT+o`)
       - **Overlay** (`=`)
       - **Extra Window (Max. Screen Refresh Rate)** (`)`)
+    - **MilkDrop**
+      - **Options** (the visuals overlay, `:`)
+      - **Extra Window** (`;`, US / UK keyboards `|`)
 
 ### The menu map as a grid
 
@@ -519,6 +527,9 @@ The same map with every category as a box (the keys are the defaults):
                                               │ Video                   │
                                               │  ├ Options [&]          │
                                               │  └ Overlay [v]          │
+                                              │ MilkDrop                │
+                                              │  ├ Options [:]          │
+                                              │  └ Extra Window [;]     │
                                               │ Creator [^]             │
                                               └─────────────────────────┘
 ```
@@ -557,6 +568,9 @@ The same map with every category as a box (the keys are the defaults):
                                                                                                   │  ├ Options [SHIFT+o]    │
                                                                                                   │  ├ Overlay [=]          │
                                                                                                   │  └ Extra Window [)]     │
+                                                                                                  │ MilkDrop                │
+                                                                                                  │  ├ Options [:]          │
+                                                                                                  │  └ Extra Window [;]     │
                                                                                                   └─────────────────────────┘
 ```
 <!-- MENU GRID END -->
@@ -1358,12 +1372,24 @@ Under the rows the overlay shows the preset's place (`preset 1124 of 9795`), how
 
 **What it costs.** projectM draws with OpenGL: with a graphics card that costs little. Without one (a server, a virtual machine, some laptops) Mesa's software renderer *llvmpipe* draws on the processor -- measured here (2 cores, no graphics card): **8 to 37 ms per picture at 640 x 360**, 3 to 20 ms at 320 x 180, depending on the preset; the whole program with the MilkDrop view at the defaults (480 px, 30 pictures a second, a 140 x 45 terminal): about **0.5 to 1.2 cores**, 30 pictures a second on Kitty and Sixel. Resolution 320 or a lower frame rate halves that; 60 pictures a second about doubles it. A preset change costs a pause of 0.1 to 0.3 s in the drawing (the preset's shaders are compiled) -- never in the keys or the sound. When nothing shows the visuals for 3 seconds, the drawing stops and gives its memory back.
 
+#### MilkDrop window (`;`: German `SHIFT+,`, English `|`)
+
+The key of `;` (on a German keyboard `SHIFT+,`, right beside `:`; on US / UK keyboards, where `;` is a size mode key, `|` = `SHIFT+\`) opens the **MilkDrop visuals in their own window** (again: closes it). `_` is not used: it is the *previous mode* key. The window shows the pictures at the monitor's refresh rate (60, 120, 165 Hz ...) without the detour of the terminal -- no conversion to a Kitty / Sixel / text picture, no encoding, nothing for the terminal to decode -- and it can be as big as the screen (`F`, `F11` or a double-click: full screen).
+
+- **The engine stays in Mousiki.** The presets, the visuals overlay (`:`), the preset overlay, per-track presets (Style Option), Lock Preset, favourites and every MilkDrop option work exactly as before; the window is only where the finished pictures are shown. While it is open the field of the main screen says *MilkDrop is in its own window* instead of drawing them (that saves the work of the terminal pictures), and the key closes it again.
+- **Size:** `MilkDropWindowResolution=` in `config.txt` (`radio_config.txt` for the radio), 320 .. 1920, default **1280** pixels across (16:9). The window scales the picture to its own size, keeping the proportions (black bars). The **Frame Rate** of the MilkDrop options is how many pictures a second are drawn; the window itself redraws at the monitor's rate. Raising the frame rate only helps if the graphics card can draw that many: the cost follows the **picture size**, not the frame rate.
+- **What it saves, honestly:** the terminal's part (reading the picture into a terminal format, encoding it, the terminal decoding it). What it still does is read each finished picture back from the graphics card into memory and pass it to the window through a pipe, so the gain is biggest on slow terminals and big pictures, and smaller where the picture was already small and the terminal fast.
+- Keys in the window: `F`, `F11` or double-click fullscreen, `T` always on top, `ESC`, `Q` or the key of the window (`;` / `|`) close.
+- It works whatever the field shows and also while *Use MilkDrop* is off on the ANIMA/VIZ tab; it needs the same things as the visuals themselves (projectM and presets, see above) and **SDL2** like the scope window. It can be open at the same time as the scope and spectrogram windows.
+- Title: the playing track (radio: the station). Position, size, fullscreen and always-on-top are kept in `~/.config/mousiki/milkdrop_window.txt`; it stays open when you switch between player and radio and closes with Mousiki. It is a second copy of Mousiki (`mousiki --milkdrop-window`) that gets the pictures through a pipe; if it cannot start the status line says why (also in `~/.cache/mousiki/milkdrop_window_error.txt`).
+
 ### Spectrogram
 
 | Key | Action | What it does |
 |---|---|---|
 | `I` (Shift+I) | Spectrogram options | Opens the spectrogram overlay (style, motion, scale, frequencies, gain, range, window, colours …). See *Spectrogram* below. |
 | `U` (Shift+U) | Spectrogram full screen | The Audacity style spectrogram over the whole screen, with frequency labels and a time ruler; `LEFT` / `RIGHT` image ↔ braille, `UP` / `DOWN` spectrogram ↔ waterfall. `ESC` or `SHIFT+u` closes it. |
+| `;` (German `SHIFT+,`, English `\|`) | MilkDrop window | Opens / closes the MilkDrop visuals in **their own window**, at the monitor's refresh rate and without the terminal's picture conversion. See *MilkDrop window* above. Works always (needs projectM and SDL2). |
 | `(` (German `SHIFT+8`, English `SHIFT+9`) | Spectrogram window | Opens / closes the spectrogram in **its own window**, scrolling smoothly at the monitor's refresh rate. See *Spectrogram window* below. Works always. |
 
 #### Spectrogram (`SHIFT+i`, `SHIFT+u`)
@@ -2373,6 +2399,7 @@ The rows of the video (shown in the small field, in the big video overlay and pe
 |---|---|---|
 | MilkDrop Frame Rate | 15, 20, 25, 30, 45, 60 | Default **30**: pictures a second. Every picture is drawn by the graphics card, or by the processor when there is none (see the costs below). At 45 / 60 the screen follows. (`MilkDropFrameRate=`) |
 | MilkDrop Resolution | 320, 480, 640, 960, 1280 | Default **480**: the pictures are drawn at most this many pixels across (the height follows the place), then scaled to the place on the screen; also the widest picture sent to the terminal. More is sharper and costs more (on Sixel the big video overlay above all). (`MilkDropResolution=`) |
+| MilkDrop Window Resolution | 320 .. 1920 | Default **1280**: the pixels across of the pictures the extra MilkDrop window shows (`;` / `\|`), 16:9. Set in `config.txt` (`MilkDropWindowResolution=`). |
 | MilkDrop GPU | automatic, or a graphics card | Default **automatic**: what the system gives (on a laptop with two graphics cards usually the integrated one). **Linux:** every card with a render node is listed (e.g. *Intel (i915) renderD128*, *NVIDIA (nvidia) renderD129*); the visuals restart on the one you choose. The same row is in `:` from the main screen (not in the per-track menu). **Windows / macOS:** the system decides (Windows: Settings > System > Display > Graphics, give `mousiki.exe` *High performance* or *Power saving*); the row says so. (`MilkDropGpu=`, the render node such as `renderD129`; empty = automatic.) |
 | Preset Duration | off, 10 … 300 s | Default **25 s**: how long a preset stays; *off*: no change by time (with Hard Cuts on a strong beat can still change it; Lock Preset stops both). (`MilkDropPresetDuration=`) |
 | Auto MilkDrop | true, false | Default **false**: the field shows the visuals for every track; Auto Video is off meanwhile and comes back after. (`MilkDropAuto=`) |
@@ -2397,9 +2424,9 @@ The preset folders are set in **Settings → PATHS → MILKDROP PRESET PATH** (t
 
 **Lock Preset** is kept: switching it on in `:` (or Settings → MILKDROP → Lock Preset; `MilkDropLockPreset=`) stays on the next time Mousiki starts. The radio keeps its own (`radio_config.txt`).
 
-**Your own "Recommended" folder.** The favourites you mark with `a` in the preset overlay are in `milkdrop_favourites.txt` in the config folder (Linux `~/.config/mousiki`, Windows `%APPDATA%\mousiki`; one preset file per line, full paths). `python3 tools/make_recommended.py --presets <preset folder>` copies those files into a `Recommended` folder inside the preset folder, where the preset overlay shows it like any other folder; to ship it, put that folder into `milkdrop/presets` before the installer is built.
+**The Recommended folder.** At the top of the preset overlay, under *Favourites*, a **Recommended** folder lists a hand-picked set that ships with Mousiki. It is only a list: `recommended.txt` beside the preset folder (`milkdrop/recommended.txt` next to the program), one preset a line, either its path inside the collection (`Fractal/some preset.milk`) or just its file name (case and extension may be left out). Mousiki looks every line up in the presets that are installed (all preset folders), so it fits any copy of the collection; a line that fits nothing is skipped, and the folder is missing when nothing fits. Your own picks go into `milkdrop_recommended.txt` in the config folder, in the same format; both lists are shown together. For the maintainer: mark favourites with `a`, then `python3 tools/make_recommended.py --presets <preset folder>` writes `milkdrop_recommended.txt` from `milkdrop_favourites.txt` (Linux `~/.config/mousiki`, Windows `%APPDATA%\\mousiki`); commit it next to `README.md`, and the install scripts (`tools/milkdrop-unix.sh`, `tools/milkdrop-windows.ps1`, so also the installers and `setup`) put it beside the presets.
 
-**Which rows change what.** In **Settings** and in `:` opened from the main screen the rows change the values for every track. `:` opened from the **big video overlay**, and **More Options** in Style Option, open the same rows for **the current track only** (the line *Only for this track* says so, the title reads *Visuals: MilkDrop (this track)*): `d` or `DEL` on a row sets it back to *as in Settings*, ENTER on **Preset** pins the shown preset to the track. The rows that are for the whole program (Frame Rate, Resolution, Sixel Colours) are left out there. In the preset overlay `f` goes straight to the Favourites folder.
+**Which rows change what.** In **Settings** and in `:` opened from the main screen the rows change the values for every track. `:` opened from the **big video overlay**, and **More Options** in Style Option, open the same rows for **the current track only** (the line *Only for this track* says so, the title reads *Visuals: MilkDrop (this track)*): `d` or `DEL` on a row sets it back to *as in Settings*, ENTER on **Preset** pins the shown preset to the track. The rows that are for the whole program (Frame Rate, Resolution, GPU, Sixel Colours, Hard Cut Interval, Duration Variance, Mesh Detail, Aspect Correction, Clean Start) are there too, as in the main `:` menu, marked *(all tracks)*: changing one changes it in Settings for every track, and `d` does nothing on them. In the preset overlay `f` goes straight to the Favourites folder.
 
 **SPHERE**
 
@@ -2638,7 +2665,8 @@ The following features exist in both modes, with the same keys and the same over
 |---|---|---|
 | **Equalizer** (`SHIFT+e`) | Chapter 2, *Equalizer overlay* | Same overlay, same 12 presets and keys. It is applied to the stream before volume and normalization and is stored separately in `radio_config.txt` (`EqualizerEnabled`, `EqualizerBands`, `EqualizerPreset=`), so the radio and the player can use different curves and custom presets. There is no conflict with the preset key `e`: the radio tells `e` and `SHIFT+e` apart. |
 | **Spectrogram** (`SHIFT+i`, `SHIFT+u`) | Chapter 3, *Spectrogram* | The same spectrogram in the scope block (`.` or **Osci/sphere** = `spectro`), the same overlay and full screen; the stream is analysed as it arrives. The overlay starts with the **View** row: `waterfall` shows the stack of spectra (see *Waterfall* in chapter 3) in the scope block, in the full screen (titled WATERFALL, frequencies on top) and in the spectrogram window, with its own rows (graphs, spacing, slant, peak height, resolution). Settings in `radio_config.txt`. |
-| **MilkDrop visuals** (`.`, `:`) | Chapter 3, *MilkDrop visuals* | The visuals fill the **scope block** (`.` after the spectrogram, or **Osci/sphere** = `milkdrop`): a picture on Kitty (the picture's own colours) and Sixel (216 colours), half blocks on other terminals; the preset's name in a small box on its bottom row for 3 s after a change. They only run while a station plays (the satellite shows otherwise). The radio keeps its own options in `radio_config.txt` (`UseMilkDrop=`, `MilkDropFrameRate=` ... the same keys as the player); the preset folder is the player's (`MilkDropPresets=` in `config.txt`). Settings: ANIMA/VIZ -> MILKDROP. |
+| **MilkDrop visuals** (`.`, `:`) | Chapter 3, *MilkDrop visuals* | The visuals fill the **scope block** (`.` after the spectrogram, or **Osci/sphere** = `milkdrop`): a picture on Kitty (the picture's own colours) and Sixel (216 colours), half blocks on other terminals; the preset's name in a small box on its bottom row for 3 s after a change. They only run while a station plays (the satellite shows otherwise). The radio keeps its own options in `radio_config.txt` (`UseMilkDrop=`, `MilkDropFrameRate=` ... the same keys as the player); the preset folder (and the extra preset folders) is the player's (`MilkDropPresets=`, `MilkDropExtraPresets=` in `config.txt`). The `:` overlay has the player's rows -- Preset, **Preset Overlay**, Random, Lock, Duration, Shuffle, **Shuffle Favourites**, Hard Cut Sensitivity, Hard Cuts, Transition, Frame Rate, Resolution, GPU, **Hard Cut Interval, Duration Variance, Mesh Detail, Aspect Correction, Clean Start**, Show Preset Name, Show in the Scope Block (a small terminal scrolls them) -- and the **preset overlay** (`P`, or `ENTER` / `RIGHT` on *Preset Overlay*): the preset folder and the extra folders, **Favourites** (`milkdrop_favourites.txt`, the same file as the player's: `A` adds, `D` takes out, `F` opens them), **Recommended**, `/` searches every preset (every word must fit the name or the folder; the player's search is fuzzy); the preset under the cursor plays at once, `ENTER` chooses it, `ESC` puts the previous one back. Not in the radio: the video **Effect** rows and Sixel Colours, and the per-track presets of the player (a station has no track to pin them to). Settings: ANIMA/VIZ -> MILKDROP. |
+| **MilkDrop window** (`;` / `\|`) | Chapter 3, *MilkDrop window* | The same window for the radio's MilkDrop view (the radio's own MilkDrop options, `MilkDropWindowResolution=` in `radio_config.txt`). |
 | **Scope window** (`)`) and **spectrogram window** (`(`) | Chapter 3, *Scope window* / *Spectrogram window* | The same windows: they stay open when you switch modes and show the station and song as their title. |
 | **Oscilloscope** (`SHIFT+o`) and the lyric visual | Chapter 3, *The oscilloscope* and *Oscilloscope tuning overlay* | Same scope, same overlay rows, braille and image style included. In the radio the scope sits right of the station info instead of in the lyrics area, and `.` switches between oscilloscope, sphere and spectrogram. The radio keeps its own values in `radio_config.txt` (`OsciStyle=`, `Osci<name>=`, `OsciImage<name>=`). The image-style environment variables `MOUSIKI_GFX` / `MOUSIKI_CELLPX` apply to both (the older `MOUSIKI_RADIO_GFX` / `MOUSIKI_RADIO_CELLPX` are still accepted). |
 | **Loudness normalization** (`v`, `SHIFT+v`) | Chapter 2 and *Loudness normalization overlay* | Same overlay, range and gating. A live stream has no end, so the loudness is measured **since you tuned in** and the gain glides in over about a second. Settings: `radio_config.txt`. |
@@ -2888,7 +2916,7 @@ BORDER_COLOR, METADATA, VIZ, LIST, HEADER, LEGEND and TAB_NAMES work as in the p
 | SEEK AND VOLUME | **Dummy buttons** (the `<<< MUTE >>>` boxes next to the dial; the volume bar stays) and **Volume indicator** (what the volume bar is drawn with, as in the player's SEEK AND VOLUME) |
 | SPECTRUM BARS | **On/Off** (the spectrum bars under the station info; before: *Spectrum Bars* on the General tab), Bars Behavior (preset), Bars Fluidity, Bars Degradation, Bars Viscosity and the **Bars Style** (Classic / Hi-Fi with its Resolution, Channels and Color rows), as in the player (before: Wave …) |
 | OSCI/SPECTRO SETTINGS | **Use oscilloscope / Use spectrogram** (`false` leaves that visual out of the scope block: `.` skips it -- the sphere is always there; full screen `SHIFT+u` and the windows `)` / `(` still work; `UseOscilloscope=`, `UseSpectrogram=`), **Modes Share Settings** (`ShareProfiles=`: the radio uses the player's oscilloscope and spectrogram settings instead of its own; the same row as in the player's ANIMA/VIZ tab), **Osci/sphere** (right of the station info: oscilloscope, sphere, off, spectrogram (`spectro`) or the MilkDrop visuals (`milkdrop`; without projectM the oscilloscope shows)) and **Osci style** (`braille` or `image`) and **Scope mode** (`XY`, `YT`, `XY + YT (overlap)`, `XY + YT (row)` or `XY + YT (col)`, set in the `SHIFT+o` overlay; `OsciMode=` in `radio_config.txt`). The oscilloscope full screen (`SHIFT+0`, with grid `SHIFT+a`, axis values `SHIFT+v` and grid colour `SHIFT+c`) is there too (`ScopeBig`, `ScopeGrid=`, `ScopeValues=`, `ScopeGridColor=`) |
-| MILKDROP | **Use MilkDrop** (`false` leaves the visuals out of the `.` cycle; `UseMilkDrop=`), **MilkDrop Frame Rate**, **MilkDrop Resolution**, **MilkDrop GPU** (automatic or a card, Linux), **Preset Duration**, **Shuffle Presets**, **Hard Cut Sensitivity**, **Hard Cuts**, **Preset Transition**, **Show Preset Name**: the same rows, defaults and keys as the player's MILKDROP block, but the radio's own values (`radio_config.txt`). The visuals overlay `:` changes the same values. |
+| MILKDROP | **Use MilkDrop** (`false` leaves the visuals out of the `.` cycle; `UseMilkDrop=`), **MilkDrop Frame Rate**, **MilkDrop Resolution**, **MilkDrop GPU** (automatic or a card, Linux), **Preset Duration**, **Shuffle Presets**, **Hard Cut Sensitivity**, **Hard Cuts**, **Preset Transition**, **Show Preset Name**, **Shuffle Favourites**, **Hard Cut Interval**, **Duration Variance**, **Mesh Detail**, **Aspect Correction**, **Clean Start**: the same rows, defaults and keys as the player's MILKDROP block (without the video effect rows), but the radio's own values (`radio_config.txt`). The visuals overlay `:` changes the same values. |
 
 The player's Waveform Style, Disk Speed, Lyrics Alignment and Lyrics Animation do not exist in the radio, so those categories are missing. The radio's Share Profiles row sits in OSCI/SPECTRO SETTINGS on this tab, not on the GENERAL tab.
 

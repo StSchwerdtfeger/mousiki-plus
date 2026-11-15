@@ -217,6 +217,31 @@ void RadioApp::toggle_scope_window() {
     } else { ui.model.notice = err; notice_until = ui.model.t_sec + 10; }
 }
 
+void RadioApp::toggle_milkdrop_window() {
+    if (milkdrop_window_running()) {
+        milkdrop_window_close();
+        milkdrop_win_was = false;
+        ui.model.notice = "MilkDrop window closed"; notice_until = ui.model.t_sec + 3;
+        return;
+    }
+    std::string err;
+    if (!radio_milkdrop_usable(cfg, &err)) {   // (also gives the engine its options)
+        ui.model.notice = "milkdrop: cannot run here -- " + err; notice_until = ui.model.t_sec + 10;
+        return;
+    }
+    const int w = std::clamp(cfg.md_win_res, 320, 1920) & ~1;
+    milkdrop_window_set_size(w, (w * 9 / 16) & ~1);
+    MilkWinConfig c;
+    std::snprintf(c.title, sizeof c.title, "%s", engine.status().tuned_name.c_str());
+    milkdrop_window_set_config(c);
+    if (milkdrop_window_open(&err)) {
+        milkdrop_win_was = true;
+        ui.model.notice = "MilkDrop window opened: F / double-click fullscreen, T always on top, ESC or " +
+                          window_key_label("MilkdropWindow") + " closes";
+        notice_until = ui.model.t_sec + 6;
+    } else { ui.model.notice = err; notice_until = ui.model.t_sec + 10; }
+}
+
 void RadioApp::toggle_spectro_window() {
     if (spectro_window_running()) {
         spectro_window_close();

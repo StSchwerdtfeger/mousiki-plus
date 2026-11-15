@@ -122,14 +122,36 @@ const VideoFrame* Milkdrop::frame(int w, int h, bool& fresh) {
             fresh = true;
         }
     }
-    if (!running_.load()) {
-        if (th_.joinable()) th_.join();   // (an idle stop before)
-        stop_.store(false);
-        running_.store(true);
-        { std::lock_guard<std::mutex> lk(mu_); status_ = "milkdrop: starting ..."; opts_dirty_ = true; }
-        th_ = std::thread([this] { run(); });
-    }
+    ensure_thread();
     return shown_.w > 0 ? &shown_ : nullptr;
+}
+
+void Milkdrop::ensure_thread() {
+    std::lock_guard<std::mutex> sk(start_mu_);
+    if (running_.load()) return;
+    if (th_.joinable()) th_.join();   // (an idle stop before)
+    stop_.store(false);
+    running_.store(true);
+    { std::lock_guard<std::mutex> lk(mu_); status_ = "milkdrop: starting ..."; opts_dirty_ = true; }
+    th_ = std::thread([this] { run(); });
+}
+
+bool Milkdrop::take_window_frame(int w, int h, std::vector<uint8_t>& rgb, int& ow, int& oh) {
+    if (w < 2 || h < 2 || !available()) return false;
+    last_ask_ns_.store(now_ns());
+    bool got = false;
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        want_w_ = w; want_h_ = h;
+        if (front_seq_ != win_taken_seq_ && front_.w > 0) {
+            ow = front_.w; oh = front_.h;
+            rgb = front_.rgb;
+            win_taken_seq_ = front_seq_;
+            got = true;
+        }
+    }
+    ensure_thread();
+    return got;
 }
 
 #if !defined(__linux__) && !defined(_WIN32) && !defined(__APPLE__)

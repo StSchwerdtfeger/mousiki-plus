@@ -382,6 +382,7 @@ private:
     void mdb_open_track(const std::string& track, const std::string& title);
     void milkdrop_auto_set(bool on);   // Auto MilkDrop on / off (Auto Video off meanwhile, back after)
     void milkdrop_auto_apply();        // at a track's start: the field to the visuals (Auto MilkDrop)
+    bool mdb_in_recs_ = false;           // the Recommended folder is shown (a list that ships with Mousiki, resolved by name in the installed presets)
     bool mdb_in_favs_ = false;           // the favourites folder is shown
     std::string mdb_root_, mdb_dir_;     // the preset folder, the folder shown (UTF-8)
     std::vector<MdbItem> mdb_items_;
@@ -396,6 +397,8 @@ private:
     void md_favs_save() const;
     void mdb_open();
     void mdb_close(bool chosen);
+    void mdb_build_index();                       // every preset of the preset folder(s), once (the search, Recommended)
+    std::vector<std::string> md_recommended_paths();   // the Recommended list, resolved to preset files that exist
     bool mdb_inside(const std::string& file) const;   // the file lies under the preset folder or one of the extra preset folders
     bool mdb_is_extra_root(const fs::path& d) const;
     void mdb_list(const std::string& dir, bool favs, const std::string& select_path);
@@ -1822,6 +1825,9 @@ private:
     // Shift+9 (HKeyScopeWindow): the oscilloscope in its own window (src/scope_window.h). scope_window_sync() runs
     // every frame: it sends the current scope settings / colours / title and notices a window closed from its side.
     bool scope_win_on_ = false;
+    // HKeyMilkdropWindow (";" / "|"): the MilkDrop pictures in their own window (the engine stays here, the pictures go through the pipe); while it is
+    // open the terminal shows a note instead of the pictures. milkdrop_window_sync() runs every frame like the others.
+    mutable bool milkdrop_win_on_ = false;
     // spectro_: the `spectro_*` data of this feature, grouped (they were 6 loose members of App)
     struct SpectroState {
         // Spectrogram (src/spectrogram.h): the third lyrics-area visual (LyricViz=spectro), SHIFT+i options overlay
@@ -1868,6 +1874,8 @@ private:
     void spectro_window_toggle();
     bool spectro_keep_analysing(bool on_screen);   // the spectrogram's analysis runs this frame? (also gives its memory back after ten hidden seconds)
     void spectro_window_sync(bool check_alive = true);
+    void milkdrop_window_toggle();
+    void milkdrop_window_sync(bool check_alive = true);
     std::string enforce_visual_switches(int changed = -1);   // returns what it changed, for the status line
     static constexpr int kOsciMenuPanelWidth = 50; // just wide enough for the key legend
     std::vector<std::string> build_osci_menu_panel() const;

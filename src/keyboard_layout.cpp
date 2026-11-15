@@ -134,6 +134,12 @@ std::string default_size_mode_key(bool next) {
     return next ? "*" : "_";
 }
 
+std::string default_milkdrop_window_key() {
+    const std::string c = keyboard_layout_code();
+    if (c == "us" || c == "gb" || c == "ie" || c == "au" || c == "ca" || c == "en" || c == "nz") return "|";   // ";" and "'" are the size-mode keys there
+    return ";";   // SHIFT+, on a German keyboard, next to ":" ("_" and "*" are the mode keys)
+}
+
 std::string default_audio_device_key() {
     const std::string c = keyboard_layout_code();
     return (c == "de" || c == "at" || c == "ch") ? "°" : "&";

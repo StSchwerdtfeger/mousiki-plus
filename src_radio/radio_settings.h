@@ -110,10 +110,15 @@ struct RadioSettings : VizPrefs {
     // The MilkDrop visuals (src/milkdrop.h) in the scope block: ANIMA/VIZ -> MILKDROP and the visuals overlay (":"). The radio's own values (radio_config.txt),
     // the same keys as the player's config.txt; MilkDropPresets= is the player's (one preset folder for all modes, read at the start).
     bool use_milkdrop = true;
+    int md_win_res = 1280;   // MilkDropWindowResolution=: the pixels across of the MilkDrop window's pictures
     int md_fps = 30, md_res = 480, md_secs = 25, md_cut_sens = 20, md_transition = 3;
     bool md_lock = false;   // MilkDropLockPreset=: the preset stays (kept for the next start)
     std::string md_gpu;   // MilkDropGpu=: "" = automatic, else the card (Linux: its render node, e.g. renderD129)
     bool md_shuffle = true, md_hard_cuts = true, md_show_name = true;
+    // the same options as the player's ":" overlay (the same config keys): the shortest time between hard cuts, the random spread of a preset's time,
+    // the warp mesh (0 low .. 3 very high), aspect correction, a clean start per preset, and only the favourites in the list
+    int md_hcd = 20, md_var = 0, md_mesh = 1;
+    bool md_aspect = true, md_clean = false, md_fav_shuffle = false;
     std::vector<std::string> md_extra;   // the player's MilkDropExtraPresets= lines (more preset folders)
     std::string md_presets;    bool element_visualizer = true;             // the FFT spectrum under the station info
     bool stereo = true;                         // false = fold left + right to mono

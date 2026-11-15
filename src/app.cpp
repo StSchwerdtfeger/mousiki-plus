@@ -1214,6 +1214,7 @@ void App::run_tick() {
     player_.set_scope_raw(settings_.osci().music);   // oscilloscope music mode: the scopes get the unprocessed signal
     scope_window_sync();
     spectro_window_sync();
+    milkdrop_window_sync();
     enforce_visual_switches();
     // Disk only spins while something is actually playing — frozen
     // when idle or paused, per instruction.

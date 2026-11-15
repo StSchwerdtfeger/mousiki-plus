@@ -278,6 +278,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "HKeyScopeBig", "Oscilloscope full screen: YT mode left, XY mode right, braille or image style (toggle; ESC closes; the options overlay opens on top of it)"},
         {nullptr, "#SHIFT+a  SHIFT+v  SHIFT+c  SHIFT+p", "Oscilloscope full screen: axes / grid on or off   axis values on or off   grid colour (small window: type 0-255, empty = colour of inactive list elements)   grid metrics (small window: time unit, grid divisions, steady readouts in the picture names: RMS level, peak hold, L/R correlation, L/R balance)"},
         {nullptr, "HKeyScopeWindow", "Scope window: the oscilloscope in its own window, drawn by the graphics card, braille or image style as set in the SHIFT+o overlay (toggle; needs SDL2)"},
+        {nullptr, "HKeyMilkdropWindow", "MilkDrop window: the MilkDrop pictures in their own window, shown at the monitor's refresh rate without the terminal's picture conversion (toggle; presets, the : menu and the preset overlay keep working here; resolution: MilkDropWindowResolution in config.txt; needs SDL2)"},
         {nullptr, "HKeySpectroWindow", "Spectrogram window: the spectrogram in its own window, scrolling smoothly at the monitor's refresh rate (toggle; needs SDL2)"},
         {nullptr, "#F / F11 / T / ESC", "Scope / spectrogram window (keys inside it): fullscreen (also double-click) / always on top / close"},
         // --- Lyrics & karaoke ---

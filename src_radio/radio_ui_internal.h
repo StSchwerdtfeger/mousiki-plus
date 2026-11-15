@@ -342,6 +342,8 @@ constexpr int kBarsOverlayW = 52;
 constexpr int kMdOverlayW = 62;
 bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::vector<std::string>& rows);
 std::vector<std::string> build_md_overlay(const Style& s, const UiModel& m);
+std::vector<std::string> build_mdb_overlay(const Style& s, const UiModel& m);   // overlay 12: the preset overlay
+constexpr int kMdbOverlayW = 76;
 
 // ===========================================================================================
 // Overlays over the main screen: SHIFT+o oscilloscope tuning, SHIFT+v loudness normalisation (same rows, ranges and

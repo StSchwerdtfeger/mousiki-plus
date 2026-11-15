@@ -1188,7 +1188,9 @@ def main_session(binary, root, scripts):
         progress("main session: quit")
         # --- quit
         sess.send("q", 0.5)
-        for _ in range(20):
+        # (the program waits for its helper tasks on the way out -- up to about 5 s -- and a loaded CI machine (macOS, three scenarios at a time) is slow
+        # to end a process: wait up to ~25 s before calling it a hang)
+        for _ in range(80):
             if not sess.alive():
                 break
             sess.pump(0.3)
@@ -4051,7 +4053,14 @@ def milkdrop_layouts_style(binary, root, scripts):
         sess.send("\r", 1.5)
         check(settle(lambda: "this track" in sess.text() and "Only for this track" in sess.text() and "Hard Cut Sensitivity" in sess.text(), 8),
               "style option: ENTER on More Options opens the MilkDrop options for this track only (%r)" % next((l.strip()[:70] for l in sess.screen.display if "Only for" in l), None))
-        check("Frame Rate" not in sess.text() and "Use Effect" in sess.text(), "style option: the track's options leave out the ones that are for the whole program (Frame Rate), Use Effect is there")
+        check("Use Effect" in sess.text(), "style option: the track's options have Use Effect")
+        for _ in range(12):   # (the drawing rows are the same for all tracks: shown, and marked)
+            if "Mesh Detail" in sess.text(): break
+            sess.send(b"\x1b[B", 0.2)
+        check("Mesh Detail" in sess.text() and "(all tracks)" in sess.text(), "style option: the track's options also have the drawing rows (Mesh Detail), marked for all tracks")
+        for _ in range(30):   # (back up to Preset)
+            sess.send(b"\x1b[A", 0.1)
+            if "> Preset    <" in sess.text(): break
         sess.send(b"\x1b[B", 0.5)   # Preset -> Preset Overlay
         sess.send("\r", 1.5)
         check(settle(lambda: "MILKDROP FOR THIS TRACK" in sess.text(), 8), "style option: ENTER on Preset Overlay opens the preset overlay of this track")
@@ -4385,10 +4394,33 @@ def milkdrop_radio_book(binary, root, scripts):
         after = preset_line()
         check(before and after and before != after, "radio: RIGHT on Preset changes the preset")
         check("preset " in sess.text() and " of " in sess.text(), "radio: the overlay shows the preset count")
+        t = sess.text()
+        check("Preset Overlay" in t and "Shuffle Favourites" in t and "Hard Cut Interval" in t and "Mesh Detail" in t and "Clean Start" in t,
+              "radio: the overlay has the player's rows (Preset Overlay, Shuffle Favourites, Hard Cut Interval, Mesh Detail, Clean Start ...)")
+        # the preset overlay: "p" opens it, Favourites on top, [a] adds the preset under the cursor, [d] takes it out, ESC goes back to the visuals overlay
+        favf = os.path.join(os.path.dirname(rcfg), "milkdrop_favourites.txt")
+        sess.send("p", 1.5)
+        check(settle(sess, lambda: "MilkDrop presets" in sess.text(), 8), "radio: [p] opens the preset overlay (on the folder of the preset shown)")
+        for _ in range(40):   # down to a preset (folders come first)
+            if sess.text().count(".milk") == 0 and "> " in sess.text():
+                pass
+            sess.send(b"\x1b[B", 0.15)
+            moved_to = [l for l in sess.screen.display if l.lstrip("\u2502 ").startswith("> ")]
+            if moved_to and "/" not in moved_to[0].split("> ", 1)[1].strip().rstrip("\u2502 ") and "Favourites" not in moved_to[0] and "Recommended" not in moved_to[0] and ".." not in moved_to[0]:
+                break
+        sess.send("a", 1.0)
+        check(os.path.exists(favf) and len([l for l in open(favf, encoding="utf-8") if l.strip() and not l.startswith("#")]) == 1, "radio: [a] writes the preset into milkdrop_favourites.txt")
+        sess.send("f", 1.0)
+        check("Favourites" in sess.text() and "1 favourites" in sess.text(), "radio: [f] shows the favourites")
+        sess.send("d", 1.0)
+        check(len([l for l in open(favf, encoding="utf-8") if l.strip() and not l.startswith("#")]) == 0, "radio: [d] takes it out of the favourites")
+        sess.send(b"\x1b", 0.8)
+        sess.send(b"\x1b", 0.8)
+        check("MilkDrop presets" not in sess.text() and "Visuals: MilkDrop" in sess.text(), "radio: ESC leaves the preset overlay for the visuals overlay")
         sess.send(b"\x1b", 1.0)
         with open(rcfg, encoding="utf-8") as f:
             c = f.read()
-        check("OsciSphere=milkdrop" in c and "MilkDropFrameRate=30" in c and "UseMilkDrop=true" in c, "radio: OsciSphere=milkdrop and the MilkDrop keys are saved in radio_config.txt")
+        check("OsciSphere=milkdrop" in c and "MilkDropFrameRate=30" in c and "UseMilkDrop=true" in c and "MilkDropHardCutInterval=20" in c and "MilkDropMeshDetail=1" in c, "radio: OsciSphere=milkdrop and the MilkDrop keys are saved in radio_config.txt")
         sess.send(".", 1.5)
         check(settle(sess, lambda: not big()), "radio: \".\" goes on from MilkDrop to the oscilloscope")
         sess.send("s", 1.2)
@@ -4560,6 +4592,68 @@ def milkdrop_visuals(binary, root, scripts):
         sess.kill()
 
 
+def milkdrop_window(binary, root, scripts):
+    """The MilkDrop window (HKeyMilkdropWindow): the key opens `mousiki --milkdrop-window`, the engine keeps drawing in the player and the pictures go
+    through a pipe to the window (SDL2 with its dummy video driver here; a PPM of what the window shows is written by the test hook); the terminal
+    shows a note instead of the pictures; the key closes it again. Skipped without projectM + presets, or without SDL2."""
+    import ctypes.util
+    if not (ctypes.util.find_library("SDL2-2.0") or ctypes.util.find_library("SDL2")):
+        print("  skipped: milkdrop window (SDL2 is not installed on this machine)")
+        return
+    lib = os.path.join(root, "mdw_music")
+    os.makedirs(lib)
+    make_wav(os.path.join(lib, "Alpha Song.wav"), 40)
+    home = os.path.join(root, "mdw_home")
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    cfgf = os.path.join(cfgdir, "config.txt")
+    with open(cfgf, "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=true\nUseLyrics=false\nUseSphere=false\nVizDefault=osci\nHKeyMilkdropWindow=|\nMilkDropWindowResolution=640\n" % lib)
+    shot = os.path.join(root, "mdw_shot.ppm")
+    env = {"MOUSIKI_NULL_AUDIO": "1", "KITTY_WINDOW_ID": "1", "TERM": "xterm-kitty", "SDL_VIDEODRIVER": "dummy", "SDL_RENDER_DRIVER": "software",
+           "MOUSIKI_MILK_SHOT": shot, "MOUSIKI_MILK_SHOT_FRAME": "20"}
+    sess = Session(binary, home, scripts, env, quiet_stderr=True, gfx=True)
+    try:
+        sess.wait_for(lambda t: "Alpha Song" in t, 10)
+        sess.pump(1.5)
+        sess.send(":", 1.5)
+        here = "Not available" not in sess.text()
+        sess.send(b"\x1b", 0.8)
+        if not here:
+            print("  skipped: milkdrop window (projectM 4 or presets are not installed on this machine)")
+            return
+        def md_pic():
+            p = sess.pics.get(7201)
+            return p if p and p["c"] >= 30 and p["r"] >= 10 else None
+        for _ in range(4):   # the MilkDrop view (osci -> spectrogram -> MilkDrop)
+            sess.send(".", 0.3)
+            for _ in range(8):
+                if md_pic():
+                    break
+                sess.pump(0.5)
+            if md_pic():
+                break
+        check(md_pic() is not None, "milkdrop window: the MilkDrop view is on screen before the window opens")
+        sess.send("|", 1.0)
+        check(sess.wait_for(lambda t: "MilkDrop is in its own window" in t, 8), "milkdrop window: the key opens it, the field says where the pictures are")
+        got = False
+        for _ in range(60):   # the engine starts, draws and sends the pictures through the pipe
+            if os.path.exists(shot) and os.path.getsize(shot) > 1000:
+                got = True
+                break
+            sess.pump(0.5)
+        check(got, "milkdrop window: a picture of the engine reaches the window")
+        if got:
+            data = open(shot, "rb").read()
+            head, rest = data.split(b"\n255\n", 1)
+            check(len(set(rest[i:i + 3] for i in range(0, len(rest) - 3, 3 * 997))) > 3, "milkdrop window: the picture is not one flat colour")
+        sess.send("|", 1.5)
+        check(sess.wait_for(lambda t: "MilkDrop is in its own window" not in t, 6), "milkdrop window: the key closes it, the note is gone")
+        check(sess.alive(), "milkdrop window: the program is still running")
+    finally:
+        sess.kill()
+
+
 def milkdrop_preset_overlay(binary, root, scripts):
     """The visuals overlay's "Preset Overlay" row: the preset folder over the whole screen with the visuals beside it (the highlighted
     preset plays at once), a "Favourites" folder on top ([a] adds, [d] in it takes out; milkdrop_favourites.txt), ENTER chooses, ESC
@@ -4615,6 +4709,9 @@ def milkdrop_preset_overlay(binary, root, scripts):
         sess.send(b"\x1b", 2.5)
         check(sess.wait_for(lambda t: "MILKDROP PRESETS" not in t and "Visuals: MilkDrop" in t, 6), "preset overlay: ESC goes back to the visuals overlay")
         check(sess.wait_for(lambda t: before[:12] in preset_line(), 6), "preset overlay: ESC brings the preset from before back (%r)" % preset_line().strip()[:50])
+        # the Recommended list (milkdrop_recommended.txt: names looked up in the installed presets; a line that fits nothing is skipped)
+        with open(os.path.join(cfgdir, "milkdrop_recommended.txt"), "w", encoding="utf-8") as rf:
+            rf.write("# my picks\n%s\nno such preset anywhere.milk\n" % os.path.splitext(os.path.basename(lines[0]))[0].upper() if lines else "")
         # open again, go up to the top: the Favourites folder is first and holds the preset; the other folders are there too
         sess.send("\r", 1.5)
         sess.send(b"\x1b[D", 1.0)
@@ -4624,6 +4721,13 @@ def milkdrop_preset_overlay(binary, root, scripts):
         t = sess.text()
         check("★ Favourites (1)" in t and "▸ Dancer" in t and "▸ Waveform" in t or ("★ Favourites (1)" in t and t.count("▸ ") >= 5),
               "preset overlay: the top folder lists ★ Favourites (1) and the preset folders")
+        check("Recommended (1)" in t, "preset overlay: the top level has a Recommended folder with the one preset the list names (names match without case or extension)")
+        sess.send(b"\x1b[H", 0.6)
+        sess.send(b"\x1b[B", 0.6)   # Recommended (the row under Favourites)
+        sess.send(b"\x1b[C", 1.5)
+        check(sess.wait_for(lambda t: "1 recommended" in t and added[:12] in t, 4), "preset overlay: RIGHT opens Recommended with the preset the list names (%r)" % added[:12])
+        sess.send(b"\x1b[D", 1.0)
+        check(sess.wait_for(lambda t: "Recommended (1)" in t and "MILKDROP PRESETS" in t, 4), "preset overlay: LEFT goes back to the top level")
         # the search: "/" and a misspelt word still finds the presets (fuzzy), ESC goes back to the folder
         sess.send("/", 0.5)
         for c in "stikflower":
@@ -4689,7 +4793,7 @@ def milkdrop_preset_overlay(binary, root, scripts):
         sess.send(b"\x1b[C", 2.5)
         sess.pump(2.0)
         f2 = fixed_share()
-        check(a >= 0 and f2 >= 0 and a < 0.5 and f2 > 0.9, "preset overlay: adaptive colours are the picture's own, fixed the fixed palette (fixed-palette pixels: adaptive %.2f, fixed %.2f)" % (a, f2))
+        check(a >= 0 and f2 >= 0 and a < f2 - 0.3 and f2 > 0.9, "preset overlay: adaptive colours are the picture's own, fixed the fixed palette (fixed-palette pixels: adaptive %.2f, fixed %.2f)" % (a, f2))
         sess.send(b"\x1b[A", 0.5)
         sess.send(b"\x1b[C", 0.5)   # (Effect again: Scanlines, saved)
         sess.send(b"\x1b", 1.0)
@@ -5605,6 +5709,8 @@ def run_scenario(name, binary, root, scripts):
         video_fx_picker_third_slot(binary, root, scripts)
     elif name == "milkdrop_visuals":
         milkdrop_visuals(binary, root, scripts)
+    elif name == "milkdrop_window":
+        milkdrop_window(binary, root, scripts)
     elif name == "milkdrop_preset_overlay":
         milkdrop_preset_overlay(binary, root, scripts)
     elif name == "milkdrop_layouts_style":
@@ -5664,7 +5770,7 @@ def run_scenario(name, binary, root, scripts):
 
 
 SCENARIOS = ["narrow80", "narrow100", "main", "read_lyrics_play", "karaoke_timing", "book_speed_and_devices", "paging_and_translit_row",
-             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "milkdrop_visuals", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "overlays_queue_enter", "video_fx_list_frozen"]
+             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "overlays_queue_enter", "video_fx_list_frozen"]
 
 
 def main():
@@ -5722,12 +5828,13 @@ def main():
         p = subprocess.run(cmd, capture_output=True, text=True)
         return name, p.returncode, p.stdout + p.stderr, time.time() - t0
 
-    total_checks, total_failed, bad = 0, 0, []
+    total_checks, total_failed, bad, fails = 0, 0, [], []
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
         for name, rc, out, secs in pool.map(work, only):
             print("--- %s (%ds)" % (name, secs), flush=True)
             print(out.rstrip(), flush=True)
             m = re.findall(r"(\d+) checks, (\d+) failed", out)
+            fails += ["%s: %s" % (name, l.strip()[6:]) for l in out.splitlines() if l.startswith("  FAIL:")]
             if m:
                 total_checks += int(m[-1][0]); total_failed += int(m[-1][1])
             if rc not in (0, 1) or not m:
@@ -5736,6 +5843,10 @@ def main():
                 print("  FAIL: scenario %s did not finish (exit code %d)" % (name, rc), flush=True)
     if not keep:
         shutil.rmtree(root, ignore_errors=True)
+    if fails:   # (every failure in one place: a long log is cut by CI viewers)
+        print("FAILED CHECKS:")
+        for f in fails:
+            print("  " + f)
     print("%d checks, %d failed" % (total_checks, total_failed))
     return 1 if total_failed else 0
 

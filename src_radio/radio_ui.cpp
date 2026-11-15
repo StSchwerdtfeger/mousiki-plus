@@ -101,6 +101,7 @@ std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const R
     if (m.overlay == 9) return build_adev_overlay(s.c, m.settings);
     if (m.overlay == 10) return build_bars_overlay(s.c, m);
     if (m.overlay == 11) return build_md_overlay(s, m);
+    if (m.overlay == 12) return build_mdb_overlay(s, m);
     const RadioSettings& c = s.c;
     const bool osci = m.overlay == 1;
     const bool sleep = m.overlay == 3;
@@ -741,7 +742,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
             panel.push_back(box_bottom(s, pw, legend, s.border_bottom));
         } else {
             panel = build_overlay(s, m, st);
-        pw = m.overlay == 11 ? kMdOverlayW : m.overlay == 10 ? kBarsOverlayW : m.overlay == 9 ? kAdevOverlayW : m.overlay == 8 ? kUpdateOverlayW : m.overlay == 6 ? kSpectroOverlayW : m.overlay == 5 ? kRecordOverlayW : m.overlay == 4 ? kEqOverlayW : m.overlay == 3 ? kSleepOverlayW : m.overlay == 1 ? kOsciOverlayW : kNormOverlayW;
+        pw = m.overlay == 12 ? kMdbOverlayW : m.overlay == 11 ? kMdOverlayW : m.overlay == 10 ? kBarsOverlayW : m.overlay == 9 ? kAdevOverlayW : m.overlay == 8 ? kUpdateOverlayW : m.overlay == 6 ? kSpectroOverlayW : m.overlay == 5 ? kRecordOverlayW : m.overlay == 4 ? kEqOverlayW : m.overlay == 3 ? kSleepOverlayW : m.overlay == 1 ? kOsciOverlayW : kNormOverlayW;
         }
         const int ph = static_cast<int>(panel.size());
         const int x = std::max(0, (W - pw) / 2);

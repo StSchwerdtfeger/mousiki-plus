@@ -28,5 +28,6 @@ std::string default_size_mode_key(bool next);
 std::string default_audio_device_key();
 // The Video mode key: "&" (SHIFT+6) on German / Austrian / Swiss keyboards, where "&" is free (the audio device key is "°" there); "Y" elsewhere.
 std::string default_video_key();
+std::string default_milkdrop_window_key();   // ";" (SHIFT+, on a German keyboard), "|" on US / UK layouts
 
 } // namespace muisc

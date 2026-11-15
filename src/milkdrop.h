@@ -81,6 +81,10 @@ public:
     // one returned before. nullptr while there is none yet (status() says why).
     const VideoFrame* frame(int w, int h, bool& fresh);
     bool running() const { return running_.load(); }
+    // The extra window's way to the picture (src/scope_window.cpp, its sender thread): like frame(), but for the pipe. Asks for w x h pixels,
+    // starts the render thread when needed and, when a picture newer than the one taken before is there, copies it into `rgb` (w * h * 3
+    // bytes) with its size in ow / oh. Independent of frame(): the terminal stops asking while the window is open.
+    bool take_window_frame(int w, int h, std::vector<uint8_t>& rgb, int& ow, int& oh);
 
     void next_preset();
     void prev_preset();
@@ -109,6 +113,7 @@ public:
 private:
     Milkdrop() = default;
     void run();
+    void ensure_thread();
     void stop_thread();
 
     MilkdropOptions opts_;
@@ -128,6 +133,8 @@ private:
     VideoFrame front_;                // (mu_) the newest picture
     uint64_t front_seq_ = 0;          // (mu_)
     uint64_t taken_seq_ = 0;          // main thread
+    uint64_t win_taken_seq_ = 0;      // (mu_) the newest picture the extra window took
+    std::mutex start_mu_;             // two askers (the terminal, the extra window) must not start the thread at once
     VideoFrame shown_;                // main thread: what frame() returned
     std::string name_, status_, renderer_, dir_;   // (mu_)
     std::atomic<int> preset_index_{-1}, preset_count_{0};

@@ -426,6 +426,20 @@ void RadioApp::frame_tick() {
         }
         spectro_win_was = running_sp;
     }
+    {   // the MilkDrop window: the engine's options and size, and a window closed from its own side
+        const bool running_md = milkdrop_window_running();
+        if (running_md) {
+            radio_milkdrop_apply(cfg);
+            const int w = std::clamp(cfg.md_win_res, 320, 1920) & ~1;
+            milkdrop_window_set_size(w, (w * 9 / 16) & ~1);
+        }
+        if (milkdrop_win_was && !running_md) {
+            const std::string e = milkdrop_window_take_error();
+            ui.model.notice = e.empty() ? "MilkDrop window closed" : e;
+            notice_until = ui.model.t_sec + (e.empty() ? 3 : 10);
+        }
+        milkdrop_win_was = running_md;
+    }
     {   // the scope window (SHIFT+9): its settings / title, and a window closed from its own side
         const bool running = scope_window_running();
         if (running && (++scope_win_tick % 6) == 0) {

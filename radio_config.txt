@@ -98,6 +98,7 @@ UseMilkDrop=true
 # pictures a second (15 .. 60), drawn at most this many pixels across (320 .. 1280; then scaled to the block)
 MilkDropFrameRate=30
 MilkDropResolution=480
+MilkDropWindowResolution=1280
 # the graphics card for the visuals (empty = automatic; Linux: choose it in Settings -> MilkDrop GPU; Windows and macOS: the system decides)
 MilkDropGpu=
 # true keeps the preset (Lock Preset in the ":" overlay) -- also at the next start
@@ -110,6 +111,13 @@ MilkDropHardCutSensitivity=20
 MilkDropHardCuts=true
 MilkDropTransition=3
 MilkDropShowName=true
+# only the favourites (milkdrop_favourites.txt), shortest seconds between hard cuts, random spread of a preset's time, warp mesh 0 .. 3, aspect correction, clean start
+MilkDropShuffleFavourites=false
+MilkDropHardCutInterval=20
+MilkDropDurationVariance=0
+MilkDropMeshDetail=1
+MilkDropAspectCorrection=true
+MilkDropCleanStart=false
 Visualizer=true
 StereoSound=true
 # false = left out entirely: not in the "." cycle of the scope block (the sphere always is); the windows
@@ -193,6 +201,7 @@ HKeyStations=L
 HKeyOsciMenu=O
 HKeyScopeWindow=)
 HKeySpectroWindow=(
+HKeyMilkdropWindow=|
 HKeySpectroMenu=I
 HKeyBarsMenu=B
 HKeySpectroFull=U

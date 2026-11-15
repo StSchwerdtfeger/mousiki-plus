@@ -170,8 +170,12 @@ $stampFile = Join-Path $mdDir 'installed.txt'
 # (MSVC builds projectM-4.dll, MinGW libprojectM-4.dll: Mousiki takes either)
 $haveLib = { param($n) (Test-Path -LiteralPath (Join-Path $Dest "$n.dll")) -or (Test-Path -LiteralPath (Join-Path $Dest "lib$n.dll")) }
 $haveAll = (Test-Path -LiteralPath $stampFile) -and (& $haveLib 'projectM-4') -and (& $haveLib 'projectM-4-playlist')
+# The list of recommended presets (milkdrop_recommended.txt) goes beside the presets folder: Mousiki shows it as the "Recommended" folder
+# of the preset overlay, looking every line up in the presets that are installed.
+$recList = Join-Path (Split-Path -Parent $PSScriptRoot) 'milkdrop_recommended.txt'
 if ($haveAll -and -not $Force -and ([IO.File]::ReadAllText($stampFile) -eq $Stamp)) {
     Write-Step "MilkDrop (projectM + presets) is already next to mousiki.exe and up to date"
+    if ((Test-Path -LiteralPath $recList) -and (Test-Path -LiteralPath $mdDir)) { Copy-Item -LiteralPath $recList -Destination (Join-Path $mdDir 'recommended.txt') -Force }
     return
 }
 
@@ -246,6 +250,7 @@ if (Test-Path -LiteralPath $mdDir) { Remove-Item -LiteralPath $mdDir -Recurse -F
 New-Item -ItemType Directory -Force -Path $mdDir | Out-Null
 Expand-ZipFiles $zips['presets'] (Join-Path $mdDir 'presets')
 Expand-ZipFiles $zips['textures'] (Join-Path $mdDir 'textures')
+if (Test-Path -LiteralPath $recList) { Copy-Item -LiteralPath $recList -Destination (Join-Path $mdDir 'recommended.txt') -Force }
 Copy-Item -LiteralPath (Join-Path $src 'COPYING') -Destination (Join-Path $mdDir 'LICENSE-projectM.txt') -Force
 Copy-Item -LiteralPath (Join-Path $src 'vendor\projectm-eval\LICENSE.md') -Destination (Join-Path $mdDir 'LICENSE-projectm-eval.md') -Force
 Copy-Item -LiteralPath (Join-Path $src 'vendor\hlslparser\LICENSE') -Destination (Join-Path $mdDir 'LICENSE-hlslparser.txt') -Force

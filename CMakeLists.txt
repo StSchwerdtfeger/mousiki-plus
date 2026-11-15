@@ -431,6 +431,8 @@ if(MOUSIKI_BUILD_TESTS)
     add_test(NAME ui_smoke COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/ui_smoke.py" $<TARGET_FILE:mousiki>
              --scripts "${CMAKE_SOURCE_DIR}/scripts")
     set_tests_properties(ui_smoke PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 1800)
+    add_test(NAME milkdrop_window COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_milkdrop_window.py" $<TARGET_FILE:mousiki>)
+    set_tests_properties(milkdrop_window PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
   endif()
   if(Python3_Interpreter_FOUND)
     add_test(NAME installer_checksum COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_install_kanji_reader.py" "${CMAKE_SOURCE_DIR}/scripts")

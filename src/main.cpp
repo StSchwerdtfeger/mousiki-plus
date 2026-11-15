@@ -45,13 +45,22 @@ int main(int argc, char** argv) {
 #if defined(_WIN32)
         muisc::win_bootstrap_env();   // HOME, for its position file
 #endif
-        return muisc::scope_window_main();
+        // (_Exit: with its reader thread still inside fread() on stdin, a normal exit() waits for stdin's lock for ever -- the window would be gone but the process not)
+        std::_Exit(muisc::scope_window_main());
     }
     if (argc > 1 && std::string(argv[1]) == "--spectro-window") {   // the spectrogram window, the same way
 #if defined(_WIN32)
         muisc::win_bootstrap_env();
 #endif
-        return muisc::spectro_window_main();
+        // (_Exit: with its reader thread still inside fread() on stdin, a normal exit() waits for stdin's lock for ever -- the window would be gone but the process not)
+        std::_Exit(muisc::spectro_window_main());
+    }
+    if (argc > 1 && std::string(argv[1]) == "--milkdrop-window") {   // the MilkDrop window (finished pictures from the player's engine)
+#if defined(_WIN32)
+        muisc::win_bootstrap_env();
+#endif
+        // (_Exit: with its reader thread still inside fread() on stdin, a normal exit() waits for stdin's lock for ever -- the window would be gone but the process not)
+        std::_Exit(muisc::milkdrop_window_main());
     }
 #if defined(_WIN32)
     // Order matters. Both of these have to happen before App's constructor
@@ -157,6 +166,7 @@ int main(int argc, char** argv) {
         muisc::remote::net::shutdown();         // the remote app's web server (if on)
         muisc::scope_window_close();            // the scope window (if open) closes with the program
         muisc::spectro_window_close();          // and the spectrogram window
+        muisc::milkdrop_window_close();         // and the MilkDrop window
         muisc::terminal_release_alt_screen();   // (only does something when a mode ended for a switch and the other one never started)
         muisc::terminal_font::restore();        // the terminal's own font again (Terminal.app window, iTerm2 profile, console window)
     } catch (const std::exception& e) {

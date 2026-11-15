@@ -78,6 +78,14 @@ inline SpectroSettings spectro_win_unpack(const SpectroWinConfig& c) {
     return s;
 }
 
+// The MilkDrop window's settings (sent like the others): only a title and how the picture fits; the pictures themselves come as their own packets.
+struct MilkWinConfig {
+    uint32_t magic = 0x4B4C494D;   // "MILK"
+    int32_t rate = 48000;          // (unused: the sender's generic header)
+    uint8_t stretch = 0;           // 1 = fill the window (the picture is stretched), 0 = keep the picture's proportions (black bars)
+    char title[96] = {};
+};
+
 // Can the window be opened at all (SDL2 found)? `why` gets a short reason when not.
 bool scope_window_available(std::string* why);
 // Opens / closes the window. open() returns false with `err` set when it cannot start.
@@ -107,5 +115,18 @@ void spectro_window_feed_push(const float* interleaved_lr, size_t frames, int ra
 bool spectro_window_feed_active();
 // Entry point of the window process (`mousiki --spectro-window`).
 int spectro_window_main();
+
+// The MilkDrop window: the engine stays in the player (presets, ":" menu, per-track presets all keep working); the finished pictures go
+// through the pipe (RGB, packet type 3: width u32, height u32, w * h * 3 bytes) to a window that shows them at the monitor's refresh rate.
+// That skips what the terminal needs (converting, encoding, decoding by the terminal), not the read-back from the graphics card.
+bool milkdrop_window_open(std::string* err);
+void milkdrop_window_close();
+bool milkdrop_window_running();
+std::string milkdrop_window_take_error();
+void milkdrop_window_set_config(const MilkWinConfig& c);
+// The size the engine draws for the window (pixels across x down); cheap to call every frame.
+void milkdrop_window_set_size(int w, int h);
+// Entry point of the window process (`mousiki --milkdrop-window`).
+int milkdrop_window_main();
 
 } // namespace muisc

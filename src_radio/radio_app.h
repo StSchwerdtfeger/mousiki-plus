@@ -79,6 +79,7 @@ struct RadioApp {
     Clock::time_point last_full_frame{};   // the window may have been opened in the player already
     unsigned long scope_win_tick = 0;
     bool spectro_win_was = false;
+    bool milkdrop_win_was = false;
     int record_serial_seen = 0;
     static constexpr int kSleepChoice[5] = {15, 30, 60, 90, 120};
     int sleep_minutes = 0;
@@ -236,6 +237,7 @@ struct RadioApp {
     void theme_try_save();
     void toggle_scope_window();
     void toggle_spectro_window();
+    void toggle_milkdrop_window();
     void tune_back();
     void tune_relative(int delta);
     void tune_shuffle();

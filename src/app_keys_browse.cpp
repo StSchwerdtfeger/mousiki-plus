@@ -121,6 +121,8 @@ bool App::browse_open_key(const std::string& action, int key, int lookup_key, si
         scope_window_toggle();
     } else if (action == "HKeySpectroWindow") { // SHIFT+8: the spectrogram in its own window (always)
         spectro_window_toggle();
+    } else if (action == "HKeyMilkdropWindow") { // ";" / "|": the MilkDrop pictures in their own window (always)
+        milkdrop_window_toggle();
     } else if (action == "HKeyOscMenu") { // SHIFT+o: oscilloscope tuning overlay
         osci_menu_row_ = 0;
         mode_ = Mode::OsciMenu;

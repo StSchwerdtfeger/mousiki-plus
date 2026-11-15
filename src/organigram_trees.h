@@ -58,7 +58,9 @@ inline const Node kPlayerTree[] = {
     {2, "Video", nullptr, nullptr},
     {3, "Video Overlay", "HKeyVideo", "&", "Options"},
     {3, "Full Screen Video", "HKeyVideoFull", "v", "Overlay"},
-    {2, "MilkDrop Visuals", "HKeyVisualsMenu", ":", "MilkDrop"},
+    {2, "MilkDrop", nullptr, nullptr},
+    {3, "MilkDrop Options", "HKeyVisualsMenu", ":", "Options"},
+    {3, "MilkDrop Extra Window (Max. Screen Refresh Rate)", "HKeyMilkdropWindow", ";", "Extra Window"},
     {2, "Creator", "HKeyCreator", "^"},
     {1, "Lyrics", nullptr, nullptr, nullptr, 'L'},
     {2, "Refetch Lyrics", "HKeyRetryLyrics", "l"},
@@ -130,7 +132,9 @@ inline const Node kRadioTree[] = {
     {3, "Oscilloscope Options", "OsciMenu", "", "Options"},
     {3, "Oscilloscope Overlay", "ScopeBig", "", "Overlay"},
     {3, "Oscilloscope Extra Window", "ScopeWindow", "", "Extra Window"},
-    {2, "MilkDrop Visuals", "VisualsMenu", "", "MilkDrop"},
+    {2, "MilkDrop", nullptr, nullptr},
+    {3, "MilkDrop Options", "VisualsMenu", "", "Options"},
+    {3, "MilkDrop Extra Window", "MilkdropWindow", "", "Extra Window"},
 };
 
 inline Tree player_tree() { return make_tree(kPlayerTree); }
