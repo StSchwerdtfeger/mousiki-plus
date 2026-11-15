@@ -239,6 +239,8 @@ MilkDropDurationVariance=0
 ## 0 - 30 seconds (default 0) -- how far the time of a preset (Preset Duration) may stray at random; 0 = every preset stays the same time
 MilkDropCleanStart=false
 ## true , false (default false) -- a preset starts from a blank picture, not from what the one before left
+MilkDropLockPreset=false
+## true , false (default false) -- the preset stays: the presets do not change by themselves (Lock Preset); kept for the next start
 MilkDropEffectOn=true
 ## true , false (default true) -- the effect (MilkDropEffect) is put on the visuals; false: none, the choice stays
 MilkDropSixelColors=adaptive

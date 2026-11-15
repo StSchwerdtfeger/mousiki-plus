@@ -2289,6 +2289,9 @@ R"WIZ([PLAYLIST IMPORT PATH][[Header]]                              where [i] re
                                                   this folder out (also from its searches): the book folder
                                                   may lie INSIDE a music folder, but may not be one (a
                                                   conflict message will says so!).
+[MILKDROP PRESET PATH][[Header]]                              The regular preset folder first (empty = the usual
+                                                  places), then any number of further folders with
+                                                  [+ new path]: their presets join one list.
 
 In the audio book mode the GENERAL and ANIMA/VIZ tabs only show what a book needs (no lyrics, no disk
 speed, no TRANSLITERATION category). The audio book mode has its own look: colours and theme, elements,
@@ -2407,12 +2410,12 @@ more details).
 KEYS ON THE MAIN SCREEN: [[Header]]
 [UP]/[DOWN]  move in the list           [ENTER]  tune the hovered station
 [n] / [b]    next / previous channel    [#]      a random channel
-[p]          mute / unmute              [x]      stop          [R]  reconnect
+)WIZ",
+R"WIZ([p]          mute / unmute              [x]      stop          [R]  reconnect
 [+] / [-]    volume                     [/]      search        [SHIFT+t]  sort list order <-> A-Z
 [SHIFT+p] presets   [SHIFT+s] radio browser   [SHIFT+k] station lists   [SHIFT+l] big stations overlay
 [h] history   [s] settings   [?] cheat sheet   [<] menus index   [SHIFT+w] this wizard   [q] quit
-)WIZ",
-R"WIZ([°] (German [SHIFT+^]; other keyboards [&])  choose the audio device (2.6.5)
+[°] (German [SHIFT+^]; other keyboards [&])  choose the audio device (2.6.5)
 
 THE BIG STATIONS OVERLAY: [[Header]]
 [SHIFT+l] shows the STATIONS pane over the whole screen plus a PRESET NAME column.
@@ -2570,13 +2573,13 @@ your local library.
 
 THE RADIO'S OWN HISTORY: [[Header]]
 [h] opens it; [ESC], [q] or [h] close it. [1] [2] [3], [<-/->] or [TAB] switch the tab, [UP]/[DOWN]
-move, [HOME]/[END] jump to the ends.
+)WIZ",
+R"WIZ(move, [HOME]/[END] jump to the ends.
 [1] HISTORY        WHEN / CHANNEL / ARTIST / TITLE / HEARD
 [2] TOP CHANNELS   channels by time listened ([r] flips the order)
 [3] HABITS         sessions, time per day, channels, and listening by hour and by weekday
 A new HISTORY line starts whenever the channel, the artist or the title changes. Lines heard for less
-)WIZ",
-R"WIZ(than 3 seconds are dropped. A session ends after a gap of 30 minutes. The newest 10 000 lines are
+than 3 seconds are dropped. A session ends after a gap of 30 minutes. The newest 10 000 lines are
 kept one by one; older ones are folded into lifetime totals, so TOP CHANNELS and HABITS stay lifetime
 figures.
 
@@ -2700,14 +2703,14 @@ PLAYBACK SPEED: [[Header]]
              The speed is saved at once and is also in Settings, GENERAL, AUDIO (Playback Speed).
              Times, bookmarks, notes and the progress bar stay in the time of the book: at 1.5x a 60
              minute chapter still shows 60:00, it just takes 40 minutes. The music player and the
-             radio always play at 1.0x. 
+)WIZ",
+R"WIZ(             radio always play at 1.0x. 
 
 THE DEFAULT PICTURE: [[Header]] 
 An image of a women rading a book (a grey version of a colour picture) takes the place of the disk. 
 It is drawn as small braille dots (a 60 x 60 dot field) and stays still; the colour wave of the 
 radio's ON AIR sign runs over it diagonally, from the upper left to the lower right. In a terminal 
-)WIZ",
-R"WIZ(with Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm ...) it is a real transparent 
+with Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm ...) it is a real transparent 
 image at full pixel resolution instead of braille dots (a terminal without them gets the braille 
 version, which does not look nice though, to be honest). The original of the beautiful default 
 image is done by Kamara Rahmat (iyaniyan; taken from Unsplash).
@@ -2824,14 +2827,14 @@ book, chapter, time; the newest first, notes last.
 [ENTER]    opens the book, goes to the chapter and offers the resume choices 
            (on the spot / 10 / 20 / 30 / 60 s before / start).
 [SHIFT+p]  opens the book and plays from the time stamp at once; the list stays.
-[SHIFT+d]  discards a time stamp of any kind - a warning asks first; [y] confirms this step.
+)WIZ",
+R"WIZ([SHIFT+d]  discards a time stamp of any kind - a warning asks first; [y] confirms this step.
 [SHIFT+b]  turns an auto-mark into a regular bookmark.
 [SHIFT+t]  sorting: by the date the stamp was set (newest first), by book (A-Z, the highest chapter 
            and the furthest mark first).
 [ESC]      back to the date sorting, and closes.
 [CTRL+SHIFT+u] brings the last discarded one back.
-)WIZ",
-R"WIZ([ESC]      closes/clears sorting.
+[ESC]      closes/clears sorting.
 
 BIG LIBRARY OVERLAY [SHIFT+s]: [[Header]] 
 It has a search pane on top ([/] types, the words narrow the list) and the audio book pane below it.
@@ -2957,14 +2960,14 @@ WHERE TO TYPE IT: [[Header]]
  Scripts      type  edit  or  /cs:             The script overlay (5.1.6): library and editor. /cs:words
                                               lists the matching scripts in the library pane.
               Settings -> GENERAL -> CLI / REMOTE / UPDATES -> CLI Scripts [ENTER] opens it too.
- From outside mousiki --cli "..."             A running Mousiki does it (5.1.9).
+)WIZ",
+R"WIZ( From outside mousiki --cli "..."             A running Mousiki does it (5.1.9).
 
 KEYS IN A COMMAND LINE: [[Header]]
  [ENTER] run     [UP]/[DOWN] earlier lines     [ESC] clear / leave     [CTRL+u] clear the line
  [CTRL+RIGHT] completes: a command (several candidates: up to what they share, the candidates are
  listed), a title after play / queue / search, a script after run / edit, a setting after set / get.
-)WIZ",
-R"WIZ( ([TAB] is not used for that: it moves between the panes of the console.)
+ ([TAB] is not used for that: it moves between the panes of the console.)
 
 A LINE IS A CHAIN: [[Header]]
  Commands are separated by ;   They run one after the other. An error ends the chain, unless the
@@ -3081,13 +3084,13 @@ startup.cli runs once, about 2.5 s after the start. aliases.cli holds your alias
 
 THE SCRIPT OVERLAY: [[Header]] two panes. Left, the library of scripts: [ENTER] load, [n] new,
 [m] rename, [x] delete (moved to cli/deleted/, nothing is erased), [/] search, [r] run. Right, the
-editor: [CTRL+S] saves, [CTRL+R] runs the text in it (the answers appear under OUTPUT), [TAB] changes
+)WIZ",
+R"WIZ(editor: [CTRL+S] saves, [CTRL+R] runs the text in it (the answers appear under OUTPUT), [TAB] changes
 the pane, [ESC] closes. [/cs:]words searches the scripts by name and text, [ENTER] opens the overlay.
 
 EVENT HOOKS: [[Header]] hooks.cli (edit hooks) runs commands when something happens, one line each:
    on <event> = <commands>      events: track-change  pause  resume  queue-empty  idle
-)WIZ",
-R"WIZ(   on track-change = log now: {title} by {artist}
+   on track-change = log now: {title} by {artist}
    on pause = in 20m volume 25
    on queue-empty = playlist 1
 {title} {artist} {album} {state} {volume} {queue} {position} are filled in (";" and control

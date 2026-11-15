@@ -140,6 +140,8 @@ struct PathRow {
     bool export_folder = false;    // Path: the single PLAYLIST EXPORT PATH field (settings_.playlist_export_path)
     bool import_folder = false;    // Path: the single PLAYLIST IMPORT PATH field (settings_.playlist_import_path)
     bool conversion_folder = false; // Path: the single CONVERSION EXPORT PATH field (settings_.conversion_export_path)
+    bool milkdrop_main = false;     // Path: the first MILKDROP PRESET PATH row: the regular folder (settings_.milkdrop_presets; empty = the usual places)
+    bool milkdrop_path = false;     // Path/AddPath: a further MILKDROP PRESET PATH folder (settings_.milkdrop_extra_paths[path_index])
     bool audiobook_folder = false;  // Path: the single AUDIO BOOK PATH field (settings_.audiobook_path)
     const char* label = "";    // Header: section title; AddPath: "+ new path"
 };

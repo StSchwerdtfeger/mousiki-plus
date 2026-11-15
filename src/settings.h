@@ -103,6 +103,7 @@ struct Settings : VizPrefs {
     // field shows them right now (like video_view; the lyrics are not fetched for it). config.txt: UseMilkDrop=, MilkDropView=, MilkDrop...=.
     bool use_milkdrop = true;
     bool milkdrop_view = false;
+    std::vector<std::string> milkdrop_extra_paths;   // MilkDropExtraPresets= (one line per folder): more preset folders, their presets join the list
     std::string milkdrop_presets;      // MilkDropPresets=: the preset folder ("" = the usual places)
     int milkdrop_fps = 30;             // MilkDropFrameRate=: pictures a second (15, 20, 25, 30, 45, 60)
     int milkdrop_res = 480;            // MilkDropResolution=: drawn at most this many pixels across (320, 480, 640, 960, 1280)
@@ -113,6 +114,7 @@ struct Settings : VizPrefs {
     int milkdrop_fx = 0;               // MilkDropEffect=: a video effect over the MilkDrop pictures (its own: the video's are the track's), 0 off
     bool milkdrop_fixed_colors = false; // MilkDropSixelColors=adaptive|fixed: the colours of a palette picture (Sixel) from the picture itself, or the fixed 256
     bool milkdrop_fav_shuffle = false; // MilkDropShuffleFavourites=: only the favourite presets (milkdrop_favourites.txt) are played
+    bool milkdrop_lock = false;        // MilkDropLockPreset=: the preset stays (Lock Preset in ":" and Settings) -- also the next time Mousiki starts
     int milkdrop_hcd = 20;             // MilkDropHardCutInterval=: 3 .. 120 s, the shortest time between two hard cuts (projectM's default 20)
     bool milkdrop_aspect = true;       // MilkDropAspectCorrection=: presets keep their proportions on a wide picture
     int milkdrop_mesh = 1;             // MilkDropMeshDetail=: 0 low (16 x 12), 1 normal (32 x 24, projectM's default), 2 high (64 x 48), 3 very high (96 x 72)

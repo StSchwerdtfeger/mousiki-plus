@@ -55,9 +55,12 @@ App::MdEff App::milkdrop_eff(const MilkdropTrackOpts& t) const {
 }
 
 void App::milkdrop_apply_settings() const {
+    static bool lock_given = false;   // (the saved lock is put on once, when the visuals are first configured)
+    if (!lock_given) { lock_given = true; Milkdrop::instance().set_locked(settings_.milkdrop_lock); }
     const MdEff e = milkdrop_eff();
     MilkdropOptions o;
     o.presets_dir = settings_.milkdrop_presets;
+    for (const std::string& e : settings_.milkdrop_extra_paths) if (!e.empty()) o.extra_dirs.push_back(e);
     o.fps = std::clamp(settings_.milkdrop_fps, 10, 60);
     o.max_width = std::clamp(settings_.milkdrop_res, 160, 1920);
     o.preset_seconds = e.dur;
@@ -414,7 +417,7 @@ void App::milkdrop_menu_adjust(int row, int dir) {
     switch (row) {
         case kMdPreset: if (dir > 0) m.next_preset(); else m.prev_preset(); break;
         case kMdRandom: m.random_preset(); break;
-        case kMdLock: m.set_locked(!m.locked()); status_line_ = m.locked() ? "milkdrop: the preset stays" : "milkdrop: the presets change again"; break;
+        case kMdLock: m.set_locked(!m.locked()); settings_.milkdrop_lock = m.locked(); save_settings(settings_); status_line_ = m.locked() ? "milkdrop: the preset stays" : "milkdrop: the presets change again"; break;
         case kMdDuration: settings_.milkdrop_preset_secs = md_step(kMdDurSteps, settings_.milkdrop_preset_secs, dir); break;
         case kMdBrowse: if (dir > 0) mdb_open(); return;
         case kMdShuffle: settings_.milkdrop_shuffle = !settings_.milkdrop_shuffle; break;
@@ -535,6 +538,23 @@ void App::md_favs_save() const {
     write_text_atomic(md_favs_file(), o.str());
 }
 
+bool App::mdb_is_extra_root(const fs::path& d) const {
+    for (const std::string& e : Milkdrop::instance().extra_preset_dirs()) if (path_from_utf8(e).lexically_normal() == d.lexically_normal()) return true;
+    return false;
+}
+
+bool App::mdb_inside(const std::string& file) const {
+    const fs::path p = path_from_utf8(file);
+    const std::string pr = path_utf8(p.parent_path().lexically_normal());
+    auto under = [&](const std::string& root) {
+        const std::string rr = path_utf8(path_from_utf8(root).lexically_normal());
+        return !rr.empty() && pr.size() >= rr.size() && pr.compare(0, rr.size(), rr) == 0;
+    };
+    if (under(mdb_root_)) return true;
+    for (const std::string& e : Milkdrop::instance().extra_preset_dirs()) if (under(e)) return true;
+    return false;
+}
+
 void App::mdb_list(const std::string& dir, bool favs, const std::string& select_path) {
     mdb_items_.clear();
     mdb_in_favs_ = favs;
@@ -551,7 +571,7 @@ void App::mdb_list(const std::string& dir, bool favs, const std::string& select_
         }
     } else {
         const fs::path d = path_from_utf8(dir);
-        if (d != root && !dir.empty()) mdb_items_.push_back({0, "..", path_utf8(d.parent_path()), ""});
+        if (d != root && !dir.empty()) mdb_items_.push_back({0, "..", mdb_is_extra_root(d) ? mdb_root_ : path_utf8(d.parent_path()), ""});
         else {
             md_favs_load();
             mdb_items_.push_back({1, "Favourites", "", ""});
@@ -567,6 +587,8 @@ void App::mdb_list(const std::string& dir, bool favs, const std::string& select_
         }
         auto by_name = [](const MdbItem& a, const MdbItem& b) { return lower_ascii(a.name) < lower_ascii(b.name); };
         std::sort(folders.begin(), folders.end(), by_name);
+        if (d == root || dir.empty())   // the further preset folders (Settings -> PATHS) sit at the top level, after the folders of the regular one
+            for (const std::string& e : Milkdrop::instance().extra_preset_dirs()) folders.push_back({2, path_utf8(path_from_utf8(e).filename()) + "  (extra path)", e, ""});
         std::sort(presets.begin(), presets.end(), by_name);
         for (auto& f : folders) mdb_items_.push_back(std::move(f));
         for (auto& p : presets) mdb_items_.push_back(std::move(p));
@@ -605,9 +627,7 @@ void App::mdb_open() {
     }
     std::string dir = mdb_root_;
     if (!at.empty()) {
-        const fs::path p = path_from_utf8(at), r = path_from_utf8(mdb_root_);
-        const std::string pr = path_utf8(p.parent_path().lexically_normal()), rr = path_utf8(r.lexically_normal());
-        if (pr.size() >= rr.size() && pr.compare(0, rr.size(), rr) == 0) dir = path_utf8(p.parent_path());
+        if (mdb_inside(at)) dir = path_utf8(path_from_utf8(at).parent_path());
     }
     mdb_list(dir, false, at);
     milkdrop_pic_key_.clear();
@@ -635,9 +655,7 @@ void App::mdb_open_track(const std::string& track, const std::string& title) {
     if (mo.preset.find('/') != std::string::npos || mo.preset.find('\\') != std::string::npos) at = mo.preset;
     std::string dir = mdb_root_;
     if (!at.empty()) {
-        const fs::path p = path_from_utf8(at), r = path_from_utf8(mdb_root_);
-        const std::string pr = path_utf8(p.parent_path().lexically_normal()), rr = path_utf8(r.lexically_normal());
-        if (pr.size() >= rr.size() && pr.compare(0, rr.size(), rr) == 0) dir = path_utf8(p.parent_path());
+        if (mdb_inside(at)) dir = path_utf8(path_from_utf8(at).parent_path());
     }
     mdb_list(dir, false, at);
 }
@@ -649,9 +667,7 @@ void App::mdb_open_default() {
     mdb_default_ = true;
     const std::string& d = settings_.milkdrop_default_preset;
     if (d.find('/') != std::string::npos || d.find('\\') != std::string::npos) {   // (on the default preset, when there is one)
-        const fs::path p = path_from_utf8(d), r = path_from_utf8(mdb_root_);
-        const std::string pr = path_utf8(p.parent_path().lexically_normal()), rr = path_utf8(r.lexically_normal());
-        if (pr.size() >= rr.size() && pr.compare(0, rr.size(), rr) == 0) mdb_list(path_utf8(p.parent_path()), false, d);
+        if (mdb_inside(d)) mdb_list(path_utf8(path_from_utf8(d).parent_path()), false, d);
     }
 }
 
@@ -679,20 +695,25 @@ void App::mdb_search_run() {
     if (mdb_index_root_ != mdb_root_) {   // all presets under the preset folder, once
         mdb_index_.clear();
         mdb_index_root_ = mdb_root_;
-        const fs::path root = path_from_utf8(mdb_root_);
-        std::error_code ec;
-        for (fs::recursive_directory_iterator it(root, fs::directory_options::skip_permission_denied, ec), end; it != end && !ec; it.increment(ec)) {
-            if (it->is_directory(ec)) { if (it->path().filename() == "textures") it.disable_recursion_pending(); continue; }
-            if (!is_preset_file(it->path())) continue;
-            MdbIdx e;
-            e.name = path_utf8(it->path().stem());
-            e.path = path_utf8(it->path());
-            const fs::path rel = it->path().parent_path().lexically_relative(root);
-            for (const auto& part : rel) if (part != ".") e.where += (e.where.empty() ? "" : " / ") + path_utf8(part);
-            e.name_n = normalize_for_search(e.name);
-            e.where_n = normalize_for_search(e.where);
-            e.all_n = e.name_n + " " + e.where_n;
-            mdb_index_.push_back(std::move(e));
+        std::vector<std::string> roots{mdb_root_};
+        for (const std::string& x : Milkdrop::instance().extra_preset_dirs()) roots.push_back(x);
+        for (size_t ri = 0; ri < roots.size(); ++ri) {
+            const fs::path root = path_from_utf8(roots[ri]);
+            std::error_code ec;
+            for (fs::recursive_directory_iterator it(root, fs::directory_options::skip_permission_denied, ec), end; it != end && !ec; it.increment(ec)) {
+                if (it->is_directory(ec)) { if (it->path().filename() == "textures") it.disable_recursion_pending(); continue; }
+                if (!is_preset_file(it->path())) continue;
+                MdbIdx e;
+                e.name = path_utf8(it->path().stem());
+                e.path = path_utf8(it->path());
+                if (ri > 0) e.where = path_utf8(root.filename());   // (a further folder: named first)
+                const fs::path rel = it->path().parent_path().lexically_relative(root);
+                for (const auto& part : rel) if (part != ".") e.where += (e.where.empty() ? "" : " / ") + path_utf8(part);
+                e.name_n = normalize_for_search(e.name);
+                e.where_n = normalize_for_search(e.where);
+                e.all_n = e.name_n + " " + e.where_n;
+                mdb_index_.push_back(std::move(e));
+            }
         }
     }
     mdb_items_.clear();
@@ -872,9 +893,13 @@ std::string App::build_mdb_screen(int W, const char* clear_prefix) const {
             left.push_back(std::string(static_cast<size_t>(left_w), ' '));
         } else if (mdb_in_favs_) where = "Favourites";
         else {
-            const fs::path rel = path_from_utf8(mdb_dir_).lexically_relative(path_from_utf8(mdb_root_));
+            fs::path rel = path_from_utf8(mdb_dir_).lexically_relative(path_from_utf8(mdb_root_));
             where = "Presets";
-            if (!rel.empty() && rel != ".") for (const auto& part : rel) where += " / " + path_utf8(part);
+            for (const std::string& x : Milkdrop::instance().extra_preset_dirs()) {   // inside a further folder: its name, then the way in it
+                const fs::path xr = path_from_utf8(x), r2 = path_from_utf8(mdb_dir_).lexically_relative(xr);
+                if (!r2.empty() && *r2.begin() != "..") { where += " / " + path_utf8(xr.filename()); rel = r2; break; }
+            }
+            if (!rel.empty() && rel != "." && *rel.begin() != "..") for (const auto& part : rel) where += " / " + path_utf8(part);
         }
         if (!mdb_searching_) {
             left.push_back(" " + pad_right(truncate_str(where, inner), inner) + " ");

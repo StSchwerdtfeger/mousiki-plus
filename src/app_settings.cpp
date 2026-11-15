@@ -276,6 +276,40 @@ std::vector<App::PathRow> App::build_path_rows() const {
         rows.push_back(n2);
     }
 
+    // MILKDROP PRESET PATH: the regular folder first (empty = the usual places; shown as the folder in effect), then any number of
+    // further folders -- their presets join the list of the visuals.
+    {
+        PathRow h;
+        h.kind = PathRow::Kind::Header;
+        h.label = "MILKDROP PRESET PATH";
+        rows.push_back(h);
+        PathRow m;
+        m.kind = PathRow::Kind::Path;
+        m.sel = sel++;
+        m.path_index = -1;
+        m.milkdrop_path = true;
+        m.milkdrop_main = true;
+        rows.push_back(m);
+        for (int i = 0; i < static_cast<int>(settings_.milkdrop_extra_paths.size()); ++i) {
+            PathRow p;
+            p.kind = PathRow::Kind::Path;
+            p.sel = sel++;
+            p.path_index = i;
+            p.milkdrop_path = true;
+            rows.push_back(p);
+        }
+        PathRow add;
+        add.kind = PathRow::Kind::AddPath;
+        add.sel = sel++;
+        add.milkdrop_path = true;
+        add.label = "+ new path";
+        rows.push_back(add);
+        PathRow n;
+        n.kind = PathRow::Kind::Note;
+        n.label = "The first is the regular folder (emptied: the usual places). The presets of every folder join one list (restarts the visuals).";
+        rows.push_back(n);
+    }
+
     return rows;
 }
 
@@ -799,6 +833,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidMdFavShuffle: v = settings_.milkdrop_fav_shuffle; break;
             case kSidMdHardCuts: v = settings_.milkdrop_hard_cuts; break;
             case kSidMdAspect: v = settings_.milkdrop_aspect; break;
+            case kSidMdLock: v = settings_.milkdrop_lock; break;
             case kSidMdClean: v = settings_.milkdrop_clean; break;
             case kSidMdShowName: v = settings_.milkdrop_show_name; break;
             case kSidMdUseFx: v = settings_.milkdrop_fx_on; break;
@@ -902,6 +937,15 @@ std::string App::settings_get_value(int row, int col) const {
             if (r.import_folder) return settings_.playlist_import_path.empty() ? path_utf8(playlists_dir() / "import") : settings_.playlist_import_path;
             if (r.conversion_folder) return conversion_export_dir();
             if (r.audiobook_folder) return settings_.audiobook_path;
+            if (r.milkdrop_main) {   // the regular folder: what is set, else the folder in effect (the usual places)
+                if (!settings_.milkdrop_presets.empty()) return settings_.milkdrop_presets;
+                const std::string d = Milkdrop::instance().find_presets_dir();
+                return d.empty() ? std::string() : d;
+            }
+            if (r.milkdrop_path) {
+                const std::vector<std::string>& e = settings_.milkdrop_extra_paths;
+                return r.path_index >= 0 && r.path_index < static_cast<int>(e.size()) ? e[static_cast<size_t>(r.path_index)] : std::string();
+            }
             if (r.download_folder) {
                 // Show what is actually in effect: while nothing has been
                 // configured that is the default cache folder, and the point
@@ -1265,6 +1309,7 @@ void App::settings_commit_edit_impl() {
             case kSidMdFavShuffle: settings_.milkdrop_fav_shuffle = is_true; break;
             case kSidMdHardCuts: settings_.milkdrop_hard_cuts = is_true; break;
             case kSidMdAspect: settings_.milkdrop_aspect = is_true; break;
+            case kSidMdLock: settings_.milkdrop_lock = is_true; Milkdrop::instance().set_locked(is_true); break;
             case kSidMdClean: settings_.milkdrop_clean = is_true; break;
             case kSidMdShowName: settings_.milkdrop_show_name = is_true; break;
             case kSidMdUseFx: settings_.milkdrop_fx_on = is_true; milkdrop_pic_key_.clear(); break;
@@ -1359,6 +1404,24 @@ void App::settings_commit_edit_impl() {
             if (!p.empty() && p[0] == '~') {
                 const char* home = std::getenv("HOME");
                 if (home) p = std::string(home) + p.substr(1);
+            }
+            if (r.milkdrop_path) {
+                // The regular preset folder (emptied: the usual places), or one of the further folders (emptied: removed).
+                Milkdrop& md = Milkdrop::instance();
+                if (r.milkdrop_main) {
+                    settings_.milkdrop_presets = p;
+                    status_line_ = p.empty() ? "preset folder: the usual places" : "preset folder: " + p;
+                } else {
+                    std::vector<std::string>& e = settings_.milkdrop_extra_paths;
+                    if (static_cast<int>(e.size()) <= r.path_index) e.resize(static_cast<size_t>(r.path_index) + 1);
+                    if (p.empty()) { e.erase(e.begin() + r.path_index); status_line_ = "preset path removed"; }
+                    else { e[static_cast<size_t>(r.path_index)] = p; status_line_ = "preset path: " + p; }
+                }
+                milkdrop_apply_settings();
+                (void)md;
+                milkdrop_pic_key_.clear();
+                settings_row_ = std::min(settings_row_, settings_max_row());
+                return;
             }
             if (r.export_folder) {
                 // One folder, nothing moves: only where the next export goes (empty = export, inside the playlist folder).
@@ -1986,14 +2049,16 @@ void App::handle_settings_key(int key) {
                 // entry exactly the selectable index this AddPath row just
                 // vacated (every row after it shifts down by one), so
                 // settings_row_ already points at the new empty field.
-                std::vector<std::string>& paths = r.playlist_path ? settings_.playlists_paths
+                std::vector<std::string>& paths = r.milkdrop_path ? settings_.milkdrop_extra_paths
+                                                : r.playlist_path ? settings_.playlists_paths
                                                                   : settings_.local_music_paths;
                 paths.push_back("");
                 color_edit_buffer_.clear();
                 edit_caret_ = edit_anchor_ = 0;
                 edit_owner_ = "settings"; // claim the shared caret -- see edit_focus()
                 mode_ = Mode::ColorEdit;
-                status_line_ = r.playlist_path
+                status_line_ = r.milkdrop_path ? "new preset path -- type it, ENTER to confirm"
+                    : r.playlist_path
                     ? "new playlist path -- type it, ENTER to confirm"
                     : "new local music path -- type it, ENTER to confirm";
                 force_redraw_ = true;

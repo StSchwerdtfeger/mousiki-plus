@@ -39,6 +39,7 @@ struct MilkdropOptions {
     int variance = 0;             // seconds: how far the time of a preset may stray, at random (projectM's "easter egg"; 0 = every preset stays the same time)
     bool clean_start = false;     // a preset starts from a blank picture, not from what the one before left
     std::string gpu;              // the graphics card (MilkdropGpu::id; "" = automatic: what the system gives)
+    std::vector<std::string> extra_dirs;   // more preset folders (Settings -> MILKDROP PRESET PATH); their presets join the list
     std::string presets_dir;      // "" = the usual places (~/.local/share/projectM/presets, /usr/share/...; Windows: milkdrop\\presets next to the exe)
     int fps = 30;                 // pictures a second
     int max_width = 480;          // rendered at most this many pixels across (the picture is scaled to the screen from there)
@@ -51,7 +52,7 @@ struct MilkdropOptions {
     bool favourites_only = false; // the list is the favourites (when there are any) instead of the whole preset folder
     std::vector<std::string> favourites;   // the favourite presets (full paths, UTF-8)
     bool operator==(const MilkdropOptions& o) const {
-        return presets_dir == o.presets_dir && fps == o.fps && max_width == o.max_width && preset_seconds == o.preset_seconds &&
+        return presets_dir == o.presets_dir && extra_dirs == o.extra_dirs && fps == o.fps && max_width == o.max_width && preset_seconds == o.preset_seconds &&
                shuffle == o.shuffle && cut_sens == o.cut_sens && start_preset == o.start_preset && hard_cuts == o.hard_cuts && transition == o.transition &&
                favourites_only == o.favourites_only && favourites == o.favourites && gpu == o.gpu &&
                hard_cut_secs == o.hard_cut_secs && aspect == o.aspect && mesh_w == o.mesh_w && mesh_h == o.mesh_h && variance == o.variance && clean_start == o.clean_start;
@@ -97,6 +98,7 @@ public:
     std::string renderer() const;            // what draws (the GL renderer string, e.g. "llvmpipe (LLVM 20.1.2, 256 bits)")
     std::string presets_dir() const;         // the folder the presets come from
     std::string preset_path() const;         // the full path of the preset shown (UTF-8; "" before the first)
+    std::vector<std::string> extra_preset_dirs() const;   // the extra folders that hold presets (for the preset overlay)
     std::string find_presets_dir() const;    // the preset folder the options lead to (also before the visuals ran; "" = none)
     bool favourites_in_use() const { return fav_list_.load(); }   // the list is the favourites right now
     double frame_ms() const { return frame_ms_.load(); }   // the time one picture took (drawing + reading back), smoothed

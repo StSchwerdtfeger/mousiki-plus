@@ -111,8 +111,10 @@ struct RadioSettings : VizPrefs {
     // the same keys as the player's config.txt; MilkDropPresets= is the player's (one preset folder for all modes, read at the start).
     bool use_milkdrop = true;
     int md_fps = 30, md_res = 480, md_secs = 25, md_cut_sens = 20, md_transition = 3;
+    bool md_lock = false;   // MilkDropLockPreset=: the preset stays (kept for the next start)
     std::string md_gpu;   // MilkDropGpu=: "" = automatic, else the card (Linux: its render node, e.g. renderD129)
     bool md_shuffle = true, md_hard_cuts = true, md_show_name = true;
+    std::vector<std::string> md_extra;   // the player's MilkDropExtraPresets= lines (more preset folders)
     std::string md_presets;    bool element_visualizer = true;             // the FFT spectrum under the station info
     bool stereo = true;                         // false = fold left + right to mono
     // Which mode Mousiki starts in ("player" / "radio"): the same setting as the music player's, kept in ITS config.txt

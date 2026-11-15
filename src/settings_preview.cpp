@@ -733,7 +733,7 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
         break;
     }
     case kPvMarquee: {
-        const std::string text = "Meowsome Moew Orchestra And The Best-Off-All-Meows feat. Bozai   ";
+        const std::string text = "Meowsome Moew Orchestra And The Best-Of-All-Meows feat. Bozai   ";
         const int w = std::max(8, std::min(cw - 8, 24));
         std::string shown;
         if (settings_.marquee) {

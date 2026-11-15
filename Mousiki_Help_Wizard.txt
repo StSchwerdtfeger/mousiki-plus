@@ -2269,6 +2269,9 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   this folder out (also from its searches): the book folder
                                                   may lie INSIDE a music folder, but may not be one (a
                                                   conflict message will says so!).
+[MILKDROP PRESET PATH][[Header]]                              The regular preset folder first (empty = the usual
+                                                  places), then any number of further folders with
+                                                  [+ new path]: their presets join one list.
 
 In the audio book mode the GENERAL and ANIMA/VIZ tabs only show what a book needs (no lyrics, no disk
 speed, no TRANSLITERATION category). The audio book mode has its own look: colours and theme, elements,

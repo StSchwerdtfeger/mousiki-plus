@@ -885,6 +885,7 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_NUM("MilkDropMeshDetail", nullptr, milkdrop_mesh, 0, 3, "\n## 0 low (16 x 12) , 1 normal (32 x 24, default) , 2 high (64 x 48) , 3 very high (96 x 72) -- the warp mesh of the presets: finer = more detail, more work for the graphics card\n"),
     SIMPLE_NUM("MilkDropDurationVariance", nullptr, milkdrop_var, 0, 30, "\n## 0 - 30 seconds (default 0) -- how far the time of a preset (Preset Duration) may stray at random; 0 = every preset stays the same time\n"),
     SIMPLE_FLAG("MilkDropCleanStart", nullptr, milkdrop_clean, "\n## true , false (default false) -- a preset starts from a blank picture, not from what the one before left\n"),
+    SIMPLE_FLAG("MilkDropLockPreset", nullptr, milkdrop_lock, "\n## true , false (default false) -- the preset stays: the presets do not change by themselves (Lock Preset); kept for the next start\n"),
     SIMPLE_FLAG("MilkDropEffectOn", nullptr, milkdrop_fx_on, "\n## true , false (default true) -- the effect (MilkDropEffect) is put on the visuals; false: none, the choice stays\n"),
     SIMPLE_TEXT("MilkDropGpu", nullptr, milkdrop_gpu, "\n## the graphics card that draws the MilkDrop visuals (Linux): a render node such as renderD129, as listed under Settings -> ANIMA/VIZ -> MILKDROP -> MilkDrop GPU; empty = automatic (what the system gives)\n"),
     SIMPLE_TEXT("MilkDropDefaultPreset", nullptr, milkdrop_default_preset, "\n## the preset the visuals start with (a .milk file; Settings -> ANIMA/VIZ -> MILKDROP -> Default Preset); empty = one from the list\n"),
@@ -1711,6 +1712,16 @@ static Settings load_from_config(const fs::path& path) {
             continue;
         }
 
+        // --- More MilkDrop preset folders (Settings -> PATHS -> MILKDROP PRESET PATH): one folder a line, ~ is expanded ---
+        if (key == "MilkDropExtraPresets") {
+            std::string path = trim_ws(unquote(value));
+            if (!path.empty()) {
+                if (path[0] == '~') { const char* home = std::getenv("HOME"); if (home) path = std::string(home) + path.substr(1); }
+                s.milkdrop_extra_paths.push_back(path);
+            }
+            continue;
+        }
+
         // --- Playlists folder override ---
         // Each PlaylistsPath= line adds one folder, independent of
         // local_music_paths[0] (the first one is where playlists get
@@ -2277,7 +2288,7 @@ write_simple_setting(out, s, "VideoLayout");
     write_simple_setting(out, s, "UseSpectrogram");
     write_simple_setting(out, s, "UseSphere");
     for (const char* k : {"UseMilkDrop", "MilkDropView", "MilkDropPresets", "MilkDropDefaultPreset", "MilkDropGpu", "MilkDropFrameRate", "MilkDropResolution", "MilkDropPresetDuration",
-                          "MilkDropAuto", "MilkDropAutoVideoWas", "MilkDropShuffle", "MilkDropShuffleFavourites", "MilkDropHardCutSensitivity", "MilkDropHardCuts", "MilkDropHardCutInterval", "MilkDropTransition", "MilkDropShowName",
+                          "MilkDropAuto", "MilkDropAutoVideoWas", "MilkDropShuffle", "MilkDropShuffleFavourites", "MilkDropHardCutSensitivity", "MilkDropHardCuts", "MilkDropHardCutInterval", "MilkDropLockPreset", "MilkDropTransition", "MilkDropShowName",
                           "MilkDropAspectCorrection", "MilkDropMeshDetail", "MilkDropDurationVariance", "MilkDropCleanStart"})
         write_simple_setting(out, s, k);
     out << "MilkDropEffect=" << video_fx_key(s.milkdrop_fx) << "\n## off (default) or a video effect name (as VideoFx=) -- an effect over the MilkDrop pictures, their own (the video's effect belongs to the track's video)\n";
@@ -2496,6 +2507,8 @@ write_simple_setting(out, s, "VideoLayout");
         if (path.empty()) continue;
         out << "LocalMusicPath=" << path << "\n";
     }
+    out << "\n# More MilkDrop preset folders (optional; MilkDropPresets= is the first one). One line per folder: their presets join the list.\n";
+    for (const auto& path : s.milkdrop_extra_paths) if (!path.empty()) out << "MilkDropExtraPresets=" << path << "\n";
     out << "\n# Playlists folder(s) (optional -- overrides the LocalMusicPath[0]/playlists default).\n";
     out << "# One line per folder: playlists are listed/loaded from all of them, while saving\n";
     out << "# and deleting uses the first one.\n";
@@ -2611,7 +2624,7 @@ void copy_look(const Settings& src, Settings& dst) {
     MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(disk_border); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
     MOUSIKI_LOOK(volume_indicator); MOUSIKI_LOOK(volume_gradient); MOUSIKI_LOOK(element_vizfield); MOUSIKI_LOOK(element_lyrics);
     MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
-    MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_gpu); MOUSIKI_LOOK(milkdrop_hcd); MOUSIKI_LOOK(milkdrop_aspect); MOUSIKI_LOOK(milkdrop_mesh); MOUSIKI_LOOK(milkdrop_var); MOUSIKI_LOOK(milkdrop_clean); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res);
+    MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_extra_paths); MOUSIKI_LOOK(milkdrop_gpu); MOUSIKI_LOOK(milkdrop_lock); MOUSIKI_LOOK(milkdrop_hcd); MOUSIKI_LOOK(milkdrop_aspect); MOUSIKI_LOOK(milkdrop_mesh); MOUSIKI_LOOK(milkdrop_var); MOUSIKI_LOOK(milkdrop_clean); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res);
     MOUSIKI_LOOK(milkdrop_preset_secs); MOUSIKI_LOOK(milkdrop_shuffle); MOUSIKI_LOOK(milkdrop_fav_shuffle); MOUSIKI_LOOK(milkdrop_auto); MOUSIKI_LOOK(milkdrop_auto_video_was); MOUSIKI_LOOK(milkdrop_fx); MOUSIKI_LOOK(milkdrop_fixed_colors); MOUSIKI_LOOK(milkdrop_cut_sens); MOUSIKI_LOOK(milkdrop_fx_on); MOUSIKI_LOOK(milkdrop_default_preset); MOUSIKI_LOOK(milkdrop_hard_cuts);
     MOUSIKI_LOOK(milkdrop_transition); MOUSIKI_LOOK(milkdrop_show_name);
     MOUSIKI_LOOK(use_sphere); MOUSIKI_LOOK(viz_default); MOUSIKI_LOOK(element_visualizer); MOUSIKI_LOOK(waveform_smooth);

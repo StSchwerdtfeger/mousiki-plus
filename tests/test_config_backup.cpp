@@ -71,10 +71,14 @@ TEST(config_milkdrop_options_round_trip) {
     CHECK_EQ(s.milkdrop_mesh, 1);
     CHECK_EQ(s.milkdrop_var, 0);
     CHECK(!s.milkdrop_clean);
+    s.milkdrop_lock = true; s.milkdrop_extra_paths = {"/tmp/more presets", "/tmp/even more"};
     s.milkdrop_hcd = 45; s.milkdrop_aspect = false; s.milkdrop_mesh = 3; s.milkdrop_var = 10; s.milkdrop_clean = true; s.milkdrop_gpu = "renderD129";
     save_settings(s);
     const Settings t = load_settings();
     CHECK_EQ(t.milkdrop_hcd, 45);
+    CHECK(t.milkdrop_lock);                                  // Lock Preset survives a restart
+    CHECK_EQ(t.milkdrop_extra_paths.size(), size_t(2));      // MILKDROP PRESET PATH: one line a folder
+    CHECK_EQ(t.milkdrop_extra_paths[1], std::string("/tmp/even more"));
     CHECK(!t.milkdrop_aspect);
     CHECK_EQ(t.milkdrop_mesh, 3);
     CHECK_EQ(t.milkdrop_var, 10);

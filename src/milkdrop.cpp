@@ -78,7 +78,7 @@ void Milkdrop::stop_thread() {
 void Milkdrop::configure(const MilkdropOptions& o) {
     if (o == opts_) return;
     const bool dir_changed = o.presets_dir != opts_.presets_dir;
-    if (o.gpu != opts_.gpu && th_.joinable()) {   // another graphics card: the context is made anew (the preset shown comes back)
+    if ((o.gpu != opts_.gpu || o.extra_dirs != opts_.extra_dirs) && th_.joinable()) {   // another graphics card: the context is made anew (the preset shown comes back)
         std::string keep;
         { std::lock_guard<std::mutex> lk(mu_); keep = path_; }
         stop_thread();
@@ -140,6 +140,7 @@ bool Milkdrop::available(std::string* why) {
 }
 void Milkdrop::run() { running_.store(false); }
 std::string Milkdrop::find_presets_dir() const { return {}; }
+std::vector<std::string> Milkdrop::extra_preset_dirs() const { return {}; }
 std::vector<MilkdropGpu> Milkdrop::gpus() { return {}; }
 std::string milkdrop_gpu_label(const std::string& id) { return id.empty() ? "automatic" : id; }
 
@@ -835,6 +836,14 @@ fs::path find_presets(const std::string& set) {
     return {};
 }
 
+// The folder the list starts from: the one set / the usual places, else (when none has presets) the first extra folder that has some.
+fs::path find_presets_extra(const std::string& set, const std::vector<std::string>& extra) {
+    fs::path p = find_presets(set);
+    if (!p.empty()) return p;
+    for (const std::string& e : extra) { const fs::path q = from_utf8(e); if (!e.empty() && has_presets(q)) return q; }
+    return {};
+}
+
 std::string stem_of(const char* path) {
     if (!path) return {};
     return to_utf8(from_utf8(utf8_from_native(path)).stem());
@@ -844,8 +853,16 @@ std::string stem_of(const char* path) {
 
 std::string Milkdrop::find_presets_dir() const {
     { std::lock_guard<std::mutex> lk(mu_); if (!dir_.empty()) return dir_; }
-    const fs::path p = find_presets(opts_.presets_dir);
+    const fs::path p = find_presets_extra(opts_.presets_dir, opts_.extra_dirs);
     return p.empty() ? std::string() : to_utf8(p);
+}
+
+std::vector<std::string> Milkdrop::extra_preset_dirs() const {
+    std::vector<std::string> out;
+    const std::string main = find_presets_dir();
+    for (const std::string& e : opts_.extra_dirs)
+        if (!e.empty() && e != main && has_presets(from_utf8(e)) && std::find(out.begin(), out.end(), e) == out.end()) out.push_back(e);
+    return out;
 }
 
 std::string milkdrop_gpu_label(const std::string& id) {
@@ -898,7 +915,7 @@ bool Milkdrop::available(std::string* why) {
     }
     if (avail_ < 0) {
         avail_why_ = load_libraries();
-        if (avail_why_.empty() && find_presets(opts_.presets_dir).empty())
+        if (avail_why_.empty() && find_presets_extra(opts_.presets_dir, opts_.extra_dirs).empty())
             avail_why_ = opts_.presets_dir.empty() ? std::string("no MilkDrop presets found (") + kNoPresetsWhere + ")"
                                                    : "no MilkDrop presets in " + opts_.presets_dir;
         avail_ = avail_why_.empty() ? 1 : 0;
@@ -960,7 +977,7 @@ void Milkdrop::run() {
     if (!pm) { teardown_gl(); fail("projectM could not start (OpenGL 3.3 is needed)"); return; }
     MilkdropOptions o;
     { std::lock_guard<std::mutex> lk(mu_); o = thread_opts_; }
-    const fs::path pdir = find_presets(o.presets_dir);
+    const fs::path pdir = find_presets_extra(o.presets_dir, o.extra_dirs);
     std::vector<std::string> tex_store;
     {   // textures: a "textures" folder next to the presets, and the usual places
         std::error_code ec;
@@ -991,7 +1008,15 @@ void Milkdrop::run() {
                 if (!nf.empty() && g_pm.pl_add_preset(pl, nf.c_str(), false)) ++n;
             }
         fav_list_.store(n > 0);
-        if (n == 0) n = g_pm.pl_add_path(pl, pdir_native.c_str(), true, false);
+        if (n == 0) {
+            n = g_pm.pl_add_path(pl, pdir_native.c_str(), true, false);
+            for (const std::string& e : a.extra_dirs) {   // the extra folders join the list (not the one the list started from)
+                const fs::path q = from_utf8(e);
+                if (e.empty() || q == pdir || !has_presets(q)) continue;
+                const std::string nq = native_path(q);
+                if (!nq.empty()) n += g_pm.pl_add_path(pl, nq.c_str(), true, false);
+            }
+        }
         return n;
     };
     uint32_t count = pl ? fill_list(o) : 0;

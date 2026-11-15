@@ -396,6 +396,8 @@ private:
     void md_favs_save() const;
     void mdb_open();
     void mdb_close(bool chosen);
+    bool mdb_inside(const std::string& file) const;   // the file lies under the preset folder or one of the extra preset folders
+    bool mdb_is_extra_root(const fs::path& d) const;
     void mdb_list(const std::string& dir, bool favs, const std::string& select_path);
     void mdb_preview();
     void handle_mdb_key(int key);

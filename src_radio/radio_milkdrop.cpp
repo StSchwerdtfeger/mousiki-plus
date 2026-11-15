@@ -9,8 +9,11 @@
 namespace muisc::radio {
 
 void radio_milkdrop_apply(const RadioSettings& c) {
+    static bool lock_given = false;   // (the saved lock is put on once)
+    if (!lock_given) { lock_given = true; Milkdrop::instance().set_locked(c.md_lock); }
     MilkdropOptions o;
     o.presets_dir = c.md_presets;
+    o.extra_dirs = c.md_extra;
     o.fps = std::clamp(c.md_fps, 10, 60);
     o.max_width = std::clamp(c.md_res, 160, 1920);
     o.preset_seconds = std::max(0, c.md_secs);
@@ -209,7 +212,7 @@ void md_overlay_adjust(RadioSettings& c, int row, int dir, std::string& notice) 
     switch (row) {
         case 0: if (dir > 0) md.next_preset(); else md.prev_preset(); break;
         case 1: md.random_preset(); break;
-        case 2: md.set_locked(!md.locked()); notice = md.locked() ? "milkdrop: the preset stays" : "milkdrop: the presets change again"; break;
+        case 2: md.set_locked(!md.locked()); c.md_lock = md.locked(); notice = md.locked() ? "milkdrop: the preset stays" : "milkdrop: the presets change again"; break;
         case 3: c.md_secs = radio_md_step(2, c.md_secs, dir); break;
         case 4: c.md_shuffle = !c.md_shuffle; break;
         case 5: c.md_cut_sens = std::clamp(c.md_cut_sens + dir, 5, 60); break;

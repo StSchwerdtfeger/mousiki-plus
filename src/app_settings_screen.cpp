@@ -596,6 +596,7 @@ void App::settings_tab_paths(SettingsPaint& c) const {
                 const bool single = (r.label && *r.label);   // DOWNLOAD / PLAYLIST / HISTORY PATH: the header name is the row label
                 const int vx = 35;
                 if (single) pos(y, 6, header_sgr(settings_) + pad(r.label, 25) + R);
+                else if (r.milkdrop_path) pos(y, 6, pad("Preset Path " + std::to_string(r.milkdrop_main ? 1 : r.path_index + 2), 25));
                 else pos(y, 6, pad("Local Path " + std::to_string(r.path_index + 1), 25));
                 pos(y, 32, ":");
                 // The value column runs from col 35 right up to the border --

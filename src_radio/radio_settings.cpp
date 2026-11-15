@@ -629,6 +629,21 @@ std::string player_download_folder() {
 
 namespace {
 // One KEY=value line of the player's config.txt (the settings both programs share live there): the value, "" when missing.
+std::vector<std::string> player_config_values(const std::string& key_lower) {   // every line of that key (config.txt keys that may repeat)
+    std::vector<std::string> out;
+    std::ifstream in(radio_default_dir() / "config.txt");
+    std::string line;
+    while (std::getline(in, line)) {
+        line = trim_ws(line);
+        if (line.empty() || line[0] == '#') continue;
+        const size_t eq = line.find('=');
+        if (eq == std::string::npos || ascii_lower_str(trim_ws(line.substr(0, eq))) != key_lower) continue;
+        std::string v = trim_ws(line.substr(eq + 1));
+        if (!v.empty() && v[0] == '~') { const char* h = std::getenv("HOME"); if (h) v = std::string(h) + v.substr(1); }
+        if (!v.empty()) out.push_back(v);
+    }
+    return out;
+}
 std::string player_config_value(const std::string& key_lower) {
     std::ifstream in(radio_default_dir() / "config.txt");
     std::string line;
@@ -682,6 +697,7 @@ void load_player_mode_settings(RadioSettings& s) {
     const muisc::ModeConfig mc = muisc::read_mode_config();   // same file; defaults when missing, always one mode on
     for (int i = 0; i < 3; ++i) { s.use_mode[i] = mc.use[i]; s.mode_order[i] = mc.order[i]; }
     s.audiobook_path = player_config_value("audiobookpath");
+    s.md_extra = player_config_values("milkdropextrapresets");
     s.md_presets = player_config_value("milkdroppresets");   // the MilkDrop preset folder: one for all modes ("" = the usual places)
     {
         std::string v = ascii_lower_str(player_config_value("terminaldefaultfont"));
@@ -1011,6 +1027,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("MilkDropResolution")) s.md_res = std::clamp(muisc::atoi_safe(v->c_str()), 160, 1920);
     if (auto v = get("MilkDropPresetDuration")) s.md_secs = std::clamp(muisc::atoi_safe(v->c_str()), 0, 3600);
     if (auto v = get("MilkDropGpu")) s.md_gpu = *v;
+    if (auto v = get("MilkDropLockPreset")) s.md_lock = as_bool(*v, s.md_lock);
     if (auto v = get("MilkDropShuffle")) s.md_shuffle = as_bool(*v, s.md_shuffle);
     if (auto v = get("MilkDropHardCutSensitivity")) s.md_cut_sens = std::clamp(muisc::atoi_safe(v->c_str()), 5, 60);
     if (auto v = get("MilkDropHardCuts")) s.md_hard_cuts = as_bool(*v, s.md_hard_cuts);
@@ -1195,6 +1212,8 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "MilkDropResolution=" << s.md_res << "\n"
          "# the graphics card for the visuals (empty = automatic; Linux: a card from the list in Settings -> MilkDrop GPU; elsewhere the system decides)\n"
          "MilkDropGpu=" << s.md_gpu << "\n"
+         "# true keeps the preset (Lock Preset in the \":\" overlay) -- also at the next start\n"
+         "MilkDropLockPreset=" << (s.md_lock ? "true" : "false") << "\n"
          "# seconds a preset stays (0 = until changed by hand), next preset at random, beat sensitivity 0 .. 20 (= 0.0 .. 2.0)\n"
          "MilkDropPresetDuration=" << s.md_secs << "\n"
          "MilkDropShuffle=" << (s.md_shuffle ? "true" : "false") << "\n"
