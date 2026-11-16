@@ -4203,12 +4203,12 @@ def settings_descriptions(binary, root, scripts):
         found, missing = walk({"preset": "The preset the visuals start with"}, 1)
         sess.send(b"\x1b[A", 0.3)
         seen = {}
-        marks = (("preset", "The preset the visuals start with"), ("usefx", "Preview: Use Effect"), ("fx", "Preview: MilkDrop Effect"),
-                 ("colors", "Preview: Sixel Colours"), ("name", "Preview: Show Preset Name"))
+        marks = (("preset", "The preset the visuals start with"), ("usefx", ("Preview: Use Effect", "true: the effect chosen")), ("fx", ("Preview: MilkDrop Effect", "The video effect (the same")),
+                 ("colors", ("Preview: Sixel Colours", "Sixel terminals")), ("name", ("Preview: Show Preset Name", "true: the preset")))   # (without MilkDrop the rows show their text)
         for _ in range(130):
             t = sess.text()
             for k, v in marks:
-                if v in t:
+                if any(x in t for x in (v if isinstance(v, tuple) else (v,))):
                     seen[k] = t
             if len(seen) == 5:
                 break

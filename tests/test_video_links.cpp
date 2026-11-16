@@ -109,7 +109,11 @@ TEST(video_download_command_and_settings) {
     {   // a '%' in a track name or folder must not become a yt-dlp field
         const auto p = video_download_args("abc123", fs::path("/dl/100%(title)s"), "50% (live) %(id)s", 720);
         bool ok = false;
-        for (size_t i = 0; i + 1 < p.size(); ++i) if (p[i] == "-o") ok = p[i + 1] == "/dl/100%%(title)s/50%% (live) %%(id)s.%(ext)s";
+        // (the expected text is made with the platform's own separator: "/" on Linux and macOS, "\\" on Windows)
+        std::string want = (fs::path("/dl/100%(title)s") / "50% (live) %(id)s").string();
+        for (size_t k = 0; k < want.size(); ++k) if (want[k] == '%') { want.insert(k, 1, '%'); ++k; }
+        want += ".%(ext)s";
+        for (size_t i = 0; i + 1 < p.size(); ++i) if (p[i] == "-o") ok = p[i + 1] == want;
         CHECK(ok);
     }
     const auto b = video_download_args("x", fs::path("/d"), "n", 99999);   // the height is kept in a sane range
