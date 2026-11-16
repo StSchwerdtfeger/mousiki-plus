@@ -22,47 +22,218 @@
 [![Windows](https://img.shields.io/badge/Windows-x64-0078D4.svg?logo=windows&logoColor=white)](https://github.com/StSchwerdtfeger/mousiki-plus/tree/main) [![Linux](https://img.shields.io/badge/Linux-x64-FCC624.svg?logo=linux&logoColor=black)](https://github.com/StSchwerdtfeger/mousiki-plus/tree/main) [![macOS](https://img.shields.io/badge/macOS-x64-000000.svg?logo=apple&logoColor=white)](https://github.com/StSchwerdtfeger/mousiki-plus/tree/main)
 </div>
 
-Mousiki is a terminal music player that was originally built for macOS/Linux by the amazing [itzender5820/mousiki, v1.0](https://github.com/itzender5820/mousiki) for people who prefer control, simplicity, and a keyboard (mousi-**key**). This Mousiki fork lets it also run natively on Windows (including quite a bunch of modifications and additions; code grew 6-7x the original length; design maintained for obvious reasons). All credits for the design, main feature set, and the core code goes to the original author. Since v2.5.0 the code base builds natively on **Linux and macOS** again (see [Build it yourself (Linux / macOS)](#build-it-yourself-linux--macos) or use the [setup packages or portable versions for all three platforms in the latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest)). Windows remains the primary and most tested platform (only tested Linux via WSL and works fine so far, a few bugs were recently fixed; not much tested for macOS and non-WSL Linux systems). Feel free to give feedback in the discussions and report issues you might experience using this modified port. 
+Mousiki Plus is in its essence a terminal music player that was originally built for macOS/Linux by the amazing [itzender5820/mousiki, v1.0](https://github.com/itzender5820/mousiki), built for people who prefer control, simplicity, and a keyboard (mousi-**key**). This Mousiki fork lets it also run natively on Windows (including quite a bunch of modifications and additions; code grew 7-8x the original length; design maintained for obvious reasons). All credits for the design, main feature set, and the core code goes to the original author. Since v2.5.0 the code base builds natively on **Linux and macOS** again but needs more testing for those OS, especially macOS since the latest addition of MilkDrop visuals, so feel free to report and contribute (see [Build it yourself (Linux / macOS)](#build-it-yourself-linux--macos) or use the [setup packages or portable versions for all three platforms in the latest release](https://github.com/StSchwerdtfeger/mousiki-plus/releases/latest)). Windows remains the primary and most tested platform (tested on Linux via WSL; reports say it also works on Nix and macOS, but not since v5.0.0). Again, feel free to give feedback in the discussions, report issues you might experience using this modified port, or contribute in any other way. 
 
-<p align="center"><img width="800" alt="preview" src="readme_images/out_720_25.gif" /></p>
+<p align="center"><img width="480" alt="preview" src="readme_images/mousiki_intro.gif" /></p>
+
+## Overview
+
+<table>
+<tr>
+<td valign="top" width="33%">
+
+### 🖥️ Platforms
+<ul>
+<li>Windows, Linux and macOS</li>
+<li>Installer and portable builds</li>
+<li>Pure terminal, keyboard driven</li>
+</ul>
+
+</td>
+<td valign="top" width="33%">
+
+### 🎨 Look
+<ul>
+<li>Real pictures in Kitty / Sixel terminals, braille everywhere else</li>
+<li>Colour themes, incl. colour-blind friendly ones</li>
+<li>Album covers in place of the disk</li>
+</ul>
+
+</td>
+<td valign="top" width="33%">
+
+### 🔊 Audio
+<ul>
+<li>Gapless playback (optional)</li>
+<li>10-band equalizer with presets</li>
+<li>Loudness normalization, stereo / mono</li>
+<li>Sleep timer, audio device control</li>
+<li>System media keys / MPRIS</li>
+<li>Buffer control, optional rate cap</li>
+<li>Audio conversion</li>
+</ul>
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🎵 Music library
+<ul>
+<li>Multi-folder library (MP3, FLAC, OGG, OPUS, M4A, tracker and C64 music ...)</li>
+<li>Fuzzy search, queue, shuffle and repeat</li>
+<li>Listening history with top lists and smart lists</li>
+<li>Create / import / export playlists</li>
+</ul>
+
+</td>
+<td valign="top">
+
+### 🎬 Video
+<ul>
+<li>Video mode for music videos</li>
+<li>Retro video effects</li>
+<li>yt-dlp: search, stream and download music and video</li>
+</ul>
+
+</td>
+<td valign="top">
+
+### 📻 Internet radio
+<ul>
+<li>Radio Browser search, station lists, own channels</li>
+<li>16 presets</li>
+<li>Timeshift and recording</li>
+<li>Own history, track look-up via yt-dlp</li>
+</ul>
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 📚 Audio books
+<ul>
+<li>Books, chapters, M4B and embedded chapters</li>
+<li>Bookmarks, auto-marks and notes (with timestamp)</li>
+<li>Cut tracks into chapters</li>
+</ul>
+
+</td>
+<td valign="top">
+
+### 🏷️ Meta data
+<ul>
+<li>Tags by audio fingerprint (AcoustID / MusicBrainz)</li>
+<li>Cover fetching</li>
+<li>Meta data editor, file renaming</li>
+</ul>
+
+</td>
+<td valign="top">
+
+### 📈 Visualisations
+<ul>
+<li>Spectrum bars, incl. Hi-Fi stereo analyzer</li>
+<li>XY / YT oscilloscope</li>
+<li>2D and 3D (waterfall) spectrogram</li>
+<li>projectM visualizations (MilkDrop)</li>
+<li>Creator: text / microphone to oscilloscope and spectrogram</li>
+</ul>
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 🎤 Lyrics
+<ul>
+<li>Synchronized .lrc lyrics (incl. fetch)</li>
+<li>Karaoke mode with bigger overlay</li>
+<li>Timing editor</li>
+<li>Translation (online + manual)</li>
+<li>Japanese / Korean / Chinese transliteration</li>
+</ul>
+
+</td>
+<td valign="top">
+
+### 📱 Remote control
+<ul>
+<li>Browser view and control via QR code (PIN protected)</li>
+<li>Phone app (Android WebView .apk)</li>
+<li>CLI, also for scripts</li>
+</ul>
+
+</td>
+<td valign="top">
+
+### 📖 Documentation
+<ul>
+<li>Detailed user manual (.md / .pdf)</li>
+<li>Help Wizard (in-app)</li>
+<li>Cheat Sheet (in-app)</li>
+</ul>
+
+</td>
+</tr>
+</table>
+
+Every feature is described with screenshots in [Features at a glance](#features-at-a-glance) below, and in full in the [user manual](Mousiki_User_Manual/Mousiki_User_Guide.md).
 
 
-**Build yourself** (see [prerequisites](#prerequisites-windows) below) **or use the installer/portable (x64) version** that is included in every new release (since v2.1.0). A full **[user manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** (also as [PDF](Mousiki_User_Manual/Mousiki_User_Guide.pdf)) walks through every entry of the in-app cheat sheet, every settings tab and every overlay. For a quick start, it is best to set a path for music files first and then go through the first basic commands for the main music player ui. The manual includes a brief intro for the first things to learn about Mousiki Plus. 
+**Build yourself** (see [prerequisites](#prerequisites-windows) below) **or use the installer/portable (x64) version** that is included in every new release (since v2.1.0). A full **[user manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** (also as [PDF](Mousiki_User_Manual/Mousiki_User_Guide.pdf)) walks through every entry of the in-app cheat sheet, every settings tab and every overlay. For a quick start, see [Getting started](#getting-started) below: set a path for your music files first, then go through the first basic keys of the music player. The manual has a short intro as well.  
 
-This fork exists because the original targets POSIX (Linux/macOS/Termux) and had no Windows build path so far. The Windows build uses no WSL, no MSYS runtime, no POSIX emulation layer, just a plain `mousiki.exe` built against the Win32 API and WASAPI. All Windows-specific code is guarded by `_WIN32`, so the very same sources also build on Linux (PulseAudio/PipeWire/ALSA) and macOS (CoreAudio) with the included `setup.sh`. Porting the original repository surfaced a long list of platform differences beyond the obvious ones, plus a small number of pre-existing bugs in the original codebase that had nothing to do with Windows and got fixed along the way.
+<table>
+<tr><td colspan="3"><hr></td></tr>
+<tr><td align="center" valign="bottom"><b>Music player</b></td><td align="center" valign="bottom"><b>Radio mode</b></td><td align="center" valign="bottom"><b>Audio book mode</b></td></tr>
+<tr><td align="center" valign="top"><img width="290" alt="Music player" src="readme_images/intro_main_ui.jpg" /></td><td align="center" valign="top"><img width="290" alt="Radio mode" src="readme_images/intro_radio_ui.jpg" /></td><td align="center" valign="top"><img width="290" alt="Audio book mode" src="readme_images/audio_book_main_ui.jpg" /></td></tr>
+<tr><td align="center" valign="bottom"><b>Album cover (Cover with Gradient)</b></td><td align="center" valign="bottom"><b>Video effect: Game Boy High-Res Gradient</b></td><td align="center" valign="bottom"><b>MilkDrop visuals with a video effect</b></td></tr>
+<tr><td align="center" valign="top"><img width="290" alt="Album cover (Cover with Gradient)" src="readme_images/cover_gradient.jpg" /></td><td align="center" valign="top"><img width="290" alt="Video effect: Game Boy High-Res Gradient" src="readme_images/video_effect_1.jpg" /></td><td align="center" valign="top"><img width="290" alt="MilkDrop visuals with a video effect" src="readme_images/milkdrop_with_effect.png" /></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+</table>
 
-Along the Win32 port, **a lot of minor and major additions were made too**. The major ones are a e.g. **radio player mode**, **audio book mode**, **playlist menu** to create playlists from local (or downloaded) tracks, a **meta data editor** including **fetching artist/title via AcoustID/MusicBrainz** (audio fingerprinting done via chromaprint), a **listening history** (incl. the ability to add top tracks to the playback queue), an **XY/YT mode ASCII-Braille / full res. image oscilloscope and Audacity style spectrogram** as an alternative to the lyrics ball and lyrics, a **10 band EQ with 12 presets** and the ability to create and save custom presets, enlarged **list/queue overlays**, *** Jap/Kor/Chin transliteration** and **translation**, a **sleep timer**, a **user manual** (.md and .pdf)... Minor changes/additions are e.g. a general key to shuffle to a next title (before only the next title in the list was possible or switching to shuffle mode), stereo audio playback and loudness normalization, adding paths via the settings menu, toggling the lyrics on/off via a hotkey command, an optimized search engine for Windows (searching meta data was very slow and only available 2-3 min. after starting the app), fuzzy search (e.g. "X-Files" didn't show up when searching "X Files" without the dash), a categorized cheat sheet... As mentioned, the design remained the same for obvious reasons; the design assets added are a Braille-ASCII music cassette, shown when no track is loaded, different volume bar symbols (one version acting like the changing ASCII pattern on the disk) and the default image in the audio book player... See [Features at a glance](#features-at-a-glance) below for an overview with screenshots.  
+<details>
+<summary>More animated previews</summary>
 
-The latest larger feature additions are the mentioned **[radio player mode](#radio-player)** (online radio with a tuning-dial look, presets, Radio Browser search, recording option and its own listening history) and an **[audio book player mode](#audio-book-player)** (books and chapters, showing cover images, auto-marks, bookmarks, notes you write while you listen, chapter marks and cutting of long files, its own look and settings), both part of the very same program: press `SHIFT` and `+` (the `*` character) to go to the next mode (music player → radio → audio books) and `SHIFT` and `-` to go back; the order and the modes that are on are set in the settings. The radio is closed completely when you leave it, while the player and the audio book player only wait in the background (playback paused), so coming back to them is instant.
+<p align="center"><img width="760" alt="preview" src="readme_images/mousiki_xy_mode_osci.gif" /></p>
 
-- **Original:** [github.com/itzender5820/mousiki](https://github.com/itzender5820/mousiki) — ender ([itzender5820](https://github.com/itzender5820))
-- **License:** Apache 2.0 — see [LICENSE](LICENSE)
-- **Windows port:** Steffen Schwerdtfeger ([StSchwerdtfeger](https://github.com/StSchwerdtfeger)), ported and adjusted with the help of AI tools (at first free chat versions, mostly Sonnet 5.5 set on medium and for some time MiMo V2.6; later also Claude with file and build tools in a sandbox, never on my own computer), then continuously adjusted, extended, tested, and debugged by me. I am not a professional developer of applications like this and I do not fully understand every detail of the original C++ code, but I had a lot of fun thinking my way into it and learned a lot (usually doing more data science / math coding and AI in such an extent makes little sense for me in the context of science). So far it took me around 180h over the last weeks to port it to Windows, design and add new features, test and debug (obsessively and escapistically spent my free time on it and just fell in love with the original design by itzender5820). The code quality seems good so far (from the feedback I got and my own evaluation, as far as I am capable of judging it), but there is surely room to optimize it, and reviews are welcome. So far I mostly smoothed the code to be more readable and similar to each other in general. The code is also scanned by CodeQL and tested via various test workflows, I added dependabot and weekly check on updates on the smaller third_party software that comes directly with Mousiki Plus. See the [Dependencies and security](#dependencies-and-security)chapter further below.  
+</details>
 
-*In general, a huge shout out for the great work by itzender5820 for this beautiful music player.* <3 It's the best and most fun music player I ever found. Makes me want to listen to music all the time :D 
+My current setup looks like the pictures above and below. Mousiki comes with Cascadia Mono and applies it on the Mousiki session. In case you want to use your own font, you can either adjust the config or change the settings to terminal default font in the settings under "General"->"Text and Transliteration...". The current default config.txt uses the SeriousMeowershell theme too and is built into Mousiki Plus as a default theme amongst other presets (see the themes below).
 
-<p align="center"><img width="800" alt="preview" src="readme_images/preview.gif" /></p>
+The appearance is adjusted to fit my cyber-cat themed **MeowerShell** terminal setup [(see GitHub repository for config files)](https://github.com/StSchwerdtfeger/Meower-Shell), which includes FastFetch, Oh-My-Posh and loads of recommendations for lovers of the terminal, e.g. helpful apps like yazi, fzf fuzzy search ...
 
-<p align="center"><img width="800" alt="preview" src="readme_images/mousiki_xy_mode_osci.gif" /></p>
+## Getting started
 
-My current setup looks like the previous .gif and the below images. Mousiki comes with Cascadia Mono and applies it on the Mousiki session. In case you want to use your own font, you can either adjust the config or change the settings to terminal default font in the settings under "General"->"Text and Transliteration...". The current default config.txt uses the below SeriousMeowershell theme too and is built into Mousiki Plus as a default theme amongst other presets (see images further below).
+Below is a short guide to get started, with the basic keys to know up front. For details there is the [user manual](Mousiki_User_Manual/Mousiki_User_Guide.md) (in this repo, and delivered with the installers). The manual and the help wizard are a work in progress, but in general up to date: they are re-read about every 1.5-2 weeks and checked with various tools for changes and additions. As the feature set is rather complete for what I had in mind, fewer changes are to be expected from now on.   
 
-The appearance is adjusted to fit my cyber-cat themed **MeowerShell** terminal setup [(see Gihub repository for config files)](https://github.com/StSchwerdtfeger/Meower-Shell), which includes FastFetch, Oh-My-Posh and loads of recommendations for lovers of the terminal, e.g. helpful apps like yazi, fzf fuzzy search ...
+1. **Start it.** Open a terminal (on Windows use **Windows Terminal**) and type **`mousiki`** or **`lala`**. The help wizard opens by itself on the first start (`ENTER` goes on, `ESC` closes it); `SHIFT+w` opens it again any time.
+2. **Add your music.** Press **`s`** (Settings), go to the paths tab and add your music folder. Press **`s`** again to save. Your titles appear in the list. After adding new titles to your music paths, rescan the library with **`SHIFT+r`**.
+3. **Play something.** When the focus is on the search bar or the local audio files pane (◀; change it with `TAB`), move to a song with `↑` / `↓` (`SHIFT+↑` / `SHIFT+↓` jumps a whole page) and press **`ENTER`**.
+4. **Learn the keys below.** They are the ones you will use most.
 
-<p align="center"><img width="850" height="397" alt="grafik" src="readme_images/intro_main_ui.jpg" /></p>
+| Key | What it does |
+|:---|:---|
+| **`ENTER`** | Play the highlighted title |
+| **`p`** | Pause / resume |
+| **`n`** / **`b`** | Next / previous title |
+| **`→`** / **`←`** | Seek 5 seconds forward / back |
+| **`+`** / **`-`** | Volume up / down |
+| **`/`** | Search: type a few letters of a title, artist or folder (typos are forgiven; Chinese, Korean and Japanese titles are also found by their Latin spelling) |
+| **`"`** (`SHIFT+'` on a US keyboard) | Show Japanese / Korean / Chinese text in Latin letters and back |
+| **`k`** | Karaoke mode |
+| **`,`** / **`.`** | Change the visualisations / open the lyrics field |
+| **`SHIFT+o`** / **`SHIFT+i`** | Oscilloscope / spectrogram settings |
+| **`SHIFT+p`** | Playlist editor |
+| **`SHIFT+h`** | Listening history |
+| **`SHIFT+e`** | Equalizer |
+| **`SHIFT+m`** | Meta data editor (fetches meta data from the web) |
+| **`SHIFT+r`** | Rescan the library |
+| **`SHIFT+` `+`** (German keyboard) or **`'`** (English keyboard) | Switch to the next mode (music → radio → audio books); press it again to come back, your music waits where you left it |
+| **`<`** (German keyboard) or **`SHIFT+,`** (English keyboard) | **Menu map:** every menu and overlay as an organigram with its key; move with the arrows and press `ENTER` to open the menu of a box |
+| **`?`** | Cheat sheet with every key you have bound |
+| **`SHIFT+w`** | Help wizard |
+| **`s`** | Settings |
+| **`q`** | Quit |
 
-The new main UI of the radio mode looks like the below:
-
-<p align="center"><img width="850" height="412" alt="grafik" src="readme_images/intro_radio_ui.jpg" /></p>
-
-And the audio book mode, the third one, with bookmarks, notes, cutting audio files into chapters...:
-
-<p align="center"><img width="850" alt="The main UI of the audio book mode" src="readme_images/audio_book_main_ui.jpg" /></p>
-
-
+The help wizard and the cheat sheet both have a search function, so you don't have to look through rows of commands yourself. 
 
 ## Table of contents
 
+- [Overview](#overview)
+- [Getting started](#getting-started)
+- [About this fork of Mousiki v1.0.0](#about-this-fork-of-mousiki-v100)
 - [Current Status of the Port and Modification (v5.1.0)](#current-status-of-the-port-and-modification-v510)
 - [Features at a glance](#features-at-a-glance)
   - [Music player](#music-player)
@@ -88,10 +259,25 @@ And the audio book mode, the third one, with bookmarks, notes, cutting audio fil
 - [Dependencies and security](#dependencies-and-security)
 - [Images](#images)
 
+
 ## Current Status of the Port and Modification (v5.1.0)
 
-For now the Mousiki port works well and also includes everything I at least wanted and made sense to me for a music player, so there might be no further major releases that add new features, except of bug-fixes that might appear to me or others in the future (feel free to start discussions or report issues!!). I might adjust the code to be more polished / robust and might optimize the setup release (Win version results currently in ~250MB size, setup itself ~80MB, portable .zip ~100MB)... Since v2.5.0 my version of Mousiki also builds on macOS/Linux again (`setup.sh`), which is a first step towards making it potentially integratable into the main branch of the original project (which still seems way too hard after dozens of comments in the last two weeks, at least from my perspective). The Linux/macOS builds are less tested than the Windows one, so reports from users on those platforms would help finalize it more. 
+For now the Mousiki port and feature expansion works well and also includes everything I at least wanted and made sense to me for a music player, so there might be no further major releases that add new features, except of bug-fixes that might appear to me or others in the future (feel free to start discussions or report issues!!). I might adjust the code to be more polished / robust and might optimize the setup release (Win version results currently in ~250MB size, setup itself ~80MB, portable .zip ~100MB)... Since v2.5.0 my version of Mousiki also builds on macOS/Linux again (`setup.sh`). The Linux (mostly WSL) macOS (some tests, but e.g. not for the recent projectM integration of b5.1.0) builds are less tested than the Windows one, so reports from users on those platforms would help finalize it more. 
 Concerning potential new features: the online-radio function is now included (see [radio mode](#radio-player)); a mixtape creator would be cool, but I'll see. Again, feel free to give feedback in the discussions, report issues you might experience using this modified port or contributing in any other way...
+
+## About this fork of Mousiki v1.0.0
+
+This fork exists because the original targets POSIX (Linux/macOS/Termux) and had no Windows build path so far. The Windows build uses no WSL, no MSYS runtime, no POSIX emulation layer, just a plain `mousiki.exe` built against the Win32 API and WASAPI. All Windows-specific code is guarded by `_WIN32`, so the very same sources also build on Linux (PulseAudio/PipeWire/ALSA) and macOS (CoreAudio) with the included `setup.sh`. Porting the original repository surfaced a long list of platform differences beyond the obvious ones, plus a small number of pre-existing bugs in the original codebase that had nothing to do with Windows and got fixed along the way.
+
+Along the Win32 port, **a lot of minor and major additions were made too**. The major ones are a e.g. **radio player mode**, **audio book mode**, **playlist menu** to create playlists from local (or downloaded) tracks, a **meta data editor** including **fetching artist/title via AcoustID/MusicBrainz** (audio fingerprinting done via chromaprint), a **listening history** (incl. the ability to add top tracks to the playback queue), an **XY/YT mode ASCII-Braille / full res. image oscilloscope and Audacity style spectrogram** as an alternative to the lyrics ball and lyrics, a **10 band EQ with 12 presets** and the ability to create and save custom presets, enlarged **list/queue overlays**, *** Jap/Kor/Chin transliteration** and **translation**, a **sleep timer**, a **user manual** (.md and .pdf)... Minor changes/additions are e.g. a general key to shuffle to a next title (before only the next title in the list was possible or switching to shuffle mode), stereo audio playback and loudness normalization, adding paths via the settings menu, toggling the lyrics on/off via a hotkey command, an optimized search engine for Windows (searching meta data was very slow and only available 2-3 min. after starting the app), fuzzy search (e.g. "X-Files" didn't show up when searching "X Files" without the dash), a categorized cheat sheet... As mentioned, the design remained the same for obvious reasons; the design assets added are a Braille-ASCII music cassette, shown when no track is loaded, different volume bar symbols (one version acting like the changing ASCII pattern on the disk) and the default image in the audio book player... See [Features at a glance](#features-at-a-glance) below for an overview with screenshots.  
+
+The latest larger feature additions are the mentioned **[radio player mode](#radio-player)** (online radio with a tuning-dial look, presets, Radio Browser search, recording option and its own listening history) and an **[audio book player mode](#audio-book-player)** (books and chapters, showing cover images, auto-marks, bookmarks, notes you write while you listen, chapter marks and cutting of long files, its own look and settings), both part of the very same program: press `SHIFT` and `+` (the `*` character) to go to the next mode (music player → radio → audio books) and `SHIFT` and `-` to go back; the order and the modes that are on are set in the settings. The radio is closed completely when you leave it, while the player and the audio book player only wait in the background (playback paused), so coming back to them is instant.
+
+- **Original:** [github.com/itzender5820/mousiki](https://github.com/itzender5820/mousiki) — ender ([itzender5820](https://github.com/itzender5820))
+- **License:** Apache 2.0 — see [LICENSE](LICENSE)
+- **Windows port:** Steffen Schwerdtfeger ([StSchwerdtfeger](https://github.com/StSchwerdtfeger)), ported and adjusted with the help of AI tools (at first free chat versions, mostly Sonnet 5.5 set on medium and for some time MiMo V2.6; later also Claude with file and build tools in a sandbox, never on my own computer), then continuously adjusted, extended, tested, and debugged by me. I am not a professional developer of applications like this and I do not fully understand every detail of the original C++ code, but I had a lot of fun thinking my way into it and learned a lot (usually doing more data science / math coding and AI in such an extent makes little sense for me in the context of science). So far it took me around 180h over the last weeks to port it to Windows, design and add new features, test and debug (obsessively and escapistically spent my free time on it and just fell in love with the original design by itzender5820). The code quality seems good so far (from the feedback I got and my own evaluation, as far as I am capable of judging it), but there is surely room to optimize it, and reviews are welcome. So far I mostly smoothed the code to be more readable and similar to each other in general. The code is also scanned by CodeQL and tested via various test workflows, I added dependabot and weekly check on updates on the smaller third_party software that comes directly with Mousiki Plus. See the [Dependencies and security](#dependencies-and-security)chapter further below.  
+
+*In general, a huge shout out for the great work by itzender5820 for this beautiful music player.* <3 It's the best and most fun music player I ever found. Makes me want to listen to music all the time :D 
 
 ## Features at a glance
 
@@ -99,86 +285,143 @@ Everything below is in the current version (v5.1.0) and works the same on Window
 
 ### Music player
 
-- **Local library** from as many folders as you like (MP3, FLAC, WAV, ALAC, M4A, OGG, OPUS, AAC, tracker modules, console and C64 music ...), sorted by folder, title, artist or length, with **fuzzy search** over file names and tags (shared between up to 4 threads in a big library; the tags of MP3, FLAC, Ogg / Opus, M4A and WAV files are read in the program, without an `ffprobe` process per file) (`/` and the prefixes `/a:` artist, `/r:` ... ); **`/c:` turns the search bar into a command line (the library pane shows the history and replies)** for Mousiki (`next`, `volume 60`, `play <words>`, `queue <words>`, `status` ...), also the bottom pane of the console (`t`); `CTRL+RIGHT` completes; a **script overlay** (library + editor, `open scripts`, `/cs:` searches the scripts); chains with `;`, timers (`in 45m pause`), aliases, scripts (`<config>/cli/*.cli`, `startup.cli`), `set`/`get`; **every command answers with what happened** (`paused: Tonight, Tonight - The Smashing Pumpkins  01:23/04:14  vol 60%`), **event hooks** (`hooks.cli`: `on track-change = ...`), the radio has its own command line (`tune`, `stations`, `live`, aliases, `set`, hooks ...) with the same `c:` / `cs:` search-bar line, script overlay and a console on `SHIFT+c`; from outside `mousiki --query get volume`, `--cli`, `--run`, `--status --json` and, with `RemoteAppCli=true`, an **HTTP endpoint** (`/api/cli`, PIN, restricted command set) for Home Assistant.
+Local library with fuzzy search, a command line and scripts, YouTube / SoundCloud / Bandcamp download, a queue, album covers and a video mode with 41 retro effects.
+
+<details>
+<summary>Details and screenshots</summary>
+
+- **Local library** from as many folders as you like (MP3, FLAC, WAV, ALAC, M4A, OGG, OPUS, AAC, tracker modules, console and C64 music ...), sorted by folder, title, artist or length, with **fuzzy search** over file names and tags (shared between up to 4 threads in a big library; the tags of MP3, FLAC, Ogg / Opus, M4A and WAV files are read in the program, without an `ffprobe` process per file) (`/` and the prefixes `/a:` album, `/r:` artist ...). 
 - **Online:** search, stream and **download** from YouTube, SoundCloud and Bandcamp (yt-dlp), whole YouTube playlists in one go (bulk add), with a shared download archive.
 - **Queue** with lock, undo and "save as playlist", big list / folder / queue overlays (the queue overlay has its own search bar), play modes list, repeat, shuffle, stop and queue-then-stop, and a shuffle-next key.
-- **Meta data panel** with the spinning braille disk, waveform progress bar, spectrum bars and the dummy buttons of the original design.
-- **Album covers** in the disk's place (Settings → GENERAL → *Album Cover*, off by default): the picture inside the audio file or a picture in its folder whose name is close to the track's title or album (a fuzzy match, so one folder can hold the covers of several albums), shown as a real image in Kitty / Sixel terminals (braille dots otherwise): just the cover, the cover under the disk's moving gradient, or the grey cover in full resolution **behind the turning disk** (dark parts of a cover are lifted so the disk's silhouette never disappears), whose braille dots become pinholes the cover shines through (also with the dots themselves turning, or with the disk's full animation, the dots that come and go); the phone remote shows the cover too. Folder pictures can be jpg, png, webp, bmp, gif, tiff, avif, heic, jxl and more. *Cover Contrast* adds contrast to the picture, *Cover Search* sets where to look first (file or folder, or only one of them; any picture in the folder is the last resort). **Cover fetch** (`ALT+c`): a menu that lists the albums of your library (missing covers highlighted), fetches the front cover of the albums you put on its list from MusicBrainz / the Cover Art Archive once per album and saves it in a `fetched_covers` folder inside the album's folders (filters for missing, failed and recently fetched covers; `SHIFT+r` rescans the library); the meta editor shows the cover of the track and its *Cover Options* button picks another picture for a single track. Its *Style Option* button sets the look, contrast, brightness and colors per track (with a live preview); `SHIFT+s` opens it for the playing track straight from the main screen. On wide terminals the GENERAL and ANIMA/VIZ settings tabs show a **live preview of the highlighted option** (lyrics, disk/cover, volume bar, bars, waveform, oscilloscope, spectrogram, sphere, video, MilkDrop, transliteration, emoji, marquee).
+- **Meta data panel** with the spinning braille disk, waveform progress bar, spectrum bars and the dummy buttons of the original design; meta data can be fetched via AcoustID / MusicBrainz.
+- **Album covers** in the disk's place or behind the disk; they can also be fetched via MusicBrainz / the Cover Art Archive.
+- **`/c:` turns the search bar into a command line (the library pane shows the history and replies)** for Mousiki (`next`, `volume 60`, `play <words>`, `queue <words>`, `status` ...), can also be found in the bottom pane of the console/log/status message overlay (`t`); `CTRL+RIGHT` completes; a **script overlay** (library + editor, `open scripts`, `/cs:` searches the scripts); chains with `;`, timers (`in 45m pause`), aliases, scripts (`<config>/cli/*.cli`, `startup.cli`), `set`/`get`; **every command answers with what happened** (`paused: Tonight, Tonight - The Smashing Pumpkins  01:23/04:14  vol 60%`), **event hooks** (`hooks.cli`: `on track-change = ...`), the radio has its own command line (`tune`, `stations`, `live`, aliases, `set`, hooks ...) with the same `c:` / `cs:` search-bar line, script overlay and a console on `SHIFT+c`; from outside `mousiki --query get volume`, `--cli`, `--run`, `--status --json` and, with `RemoteAppCli=true`, an **HTTP endpoint** (`/api/cli`, PIN, restricted command set) for Home Assistant.
 
-| |
-|:---:|
-| <img width="600" alt="Album cover, Just Cover" src="readme_images/cover.jpg" /><br>**Just Cover** |
-| <img width="600" alt="Album cover, Cover with Gradient" src="readme_images/cover_gradient.jpg" /><br>**Cover with Gradient** |
-| <img width="600" alt="Album cover, Cover behind Disk" src="readme_images/cover_behind_disk.jpg" /><br>**Cover behind Disk** |
+<table>
+<tr><td align="center" valign="bottom"><b>Just Cover</b></td><td align="center" valign="bottom"><b>Cover with Gradient</b></td><td align="center" valign="bottom"><b>Cover behind Disk</b></td></tr>
+<tr><td align="center" valign="top"><img width="290" alt="Just Cover" src="readme_images/cover.jpg" /></td><td align="center" valign="top"><img width="290" alt="Cover with Gradient" src="readme_images/cover_gradient.jpg" /></td><td align="center" valign="top"><img width="290" alt="Cover behind Disk" src="readme_images/cover_behind_disk.jpg" /></td></tr>
+</table>
 
 - **Video mode** (`&`, else `SHIFT+y`): video files (mp4, mkv, webm ...) join the library, and the field shows a track's video with the current lyric line under it. A sound file can be paired with a video (same name, by hand with *Manually Couple Local Files* (`[ Video Option ]` in the meta editor), or downloaded); **Search YT** (`/yv:`) finds and previews videos on YouTube, and **Fetch Videos** (`ALT+v`) downloads the chosen ones for the songs that have none. Needs ffmpeg and yt-dlp.
 
-The picture can get a **retro look** (*Effect* in the VIDEO SETTINGS overlay, *Video Effect* in Settings → ANIMA/VIZ, per track in Style Option, `g` steps through them): Scanlines, CRT, VHS, LaserDisc, Interlace, Glitch, Phosphor Green (also a *Glow* version) / Amber, Thermal, Vector, Neon Edge, Film, Silent Film, Technicolor, Risograph, Halftone (also in CMYK, also a fine High-Res version), Dither (B/W and Gradient), Pixel, Game Boy, EGA 16, CGA, ZX Spectrum, Amstrad CPC, C64, Amiga HAM, Teletext (+ High-Res), ASCII and more -- 41 looks in all, made as the old hardware made the picture; `ENTER` on a Video Effect row opens the list of all of them in the middle of the window, in two columns with a large live preview -- and a **Base Layer** under the tube looks (scanlines, aperture grille, shadow mask, slot mask, clean), an **Effect Contrast** (full, reduced, low: how hard the blacks of the photographic looks are -- `reduced` by default, so Gradient and Glitch do not fall to black; for the two Halftone CMYK looks the strength of the print, 100 / 70 / 50 %; the other palette looks never change), plus Contrast, Colors and Chromatic Aberration. The looks that dither (and the 256-colour picture of sixel) take a **Dither Pattern**: interleaved noise (the default), blue noise, Bayer 2x2 / 4x4 / 8x8, golden ratio. The same video with Game Boy High-Res Gradient, without an effect and with Dither B/W:
+The picture (it also applies to MilkDrop visuals) can get a **retro look** via Effects (*Effect* in the VIDEO SETTINGS overlay, *Video Effect* in Settings → ANIMA/VIZ, per track in Style Option, `g`/`h` steps through them in the main UI). Current Effects are: Scanlines, CRT, VHS, LaserDisc, Interlace, Glitch, Phosphor Green (also a *Glow* version) / Amber, Thermal, Vector, Neon Edge, Film, Silent Film, Technicolor, Risograph, Halftone (also in CMYK, also a fine High-Res version), Dither (B/W and Gradient), Pixel, Game Boy, EGA 16, CGA, ZX Spectrum, Amstrad CPC, C64, Amiga HAM, Teletext (+ High-Res), ASCII and more...
 
 **Frame rate and timing:** *Video Frame Rate* (Settings and the VIDEO SETTINGS overlay) decodes at 25 pictures a second (the default) or at the video's own rate up to 60 (smoother; up to 2.4 times the work). Every picture is shown at its due moment against the sound's clock, and a slow terminal (Sixel) no longer holds up the program: pictures go out from a writer thread, always the newest one the terminal can take.
 
-| |
-|:---:|
-| <img width="600" alt="Video effect: Game Boy High-Res Gradient" src="readme_images/video_effect_1.jpg" /><br>**Game Boy High-Res Gradient** |
-| <img width="600" alt="The video without an effect (Effect: Off)" src="readme_images/video_effect_2.jpg" /><br>**No effect (Off)** |
-| <img width="600" alt="Video effect: Dither B/W" src="readme_images/video_effect_3.jpg" /><br>**Dither B/W** |
+<table>
+<tr><td align="center" valign="bottom"><b>Game Boy High-Res Gradient</b></td><td align="center" valign="bottom"><b>No effect (Off)</b></td><td align="center" valign="bottom"><b>Dither B/W</b></td></tr>
+<tr><td align="center" valign="top"><img width="290" alt="Game Boy High-Res Gradient" src="readme_images/video_effect_1.jpg" /></td><td align="center" valign="top"><img width="290" alt="No effect (Off)" src="readme_images/video_effect_2.jpg" /></td><td align="center" valign="top"><img width="290" alt="Dither B/W" src="readme_images/video_effect_3.jpg" /></td></tr>
+</table>
 
-<p align="center"><img width="850" alt="Video mode: the video in the visualization field with the current lyric line under it" src="readme_images/video_with_lyrics.jpg" /></p>
+</details>
 
 ### Visualizations
 
-<p align="center"><img width="850" alt="Oscilloscope music in XY mode in the visualization field (theme Vaporwave)" src="readme_images/theme_vaporwave.jpg" /></p>
-<p align="center"><img width="850" alt="The big oscilloscope overlay: YT and XY at once (theme Dracula)" src="readme_images/theme_dracula.jpg" /></p>
-<p align="center"><img width="850" alt="The oscilloscope in image mode (Kitty / Sixel terminals): YT and XY with oscilloscope music (theme Outrun)" src="readme_images/osci_image.jpg" /></p>
+XY / YT oscilloscope (also as oscilloscope music), Hi-Fi spectrum bars, 2D and 3D spectrogram, the lyric sphere and MilkDrop visuals, plus a text-to-sound Creator.
+
+<details>
+<summary>Details and screenshots</summary>
+
+<table>
+<tr><td align="center" valign="bottom"><b>Oscilloscope music in XY mode in the visualization field (theme Vaporwave)</b></td><td align="center" valign="bottom"><b>The big oscilloscope overlay: YT and XY at once (theme Dracula)</b></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="Oscilloscope music in XY mode in the visualization field (theme Vaporwave)" src="readme_images/theme_vaporwave.jpg" /></td><td align="center" valign="top"><img width="420" alt="The big oscilloscope overlay: YT and XY at once (theme Dracula)" src="readme_images/theme_dracula.jpg" /></td></tr>
+<tr><td align="center" valign="bottom"><b>The oscilloscope in image mode (Kitty / Sixel terminals): YT and XY with oscilloscope music (theme Outrun)</b></td><td></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="The oscilloscope in image mode (Kitty / Sixel terminals): YT and XY with oscilloscope music (theme Outrun)" src="readme_images/osci_image.jpg" /></td><td></td></tr>
+</table>
 
 - **Oscilloscope** in braille or as a real picture (Kitty / Sixel terminals): XY, YT and both together, a CRT beam with afterglow for **oscilloscope music**, grid, metrics and many tuning rows (`SHIFT+o`); full screen (`=`) and its own window (`)`).
 - **Creator** (`^`): turns a text into sound – **oscilloscope music** that draws the text on the XY scope, or a **spectrogram sound** that plays it as notes of a musical scale (so it always sounds pleasant) – saved as a WAV, played in a looping full-screen preview, and listed under *Created files* to open again. The folder with creations is excluded from the library scan, since at the oscilloscope version don't sound pleasant :D A second mode shows your **microphone live** (spectrogram or oscilloscope XY / YT, grid optional) and records it with `ENTER`.
 - **Hi-Fi spectrum bars**: *Bars Style* = Hi-Fi turns the bars under the meta data into a Winamp-like **stereo** analyzer in braille dots, without gaps and at the frame rate of the program. Resolution (fine/rough), channels (stereo/mono) and colour (gradient/corresponding to the spectrogram) are options.
 - **Spectrogram** in the field, over the whole screen (`SHIFT+u`) and in its own window (`(`), with its own options (`SHIFT+i`). Its *View* row switches to a **waterfall**: a stack of outlined, colour-filled spectra, the newest in front. Spectrogram and waterfall, image and braille, each keep their own values (colours, scale, gain ...). Its memory follows the picture (about 11 MB at the default 30 s span, allocated only once sound reaches it); *Keep Spectrogram History* = false analyses only while one is shown and gives the memory back after ten seconds.
 - **Lyric sphere** and **spectrum bars**; the visualization field cycles with `.`. The sphere turns on while a track is paused, or stops with it (*Pause Sphere*, ANIMA/VIZ -> SPHERE). With *Auto-Play* off (the default, GENERAL -> AUDIO) the track the player opens with stands paused until you press play.
-- **MilkDrop visuals** (Linux, Windows and macOS; `setup.sh` installs projectM and the presets; they are drawn with OpenGL and run best on a graphics chip, integrated or dedicated, with a working driver; without one the processor draws them, slowly): thousands of Winamp-style presets in the visualization field, fed straight from Mousiki's audio; `:` opens their overlay, and its preset overlay browses the preset folders with a live preview and a Favourites folder (*Shuffle Favourites* plays only those). They also fill the big video overlay (`v`, then `m`: five layouts, from the visuals alone to a quartet of oscilloscope, visuals, video and spectrogram), and a track's Style Option can switch them on for it and pin a preset. The radio (scope block) and the audio book player have them too, with the same `:` overlay.
+- **MilkDrop visuals** (Linux, Windows and macOS; `setup.sh` installs projectM and the presets; they are drawn with OpenGL and run best on a graphics chip, integrated or dedicated, with a working driver; without one the processor draws them, slowly): thousands of Winamp-style presets in the visualization field, fed straight from Mousiki's audio; `:` opens their overlay, and its preset overlay browses the preset folders with a live preview and a Favourites folder (*Shuffle Favourites* plays only those). They also fill the big video overlay (`v`, then `m`: five layouts, from the visuals alone to a quartet of oscilloscope, visuals, video and spectrogram), and a track's Style Option can switch them on for it and pin a preset. The radio (scope block) and the audio book player have them too, with the same `:` overlay and MilkDrop settings.
 
-<p align="center"><img width="850" alt="MilkDrop in the visualization field with a video effect over the visuals" src="readme_images/milkdrop_with_effect.png" /></p>
+<table>
+<tr><td align="center" valign="bottom"><b>MilkDrop in the visualization field with a video effect over the visuals</b></td><td align="center" valign="bottom"><b>The spectrogram in image mode in the visualization field, both channels</b></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="MilkDrop in the visualization field with a video effect over the visuals" src="readme_images/milkdrop_with_effect.png" /></td><td align="center" valign="top"><img width="420" alt="The spectrogram in image mode in the visualization field, both channels" src="readme_images/spectrogram_inapp.jpg" /></td></tr>
+<tr><td align="center" valign="bottom"><b>The spectrogram in image mode over the whole screen, both channels (theme Tokyo Night)</b></td><td align="center" valign="bottom"><b>The waterfall view of the spectrogram in image mode: filled graphs with a black outline</b></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="The spectrogram in image mode over the whole screen, both channels (theme Tokyo Night)" src="readme_images/spectro_image.jpg" /></td><td align="center" valign="top"><img width="420" alt="The waterfall view of the spectrogram in image mode: filled graphs with a black outline" src="readme_images/waterfall_image.jpg" /></td></tr>
+<tr><td align="center" valign="bottom"><b>The waterfall view of the spectrogram in braille mode: coloured outlines</b></td><td></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="The waterfall view of the spectrogram in braille mode: coloured outlines" src="readme_images/waterfall_braille.jpg" /></td><td></td></tr>
+</table>
 
-<p align="center"><img width="850" alt="The spectrogram in image mode in the visualization field, both channels" src="readme_images/spectrogram_inapp.jpg" /></p>
-<p align="center"><img width="850" alt="The spectrogram in image mode over the whole screen, both channels (theme Tokyo Night)" src="readme_images/spectro_image.jpg" /></p>
-<p align="center"><img width="850" alt="The waterfall view of the spectrogram in image mode: filled graphs with a black outline" src="readme_images/waterfall_image.jpg" /></p>
-<p align="center"><img width="850" alt="The waterfall view of the spectrogram in braille mode: coloured outlines" src="readme_images/waterfall_braille.jpg" /></p>
+</details>
 
 ### Lyrics and Karaoke mode
 
+Synchronized lyrics with word-by-word animation, a timing editor, translations and a full-screen karaoke mode (also for Japanese, Chinese and Korean).
+
+<details>
+<summary>Details and screenshots</summary>
+
 - **Synchronized lyrics** fetched for local and online tracks, word-by-word animations, a timing editor for the offset (`ALT+L`), several versions kept per song.
 
-<p align="center"><img width="850" alt="Synchronized lyrics on the main screen" src="readme_images/lyrics_main_ui.jpg" /></p>
+<table>
+<tr><td align="center" valign="bottom"><b>Synchronized lyrics on the main screen</b></td><td></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="Synchronized lyrics on the main screen" src="readme_images/lyrics_main_ui.jpg" /></td><td></td></tr>
+</table>
 
 - **Read lyrics** with **translations** (`CTRL+L`; `SHIFT+e` writes or corrects a translation by hand, saved as "Manual Translation") and a full-screen **karaoke mode** with big braille letters (also Japanese, Chinese and Korean).
 
 - **Karaoke mode** open via `k`.
   
-<p align="center"><img width="850" alt="Karaoke mode" src="readme_images/changes_19_2.jpg" /></p>
+<table>
+<tr><td align="center" valign="bottom"><b>Karaoke mode</b></td><td></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="Karaoke mode" src="readme_images/changes_19_2.jpg" /></td><td></td></tr>
+</table>
+
+</details>
 
 ### Playlists, meta data, history, conversion
+
+Playlist editor with M3U import / export, Latin letters for Japanese / Korean / Chinese, a meta data editor with fingerprint fetch, listening history and file conversion.
+
+<details>
+<summary>Details and screenshots</summary>
+
 - **Playlist editor** (`SHIFT+p`): create and edit playlists from local or downloaded tracks (library sortable with `SHIFT+t`, `/f:` searches folders), import and export M3U / M3U8 (tracks of a list from another computer are found in your library by file name, then by fuzzy title + artist, also via the Latin spelling of Japanese / Korean / Chinese).
 
-<p align="center"><img width="850" alt="The playlist editor" src="readme_images/changes_09.jpg" /></p>
+<table>
+<tr><td align="center" valign="bottom"><b>The playlist editor</b></td><td></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="The playlist editor" src="readme_images/changes_09.jpg" /></td><td></td></tr>
+</table>
 
 - **Latin letters** (`"`, i.e. `SHIFT+'` on a US keyboard; in the radio mode too, for station names and titles): shows Japanese, Korean and Chinese titles, tags, file names, lyrics and karaoke in Latin letters (romaji, Revised Romanization, pinyin) and back. On the main screen, while synced lyrics with a saved translation run in the lyrics field, the key goes round four stops: the lyrics, in Latin letters, the lyrics + the translation, in Latin letters + the translation. Kanji are only converted when the text is known to be Chinese; a name written both ways (`Kaneko Ayano カネコアヤノ`) shows its Latin part; pairs are learned from your own folder and file names, and the search finds such titles by their Latin spelling. Optional and local: with the separate `pykakasi` package installed, kanji in Japanese text are read too; an opt-in setting (Settings → GENERAL → MODES → *Latin Name Lookup*, off by default) asks MusicBrainz for the Latin name of artists written in Chinese characters (it sends those artist names, and so your IP address, to musicbrainz.org - nothing else).
 - **Meta data editor** (`SHIFT+m`): edit tags, rename files, and **fetch missing tags by audio fingerprint** (AcoustID / MusicBrainz) for one title or a whole list.
   
-<p align="center"><img width="850" alt="The meta data editor, fetch list" src="readme_images/changes_11.jpg" /></p>
-<p align="center"><img width="850" alt="Listening history, top tracks" src="readme_images/history_top_tracks.jpg" /></p>
+<table>
+<tr><td align="center" valign="bottom"><b>The meta data editor, fetch list</b></td><td align="center" valign="bottom"><b>Listening history, top tracks</b></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="The meta data editor, fetch list" src="readme_images/changes_11.jpg" /></td><td align="center" valign="top"><img width="420" alt="Listening history, top tracks" src="readme_images/history_top_tracks.jpg" /></td></tr>
+</table>
 
 - **File conversion** between audio formats.
 - **Listening history** (`SHIFT+h`): history, top tracks, top playlists and listening habits, plus **smart lists** to queue (top 25 of the week, by time of day ...).
 
+</details>
+
 ### Sound
+
+10-band equalizer with presets, loudness normalization, stereo / mono, sleep timer and gapless playback.
+
+<details>
+<summary>Details and screenshots</summary>
 
 - **10-band equalizer** with 12 presets and your own presets, **loudness normalization**, stereo / mono, a **sleep timer**.
 - **Gapless playback** (off by default): *album* plays the tracks of an album (same sample rate and channels) into each other without a single silent sample, *full* every automatic change to the next local track.
 
-<p align="center"><img width="850" alt="The 10-band equalizer" src="readme_images/equalizer.jpg" /></p>
+<table>
+<tr><td align="center" valign="bottom"><b>The 10-band equalizer</b></td><td></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="The 10-band equalizer" src="readme_images/equalizer.jpg" /></td><td></td></tr>
+</table>
+
+</details>
 
 ### Radio player
+
+Radio Browser search, 16 presets, station lists, timeshift, recording and its own listening history.
+
+<details>
+<summary>Details and screenshots</summary>
 
 The radio is part of the same program: `*` (`SHIFT` and `+` on a German keyboard, the `'` key on an English one) goes to the next mode, `_` (`SHIFT` and `-`; the `;` key on an English one) to the previous one.
 
@@ -186,65 +429,110 @@ The radio is part of the same program: `*` (`SHIFT` and `+` on a German keyboard
 - **Radio Browser** search through tens of thousands of stations, **16 presets** in several preset lists, **station lists**, a big stations overlay.
 - **Timeshift** (pause, jump back, back to live), **recording** (also from the past buffer), its own **listening history**, and finding the current song on YouTube to download it.
 
-<p align="center"><img width="850" alt="The radio player, tuned to a station (theme Cyberpunk)" src="readme_images/theme_cyberpunk.jpg" /></p>
+<table>
+<tr><td align="center" valign="bottom"><b>The radio player, tuned to a station (theme Cyberpunk)</b></td><td align="center" valign="bottom"><b>The radio's presets menu</b></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="The radio player, tuned to a station (theme Cyberpunk)" src="readme_images/theme_cyberpunk.jpg" /></td><td align="center" valign="top"><img width="420" alt="The radio's presets menu" src="readme_images/radio_presets.jpg" /></td></tr>
+</table>
 
-<p align="center"><img width="850" alt="The radio's presets menu" src="readme_images/radio_presets.jpg" /></p>
+</details>
 
 ### Audio book player
+
+Books and chapters (also M4B), covers, auto-marks, bookmarks and notes, chapter marks and cutting of long files.
+
+<details>
+<summary>Details and screenshots</summary>
 
 The audio book player is the third mode, switched to with the same key as to the other modes (`SHIFT` and `+`; `SHIFT` and `-` goes back). **Settings → GENERAL → MODES** switches modes off (one always stays on) and changes their order; **Settings → PATHS → AUDIO BOOK PATH** is the folder of your books (shown in every mode). Files/folders placed there won't show up in the music player mode...
 
 - **Books and chapters:** the left pane of the audio book player lists only the books (folders), the right pane takes the place of the queue and lists the chapters of the open book. `n` / `b` and the end of a chapter walk the chapters.
-- **Book covers or a beautiful default image as placeholder** take the place of the disk (a grey version of a colour picture): where the terminal speaks Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm ...) a real transparent pixel image of the book cover or an default image at full resolution will be shown (a terminal without them gets braille dots; Settings → GENERAL → *Book Cover* (`BookCover`) shows the cover image from the book's folder, scaled to fit and centred, with a colour wave or, with *Gradient Wave* off, in its own colours). Original default placeholder image by Kamara Rahmat (iyaniyan) from Unsplash (https://unsplash.com/de/grafiken/young-woman-reading-a-blue-book-on-a-blanket-outdoors-brNfZ1TdBN0).
-- **Time stamps:** three kinds are available - the **auto-mark** (written by itself every few seconds while you listen and when you leave: `REM AUTOMARK`), any number of manually set **bookmarks** (`SHIFT+b`, numbered Bookmark 1, 2 …: `REM BOOKMARK`; changing the chapter, switching the mode or quitting first asks whether to set one, the audio pauses meanwhile; can be turned off when it gets annoying) and **notes** (bookmarks with a text of your choice). `ENTER` on a chapter that was left but not bookmarked asks *continue where you left?* (`y` continue - the only answer that starts the chapter, `n` leave and keep the auto-mark, `b` convert the auto-mark to a bookmark and leave); with any bookmark it offers continuing playback on the spot / 10 / 20 / 30 / 60 s before / the start; with several time stamps given it lists them. 
+- **Book covers or a default image as placeholder** take the place of the disk (a grey version of a colour picture): where the terminal speaks Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm ...) a real transparent pixel image of the book cover or a default image at full resolution will be shown (a terminal without them gets braille dots; Settings → GENERAL → *Book Cover* (`BookCover`) shows the cover image from the book's folder, scaled to fit and centred, with a colour wave or, with *Gradient Wave* off, in its own colours). Original default placeholder image by Kamara Rahmat (iyaniyan) from Unsplash (https://unsplash.com/de/grafiken/young-woman-reading-a-blue-book-on-a-blanket-outdoors-brNfZ1TdBN0).
+- **Time stamps:** three kinds are available - the **auto-mark** (written by itself every few seconds while you listen and when you leave: `REM AUTOMARK`), any number of manually set **bookmarks** (`SHIFT+b`, numbered Bookmark 1, 2) and **notes** (bookmarks with a text note of your choice). 
 - **Book notes:** `SHIFT+n` writes a note at the current time (title, then the text, in the field of the visualizations), `SHIFT+s` saves it to `<book folder>/<folder>_notes.txt`; `SHIFT+l` opens all notes in a big overlay (list left, the note right; `t` edits and `n` writes a note right there), `SHIFT+p` plays from a note, `SHIFT+e` / `SHIFT+i` export / import. A note appears in the field when playback passes it. 
-- **Bookmark list, library, reading history:** `SHIFT+k` lists the auto-marks, bookmarks and notes of every book with a TYPE column (`ENTER` resumes, `SHIFT+p` plays from it, `SHIFT+d` discards one after a warning, `CTRL+SHIFT+u` brings it back, `SHIFT+b` turns an auto-mark into a bookmark, `SHIFT+t` sorts by date or by book and progress); `SHIFT+s` is a big library overlay (search pane + books, `ENTER` inserts the chapters of a book); `SHIFT+h` is the reading history (`reading_history.json`). Notes are stamped at the moment `SHIFT+n` is pressed.
-- **M4B and embedded chapters:** an `.m4b` (or `.mka`, or an MP3 with chapter frames) lists the chapters **inside** the file as rows of the chapter pane, with their own titles and lengths, like separate files: `n` / `b` and `ENTER` jump to them, "repeat" and "stop after the chapter" work per chapter, bookmarks and notes show up on the chapter that holds them. More audio formats are listed now too (`.m4b .aiff .ape .wv .mka .mp2 .ac3 .dsf .mpc .wma`).
-- **Chapter marks and cutting:** `ALT+l` sets chapter marks while you listen (`m`, or by time `h:mm:ss`; standard titles "Chapter N", editable; seeking accelerates), `c` cuts the file at the marks with `ffmpeg -c copy` into `01 Chapter 1.wav`, … and keeps the original as `…mousiki-backup` until you delete it (`SHIFT+d`); bookmark and notes move to the new files.
-- The converter works on the books and searches folders, and the visualizations (sphere, oscilloscope, spectrogram), the equalizer, normalization and the sleep timer are the player's.
+- **Bookmark list, library, reading history:** `SHIFT+k` lists the auto-marks, bookmarks and notes of every book with a TYPE column; `SHIFT+s` is a big library overlay (search pane + books, `ENTER` inserts the chapters of a book); `SHIFT+h` is the reading history (`reading_history.json`). 
+- **M4B and embedded chapters:** an `.m4b` (or `.mka`, or an MP3 with chapter frames) lists the chapters **inside** the file as rows of the chapter pane, with their own titles and lengths, like separate files: `n` / `b` and `ENTER` jump to them, "repeat" and "stop after the chapter" work per chapter, bookmarks and notes show up on the chapter that holds them. More audio formats are listed now too (`.m4b .aiff .ape .wv .mka .mp2 .ac3 .dsf .mpc .wma`). These are not tested well so far and all run via ffmpeg, so please report bugs. 
+- **Chapter marks and cutting:** cut whole audio files (e.g. converted old cassette audio) into separate chapters
 
-<p align="center"><img width="850" alt="The audio book player: books left, chapters right, cover image, waveform and the notes field" src="readme_images/audio_book_main_ui.jpg" /></p>
-<p align="center"><img width="850" alt="The audio book player showing a note in the field of the visualizations while the playback passes it" src="readme_images/audio_book_main_ui_notes.jpg" /></p>
+<table>
+<tr><td align="center" valign="bottom"><b>The audio book player: books left, chapters right, cover image, waveform and the notes field</b></td><td align="center" valign="bottom"><b>The audio book player showing a note in the field of the visualizations while the playback passes it</b></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="The audio book player: books left, chapters right, cover image, waveform and the notes field" src="readme_images/audio_book_main_ui.jpg" /></td><td align="center" valign="top"><img width="420" alt="The audio book player showing a note in the field of the visualizations while the playback passes it" src="readme_images/audio_book_main_ui_notes.jpg" /></td></tr>
+</table>
+
+</details>
 
 ### Themes and colours
 
+32 built-in colour themes, your own themes, and colour-blind friendly themes.
+
+<details>
+<summary>Details and screenshots</summary>
+
 Mousiki comes with 32 colour themes, and you can make, edit, export and import your own (Settings → COLORS: CHOOSE THEME, CREATE THEME, `SHIFT+e` / `SHIFT+i`). `SHIFT+p` in the theme list shows a still copy of the main screen in the highlighted theme. The built-in themes use fixed colours, so they look the same in every terminal and colour scheme. Some of them:
 
-| | |
-|:---:|:---:|
-| <img width="420" alt="SeriousMeowerShell(Default)" src="readme_images/theme_default.jpg" /><br>**SeriousMeowerShell (Default)** | <img width="420" alt="MeowerShell" src="readme_images/theme_meowershell.jpg" /><br>**MeowerShell** |
-| <img width="420" alt="Vaporwave" src="readme_images/theme_vaporwave.jpg" /><br>**Vaporwave** | <img width="420" alt="Lavender Haze" src="readme_images/theme_lavender_haze.jpg" /><br>**Lavender Haze** |
-| <img width="420" alt="Cyberpunk" src="readme_images/theme_cyberpunk.jpg" /><br>**Cyberpunk** (radio) | <img width="420" alt="Dracula" src="readme_images/theme_dracula_main.jpg" /><br>**Dracula** |
+<table>
+<tr><td align="center" valign="bottom"><b>SeriousMeowerShell (Default)</b></td><td align="center" valign="bottom"><b>MeowerShell</b></td><td align="center" valign="bottom"><b>Vaporwave</b></td></tr>
+<tr><td align="center" valign="top"><img width="290" alt="SeriousMeowerShell (Default)" src="readme_images/theme_default.jpg" /></td><td align="center" valign="top"><img width="290" alt="MeowerShell" src="readme_images/theme_meowershell.jpg" /></td><td align="center" valign="top"><img width="290" alt="Vaporwave" src="readme_images/theme_vaporwave.jpg" /></td></tr>
+<tr><td align="center" valign="bottom"><b>Lavender Haze</b></td><td align="center" valign="bottom"><b>Cyberpunk</b></td><td align="center" valign="bottom"><b>Dracula</b></td></tr>
+<tr><td align="center" valign="top"><img width="290" alt="Lavender Haze" src="readme_images/theme_lavender_haze.jpg" /></td><td align="center" valign="top"><img width="290" alt="Cyberpunk" src="readme_images/theme_cyberpunk.jpg" /></td><td align="center" valign="top"><img width="290" alt="Dracula" src="readme_images/theme_dracula_main.jpg" /></td></tr>
+</table>
 
-<p align="center"><img width="850" alt="CHOOSE THEME: all built-in themes" src="readme_images/theme_picker.jpg" /></p>
-<p align="center"><img width="850" alt="CREATE THEME" src="readme_images/create_theme.jpg" /></p>
+<table>
+<tr><td align="center" valign="bottom"><b>CHOOSE THEME: all built-in themes</b></td><td align="center" valign="bottom"><b>CREATE THEME</b></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="CHOOSE THEME: all built-in themes" src="readme_images/theme_picker.jpg" /></td><td align="center" valign="top"><img width="420" alt="CREATE THEME" src="readme_images/create_theme.jpg" /></td></tr>
+</table>
 
 #### Colour-blind friendly themes
 
 Three themes are made for colour vision deficiencies: **Colorblind Deuteranopia** and **Colorblind Protanopia** (red-green: they build on blue / orange / yellow contrasts instead of red against green) and **Colorblind Tritanopia** (blue-yellow: red / cyan contrasts). **High Contrast** helps on dim screens and for low vision. Like every theme they can be a starting point for your own (CREATE THEME → CHOOSE THEME AS TEMPLATE).
 
-<p align="center"><img width="850" alt="Theme Colorblind Deuteranopia" src="readme_images/theme_colorblind.jpg" /></p>
+<table>
+<tr><td align="center" valign="bottom"><b>Theme Colorblind Deuteranopia</b></td><td></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="Theme Colorblind Deuteranopia" src="readme_images/theme_colorblind.jpg" /></td><td></td></tr>
+</table>
+
+</details>
 
 ### Help, settings and keys
 
+Help wizard, cheat sheet, menus index, settings for every key, and the user manual.
+
+<details>
+<summary>Details and screenshots</summary>
+
 - A **help wizard** (`SHIFT+w`, opens by itself after the first install), a categorized **cheat sheet** (`?`, shows the keys you actually have bound), a **menus index** (`<`: every menu and overlay as an organigram, ENTER opens one), this **[manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** (also as [PDF](Mousiki_User_Manual/Mousiki_User_Guide.pdf)).
 
-<p align="center"><img width="850" alt="The help wizard" src="readme_images/help_wizard.jpg" /></p>
+<table>
+<tr><td align="center" valign="bottom"><b>The help wizard</b></td><td></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="The help wizard" src="readme_images/help_wizard.jpg" /></td><td></td></tr>
+</table>
 
 - **Settings** (`s`) for colours, switches, animations, paths and **every key** (most keys can be rebound; a key already in use is refused). German and English keyboard layouts are detected: see [Keyboard layouts](Mousiki_User_Manual/Mousiki_User_Guide.md#keyboard-layouts-german-and-english) in the manual.
 - **Black Background**, a re-fontable UI (`A={𝓐,𝓪}` lines in `config.txt`), emoji replacement, marquee scrolling, **Share Profiles** for the visual settings of player and radio, and a backup of your settings (`config.txt.bak`) when a new version first saves them.
 
+</details>
+
 ### Remote control and phone app
 
-- **Phone remote** (Settings → GENERAL → CLI / REMOTE / UPDATES → Remote App): switch it on, scan the QR code and the phone shows a Mousiki screen drawn by Mousiki itself in your theme -- the spinning disk, meta data, working buttons, volume, playback mode, the local list and your playlists (tap: play / into the queue), clear queue, the manual, the radio with its sign, station and the whole station list (tap to tune), and the audio book player with the whole library as a folder tree (tap a chapter to play it). Any phone browser, or the Android app **Mousiki Remote** ([remote_app/](remote_app/)). PIN-protected, home network only, off by default.
-- **System media controls:** on Windows Mousiki uses the **System Media Transport Controls** (media pop-up, lock screen, media keys), on Linux it speaks **MPRIS** (media widgets, `playerctl`, media keys and headset buttons work), on macOS it shows **Now Playing** and answers the media keys; player and radio. A quiet **new-version notice** at start-up (checked once a day, a small window once per version with `[o] Go to release`, never installs anything; `UpdateCheck=false` switches it off).
+Phone remote (QR code, PIN), Android app, system media controls and a command line remote.
+
+<details>
+<summary>Details and screenshots</summary>
+
+- **Phone remote** (Settings → GENERAL → CLI / REMOTE / UPDATES → Remote App): switch it on, scan the QR code and the phone shows a Mousiki screen drawn by Mousiki itself in your theme: the spinning disk, meta data, working buttons, volume, playback mode, the local list and your playlists (tap: play / into the queue), clear queue, the manual, the radio with its sign, station and the whole station list (tap to tune), and the audio book player with the whole library as a folder tree (tap a chapter to play it). Any phone browser, or the Android app **Mousiki Remote** ([remote_app/](remote_app/)). PIN-protected, home network only, off by default.
+- **System media controls:** on Windows Mousiki uses the **System Media Transport Controls** (media pop-up, lock screen, media keys), on Linux it speaks **MPRIS** (media widgets, `playerctl`, media keys and headset buttons work), on macOS it shows **Now Playing** and answers the media keys; player and radio. A quiet **new-version notice** at start-up (checked once a day, a small window once per version with `[o] Go to release`, never installs anything; `UpdateCheck=false` switches it off). Not tested well, so please report bugs.
 - **Command line remote:** `mousiki --cmd next`, `--cmd volume 60`, `--cmd seek -30`, `mousiki --status` ... (`mousiki --cmd --help` lists all). Bind them to any keys of your system to get global media keys, also on keyboards without them.
 
-| | | |
-|:---:|:---:|:---:|
-| <img width="260" alt="The phone remote, music player" src="readme_images/phone_player.jpg" /><br>**Music player** | <img width="260" alt="The phone remote, radio" src="readme_images/phone_radio.jpg" /><br>**Radio** | <img width="260" alt="The phone remote, audio book player" src="readme_images/remote_audio_book.webp" /><br>**Audio book player** |
+<table>
+<tr><td align="center" valign="bottom"><b>Music player</b></td><td align="center" valign="bottom"><b>Radio</b></td><td align="center" valign="bottom"><b>Audio book player</b></td></tr>
+<tr><td align="center" valign="top"><img width="290" alt="Music player" src="readme_images/phone_player.jpg" /></td><td align="center" valign="top"><img width="290" alt="Radio" src="readme_images/phone_radio.jpg" /></td><td align="center" valign="top"><img width="290" alt="Audio book player" src="readme_images/remote_audio_book.webp" /></td></tr>
+</table>
 
-<p align="center"><img width="600" alt="The REMOTE APP settings with the QR code" src="readme_images/remote_overlay.jpg" /></p>
+<table>
+<tr><td align="center" valign="bottom"><b>The REMOTE APP settings with the QR code</b></td><td></td></tr>
+<tr><td align="center" valign="top"><img width="420" alt="The REMOTE APP settings with the QR code" src="readme_images/remote_overlay.jpg" /></td><td></td></tr>
+</table>
+
+</details>
 
 ## Quick start
 
@@ -336,14 +624,15 @@ MinGW-w64 (MSYS2 UCRT64) also builds this — configure with `-G "MinGW Makefile
 
 #### Fonts: the braille dots
 
-The disk, the pictures, the waveform and the oscilloscope are drawn with **braille characters**. How full and round their dots look depends on the font: the screenshots here are Windows Terminal with **Cascadia Mono**. A font without braille characters makes the terminal borrow them from another font, and the pictures turn into small, scattered dots. A Nerd Font is not needed.
+The disk, the pictures, the waveform and the oscilloscope are drawn with **braille characters**. How full and round their dots look depends on the font: the screenshots here are Windows Terminal with **Cascadia Mono** (actually CaskaydiaCove Nerd Font, for what it's worth). A font without braille characters makes the terminal borrow them from another font, and the pictures turn into small, scattered dots. A Nerd Font is not needed.
 
-Mousiki therefore uses **its own font**, **Cascadia Mono** (Settings -> *Terminal Default Font* switches that off; `TerminalFont=` in `config.txt` names another font), for its own window only and only where the terminal allows a program to do that -- your terminal settings stay as they are:
+By default Mousiki therefore uses **its own font**, **Cascadia Mono**, which gives a safe representation (Settings -> *Terminal Default Font* switches that off; `TerminalFont=` in `config.txt` names another font). It uses the font for its own window only and only where the terminal allows a program to do that. Your terminal settings stay as they are:
 
-- **macOS Terminal:** the font of Mousiki's window (given back when it quits). Mousiki.app brings Cascadia Mono and installs it for you.
+- **macOS Terminal:** the font of Mousiki's window (given back when it quits). Mousiki.app includes Microsoft's Cascadia Mono and installs it for you.
 - **iTerm2:** a profile *Mousiki* (your profile plus the font) that Mousiki's tab uses while it runs.
-- **Windows Terminal:** a profile *Mousiki* that the Mousiki launchers open (Cascadia Mono comes with Windows Terminal); it has its own colour scheme (black, grey status lines).
+- **Windows Terminal:** a profile *Mousiki* that the Mousiki launchers open (Cascadia Mono comes with Windows Terminal).
 - **Other terminals** (GNOME Terminal, Konsole, Kitty, WezTerm, Ghostty ...) do not let programs change their font: choose *Cascadia Mono* in the terminal's profile (Linux: the `.deb` recommends `fonts-cascadia-code`). Ghostty draws braille characters itself, in any font.
+
 
 #### Use Windows Terminal
 
