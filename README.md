@@ -492,7 +492,7 @@ Mousiki uses a small number of third-party components. They are listed here with
 | miniz | compresses the oscilloscope pictures (Kitty graphics) | 3.1.2 | 3.1.2 |
 | Chromaprint | AcoustID fingerprint (`fpcalc`) | 1.6.2 | 1.6.2 |
 | KISS FFT | spectrum / spectrogram | vendored copy (no version marker; v131 line) | 131.2.0 (build-system changes only) |
-| stb_truetype | karaoke letters of Japanese / Chinese / Korean text | 1.26 | 1.26 |
+| stb_truetype | karaoke letters of Japanese / Chinese / Korean text | 1.28 | 1.28 |
 | SDL2 | the optional scope and spectrogram windows (Windows: bundled `SDL2.dll`) | 2.32.10 | 2.32.10 |
 | yt-dlp, FFmpeg | online sources, conversion (bundled in the Windows and Linux packages) | the newest at build time, fixed by hash in `packaging/pins.json` | - |
 | Python | lyrics and meta data helper scripts (Windows package; standard library only) | 3.13.14 | same |

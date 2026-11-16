@@ -13,7 +13,7 @@ Compiled into mousiki
   - KISS FFT (Mark Borgerding) ................ BSD-3-Clause
   - miniz 3.1.2 (Rich Geldreich, RAD Game Tools, Valve Software) ... MIT
   - Roseus colour map (dofuuz/roseus) ......... CC0 1.0 (spectrogram colours)
-  - stb_truetype 1.26 (Sean Barrett) .......... public domain (Unlicense) or MIT (karaoke: glyphs of Japanese / Chinese / Korean text from an installed font)
+  - stb_truetype 1.28 (Sean Barrett) .......... public domain (Unlicense) or MIT (karaoke: glyphs of Japanese / Chinese / Korean text from an installed font)
   - pypinyin pinyin table (mozillazg, hotoo) .. MIT (the Mandarin reading of each Chinese character, src/pinyin_table.inc: Latin letters display)
   - DejaVu Sans Mono glyph shapes (Bitstream, Inc.) ... Bitstream Vera licence (129 characters as 8 x 16 bitmaps, src/video_fx_ascii_font.inc: the ASCII video look)
 Compiled into fpcalc (the AcoustID fingerprint helper in scripts/)
