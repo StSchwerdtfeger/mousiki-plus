@@ -78,6 +78,7 @@ void App::settings_update_dirty() {
 
 // `s`: write config.txt and leave. ESC / q: leave and put back everything the screen changed.
 void App::settings_close(bool save) {
+    settings_preview_end();
     if (save) {
         save_settings(settings_);
         status_line_ = "SAVED";
@@ -790,9 +791,9 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidVizField: v = settings_.element_vizfield; break;
             case kSidLyricsEngine: v = settings_.element_lyrics; break;
             // "Lyrics/Viz Default" isn't a bool: it cycles sphere / osci / spectro / lyrics (see settings_options_for() and settings_commit_edit()).
-            case kSidLyricViz: return settings_.viz_default == 4 ? "last used" : settings_.viz_default == 5 ? "video" : viz_row_name(settings_.viz_default);
+            case kSidLyricViz: return settings_.viz_default == 4 ? "last used" : settings_.viz_default == 5 ? "video" : settings_.viz_default == 6 ? "milkdrop" : viz_row_name(settings_.viz_default);
             case kSidVisualizer: v = settings_.element_visualizer; break;
-            case kSidNoVideoViz: return settings_.novideo_viz == 0 ? "sphere" : settings_.novideo_viz == 1 ? "osci" : settings_.novideo_viz == 2 ? "spectro" : settings_.novideo_viz == 3 ? "none" : "lyrics";
+            case kSidNoVideoViz: return settings_.novideo_viz == 0 ? "sphere" : settings_.novideo_viz == 1 ? "osci" : settings_.novideo_viz == 2 ? "spectro" : settings_.novideo_viz == 3 ? "none" : settings_.novideo_viz == 5 ? "milkdrop" : "lyrics";
             case kSidVideoLyrics: return lyr_mode_name(settings_.video_lyrics);
             case kSidVideoSize: return settings_.video_size == 1 ? "cropped" : settings_.video_size == 2 ? "full" : settings_.video_size == 3 ? "framed" : "regular";
             case kSidVideoFx: return video_fx_name(settings_.video_fx);
@@ -829,7 +830,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidGapless: return settings_.gapless == 2 ? "full" : settings_.gapless == 1 ? "album" : "off";
             case kSidVideoMp3: return settings_.video_mp3 ? "true" : "false";
             case kSidUseVideo: v = settings_.video_mode; break;
-            case kSidNoLyricsViz: return settings_.nolyrics_viz == 1 ? "osci" : settings_.nolyrics_viz == 2 ? "spectro" : settings_.nolyrics_viz == 3 ? "none" : "sphere";
+            case kSidNoLyricsViz: return settings_.nolyrics_viz == 1 ? "osci" : settings_.nolyrics_viz == 2 ? "spectro" : settings_.nolyrics_viz == 3 ? "none" : settings_.nolyrics_viz == 4 ? "video" : settings_.nolyrics_viz == 5 ? "milkdrop" : "sphere";
             case kSidStereo: v = settings_.stereo; break;
             case kSidPauseFade: v = settings_.pause_fade; break;
             case kSidAutoPlay: v = settings_.auto_play; break;
@@ -981,9 +982,26 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
         switch (settings_item_id(tab, row)) {
             case -1: return {};
             case kSidDisk: return {"Show Disk / Cover", "Remove Field"};   // (true / false)
-            case kSidLyricViz: return {"sphere", "osci", "spectro", viz_row_name(3), "video", "last used"};   // the view the field starts with, not a bool
-            case kSidNoLyricsViz: return {"sphere", "osci", "spectro", "none"};
-            case kSidNoVideoViz: return {"lyrics", "sphere", "osci", "spectro", "none"};
+            // (video and milkdrop are offered while the Video mode / MilkDrop are on; a pick that is set stays in the list)
+            case kSidLyricViz: {   // the view the field starts with, not a bool
+                std::vector<std::string> o = {"sphere", "osci", "spectro", viz_row_name(3)};
+                if (settings_.video_mode || settings_.viz_default == 5) o.push_back("video");
+                if (settings_.use_milkdrop || settings_.viz_default == 6) o.push_back("milkdrop");
+                o.push_back("last used");
+                return o;
+            }
+            case kSidNoLyricsViz: {
+                std::vector<std::string> o = {"sphere", "osci", "spectro", "none"};
+                if (settings_.video_mode || settings_.nolyrics_viz == 4) o.push_back("video");
+                if (settings_.use_milkdrop || settings_.nolyrics_viz == 5) o.push_back("milkdrop");
+                return o;
+            }
+            case kSidNoVideoViz: {
+                std::vector<std::string> o = {"lyrics", "sphere", "osci", "spectro"};
+                if (settings_.use_milkdrop || settings_.novideo_viz == 5) o.push_back("milkdrop");
+                o.push_back("none");
+                return o;
+            }
             case kSidVideoLyrics: return {"none", "lyrics", "lyrics+transl.", "transl."};
             case kSidVideoSize: return {"regular", "cropped", "full", "framed"};
             case kSidVideoFx: { std::vector<std::string> o; for (int i = 0; i < kVideoFxShown; ++i) o.push_back(video_fx_name(kVideoFxOrder[i])); return o; }
@@ -1150,6 +1168,7 @@ void App::settings_commit_edit_impl() {
             else if (v == "osci" || v == "oscilloscope") settings_.novideo_viz = 1;
             else if (v == "spectro" || v == "spectrogram") settings_.novideo_viz = 2;
             else if (v == "none" || v == "nothing") settings_.novideo_viz = 3;
+            else if (v == "milkdrop") settings_.novideo_viz = 5;
             return;
         }
         if (id == kSidLyricViz || id == kSidNoLyricsViz) {
@@ -1158,6 +1177,8 @@ void App::settings_commit_edit_impl() {
             else if (v == "osci" || v == "oscilloscope") pick = 1;
             else if (v == "spectro" || v == "spectrogram") pick = 2;
             else if (v == "none" && id == kSidNoLyricsViz) pick = 3;
+            else if (v == "video" && id == kSidNoLyricsViz) pick = 4;
+            else if (v == "milkdrop") pick = id == kSidLyricViz ? 6 : 5;
             else if ((v == "lyrics" || v == "notes") && id == kSidLyricViz) pick = 3;
             else if (v == "video" && id == kSidLyricViz) pick = 5;       // the lyrics view with the video picture (needs the Video mode)
             else if (v == "last used" && id == kSidLyricViz) pick = 4;   // starts with the view it was left on
@@ -1168,6 +1189,10 @@ void App::settings_commit_edit_impl() {
             } else if (id == kSidLyricViz && settings_.viz_default == 5) {
                 settings_.element_lyrics = true;
                 settings_.video_view = settings_.video_mode;
+            } else if (id == kSidLyricViz && settings_.viz_default == 6) {   // the field shows the MilkDrop visuals now
+                settings_.element_lyrics = false;
+                settings_.video_view = false;
+                settings_.milkdrop_view = settings_.use_milkdrop;
             }
             return; // anything unrecognized leaves the pick as it was
         }
@@ -1574,11 +1599,13 @@ void App::settings_cycle(int dir) {
             ? "starts with: the view it was left on" + note
             : settings_.viz_default == 5
             ? std::string("starts with: video") + (settings_.video_mode ? std::string() : std::string(" (switch the Video mode on with ") + hotkey_text("HKeyVideo", "&") + ", until then it shows the lyrics)") + note
+            : settings_.viz_default == 6
+            ? "starts with: MilkDrop" + note
             : std::string("starts with: ") + kVizNames[std::clamp(settings_.viz_default, 0, 3)] + " (the \".\" key changes the view while Mousiki runs)" + note;
     }
     if (id == kSidNoLyricsViz) {
-        static const char* const names[4] = {"sphere", "oscilloscope", "spectrogram", "nothing"};
-        status_line_ = std::string("no lyrics: ") + names[std::clamp(settings_.nolyrics_viz, 0, 3)] + " is shown" + note;
+        static const char* const names[6] = {"sphere", "oscilloscope", "spectrogram", "nothing", "the video (when the track has one)", "MilkDrop"};
+        status_line_ = std::string("no lyrics: ") + names[std::clamp(settings_.nolyrics_viz, 0, 5)] + " is shown" + note;
     }
     if (id == kSidVideoLyrics) status_line_ = std::string("include lyrics: ") + lyr_mode_name(settings_.video_lyrics) + " (under the video picture of the lyrics field; the last row under the picture is used for the translation first)";
     if (id == kSidVideoSize) status_line_ = std::string("video size: ") + (settings_.video_size == 1 ? "cropped -- two columns are cut off each side of the picture" : settings_.video_size == 2 ? "full -- the picture fills the field, cropped to fit, the lyric line as a small box over it" : settings_.video_size == 3 ? "framed -- like full, one row and two columns smaller on every side" : "regular -- the whole picture") + note;
@@ -1602,8 +1629,8 @@ void App::settings_cycle(int dir) {
     if (id == kSidVideoMp3) status_line_ = settings_.video_mp3 ? "yt-dlp mp3 from mp4: true -- SEARCH YT also saves the sound of a video as an mp3 song when no song is the target (CTRL+o in SEARCH YT changes it for one download)" : "yt-dlp mp3 from mp4: false -- SEARCH YT downloads only the video (CTRL+o in SEARCH YT asks for the mp3 for one download; CTRL+3 in FETCH VIDEOS -> VIDEO FILES makes one from a file)";
     if (id == kSidVideoFx) status_line_ = std::string("video effect: ") + video_fx_name(settings_.video_fx) + note;
     if (id == kSidNoVideoViz) {
-        static const char* const names[5] = {"the sphere", "the oscilloscope", "the spectrogram", "nothing", "the lyrics"};
-        status_line_ = std::string("no video: the video view shows ") + names[std::clamp(settings_.novideo_viz, 0, 4)] + note;
+        static const char* const names[6] = {"the sphere", "the oscilloscope", "the spectrogram", "nothing", "the lyrics", "MilkDrop"};
+        status_line_ = std::string("no video: the video view shows ") + names[std::clamp(settings_.novideo_viz, 0, 5)] + note;
     }
     if (id == kSidUseVideo) {
         status_line_ = settings_.video_mode ? "video: on -- video files are listed, the video view is in the \".\" cycle" + note

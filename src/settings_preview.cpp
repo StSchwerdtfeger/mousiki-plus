@@ -25,6 +25,7 @@
 #include "volume_bar.h"
 #include "terminal_gfx.h"
 #include "video_player.h"
+#include "milkdrop.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -39,7 +40,7 @@ constexpr int kPreviewX = 71;      // the column of the box's left border
 constexpr int kPreviewMinW = 107;  // narrower terminals have no room: no preview
 
 enum PvKind { kPvNone, kPvLyrics, kPvDisk, kPvCover, kPvVolume, kPvBars, kPvWave, kPvScope, kPvSpectro, kPvSphere,
-              kPvTranslit, kPvEmoji, kPvMarquee, kPvVideo, kPvClap, kPvDesc, kPvPlayback };
+              kPvTranslit, kPvEmoji, kPvMarquee, kPvVideo, kPvClap, kPvDesc, kPvPlayback, kPvMilk };
 
 }  // namespace
 
@@ -64,6 +65,9 @@ struct SettingsPreviewState {
     std::shared_ptr<VideoPlayer> vid;   // the sample video of the Use Video preview (started when that row is shown)
     bool vid_tried = false, vid_ok = false;
     std::string vid_key;
+    bool md_fresh = false;      // the MilkDrop preview just started: the picture slot is emptied first (it still held the main screen's cover)
+    bool md_active = false;     // the MilkDrop preview has put its preset on (the one from before is in md_prev)
+    std::string md_prev;
 };
 
 namespace {
@@ -202,6 +206,7 @@ PvKind kind_of(int id, const Settings& s) {
         case kSidUseVideo: case kSidVideoLyrics: case kSidVideoSize: case kSidVideoFx: case kSidVideoRes: case kSidVideoFps: case kSidVideoBuffer: case kSidVideoContrast: case kSidVideoBrightness: case kSidVideoColors: case kSidVideoChroma: case kSidVideoDither: case kSidVideoBase: case kSidVideoFxContrast: case kSidVideoGradSat: case kSidVideoRound: return kPvVideo;   // (a sample video; the lyrics preview when it is not there)
         case kSidVideoCover: return kPvNone;
         case kSidVideoClap: return kPvClap;
+        case kSidMdUseFx: case kSidMdFx: case kSidMdColors: case kSidMdShowName: return kPvMilk;   // (a live preset: with the effect, the name box and the Sixel colours as set)
         case kSidDisk: case kSidDiskSpeed: case kSidDiskBorder: return kPvDisk;
         case kSidAlbumCover: case kSidCoverMode: case kSidCoverContrast: case kSidCoverBrightness: case kSidCoverColors: case kSidCoverGradSat: case kSidCoverChroma:
         case kSidCoverSearch: return kPvCover;
@@ -217,7 +222,11 @@ PvKind kind_of(int id, const Settings& s) {
             int v = id == kSidLyricViz ? s.viz_default : id == kSidNoVideoViz ? s.novideo_viz : s.nolyrics_viz;
             if (id == kSidNoVideoViz && v == 4) v = 3;   // the lyrics (3 = lyrics here); "none" has nothing to preview, shown as the lyrics too
             if (id == kSidLyricViz && v == 4) v = (s.element_lyrics || s.video_view) ? 3 : s.lyric_viz;   // the view in use right now
-            if (id == kSidLyricViz && v == 5) v = 3;   // video: previewed as the lyrics
+            if (id == kSidLyricViz && v == 5) return kPvVideo;    // video: the sample video
+            if (id == kSidLyricViz && v == 6) return kPvMilk;     // milkdrop: a preset
+            if (id == kSidNoLyricsViz && v == 4) return kPvVideo;
+            if (id == kSidNoLyricsViz && v == 5) return kPvMilk;
+            if (id == kSidNoVideoViz && v == 5) return kPvMilk;
             return v == 0 ? kPvSphere : v == 1 ? kPvScope : v == 2 ? kPvSpectro : kPvLyrics;
         }
         case kSidLatinMacrons: case kSidLatinWo: case kSidLatinHanzi: case kSidLatinLookup: return kPvTranslit;
@@ -244,6 +253,7 @@ struct PvOut {
     std::string caption;
     bool picture = false;   // the rows are placeholders for a spectrogram picture the terminal draws (rows x w cells)
     int cover_mode = -1;    // >= 0: the rows are placeholders for the sample cover as a picture (Kitty / Sixel) in that Cover Mode
+    bool milk = false;      // MilkDrop: the rows are made in the box (a live preset)
     bool clap = false;      // Show Clap Loading: the rows are made in the box (the loading picture of a video as it would show)
     bool video = false;     // the rows are placeholders for the sample video as a picture (vw x vh pixels shown on vcols x vrows cells)
     int vcols = 0, vrows = 0, vw = 0, vh = 0, cw0 = 10, ch0 = 20;
@@ -290,6 +300,12 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             }
         }
         if (!P.vid_ok) shown = kPvLyrics;   // no sample (or no ffmpeg): the lyrics stand in for it, as before
+    }
+    {   // the MilkDrop preview: the preset "amandio c - secret garden 4" while its row is shown; the preset from before comes back afterwards
+        Milkdrop& M = Milkdrop::instance();
+        if (kind == kPvMilk && !milkdrop_usable()) shown = kPvLyrics;   // (no MilkDrop here: the lyrics stand in for it)
+        if (shown == kPvMilk && !P.md_active) { P.md_prev = M.preset_path(); M.play_named("amandio c - secret garden 4"); P.md_active = true; P.md_fresh = true; }
+        else if (shown != kPvMilk && P.md_active) { settings_preview_end(); }
     }
     if (kind == kPvNone) return;
 
@@ -353,7 +369,8 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
     PvOut out;
     VideoFrame vfx;       // (the sample video's frame with the retro effect on it)
     VideoFrame vscaled;   // (the sample video's frame scaled to the picture's size while the decoder catches up)
-    const int cw = iw - 2;   // content width (one blank column each side)
+    const bool compact = kind == kPvVolume || kind == kPvBars || kind == kPvWave || kind == kPvTranslit || kind == kPvEmoji || kind == kPvMarquee;
+    const int cw = compact ? iw - 4 : iw - 2;   // content width (one blank column each side; the compact previews have two, like the DESCRIPTION box)
     switch (shown) {
     case kPvLyrics: {
         struct S { double at; const char* text; };
@@ -812,34 +829,41 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
         break;
     }
     case kPvDesc: {   // a few lines of text: what the highlighted option does
+        const int dw = iw - 4;
         for (const std::string& para : split_lines_nl(pv_desc(id, settings_))) {
             if (para.empty()) continue;
             if (!out.rows.empty()) out.rows.push_back("");
-            for (const std::string& w : wrap_lines(para, cw, 10)) out.rows.push_back(w);
+            for (const std::string& w : wrap_lines(para, dw, 14)) out.rows.push_back(w);
         }
-        const int want = std::min(visible - 1, static_cast<int>(out.rows.size()) + 3);
-        if (want > bh) { bh = want; ih = bh - 2; body_h = ih - 1; }
-        out.w = 0;
+        // two columns of room each side, two rows above and below; the box is as tall as the text needs (and the screen allows)
+        out.rows.insert(out.rows.begin(), 2, std::string());   // (two blank rows above; the one below and the caption row (empty here) make two)
+        out.rows.push_back("");
+        bh = std::min(visible - 1, static_cast<int>(out.rows.size()) + 3);
+        ih = bh - 2; body_h = ih - 1;
+        out.w = dw;
         break;
     }
-    case kPvPlayback: {   // the small play-mode box beside the search bar (the letter changes with the value), then what each mode does
+    case kPvPlayback: {
+        const int dw = iw - 4;   // the small play-mode box beside the search bar (the letter changes with the value), then what each mode does
         const int mode = std::clamp(settings_.play_mode, 0, 4);
         const std::string border = ansi_for(settings_.border_color, false);
         const std::string lit = ansi_for(settings_.tab_current_color, false);
         const std::string letter(1, play_mode_letter());
-        const int pad = std::max(0, (cw - 5) / 2);
+        const int pad = std::max(0, (dw - 5) / 2);
         const std::string sp(static_cast<size_t>(pad), ' ');
         out.rows.push_back(sp + border + "\u256d\u2500\u2500\u2500\u256e" + R);
         out.rows.push_back(sp + border + settings_.box_vertical + R + " " + border + letter + R + " " + border + settings_.box_vertical + R);
         out.rows.push_back(sp + border + "\u2570\u2500\u2500\u2500\u256f" + R);
         out.rows.push_back("");
         static const char* const kModes[] = {"L  list: play along the list", "R  loop: repeat this track", "S  shuffle: a random next track", "O  stop: stop after this track", "Q  queue: play the queue, then stop"};
-        for (int i = 0; i < 5; ++i) out.rows.push_back((i == mode ? lit : std::string()) + truncate_str(kModes[i], cw) + (i == mode ? R : std::string()));
+        for (int i = 0; i < 5; ++i) out.rows.push_back((i == mode ? lit : std::string()) + truncate_str(kModes[i], dw) + (i == mode ? R : std::string()));
         out.rows.push_back("");
-        for (const std::string& w : wrap_lines("The letter is shown in the box next to the search bar; m / j change it.", cw, 3)) out.rows.push_back(w);
-        const int want = std::min(visible - 1, static_cast<int>(out.rows.size()) + 3);
-        if (want > bh) { bh = want; ih = bh - 2; body_h = ih - 1; }
-        out.w = 0;
+        for (const std::string& w : wrap_lines("The letter is shown in the box next to the search bar; m / j change it.", dw, 3)) out.rows.push_back(w);
+        out.rows.insert(out.rows.begin(), 2, std::string());   // (two blank rows above; the one below and the caption row (empty here) make two)
+        out.rows.push_back("");
+        bh = std::min(visible - 1, static_cast<int>(out.rows.size()) + 3);
+        ih = bh - 2; body_h = ih - 1;
+        out.w = dw;
         break;
     }
     case kPvMarquee: {
@@ -858,6 +882,7 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
         out.caption = settings_.marquee ? "Marquee on: the title scrolls" : "Marquee off: cut with ...";
         break;
     }
+    case kPvMilk: out.milk = true; break;
     case kPvClap: {   // what shows while a video loads: the text note, the small clapperboard (a picture or braille) or nothing
         out.clap = true;
         out.caption = settings_.video_clap == 1 ? "loading: clap" : settings_.video_clap == 0 ? "loading: text note" : "loading: none";
@@ -868,6 +893,12 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
 
     // ---- the box ------------------------------------------------------------------------------------------------
     auto pos = [&](int y, int x, const std::string& s) { frame << "\x1b[" << y << ";" << x << "H" << s; };
+    if (compact) {   // as the DESCRIPTION box: two blank rows above, one below (and the caption row), as tall as the content needs
+        out.rows.insert(out.rows.begin(), 2, std::string());
+        out.rows.push_back("");
+        bh = std::min(visible - 1, static_cast<int>(out.rows.size()) + 3);
+        ih = bh - 2; body_h = ih - 1;
+    }
     std::string label = "Preview";
     {
         std::string head;
@@ -880,7 +911,9 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
     }
     if (kind == kPvDesc || kind == kPvPlayback) label = "DESCRIPTION";
     if (display_width(label) > iw - 2) label = "Preview";
-    const int top = 4;                                            // one row below the first option row
+    // centred on the option rows, one row higher (the tallest boxes, which already fill the field, start one row below the first option row)
+    const int free_rows = std::max(0, (visible - 1 - bh) / 2);
+    const int top = 4 + (free_rows >= 2 ? free_rows - 1 : free_rows);
     const int bottom = top + bh - 1;
     const int x0 = kPreviewX, x1 = kPreviewX + iw + 1;
     pos(top, x0, B(top) + "┌─ " + R + ansi_for(settings_.tab_current_color, false) + label + R + B(top) + " ");
@@ -914,9 +947,31 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             out.rows[static_cast<size_t>(body_h / 2)] = std::string(static_cast<size_t>(pad), ' ') + msg + std::string(static_cast<size_t>(std::max(0, iw - pad - display_width(msg))), ' ');
         }
     }
+    if (out.milk) {   // the live preset, drawn like the preset overlay's preview (a picture in Kitty / Sixel terminals, braille otherwise)
+        std::vector<std::string> pic;
+        if (P.md_fresh) {   // (the picture slot held the main screen's cover and disk: it must not show until the first MilkDrop picture is in it)
+            P.md_fresh = false;
+            gfx_.w = 0; gfx_.h = 0; gfx_.level.clear(); gfx_.grid.clear();
+            milkdrop_pic_key_.clear();
+        }
+        gfx_.active = false;   // (the drawing switches it on again once there is a picture)
+        const std::vector<std::string> nb = milkdrop_name_box(cw - 2, true);   // (Show Preset Name: the box, kept on while the row is shown)
+        if (milkdrop_draw(pic, cw, body_h, inner_x, top, false, 0, nb, nb.empty() ? 0 : cw)) {
+            out.rows = pic;
+            if (gfxs_.proto != GfxProto::None && gfx_.active && gfx_.w > 0) pv_cover_pic_ = true;
+            const std::string nm = Milkdrop::instance().preset_name();
+            if (id == kSidMdColors) out.caption = std::string("Sixel colours: ") + (settings_.milkdrop_fixed_colors ? "fixed" : "adaptive") + (gfxs_.proto == GfxProto::Sixel ? "" : " (Sixel only)");
+            else out.caption = nm.empty() ? "MilkDrop" : "MilkDrop: " + nm;
+        } else {
+            std::string msg = Milkdrop::instance().status();
+            if (msg.empty()) msg = "milkdrop: starting ...";
+            out.rows = {truncate_str(msg, std::max(1, cw))};
+            out.caption = "MilkDrop";
+        }
+    }
     const int nrows = std::min(static_cast<int>(out.rows.size()), body_h);
     const int vtop = std::max(0, (body_h - nrows) / 2);
-    const int xo = out.w > 0 ? std::max(1, (iw - out.w) / 2 + 1) : 2;
+    const int xo = out.w > 0 ? std::max(1, (iw - out.w) / 2 + 1) : (compact ? 3 : 2);
     if (out.cover_mode >= 0 && nrows > 0) {   // the sample cover as a picture (it uses the picture slot gfx_)
         pv_cover_pic_ = true;
         meta_sty_gfx(pv_->cover, out.cover_mode, settings_.cover_contrast, settings_.cover_brightness, settings_.cover_colors, settings_.cover_chroma,
@@ -969,6 +1024,13 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
         const int cx = inner_x + std::max(1, (iw - display_width(cap)) / 2);
         pos(bottom - 1, cx, ansi_for(settings_.tab_current_color, false) + cap + R);
     }
+}
+
+void App::settings_preview_end() const {   // the settings screen closes (or another row is shown): the MilkDrop preset from before comes back
+    if (!pv_ || !pv_->md_active) return;
+    pv_->md_active = false;
+    if (!pv_->md_prev.empty()) Milkdrop::instance().play_path(pv_->md_prev);
+    pv_->md_prev.clear();
 }
 
 SpectroAnalyzer* App::settings_preview_spectro() const { return pv_ ? &pv_->spec : nullptr; }

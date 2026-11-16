@@ -575,6 +575,9 @@ else
         esac
     fi
     step "MilkDrop visuals (projectM + the Cream of the Crop presets)"
+    echo "  Note: the MilkDrop presets are drawn with OpenGL and run best on a graphics chip: an integrated one (Intel / AMD APU) or a"
+    echo "  dedicated card (NVIDIA / AMD) with a working driver (Mesa or the vendor's). Without one Mesa draws them on the processor"
+    echo "  (llvmpipe): it works, but slowly (lower the frame rate / resolution in Settings); everything else is not affected."
     if ! bash "$ROOT/tools/milkdrop-unix.sh" --cache "$BUILD_DIR/milkdrop"; then
         warn "The MilkDrop visuals were not installed. Everything else works; run setup again later, or with --skip-milkdrop to leave them out."
     fi

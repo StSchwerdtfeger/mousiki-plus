@@ -830,6 +830,48 @@ def mode_keys(binary, root, scripts):
         sess.kill()
 
 
+def settings_viz_field_previews(binary, root, scripts):
+    """ANIMA/VIZ -> LYRICS/VIZ FIELD: the rows show a preview of the choice "video" (the sample video) and "milkdrop" (the preset
+    amandio c - secret garden 4 when MilkDrop is installed)."""
+    def run(value, home_name, want, what):
+        home = os.path.join(root, home_name)
+        lib = os.path.join(root, "vp_lib_" + home_name)
+        make_wav(os.path.join(lib, "Alpha Song.wav"))
+        cfg = os.path.join(home, ".config", "mousiki")
+        os.makedirs(cfg)
+        with open(os.path.join(cfg, "config.txt"), "w", encoding="utf-8") as f:
+            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=false\nVideoMode=true\nUseMilkDrop=true\nVizDefault=%s\n" % (lib, value))
+        sess = Session(binary, home, scripts, {"MOUSIKI_NULL_AUDIO": "1"}, quiet_stderr=True)
+        try:
+            for _ in range(20):
+                sess.pump(0.5)
+                if "Alpha Song" in sess.text():
+                    break
+            sess.send("s", 1.2)
+            sess.send(b"\t", 0.5)
+            sess.send(b"\t", 0.8)
+            for _ in range(8):
+                sess.send(b"\x1b[B", 0.2)
+                if "Preview: When No Lyrics" in sess.text():
+                    break
+            sess.send(b"\x1b[A", 0.3)
+            ok = False
+            for _ in range(20):
+                sess.pump(0.5)
+                if "Preview: Lyrics/Viz Default" in sess.text() and want in sess.text():
+                    ok = True
+                    break
+            if not ok and "Meow" in sess.text():
+                print("  skipped: %s (MilkDrop is not available on this machine: the lyrics stand in)" % what)
+                return
+            check(ok, what)
+        finally:
+            sess.kill()
+    if shutil.which("ffmpeg") and os.path.exists(os.path.join(scripts, "preview_video.mp4")):
+        run("video", "vp_home_video", "sample video", "viz field preview: Lyrics/Viz Default = video shows the sample video")
+    run("milkdrop", "vp_home_milk", "MilkDrop", "viz field preview: Lyrics/Viz Default = milkdrop shows the MilkDrop preview")
+
+
 def book_speed_and_devices(binary, root, scripts):
     """Audio book: SHIFT+LEFT / SHIFT+RIGHT change the playback speed, shown in a box left of the play mode (and saved);
     the CHOOSE AUDIO DEVICE overlay opens from the main screen of the audio book and the radio and lists System Default;
@@ -4157,22 +4199,21 @@ def settings_descriptions(binary, root, scripts):
         found, missing = walk(want, 120)
         check(not missing, "descriptions (Anima/Viz): every row has its text (missing: %s)" % ", ".join(missing))
         check("yt-dlp mp3" not in "".join(l for l in found.get("mp3", "").splitlines() if "Preview:" in l), "descriptions: yt-dlp mp3 from mp4 has no video preview")
-        # the MilkDrop rows Default Preset, Use Effect, MilkDrop Effect, Sixel Colours, Show Preset Name: a description, no preview box
-        found, missing = walk({"preset": "The preset the visuals start with", "usefx": "the effect chosen in MilkDrop Effect", "fx": "The video effect (the same list",
-                               "colors": "Sixel terminals only", "name": "preset's name shows in a small box"}, 1)
+        # Default Preset: a description; Use Effect, MilkDrop Effect, Sixel Colours, Show Preset Name: a live MilkDrop preview of their own
+        found, missing = walk({"preset": "The preset the visuals start with"}, 1)
         sess.send(b"\x1b[A", 0.3)
         seen = {}
+        marks = (("preset", "The preset the visuals start with"), ("usefx", "Preview: Use Effect"), ("fx", "Preview: MilkDrop Effect"),
+                 ("colors", "Preview: Sixel Colours"), ("name", "Preview: Show Preset Name"))
         for _ in range(130):
             t = sess.text()
-            for k, v in (("preset", "The preset the visuals start with"), ("usefx", "the effect chosen in MilkDrop Effect"), ("fx", "The video effect (the same list"),
-                         ("colors", "Sixel terminals only"), ("name", "preset's name shows in a small box")):
+            for k, v in marks:
                 if v in t:
                     seen[k] = t
             if len(seen) == 5:
                 break
             sess.send(b"\x1b[A", 0.25)   # (the walk above ended below the MilkDrop rows)
-        check(len(seen) == 5, "descriptions: the MilkDrop rows have a DESCRIPTION (seen: %s)" % ", ".join(sorted(seen)))
-        check(all("Preview: " not in "".join(l for l in t.splitlines() if "MilkDrop" in l and "Preview" in l) for t in seen.values()), "descriptions: they have no Preview box")
+        check(len(seen) == 5, "descriptions: Default Preset has a DESCRIPTION, the effect / name / Sixel rows a preview (seen: %s)" % ", ".join(sorted(seen)))
     finally:
         sess.kill()
 
@@ -4616,7 +4657,7 @@ def milkdrop_visuals(binary, root, scripts):
         cfgdir = os.path.join(home, ".config", "mousiki")
         os.makedirs(cfgdir)
         with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
-            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=true\nUseLyrics=false\nUseSphere=false\nVizDefault=osci\n%s" % (lib, extra))
+            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=true\nUseLyrics=false\nUseSphere=false\nVizDefault=osci\nVideoMode=false\n%s" % (lib, extra))
         env = {"MOUSIKI_NULL_AUDIO": "1"}
         if gfx:
             env.update({"KITTY_WINDOW_ID": "1", "TERM": "xterm-kitty"})
@@ -4721,7 +4762,7 @@ def milkdrop_window(binary, root, scripts):
     os.makedirs(cfgdir)
     cfgf = os.path.join(cfgdir, "config.txt")
     with open(cfgf, "w", encoding="utf-8") as f:
-        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=true\nUseLyrics=false\nUseSphere=false\nVizDefault=osci\nHKeyMilkdropWindow=|\nMilkDropWindowResolution=640\n" % lib)
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=true\nUseLyrics=false\nUseSphere=false\nVizDefault=osci\nVideoMode=false\nHKeyMilkdropWindow=|\nMilkDropWindowResolution=640\n" % lib)
     shot = os.path.join(root, "mdw_shot.ppm")
     env = {"MOUSIKI_NULL_AUDIO": "1", "KITTY_WINDOW_ID": "1", "TERM": "xterm-kitty", "SDL_VIDEODRIVER": "dummy", "SDL_RENDER_DRIVER": "software",
            "MOUSIKI_MILK_SHOT": shot, "MOUSIKI_MILK_SHOT_FRAME": "20"}
@@ -5946,7 +5987,7 @@ def run_scenario(name, binary, root, scripts):
 
 
 SCENARIOS = ["narrow80", "narrow100", "main", "read_lyrics_play", "karaoke_timing", "book_speed_and_devices", "paging_and_translit_row",
-             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen"]
+             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews"]
 
 
 def main():

@@ -258,6 +258,9 @@ cp -f "$SRC/vendor/hlslparser/LICENSE" "$DOC_DEST/LICENSE-hlslparser.txt"
 cat > "$DOC_DEST/README.txt" <<EOF
 MilkDrop visuals for Mousiki
 ============================
+The presets are drawn with OpenGL and run best on a graphics chip: an integrated (Intel / AMD) or a dedicated (NVIDIA / AMD) GPU
+with a working driver (Linux: Mesa or the vendor driver). Without one the processor draws them (Mesa llvmpipe): slow, but it works.
+
 libprojectM-4 and libprojectM-4-playlist are projectM, the open-source rebuild of the Winamp visualizer MilkDrop:
 https://github.com/projectM-visualizer/projectm -- LGPL-2.1 (LICENSE-projectM.txt). They were built unchanged from this source
 (the corresponding source code):

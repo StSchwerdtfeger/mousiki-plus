@@ -466,10 +466,10 @@ TEST(settings_old_fetch_tags_binding_becomes_the_bookmark_and_the_bars_get_shift
     CHECK_EQ(d.hotkeys.at("HKeyBarsMenu"), std::string("B"));
 }
 
-TEST(settings_video_mode_defaults_off_and_round_trips) {
+TEST(settings_video_mode_defaults_on_and_round_trips) {
     mt::TempHome home;
     Settings s = load_settings();
-    CHECK(!s.video_mode);
+    CHECK(s.video_mode);   // on by default
     CHECK(!s.video_view);
     CHECK(s.hotkeys["HKeyVideo"] == "&" || s.hotkeys["HKeyVideo"] == "Y");
     s.video_mode = true;
@@ -499,7 +499,9 @@ TEST(settings_viz_order_has_five_places_and_novideo_pick) {
     Settings s = load_settings();
     CHECK_EQ(s.viz_order[4], 4);                 // video is the fifth place by default
     CHECK_EQ(s.novideo_viz, 4);                  // lyrics when there is no video
-    CHECK(!s.viz_usable(4));                     // "Use Video" = the Video mode, off by default
+    CHECK(s.viz_usable(4));                      // "Use Video" = the Video mode, on by default
+    s.video_mode = false;
+    CHECK(!s.viz_usable(4));
     s.video_mode = true;
     CHECK(s.viz_usable(4));
     CHECK_EQ(s.viz_step(0, 1, false), 1);        // the video view is never a "default" step target
@@ -510,6 +512,22 @@ TEST(settings_viz_order_has_five_places_and_novideo_pick) {
     const Settings b = load_settings();
     for (int i = 0; i < 5; ++i) CHECK_EQ(b.viz_order[i], o[i]);
     CHECK_EQ(b.novideo_viz, 2);
+}
+
+TEST(settings_field_picks_video_and_milkdrop_round_trip) {
+    mt::TempHome home;
+    Settings s = load_settings();
+    s.viz_default = 6;
+    s.nolyrics_viz = 5;
+    s.novideo_viz = 5;
+    save_settings(s);
+    Settings b = load_settings();
+    CHECK_EQ(b.viz_default, 6);
+    CHECK_EQ(b.nolyrics_viz, 5);
+    CHECK_EQ(b.novideo_viz, 5);
+    b.nolyrics_viz = 4;
+    save_settings(b);
+    CHECK_EQ(load_settings().nolyrics_viz, 4);
 }
 
 TEST(settings_old_viz_order_gets_video_after_lyrics) {

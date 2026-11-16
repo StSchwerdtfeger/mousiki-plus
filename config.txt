@@ -183,7 +183,7 @@ VideoLayoutScales=true
 ## the grid of the oscilloscope and the scales of the spectrogram in those layouts (SHIFT+g there)
 VideoDownHeight=720
 ## the highest picture height of a video that Search YT downloads (into <download folder>/video_down)
-VideoMode=false
+VideoMode=true
 ## true = video files (mp4, mkv, mov, avi, webm ...) are listed too and the "video" view joins the "." cycle after the lyrics: the picture of the track's video with the current lyric line under it. HKeyVideo ("&" = SHIFT+6 on a German keyboard, SHIFT+y elsewhere) switches it.
 VideoView=false
 ## true = the field is on the video view right now (VizDefault=last keeps it; VizDefault=video starts with it)

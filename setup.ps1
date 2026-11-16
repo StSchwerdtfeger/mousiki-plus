@@ -309,6 +309,9 @@ if ($SkipMilkDrop) {
 } else {
     try {
         Write-Step "MilkDrop visuals (projectM + the Cream of the Crop presets)"
+        Write-Host "  Note: the MilkDrop presets are drawn with OpenGL and run best on a graphics chip: an integrated one (Intel / AMD) or a"
+        Write-Host "  dedicated card (NVIDIA / AMD) with an up-to-date driver. Without one the processor draws them: slowly, but it works;"
+        Write-Host "  everything else in Mousiki works without it."
         & $mdScript -Dest $exe.DirectoryName -Cache (Join-Path $build 'milkdrop')
     } catch {
         Write-Warning "The MilkDrop visuals were not installed ($($_.Exception.Message)). Everything else works; run setup again later, or with -SkipMilkDrop to leave them out."

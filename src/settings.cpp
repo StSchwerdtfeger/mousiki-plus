@@ -663,7 +663,7 @@ static std::string unquote(const std::string& s) {
     return t;
 }
 
-static const char* viz_default_name(int v) { return v == 0 ? "sphere" : v == 1 ? "osci" : v == 2 ? "spectro" : v == 3 ? "lyrics" : v == 5 ? "video" : "last"; }
+static const char* viz_default_name(int v) { return v == 0 ? "sphere" : v == 1 ? "osci" : v == 2 ? "spectro" : v == 3 ? "lyrics" : v == 5 ? "video" : v == 6 ? "milkdrop" : "last"; }
 
 static bool parse_bool(const std::string& v) {
     std::string s = trim_ws(v);
@@ -1492,6 +1492,7 @@ static Settings load_from_config(const fs::path& path) {
             else if (v == "spectro" || v == "spectrogram") s.viz_default = 2;
             else if (v == "lyrics") s.viz_default = 3;
             else if (v == "video") s.viz_default = 5;
+            else if (v == "milkdrop") s.viz_default = 6;
             else if (v == "last" || v == "last used" || v == "last_used" || v == "lastused") s.viz_default = 4;
             have_viz_default = true;
             continue;
@@ -1503,6 +1504,8 @@ static Settings load_from_config(const fs::path& path) {
             else if (v == "sphere") s.nolyrics_viz = 0;
             else if (v == "spectro" || v == "spectrogram") s.nolyrics_viz = 2;
             else if (v == "none" || v == "off" || v == "nothing") s.nolyrics_viz = 3;
+            else if (v == "video") s.nolyrics_viz = 4;
+            else if (v == "milkdrop") s.nolyrics_viz = 5;
             continue;
         }
         if (key == "novideo_viz") {
@@ -1513,6 +1516,7 @@ static Settings load_from_config(const fs::path& path) {
             else if (v == "spectro" || v == "spectrogram") s.novideo_viz = 2;
             else if (v == "none" || v == "off" || v == "nothing") s.novideo_viz = 3;
             else if (v == "lyrics") s.novideo_viz = 4;
+            else if (v == "milkdrop") s.novideo_viz = 5;
             continue;
         }
         if (key == "osci_stereo") continue; // retired setting: old configs may still contain it, it is ignored
@@ -1814,6 +1818,10 @@ static Settings load_from_config(const fs::path& path) {
     } else if (s.viz_default == 5) {   // video: the lyrics view with the picture (needs the Video mode, else it is just the lyrics)
         s.element_lyrics = true;
         s.video_view = true;
+    } else if (s.viz_default == 6) {   // MilkDrop: the field starts with the visuals (when they are switched on)
+        s.element_lyrics = false;
+        s.video_view = false;
+        s.milkdrop_view = s.use_milkdrop;
     }
     if (!s.video_mode) s.video_view = false;
     if (!s.element_lyrics) s.video_view = false;
@@ -2235,7 +2243,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "## sphere = the audio-reactive ball | osci = the oscilloscope (both drawn in the VIZ colors) | spectro = the spectrogram\n";
     out << "## (LyricViz and ElimentLyrics are where the \".\" key left the field; the next start begins with VizDefault, see below; VizDefault=last keeps them.)\n";
     out << "VizDefault=" << viz_default_name(s.viz_default) << "\n";
-    out << "## The view the field starts with when Mousiki opens: sphere | osci | spectro | lyrics | last (= the view it was left on, \"last used\" in Settings -> ANIMA/VIZ -> Lyrics/Viz Default)\n";
+    out << "## The view the field starts with when Mousiki opens: sphere | osci | spectro | lyrics | video | milkdrop (the last two when the Video mode / MilkDrop are on) | last (= the view it was left on, \"last used\" in Settings -> ANIMA/VIZ -> Lyrics/Viz Default)\n";
     out << "VideoLyrics=" << (s.video_lyrics == 1 ? "lyrics" : s.video_lyrics == 2 ? "both" : s.video_lyrics == 3 ? "translation" : "none") << "\n";
     out << "## Include Lyrics (the & overlay): none | lyrics | both (lyrics + translation) | translation = what is shown under the video's picture (true / false of older versions still work)\n";
     out << "## (with a translation shown, the last row under the picture is used first, then the lyric block grows upwards: the picture gets smaller)\n";
@@ -2283,10 +2291,10 @@ write_simple_setting(out, s, "VideoLayout");
     out << "## true = video files (mp4, mkv, mov, avi, webm ...) are listed too and the \"video\" view joins the \".\" cycle after the lyrics: it plays the picture of the track's video in the field with the current lyric line under it. HKeyVideo (\"&\" = SHIFT+6 on a German keyboard, SHIFT+y elsewhere) switches it.\n";
     write_simple_setting(out, s, "VideoView");
     out << "## true = the field is on the video view right now (VizDefault=last keeps it; VizDefault=video starts with it)\n";
-    out << "NoVideoViz=" << (s.novideo_viz == 0 ? "sphere" : s.novideo_viz == 1 ? "osci" : s.novideo_viz == 2 ? "spectro" : s.novideo_viz == 3 ? "none" : "lyrics") << "\n";
-    out << "## what the video view shows while the track has no video: lyrics, sphere, osci, spectro or none\n";
-    out << "NoLyricsViz=" << (s.nolyrics_viz == 1 ? "osci" : s.nolyrics_viz == 2 ? "spectro" : s.nolyrics_viz == 3 ? "none" : "sphere") << "\n";
-    out << "## What the field shows while the lyrics view is on but no lyrics are available (sphere | osci | spectro | none).\n";
+    out << "NoVideoViz=" << (s.novideo_viz == 0 ? "sphere" : s.novideo_viz == 1 ? "osci" : s.novideo_viz == 2 ? "spectro" : s.novideo_viz == 3 ? "none" : s.novideo_viz == 5 ? "milkdrop" : "lyrics") << "\n";
+    out << "## what the video view shows while the track has no video: lyrics, sphere, osci, spectro, milkdrop or none\n";
+    out << "NoLyricsViz=" << (s.nolyrics_viz == 1 ? "osci" : s.nolyrics_viz == 2 ? "spectro" : s.nolyrics_viz == 3 ? "none" : s.nolyrics_viz == 4 ? "video" : s.nolyrics_viz == 5 ? "milkdrop" : "sphere") << "\n";
+    out << "## What the field shows while the lyrics view is on but no lyrics are available (sphere | osci | spectro | none | video | milkdrop).\n";
     out << "## Picking one turns its \"Use ...\" switch below on; switching that off again moves this pick to the next visual that is on.\n";
     write_simple_setting(out, s, "UseLyrics");
     write_simple_setting(out, s, "UseOscilloscope");

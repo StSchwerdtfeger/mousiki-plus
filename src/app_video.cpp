@@ -224,7 +224,7 @@ void App::video_auto_apply() {
     auto_prev_set_ = false;
     if (dflt == 5 || (dflt == 4 && !auto_prev_known_)) return;   // (last used, but the field was already on the video when Mousiki started: nothing to go back to, "When No Video Shows" decides)
     settings_.video_view = false;
-    const int back = dflt == 4 ? (auto_prev_view_ == 5 ? 5 : std::clamp(auto_prev_view_, 0, 3)) : std::clamp(dflt, 0, 3);
+    const int back = dflt == 4 ? (auto_prev_view_ == 5 ? 5 : std::clamp(auto_prev_view_, 0, 3)) : dflt == 6 ? 5 : std::clamp(dflt, 0, 3);
     if (back == 5) { settings_.element_lyrics = false; settings_.milkdrop_view = true; }   // (MilkDrop before the video)
     else if (back <= 2) { settings_.element_lyrics = false; settings_.lyric_viz = back; }
     else settings_.element_lyrics = true;

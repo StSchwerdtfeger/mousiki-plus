@@ -842,6 +842,23 @@ void App::meta_panel_field(MetaPanel& m) const {
             // Lyrics view without lyrics: the "When No Lyrics Show" pick; otherwise the view the "." cycle is on.
             int area_viz = video_missing ? settings_.novideo_viz : settings_.element_lyrics ? settings_.nolyrics_viz : settings_.lyric_viz;   // (video_missing: "When No Video Shows", 3 = nothing)
             if (area_viz < 3 && !settings_.viz_usable(area_viz)) area_viz = 3;   // nothing is switched on: an empty field
+            if (area_viz == 4 && (!settings_.video_mode || audiobook_)) area_viz = 3;   // (When No Lyrics Show = video: needs the Video mode)
+            if (area_viz == 5 && !(settings_.use_milkdrop && milkdrop_usable())) area_viz = 3;   // (MilkDrop: needs it on and able to run)
+            if (area_viz == 4 || area_viz == 5) {   // the video of the track / the MilkDrop visuals fill the field (no lyric line: there are no lyrics)
+                const int lpad = 1;
+                const bool wide = gfxs_.proto != GfxProto::None;
+                const int fw = lyrics_w + (wide ? 1 : 0) - lpad;
+                const int acol = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + lpad;
+                std::vector<std::string> arows;
+                video_ov_ref_.clear();
+                const bool ok = fw >= 8 && panel_h >= 3 && (area_viz == 5 ? milkdrop_field_rows(arows, fw, panel_h, acol, cover_pic_img, wide)
+                                                                          : video_field_rows(arows, fw, panel_h, acol, cover_pic_img, elapsed, std::vector<std::string>(), wide));
+                if (ok) {
+                    for (int i = 0; i < panel_h && i < static_cast<int>(arows.size()); ++i) lyric_rows[static_cast<size_t>(i)] = std::string(static_cast<size_t>(lpad), ' ') + arows[static_cast<size_t>(i)];
+                    lyrics_wide = wide;
+                    area_viz = -1;   // (drawn)
+                } else area_viz = 3;
+            }
             if (area_viz == 1) {
                 // XY scope: render() hands back exactly lyrics_w cells per
                 // row (empty ones included), each with a braille pattern and

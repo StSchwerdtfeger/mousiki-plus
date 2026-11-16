@@ -1855,6 +1855,7 @@ private:
     mutable bool pv_cover_pic_ = false;   // the Settings cover preview is a picture this frame (the only picture the Settings screen may show)
     mutable SpectroSettings pv_spectro_set_;
     SpectroGfx pv_spectro_gfx_;
+    void settings_preview_end() const;   // the MilkDrop preset of the preview is put back
     SpectroAnalyzer* settings_preview_spectro() const;   // nullptr until a preview was drawn
     // SHIFT+0: the big oscilloscope overlay (YT left, XY right). Each picture has its own scope (own phosphor buffer) fed from
     // scope_; SHIFT+a toggles the grid, SHIFT+v the axis values, SHIFT+c asks for its colour (the digits typed so far are in scope_big_color_buf_).

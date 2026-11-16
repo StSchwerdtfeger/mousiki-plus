@@ -88,7 +88,7 @@ struct Settings : VizPrefs {
     // lyric_viz, i.e. whatever view the "." cycle had been on before the lyrics. config.txt: NoLyricsViz=sphere|osci|spectro.
     // 3 = nothing (an empty field). Picking a visual that is switched off turns its "Use ..." switch on; switching a "Use ..."
     // off moves this pick to the next visual that is on (or to "none"): enforce_visual_switches().
-    int nolyrics_viz = 1;
+    int nolyrics_viz = 1;   // 0 sphere, 1 osci, 2 spectro, 3 none, 4 video, 5 MilkDrop
     // Settings -> ANIMA/VIZ "Use Lyrics / Use Oscilloscope / Use Spectrogram": false leaves that one out entirely (no
     // lyrics fetching, not in the "." cycle; the sphere is always there). The windows (SHIFT+8 / SHIFT+9) work anyway.
     bool use_lyrics = true;
@@ -132,12 +132,12 @@ struct Settings : VizPrefs {
     // The view the field starts with when Mousiki opens (ANIMA/VIZ tab: "Lyrics/Viz Default"): 0 = sphere, 1 = oscilloscope,
     // 2 = spectrogram, 3 = lyrics. The "." key changes the view live, but that is not remembered: the next start begins with
     // this one again; 4 = "last used": it starts with the view it was left on. config.txt: VizDefault=sphere|osci|spectro|lyrics|last.
-    int viz_default = 1;   // (5 = video, see video_mode)
+    int viz_default = 1;   // (5 = video, see video_mode; 6 = MilkDrop)
     // Video mode (HKeyVideo, "&" = SHIFT+6 on a German keyboard): video files are listed and the "Video" view joins the "." cycle right
     // after the lyrics (and the Lyrics/Viz Default list). The field then shows the picture of the track's video with the current lyric
     // line under it. video_view = the field is on that view right now (it also sets element_lyrics: the lyrics are fetched).
     // config.txt: VideoMode=, VideoView=.
-    bool video_mode = false;
+    bool video_mode = true;
     bool video_view = false;
     // The & overlay (HKeyVideo): "Include Lyrics" = the current lyric line is shown under the picture; "Cover or Video Snapshot": 0 = the
     // disk shows the track's cover as always, 1 = a frame (a thumbnail) of the track's video, with the cover / the disk when the track has no
@@ -183,7 +183,7 @@ struct Settings : VizPrefs {
     int video_down_height = 720;   // config.txt: VideoDownHeight=
     // "When No Video Shows" (ANIMA/VIZ tab): what the field shows on the video view while the track has no video: 0 sphere, 1 oscilloscope,
     // 2 spectrogram, 3 nothing, 4 the lyrics (the default). config.txt: NoVideoViz=lyrics|sphere|osci|spectro|none.
-    int novideo_viz = 4;
+    int novideo_viz = 4;   // 0 sphere, 1 osci, 2 spectro, 3 none, 4 lyrics, 5 MilkDrop
     // The field shows lyrics (and they are fetched) right now: field on, lyrics allowed, lyrics view selected.
     bool lyrics_on() const { return element_vizfield && use_lyrics && element_lyrics; }
     // Is that view (0..3) switched on at all?
