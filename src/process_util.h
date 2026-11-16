@@ -10,6 +10,15 @@
 
 namespace muisc {
 
+// A file name or folder inside a yt-dlp output template (-o): a '%' there would be read as the start of a field (%(title)s), so each
+// one is written '%%'. Only the part that is added by hand (".%(ext)s") stays a field.
+inline std::string ytdlp_template_literal(const std::string& s) {
+    std::string o;
+    o.reserve(s.size() + 2);
+    for (char c : s) { o += c; if (c == '%') o += '%'; }
+    return o;
+}
+
 struct ProcResult {
     std::string out;   // combined stdout (stderr redirected away unless merge_stderr=true)
     int exit_code = -1;

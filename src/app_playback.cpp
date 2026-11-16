@@ -3,6 +3,7 @@
 // Split out of app.cpp; the includes are the same as there.
 #include "app_dirs.h"
 #include "app.h"
+#include "date_util.h"
 #include "app_state_sleep.h"
 #include "app_state_device.h"
 #include "app_state_qtp.h"
@@ -81,7 +82,8 @@ void App::write_load_timing_log(const std::string& title, bool is_local, double 
 
     auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     char timebuf[32];
-    std::strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", std::localtime(&now));
+    const std::tm tmv = local_tm(static_cast<long long>(now));
+    std::strftime(timebuf, sizeof(timebuf), "%Y-%m-%d %H:%M:%S", &tmv);
 
     log << timebuf << " track=\"" << title << "\" source=" << (is_local ? "local" : "online");
     if (!is_local) log << " resolve=" << t_resolve << "s";

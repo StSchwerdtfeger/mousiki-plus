@@ -84,7 +84,7 @@ std::optional<SongResult> YoutubeSource::resolve(const std::string& query, std::
     const std::string url = "https://www.youtube.com/watch?v=" + id;
     ProcResult r = yt_dlp_download({"-4", "--no-warnings", "--extractor-args", "youtube:player_client=android;player_skip=webpage,configs,js",
                                     "-x", "-f", "bestaudio/best", "--audio-format", "opus", "--audio-quality", "0",
-                                    "-o", path_utf8(cached.parent_path() / cached.stem()) + ".%(ext)s"}, url);
+                                    "-o", ytdlp_template_literal(path_utf8(cached.parent_path() / cached.stem())) + ".%(ext)s"}, url);
 
     if (!cache_.is_cached(key, "opus")) {
         if (error_out) *error_out = "yt-dlp download failed:\n" + r.out;
@@ -114,7 +114,7 @@ std::optional<SongResult> YoutubeSource::resolve_by_id(const std::string& video_
         if (auto hit = find_cached()) return SongResult{title, artist, *hit, true};
         const fs::path stem = cache_.path_for(title, "opus");
         ProcResult r = yt_dlp_download({"--no-warnings", "-x", "-f", "bestaudio/best",
-                                       "-o", path_utf8(stem.parent_path() / stem.stem()) + ".%(ext)s"}, video_id);
+                                       "-o", ytdlp_template_literal(path_utf8(stem.parent_path() / stem.stem())) + ".%(ext)s"}, video_id);
         if (auto got = find_cached()) return SongResult{title, artist, *got, false};
         if (error_out) *error_out = "yt-dlp download failed:\n" + r.out;
         return std::nullopt;
@@ -133,7 +133,7 @@ std::optional<SongResult> YoutubeSource::resolve_by_id(const std::string& video_
     const std::string url = "https://www.youtube.com/watch?v=" + video_id;
     ProcResult r = yt_dlp_download({"-4", "--no-warnings", "--extractor-args", "youtube:player_client=android;player_skip=webpage,configs,js",
                                     "-x", "-f", "bestaudio/best", "--audio-format", "opus", "--audio-quality", "0",
-                                    "-o", path_utf8(cached.parent_path() / cached.stem()) + ".%(ext)s"}, url);
+                                    "-o", ytdlp_template_literal(path_utf8(cached.parent_path() / cached.stem())) + ".%(ext)s"}, url);
 
     if (!cache_.is_cached(key, "opus")) {
         if (error_out) *error_out = "yt-dlp download failed:\n" + r.out;

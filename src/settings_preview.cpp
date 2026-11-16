@@ -170,6 +170,8 @@ std::string pv_desc(int id, const Settings& s) {
             return "Sixel terminals only. adaptive: the colours are taken from each picture. fixed: one fixed colour set for all pictures (steadier, less exact).";
         case kSidMdShowName:
             return "true: the preset's name shows in a small box over the picture for 3 seconds after it changed.";
+        case kSidMdAuto:
+            return "true: the field shows the MilkDrop visuals for every track.\nIf Auto Video (which would show a track's video in the field) is on, it is turned off while this is on, and comes back on when you turn this off again.";
         case kSidMdLock:
             return "true: the preset stays until you change it yourself via n / b, Random or the preset overlay, whatever the time or a beat says.";
         case kSidMdDuration:
@@ -303,7 +305,8 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
     }
     {   // the MilkDrop preview: the preset "amandio c - secret garden 4" while its row is shown; the preset from before comes back afterwards
         Milkdrop& M = Milkdrop::instance();
-        if (kind == kPvMilk && !milkdrop_usable()) shown = kPvLyrics;   // (no MilkDrop here: the lyrics stand in for it)
+        if (kind == kPvMilk && !milkdrop_usable())   // (no MilkDrop here: the rows of the MilkDrop settings keep their text, the field rows show the lyrics)
+            shown = (id == kSidMdUseFx || id == kSidMdFx || id == kSidMdColors || id == kSidMdShowName) ? kPvDesc : kPvLyrics;
         if (shown == kPvMilk && !P.md_active) { P.md_prev = M.preset_path(); M.play_named("amandio c - secret garden 4"); P.md_active = true; P.md_fresh = true; }
         else if (shown != kPvMilk && P.md_active) { settings_preview_end(); }
     }
@@ -909,7 +912,7 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             break;
         }
     }
-    if (kind == kPvDesc || kind == kPvPlayback) label = "DESCRIPTION";
+    if (shown == kPvDesc || shown == kPvPlayback) label = "DESCRIPTION";
     if (display_width(label) > iw - 2) label = "Preview";
     // centred on the option rows, one row higher (the tallest boxes, which already fill the field, start one row below the first option row)
     const int free_rows = std::max(0, (visible - 1 - bh) / 2);

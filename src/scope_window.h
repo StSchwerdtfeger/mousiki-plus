@@ -38,6 +38,7 @@ struct ScopeWinConfig {
     uint8_t music = 0;             // oscilloscope music mode: fixed scale, finer beam, more smoothing, no phase portrait
     uint8_t braille = 0;           // 1 = the braille style: the terminal scope's dot grid, scaled up (else the smooth image style)
     uint8_t mode = 0;              // braille style: 0 = XY, 1 = YT, 2 = both overlapping, 3 = both in two rows (SHIFT+o "Scope mode"); modes other than XY are drawn as a fine dot picture in either style
+    uint8_t pad0_[3] = {};         // (explicit padding: the struct is compared and sent as raw bytes, so no byte may be left uninitialised)
     float dot_threshold = 0.28f;   // braille: brightness a dot needs to light (SHIFT+o "Dot threshold")
     float tail = 0.45f;            // braille: oldest sample of the trace relative to the newest (SHIFT+o "Tail")
     int32_t trace = 1024;          // braille: samples drawn per frame (SHIFT+o "Trace Length")
@@ -48,6 +49,7 @@ struct ScopeWinConfig {
     uint8_t pal[256][3] = {};      // palette, index 0..255
     char title[96] = {};           // window title (track / station)
 };
+static_assert(sizeof(ScopeWinConfig) == 912, "ScopeWinConfig must have no padding: it is compared and sent as raw bytes");
 
 // The spectrogram window's settings: the spectrogram options (SHIFT+i) as plain numbers, the colours of the scheme
 // in use (the "gradient" one included) and the title. Sent as raw bytes like ScopeWinConfig.
@@ -58,6 +60,7 @@ struct SpectroWinConfig {
     uint8_t pal[256][3] = {};
     char title[96] = {};
 };
+static_assert(sizeof(SpectroWinConfig) == 968, "SpectroWinConfig must have no padding: it is compared and sent as raw bytes");
 inline void spectro_win_pack(const SpectroSettings& s, SpectroWinConfig& c) {
     const int32_t x[24] = {s.style, s.motion, s.scale, s.min_freq, s.max_freq, s.gain, s.range, s.freq_gain, s.window_log2,
                            s.window_type, s.zero_pad, s.scheme, s.channels, s.span, s.labels ? 1 : 0, s.view, s.wf_graphs, s.wf_spacing,
@@ -85,7 +88,9 @@ struct MilkWinConfig {
     int32_t rate = 48000;          // (unused: the sender's generic header)
     uint8_t stretch = 0;           // 1 = fill the window (the picture is stretched), 0 = keep the picture's proportions (black bars)
     char title[96] = {};
+    uint8_t pad_[3] = {};          // (explicit padding, see ScopeWinConfig)
 };
+static_assert(sizeof(MilkWinConfig) == 108, "MilkWinConfig must have no padding: it is compared and sent as raw bytes");
 
 // Can the window be opened at all (SDL2 found)? `why` gets a short reason when not.
 bool scope_window_available(std::string* why);

@@ -1,6 +1,7 @@
 // Synced lyrics: finds the lyrics of a track, reads and writes the .lrc sidecar next to the audio
 // file, and keeps earlier versions of the lyrics as separate files.
 #include "lyrics_fetcher.h"
+#include "date_util.h"
 #include "TextSanitizer.h"
 #include "path_utf8.h"
 #include "process_util.h"
@@ -157,7 +158,8 @@ static std::string stamp_of(const fs::path& file, const char* fmt) {
         t = std::chrono::system_clock::to_time_t(sctp);
     }
     char buf[40];
-    std::strftime(buf, sizeof buf, fmt, std::localtime(&t));
+    const std::tm tmv = local_tm(static_cast<long long>(t));   // (thread safe, and a time the C library cannot convert gives a zeroed date instead of a null pointer)
+    std::strftime(buf, sizeof buf, fmt, &tmv);
     return buf;
 }
 
@@ -501,7 +503,8 @@ LyricsResult fetch_synced_lyrics(const std::string& title, const std::string& ar
                 fs::create_directories(dir, ec);
                 char stamp[40];
                 const std::time_t now = std::time(nullptr);
-                std::strftime(stamp, sizeof stamp, "%Y%m%d-%H%M%S", std::localtime(&now));
+                const std::tm tmv = local_tm(static_cast<long long>(now));
+                std::strftime(stamp, sizeof stamp, "%Y%m%d-%H%M%S", &tmv);
                 std::ofstream out(dir / path_from_utf8(archive_prefix(track_path) + stamp + "." + safe_name_part(result.source) + ".lrc"),
                                   std::ios::binary | std::ios::trunc);
                 if (out.is_open()) out << stored;

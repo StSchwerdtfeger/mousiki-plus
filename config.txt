@@ -196,11 +196,15 @@ UseLyrics=true
 UseOscilloscope=true
 UseSpectrogram=true
 UseSphere=true
+PauseSphere=false
+## true , false (default false) -- true: the sphere stops while the track is paused (false: it goes on turning at the full frame rate)
 UseMilkDrop=true
 ## true , false (default true) -- the MilkDrop visuals in the "." cycle (when projectM and presets are installed: see the manual)
 MilkDropView=false
 MilkDropPresets=
 ## the folder of the MilkDrop presets (.milk); empty = the usual places (~/.local/share/projectM/presets, /usr/local/share/projectM/presets, /usr/share/projectM/presets; Windows: milkdrop\presets next to mousiki.exe, %LOCALAPPDATA%\projectM\presets)
+# MilkDropExtraPresets: more preset folders, one line per folder (their presets join the list; empty = none). Settings -> PATHS -> MILKDROP PRESET PATH
+## MilkDropExtraPresets=/path/to/more/presets
 MilkDropGpu=
 ## the graphics card that draws the MilkDrop visuals (Linux): a render node such as renderD129, as listed under Settings -> ANIMA/VIZ -> MILKDROP -> MilkDrop GPU; empty = automatic (what the system gives)
 MilkDropDefaultPreset=
@@ -640,7 +644,7 @@ BottomLeftCorner="╰";
 LowerRightCorner="╯";
 Vertical="│";
 Horizontal="─";
-Seprator=":  :"
+Separator=":  :"
 ListSeparator="|"
  
 # General

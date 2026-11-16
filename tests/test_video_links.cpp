@@ -106,6 +106,12 @@ TEST(video_download_command_and_settings) {
     bool has_out = false;
     for (size_t i = 0; i + 1 < a.size(); ++i) if (a[i] == "-o") has_out = a[i + 1].find("video_down") != std::string::npos && a[i + 1].find("Song Name.%(ext)s") != std::string::npos;
     CHECK(has_out);
+    {   // a '%' in a track name or folder must not become a yt-dlp field
+        const auto p = video_download_args("abc123", fs::path("/dl/100%(title)s"), "50% (live) %(id)s", 720);
+        bool ok = false;
+        for (size_t i = 0; i + 1 < p.size(); ++i) if (p[i] == "-o") ok = p[i + 1] == "/dl/100%%(title)s/50%% (live) %%(id)s.%(ext)s";
+        CHECK(ok);
+    }
     const auto b = video_download_args("x", fs::path("/d"), "n", 99999);   // the height is kept in a sane range
     CHECK(std::find(b.begin(), b.end(), "bv*[height<=2160]+ba/b[height<=2160]/b") != b.end());
 }

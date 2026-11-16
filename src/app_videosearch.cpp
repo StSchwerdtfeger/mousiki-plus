@@ -73,7 +73,7 @@ std::vector<std::string> video_download_args(const std::string& id, const fs::pa
             "--encoding", "utf-8", "-f", "bv*[height<=" + h + "]+ba/b[height<=" + h + "]/b", "--merge-output-format", "mp4",
             "--progress-template", "download:PCT %(progress._percent_str)s",
             "--print", "after_move:FILE:%(filepath)s",
-            "-o", path_utf8(dir / path_from_utf8(base_name + ".%(ext)s")),
+            "-o", ytdlp_template_literal(path_utf8(dir / path_from_utf8(base_name))) + ".%(ext)s",
             "https://www.youtube.com/watch?v=" + id};
 }
 

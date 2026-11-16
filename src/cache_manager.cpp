@@ -102,6 +102,15 @@ std::string CacheManager::sanitize(const std::string& raw) {
     }
 
     if (out.empty()) out = "untitled";
+    // Windows device names (CON, PRN, AUX, NUL, COM1-9, LPT1-9) are not file names there, with any extension ("con.opus" opens the console):
+    // such a title gets a trailing underscore (the stem is lower case already).
+    {
+        static const char* const kDevices[] = {"con", "prn", "aux", "nul"};
+        bool device = false;
+        for (const char* d : kDevices) if (out == d) device = true;
+        if (out.size() == 4 && (out.compare(0, 3, "com") == 0 || out.compare(0, 3, "lpt") == 0) && out[3] >= '1' && out[3] <= '9') device = true;
+        if (device) out += '_';
+    }
     return out;
 }
 

@@ -407,7 +407,7 @@ its own look (meta editor -> Style Option) changes that look instead.
 MENUS INDEX:[[Header]] [<] (German keyboard) or [SHIFT+,] (English keyboard) draws all menus
 and overlays as an organigram (see MENU MAP); [ENTER] opens the selected one.
 
-The main screen consists of five panes, which are discussed below. The focuse between the
+The main screen consists of five panes, which are discussed below. The focus between the
 SEARCH, LOCAL AUDIO FILES and QUEUE can be changed via [TAB], where the [◀] is an indicator
 for the current focus. Commands that work no matter which pane is focused are [n] for next
 song in list and [b] song before current song in a list (while a LOCKED queue has titles, in
@@ -1958,7 +1958,7 @@ R"WIZ(
                                                   Konsole, kitty, Alacritty, tmux and tiling window
                                                   managers do not. This has only be tested on Windows
                                                   terminal and it shows that when resizing the window
-                                                  witht he mouse, the settings are at first ignored and
+                                                  with he mouse, the settings are at first ignored and
                                                   only apply after restarting the terminal.
 
 [Full Screen:][[Legend]]                                      true = the terminal is asked for full screen at every
@@ -1981,7 +1981,7 @@ R"WIZ(
 
 [Remote App:][[Legend]]                                       [ENTER] opens the REMOTE APP overlay (on/off, address,
                                                   QR code for the phone, port, and a PIN that can be
-                                                  set/changed). When using a VPN you might neet to
+                                                  set/changed). When using a VPN you might need to
                                                   manually allow local network access in order to make the
                                                   remote function available. When set, the QR opens a
                                                   smartphone browser version of Mousiki. You can also
@@ -2050,7 +2050,7 @@ This category is only available in the audio book mode only...
 NOTE:[[Legend]] 
 The below only fully works, when pykakasi is installed (pip install pykakasi for the python
 version that is used by Mousiki, in case you didn't install it via the installer bundle or 
-excluded from your build and want to use it later). Wihtout pykakasi some Kanji signs for
+excluded from your build and want to use it later). Without pykakasi some Kanji signs for
 Japanese transliteration may remain. Less a problem for Chines/Korean Transliteration. With the
 package janome too (pip install janome) Japanese lines are cut into words (watashi wa anata ga
 suki desu) instead of one long word; Korean keeps the spaces of the text, Chinese is written
@@ -2325,7 +2325,7 @@ R"WIZ([Hi-Fi Adapt Height:][[Legend]]                               (Hi-Fi only)
                                                   LOOK: set low fluidity, high degragation and a low
                                                   viscosity. FOR
                                                   A SMOOTH WOBBLY LOOK: High fluidity, low degragation and
-                                                  hight viscosity.
+                                                  high viscosity.
 
 [SHIFT+b:][[Legend]]                                          the SPECTRUM BARS OVERLAY with all these rows, in the
                                                   music player and in the radio. It sits under the upper
@@ -2541,7 +2541,7 @@ preset. The name of the active preset list is in the pane title: e.g. PRESETS (M
 
 THE PRESETS MENU:[[Header]] 
 [SHIFT+p] opens it and is where preset lists can be created. A small [◀] behind a pane's 
-title shows which pane is focused, just as in the music palyer. Names are 1 to 24 characters 
+title shows which pane is focused, just as in the music player. Names are 1 to 24 characters 
 and unique. Every change is written to presets.txt at once.
 
 KEYS IN THE PRESETS MENU: [[Header]]
@@ -3043,6 +3043,13 @@ SAFE: [[Header]] off by default, home network only (other addresses are turned a
 command, 10 wrong PINs lock that one device out for a minute (not your phone). Plain HTTP: use it on
 a network you trust. Windows asks once whether Mousiki may accept connections: allow private networks.
 
+ABOUT THE PIN: [[Header]] it keeps others on your Wi-Fi from using the remote, it is not a strong lock: 4 to 8
+digits, and the connection is plain HTTP, so the PIN travels unencrypted (anyone who can read your
+network traffic sees it) and sits in the address (?pin=...), so it can land in a browser history or
+in the logs of a router, a proxy or Home Assistant. The lock-out counts per device. Use 6 to 8
+digits ([n] makes a random one), only a network you trust, NEVER forward the port to the internet
+(use a VPN into your home network instead), and press [n] for a new PIN if you think it got out.
+
 [[New Page]]
 5.1.3 THE COMMAND LINE (CLI): OVERVIEW [[Header]]
 
@@ -3091,7 +3098,8 @@ WHAT THE REPLIES LOOK LIKE: [[Header]]
 5.1.4 CLI COMMANDS: PLAYBACK [[Header]]
 
 Examples use the library of a music lover: the playlist Meow-Music with Kaneko Ayano (Sayōnara anata,
-さよーならあなた; Romance sengen) and The Smashing Pumpkins (Tonight, Tonight; Cupid de Locke).
+)WIZ",
+R"WIZ(さよーならあなた; Romance sengen) and The Smashing Pumpkins (Tonight, Tonight; Cupid de Locke).
 play sayonara finds Sayōnara anata (accents do not matter). The name before the dash in the answers is
 the folder of the title (the artist folder).
 
@@ -3099,8 +3107,7 @@ the folder of the title (the artist folder).
  ----------------------  ------------------------------------  ----------------------------------
  play                    resume a paused title                 resumed: Romance sengen ... 00:41/..
  play <words>            play the first local title that has   playing Romance sengen - Kaneko Ayano
-)WIZ",
-R"WIZ(                         all the words (any case)              (+1 more matches)
+                         all the words (any case)              (+1 more matches)
  pause                   pause, keep the position              paused: <title> <position> <volume>
  stop                    same as pause (Mousiki keeps the     paused (stop pauses: the position is
                          position; there is no real stop)      kept, `play` resumes): ...
@@ -3213,7 +3220,8 @@ hooks.cli (edit hooks) runs commands when something happens, one line each:
  * Typed at the keyboard, quit / clear-queue / queue clear ask: type  yes  within 20 seconds.
  * force <command> runs such a command without asking. In scripts, timers, hooks and from outside it
    is needed, because nobody is there to confirm:  force queue clear
- * From the network (5.1.9) there is no quit, force, yes, set, alias, unalias, edit, open,
+)WIZ",
+R"WIZ( * From the network (5.1.9) there is no quit, force, yes, set, alias, unalias, edit, open,
    clear-queue, queue clear, rescan, wizard, switch-mode. Scripts started from the network run with
    the same limits.
  * A script that calls itself ends after 1000 lines; at most 50 timers wait; a timer is at most 24 h.
@@ -3224,8 +3232,7 @@ hooks.cli (edit hooks) runs commands when something happens, one line each:
 
 The radio understands chains, wait, in, if, run, scripts and timers like the player, plus:
  Command                 What it does                          Answer, for example
-)WIZ",
-R"WIZ( ----------------------  ------------------------------------  ----------------------------------
+ ----------------------  ------------------------------------  ----------------------------------
  stations [words]        list stations (10 shown)              2 stations: 1. Radio Paradise ..
  tune <n | words>        tune station n or the first match     tuning: Radio Paradise  [1/42]
  play <n | words>        the same as tune                      tuning: Jazz FM  [7/42]

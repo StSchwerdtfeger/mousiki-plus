@@ -1,6 +1,6 @@
 <div align="center">
     
-# 📻 Mousiki Plus v5.0.0 - Music (-Video), Radio and Audio Book Player 🎵 
+# 📻 Mousiki Plus v5.1.0 - Music (-Video), Radio and Audio Book Player 🎵 
 (Windows · Linux · macOS)  
 
 <p align="center">
@@ -63,7 +63,7 @@ And the audio book mode, the third one, with bookmarks, notes, cutting audio fil
 
 ## Table of contents
 
-- [Current Status of the Port and Modification (v5.0.0)](#current-status-of-the-port-and-modification-v500)
+- [Current Status of the Port and Modification (v5.1.0)](#current-status-of-the-port-and-modification-v510)
 - [Features at a glance](#features-at-a-glance)
   - [Music player](#music-player)
   - [Visualizations](#visualizations)
@@ -88,14 +88,14 @@ And the audio book mode, the third one, with bookmarks, notes, cutting audio fil
 - [Dependencies and security](#dependencies-and-security)
 - [Images](#images)
 
-## Current Status of the Port and Modification (v5.0.0)
+## Current Status of the Port and Modification (v5.1.0)
 
 For now the Mousiki port works well and also includes everything I at least wanted and made sense to me for a music player, so there might be no further major releases that add new features, except of bug-fixes that might appear to me or others in the future (feel free to start discussions or report issues!!). I might adjust the code to be more polished / robust and might optimize the setup release (Win version results currently in ~250MB size, setup itself ~80MB, portable .zip ~100MB)... Since v2.5.0 my version of Mousiki also builds on macOS/Linux again (`setup.sh`), which is a first step towards making it potentially integratable into the main branch of the original project (which still seems way too hard after dozens of comments in the last two weeks, at least from my perspective). The Linux/macOS builds are less tested than the Windows one, so reports from users on those platforms would help finalize it more. 
 Concerning potential new features: the online-radio function is now included (see [radio mode](#radio-player)); a mixtape creator would be cool, but I'll see. Again, feel free to give feedback in the discussions, report issues you might experience using this modified port or contributing in any other way...
 
 ## Features at a glance
 
-Everything below is in the current version (v5.0.0) and works the same on Windows, Linux and macOS but was only tested on Windows and WSL. The **[user manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** describes every key and every setting; inside the app `?` opens the cheat sheet, `<` (German keyboard; `SHIFT+,` on an English one) a list of all menus and overlays to choose from, and `SHIFT+w` the help wizard. All pictures of this README are in the folder **[readme_images/](readme_images/)**.
+Everything below is in the current version (v5.1.0) and works the same on Windows, Linux and macOS but was only tested on Windows and WSL. The **[user manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** describes every key and every setting; inside the app `?` opens the cheat sheet, `<` (German keyboard; `SHIFT+,` on an English one) a list of all menus and overlays to choose from, and `SHIFT+w` the help wizard. All pictures of this README are in the folder **[readme_images/](readme_images/)**.
 
 ### Music player
 
@@ -132,7 +132,7 @@ The picture can get a **retro look** (*Effect* in the VIDEO SETTINGS overlay, *V
 <p align="center"><img width="850" alt="The oscilloscope in image mode (Kitty / Sixel terminals): YT and XY with oscilloscope music (theme Outrun)" src="readme_images/osci_image.jpg" /></p>
 
 - **Oscilloscope** in braille or as a real picture (Kitty / Sixel terminals): XY, YT and both together, a CRT beam with afterglow for **oscilloscope music**, grid, metrics and many tuning rows (`SHIFT+o`); full screen (`=`) and its own window (`)`).
-- **Creator** (`^`): turns a text into sound – **oscilloscope music** that draws the text on the XY scope, or a **spectrogram sound** that plays it as notes of a musical scale (so it always sounds pleasant) – saved as a WAV, played in a looping full-screen preview, and listed under *Created files* to open again. The folder with creations is excluded from the library scan, since at the oscilloscope version don't sound pleasent :D A second mode shows your **microphone live** (spectrogram or oscilloscope XY / YT, grid optional) and records it with `ENTER`.
+- **Creator** (`^`): turns a text into sound – **oscilloscope music** that draws the text on the XY scope, or a **spectrogram sound** that plays it as notes of a musical scale (so it always sounds pleasant) – saved as a WAV, played in a looping full-screen preview, and listed under *Created files* to open again. The folder with creations is excluded from the library scan, since at the oscilloscope version don't sound pleasant :D A second mode shows your **microphone live** (spectrogram or oscilloscope XY / YT, grid optional) and records it with `ENTER`.
 - **Hi-Fi spectrum bars**: *Bars Style* = Hi-Fi turns the bars under the meta data into a Winamp-like **stereo** analyzer in braille dots, without gaps and at the frame rate of the program. Resolution (fine/rough), channels (stereo/mono) and colour (gradient/corresponding to the spectrogram) are options.
 - **Spectrogram** in the field, over the whole screen (`SHIFT+u`) and in its own window (`(`), with its own options (`SHIFT+i`). Its *View* row switches to a **waterfall**: a stack of outlined, colour-filled spectra, the newest in front. Spectrogram and waterfall, image and braille, each keep their own values (colours, scale, gain ...). Its memory follows the picture (about 11 MB at the default 30 s span, allocated only once sound reaches it); *Keep Spectrogram History* = false analyses only while one is shown and gives the memory back after ten seconds.
 - **Lyric sphere** and **spectrum bars**; the visualization field cycles with `.`. The sphere turns on while a track is paused, or stops with it (*Pause Sphere*, ANIMA/VIZ -> SPHERE). With *Auto-Play* off (the default, GENERAL -> AUDIO) the track the player opens with stands paused until you press play.
@@ -192,7 +192,7 @@ The radio is part of the same program: `*` (`SHIFT` and `+` on a German keyboard
 
 ### Audio book player
 
-The audio book player is the third mode, switched to with the same key as to the other modes (`SHIFT` and `+`; `SHIFT` and `-` goes back). **Settings → GENERAL → MODES** switches modes off (one always stays on) and changes their order; **Settings → PATHS → AUDIO BOOK PATH** is the folder of your books (shown in every mode). Files/folders placed there wont show up in the music player mode...
+The audio book player is the third mode, switched to with the same key as to the other modes (`SHIFT` and `+`; `SHIFT` and `-` goes back). **Settings → GENERAL → MODES** switches modes off (one always stays on) and changes their order; **Settings → PATHS → AUDIO BOOK PATH** is the folder of your books (shown in every mode). Files/folders placed there won't show up in the music player mode...
 
 - **Books and chapters:** the left pane of the audio book player lists only the books (folders), the right pane takes the place of the queue and lists the chapters of the open book. `n` / `b` and the end of a chapter walk the chapters.
 - **Book covers or a beautiful default image as placeholder** take the place of the disk (a grey version of a colour picture): where the terminal speaks Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm ...) a real transparent pixel image of the book cover or an default image at full resolution will be shown (a terminal without them gets braille dots; Settings → GENERAL → *Book Cover* (`BookCover`) shows the cover image from the book's folder, scaled to fit and centred, with a colour wave or, with *Gradient Wave* off, in its own colours). Original default placeholder image by Kamara Rahmat (iyaniyan) from Unsplash (https://unsplash.com/de/grafiken/young-woman-reading-a-blue-book-on-a-blanket-outdoors-brNfZ1TdBN0).
