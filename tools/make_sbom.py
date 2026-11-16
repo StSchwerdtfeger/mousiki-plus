@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Writes the software bill of materials (SBOM) of a Mousiki release: CycloneDX 1.5, JSON.
 
-  python tools/make_sbom.py --out packaging/dist/Mousiki-5.0.0-sbom.cdx.json [--version 5.0.0]
+  python tools/make_sbom.py --out packaging/dist/Mousiki-5.1.0-sbom.cdx.json [--version 5.1.0]
 
 Lists Mousiki itself, the libraries shipped as source (third_party/VENDORED.json) and the bundled tools (packaging/pins.json:
 yt-dlp, FFmpeg, Python, SDL2 ... with their exact download address and SHA-256; projectM and the MilkDrop presets from

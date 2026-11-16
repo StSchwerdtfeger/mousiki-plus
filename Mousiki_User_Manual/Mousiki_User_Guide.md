@@ -2,10 +2,10 @@
 
 ## Welcome: a quick tour
 
-Mousiki Plus is a music (-video) player, an internet radio and an audio book player in one TUI app. It runs inside your terminal and can be controlled via your keyboard. It visualizes your music as colours, braille pictures and an oscilloscope, and you can steer it from your phone. This page gives you the short introfuctiory version of what it can do and how to use it; the chapters after it explain every key for every player mode and menu/overlay Mousiki Plus offers.
+Mousiki Plus is a music (-video) player, an internet radio and an audio book player in one TUI app. It runs inside your terminal and can be controlled via your keyboard. It visualizes your music as colours, braille pictures and an oscilloscope, and you can steer it from your phone. This page gives you the short introductory version of what it can do and how to use it; the chapters after it explain every key for every player mode and menu/overlay Mousiki Plus offers.
 
 General notice:
-Mousiki Plus is a highly upgraded fork of the original v1.0.0 by itzender5820 that started as a Windows port. So far it has been tested well on Windows and WSL (Windows Linux VM), bith using the Windows terminal app. Feel free to contribute, e.g. via reporting issues using different OS and terminal apps on https://github.com/StSchwerdtfeger/mousiki-plus. 
+Mousiki Plus is a highly upgraded fork of the original v1.0.0 by itzender5820 that started as a Windows port. So far it has been tested well on Windows and WSL (Windows Linux VM), both using the Windows terminal app. Feel free to contribute, e.g. via reporting issues using different OS and terminal apps on https://github.com/StSchwerdtfeger/mousiki-plus. 
 See the original authors github repo here https://github.com/itzender5820/mousiki
 
 
