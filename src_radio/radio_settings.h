@@ -149,6 +149,12 @@ struct RadioSettings : VizPrefs {
     std::string audio_device;
     // The terminal's font in Mousiki's window: GENERAL -> TEXT -> "Terminal default font" (TerminalDefaultFont= in the player's config.txt,
     // one value for all modes); terminal_font = TerminalFont= there (no row of its own).
+    // one value for all modes, kept in the player's config.txt (read at the start, written when the settings are saved)
+    bool use_terminal_settings = false, full_screen = false, reduce_motion = true, update_check = true;
+    bool latin_macrons = false, latin_wo = false;
+    int term_cols = 120, term_rows = 32;        // TerminalCols= / TerminalRows= (0 = leave the terminal as it is)
+    int latin_hanzi = 0;                        // LatinHanziDefault=: 0 leave, 1 read as Chinese, 2 read as Japanese
+    bool media_keys = true;                     // MediaKeys= in the player's config.txt (one value for all modes; read at the start)
     bool terminal_default_font = false;
     std::string terminal_font = "Cascadia Mono";
     // Remote App (GENERAL -> REMOTE / UPDATES; RemoteApp= / RemoteAppPort= / RemoteAppPin= in the player's config.txt, one value for both):

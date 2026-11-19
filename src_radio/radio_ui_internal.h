@@ -184,7 +184,8 @@ const CheatRow kCheatRows[] = {
     {nullptr, "</>/UP/DOWN", "Equalizer: select band (LEFT / RIGHT) / gain +1 / -1 dB"},
     {nullptr, ",/./TAB/0/R", "Equalizer: previous / next preset / zero the band / reset to Flat (SPACE on/off)"},
     {nullptr, "S/DEL/X", "Equalizer: save the curve as a custom preset (ENTER saves, ESC cancels) / delete the selected one (press twice)"},
-    {"VISUALIZATIONS (MAIN UI)", ".", "Cycle the scope block: oscilloscope / sphere / spectrogram, like . in the player (rebindable; what is off on the GENERAL tab is skipped)"},
+    {"VISUALIZATIONS (MAIN UI)", ". / ,", "Cycle the scope block: oscilloscope / sphere / spectrogram, like . in the player (rebindable; what is off on the GENERAL tab is skipped)"},
+    {nullptr, "g / h", "The next / previous effect of the MilkDrop visuals while they show in the scope block (otherwise g is the preset slot 16 as ever); [e] in the preset overlay turns the effect on / off"},
     {nullptr, "SHIFT+i", "Spectrogram options overlay (view: spectrogram / waterfall, style, motion, scale, frequencies, gain, range, window, colors, channels, time span, the waterfall's graphs; R = Audacity's defaults)"},
     {nullptr, "SHIFT+b", "Spectrum bars overlay (under the upper pane, scrolls on a low terminal): style, Hi-Fi resolution / channels / gap / height / adapt / frequency scale / gain / range / colour, bar motion (toggle; R = defaults)"},
     {nullptr, "SHIFT+u", "Spectrogram full screen with frequency labels and time ruler (toggle; ESC closes)"},
@@ -196,7 +197,7 @@ const CheatRow kCheatRows[] = {
     {"RECORD AND SLEEP TIMER (MAIN UI)", "SHIFT+z", "Sleep timer: 15 / 30 / 60 / 90 / 120 min, stops the stream (optionally with a fade-out of the volume)"},
     {nullptr, "y", "Record: opens the RECORD overlay (from now on = the moment y was pressed, the last 1 / 5 / 10 / 15 / 30 min, everything buffered); y again stops and saves the MP3"},
     {nullptr, "UP/DOWN/ENTER", "Record overlay: choose the start / start recording (y does the same; ESC cancels)"},
-    {"OVERLAYS AND MENUS (MAIN UI)", "h", "Open the LISTENING HISTORY: HISTORY / TOP CHANNELS / HABITS"},
+    {"OVERLAYS AND MENUS (MAIN UI)", "SHIFT+h", "Open the LISTENING HISTORY: HISTORY / TOP CHANNELS / HABITS"},
     {nullptr, "SHIFT+l", "Open the big STATIONS overlay (the STATIONS pane with the whole screen)"},
     {nullptr, "s", "Open the RADIO SETTINGS (colours, modes and switches, animation and visualizer, paths, keys, about; saved to radio_config.txt)"},
     {nullptr, "SHIFT+s", "Open the RADIO BROWSER menu: search stations worldwide (radio-browser.info)"},
@@ -340,10 +341,9 @@ constexpr int kBarsOverlayW = 52;
 // The MilkDrop visuals (radio_milkdrop.cpp): the scope block's rows when it shows them (false: they cannot run, the caller draws the
 // oscilloscope), and the visuals overlay (":", overlay 11).
 constexpr int kMdOverlayW = 62;
-bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::vector<std::string>& rows);
+bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::vector<std::string>& rows, int prows = kPanelH);   // (prows: the rows of the block; the preset overlay's preview is taller)
 std::vector<std::string> build_md_overlay(const Style& s, const UiModel& m);
-std::vector<std::string> build_mdb_overlay(const Style& s, const UiModel& m);   // overlay 12: the preset overlay
-constexpr int kMdbOverlayW = 76;
+std::vector<std::string> build_mdb_screen(const Style& s, const UiModel& m, int W, int rows_total);   // overlay 12: the preset overlay (the whole screen: the list and a live preview)
 
 // ===========================================================================================
 // Overlays over the main screen: SHIFT+o oscilloscope tuning, SHIFT+v loudness normalisation (same rows, ranges and

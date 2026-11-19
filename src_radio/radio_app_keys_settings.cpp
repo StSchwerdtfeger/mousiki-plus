@@ -186,6 +186,34 @@ bool RadioApp::key_settings_edit(KeyCtx& kc) {
         edit_text_key(sm.buffer, sm.edit, k, 400, &sm.status);
         return true;
     }
+    if (sm.editing && sm.tab == 1) {                              // Terminal Size: a number (the player's row)
+        if (k == 3) { sm.editing = false; set_text_entry(false); running = false; return true; }
+        if (k == 27 && !last_key_was_arrow()) { sm.editing = false; sm.status.clear(); set_text_entry(false); return true; }
+        if (k == 13 || k == 10) {
+            const bool is_cols = sm.col == 0;
+            const muisc::TerminalLimits L = muisc::terminal_size_limits();
+            try {
+                std::string d = sm.buffer;
+                d.erase(std::remove_if(d.begin(), d.end(), [](unsigned char ch) { return std::isspace(ch) != 0; }), d.end());
+                const int typed = d.empty() ? 0 : std::stoi(d);
+                const int lo = is_cols ? L.min_cols : L.min_rows, hi = is_cols ? L.max_cols : L.max_rows;
+                const int use = typed <= 0 ? 0 : std::clamp(typed, lo, hi);
+                (is_cols ? cfg.term_cols : cfg.term_rows) = use;
+                sm.status = std::string("terminal ") + (is_cols ? "columns" : "rows") + ": " + (use == 0 ? "0 -- the terminal is left as it is" : std::to_string(use));
+                if (use != 0 && use != typed) sm.status += " (allowed: " + std::to_string(lo) + " - " + std::to_string(hi) + (L.screen_known ? ", what fits on the screen)" : ")");
+                sm.dirty = true;
+                if (cfg.term_cols > 0 && cfg.term_rows > 0 && !cfg.full_screen && !cfg.use_terminal_settings) {
+                    muisc::terminal_apply_size(cfg.term_cols, cfg.term_rows, false);
+                    sm.status += " -- asked the terminal for " + std::to_string(cfg.term_cols) + " x " + std::to_string(cfg.term_rows) + " (it may refuse)";
+                    out_clear_next = true;
+                }
+            } catch (...) { sm.status = "terminal size: type a number (0 = leave the terminal as it is)"; }
+            sm.editing = false; set_text_entry(false);
+            return true;
+        }
+        edit_text_key(sm.buffer, sm.edit, k, 5, &sm.status);
+        return true;
+    }
     if (sm.editing && sm.tab == 4) {                              // a key: one character or a name
         if (k == 3) { sm.editing = false; set_text_entry(false); running = false; return true; }
         if (k == 27 && !last_key_was_arrow()) { sm.editing = false; sm.status.clear(); set_text_entry(false); return true; }
@@ -307,9 +335,11 @@ bool RadioApp::key_settings(KeyCtx& kc) {
         }
         const int nrows = sm.tab == 1 ? kOnOffRowCount : sm.tab == 2 ? (rs_set_hifi_rows(cfg.bars_style == 1), rs_row_count(2)) : sm.tab == 3 ? kPathRowCount : sm.tab == 4 ? kKeyActionCount + 1 : sm.tab == 5 ? static_cast<int>(about_app_text().size()) : color_tab_row_count();   // + the THEME and SMOOTHNESS rows
         // the Volume indicator row has two values (the look | gradient or not): the only row of the other tabs that keeps its column
+        // (and the Terminal Size row: columns | rows, typed)
+        const bool size_row = sm.tab == 1 && std::string(rs_row_label(sm.tab, sm.row)) == "Terminal Size";
         const bool vol_row = (sm.tab == 1 || sm.tab == 2) && std::string(rs_row_label(sm.tab, sm.row)) == "Volume indicator";
         auto fix_col = [&]() {
-            const bool vol_now = (sm.tab == 1 || sm.tab == 2) && std::string(rs_row_label(sm.tab, sm.row)) == "Volume indicator";
+            const bool vol_now = ((sm.tab == 1 || sm.tab == 2) && std::string(rs_row_label(sm.tab, sm.row)) == "Volume indicator") || (sm.tab == 1 && std::string(rs_row_label(sm.tab, sm.row)) == "Terminal Size");
             if ((sm.tab >= 1 && !vol_now) || (sm.tab == 0 && sm.row != 0 && !color_field(cfg, color_row_of_tab(sm.row), sm.col))) sm.col = 0;
         };
         auto toggle = [&](int dir) {   // GENERAL and ANIMA/VIZ rows: left / right / ENTER
@@ -340,6 +370,12 @@ bool RadioApp::key_settings(KeyCtx& kc) {
                 sm.dirty = true; sm.status.clear(); storage_changed();
                 return;
             }
+            if (size_row) {   // LEFT / RIGHT switch between the columns and the rows, ENTER types the one that is lit (0 = leave the terminal as it is)
+                if (dir != 0) { sm.col = dir > 0 ? 1 : 0; sm.status = "[ENTER] types the number that is lit; [<-] [->] switch between columns and rows"; return; }
+                sm.buffer = std::to_string(sm.col == 1 ? cfg.term_rows : cfg.term_cols);
+                sm.edit.to_end(sm.buffer); sm.editing = true; sm.status.clear(); set_text_entry(true);
+                return;
+            }
             if (vol_row) {   // LEFT / RIGHT (and h / l) switch between the look and the gradient, ENTER changes the one that is lit
                 if (dir != 0) { sm.col = dir > 0 ? 1 : 0; sm.status = "[ENTER] changes the value that is lit; [<-] [->] switch between the look and the gradient"; return; }
                 if (sm.col == 1) cfg.volume_gradient = !cfg.volume_gradient;
@@ -352,6 +388,34 @@ bool RadioApp::key_settings(KeyCtx& kc) {
                 muisc::set_config_value("TerminalDefaultFont", cfg.terminal_default_font ? "true" : "false");
                 sm.status = muisc::terminal_font::apply(cfg.terminal_default_font ? std::string(muisc::terminal_font::kTerminalDefault) : cfg.terminal_font);
                 return;
+            }
+            if (sm.tab == 1) {   // the rows that are the player's too: what can be applied now is applied now
+                const std::string lab = rs_row_label(sm.tab, sm.row);
+                if (lab == "Latin Macrons" || lab == "Latin Wo" || lab == "Translit. Kanji") {
+                    rs_row_change(cfg, sm.tab, sm.row, dir);
+                    muisc::translit_set_style(cfg.latin_macrons, cfg.latin_wo);
+                    muisc::translit_set_default_hanzi(cfg.latin_hanzi);
+                    sm.dirty = true; sm.status = "the station names and titles are shown with this spelling at once";
+                    return;
+                }
+                if (lab == "Full Screen") {
+                    rs_row_change(cfg, sm.tab, sm.row, dir);
+                    if (!cfg.use_terminal_settings) muisc::terminal_apply_size(cfg.term_cols, cfg.term_rows, cfg.full_screen);
+                    sm.dirty = true; sm.status = cfg.full_screen ? "full screen: on -- the terminal is asked for full screen (now and at every start)" : "full screen: off";
+                    out_clear_next = true;
+                    return;
+                }
+                if (lab == "Reduce Motion When Paused") {
+                    rs_row_change(cfg, sm.tab, sm.row, dir);
+                    reduce_motion = cfg.reduce_motion;
+                    sm.dirty = true; sm.status.clear();
+                    return;
+                }
+                if (lab == "Use Terminal Settings" || lab == "Update Notice") {
+                    rs_row_change(cfg, sm.tab, sm.row, dir);
+                    sm.dirty = true; sm.status = "read at the next start";
+                    return;
+                }
             }
             rs_row_change(cfg, sm.tab, sm.row, dir);
             ui.model.shuffle = cfg.playback_shuffle;

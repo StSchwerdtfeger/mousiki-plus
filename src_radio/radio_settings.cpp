@@ -128,6 +128,8 @@ enum RsId {
     kRsMdFavShuffle, kRsMdHcd, kRsMdVar, kRsMdMesh, kRsMdAspect, kRsMdRatio, kRsMdClean, kRsMdUseFx, kRsMdFx, kRsMdColors,
     kRsAudioDevice,   // [ENTER]: the CHOOSE AUDIO DEVICE overlay
     kRsCliScripts,    // [ENTER]: the script overlay
+    kRsUseTermSettings, kRsTermSize, kRsFullScreen, kRsReduceMotion, kRsUpdateNotice, kRsLatinMacrons, kRsLatinWo, kRsLatinHanzi,   // (the player's rows of the same name; one value for all modes)
+    kRsMediaKeys,     // the system's media controls / media keys (MediaKeys= in the player's config.txt)
     kRsTermDefaultFont, // leave the terminal's own font alone (one value for all modes: TerminalDefaultFont= in the player's config.txt)
 };
 }
@@ -145,9 +147,11 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {true, -1, ""},
         {true, -1, "TERMINAL"},
         {false, kRsBlackBg, "Black Background"},
+        {false, kRsUseTermSettings, "Use Terminal Settings"}, {false, kRsTermSize, "Terminal Size"}, {false, kRsFullScreen, "Full Screen"}, {false, kRsReduceMotion, "Reduce Motion When Paused"},
         {true, -1, ""},
         {true, -1, "CLI / REMOTE / UPDATES"},
-        {false, kRsCliScripts, "CLI Scripts"}, {false, kRsRemoteApp, "Remote App"},
+        {false, kRsCliScripts, "CLI Scripts"}, {false, kRsRemoteApp, "Remote App"}, {false, kRsMediaKeys, "Media Keys"},
+        {false, kRsUpdateNotice, "Update Notice"},
         {true, -1, ""},
         {true, -1, "AUDIO"},
         {false, kRsAudioDevice, "Choose Audio Device"},
@@ -156,6 +160,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {true, -1, ""},
         {true, -1, "TEXT"},
         {false, kRsTermDefaultFont, "Terminal default font"},
+        {false, kRsLatinMacrons, "Latin Macrons"}, {false, kRsLatinWo, "Latin Wo"}, {false, kRsLatinHanzi, "Translit. Kanji"},
         {false, kRsMarquee, "Marquee scrolling"},
     };
     static const std::vector<SettingsLine> anima = {
@@ -257,6 +262,13 @@ bool* flag_of(RadioSettings& s, int id) {
         case kRsTuneNoise: return &s.tune_noise;
         case kRsMarquee: return &s.marquee;
         case kRsTermDefaultFont: return &s.terminal_default_font;
+        case kRsMediaKeys: return &s.media_keys;
+        case kRsUseTermSettings: return &s.use_terminal_settings;
+        case kRsFullScreen: return &s.full_screen;
+        case kRsReduceMotion: return &s.reduce_motion;
+        case kRsUpdateNotice: return &s.update_check;
+        case kRsLatinMacrons: return &s.latin_macrons;
+        case kRsLatinWo: return &s.latin_wo;
         case kRsUseOsci: return &s.use_osci;
         case kRsUseSpectro: return &s.use_spectro;
         case kRsBlackBg: return &s.black_background;
@@ -319,6 +331,8 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsFluidity: return std::to_string(s.bar_fluidity());
         case kRsBehavior: return bars_preset_name(bars_preset_of(s.bar_fluidity(), s.bar_degradation(), s.bar_viscosity()));
         case kRsPaneStyle: { static const char* n[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"}; return n[std::clamp(s.top_pane_style, 0, 5)]; }
+        case kRsTermSize: return std::to_string(s.term_cols) + " x " + std::to_string(s.term_rows);   // (two typed fields: the settings screen draws and edits them)
+        case kRsLatinHanzi: return s.latin_hanzi == 1 ? "Chin." : s.latin_hanzi == 2 ? "Jap." : "Leave";
         case kRsBarStyle: return s.bars_style == 1 ? "hi-fi" : "classic";
         case kRsHifiRes: return s.hifi_resolution == 1 ? "rough" : "fine";
         case kRsHifiChan: return s.hifi_channels == 1 ? "mono" : "stereo";
@@ -401,6 +415,7 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
             break;
         }
         case kRsPaneStyle: step(s.top_pane_style, 6); break;
+        case kRsLatinHanzi: step(s.latin_hanzi, 3); break;
         case kRsBarStyle: step(s.bars_style, 2); g_rs_hifi = s.bars_style == 1; break;
         case kRsHifiRes: step(s.hifi_resolution, 2); break;
         case kRsHifiChan: step(s.hifi_channels, 2); break;
@@ -724,6 +739,21 @@ void load_player_mode_settings(RadioSettings& s) {
     const muisc::ModeConfig mc = muisc::read_mode_config();   // same file; defaults when missing, always one mode on
     for (int i = 0; i < 3; ++i) { s.use_mode[i] = mc.use[i]; s.mode_order[i] = mc.order[i]; }
     s.audiobook_path = player_config_value("audiobookpath");
+    {   // the rows that are the player's too (true / false; missing = the player's default)
+        auto flag = [](const char* key, bool def) {
+            const std::string v = ascii_lower_str(player_config_value(key));
+            if (v.empty()) return def;
+            return !(v == "false" || v == "0" || v == "no" || v == "off");
+        };
+        s.use_terminal_settings = flag("useterminalsettings", false); s.full_screen = flag("fullscreen", false);
+        s.reduce_motion = flag("reducemotionwhenpaused", true); s.update_check = flag("updatecheck", true);
+        auto num = [](const char* key, int def) { try { return std::stoi(player_config_value(key)); } catch (...) { return def; } };
+        s.term_cols = std::clamp(num("terminalcols", 120), 0, 2000); s.term_rows = std::clamp(num("terminalrows", 32), 0, 2000);
+        s.latin_macrons = flag("latinmacrons", false); s.latin_wo = flag("latinwo", false);
+        const std::string hz = ascii_lower_str(player_config_value("latinhanzidefault"));
+        s.latin_hanzi = (hz == "chinese" || hz == "pinyin") ? 1 : (hz == "japanese" || hz == "kanji") ? 2 : 0;
+    }
+    { const std::string mk = ascii_lower_str(player_config_value("mediakeys")); s.media_keys = !(mk == "false" || mk == "0" || mk == "no" || mk == "off"); }
     s.md_extra = player_config_values("milkdropextrapresets");
     s.md_presets = player_config_value("milkdroppresets");   // the MilkDrop preset folder: one for all modes ("" = the usual places)
     {
@@ -744,6 +774,23 @@ void save_player_mode_settings(const RadioSettings& s) {
     for (int i = 0; i < 3; ++i) if (now.order[i] != s.mode_order[i]) same = false;
     if (!same) set_player_config_value("ModeOrder", muisc::mode_order_text(s.mode_order));
     if (s.audiobook_path != player_config_value("audiobookpath")) set_player_config_value("AudioBookPath", s.audiobook_path);
+    { const std::string mk = ascii_lower_str(player_config_value("mediakeys")); const bool was = !(mk == "false" || mk == "0" || mk == "no" || mk == "off"); if (s.media_keys != was) set_player_config_value("MediaKeys", s.media_keys ? "true" : "false"); }
+    {   // (written only when changed: the player's config.txt keeps its own comments and order)
+        auto put = [](const char* key, const char* lower, bool now, bool def) {
+            const std::string v = ascii_lower_str(player_config_value(lower));
+            const bool was = v.empty() ? def : !(v == "false" || v == "0" || v == "no" || v == "off");
+            if (now != was) set_player_config_value(key, now ? "true" : "false");
+        };
+        put("UseTerminalSettings", "useterminalsettings", s.use_terminal_settings, false); put("FullScreen", "fullscreen", s.full_screen, false);
+        put("ReduceMotionWhenPaused", "reducemotionwhenpaused", s.reduce_motion, true); put("UpdateCheck", "updatecheck", s.update_check, true);
+        put("LatinMacrons", "latinmacrons", s.latin_macrons, false); put("LatinWo", "latinwo", s.latin_wo, false);
+        { auto num = [](const char* key, int def) { try { return std::stoi(player_config_value(key)); } catch (...) { return def; } };
+          if (s.term_cols != num("terminalcols", 120)) set_player_config_value("TerminalCols", std::to_string(s.term_cols));
+          if (s.term_rows != num("terminalrows", 32)) set_player_config_value("TerminalRows", std::to_string(s.term_rows)); }
+        const std::string hz = ascii_lower_str(player_config_value("latinhanzidefault"));
+        const int was = (hz == "chinese" || hz == "pinyin") ? 1 : (hz == "japanese" || hz == "kanji") ? 2 : 0;
+        if (s.latin_hanzi != was) set_player_config_value("LatinHanziDefault", s.latin_hanzi == 1 ? "chinese" : s.latin_hanzi == 2 ? "japanese" : "leave");
+    }
     if (s.md_presets != player_config_value("milkdroppresets")) set_player_config_value("MilkDropPresets", s.md_presets);
 }
 
@@ -838,7 +885,7 @@ const KeyAction kKeyActions[] = {
     {nullptr, "Presets", "Open Presets Menu", "P"},
     {nullptr, "Browser", "Open Radio Browser", "S"},
     {nullptr, "Lists", "Open Station Lists", "K"},
-    {nullptr, "History", "Open History", "h"},
+    {nullptr, "History", "Open History", "H"},   // SHIFT+h as in the music player (was "h" up to this version: that key is the previous MilkDrop effect now)
     {nullptr, "Stations", "Big Stations Overlay", "L"},
     {nullptr, "OsciMenu", "Oscilloscope Overlay", "O"},
     {nullptr, "ScopeWindow", "Scope Window", ")"},            // SHIFT+9 on a German keyboard (was SHIFT+w)
@@ -851,7 +898,10 @@ const KeyAction kKeyActions[] = {
     {nullptr, "NormMenu", "Normalization Overlay", "V"},
     {nullptr, "EqMenu", "Equalizer Overlay", "E"},
     {nullptr, "ScopeToggle", "Cycle Osci / Sphere / Spectro / MilkDrop", "."},   // "." like the player's lyrics-area cycle (was "o" up to v3.0.0)
-    {nullptr, "VisualsMenu", "MilkDrop Visuals Overlay", ":"},   // as in the music player and the audio book
+    {nullptr, "ScopeToggleBack", "Cycle Back Osci / Sphere / Spectro / MilkDrop", ","},   // the player's "," (the lyrics-area cycle the other way)
+    {nullptr, "VisualsMenu", "MilkDrop Visuals Overlay", ":"},
+    {nullptr, "VideoFx", "Next MilkDrop Effect", "g"},          // while MilkDrop shows in the scope block (else "g" is the preset slot key as ever)
+    {nullptr, "VideoFxBack", "Previous MilkDrop Effect", "h"},   // as in the music player and the audio book
     {"TIMESHIFT", "Pause", "Pause / Resume (keeps buffering)", "SPACE"},
     {nullptr, "Back30", "Back 30 Seconds", "["},
     {nullptr, "Fwd30", "Forward 30 Seconds", "]"},
@@ -1034,6 +1084,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
             // Configs written up to v3.0.0 saved every key, so the old default "o" of the scope switch is
             // stored there as if it were a choice -- treat it as the old default and use the new one (".").
             if (std::string(kKeyActions[i].id) == "ScopeToggle" && val == "o") continue;
+            if (std::string(kKeyActions[i].id) == "History" && val == "h") continue;   // the old default (now SHIFT+h)
             if (std::string(kKeyActions[i].id) == "ScopeWindow" && val == "W") continue;   // the old default (now SHIFT+9)
             // v4.4.0: SHIFT+p opens the PRESETS menu and SHIFT+k the STATION LISTS (they were the other way round); the old defaults
             // saved in a config are taken as defaults

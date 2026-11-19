@@ -1,6 +1,7 @@
 #include "radio_app.h"
 #include "milkdrop.h"
 #include "string_util.h"
+#include "video_fx.h"
 #if defined(_WIN32)
 #include "win_compat.h"
 #endif
@@ -334,7 +335,7 @@ bool RadioApp::key_overlays_b(KeyCtx& kc) {
         bool closed = false;
         md_browse_key(cfg, ui.model, k, arrow, note, closed);
         set_text_entry(ui.model.overlay == 12 && ui.model.mdb.typing);
-        if (closed) { settings_save(); ui.model.settings.dirty = true; }
+        if (closed) { settings_save(); ui.model.settings.dirty = true; out_clear_next = true; }
         if (!note.empty()) { ui.model.notice = note; notice_until = ui.model.t_sec + 4; }
         return true;
     }
@@ -357,6 +358,7 @@ bool RadioApp::key_overlays_b(KeyCtx& kc) {
         else if (k == 'b' || k == 'B') Milkdrop::instance().prev_preset();
         else if (k == 'l' || k == 'L') md_overlay_adjust(cfg, kMdLock, +1, note);
         else if (k == 27 || k == key_of(cfg, "VisualsMenu")) { ui.model.overlay = 0; settings_save(); return true; }
+        if (ui.model.overlay == 12) out_clear_next = true;   // (the preset overlay takes the whole screen)
         if (!note.empty()) { ui.model.notice = note; notice_until = ui.model.t_sec + 4; }
         return true;
     }
@@ -599,11 +601,13 @@ bool RadioApp::key_main(KeyCtx& kc) {
         case ')': toggle_scope_window(); break;     // SHIFT+9: the oscilloscope in its own window
         case '(': toggle_spectro_window(); break;   // SHIFT+8: the spectrogram in its own window
         case '|': toggle_milkdrop_window(); break;  // the MilkDrop pictures in their own window (key_translate() hands ";" over as this)
-        case '.': {                            // the scope block: oscilloscope -> sphere -> spectrogram -> MilkDrop -> oscilloscope
+        case '.': case ',': {                  // the scope block: oscilloscope -> sphere -> spectrogram -> MilkDrop -> oscilloscope ("," the other way round)
             // (what is switched off on the ANIMA/VIZ tab is skipped, MilkDrop also when projectM is not installed; the sphere is always there)
             const bool md_ok = radio_milkdrop_usable(cfg);
+            const bool back = key_translate(cfg, k) == ',';
             for (int n = 0; n < 4; ++n) {
-                cfg.scope_mode = cfg.scope_mode == 0 ? 1 : cfg.scope_mode == 1 ? 3 : cfg.scope_mode == 3 ? 4 : 0;
+                if (back) cfg.scope_mode = cfg.scope_mode == 0 ? 4 : cfg.scope_mode == 4 ? 3 : cfg.scope_mode == 3 ? 1 : 0;
+                else cfg.scope_mode = cfg.scope_mode == 0 ? 1 : cfg.scope_mode == 1 ? 3 : cfg.scope_mode == 3 ? 4 : 0;
                 if ((cfg.scope_mode == 0 && !cfg.use_osci) || (cfg.scope_mode == 3 && !cfg.use_spectro) || (cfg.scope_mode == 4 && !md_ok)) continue;
                 break;
             }
@@ -619,7 +623,7 @@ bool RadioApp::key_main(KeyCtx& kc) {
             if (ui.model.spectro_full) ui.model.scope_big = false;
             out_clear_next = true;
             break;
-        case 'h': {                            // the LISTENING HISTORY
+        case 'H': {                            // the LISTENING HISTORY (SHIFT+h)
             HistoryModel& hm = ui.model.hmenu;
             hm.open = true; hm.flash.clear(); hm.cursor = 0; hm.top_cursor = 0; hm.scroll = 0;
             break;
@@ -670,6 +674,20 @@ bool RadioApp::key_main(KeyCtx& kc) {
                   ui.refilter_menu(); ui.refilter_presets(); ui.cursor_to_active_preset();
                   ui.model.menu.search_edit.to_end(ui.model.menu.search); ui.model.menu.psearch_edit.to_end(ui.model.menu.psearch);
                   set_text_entry(true); break;
+        case 'g': case 'h': {                  // the next / previous effect of the MilkDrop visuals (only while they show in the scope block)
+            if (cfg.scope_mode == 4 && radio_milkdrop_usable(cfg)) {
+                cfg.md_fx = video_fx_step(cfg.md_fx, key_translate(cfg, k) == 'h' ? -1 : 1);
+                cfg.md_fx_on = true;
+                radio_milkdrop_apply(cfg);
+                ui.model.notice = std::string("milkdrop effect: ") + video_fx_name(video_fx_canon(cfg.md_fx));
+                notice_until = ui.model.t_sec + 3;
+                ui.model.settings.dirty = true;
+                break;
+            }
+            if (key_translate(cfg, k) == 'g') { const int slot = preset_slot_for_key(k); if (slot >= 0) { const int idx = ui.model.presets[static_cast<size_t>(slot)]; if (idx >= 0) tune_to(idx); } }
+            else { ui.model.notice = "milkdrop effect: MilkDrop has to show in the scope block (" + window_key_label("ScopeToggle") + " cycles it)"; notice_until = ui.model.t_sec + 3; }
+            break;
+        }
         default:
             const int slot = preset_slot_for_key(k);
             if (slot >= 0) {

@@ -991,6 +991,17 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
             // the "disk" look of the Volume indicator is shown as two braille blocks of the animation itself
             if ((sm.tab == 1 || sm.tab == 2) && v == muisc::kVolIndicatorNames[muisc::kVolStyleDisk]) v = muisc::volume_disk_snippet(muisc::volume_clock_angle());
             std::vector<Seg> segs = {{"", "   " + pad_right(l.text, 26) + ":  "}, {sel ? "\x1b[7m" : "", v}};
+            if (sm.tab == 1 && std::string(l.text) == "Terminal Size") {   // columns x rows: two numbers (LEFT / RIGHT switch, ENTER types the lit one)
+                auto field = [&](int col, int n) -> Seg {
+                    if (sel && sm.editing && sm.col == col) {
+                        const EditPaint p = paint_edit_field(sm.buffer, sm.edit, 4, "\x1b[41;37m", true);
+                        return {"\x1b[41;37m", p.s + spaces(std::max(0, 5 - p.cols))};
+                    }
+                    return {sel && sm.col == col ? "\x1b[7m" : "", pad_right(std::to_string(n), 5)};
+                };
+                segs = {{"", "   " + pad_right(l.text, 26) + ":  "}, field(0, c.term_cols), {"", " x "}, field(1, c.term_rows)};
+                if (sel && !sm.editing) segs.push_back({tab_cur, "   [ENTER] type  (0 = leave the terminal as it is)"});
+            } else
             if ((sm.tab == 1 || sm.tab == 2) && std::string(l.text) == "Volume indicator") {   // two values: the look | gradient or not (LEFT / RIGHT switch, ENTER changes)
                 segs = {{"", "   " + pad_right(l.text, 26) + ":  "}, {sel && sm.col == 0 ? "\x1b[7m" : "", v},
                         {"", spaces(std::max(0, 10 - display_width(v)))},
@@ -1210,6 +1221,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
     else if (sm.tab == 4) hint = "[TAB] Switch  [ENTER] Change  [DEL] Default  [Ctrl+Shift+U] Undo  [s] Save settings  [ESC/q] Discard";
     else if (sm.tab == 5) hint = "[TAB] Switch  [\u2191\u2193] Scroll  [ESC/q] Back";
     else if (sm.tab == 3 && sm.editing) hint = "[ENTER] Apply  [ESC] Cancel  [\u2190\u2192] Cursor  type or paste a folder (empty = default)";
+    else if (sm.tab == 1 && sm.editing) hint = "[ENTER] Apply  [ESC] Cancel  [\u2190\u2192] Cursor  type a number (0 = leave the terminal as it is)";
     else if (sm.tab == 3) hint = "[TAB] Switch  [ENTER] Edit / toggle  [s] Save settings  [ESC/q] Discard";
     else if (sm.tab >= 1) hint = "[TAB] Switch  [←→/ENTER] Change  [s] Save settings  [ESC/q] Discard";
     else if (cr && cr->editing) hint = cr->theme_row < 0 ? "[ENTER] Apply  [ESC] Cancel  [\u2190\u2192] Cursor  type the theme's name (25 characters at most)"

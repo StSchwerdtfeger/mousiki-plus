@@ -102,7 +102,6 @@ std::vector<std::string> build_overlay(const Style& s, const UiModel& m, const R
     if (m.overlay == 9) return build_adev_overlay(s.c, m.settings);
     if (m.overlay == 10) return build_bars_overlay(s.c, m);
     if (m.overlay == 11) return build_md_overlay(s, m);
-    if (m.overlay == 12) return build_mdb_overlay(s, m);
     const RadioSettings& c = s.c;
     const bool osci = m.overlay == 1;
     const bool sleep = m.overlay == 3;
@@ -590,6 +589,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     if (m.browse.open) return build_browse(s, m, st, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.menu.open) return build_menu(s, m, st, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.stov.open) return build_stations_overlay(s, m, st, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
+    if (m.overlay == 12 && !peek) return build_mdb_screen(s, m, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.scope_big) return build_scope_big(s, m, st, engine, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.spectro_full) return build_spectro_full(s, m, st, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
 
@@ -723,7 +723,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
         const muisc::org::Tree tree = muisc::org::radio_tree();
         const int sel = muisc::org::clamp_sel(tree, m.overlay_row);
         muisc::org::Theme th;
-        th.line = s.border; th.path = s.header; th.key = s.legend;
+        th.line = s.border; th.path = s.header; th.key = s.legend; th.pending = s.vol_possible;   // (the boxes and branches off the path: the "remaining" colour, as the player takes its progress bar's)
         th.key_text = [&](const muisc::org::Node& n) { return n.action ? menus_key_label(s.c, n.action) : std::string(); };
         const muisc::org::Node& nd = tree.n[sel];
         std::string info = nd.title;
@@ -745,7 +745,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
         if (m.overlay == 7) {   // the MENUS index, classic view: a regular overlay as big as its two columns need
             const muisc::org::Tree tree = muisc::org::radio_tree();
             muisc::org::Theme th;
-            th.line = s.border; th.path = s.header; th.key = s.legend;
+            th.line = s.border; th.path = s.header; th.key = s.legend; th.pending = s.vol_possible;   // (the boxes and branches off the path: the "remaining" colour, as the player takes its progress bar's)
             th.key_text = [&](const muisc::org::Node& n) { return n.action ? menus_key_label(s.c, n.action) : std::string(); };
             const std::string legend = std::string("[\u2191\u2193] Entry  [\u2190\u2192] Column  [ENTER] Open  [SHIFT+T] Tree  [ESC / ") + menus_key_label(s.c, "Menus") + "] Close";
             const auto pnl = muisc::org::render_classic(tree, m.overlay_row, th, std::max(8, rows - 2), std::max(24, W - 6));
@@ -758,7 +758,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
             panel.push_back(box_bottom(s, pw, legend, s.border_bottom));
         } else {
             panel = build_overlay(s, m, st);
-        pw = m.overlay == 12 ? kMdbOverlayW : m.overlay == 11 ? kMdOverlayW : m.overlay == 10 ? kBarsOverlayW : m.overlay == 9 ? kAdevOverlayW : m.overlay == 8 ? kUpdateOverlayW : m.overlay == 6 ? kSpectroOverlayW : m.overlay == 5 ? kRecordOverlayW : m.overlay == 4 ? kEqOverlayW : m.overlay == 3 ? kSleepOverlayW : m.overlay == 1 ? kOsciOverlayW : kNormOverlayW;
+        pw = m.overlay == 11 ? kMdOverlayW : m.overlay == 10 ? kBarsOverlayW : m.overlay == 9 ? kAdevOverlayW : m.overlay == 8 ? kUpdateOverlayW : m.overlay == 6 ? kSpectroOverlayW : m.overlay == 5 ? kRecordOverlayW : m.overlay == 4 ? kEqOverlayW : m.overlay == 3 ? kSleepOverlayW : m.overlay == 1 ? kOsciOverlayW : kNormOverlayW;
         }
         const int ph = static_cast<int>(panel.size());
         const int x = std::max(0, (W - pw) / 2);

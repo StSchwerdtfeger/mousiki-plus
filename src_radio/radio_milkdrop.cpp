@@ -300,14 +300,14 @@ void md_inner(int w, int h, double par, bool aspect, int ratio_idx, int& iw, int
 }
 } // namespace
 
-bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::vector<std::string>& rows) {
+bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::vector<std::string>& rows, int prows) {
     if (scope_w < 8 || !radio_milkdrop_usable(s.c)) return false;
     Milkdrop& md = Milkdrop::instance();
     if (milkdrop_window_running()) {   // the pictures are in the extra window: nothing is drawn or sent here
-        rows.assign(kPanelH, spaces(scope_w));
+        rows.assign(prows, spaces(scope_w));
         const std::string t = truncate_str("MilkDrop is in its own window", scope_w - 2);
         const int l = std::max(0, (scope_w - display_width(t)) / 2);
-        rows[kPanelH / 2] = spaces(l) + s.header + t + kReset + spaces(std::max(0, scope_w - l - display_width(t)));
+        rows[prows / 2] = spaces(l) + s.header + t + kReset + spaces(std::max(0, scope_w - l - display_width(t)));
         return true;
     }
     const bool pic = m.gfx_proto != GfxProto::None;
@@ -316,7 +316,7 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
     const int scale = pic && scope_w * cw0 > 1280 ? 2 : 1;
     const int cws = std::max(2, cw0 / scale);
     const int chs = std::max(4, static_cast<int>(std::lround(static_cast<double>(cws) * ch0 / cw0)));
-    const int pw = scope_w * cws, ph = kPanelH * chs;
+    const int pw = scope_w * cws, ph = prows * chs;
     // Aspect Correction: the picture is no wider than 16:9 (a wide block gets bars at the sides, not a cut-off preset)
     int ipw = pw, iph = ph;
     md_inner(pw, ph, 1.0, s.c.md_aspect, s.c.md_ratio, ipw, iph);
@@ -332,10 +332,10 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
         return left + "\x1b[0;97;40m " + name + " " + kReset + right;
     };
     if (!f) {   // starting: the status in the middle of the block
-        rows.assign(kPanelH, spaces(scope_w));
+        rows.assign(prows, spaces(scope_w));
         const std::string t = truncate_str(md.status().empty() ? std::string("milkdrop: starting ...") : md.status(), scope_w - 2);
         const int l = std::max(0, (scope_w - display_width(t)) / 2);
-        rows[kPanelH / 2] = spaces(l) + s.header + t + kReset + spaces(std::max(0, scope_w - l - display_width(t)));
+        rows[prows / 2] = spaces(l) + s.header + t + kReset + spaces(std::max(0, scope_w - l - display_width(t)));
         return true;
     }
     MdPic& st = md_pic();
@@ -348,9 +348,9 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
         const bool remake = key != st.key || !g.plain || g.w != pw || g.h != ph || g.level.size() != static_cast<size_t>(pw) * ph;
         g.plain = true; g.direct = true; g.truecolor = tc;
         g.scale = scale; g.out_cw = cw0; g.out_ch = ch0;
-        g.cols = scope_w; g.rows = kPanelH; g.w = pw; g.h = ph;
+        g.cols = scope_w; g.rows = prows; g.w = pw; g.h = ph;
         g.id = 0; g.grid.clear(); g.cut2_w = 0;
-        g.cut_c = nl; g.cut_r = kPanelH - 1; g.cut_w = nw; g.cut_h = nw > 0 ? 1 : 0;
+        g.cut_c = nl; g.cut_r = prows - 1; g.cut_w = nw; g.cut_h = nw > 0 ? 1 : 0;
         g.opaque = s.c.black_background;
         g.erase = !s.c.black_background;
         g.active = true;
@@ -365,8 +365,8 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
                 vf.w = pw; vf.h = ph; vf.rgb.swap(px);
                 VideoPicParams pp;
                 pp.look = look; pp.t = m.t_sec; pp.truecolor = tc; pp.adaptive = adaptive;
-                pp.vcols = scope_w; pp.vrows = kPanelH;
-                pp.cut_c = nl; pp.cut_r = kPanelH - 1; pp.cut_w = nw; pp.cut_h = nw > 0 ? 1 : 0;
+                pp.vcols = scope_w; pp.vrows = prows;
+                pp.cut_c = nl; pp.cut_r = prows - 1; pp.cut_w = nw; pp.cut_h = nw > 0 ? 1 : 0;
                 VideoPic pic;
                 video_make_picture(vf, nullptr, pp, pic);
                 g.level.swap(pic.level);
@@ -395,30 +395,30 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
                 }
             }
             if (nw > 0)   // the name box's cells stay free (their pixels transparent)
-                for (int y = (kPanelH - 1) * chs; y < ph; ++y)
+                for (int y = (prows - 1) * chs; y < ph; ++y)
                     for (int x = nl * cws; x < (nl + nw) * cws && x < pw; ++x) g.level[static_cast<size_t>(y) * pw + x] = 0;
         }
         st.key = key;
-        rows.assign(kPanelH, gfx_hole(scope_w));
-        if (nw > 0) rows[kPanelH - 1] = name_row(gfx_hole(nl), gfx_hole(std::max(0, scope_w - nl - nw)));
+        rows.assign(prows, gfx_hole(scope_w));
+        if (nw > 0) rows[prows - 1] = name_row(gfx_hole(nl), gfx_hole(std::max(0, scope_w - nl - nw)));
         return true;
     }
     // other terminals: half blocks, two pixels a cell (the upper one the text colour, the lower one the background)
     std::vector<uint8_t> px;
-    int icw = scope_w, ich = kPanelH * 2;
-    md_inner(scope_w, kPanelH * 2, 2.0 * cw0 / ch0, s.c.md_aspect, s.c.md_ratio, icw, ich);   // (a half block is cw0 wide, ch0 / 2 high)
-    md_scale(*f, scope_w, kPanelH * 2, px, icw, ich);
+    int icw = scope_w, ich = prows * 2;
+    md_inner(scope_w, prows * 2, 2.0 * cw0 / ch0, s.c.md_aspect, s.c.md_ratio, icw, ich);   // (a half block is cw0 wide, ch0 / 2 high)
+    md_scale(*f, scope_w, prows * 2, px, icw, ich);
     if (look.active()) {
         VideoFrame vf;
-        vf.w = scope_w; vf.h = kPanelH * 2; vf.rgb.swap(px);
+        vf.w = scope_w; vf.h = prows * 2; vf.rgb.swap(px);
         VideoPlayer::apply_look(vf, look, m.t_sec, false, nullptr);
         px.swap(vf.rgb);
     }
-    rows.assign(kPanelH, std::string());
-    for (int r = 0; r < kPanelH; ++r) {
+    rows.assign(prows, std::string());
+    for (int r = 0; r < prows; ++r) {
         std::string line;
         line.reserve(static_cast<size_t>(scope_w) * 40);
-        const int last = r == kPanelH - 1 && nw > 0 ? nl : scope_w;
+        const int last = r == prows - 1 && nw > 0 ? nl : scope_w;
         for (int x = 0; x < last; ++x) {
             const uint8_t* a = px.data() + (static_cast<size_t>(2 * r) * scope_w + x) * 3;
             const uint8_t* b = px.data() + (static_cast<size_t>(2 * r + 1) * scope_w + x) * 3;
@@ -499,60 +499,98 @@ std::vector<std::string> build_md_overlay(const Style& s, const UiModel& m) {
 }
 
 
-std::vector<std::string> build_mdb_overlay(const Style& s, const UiModel& m) {
+// overlay 12, the preset overlay: the whole screen like the player's -- the list at the left, the visuals as a live preview at the right
+// (the preset under the cursor plays at once)
+std::vector<std::string> build_mdb_screen(const Style& s, const UiModel& m, int W, int rows_total) {
     const MdBrowse& b = m.mdb;
-    const int W = kMdbOverlayW, inner = W - 4;
-    const int vis = std::clamp(m.rows - 10, 6, 18);
-    auto row = [&](const std::string& plain, bool hi, bool dim = false) {
-        const std::string body = pad_right(truncate_str(plain, inner), inner);
-        return box_line(s, (hi ? std::string("\x1b[7m") : dim ? std::string("\x1b[90m") : std::string()) + body + kReset, s.border);
-    };
-    std::string title = "MilkDrop presets";
-    if (b.searching || b.typing) title += ": search";
-    else if (b.in_favs) title += ": Favourites";
-    else if (b.in_recs) title += ": Recommended";
-    title += std::string("  |  effect: ") + (s.c.md_fx_on ? video_fx_name(video_fx_canon(s.c.md_fx)) : "off");
-    std::vector<std::string> lines;
-    lines.push_back(box_top(s, W, title, s.border));
-    const int n = static_cast<int>(b.items.size());
-    const int top = std::clamp(b.top, 0, std::max(0, n - vis));
-    for (int i = top; i < top + vis; ++i) {
-        if (i >= n) { lines.push_back(row("", false)); continue; }
-        const MdBrowseItem& it = b.items[static_cast<size_t>(i)];
-        const bool sel = i == b.sel;
-        const bool is_fav = it.kind == 3 && !b.in_favs && std::find(favs().begin(), favs().end(), it.path) != favs().end();
-        std::string label = it.kind == 0 ? std::string("\xE2\x97\x82 ..")
-                          : it.kind == 1 ? "\xE2\x98\x85 Favourites (" + std::to_string(favs().size()) + ")"
-                          : it.kind == 5 ? "\xE2\x9C\x94 Recommended (" + it.extra + ")"
-                          : it.kind == 2 ? "\xE2\x96\xB8 " + it.name
-                          : (is_fav ? "\xE2\x98\x85 " : "  ") + it.name;
-        std::string extra = it.kind == 3 ? it.extra : it.kind == 4 ? "(file gone)" : it.kind == 2 ? it.extra : "";
-        const int room = std::max(8, inner - 4 - (extra.empty() ? 0 : display_width(extra) + 2));
-        label = truncate_str(label, room);
-        std::string plain = std::string(sel ? "> " : "  ") + label;
-        if (!extra.empty()) plain = pad_right(plain, inner - display_width(extra) - 1) + extra;
-        lines.push_back(row(plain, sel, it.kind == 4 || (!sel && it.kind == 3 && it.path == Milkdrop::instance().preset_path())));
-    }
-    std::string where;
-    if (b.typing || b.searching) where = "search: " + b.query + (b.typing ? "_" : "");
-    else if (b.in_favs) where = "Favourites";
-    else if (b.in_recs) where = "Recommended";
-    else {   // Presets / folder / folder (inside a further folder: its name first)
-        fs::path rel = path_from_utf8(b.dir).lexically_relative(path_from_utf8(b.root));
-        where = "Presets";
-        for (const std::string& x : Milkdrop::instance().extra_preset_dirs()) {
-            const fs::path xr = path_from_utf8(x), r2 = path_from_utf8(b.dir).lexically_relative(xr);
-            if (!r2.empty() && *r2.begin() != "..") { where += " / " + path_utf8(xr.filename()); rel = r2; break; }
+    const int ph = std::max(4, rows_total - 3);   // the rows between the top border and the legend row
+    int left_w = std::clamp(W * 2 / 5, 30, 64);
+    const int mg = 1;
+    int pw = W - 3 - left_w - 2 * mg;
+    if (pw < 20) { left_w = W - 2; pw = 0; }   // (too narrow for the preview: the list alone)
+    const std::string bar = s.border + s.c.box_vertical + kReset;
+    std::vector<std::string> pic;
+    if (pw > 0) {
+        if (!build_milkdrop_block(s, m, pw, pic, ph)) {
+            std::string why;
+            radio_milkdrop_usable(s.c, &why);
+            pic.assign(static_cast<size_t>(ph), spaces(pw));
+            const std::string t = truncate_str(why.empty() ? std::string("starting ...") : why, pw);
+            const int l = std::max(0, (pw - display_width(t)) / 2);
+            pic[static_cast<size_t>(ph / 2)] = spaces(l) + t + spaces(std::max(0, pw - l - display_width(t)));
         }
-        if (!rel.empty() && rel != "." && *rel.begin() != "..") for (const auto& part : rel) where += " / " + path_utf8(part);
+        if (m.gfx.active) { m.gfx.col = 1 + left_w + 1 + mg; m.gfx.row = 1; m.gfx.crop = 0; }
     }
-    lines.push_back(row(where, false, true));
+    const int inner = left_w - 2;
+    std::vector<std::string> left;
+    {   // where we are
+        std::string where;
+        if (b.typing || b.searching) {
+            where = "Search: " + b.query + (b.typing ? "█" : "");
+            if (!b.query.empty()) where += "  (" + std::to_string(b.items.size()) + (b.items.size() >= 2000 ? "+" : "") + ")";
+        } else if (b.in_favs) where = "Favourites";
+        else if (b.in_recs) where = "Recommended";
+        else {   // Presets / folder / folder (inside a further folder: its name first)
+            fs::path rel = path_from_utf8(b.dir).lexically_relative(path_from_utf8(b.root));
+            where = "Presets";
+            for (const std::string& x : Milkdrop::instance().extra_preset_dirs()) {
+                const fs::path xr = path_from_utf8(x), r2 = path_from_utf8(b.dir).lexically_relative(xr);
+                if (!r2.empty() && *r2.begin() != "..") { where += " / " + path_utf8(xr.filename()); rel = r2; break; }
+            }
+            if (!rel.empty() && rel != "." && *rel.begin() != "..") for (const auto& part : rel) where += " / " + path_utf8(part);
+        }
+        left.push_back(" " + s.header + pad_right(truncate_str(where, inner), inner) + kReset + " ");
+        left.push_back(spaces(left_w));
+    }
+    const int list_rows = std::max(1, ph - static_cast<int>(left.size()));
+    const int n = static_cast<int>(b.items.size());
+    int top = b.top;
+    if (b.sel < top) top = b.sel;
+    if (b.sel >= top + list_rows) top = b.sel - list_rows + 1;
+    top = std::clamp(top, 0, std::max(0, n - list_rows));
+    const std::string shown = Milkdrop::instance().preset_path();
+    for (int r = 0; r < list_rows; ++r) {
+        const int k = top + r;
+        if (k >= n) { left.push_back(spaces(left_w)); continue; }
+        const MdBrowseItem& it = b.items[static_cast<size_t>(k)];
+        const bool sel = k == b.sel;
+        const bool is_fav = it.kind == 3 && !b.in_favs && std::find(favs().begin(), favs().end(), it.path) != favs().end();
+        std::string text = it.kind == 0 ? std::string("\xE2\x97\x82 ..")
+                         : it.kind == 1 ? "\xE2\x98\x85 Favourites (" + std::to_string(favs().size()) + ")"
+                         : it.kind == 5 ? "\xE2\x9C\x94 Recommended (" + it.extra + ")"
+                         : it.kind == 2 ? "\xE2\x96\xB8 " + it.name
+                         : it.kind == 4 ? "  " + it.name + "  (file gone)"
+                         : (is_fav ? "\xE2\x98\x85 " : "  ") + it.name;
+        std::string body = pad_right(truncate_str(text, inner), inner);
+        if (it.kind == 3 && !it.extra.empty() && display_width(text) + 4 < inner) {   // the folder of a search result, in the room the name leaves
+            const std::string w = truncate_str("  " + it.extra, inner - display_width(text));
+            body = text + (sel ? w : "\x1b[90m" + w + kReset) + spaces(std::max(0, inner - display_width(text) - display_width(w)));
+        }
+        const bool dim = it.kind == 4;
+        const bool playing = it.kind == 3 && it.path == shown;
+        const std::string ink = sel ? std::string("\x1b[7m") : dim ? std::string("\x1b[90m") : (it.kind == 1 || it.kind == 5) ? s.header : playing ? s.list_playing : std::string();
+        left.push_back(" " + ink + body + kReset + " ");
+    }
     const int count = b.in_recs ? std::max(0, n - 1) : b.in_favs ? static_cast<int>(favs().size()) : Milkdrop::instance().preset_count();
-    lines.push_back(row(std::to_string(count) + (b.in_recs ? " recommended" : b.in_favs ? " favourites" : " presets") + (b.searching ? "   " + std::to_string(n) + " found" : ""), false, true));
-    const std::string keys = b.typing ? "[ENTER] done  [ESC] clear" : b.in_favs ? "[ENTER] choose  [D] remove  [/] search  [LEFT] back  [ESC] close"
-                                                                      : "[ENTER] choose / open  [F] favourites  [A] add  [/] search  [E] effect  [G/H] change  [LEFT] up  [ESC] close";
-    push_legend_block(s, lines, W, {keys});
-    return lines;
+    const std::string counts = std::to_string(count) + (b.in_recs ? " recommended" : b.in_favs ? " favourites" : " presets");
+    const std::string fx_now = s.c.md_fx_on ? std::string(video_fx_name(video_fx_canon(s.c.md_fx))) : std::string("off");
+    std::vector<std::string> out;
+    out.push_back(box_top(s, W, "MILKDROP PRESETS  " + counts + "  |  effect: " + fx_now, s.border));
+    for (int r = 0; r < ph; ++r) {
+        std::string line = bar + left[static_cast<size_t>(r)];
+        if (pw > 0) line += bar + spaces(mg) + (r < static_cast<int>(pic.size()) ? pic[static_cast<size_t>(r)] : spaces(pw)) + kReset + spaces(mg);
+        out.push_back(line + bar);
+    }
+    const int in_w = W - 2;
+    const std::string leg = b.typing ? "type to search (fuzzy)  [UP/DOWN] select  [ENTER] to the list  [ESC] clear"
+                          : b.searching ? "[UP/DOWN] select  [ENTER] choose  [A] add to favourites  [/] search  [ESC / LEFT] clear"
+                          : b.in_favs ? "[UP/DOWN] select  [ENTER] choose  [D] remove from favourites  [/] search  [LEFT] back  [ESC] close"
+                                      : "[UP/DOWN] select  [ENTER] choose / open  [F] favourites  [A] add  [/] search  [E] effect  [G/H] change  [LEFT] up  [ESC] close";
+    const std::string lt = truncate_str(leg, in_w);
+    const int ll = std::max(0, (in_w - display_width(lt)) / 2);
+    out.push_back(bar + s.legend + spaces(ll) + lt + kReset + spaces(std::max(0, in_w - ll - display_width(lt))) + bar);
+    out.push_back(box_bottom(s, W, "", s.border_bottom));
+    return out;
 }
 
 } // namespace detail
@@ -644,7 +682,7 @@ bool md_browse_key(RadioSettings& c, UiModel& m, int k, bool arrow, std::string&
     auto move_to = [&](int sel) {
         if (n == 0) return;
         b.sel = std::clamp(sel, 0, n - 1);
-        const int vis = 12;
+        const int vis = std::max(3, m.rows - 5);   // (the list rows of the full-screen overlay: the rows less the borders, the legend and the two lines on top)
         if (b.sel < b.top) b.top = b.sel;
         if (b.sel >= b.top + vis) b.top = b.sel - vis + 1;
         play_selected(b);

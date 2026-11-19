@@ -174,7 +174,7 @@ The key shown for each command is the **default binding**. Your own bindings may
   - [STATION LISTS menu (`SHIFT+k`)](#station-lists-menu-shiftk)
   - [Big STATIONS overlay (`SHIFT+l`)](#big-stations-overlay-shiftl)
   - [Timeshift and recording (`SPACE`, `[`, `]`, `{`, `}`, `y`)](#timeshift-and-recording-space-----y)
-  - [Listening history (`h`)](#listening-history-h)
+  - [Listening history (`SHIFT+h`)](#listening-history-shifth)
   - [Radio settings](#radio-settings)
   - [The radio's files](#the-radios-files)
   - [Not done yet](#not-done-yet)
@@ -271,7 +271,7 @@ Mousiki reacts to the **character** a key types, not to the key itself. Most com
 
 ### Menus with tabs and text boxes
 
-The **playlist editor** (`SHIFT+p`), **listening history** (`h`) the **meta editor** (`SHIFT+m`) and the radio's **STATION LISTS** menu (`SHIFT+k` in the radio) all follow the same rule:
+The **playlist editor** (`SHIFT+p`), **listening history** (`SHIFT+h`) the **meta editor** (`SHIFT+m`) and the radio's **STATION LISTS** menu (`SHIFT+k` in the radio) all follow the same rule:
 
 - `←` / `→` **switch the tab**. This also works while a text box (playlist name, search box) has the focus, as long as **nothing has been typed into it yet**.
 - As soon as you type or edit something in a text box (a character, `BACKSPACE`, `DEL`, `HOME` / `END`, `SHIFT+←/→`, `CTRL+V` …), the box is **in use**: `←` / `→` now move the caret/courser inside it. The legend at the bottom changes from `[←→] Switch Tab` to `[←→] Cursor` and from `[ESC] Exit` to `[ESC] Leave field`, so you can always also indirectly see which of the two is active, apart from th focus indicator "◀".
@@ -2219,6 +2219,9 @@ The tab has several categories (in the header colour); change a row with `←`/`
 |---|---|---|
 | Top Pane Style | one box, three panes I, three panes II, three panes III, two panes, gap | The frame of the upper pane of the main screen (disk \| meta data \| lyrics / viz field). Default **one box**: one rounded box round all three. **three panes I**: three boxes that share their walls -- a wall is the right edge of the pane before it and turns right at the bottom into the bottom line of the next pane, with a blank after the corner on top and before it at the bottom. **three panes II**: the middle pane is a box on top; at the bottom the first wall turns left and the second turns right, the middle pane's bottom line floats between them. **three panes III**: steps -- every wall runs from the top corner of the next pane down to the bottom corner of the pane before it; where the outer lines do not meet (top left, bottom right) the vertical line has one more row. **two panes**: like I, with one wall: the disk is a box of its own, the meta data and the lyrics / viz field share the second one. The preview shows the shape (`TopPaneStyle=0`-`4`; also in the audio book player). The three-pane shapes take two columns of the lyrics / viz field for the second wall. |
 | Main UI Pane Style (radio) | one box, three panes I, three panes II, three panes III, two panes, gap | The same six frames for the top pane of the radio (sign \| station info \| scope block); ANIMA/VIZ tab, TOP PANE (`TopPaneStyle=0`-`5` in `radio_config.txt`). The scope block gives two columns to the second wall. |
+| Media Keys (radio) | on, off | The system's media controls and media keys (the media pop-up, the lock screen, `playerctl`) -- the same switch as in the music player (`MediaKeys=` in its `config.txt`, one value for all modes, read at the start of the program). GENERAL tab, CLI / REMOTE / UPDATES. |
+| Use Terminal Settings, Terminal Size, Full Screen, Reduce Motion When Paused, Update Notice (radio) | on, off | The same rows as in the music player (GENERAL tab); one value for all modes, kept in the player's `config.txt`. Terminal Size is the player's row: `columns x rows`, `←/→` switch the number that is lit, ENTER types it (0 = leave the terminal as it is; `TerminalCols=`, `TerminalRows=`), the terminal is asked at once unless Full Screen or Use Terminal Settings is on; Full Screen asks the terminal at once; Reduce Motion When Paused (the redraw rate while nothing plays) works at once; Use Terminal Settings and Update Notice are read at the next start. |
+| Latin Macrons, Latin Wo, Translit. Kanji (radio) | on / off, Leave / Chin. / Jap. | The spelling of Japanese (and of Chinese characters of unknown language) in Latin letters, as in the player (`LatinMacrons=`, `LatinWo=`, `LatinHanziDefault=`); station names and titles change at once. |
 | Disk Border | true, false | The `:  :` column between the disk (or the cover / the book picture) and the meta data. Default **false**: the column is left out and the disk sits in the middle of the space between the left border and the meta data, which stay where they were. With **true** the `:  :` column is drawn (`ElimentDiskBorder=`; also in the audio book player). |
 
 **MODES**
@@ -2654,7 +2657,8 @@ All of them are also in the radio's own cheat sheet (`?`, categorized and scroll
 | `SHIFT+t` | Sort stations: list order ↔ name A-Z |
 | `SHIFT+i` / `SHIFT+u` | Spectrogram options / spectrogram full screen (see chapter 3, *Spectrogram*) |
 | `SHIFT+0` (the `=` key) | Oscilloscope full screen: YT left, XY right; inside it `SHIFT+a` grid, `SHIFT+v` axis values, `SHIFT+c` grid colour, `SHIFT+p` grid metrics, `SHIFT+o` options (see chapter 3, *Oscilloscope full screen*) |
-| `.` | Scope block: oscilloscope → sphere → spectrogram → **MilkDrop** (only when projectM is installed, see [MilkDrop visuals](#milkdrop-visuals)), skipping what **Use oscilloscope / Use spectrogram** switch off on the ANIMA/VIZ tab (OSCI/SPECTRO SETTINGS; the same key that cycles the lyrics area in the player; up to v3.0.0 this was `o`, which no longer does anything; an old `HKeyScopeToggle=o` line in `radio_config.txt` is ignored and rewritten as `.`) |
+| `.` / `,` | Scope block: oscilloscope → sphere → spectrogram → **MilkDrop** (only when projectM is installed, see [MilkDrop visuals](#milkdrop-visuals)), skipping what **Use oscilloscope / Use spectrogram** switch off on the ANIMA/VIZ tab (OSCI/SPECTRO SETTINGS; the same key that cycles the lyrics area in the player; up to v3.0.0 this was `o`, which no longer does anything; an old `HKeyScopeToggle=o` line in `radio_config.txt` is ignored and rewritten as `.`) |
+| `g` / `h` | The next / previous effect of the MilkDrop visuals while they show in the scope block (otherwise `g` is the preset slot 16 as ever). `e` in the preset overlay turns the effect on / off. |
 | `:` | The **visuals overlay** of MilkDrop: the preset (`←` / `→`, `ENTER` random, `n` / `b`, `l` lock) and the radio's MilkDrop options (the same rows as the player's `:`, with **Use Effect**, **MilkDrop Effect** and **Sixel Colours**; only the per-track options are not there -- a station has no track to pin them to), plus *Show in the Scope Block* (rebindable as *MilkDrop Visuals Overlay*, key action `VisualsMenu`) |
 | `v` / `SHIFT+v` | Loudness normalization on/off / its overlay |
 | `SHIFT+e` | Equalizer overlay |
@@ -2667,7 +2671,7 @@ All of them are also in the radio's own cheat sheet (`?`, categorized and scroll
 | `y` | Record: opens the RECORD overlay, or stops a running recording (see [Timeshift and recording](#timeshift-and-recording-space-----y)) |
 | `SHIFT+p` / `SHIFT+s` / `SHIFT+k` | PRESETS menu / RADIO BROWSER / STATION LISTS |
 | `SHIFT+l` | Big STATIONS overlay |
-| `h` | Listening history |
+| `SHIFT+h` | Listening history |
 | `s` | Settings |
 | `SHIFT+w` | [Help wizard](#the-help-wizard-shiftw): the same wizard, with the radio chapters (3) at its end |
 | `?` | Cheat sheet |
@@ -2851,9 +2855,9 @@ The STATIONS pane with the whole screen for its rows and an extra **PRESET NAME*
 
 *The RECORD overlay: where the recording starts.*
 
-### Listening history (`h`)
+### Listening history (`SHIFT+h`)
 
-The radio keeps its own listening history, shaped like the player's (chapter 8) but with **channels** instead of tracks. Three tabs (`1` `2` `3`, `←/→`, `TAB`), `↑/↓` move, `HOME/END` jump to the ends, `ESC`, `q` or `h` close. The bottom border shows the line count or the sort direction.
+The radio keeps its own listening history, shaped like the player's (chapter 8) but with **channels** instead of tracks. Three tabs (`1` `2` `3`, `←/→`, `TAB`), `↑/↓` move, `HOME/END` jump to the ends, `ESC`, `q` or `SHIFT+h` close. The bottom border shows the line count or the sort direction.
 
 <img alt="Radio history tab with the YouTube search overlay" src="images_radio/radio_history_history_tab.jpg" width="510" />
 

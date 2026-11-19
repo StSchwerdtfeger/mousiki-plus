@@ -444,6 +444,67 @@ def radio_pane_style(binary, root, scripts):
         finally:
             sess.kill()
 
+def radio_shared_rows(binary, root, scripts):
+    """Radio settings, GENERAL tab: the rows that are the player's too (one value for all modes, kept in the player's config.txt) are there, and
+    a change is written to config.txt when the settings are saved."""
+    home = os.path.join(root, "rsr_home")
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    with open(os.path.join(cfgdir, "stations.txt"), "w", encoding="utf-8") as f:
+        f.write("# name | genre | country | codec | kbps | url | [*] favorite\nPlain Station | Rock | US | MP3 | 128 | http://127.0.0.1:9/c | *\n")
+    cfg = os.path.join(cfgdir, "config.txt")
+    with open(cfg, "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nStartMode=radio\nWizardSeen=true\n" % os.path.join(root, "music"))
+    sess = Session(binary, home, scripts, {"MOUSIKI_RADIO_NULL": "1"})
+    try:
+        for _ in range(30):
+            sess.pump(0.5)
+            if "Plain Station" in sess.text():
+                break
+        sess.send(b"\x1b", 1.0)
+        sess.send("s", 1.5)
+        sess.send(b"\t", 1.0)
+        seen = set()
+        for _ in range(70):
+            for l in sess.screen.display:
+                seen.add(l.strip())
+            if any("Latin Wo" in l and "> " in l for l in sess.screen.display):
+                break
+            sess.send(b"\x1b[B", 0.1)
+        want = ["Use Terminal Settings", "Terminal Size", "Full Screen", "Reduce Motion When Paused", "Media Keys", "Update Notice", "Latin Macrons", "Latin Wo", "Translit. Kanji"]
+        # (the rows scroll: collect what passed the window while the cursor went down to Latin Wo)
+        sess.send(b"\x1b[A", 0.2)
+        for _ in range(10):
+            for l in sess.screen.display:
+                seen.add(l.strip())
+            sess.send(b"\x1b[B", 0.1)
+        text = "\n".join(seen)
+        missing = [w for w in want if w not in text]
+        check(not missing, "radio settings: the GENERAL tab has the rows of the player too (missing: %s)" % missing)
+        for _ in range(40):   # on Latin Wo (the cursor went past it): LEFT / RIGHT change it
+            if any("Latin Wo" in l and "<" in l for l in sess.screen.display):
+                break
+            sess.send(b"\x1b[A", 0.1)
+        sess.send(b"\x1b[C", 0.5)
+        for _ in range(40):   # up to Terminal Size: ENTER types the lit number (columns)
+            if any("Terminal Size" in l and "[ENTER] type" in l for l in sess.screen.display):
+                break
+            sess.send(b"\x1b[A", 0.1)
+        sess.send(b"\r", 0.5)
+        for _ in range(5):
+            sess.send(b"\x7f", 0.05)
+        sess.send("140", 0.4)
+        sess.send(b"\r", 0.8)
+        check(sess.wait_for(lambda t: any("Terminal Size" in l and "140" in l for l in t.split("\n")), 5), "radio settings: Terminal Size types the columns (the row shows 140)")
+        sess.send("s", 1.0)   # saves
+        sess.send(b"\x1b", 1.0)
+        body = open(cfg, encoding="utf-8").read() if os.path.exists(cfg) else ""
+        check("TerminalCols=140" in body, "radio settings: the typed columns are written to the player's config.txt")
+        check("LatinWo=true" in body, "radio settings: Latin Wo is written to the player's config.txt (%s)" % ("yes" if "LatinWo=true" in body else "not found"))
+    finally:
+        sess.kill()
+
+
 def radio_sign_border(binary, root, scripts):
     """Radio, ANIMA/VIZ tab -> ON AIR SIGN: Sign border (SignBorder=, false by default since batch 279) -- the " : : " column between the ON AIR / OFF AIR
     sign and the station info. Off: no column, the station info stays in its place, nothing runs past the window; the row is in the settings."""
@@ -4646,14 +4707,9 @@ def milkdrop_radio_book(binary, root, scripts):
         # the preset overlay: "p" opens it, Favourites on top, [a] adds the preset under the cursor, [d] takes it out, ESC goes back to the visuals overlay
         favf = os.path.join(os.path.dirname(rcfg), "milkdrop_favourites.txt")
         sess.send("p", 1.5)
-        check(settle(sess, lambda: "MilkDrop presets" in sess.text(), 8), "radio: [p] opens the preset overlay (on the folder of the preset shown)")
-        for _ in range(40):   # down to a preset (folders come first)
-            if sess.text().count(".milk") == 0 and "> " in sess.text():
-                pass
-            sess.send(b"\x1b[B", 0.15)
-            moved_to = [l for l in sess.screen.display if l.lstrip("\u2502 ").startswith("> ")]
-            if moved_to and "/" not in moved_to[0].split("> ", 1)[1].strip().rstrip("\u2502 ") and "Favourites" not in moved_to[0] and "Recommended" not in moved_to[0] and ".." not in moved_to[0]:
-                break
+        check(settle(sess, lambda: "MILKDROP PRESETS" in sess.text(), 8), "radio: [p] opens the preset overlay (the whole screen, on the folder of the preset shown)")
+        check("effect:" in sess.text() and "[E] effect" in sess.text(), "radio: the preset overlay names the effect and [E]")
+        check(settle(sess, lambda: (sess.pics.get(7201) or {}).get("col", 0) > 20, 10), "radio: the preset overlay shows the visuals as a live preview beside the list (%s)" % sess.pics.get(7201))
         sess.send("a", 1.0)
         check(os.path.exists(favf) and len([l for l in open(favf, encoding="utf-8") if l.strip() and not l.startswith("#")]) == 1, "radio: [a] writes the preset into milkdrop_favourites.txt")
         sess.send("f", 1.0)
@@ -4662,7 +4718,7 @@ def milkdrop_radio_book(binary, root, scripts):
         check(len([l for l in open(favf, encoding="utf-8") if l.strip() and not l.startswith("#")]) == 0, "radio: [d] takes it out of the favourites")
         sess.send(b"\x1b", 0.8)
         sess.send(b"\x1b", 0.8)
-        check("MilkDrop presets" not in sess.text() and "Visuals: MilkDrop" in sess.text(), "radio: ESC leaves the preset overlay for the visuals overlay")
+        check("MILKDROP PRESETS" not in sess.text() and "Visuals: MilkDrop" in sess.text(), "radio: ESC leaves the preset overlay for the visuals overlay")
         sess.send(b"\x1b", 1.0)
         with open(rcfg, encoding="utf-8") as f:
             c = f.read()
@@ -4693,6 +4749,13 @@ def milkdrop_radio_book(binary, root, scripts):
         sess.send(".", 0.5)
         ok = settle(sess, lambda: sum(l.count("\u2580") for l in sess.screen.display[1:15]) > 200, 16)
         check(ok, "radio: without pictures MilkDrop is drawn in half blocks (%d)" % sum(l.count("\u2580") for l in sess.screen.display[1:15]))
+        sess.send("g", 0.8)
+        check(settle(sess, lambda: "milkdrop effect:" in sess.text(), 5), "radio: [g] changes the effect of the MilkDrop visuals while they show in the scope block")
+        sess.send(",", 0.8)
+        check(sum(l.count("\u2580") for l in sess.screen.display[1:15]) < 50, "radio: [,] cycles the scope block back (MilkDrop is left)")
+        sess.send("H", 1.0)
+        check(settle(sess, lambda: "HISTORY" in sess.text(), 5), "radio: SHIFT+h opens the listening history")
+        sess.send(b"\x1b", 0.5)
     finally:
         sess.kill()
     # --- the audio book
@@ -6048,6 +6111,8 @@ def run_scenario(name, binary, root, scripts):
         video_fx_picker(binary, root, scripts)
     elif name == "video_fx_picker_sizes":
         video_fx_picker_sizes(binary, root, scripts)
+    elif name == "radio_shared_rows":
+        radio_shared_rows(binary, root, scripts)
     elif name == "radio_sign_border":
         radio_sign_border(binary, root, scripts)
     elif name == "radio_pane_style":
@@ -6121,7 +6186,7 @@ def run_scenario(name, binary, root, scripts):
 
 
 SCENARIOS = ["narrow80", "narrow100", "main", "read_lyrics_play", "karaoke_timing", "book_speed_and_devices", "paging_and_translit_row",
-             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews"]
+             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews"]
 
 
 def main():
