@@ -1,5 +1,6 @@
 // Radio mode screen (part of radio_ui.cpp, split for the build time; the helpers are declared in radio_ui_internal.h).
 #include "radio_ui_internal.h"
+#include "milkdrop.h"
 #include "path_utf8.h"
 
 namespace muisc::radio {
@@ -1087,9 +1088,9 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
                     if (r == 0) def = sp.stations_file.parent_path();
                     else if (r == 1) def = sp.presets_file.parent_path();
                     else if (r == 2) def = sp.download_dir.parent_path();
-                    else if (r == 5) def.clear();   // no audio book folder yet
+                    else if (r == 5) def.clear();   // the usual places
                     else def = sp.history_dir.parent_path();
-                    const std::string shown = unused ? std::string("SAME PATH AS THE MUSIC PLAYER IS USED") : r == 5 ? std::string("NOT SET (audio books are off until a folder is given)") : def.string();
+                    const std::string shown = unused ? std::string("SAME PATH AS THE MUSIC PLAYER IS USED") : r == 5 ? Milkdrop::instance().find_presets_dir() : def.string();
                     segs.push_back({sel ? "\x1b[7m" : list_ink, pad_right(utf8_take(shown, kFieldW), kFieldW)});
                 } else {
                     segs.push_back({sel ? "\x1b[7m" : list_ink, pad_right(utf8_take(val, kFieldW), kFieldW)});
@@ -1098,8 +1099,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
             line(segs);
             if (r != 2) line({});   // DOWNLOAD PATH and "Same folder as music player" belong together
         }
-        line({{legend, "   Audio books: every folder in it with audio files is one book. A .cue file beside each book"}});
-        line({{legend, "   records where you last stopped listening."}});
+        line({{legend, "   MilkDrop presets: empty = the usual places. The folder is the same in every mode."}});
         line({{legend, "   When folder paths are changed, the respective files are only copied, never moved, and no deletions are performed."}});
     } else {
         // ---- COLORS

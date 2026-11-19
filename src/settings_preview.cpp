@@ -5,6 +5,8 @@
 // The oscilloscope, spectrogram, sphere and bars are driven by their own instances (not the player's). Bars, oscilloscope
 // and sphere are fed with the signal of the radio's "TEST Stereo Chords" station, made here in the program; the spectrogram
 // with a spectrogram the Creator makes from the text "Mousiki Plus". No file, no network and no ffmpeg are needed.
+#include <cstring>
+#include "pane_style.h"
 #include "app.h"
 #include "coverfetch_state.h"
 #include "hifi_bars.h"
@@ -40,7 +42,7 @@ constexpr int kPreviewX = 71;      // the column of the box's left border
 constexpr int kPreviewMinW = 107;  // narrower terminals have no room: no preview
 
 enum PvKind { kPvNone, kPvLyrics, kPvDisk, kPvCover, kPvVolume, kPvBars, kPvWave, kPvScope, kPvSpectro, kPvSphere,
-              kPvTranslit, kPvEmoji, kPvMarquee, kPvVideo, kPvClap, kPvDesc, kPvPlayback, kPvMilk };
+              kPvTranslit, kPvEmoji, kPvMarquee, kPvVideo, kPvClap, kPvDesc, kPvPlayback, kPvMilk, kPvPane };
 
 }  // namespace
 
@@ -68,6 +70,8 @@ struct SettingsPreviewState {
     bool md_fresh = false;      // the MilkDrop preview just started: the picture slot is emptied first (it still held the main screen's cover)
     bool md_active = false;     // the MilkDrop preview has put its preset on (the one from before is in md_prev)
     std::string md_prev;
+    std::string md_cur;         // the preset file the preview plays ("" = the sample preset)
+    bool md_pv_locked = false;  // the preview locked the preset (no timer, no hard cut: a beat changed it to another one and blended it in); the lock comes off with it
 };
 
 namespace {
@@ -208,6 +212,7 @@ PvKind kind_of(int id, const Settings& s) {
         case kSidUseVideo: case kSidVideoLyrics: case kSidVideoSize: case kSidVideoFx: case kSidVideoRes: case kSidVideoFps: case kSidVideoBuffer: case kSidVideoContrast: case kSidVideoBrightness: case kSidVideoColors: case kSidVideoChroma: case kSidVideoDither: case kSidVideoBase: case kSidVideoFxContrast: case kSidVideoGradSat: case kSidVideoRound: return kPvVideo;   // (a sample video; the lyrics preview when it is not there)
         case kSidVideoCover: return kPvNone;
         case kSidVideoClap: return kPvClap;
+        case kSidMdPreset: return s.milkdrop_default_preset.empty() ? kPvDesc : kPvMilk;   // (Default Preset: its own preset live once one is chosen; before, the description)
         case kSidMdUseFx: case kSidMdFx: case kSidMdColors: case kSidMdShowName: return kPvMilk;   // (a live preset: with the effect, the name box and the Sixel colours as set)
         case kSidDisk: case kSidDiskSpeed: case kSidDiskBorder: return kPvDisk;
         case kSidAlbumCover: case kSidCoverMode: case kSidCoverContrast: case kSidCoverBrightness: case kSidCoverColors: case kSidCoverGradSat: case kSidCoverChroma:
@@ -234,6 +239,7 @@ PvKind kind_of(int id, const Settings& s) {
         case kSidLatinMacrons: case kSidLatinWo: case kSidLatinHanzi: case kSidLatinLookup: return kPvTranslit;
         case kSidEmoji: return kPvEmoji;
         case kSidMarquee: return kPvMarquee;
+        case kSidPaneStyle: return kPvPane;
         case kSidPlayback: return kPvPlayback;
         default: return pv_desc(id, s).empty() ? kPvNone : kPvDesc;
     }
@@ -306,8 +312,12 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
     {   // the MilkDrop preview: the preset "amandio c - secret garden 4" while its row is shown; the preset from before comes back afterwards
         Milkdrop& M = Milkdrop::instance();
         if (kind == kPvMilk && !milkdrop_usable())   // (no MilkDrop here: the rows of the MilkDrop settings keep their text, the field rows show the lyrics)
-            shown = (id == kSidMdUseFx || id == kSidMdFx || id == kSidMdColors || id == kSidMdShowName) ? kPvDesc : kPvLyrics;
-        if (shown == kPvMilk && !P.md_active) { P.md_prev = M.preset_path(); M.play_named("amandio c - secret garden 4"); P.md_active = true; P.md_fresh = true; }
+            shown = (id == kSidMdPreset || id == kSidMdUseFx || id == kSidMdFx || id == kSidMdColors || id == kSidMdShowName) ? kPvDesc : kPvLyrics;
+        // (the preset chosen as Default Preset; none chosen: the sample preset "amandio c - secret garden 4")
+        const std::string md_want = shown == kPvMilk ? settings_.milkdrop_default_preset : std::string();
+        auto md_play = [&] { if (md_want.empty()) M.play_named("amandio c - secret garden 4"); else M.play_path(md_want); P.md_cur = md_want; P.md_fresh = true; };
+        if (shown == kPvMilk && !P.md_active) { P.md_prev = M.preset_path(); if (!M.locked()) { M.set_locked(true); P.md_pv_locked = true; } md_play(); P.md_active = true; }
+        else if (shown == kPvMilk && P.md_active && P.md_cur != md_want) md_play();
         else if (shown != kPvMilk && P.md_active) { settings_preview_end(); }
     }
     if (kind == kPvNone) return;
@@ -372,7 +382,7 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
     PvOut out;
     VideoFrame vfx;       // (the sample video's frame with the retro effect on it)
     VideoFrame vscaled;   // (the sample video's frame scaled to the picture's size while the decoder catches up)
-    const bool compact = kind == kPvVolume || kind == kPvBars || kind == kPvWave || kind == kPvTranslit || kind == kPvEmoji || kind == kPvMarquee;
+    const bool compact = kind == kPvVolume || kind == kPvBars || kind == kPvWave || kind == kPvTranslit || kind == kPvEmoji || kind == kPvMarquee || kind == kPvPane;
     const int cw = compact ? iw - 4 : iw - 2;   // content width (one blank column each side; the compact previews have two, like the DESCRIPTION box)
     switch (shown) {
     case kPvLyrics: {
@@ -885,6 +895,41 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
         out.caption = settings_.marquee ? "Marquee on: the title scrolls" : "Marquee off: cut with ...";
         break;
     }
+    case kPvPane: {   // the frame of the upper pane, as it is drawn (the same helpers): disk | meta data | lyrics / viz field
+        const int w = std::clamp(cw, 24, 44);
+        const int style = std::clamp(settings_.top_pane_style, 0, 5);
+        const bool split = panestyle::split(style);
+        const int c1 = split ? (style == 4 ? w / 3 : w / 4) : -1, c2 = split && style != 4 ? w * 5 / 8 : -1;   // (two panes: one wall, the meta data and the field share a box)
+        std::vector<int> walls;
+        if (c1 >= 0) walls.push_back(c1);
+        if (c2 >= 0) walls.push_back(c2);
+        const panestyle::Glyphs g = panestyle::glyphs(settings_);
+        const std::string border = ansi_for(settings_.border_color, false);
+        const std::string border_b = ansi_for(settings_.border_color_bottom, false);
+        const std::string dim = ansi_for(settings_.legend_color, false);
+        const std::string bar = panestyle::wall(g, border), mid = panestyle::wall(g, style, border);
+        const int b1 = split ? c1 : w / 4, b2 = split ? c2 : w * 5 / 8;   // (where the names are centred: between the walls)
+        const struct { int from, to; const char* text; } names[] = {{1, b1, "disk"}, {b1 + 1, b2, "meta data"}, {b2 + 1, w - 1, "lyrics / viz"}};
+        out.rows.push_back(panestyle::row(g, style, true, w, walls, border));
+        for (int r = 0; r < 3; ++r) {
+            std::string line = bar;
+            for (int c = 1; c < w - 1; ++c) {
+                if (c == c1 || c == c2) { line += mid; continue; }
+                bool placed = false;
+                if (r == 1) for (const auto& n : names) {
+                    const int len = static_cast<int>(std::strlen(n.text)), start = n.from + std::max(0, (n.to - n.from - len) / 2);
+                    if (c == start && start + len <= n.to) { line += dim + n.text + "\x1b[0m"; c += len - 1; placed = true; break; }
+                }
+                if (!placed) line += ' ';
+            }
+            out.rows.push_back(line + bar);
+        }
+        out.rows.push_back(panestyle::row(g, style, false, w, walls, border_b));
+        out.w = w;
+        static const char* const kCaptions[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"};
+        out.caption = kCaptions[style];
+        break;
+    }
     case kPvMilk: out.milk = true; break;
     case kPvClap: {   // what shows while a video loads: the text note, the small clapperboard (a picture or braille) or nothing
         out.clap = true;
@@ -1032,9 +1077,12 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
 void App::settings_preview_end() const {   // the settings screen closes (or another row is shown): the MilkDrop preset from before comes back
     if (!pv_ || !pv_->md_active) return;
     pv_->md_active = false;
+    if (pv_->md_pv_locked) { Milkdrop::instance().set_locked(settings_.milkdrop_lock); pv_->md_pv_locked = false; }
     if (!pv_->md_prev.empty()) Milkdrop::instance().play_path(pv_->md_prev);
     pv_->md_prev.clear();
 }
+
+void App::settings_preview_set_prev(const std::string& preset) const { if (pv_ && pv_->md_active) pv_->md_prev = preset; }
 
 SpectroAnalyzer* App::settings_preview_spectro() const { return pv_ ? &pv_->spec : nullptr; }
 

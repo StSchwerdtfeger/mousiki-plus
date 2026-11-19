@@ -1,0 +1,2 @@
+/home/me/music/a.mp3
+/home/me/music/b.mp3

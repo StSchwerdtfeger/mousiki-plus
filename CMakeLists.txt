@@ -143,6 +143,18 @@ if(MOUSIKI_TSAN AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
   add_link_options(-fsanitize=thread)
 endif()
 
+# Fuzzing (Clang only): cmake -S . -B build-fuzz -DCMAKE_BUILD_TYPE=Debug -DMOUSIKI_FUZZ=ON -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang
+# then build the targets (mousiki_fuzz_lyrics, _json, _remote, _playlist, _cue, _tags) and see fuzz/README.md. Everything is built with
+# AddressSanitizer, UndefinedBehaviorSanitizer and libFuzzer's coverage instrumentation. (Above the first add_library, like the TSan block.)
+option(MOUSIKI_FUZZ "Clang: build the libFuzzer targets of fuzz/ (the parsers of files and requests from outside)" OFF)
+if(MOUSIKI_FUZZ)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(FATAL_ERROR "MOUSIKI_FUZZ needs Clang (-DCMAKE_CXX_COMPILER=clang++)")
+  endif()
+  add_compile_options(-fsanitize=fuzzer-no-link,address,undefined -fno-sanitize-recover=undefined -g -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=address,undefined)
+endif()
+
 # Everything but main() is one OBJECT library, compiled once and linked into the player AND into the test program
 # (mousiki_tests), which used to compile all of it a second time. Include paths, definitions and libraries are PUBLIC on it,
 # so main.cpp and the tests are built with the same settings.
@@ -247,7 +259,7 @@ if(ANDROID)
   target_link_libraries(mousiki_core PUBLIC OpenSLES log android)
 elseif(WIN32)
   target_compile_definitions(mousiki_core PUBLIC MUISC_PLATFORM_WINDOWS=1 MA_ENABLE_ONLY_SPECIFIC_BACKENDS=1 MA_ENABLE_WASAPI=1)
-  target_link_libraries(mousiki_core PUBLIC ole32 winmm ws2_32 iphlpapi shell32 gdi32 user32)   # gdi32 / user32: the font list (terminal_font.cpp)
+  target_link_libraries(mousiki_core PUBLIC ole32 winmm ws2_32 iphlpapi shell32 gdi32 user32 psapi)   # gdi32 / user32: the font list (terminal_font.cpp)
   if(NOT MOUSIKI_WINDOWS_SMTC)
     target_compile_definitions(mousiki_core PUBLIC MOUSIKI_NO_SMTC=1)
   endif()   # ws2_32: the remote app's web server
@@ -409,6 +421,15 @@ endif()
 
 message(STATUS "mousiki: building for ${CMAKE_SYSTEM_NAME}")
 
+if(MOUSIKI_FUZZ)
+  foreach(t lyrics json remote playlist cue tags)
+    add_executable(mousiki_fuzz_${t} ${CMAKE_SOURCE_DIR}/fuzz/fuzz_${t}.cpp)
+    target_link_libraries(mousiki_fuzz_${t} PRIVATE mousiki_core)
+    target_include_directories(mousiki_fuzz_${t} PRIVATE ${CMAKE_SOURCE_DIR}/fuzz)
+    target_link_options(mousiki_fuzz_${t} PRIVATE -fsanitize=fuzzer)
+  endforeach()
+endif()
+
 
 # ---------------------------------------------------------------------------
 # Automated tests (tests/): cmake -DMOUSIKI_BUILD_TESTS=ON ..  then  ctest  (or run mousiki_tests directly).
@@ -423,7 +444,7 @@ if(MOUSIKI_BUILD_TESTS)
   if(MOUSIKI_WARNINGS AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     set_property(SOURCE ${MOUSIKI_TEST_SOURCES} APPEND PROPERTY COMPILE_OPTIONS -Wall -Wextra)
   endif()
-  target_include_directories(mousiki_tests PRIVATE "${CMAKE_SOURCE_DIR}/tests")
+  target_include_directories(mousiki_tests PRIVATE "${CMAKE_SOURCE_DIR}/tests" "${CMAKE_SOURCE_DIR}/fuzz")
   add_test(NAME mousiki_tests COMMAND mousiki_tests)
 
   # Python tests (Linux / macOS; need `pip install pyte` for the UI test, else CTest reports them as skipped).

@@ -3,6 +3,7 @@
 #include "process_util.h"
 #include "console_log.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdlib>
 #include <csignal>
@@ -21,6 +22,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <psapi.h>   // GetProcessMemoryInfo (links psapi)
 #else
 #include <cerrno>
 #include <fcntl.h>
@@ -589,6 +591,106 @@ ProcResult run_capture(const Args& args, bool merge_stderr) {
 
     ConsoleLog::instance().log_command(command_text(args), result.out, result.exit_code);
     return result;
+}
+
+std::string resolve_program(const std::string& name, bool* from_relative_dir) {
+    if (from_relative_dir) *from_relative_dir = false;
+    if (name.empty()) return std::string();
+#if defined(_WIN32)
+    const std::wstring wname = win_utf8_to_wide(name);
+    wchar_t buf[MAX_PATH * 4] = {};
+    const DWORD n = SearchPathW(nullptr, wname.c_str(), L".exe", static_cast<DWORD>(sizeof buf / sizeof buf[0]), buf, nullptr);
+    if (n == 0 || n >= sizeof buf / sizeof buf[0]) return std::string();
+    const std::wstring full(buf, n);
+    const int len = WideCharToMultiByte(CP_UTF8, 0, full.c_str(), static_cast<int>(full.size()), nullptr, 0, nullptr, nullptr);
+    std::string out(static_cast<size_t>(std::max(0, len)), '\0');
+    if (len > 0) WideCharToMultiByte(CP_UTF8, 0, full.c_str(), static_cast<int>(full.size()), out.data(), len, nullptr, nullptr);
+    if (from_relative_dir) {
+        wchar_t cwd[MAX_PATH * 4] = {};
+        const DWORD c = GetCurrentDirectoryW(static_cast<DWORD>(sizeof cwd / sizeof cwd[0]), cwd);
+        const size_t slash = full.find_last_of(L"\\/");
+        if (c > 0 && c < sizeof cwd / sizeof cwd[0] && slash != std::wstring::npos)
+            *from_relative_dir = _wcsicmp(full.substr(0, slash).c_str(), std::wstring(cwd, c).c_str()) == 0;
+    }
+    return out;
+#else
+    if (name.find('/') != std::string::npos) return access(name.c_str(), X_OK) == 0 ? name : std::string();
+    const char* path = std::getenv("PATH");
+    if (!path) return std::string();
+    const std::string dirs = path;
+    size_t start = 0;
+    while (start <= dirs.size()) {
+        size_t end = dirs.find(':', start);
+        if (end == std::string::npos) end = dirs.size();
+        const std::string entry = dirs.substr(start, end - start);
+        const std::string dir = entry.empty() ? std::string(".") : entry;
+        const std::string cand = dir + "/" + name;
+        if (access(cand.c_str(), X_OK) == 0) {
+            if (from_relative_dir) *from_relative_dir = entry.empty() || entry[0] != '/';
+            return cand;
+        }
+        start = end + 1;
+    }
+    return std::string();
+#endif
+}
+
+long process_rss_kib() {
+#if defined(_WIN32)
+    PROCESS_MEMORY_COUNTERS pmc{};
+    if (GetProcessMemoryInfo(GetCurrentProcess(), &pmc, sizeof pmc)) return static_cast<long>(pmc.WorkingSetSize / 1024);
+    return -1;
+#elif defined(__linux__)
+    long kib = -1;
+    if (FILE* f = std::fopen("/proc/self/status", "r")) {
+        char line[160];
+        while (std::fgets(line, sizeof line, f)) if (std::strncmp(line, "VmRSS:", 6) == 0) { kib = std::atol(line + 6); break; }
+        std::fclose(f);
+    }
+    return kib;
+#else
+    return -1;
+#endif
+}
+
+void log_tool_diagnostics() {
+    struct Tool { const char* name; const char* version_arg; bool optional; };
+    static const Tool kTools[] = {{"ffmpeg", "-version", false}, {"ffprobe", "-version", false}, {"yt-dlp", "--version", true},
+#if !defined(_WIN32)
+                                  {"python3", "--version", true},
+#endif
+    };
+    ConsoleLog& log = ConsoleLog::instance();
+    for (const Tool& t : kTools) {
+        bool rel = false;
+        const std::string path = resolve_program(t.name, &rel);
+        if (path.empty()) {
+            log.log_basic(std::string("tool ") + t.name + ": not found" + (t.optional ? " (optional: the features that need it are left out)" : " (Opus playback, metadata and conversion need it)"));
+            continue;
+        }
+        std::string version;
+        // (not run_capture(): that would write the whole output of "ffmpeg -version" into the log)
+        ProcResult r;
+        if (std::unique_ptr<ChildProcess> child = spawn_capture({path, t.version_arg}, /*merge_stderr=*/true)) {
+            std::array<char, 1024> buf{};
+            const std::ptrdiff_t got = child->read(buf.data(), buf.size());
+            if (got > 0) r.out.assign(buf.data(), static_cast<size_t>(got));
+            while (child->read(buf.data(), buf.size()) > 0) {}   // (let it finish: the pipe is read to its end)
+            r.exit_code = child->wait();
+        } else {
+            r.exit_code = -1;
+        }
+        if (r.ok()) {
+            const size_t nl = r.out.find('\n');
+            version = r.out.substr(0, nl == std::string::npos ? r.out.size() : nl);
+            while (!version.empty() && (version.back() == '\r' || version.back() == ' ')) version.pop_back();
+            if (version.size() > 100) version.resize(100);
+        } else {
+            version = "does not run (exit code " + std::to_string(r.exit_code) + ")";
+        }
+        log.log_basic(std::string("tool ") + t.name + ": " + path + (version.empty() ? std::string() : "  --  " + version) +
+                      (rel ? "  [WARNING: found through the current folder or a relative PATH entry; it changes with where Mousiki is started]" : std::string()));
+    }
 }
 
 long long physical_memory_mb() {

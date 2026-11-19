@@ -400,6 +400,50 @@ def radio_latin_toggle(binary, root, scripts):
         sess.kill()
 
 
+def radio_pane_style(binary, root, scripts):
+    """Radio: TopPaneStyle= (0-5, as the player's): the frame of the sign | station info | scope pane. Every style draws, and no row runs past the window;
+    the gap style has blanks in the top and bottom line, the step style the half stubs, the walls stand in the rows between the corners."""
+    def start(tag, style):
+        home = os.path.join(root, "rps_home_" + tag)
+        cfgdir = os.path.join(home, ".config", "mousiki")
+        os.makedirs(cfgdir)
+        with open(os.path.join(cfgdir, "stations.txt"), "w", encoding="utf-8") as f:
+            f.write("# name | genre | country | codec | kbps | url | [*] favorite\nPlain Station | Rock | US | MP3 | 128 | http://127.0.0.1:9/c | *\n")
+        with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+            f.write("LocalMusicPath=%s\nStartMode=radio\nWizardSeen=true\n" % os.path.join(root, "music"))
+        with open(os.path.join(cfgdir, "radio_config.txt"), "w", encoding="utf-8") as f:
+            f.write("TopPaneStyle=%d\nWizardSeen=true\n" % style)
+        sess = Session(binary, home, scripts, {"MOUSIKI_RADIO_NULL": "1"})
+        for _ in range(30):
+            sess.pump(0.5)
+            if "Plain Station" in sess.text():
+                break
+        sess.send(b"\x1b", 1.0)
+        return sess
+    for style in range(6):
+        sess = start(str(style), style)
+        try:
+            rows = sess.screen.display
+            top = rows[0]
+            panel = []
+            for l in rows[1:]:
+                panel.append(l)
+                if l.startswith("╰") or l.startswith("└") or (l.strip() and l.strip()[0] in "─ " and "╯" in l):
+                    break
+            bottom = panel[-1] if panel else ""
+            mid = panel[:-1]
+            if style == 5:
+                check(top.rstrip().count(" ") == 2 and bottom.rstrip().count(" ") == 2, "radio pane style 5 (gap): two blanks in the top line and in the bottom line: %r / %r" % (top, bottom))
+                check(all("│" not in l[1:-1] for l in mid), "radio pane style 5 (gap): no wall inside the pane")
+            elif style == 0:
+                check(top.startswith("╭") and top.rstrip().endswith("╮") and " " not in top.rstrip(), "radio pane style 0: one box")
+            else:
+                check(sum(1 for l in mid if l[1:-1].count("│") >= 1) >= len(mid) - 2, "radio pane style %d: the walls run down the pane" % style)
+            if style == 3:
+                check("╷" in top and "╵" in bottom, "radio pane style 3: the half stubs in the corners")
+        finally:
+            sess.kill()
+
 def radio_sign_border(binary, root, scripts):
     """Radio, ANIMA/VIZ tab -> ON AIR SIGN: Sign border (SignBorder=, false by default since batch 279) -- the " : : " column between the ON AIR / OFF AIR
     sign and the station info. Off: no column, the station info stays in its place, nothing runs past the window; the row is in the settings."""
@@ -717,9 +761,9 @@ def paging_and_translit_row(binary, root, scripts):
                 if label in line and "Preview:" not in line:   # (the preview box on the right is titled with the row)
                     return line
             return ""
-        # GENERAL tab: Playback, Start Mode, Display queue, MODES ON/OFF AND ORDER (6 rows), AUDIO (9 rows: Choose Audio Device ... Pause Fade, Auto-Play,
-        # Gapless Playback), TERMINAL: Black Background, then Use Terminal Settings (row 18)
-        for _ in range(18):
+        # GENERAL tab: Top Pane Style, Disk Border, Playback, Start Mode, Display queue, MODES ON/OFF AND ORDER (6 rows), AUDIO (9 rows: Choose Audio Device ... Pause Fade, Auto-Play,
+        # Gapless Playback), TERMINAL: Black Background, then Use Terminal Settings (row 20)
+        for _ in range(20):
             sess.send(b"\x1b[B", 0.1)
         check("Use Terminal Settings" in find("Use Terminal Settings") and "false" in find("Use Terminal Settings"),
               "use terminal settings: the row exists and is false by default")
@@ -1634,6 +1678,58 @@ def disk_border_setting(binary, root, scripts):
         finally:
             sess.kill()
     check(cols.get("on") is not None and cols.get("off") is not None and cols["off"] >= cols["on"], "disk border: with the border off the disk is not further left (on %s, off %s)" % (cols.get("on"), cols.get("off")))
+
+
+def top_pane_style(binary, root, scripts):
+    """Settings -> ANIMA/VIZ -> TOP MAIN UI PANE STYLE: TopPaneStyle 0 = one box, 1 = three panes that share their walls (the top line has gaps after the walls, the bottom line gaps
+    before them), 2 and 3 = the other two shapes."""
+    rows = {}
+    for name, val in (("one", "0"), ("three", "1"), ("two", "2"), ("step", "3"), ("duo", "4"), ("gap", "5")):
+        home = os.path.join(root, "tps_home_" + name)
+        lib = os.path.join(root, "music")
+        os.makedirs(os.path.join(home, ".config", "mousiki"))
+        with open(os.path.join(home, ".config", "mousiki", "config.txt"), "w", encoding="utf-8") as f:
+            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nTopPaneStyle=%s\n" % (lib, val))
+        sess = Session(binary, home, scripts, quiet_stderr=True)
+        try:
+            for _ in range(30):
+                sess.pump(0.5)
+                if "HELP WIZARD" in sess.text():
+                    break
+            sess.send(b"\x1b", 1.0)
+            for _ in range(20):
+                sess.pump(0.5)
+                if "Alpha Song" in sess.text():
+                    break
+            rows[name] = [sess.row_cells(y) for y in range(0, 17)]
+            if os.environ.get("MOUSIKI_SHOW"):
+                print("\n".join("".join(r) for r in rows[name]))
+        finally:
+            sess.kill()
+    def line(name, pred):
+        return next(("".join(r) for r in rows[name] if pred("".join(r))), "")
+    one_top = line("one", lambda t: t.startswith("\u256d") and t.rstrip().endswith("\u256e"))
+    three_top = line("three", lambda t: t.startswith("\u256d") and t.rstrip().endswith("\u256e") and t.count("\u256e") >= 2)
+    check(one_top != "" and one_top.count("\u256e") == 1 and " " not in one_top.strip(), "pane style one box: the top line is one unbroken line")
+    check(three_top != "" and three_top.count("\u256e") == 3 and three_top.count(" \u2500") == 2, "pane style three panes: the top line has three corners and a gap after each wall")
+    three_bottom = line("three", lambda t: t.startswith("\u2570") and t.rstrip().endswith("\u256f") and t.count("\u2570") >= 3)
+    check(three_bottom != "" and len(three_top.rstrip()) == len(three_bottom.rstrip()), "pane style three panes: the bottom line turns up at both walls and is as wide as the top")
+    check(three_bottom.count(" \u2570") == 2, "pane style three panes: a blank before each wall corner at the bottom")
+    two_top = line("two", lambda t: t.startswith("\u256d") and t.count("\u256d") == 2)
+    two_bottom = line("two", lambda t: t.startswith("\u2570") and t.count("\u256f") == 2)
+    check(two_top != "" and two_bottom != "", "pane style 2: the middle pane is a box on top, the first wall turns left at the bottom")
+    step_top = line("step", lambda t: t.startswith("\u2577 ") and t.count("\u256d") == 2 and t.rstrip().endswith("\u256e"))
+    step_bottom = line("step", lambda t: t.startswith("\u2570") and t.count("\u256f") == 2 and t.rstrip().endswith("\u2575"))
+    check(step_top != "" and step_bottom != "", "pane style III: steps; where the outer lines do not meet (top left, bottom right) the vertical line has one more row")
+    duo_top = line("duo", lambda t: t.startswith("\u256d") and t.count("\u256e") == 2 and t.count(" \u2500") == 1)
+    duo_bottom = line("duo", lambda t: t.startswith("\u2570") and t.count("\u2570") == 2 and t.rstrip().endswith("\u256f") and t.count(" \u2570") == 1)
+    check(duo_top != "" and duo_bottom != "", "pane style two panes: the disk box and one box for the meta data and the field, one wall")
+    gap_top = line("gap", lambda t: t.startswith("\u256d") and t.rstrip().endswith("\u256e") and t.rstrip().count(" ") == 2 and t.count("\u256e") == 1)
+    gap_bottom = line("gap", lambda t: t.startswith("\u2570") and t.rstrip().endswith("\u256f") and t.rstrip().count(" ") == 2 and t.count("\u256f") == 1)
+    check(gap_top != "" and gap_bottom != "", "pane style gap: one box with two gaps in the top line and two in the bottom line")
+    walls = [i for i, ch in enumerate(three_top) if ch == "\u256e"][:-1]
+    mids = [r for r in ("".join(x) for x in rows["three"]) if r.startswith("\u2502")][:3]
+    check(len(walls) == 2 and mids and all(all(m[w] == "\u2502" for w in walls) for m in mids), "pane style three panes: the walls stand under the top corners, one column each")
 
 
 def play_mode_back(binary, root, scripts):
@@ -4245,7 +4341,7 @@ def settings_general_texts(binary, root, scripts):
             l = find("Track Buffer (MB)")
             return l.split(":", 1)[1].split("[")[0].strip() if ":" in l else ""
         check(tbval() == "64" and tb.find("[ Back") - tb.find(":") == 17, "settings: the Track Buffer field is five characters wide (%r)" % tb.strip()[:60])
-        for _ in range(12):   # to Track Buffer (MB)
+        for _ in range(14):   # to Track Buffer (MB) (two rows more since MAIN UI PANE STYLE is first)
             sess.send(b"\x1b[B", 0.1)
         sess.send(b"\r", 0.5)
         for _ in range(4):
@@ -4611,8 +4707,8 @@ def milkdrop_radio_book(binary, root, scripts):
         sess.wait_for(lambda t: "Some Book" in t, 15)
         sess.send(b"\r", 2.0)   # open the book
         sess.send(b"\r", 3.0)   # play it
-        def field():   # the MilkDrop picture in the field (the book's cover is a picture too, but small: 30 x 15 at the left)
-            p = sess.pics.get(7201)
+        def field():   # the MilkDrop picture in the field (the second slot: the book's cover is a picture too, small, 30 x 15 at the left, and keeps the first)
+            p = sess.pics.get(7202)
             return p is not None and p["c"] >= 40 and p["col"] > 40
         presses = 0
         for _ in range(6):
@@ -4622,6 +4718,8 @@ def milkdrop_radio_book(binary, root, scripts):
             presses += 1
             settle(sess, field, 6)
         check(field(), "audio book: \".\" reaches the MilkDrop view in its field (%d presses)" % presses)
+        cv = sess.pics.get(7201)
+        check(cv is not None and cv["col"] < 40, "audio book: the book's cover stays at the left while the MilkDrop view runs (%s)" % cv)
         sess.send(":", 1.2)
         check(settle(sess, lambda: "Visuals: MilkDrop" in sess.text(), 10), "audio book: \":\" opens the visuals overlay")
         sess.send(b"\x1b", 1.0)
@@ -5327,7 +5425,7 @@ def settings_cli_row(binary, root, scripts):
                 if label in line and "Preview:" not in line:
                     return line
             return ""
-        for _ in range(13):          # Playback, Start Mode, Display queue, 6 mode rows, Choose Audio Device, Stereo, Normalize, Track Buffer, Rate Cap
+        for _ in range(15):          # Top Pane Style, Disk Border, Playback, Start Mode, Display queue, 6 mode rows, Choose Audio Device, Stereo, Normalize, Track Buffer, Rate Cap
             sess.send(b"\x1b[B", 0.1)
         sess.send(b"\x1b[B", 0.4)    # Pause Fade
         check("Pause Fade" in find("Pause Fade") and "true" in find("Pause Fade"), "pause fade: the row exists in AUDIO and is true by default: %r" % find("Pause Fade"))
@@ -5856,6 +5954,34 @@ def shrinking_window(binary, root, scripts):
         sess.kill()
 
 
+def theme_last_custom(binary, root, scripts):
+    """Colours that match no theme are kept as the theme "Last custom" when another theme is picked (so they are not lost)."""
+    home = os.path.join(root, "tlc_home")
+    os.makedirs(os.path.join(home, ".config", "mousiki"))
+    with open(os.path.join(home, ".config", "mousiki", "config.txt"), "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nColorHeader=199\nColorLegend=45\n" % os.path.join(root, "music"))
+    sess = Session(binary, home, scripts, quiet_stderr=True)
+    try:
+        for _ in range(30):
+            sess.pump(0.5)
+            if "HELP WIZARD" in sess.text():
+                break
+        sess.send(b"\x1b", 1.0)
+        sess.pump(1.0)
+        sess.send("s", 1.2)
+        check("(custom)" in sess.text(), "last custom: the colours match no theme (the THEME row shows (custom))")
+        sess.send(b"\r", 1.0)                       # the theme list
+        sess.send(b"\x1b[B", 0.3)
+        sess.send(b"\r", 1.2)                       # another theme
+        themes_txt = os.path.join(home, ".config", "mousiki", "themes.txt")
+        body = open(themes_txt, encoding="utf-8").read() if os.path.exists(themes_txt) else ""
+        i = body.find("[Last custom]")
+        check(i >= 0 and "ColorHeader=199" in body[i:], "last custom: the colours in use were saved as the theme Last custom")
+        check("Last custom" in sess.text(), "last custom: the status line says they were kept")
+    finally:
+        sess.kill()
+
+
 def colors_scroll(binary, root, scripts):
     """Settings -> COLORS in a window too short for its 25 lines: it scrolls with the chosen row, marks hidden rows, and fits."""
     global COLS, ROWS
@@ -5920,6 +6046,8 @@ def run_scenario(name, binary, root, scripts):
         video_fx_picker_sizes(binary, root, scripts)
     elif name == "radio_sign_border":
         radio_sign_border(binary, root, scripts)
+    elif name == "radio_pane_style":
+        radio_pane_style(binary, root, scripts)
     elif name == "video_fx_picker_third_slot":
         video_fx_picker_third_slot(binary, root, scripts)
     elif name == "milkdrop_visuals":
@@ -5964,6 +6092,8 @@ def run_scenario(name, binary, root, scripts):
         shrinking_window(binary, root, scripts)
     elif name == "colors_scroll":
         colors_scroll(binary, root, scripts)
+    elif name == "theme_last_custom":
+        theme_last_custom(binary, root, scripts)
     elif name == "translation_editor":
         translation_editor(binary, root, scripts)
     elif name == "translation_paste_undo":
@@ -5987,7 +6117,7 @@ def run_scenario(name, binary, root, scripts):
 
 
 SCENARIOS = ["narrow80", "narrow100", "main", "read_lyrics_play", "karaoke_timing", "book_speed_and_devices", "paging_and_translit_row",
-             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews"]
+             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews"]
 
 
 def main():

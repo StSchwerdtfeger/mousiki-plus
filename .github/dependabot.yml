@@ -1,4 +1,6 @@
-# Opens a pull request when a GitHub Action used by the workflows has a newer version.
+# Opens a pull request when a GitHub Action used by the workflows, or a library of the Android remote app (Gradle: the Android Gradle plugin and
+# the app's dependencies), has a newer version. (The downloads of the installers -- FFmpeg, yt-dlp, Python -- are pinned by hash and watched
+# by pins-watch.yml; the vendored C++ libraries by vendored-watch.yml.)
 version: 2
 updates:
   - package-ecosystem: "github-actions"
@@ -13,3 +15,10 @@ updates:
       codeql-action:
         patterns:
           - "github/codeql-action*"
+  - package-ecosystem: "gradle"
+    directory: "/remote_app/android"
+    schedule:
+      interval: "monthly"
+    commit-message:
+      prefix: "deps"
+    open-pull-requests-limit: 3

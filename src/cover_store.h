@@ -4,6 +4,7 @@
 // Used by the cover search (cover_art.cpp), the meta editor's cover pane and the cover fetch overlay (ALT+c).
 #include <filesystem>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "meta_editor.h"   // MetaFetchCancel
@@ -92,6 +93,11 @@ void set_cover_album_look(const std::string& album, const std::string& folder, i
 struct CoverStyle { int look = -1, contrast = -1, brightness = -1, colors = -1, chroma = -1, gsat = -1; };   // chroma: chromatic aberration 0..3; gsat: the saturation of the disk's gradient 0..100
 CoverStyle cover_track_style(const std::string& track_path);
 void set_cover_track_style(const std::string& track_path, const CoverStyle& st);   // all -1 removes it
+// A track that was renamed (the meta editor) or moved outside Mousiki (found again by its file name after a library scan, when exactly one
+// file of the library has that name): everything chosen for the track itself -- its cover, style, video and MilkDrop options -- moves with it.
+// A choice already made for the new path is kept. Both return how many tracks were moved.
+int cover_store_rename_paths(const std::vector<std::pair<std::string, std::string>>& renames);
+int cover_store_mend_tracks(const std::vector<std::string>& existing_tracks);
 // The albums a cover fetch found nothing for (remembered, so they are not asked for again and again): the reason, "" = not on the list.
 std::string cover_fetch_failure(const std::string& album);
 void set_cover_fetch_failure(const std::string& album, const std::string& reason);   // reason "" removes it

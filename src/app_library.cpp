@@ -475,6 +475,14 @@ void App::rescan_library() {
         const int b = VideoLinks::get().mend_tracks(songs);
         if (a + b > 0) { video_for_track_.clear(); ++video_rev_; ConsoleLog::instance().log_basic("video connections: " + std::to_string(a) + " moved video(s) and " + std::to_string(b) + " moved song(s) found again by file name"); }
     }
+    if (!audiobook_) {   // what is kept per file path (a track's own style and options, the plays of the history) follows a file that was moved outside Mousiki
+        std::vector<std::string> existing;
+        existing.reserve(all_local_tracks_.size());
+        for (const auto& t : all_local_tracks_) existing.push_back(path_utf8(t.path));
+        const int a = cover_store_mend_tracks(existing);
+        const int b = history_.mend_ids(existing);
+        if (a + b > 0) ConsoleLog::instance().log_basic("moved files found again by file name: " + std::to_string(a) + " track style(s) / options, " + std::to_string(b) + " title(s) of the listening history");
+    }
     scanned_book_path_ = settings_.audiobook_path;
     search_.idx.clear();
     refresh_local_view(); // applies the active query/sort/filter to the new set

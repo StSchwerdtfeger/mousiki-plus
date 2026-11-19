@@ -356,7 +356,7 @@ std::string handle_request(const std::string& request_line, const std::string& p
     // a real PIN is 4 to 8 digits, so it can never be either) passes uncounted -- any other wrong PIN goes through the lock-out below,
     // or this answer ("pin":false or not) would let a guesser try every PIN without ever being locked.
     if (path == "/api/hello" && (get(q, "pin").empty() || get(q, "pin") == "0"))
-        return json_reply(200, std::string("{\"ok\":true,\"pin\":false,\"version\":\"") + tinyjson::escape(MOUSIKI_VERSION) + "\",\"mode\":\"" + tinyjson::escape(g_mode) + "\"}");
+        return json_reply(200, "{\"ok\":true,\"pin\":false}");   // (the phone's network scan only needs to know that this is Mousiki; version and mode come with the PIN)
     PinGuard& guard = guard_for(peer, now);
     if (now < guard.locked_until) return json_reply(429, "{\"error\":\"too many wrong PINs, wait a minute\"}");
     if (get(q, "pin") != g_cfg.pin || g_cfg.pin.empty()) {

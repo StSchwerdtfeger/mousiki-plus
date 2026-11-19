@@ -29,6 +29,7 @@
 #include "open_url.h"
 #include "app_settings_tables.h"
 #include "playlist_match.h"
+#include "playlist_import.h"
 #include <cstring>
 #include <algorithm>
 #include <cctype>
@@ -412,14 +413,15 @@ std::string import_url_decode(const std::string& s) {
     return o;
 }
 
+} // namespace   (the M3U reader below is declared in playlist_import.h: the fuzz targets and the tests call it)
+
 // Reads one extended-M3U / plain M3U(8) file: the optional "#PLAYLIST:" name and
 // the track paths. Relative paths are resolved against the file's own folder;
 // stream URLs are skipped (a playlist here is local files only), "file://" URLs
 // are unwrapped. Returns false if the file cannot be read.
 // `extinf_out` (optional, one per track) gets the "Artist - Title" of the entry's #EXTINF line ({} when it has none).
-struct ExtInf { std::string artist, title; };
 bool import_parse_m3u(const fs::path& file, std::string* name_out, std::vector<fs::path>* tracks_out, int* skipped_urls,
-                      std::vector<ExtInf>* extinf_out = nullptr) {
+                      std::vector<ExtInf>* extinf_out) {
     std::ifstream in(file, std::ios::binary);
     if (!in.is_open()) return false;
     std::string line;
@@ -468,8 +470,6 @@ bool import_parse_m3u(const fs::path& file, std::string* name_out, std::vector<f
     }
     return true;
 }
-
-} // namespace
 
 void App::playlist_import_begin() {
     // its own folder inside the playlists folder: the files to import are put there and stay there (a copy goes to imported_lists)

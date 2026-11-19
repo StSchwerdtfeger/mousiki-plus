@@ -1,6 +1,7 @@
 // The Video mode of the music player (HKeyVideo): video files in the library, and the "video" view of the Viz / Lyrics field: the
 // picture of the track's video (a real picture in Kitty / Sixel terminals, braille dots elsewhere) with the current lyric line under it.
 // The sound is the player's as always; the picture only follows its clock (video_player.h).
+#include <cstdio>
 #include "app.h"
 #include "milkdrop.h"
 #include "app_state_device.h"
@@ -328,6 +329,7 @@ int App::video_pic_width() const {
     const int res = video_res_for();
     int w = video_res_width(res, gfxs_.proto == GfxProto::Sixel);
     if (res > 0 && video_.has_video()) w = std::min(w, std::max(640, video_.source_width()));   // (no point in decoding wider than the video itself)
+    if (gfxs_.proto == GfxProto::Sixel && sixel_auto_pct_ < 100) w = std::max(320, (w * sixel_auto_pct_ / 100) & ~7);   // (the terminal is too slow for this width: see app.cpp)
     return w;
 }
 
@@ -737,6 +739,18 @@ bool App::video_draw_src(Src& V, bool playing_one, bool is_video, std::string& p
                 const int px = static_cast<int>(std::lround(static_cast<double>(dw) * 2.0 / vcols));
                 cx0 = px; outw = dw - 2 * px;
                 vcols -= 4;
+            }
+        }
+    }
+    if constexpr (std::is_same_v<Src, MilkdropSource>) {   // (MOUSIKI_MD_DUMP=<folder>: the places asked for are logged when they change -- md_geom.txt, next to the dumped pictures)
+        static std::string last_geom;
+        if (const char* d = std::getenv("MOUSIKI_MD_DUMP"); d && *d) {
+            const std::string g = "W=" + std::to_string(W) + " H=" + std::to_string(H) + " mode=" + std::to_string(mode) + " cell=" + std::to_string(cw0) + "x" + std::to_string(ch0) +
+                                  " vcols=" + std::to_string(vcols) + " vrows=" + std::to_string(vrows) + " dw=" + std::to_string(dw) + " dh=" + std::to_string(dh) +
+                                  " abs=" + std::to_string(abs_col) + "," + std::to_string(abs_row);
+            if (g != last_geom) {
+                last_geom = g;
+                if (FILE* f = std::fopen((std::string(d) + "/md_geom.txt").c_str(), "a")) { std::fprintf(f, "%s\n", g.c_str()); std::fclose(f); }
             }
         }
     }

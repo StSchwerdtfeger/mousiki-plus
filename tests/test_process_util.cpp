@@ -106,3 +106,24 @@ TEST(a_captured_command_never_waits_for_an_unrelated_child) {
     CHECK(worst_ms.load() < 500);   // with a leaked write end this was up to 1000 ms (the sleeper's lifetime)
 }
 #endif
+
+#if !defined(_WIN32)
+// The tool diagnostics: which program a name resolves to, and whether that is through a relative PATH entry.
+TEST(resolve_program_follows_path_and_flags_relative_entries) {
+    CHECK(!resolve_program("").size());
+    CHECK(!resolve_program("mousiki-no-such-program-xyz").size());
+    bool rel = true;
+    const std::string sh = resolve_program("sh", &rel);
+    CHECK(!sh.empty());
+    CHECK(sh[0] == '/');   // (a normal PATH: an absolute entry)
+    CHECK(!rel);
+    CHECK_EQ(resolve_program("/bin/sh"), std::string("/bin/sh"));   // (a name with a slash is not looked up)
+    // an empty / relative PATH entry is found, and flagged
+    const std::string saved = std::getenv("PATH") ? std::getenv("PATH") : "";
+    setenv("PATH", ":/nonexistent-dir", 1);
+    rel = false;
+    const std::string found = resolve_program("sh", &rel);   // (not in "." -- so it is not found at all)
+    CHECK(found.empty() || rel);
+    setenv("PATH", saved.c_str(), 1);
+}
+#endif

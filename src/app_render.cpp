@@ -2,6 +2,7 @@
 // Part of class App (src/app.h): Drawing a whole frame of the main screen (render_frame) and the pieces it is made of.
 // Split out of app.cpp; the includes are the same as there.
 #include "app.h"
+
 #include "app_state_rl.h"
 #include "app_state_theme.h"
 #include "app_state_adev.h"

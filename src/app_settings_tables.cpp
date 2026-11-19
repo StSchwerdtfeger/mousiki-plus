@@ -7,6 +7,9 @@ namespace muisc {
 
 const std::vector<SetLine>& settings_layout(int tab) {
     static const std::vector<SetLine> on_off = {
+        {true, -1, "MAIN UI PANE STYLE"},
+        {false, kSidPaneStyle, "Top Pane Style"}, {false, kSidDiskBorder, "Disk Border"},
+        {true, -1, ""},
         {true, -1, "MODES"},
         {false, kSidPlayback, "Playback"}, {false, kSidStartMode, "Start Mode"}, {false, kSidQueue, "Display queue"},
         {true, -1, ""},
@@ -45,7 +48,7 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidVideoLyrics, "Include Lyrics"}, {false, kSidVideoSize, "Video Size"}, {false, kSidVideoFx, "Video Effect"}, {false, kSidVideoBase, "Video Base Layer"}, {false, kSidVideoFxContrast, "Video Effect Contrast"}, {false, kSidVideoContrast, "Video Contrast"}, {false, kSidVideoBrightness, "Video Brightness"}, {false, kSidVideoColors, "Video Colors"}, {false, kSidVideoChroma, "Video Chromatic Aberration"}, {false, kSidVideoDither, "Video Dither Pattern"}, {false, kSidVideoGradSat, "Video Gradient Saturation"}, {false, kSidVideoRound, "Video Rounded Corners"}, {false, kSidVideoClap, "Show Clap Loading"}, {false, kSidVideoCover, "Disk/Cover/Thumbnail"}, {false, kSidVideoRes, "Video Resolution"}, {false, kSidVideoFps, "Video Frame Rate"}, {false, kSidVideoBuffer, "Video Buffer"}, {false, kSidVideoMp3, "yt-dlp mp3 from mp4"},
         {true, -1, ""},
         {true, -1, "DISK"},
-        {false, kSidDisk, "Eliment Disk / Cover"}, {false, kSidDiskSpeed, "Disk Speed"}, {false, kSidDiskBorder, "Disk Border"},
+        {false, kSidDisk, "Eliment Disk / Cover"}, {false, kSidDiskSpeed, "Disk Speed"},
         {true, -1, ""},
         {true, -1, "DISK / COVER OPTIONS"},
         {false, kSidAlbumCover, "Album Cover"}, {false, kSidCoverMode, "Cover Mode"},
@@ -90,6 +93,9 @@ const std::vector<SetLine>& settings_layout(int tab) {
     // The audio book player: the same tabs without what only the music player uses (the play mode, the lyrics, the disk's
     // speed, the display queue), the lyrics view called "notes", the disk's place taken by the book cover.
     static const std::vector<SetLine> book_on_off = {
+        {true, -1, "MAIN UI PANE STYLE"},
+        {false, kSidPaneStyle, "Top Pane Style"}, {false, kSidDiskBorder, "Disk Border"},
+        {true, -1, ""},
         {true, -1, "MODES"},
         {false, kSidStartMode, "Start Mode"},
         {true, -1, ""},
@@ -122,7 +128,7 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidLyricViz, "Notes/Viz Default"}, {false, kSidNoLyricsViz, "When No Notes Show"},
         {true, -1, ""},
         {true, -1, "BOOK COVER"},
-        {false, kSidBookCover, "Book Cover"}, {false, kSidDiskBorder, "Disk Border"}, {false, kSidBookCoverWave, "Book Gradient Wave"}, {false, kSidCoverContrast, "Cover Contrast"},
+        {false, kSidBookCover, "Book Cover"}, {false, kSidBookCoverWave, "Book Gradient Wave"}, {false, kSidCoverContrast, "Cover Contrast"},
         {false, kSidCoverBrightness, "Cover Brightness"}, {false, kSidCoverColors, "Cover Colors"},
         {true, -1, ""},
         {true, -1, "SPHERE"},

@@ -264,6 +264,7 @@ void general_help(std::ostream& o) {
          "  mousiki --query <line>     a command line for the running Mousiki, with its answer (--cli: without; --run <script>)\n"
          "  mousiki --remote-info      address and PIN of the remote app (phone)\n"
          "  mousiki --version          the version\n"
+         "  mousiki --perf-log         start, and also log the picture timing (every 5 s) in the console log for this session\n"
          "  mousiki --help             this text\n\n"
          "Inside the program: ? shows every key, SHIFT+w opens the help wizard. The manual: Mousiki_User_Manual/Mousiki_User_Guide.md\n";
 }

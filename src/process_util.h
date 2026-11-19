@@ -104,6 +104,18 @@ int run_with_stdin_file(const Args& args, const std::string& stdin_path);
 bool program_on_path(const std::string& name);
 #endif
 
+// The full path of the program `name` as it would be started (PATH order; on Windows the folder of the program first, then the
+// current folder, the system folders and PATH, like CreateProcess). Empty when it is not found. `from_relative_dir` is set when it
+// was found through the current folder or a relative / empty PATH entry (such an entry makes the program depend on where Mousiki
+// is started from).
+std::string resolve_program(const std::string& name, bool* from_relative_dir = nullptr);
+
+// Writes the path and the version of ffmpeg, ffprobe, yt-dlp (and python3) that Mousiki will start into the console log, with a warning when one comes from a relative PATH entry or is not there.
+// Takes a moment: run it in the background.
+void log_tool_diagnostics();
+// The memory this process holds (working set), in KiB; -1 where it cannot be read (Linux, Windows).
+long process_rss_kib();
+
 // The computer's installed RAM in MB (0 when it cannot be told).
 long long physical_memory_mb();
 

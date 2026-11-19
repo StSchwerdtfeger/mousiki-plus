@@ -178,11 +178,6 @@ bool RadioApp::key_settings_edit(KeyCtx& kc) {
                     if (!home || !*home) home = std::getenv("USERPROFILE");
                     if (home) v = std::string(home) + v.substr(1);
                 }
-                if (sm.row == 5 && muisc::book_path_conflicts(muisc::load_settings().local_music_paths, v)) {
-                    sm.status = "CONFLICT: that folder is also a LOCAL MUSIC PATH of the player. Pick a sub folder of it or another folder";
-                    sm.editing = false; set_text_entry(false);
-                    return true;
-                }
                 if (*f != v) { *f = v; sm.dirty = true; storage_changed(); }
             }
             sm.editing = false; set_text_entry(false);

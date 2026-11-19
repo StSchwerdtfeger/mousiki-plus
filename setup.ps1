@@ -32,6 +32,10 @@
     default; an FFmpeg that lacks libopenmpt / libgme (tracker modules, console music) is replaced by the full
     Gyan.FFmpeg build anyway.
 
+.PARAMETER DryRun
+    Show the plan -- what is missing and would be installed by winget / pip, what would be built, downloaded and created, and
+    which PATH entries would be added -- and stop. Nothing is installed, built, downloaded or written.
+
 .PARAMETER NoUpgrade
     Never touch an FFmpeg that is already installed, not even when it lacks libopenmpt / libgme.
 
@@ -65,7 +69,8 @@ param(
     [switch]$UpgradeFfmpeg,
     [switch]$WithKanji,
     [switch]$NoCcache,
-    [switch]$SkipMilkDrop
+    [switch]$SkipMilkDrop,
+    [switch]$DryRun
 )
 
 $ErrorActionPreference = 'Stop'
@@ -99,6 +104,43 @@ function Add-ToUserPath([string]$Dir) {
         [Environment]::SetEnvironmentVariable('Path', (($parts + $Dir) -join ';'), 'User')
     }
     if (($env:PATH -split ';') -notcontains $Dir) { $env:PATH = "$env:PATH;$Dir" }
+}
+
+# ---------------------------------------------------------------------------
+# The plan: everything this script is about to change, printed before anything is touched (-DryRun stops after it)
+# ---------------------------------------------------------------------------
+function Show-Plan {
+    Write-Step $(if ($DryRun) { "Plan (dry run: nothing is changed)" } else { "Plan" })
+    if ($SkipDeps) {
+        Write-Host "  packages: none (-SkipDeps)"
+    } elseif (-not (Test-Command winget)) {
+        Write-Host "  packages: none -- winget was not found (install the dependencies by hand)"
+    } else {
+        $missing = @()
+        if (-not (Test-Command cmake)) { $missing += 'CMake' }
+        if (-not $NoCcache -and -not (Test-Command ccache)) { $missing += 'ccache(optional)' }
+        if (-not (Test-Command ffmpeg)) { $missing += 'FFmpeg (Gyan.FFmpeg, the full build)' }
+        if (-not (Test-Command yt-dlp)) { $missing += 'yt-dlp' }
+        if (-not (Test-Command py) -and -not (Test-Command python3)) { $missing += 'Python 3' }
+        if ($missing.Count) { Write-Host ("  install:  " + ($missing -join ', ') + "  (winget, each only because it is missing)") } else { Write-Host "  install:  nothing is missing" }
+        if ((Test-Command ffmpeg) -and $UpgradeFfmpeg -and -not $NoUpgrade) { Write-Host "  upgrade:  FFmpeg (-UpgradeFfmpeg)" }
+        else { Write-Host "  upgrade:  none -- what is installed is left as it is (-UpgradeFfmpeg also upgrades FFmpeg)" }
+        if ((Test-Command ffmpeg) -and -not $NoUpgrade -and -not ((Test-FfmpegDemuxer 'libopenmpt') -and (Test-FfmpegDemuxer 'libgme'))) {
+            Write-Host "  replace:  your FFmpeg lacks libopenmpt / libgme (tracker modules, console music): the full build (Gyan.FFmpeg) is installed (-NoUpgrade prevents it)"
+        }
+        if ($WithKanji) { Write-Host "  pip:      pykakasi janome (-WithKanji; pip install --user)" }
+        if (-not (Test-Command sidplayfp)) { Write-Host "  PATH:     the folder of a sidplayfp.exe, if one is found in a few usual places, is added to your USER PATH" }
+    }
+    Write-Host "  build:    cmake $BuildType in $(Join-Path $root 'build')"
+    Write-Host "  download: SDL2.dll (pinned version, SHA-256 checked) next to mousiki.exe if it is not there"
+    if ($SkipMilkDrop) { Write-Host "  milkdrop: skipped (-SkipMilkDrop)" } else { Write-Host "  milkdrop: projectM + presets from pinned, checksummed sources next to mousiki.exe (about 80 MB, a few minutes)" }
+    if ($NoInstall) { Write-Host "  launchers: none (-NoInstall)" } else { Write-Host "  launchers: $env:LOCALAPPDATA\Mousiki\bin\mousiki.cmd and lala.cmd; that folder is added to your USER PATH" }
+    Write-Host ""
+}
+Show-Plan
+if ($DryRun) {
+    Write-Host "Dry run: nothing was changed."
+    return
 }
 
 # ---------------------------------------------------------------------------

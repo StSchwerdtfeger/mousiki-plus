@@ -945,6 +945,10 @@ void App::handle_mdb_key(int key) {
             status_line_ = "milkdrop: the visuals start with \"" + it.name + "\" (s saves)";
             mdb_close(false);   // (the preset shown before comes back)
             milkdrop_apply_settings();
+            // ... but a preset that was just chosen as the default is the one to see: the visuals show it now (and it stays when the Settings
+            // preview ends), not only after the next start of MilkDrop
+            Milkdrop::instance().play_path(it.path);
+            settings_preview_set_prev(it.path);
         } else if (it.kind == 3) {
             Milkdrop::instance().play_path(it.path);
             status_line_ = "milkdrop: " + it.name;

@@ -101,6 +101,7 @@ struct RadioSettings : VizPrefs {
     // --- looks / tuning (config file only for now; the settings screen has the colours only) ----------
     // --- the GENERAL tab ---------------------------------------------------------------------------
     bool on_air_ascii = true;                   // the ON AIR sign (with its colour wave)
+    int top_pane_style = 0;                     // TopPaneStyle= (0-5, as the player's): one box, three panes I / II / III, two panes, gap
     bool sign_border = false;                   // the " : : " column between the ON AIR / OFF AIR sign and the station info (false, the default: none, the sign sits in the middle of that space)
     bool pulse_wave = true;                     // the faint circle burst behind the sign
     bool dummy_buttons = true;                  // the <<< MUTE >>> boxes next to the frequency band

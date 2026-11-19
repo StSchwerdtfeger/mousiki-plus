@@ -13,6 +13,7 @@
 #include "remote_control.h"
 #include "about_text.h"
 #include "border_gradient.h"
+#include "pane_style.h"
 #include "mode_switch.h"
 #include "book_art.h"
 #include "keyboard_layout.h"
@@ -327,6 +328,7 @@ struct App::MetaPanel {
     int inner = 0;
     int book_extra = 0;
     int sep_w = 0;
+    int wall_w = 0;     // Pane Style "three panes": the two columns (a blank and the wall) between the meta data and the field, taken from the field
     int disk_pad = 0;   // Disk Border off: the columns the disk moves right to sit in the middle of the space before the meta data
     int panel_h = 0;
     int fixed_extra = 0;
@@ -760,7 +762,7 @@ void App::meta_panel_field(MetaPanel& m) const {
                    const bool wide = gfxs_.proto != GfxProto::None;
                    const int fw = lyrics_w + (wide ? 1 : 0) - lpad;
                    std::vector<std::string> mrows;
-                   if (!milkdrop_field_rows(mrows, fw, panel_h, 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + lpad, cover_pic_img, wide)) return false;
+                   if (!milkdrop_field_rows(mrows, fw, panel_h, 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + lpad, cover_pic_img || book_pic_img, wide)) return false;
                    for (int i = 0; i < panel_h && i < static_cast<int>(mrows.size()); ++i) lyric_rows[static_cast<size_t>(i)] = std::string(static_cast<size_t>(lpad), ' ') + mrows[static_cast<size_t>(i)];
                    lyrics_wide = wide;
                    return true;
@@ -801,7 +803,7 @@ void App::meta_panel_field(MetaPanel& m) const {
                        }
                    }
                    std::vector<std::string> vrows;
-                   if (!video_field_rows(vrows, fw, panel_h, 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + lpad, cover_pic_img, elapsed, line_rows, wide)) { video_missing = true; return false; }
+                   if (!video_field_rows(vrows, fw, panel_h, 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + lpad, cover_pic_img, elapsed, line_rows, wide)) { video_missing = true; return false; }
                    for (int i = 0; i < panel_h && i < static_cast<int>(vrows.size()); ++i) lyric_rows[static_cast<size_t>(i)] = std::string(static_cast<size_t>(lpad), ' ') + vrows[static_cast<size_t>(i)];
                    lyrics_wide = wide;
                    return true;
@@ -848,10 +850,10 @@ void App::meta_panel_field(MetaPanel& m) const {
                 const int lpad = 1;
                 const bool wide = gfxs_.proto != GfxProto::None;
                 const int fw = lyrics_w + (wide ? 1 : 0) - lpad;
-                const int acol = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + lpad;
+                const int acol = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + lpad;
                 std::vector<std::string> arows;
                 video_ov_ref_.clear();
-                const bool ok = fw >= 8 && panel_h >= 3 && (area_viz == 5 ? milkdrop_field_rows(arows, fw, panel_h, acol, cover_pic_img, wide)
+                const bool ok = fw >= 8 && panel_h >= 3 && (area_viz == 5 ? milkdrop_field_rows(arows, fw, panel_h, acol, cover_pic_img || book_pic_img, wide)
                                                                           : video_field_rows(arows, fw, panel_h, acol, cover_pic_img, elapsed, std::vector<std::string>(), wide));
                 if (ok) {
                     for (int i = 0; i < panel_h && i < static_cast<int>(arows.size()); ++i) lyric_rows[static_cast<size_t>(i)] = std::string(static_cast<size_t>(lpad), ' ') + arows[static_cast<size_t>(i)];
@@ -887,7 +889,7 @@ void App::meta_panel_field(MetaPanel& m) const {
                     const int cws = std::max(2, std::min(cwq, cw0 / g.scale));
                     const int chs = std::max(4, static_cast<int>(std::lround(static_cast<double>(cws) * ch0 / cw0)));
                     g.cols = lyrics_w; g.rows = viz_rows_h; g.w = lyrics_w * cws; g.h = viz_rows_h * chs;
-                    g.col = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w;
+                    g.col = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w;
                     g.row = 1;
                     g.plain = false; g.direct = false; g.opaque = false; g.erase = false;   // (the album cover's picture is a plain one)
                     g.id = cover_pic_img ? 1 : 0; g.grid.clear(); g.cut_w = 0; g.crop = 0;   // no grid on the main screen (the big overlay sets one on the same frame object)
@@ -939,7 +941,7 @@ void App::meta_panel_field(MetaPanel& m) const {
                 spectro().update(settings_.spectro);
                 if (settings_.spectro.style == 1 && gfxs_.proto != GfxProto::None) {
                     spectro_.area[0] = 1;
-                    spectro_.area[1] = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w;
+                    spectro_.area[1] = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w;
                     spectro_.area[2] = lyrics_w;
                     spectro_.area[3] = viz_rows_h;
                     for (int i = 0; i < viz_rows_h && i < panel_h; ++i) lyric_rows[i] = gfx_hole(lyrics_w);
@@ -967,7 +969,7 @@ void App::meta_panel_field(MetaPanel& m) const {
                 const int x = std::max(0, (lyrics_w - bw) / 2);
                 const int row = panel_h - 1;
                 lyric_rows[row] = overlay_cells(lyric_rows[row], x, box, bw, lyrics_w);
-                const int area_col = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w;
+                const int area_col = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w;
                 // where it is on screen (0-based): the picture styles leave these cells free / write it again on top
                 caption_rect_[0] = 1 + row; caption_rect_[1] = area_col + x; caption_rect_[2] = bw;
                 caption_text_ = box;
@@ -1117,9 +1119,18 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
     if (!show_viz) { meta_w = avail; lyrics_w = 0; }   // "Viz/Lyrics Field" off, or no room: the meta data take the field's place
     if (book_extra) meta_w = std::max(10, meta_w - book_extra);
 
+    // Pane Style "three panes": the wall between the meta data and the field takes two columns of the field (a blank, then the wall)
+    m.wall_w = 0;
+    const int pstyle = std::clamp(settings_.top_pane_style, 0, 5);
+    const bool split = panestyle::split(pstyle);
+    if (split && pstyle != 4 && show_viz && lyrics_w - 2 >= kVizMinW) { m.wall_w = 2; lyrics_w -= 2; }
     // The ":  :" column can be switched off (Settings -> DISK -> Disk Border): the disk then sits in the middle of the space between
     // the left border and the meta data, which start where they always did.
-    m.disk_pad = (show_disk && !settings_.disk_border) ? std::max(0, (sep_w - 1) / 2) : 0;
+    m.disk_pad = (show_disk && split) ? std::max(0, (sep_w - 4) / 2)   // (three panes: the wall stands where the margins left and right of the disk are equal, with two blanks before the meta data)
+               : (show_disk && !settings_.disk_border) ? std::max(0, (sep_w - 1) / 2) : 0;
+    const int wall_gap = split && show_disk ? sep_w - m.disk_pad - 3 : 0;   // (the blanks between the disk and its wall)
+    const int wall1 = split && show_disk && wall_gap >= 1 ? 2 + m.disk_pad + disk_w + wall_gap : -1;
+    const int wall2 = m.wall_w > 0 ? 2 + (show_disk ? disk_w + sep_w : 2) + meta_w + 1 : -1;
     meta_panel_disk(m);
     elapsed = has_track_ ? player_.poll_elapsed() : 0.0;
     fft_.set_fluidity(settings_.visualizer_fluidity);
@@ -1140,19 +1151,29 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
     std::vector<std::string> out;
     std::string border_ansi = ansi_for(settings_.border_color, false);
     std::string border_ansi_bottom = ansi_for(settings_.border_color_bottom, false);
-    out.push_back(box_top("", total_width, border_ansi));
+    std::vector<int> walls;
+    if (wall1 >= 0) walls.push_back(wall1);
+    if (wall2 >= 0) walls.push_back(wall2);
+    if (split) out.push_back(panestyle::row(panestyle::glyphs(settings_), pstyle, true, total_width, walls, border_ansi));
+    else out.push_back(box_top("", total_width, border_ansi));
 
     std::string bar = border_ansi + settings_.box_vertical + "\x1b[0m";
     std::string sep_ansi = ansi_for(settings_.border_color, false) + sep + "\x1b[0m";
     for (int row = 0; row < panel_h; ++row) {
         std::string content = "";
         if (show_disk) {
-            if (settings_.disk_border) content += disk_frame[row] + sep_ansi;
+            if (split) {
+                content += std::string(static_cast<size_t>(m.disk_pad), ' ') + disk_frame[row];
+                if (wall1 >= 0) content += std::string(static_cast<size_t>(wall_gap), ' ') + panestyle::wall(panestyle::glyphs(settings_), pstyle, border_ansi) + std::string(static_cast<size_t>(sep_w - m.disk_pad - wall_gap - 1), ' ');
+                else content += std::string(static_cast<size_t>(std::max(0, sep_w - m.disk_pad)), ' ');
+            }
+            else if (settings_.disk_border) content += disk_frame[row] + sep_ansi;
             else content += std::string(static_cast<size_t>(m.disk_pad), ' ') + disk_frame[row] + std::string(static_cast<size_t>(std::max(0, sep_w - m.disk_pad)), ' ');
         } else {
             content += "  ";
         }
         content += meta_rows[row];
+        if (m.wall_w > 0) content += " " + panestyle::wall(panestyle::glyphs(settings_), pstyle, border_ansi);
         // lyrics_w is now always reserved (see the split above), and
         // lyric_rows is always fully padded to it -- whether that's
         // actual synced lyrics, a status caption, or just the sphere --
@@ -1161,7 +1182,8 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
         out.push_back(bar + " " + content + (lyrics_wide ? "" : " ") + bar);
     }
 
-    out.push_back(box_bottom(total_width, "", border_ansi_bottom));
+    if (split) out.push_back(panestyle::row(panestyle::glyphs(settings_), pstyle, false, total_width, walls, border_ansi_bottom));
+    else out.push_back(box_bottom(total_width, "", border_ansi_bottom));
     return out;
 }
 
@@ -1436,9 +1458,11 @@ std::vector<std::string> App::build_search_bar(int total_width) const {
     if (speed_w > 0 && search_w - speed_w >= 20) search_w -= speed_w;
     const bool speed_box = speed_w > 0 && search_w + speed_w + 5 <= total_width;
     std::string dash;
-    for (int i = 0; i < speed_w - 2; ++i) dash += "─";
+    for (int i = 0; i < speed_w - 2; ++i) dash += settings_.box_horizontal;
+    const std::string letter_top = settings_.box_upper_left + settings_.box_horizontal + settings_.box_horizontal + settings_.box_horizontal + settings_.box_upper_right;
+    const std::string letter_bottom = settings_.box_lower_left + settings_.box_horizontal + settings_.box_horizontal + settings_.box_horizontal + settings_.box_lower_right;
     if (mode_ == Mode::Search) label += focus_indicator(settings_, border_ansi);   // the search box has the keys
-    out.push_back(box_top(label, search_w, border_ansi) + (speed_box ? border_ansi + "╭" + dash + "╮" : std::string()) + border_ansi + "╭───╮\x1b[0m");
+    out.push_back(box_top(label, search_w, border_ansi) + (speed_box ? border_ansi + settings_.box_upper_left + dash + settings_.box_upper_right : std::string()) + border_ansi + letter_top + "\x1b[0m");
     // Play-mode indicator: L=list, R=repeat, S=shuffle, Q=queue then stop,
     // O=stop -- one letter for whichever of the five settings_.play_mode
     // states is active, cycled with a single "m" press
@@ -1475,7 +1499,7 @@ std::vector<std::string> App::build_search_bar(int total_width) const {
     const std::string speed_cell = speed_box ? border_ansi + settings_.box_vertical + "\x1b[0m " + speed_txt + " " + border_ansi + settings_.box_vertical + "\x1b[0m" : std::string();
     out.push_back(line + speed_cell + border_ansi + settings_.box_vertical
                   + " " + mode_letter + " " + settings_.box_vertical + "\x1b[0m");
-    out.push_back(box_bottom(search_w, "", border_ansi_bottom) + (speed_box ? border_ansi_bottom + "╰" + dash + "╯" : std::string()) + border_ansi_bottom + "╰───╯\x1b[0m");
+    out.push_back(box_bottom(search_w, "", border_ansi_bottom) + (speed_box ? border_ansi_bottom + settings_.box_lower_left + dash + settings_.box_lower_right : std::string()) + border_ansi_bottom + letter_bottom + "\x1b[0m");
     return out;
 }
 

@@ -974,6 +974,7 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_FLAG("AutoPlay", nullptr, auto_play, "\n## true , false (default false) -- false: when the music player starts, the track it opens with (the restored session or the first track of the library) is loaded and stands paused; the play / pause key (p) starts it. true: it starts playing at once\n"),
     SIMPLE_FLAG("PauseSphere", nullptr, pause_sphere, "\n## true , false (default false) -- true: the sphere stops turning while the track is paused; false: it goes on turning (at the full frame rate, also with ReduceMotionWhenPaused)\n"),
     SIMPLE_FLAG("ElimentDiskBorder", "eliment_disk_border", disk_border, "\n## true , false -- the \":  :\" column between the disk (or cover) and the meta data; false: it is left out and the disk sits in the middle of the space between the left border and the meta data\n"),
+    SIMPLE_NUM("TopPaneStyle", nullptr, top_pane_style, 0, 5, "\n## 0 , 1 , 2 , 3 , 4 , 5 (default 0) -- the frame of the upper pane (disk | meta data | lyrics / viz field): 0 = one box round all three; 1, 2, 3 = three panes I, II, III that share their walls; 4 = two panes (the disk, and meta data + lyrics / viz field in one); 5 = gap (one box with four gaps in its lines); see the preview in Settings\n"),
     SIMPLE_FLAG("TerminalDefaultFont", nullptr, terminal_default_font, "\n## true , false -- true = Mousiki leaves the terminal's own font alone; false = Mousiki's window uses the font of TerminalFont= (Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Terminal Default Font)\n"),
     SIMPLE_FLAG("MarqueeScrolling", nullptr, marquee, "\n"),
     SIMPLE_FLAG("StereoPlayback", nullptr, stereo, "\n"),
@@ -2213,6 +2214,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     auto tf = [](bool v) -> const char* { return v ? "true" : "false"; };
     write_simple_setting(out, s, "ElimentDisk");
     write_simple_setting(out, s, "ElimentDiskBorder");
+    write_simple_setting(out, s, "TopPaneStyle");
     out << "LatinLetters=" << tf(s.latin_letters) << "\n## true , false -- Japanese, Korean and Chinese titles, tags and lyrics are shown in Latin letters (switch with SHIFT+' on a US keyboard, see HKeyTranslit)\n";
     out << "LyricsNameVariants=" << tf(s.lyrics_name_variants) << "\n## true , false -- a lyrics search (also the refetch) that finds nothing tries other spellings: the Latin-letters spelling, the title / artist without their Latin or without their Japanese part, the title alone\n";
     out << "LatinMacrons=" << tf(s.latin_macrons) << "\n## true , false -- Latin letters (SHIFT+'): Japanese long vowels with a macron (koohii -> koohii off, kōhī on; ou -> ō); off = spelled out (ou, uu)\n";
@@ -2635,7 +2637,7 @@ void copy_look(const Settings& src, Settings& dst) {
     MOUSIKI_LOOK(viz_left_color); MOUSIKI_LOOK(viz_center_color); MOUSIKI_LOOK(viz_right_color);
     MOUSIKI_LOOK(lyr_inactive_color); MOUSIKI_LOOK(lyr_active_line_color); MOUSIKI_LOOK(lyr_active_word_color);
     // elements and visualizations
-    MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(disk_border); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
+    MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(disk_border); MOUSIKI_LOOK(top_pane_style); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
     MOUSIKI_LOOK(volume_indicator); MOUSIKI_LOOK(volume_gradient); MOUSIKI_LOOK(element_vizfield); MOUSIKI_LOOK(element_lyrics);
     MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
     MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_extra_paths); MOUSIKI_LOOK(milkdrop_gpu); MOUSIKI_LOOK(milkdrop_lock); MOUSIKI_LOOK(milkdrop_hcd); MOUSIKI_LOOK(milkdrop_aspect); MOUSIKI_LOOK(milkdrop_ratio); MOUSIKI_LOOK(milkdrop_mesh); MOUSIKI_LOOK(milkdrop_var); MOUSIKI_LOOK(milkdrop_clean); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res); MOUSIKI_LOOK(milkdrop_win_res);

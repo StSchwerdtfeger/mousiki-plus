@@ -173,56 +173,59 @@ std::vector<App::PathRow> App::build_path_rows() const {
         rows.push_back(d);
     }
 
-    // PLAYLIST PATH: ONE folder (stored as playlists_paths[0]), like the download folder: no list, no "+ new path".
-    {
-        PathRow p;
-        p.label = "PLAYLIST PATH";
-        p.kind = PathRow::Kind::Path;
-        p.sel = sel++;
-        p.path_index = 0;
-        p.playlist_path = true;
-        rows.push_back(p);
+    // (the audio book mode has no playlists: its PATHS tab leaves the three playlist folders out)
+    if (!g_settings_book_layout) {
+      // PLAYLIST PATH: ONE folder (stored as playlists_paths[0]), like the download folder: no list, no "+ new path".
+      {
+          PathRow p;
+          p.label = "PLAYLIST PATH";
+          p.kind = PathRow::Kind::Path;
+          p.sel = sel++;
+          p.path_index = 0;
+          p.playlist_path = true;
+          rows.push_back(p);
 
-        PathRow n;
-        n.kind = PathRow::Kind::Note;
-        n.label = "Changing it copies the existing playlists to the new folder.";
-        rows.push_back(n);
-    }
+          PathRow n;
+          n.kind = PathRow::Kind::Note;
+          n.label = "Changing it copies the existing playlists to the new folder.";
+          rows.push_back(n);
+      }
 
-    // PLAYLIST EXPORT PATH: ONE folder (settings_.playlist_export_path) that 'e' on the Saved Playlists tab exports to.
-    {
-        PathRow p;
-        p.label = "PLAYLIST EXPORT PATH";
-        p.kind = PathRow::Kind::Path;
-        p.sel = sel++;
-        p.path_index = -1;
-        p.export_folder = true;
-        rows.push_back(p);
+      // PLAYLIST EXPORT PATH: ONE folder (settings_.playlist_export_path) that 'e' on the Saved Playlists tab exports to.
+      {
+          PathRow p;
+          p.label = "PLAYLIST EXPORT PATH";
+          p.kind = PathRow::Kind::Path;
+          p.sel = sel++;
+          p.path_index = -1;
+          p.export_folder = true;
+          rows.push_back(p);
 
-        PathRow n;
-        n.kind = PathRow::Kind::Note;
-        n.label = "Where [e] on the Saved Playlists tab exports M3U8 / M3U files (default: export, inside the playlist folder).";
-        rows.push_back(n);
-    }
+          PathRow n;
+          n.kind = PathRow::Kind::Note;
+          n.label = "Where [e] on the Saved Playlists tab exports M3U8 / M3U files (default: export, inside the playlist folder).";
+          rows.push_back(n);
+      }
 
-    // PLAYLIST IMPORT PATH: ONE folder (settings_.playlist_import_path) that 'i' on the Saved Playlists tab reads from.
-    {
-        PathRow p;
-        p.label = "PLAYLIST IMPORT PATH";
-        p.kind = PathRow::Kind::Path;
-        p.sel = sel++;
-        p.path_index = -1;
-        p.import_folder = true;
-        rows.push_back(p);
+      // PLAYLIST IMPORT PATH: ONE folder (settings_.playlist_import_path) that 'i' on the Saved Playlists tab reads from.
+      {
+          PathRow p;
+          p.label = "PLAYLIST IMPORT PATH";
+          p.kind = PathRow::Kind::Path;
+          p.sel = sel++;
+          p.path_index = -1;
+          p.import_folder = true;
+          rows.push_back(p);
 
-        PathRow n;
-        n.kind = PathRow::Kind::Note;
-        n.label = "Where [i] looks for M3U8 / M3U files (default: import, inside the playlist folder).";
-        rows.push_back(n);
-        PathRow n2;
-        n2.kind = PathRow::Kind::Note;
-        n2.label = "The files stay there; imported lists are copied into the imported_lists folder of the playlist folder.";
-        rows.push_back(n2);
+          PathRow n;
+          n.kind = PathRow::Kind::Note;
+          n.label = "Where [i] looks for M3U8 / M3U files (default: import, inside the playlist folder).";
+          rows.push_back(n);
+          PathRow n2;
+          n2.kind = PathRow::Kind::Note;
+          n2.label = "The files stay there; imported lists are copied into the imported_lists folder of the playlist folder.";
+          rows.push_back(n2);
+      }
     }
 
     // CONVERSION EXPORT PATH: ONE folder (settings_.conversion_export_path) the conversion overlay (SHIFT+c) writes to.
@@ -495,6 +498,18 @@ int App::theme_current_index() const {
     return -1;
 }
 
+// Colours that are no theme (the THEME row shows "(custom)") would be gone once another theme is applied -- when it was forgotten to save them
+// ([s] in the creator, or a name of their own). So they are kept as the theme "Last custom", replaced each time. True when they were saved.
+bool App::theme_autosave_custom() {
+    if (theme_->list.empty() || theme_current_index() >= 0) return false;
+    themes::Theme t = theme_capture(settings_, theme_->list[0]);
+    t.name = "Last custom";
+    std::string err;
+    if (!themes::save_theme(t, err)) { ConsoleLog::instance().log_basic("theme: the colours in use could not be kept as \"Last custom\": " + err); return false; }
+    theme_->list = themes::load_all();
+    return true;
+}
+
 void App::theme_open_picker() {
     theme_->list = themes::load_all();
     theme_->sel = std::max(0, theme_current_index());
@@ -687,9 +702,12 @@ void App::handle_theme_key(int key) {
         if ((key == '\r' || key == '\n') && theme_->sel >= 0 && theme_->sel < n) {
             const themes::Theme& t = theme_->list[static_cast<size_t>(theme_->sel)];
             if (theme_->ui == 1) {
-                theme_apply(settings_, t);
+                const std::string picked = t.name;   // (the list is read again when "Last custom" is saved: `t` must not be used after it)
+                themes::Theme chosen = t;
+                const bool kept = theme_autosave_custom();
+                theme_apply(settings_, chosen);
                 theme_->ui = 0;
-                status_line_ = "THEME: " + t.name + " (s saves the settings)";
+                status_line_ = "THEME: " + picked + (kept ? " (your colors are kept as \"Last custom\"; s saves the settings)" : " (s saves the settings)");
             } else {
                 theme_apply(theme_->draft, t);
                 theme_->base = t;
@@ -913,6 +931,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidHifiGain: return std::to_string(settings_.hifi_gain);
             case kSidHifiRange: return std::to_string(settings_.hifi_range);
             case kSidWaveStyle: return settings_.waveform_smooth ? "smooth" : "raw";
+            case kSidPaneStyle: { static const char* n[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"}; return n[std::clamp(settings_.top_pane_style, 0, 5)]; }
             case kSidDiskSpeed: return std::to_string(settings_.disk_rotation_speed).substr(0, 4);
             case kSidTrackBuffer: return std::to_string(settings_.track_buffer_mb);
             case kSidVisDegr: return std::to_string(settings_.bar_degradation());
@@ -1062,6 +1081,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidEmoji: return {"Off", "Safe", "All"};
             case kSidTermSize: return {};   // two typed numbers (ENTER types the one that is lit)
             case kSidWaveStyle: return {"raw", "smooth"};
+            case kSidPaneStyle: return {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"};
             case kSidBarStyle: return {"classic", "hi-fi"};
             case kSidHifiRes: return {"fine", "rough"};
             case kSidHifiChan: return {"stereo", "mono"};
@@ -1292,6 +1312,7 @@ void App::settings_commit_edit_impl() {
                 settings_.bar_fluidity() = kBarsPresets[i].fluidity; settings_.bar_degradation() = kBarsPresets[i].degradation; settings_.bar_viscosity() = kBarsPresets[i].viscosity; }
                 return;
             case kSidWaveStyle: settings_.waveform_smooth = (v == "smooth"); return;
+            case kSidPaneStyle: { static const char* n[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"}; for (int i = 0; i < 6; ++i) if (v == to_lower(n[i])) settings_.top_pane_style = i; return; }   // (v is lower case) }
             case kSidBarStyle: settings_.bars_style = (v == "hi-fi") ? 1 : 0; g_settings_hifi_rows = settings_.bars_style == 1; return;
             case kSidHifiRes: settings_.hifi_resolution = (v == "rough") ? 1 : 0; return;
             case kSidHifiChan: settings_.hifi_channels = (v == "mono") ? 1 : 0; return;

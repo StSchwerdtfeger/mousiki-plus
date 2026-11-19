@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -1201,7 +1202,11 @@ void Milkdrop::run() {
         // the size: the place on the screen, at most max_width across (same aspect)
         const double f = std::min(1.0, static_cast<double>(std::max(64, o.max_width)) / std::max(1, ww));
         const int tw = std::max(16, static_cast<int>(ww * f)), th = std::max(16, static_cast<int>(wh * f));
-        if (tw != fw || th != fh) {
+        // A place whose size moves by a few pixels (the Settings preview asked for 262 and 266 rows in turn) must not make every picture a new size: each
+        // new size makes projectM and the buffers anew, and on some graphics cards that gave shifted, garbled pictures. Small changes are ignored (the
+        // picture is scaled to the place by the program that draws it); a real change, more than about 6 %, follows at once.
+        const bool size_moved = fw <= 0 || std::abs(tw - fw) > std::max(8, fw / 16) || std::abs(th - fh) > std::max(8, fh / 16);
+        if (size_moved) {
             if (fbo) { glDeleteFramebuffers(1, &fbo); glDeleteRenderbuffers(1, &rb); fbo = rb = 0; }
             glGenFramebuffers(1, &fbo);
             glBindFramebuffer(kGL_FRAMEBUFFER, fbo);
@@ -1211,6 +1216,15 @@ void Milkdrop::run() {
             glFramebufferRenderbuffer(kGL_FRAMEBUFFER, kGL_COLOR_ATTACHMENT0, kGL_RENDERBUFFER, rb);
             if (glCheckFramebufferStatus(kGL_FRAMEBUFFER) != kGL_FRAMEBUFFER_COMPLETE) { fail("the offscreen framebuffer could not be made"); break; }
             g_pm.set_window_size(pm, static_cast<size_t>(tw), static_cast<size_t>(th));
+            // projectM makes its picture buffers anew at the new size. Some drivers (Intel integrated graphics on Windows) hand out memory that was not
+            // cleared: its leftovers stood as red and blue bars along the edges, and the preset's feedback smeared them over the picture (they showed in
+            // the Settings preview, where the place is no wider than the picture; the big views crop the edge off). So the current preset is started
+            // again from a blank picture right after a size change (only when it is a preset of the list; the setting Clean Start is put back at once).
+            if (count > 0 && g_pm.set_preset_start_clean && g_pm.pl_get_position) {
+                g_pm.set_preset_start_clean(pm, true);
+                g_pm.pl_set_position(pl, g_pm.pl_get_position(pl), true);
+                g_pm.set_preset_start_clean(pm, o.clean_start);
+            }
             fw = tw; fh = th;
             rgba.assign(static_cast<size_t>(fw) * fh * 4, 0);
             if (use_pbo) {
@@ -1277,6 +1291,27 @@ void Milkdrop::run() {
         const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
         ms_avg = ms_avg <= 0 ? ms : ms_avg * 0.9 + ms * 0.1;
         frame_ms_.store(ms_avg);
+        {   // debugging: MOUSIKI_MD_DUMP=<folder> saves every 6th picture as it comes out of projectM (before any effect, terminal or Sixel), 300 at most
+            static const char* dump_dir = std::getenv("MOUSIKI_MD_DUMP");
+            static int dumped = 0, every = 0;
+            if (dump_dir && *dump_dir && dumped < 300 && (every++ % 6) == 0) {
+                std::string nm;
+                { std::lock_guard<std::mutex> lk(mu_); nm = name_; }
+                char fn[64];
+                std::snprintf(fn, sizeof fn, "md_%04d_%dx%d.ppm", dumped, back.w, back.h);
+                const fs::path dir = from_utf8(dump_dir);
+                if (FILE* f = std::fopen((dir / fn).string().c_str(), "wb")) {
+                    std::fprintf(f, "P6\n%d %d\n255\n", back.w, back.h);
+                    std::fwrite(back.rgb.data(), 1, back.rgb.size(), f);
+                    std::fclose(f);
+                }
+                if (FILE* l = std::fopen((dir / "md_log.txt").string().c_str(), "ab")) {
+                    std::fprintf(l, "%s preset=\"%s\" locked=%d size=%dx%d\n", fn, nm.c_str(), locked_.load() ? 1 : 0, back.w, back.h);
+                    std::fclose(l);
+                }
+                ++dumped;
+            }
+        }
         {
             std::lock_guard<std::mutex> lk(mu_);
             std::swap(front_, back);

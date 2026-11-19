@@ -29,6 +29,7 @@
 #include "disk_art.h"      // the help wizard's welcome page
 #include "wizard.h"        // its text, shared with the music player
 #include "radio_ui_internal.h"
+#include "pane_style.h"
 #include "string_util.h"
 
 namespace muisc::radio {
@@ -618,8 +619,13 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     const int avail = W - 2;
     const int sep_w = show_sign ? kSepW : 0;
     const int fixed_w = (show_sign ? kLeftW : 0) + kMetaW + sep_w;
-    const int rest_w = std::max(1, avail - fixed_w);
-    const int natural_scope = std::max(1, avail - kLeftW - kSepW - kMetaW);
+    // Main UI Pane Style: the frame's walls between the panes (the sign | the station info | the scope block); the wall at the scope takes
+    // two columns (a blank, then the wall) of the scope block, as the player's does of its field
+    const int pstyle = std::clamp(cfg.top_pane_style, 0, 5);
+    const bool psplit = panestyle::split(pstyle);
+    const int wall_w = psplit && pstyle != 4 && cfg.scope_mode != 2 && avail - fixed_w - 2 >= 12 ? 2 : 0;
+    const int rest_w = std::max(1, avail - fixed_w - wall_w);
+    const int natural_scope = std::max(1, avail - kLeftW - kSepW - kMetaW - wall_w);
     const int scope_w = !show_scope ? 0 : show_sign ? rest_w : std::min(rest_w, natural_scope);
     const int extra = (show_scope || !show_sign) ? 0 : rest_w;
     const int ex_first = extra / 2;
@@ -628,7 +634,14 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
         const int l = std::max(0, (total - nat) / 2);
         return spaces(l) + row + spaces(std::max(0, total - nat - l));
     };
-    out.push_back(box_top(s, W, "", s.border));
+    const panestyle::Glyphs pg{cfg.box_upper_left, cfg.box_upper_right, cfg.box_lower_left, cfg.box_lower_right, cfg.box_horizontal, cfg.box_vertical};
+    std::vector<int> pwalls;
+    const int wall1 = psplit && show_sign ? 1 + kLeftW + ex_first + 2 : -1;   // (in the middle of the five columns between the sign and the station info)
+    const int wall2 = wall_w > 0 ? 1 + (show_sign ? kLeftW + kSepW : 0) + kMetaW + 1 : -1;
+    if (wall1 >= 0) pwalls.push_back(wall1);
+    if (wall2 >= 0) pwalls.push_back(wall2);
+    if (psplit) out.push_back(panestyle::row(pg, pstyle, true, W, pwalls, s.border));
+    else out.push_back(box_top(s, W, "", s.border));
     std::vector<std::string> left, meta, scope;
     if (show_sign) left = build_left(s, m, st);
     std::vector<std::string> hifi_lines;
@@ -674,14 +687,17 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
         const size_t r = static_cast<size_t>(i);
         std::string body;
         // (Sign border off, GENERAL tab: no " : : " column -- the sign sits in the middle of the space up to the station info, which stays where it is)
-        if (show_sign && cfg.sign_border) body += centred(left[r], kLeftW, kLeftW + ex_first) + s.border + " : : " + kReset;
+        if (show_sign && psplit) body += centred(left[r], kLeftW, kLeftW + ex_first) + spaces(2) + panestyle::wall(pg, pstyle, s.border) + spaces(2);
+        else if (show_sign && cfg.sign_border) body += centred(left[r], kLeftW, kLeftW + ex_first) + s.border + " : : " + kReset;
         else if (show_sign) body += centred(left[r], kLeftW, kLeftW + ex_first + kSepW);
         body += centred(meta[r], kMetaW, kMetaW + (show_sign ? ex_second : 0));
+        if (wall_w > 0) body += " " + panestyle::wall(pg, pstyle, s.border);
         if (show_scope) body += show_sign ? scope[r] : centred(scope[r], scope_w, rest_w);
         else if (!show_sign) body += spaces(rest_w);
         out.push_back(s.border + cfg.box_vertical + kReset + body + s.border + cfg.box_vertical + kReset);
     }
-    out.push_back(box_bottom(s, W, "", s.border_bottom));
+    if (psplit) out.push_back(panestyle::row(pg, pstyle, false, W, pwalls, s.border_bottom));
+    else out.push_back(box_bottom(s, W, "", s.border_bottom));
 
     // --- frequency band + buttons (the band takes the width, the button pane is fixed, 1 blank column between) ---
     auto tuner = build_tuner(s, m, st, W - kSideW - kBandGap);
@@ -695,12 +711,12 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     int scope_x = 0;
     if (spectro_img) {
         m.spectro_area[0] = 1;
-        m.spectro_area[1] = 1 + (show_sign ? kLeftW + ex_first + kSepW : 0) + kMetaW + (show_sign ? ex_second : 0) + (show_sign ? 0 : std::max(0, (rest_w - scope_w) / 2));
+        m.spectro_area[1] = 1 + (show_sign ? kLeftW + ex_first + kSepW : 0) + kMetaW + (show_sign ? ex_second : 0) + wall_w + (show_sign ? 0 : std::max(0, (rest_w - scope_w) / 2));
         m.spectro_area[2] = scope_w;
         m.spectro_area[3] = kPanelH - (m.scope_notice.empty() ? 0 : 1);   // the timeshift note keeps its row
     }
     if (m.gfx.active && show_scope) {
-        scope_x = 1 + (show_sign ? kLeftW + ex_first + kSepW : 0) + kMetaW + (show_sign ? ex_second : 0) + (show_sign ? 0 : std::max(0, (rest_w - scope_w) / 2));
+        scope_x = 1 + (show_sign ? kLeftW + ex_first + kSepW : 0) + kMetaW + (show_sign ? ex_second : 0) + wall_w + (show_sign ? 0 : std::max(0, (rest_w - scope_w) / 2));
         m.gfx.col = scope_x; m.gfx.row = 1; m.gfx.crop = 0;
     }
     if (m.overlay == 7 && !s.c.menu_classic) {   // the MENUS index (<): the organigram over the whole screen

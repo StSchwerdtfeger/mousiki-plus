@@ -1252,6 +1252,7 @@ int App::run() {
     g_settings_hifi_rows = settings_.bars_style == 1;
     g_settings_book_layout = audiobook_;   // (the settings screen shows this mode's rows)
     remote::start("player");
+    if (!resuming) spawn_bg("tool diagnostics", []() { log_tool_diagnostics(); });   // (which ffmpeg / ffprobe / yt-dlp / python3 will be started, and their versions: in the console log)
     if (resuming) sync_after_radio();
     remote_app_apply();   // the remote app's web server (Settings -> GENERAL -> REMOTE / UPDATES -> Remote App)   // the radio's settings may have changed some of ours meanwhile
     bool restored = false;
@@ -1600,6 +1601,54 @@ int App::run() {
                                                  std::to_string(static_cast<int>(video_timing().look_ms.load())) + " ms [grade " + std::to_string(static_cast<int>(video_timing().grade_ms.load())) + ", effect " +
                                                  std::to_string(video_timing().fx.load()) + ": " + std::to_string(static_cast<int>(video_timing().fx_ms.load())) + ", threads " + std::to_string(video_timing().threads.load()) + "], colours " + std::to_string(static_cast<int>(video_timing().quant_ms.load())) + " ms, encoding " +
                                                  std::to_string(static_cast<int>(video_timing().encode_ms.load())) + " ms, scope " + std::to_string(static_cast<int>(video_timing().scope_ms.load())) + " ms)");
+            }
+            // Every 5 s while pictures go out: a summary of where the time goes (frames with a picture per second, the mean build / wait /
+            // size, the stage times of the last picture, the MilkDrop picture, the memory of the program) -- not only the slow frames above
+            if (gfx_.active && has_pic) {
+                struct Sum { int n = 0; double build = 0, wait = 0, kib = 0; std::chrono::steady_clock::time_point since{}; };
+                static Sum sum;
+                // Sixel: a terminal that takes a picture far longer than the frame interval (Windows Terminal parses every colour change of a
+                // sixel) is given a narrower picture: 100 -> 75 -> 56 -> 42 %. Slower than 110 ms for 3 s steps down; back up only after 10 s
+                // under 45 ms and 60 s after the last step down (else the width would swing). MOUSIKI_SIXEL_AUTOFIT=0 switches it off.
+                if (gfxs_.proto == GfxProto::Sixel) {
+                    static const bool autofit = [] { const char* e = std::getenv("MOUSIKI_SIXEL_AUTOFIT"); return !(e && e[0] == '0'); }();
+                    static double ema = 0.0;
+                    static std::chrono::steady_clock::time_point slow_since{}, fast_since{}, last_down{};
+                    ema = ema * 0.8 + std::min(400.0, write_frame_last_ms()) * 0.2;
+                    if (autofit) {
+                        const auto t = done;
+                        if (ema > 110.0) { if (slow_since == std::chrono::steady_clock::time_point{}) slow_since = t; } else slow_since = {};
+                        if (ema < 45.0) { if (fast_since == std::chrono::steady_clock::time_point{}) fast_since = t; } else fast_since = {};
+                        const int old_pct = sixel_auto_pct_;
+                        if (slow_since != std::chrono::steady_clock::time_point{} && t - slow_since > std::chrono::seconds(3) && sixel_auto_pct_ > 42) {
+                            sixel_auto_pct_ = sixel_auto_pct_ > 75 ? 75 : sixel_auto_pct_ > 56 ? 56 : 42;
+                            last_down = t; slow_since = {};
+                        } else if (fast_since != std::chrono::steady_clock::time_point{} && t - fast_since > std::chrono::seconds(10) && t - last_down > std::chrono::seconds(60) && sixel_auto_pct_ < 100) {
+                            sixel_auto_pct_ = sixel_auto_pct_ < 56 ? 56 : sixel_auto_pct_ < 75 ? 75 : 100;
+                            fast_since = {};
+                        }
+                        if (sixel_auto_pct_ != old_pct) {
+                            ConsoleLog::instance().log_basic("sixel: the terminal needs about " + std::to_string(static_cast<int>(ema)) + " ms for a picture -- picture width " +
+                                                             (sixel_auto_pct_ < old_pct ? "lowered" : "raised") + " to " + std::to_string(sixel_auto_pct_) + " % (MOUSIKI_SIXEL_AUTOFIT=0 turns this off)");
+                        }
+                    }
+                }
+                const bool perf = ConsoleLog::instance().perf_log();   // (--perf-log: the summary is only written when asked for)
+                if (perf) {
+                if (sum.n == 0) sum.since = built;
+                ++sum.n; sum.build += build_ms; sum.wait += write_ms; sum.kib += static_cast<double>(wire_kib);
+                const double span = std::chrono::duration<double>(done - sum.since).count();
+                if (span >= 5.0) {
+                    const long rss_kib = process_rss_kib();
+                    char buf[420];
+                    std::snprintf(buf, sizeof buf, "pictures: %.1f/s, per frame build %.1f ms, wait for the writer %.1f ms (last terminal write %.0f ms), %.0f KiB; last picture %dx%d: look %.0f ms, colours %.0f ms, encoding %.0f ms%s; MilkDrop %.0f ms; memory %s",
+                                  sum.n / span, sum.build / sum.n, sum.wait / sum.n, write_frame_last_ms(), sum.kib / sum.n, gfx_.w, gfx_.h,
+                                  video_timing().look_ms.load(), video_timing().quant_ms.load(), video_timing().encode_ms.load(), video_timing().worker.load() ? " (look on the worker)" : "",
+                                  Milkdrop::instance().frame_ms(), rss_kib >= 0 ? (std::to_string(rss_kib / 1024) + " MiB").c_str() : "n/a");
+                    ConsoleLog::instance().log_basic(buf);
+                    sum = Sum();
+                }
+                }
             }
         }
         // 25fps (was 12.5fps) — the 700ms waveform reveal animation only

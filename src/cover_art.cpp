@@ -340,6 +340,7 @@ static void note_unreadable_picture(const fs::path& file, bool embedded, double 
     std::string msg = r.out;
     while (!msg.empty() && (msg.back() == '\n' || msg.back() == '\r')) msg.pop_back();
     const size_t nl = msg.find('\n');
+    if (msg.find("does not contain any stream") != std::string::npos) msg = "the file has no picture or video stream (nothing to show)";   // (an audio file without a cover: ffmpeg's own words are cryptic)
     ConsoleLog::instance().log_basic("picture: ffmpeg gave no picture for " + key + " (exit " + std::to_string(r.exit_code) + "): " + (msg.empty() ? std::string("no message (no video stream?)") : (nl == std::string::npos ? msg : msg.substr(0, nl)).substr(0, 300)));
 }
 

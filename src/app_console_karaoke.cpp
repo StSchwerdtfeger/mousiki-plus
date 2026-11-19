@@ -81,14 +81,12 @@ void App::build_console_screen(std::ostringstream& frame, int W, int target_heig
             if (display_width(s) <= inner || s.find('\x1b') != std::string::npos) { out.push_back(s); continue; }
             size_t ind = 0;
             if (s.size() > 3 && s[0] == '[') { const size_t c = s.find("] "); if (c != std::string::npos && c <= 12) ind = c + 2; }
-            const std::vector<std::string> first = wrap_lines(s, inner, 40);
-            if (ind == 0 || first.size() < 2 || static_cast<int>(ind) > inner / 2) { for (const std::string& l : first) out.push_back(l); continue; }
-            // the first row as it is, the rest of the text wrapped to the narrower width under it
-            std::string head = first[0];
-            size_t at = head.size();
-            while (at < s.size() && s[at] == ' ') ++at;
-            out.push_back(head);
-            for (const std::string& l : wrap_lines(s.substr(at), inner - static_cast<int>(ind), 40)) out.push_back(std::string(ind, ' ') + l);
+            // The text after the time is wrapped as a whole to the width left of the indent; the time goes before the first row, the other rows
+            // are indented. (Before, the first row was wrapped with the time and the rest was cut out of the original by the first row's length --
+            // wrap_lines() changes the text (spaces collapsed, emoji replaced), so the cut fell in the wrong place and a letter was lost.)
+            if (ind == 0 || static_cast<int>(ind) > inner / 2) { for (const std::string& l : wrap_lines(s, inner, 40)) out.push_back(l); continue; }
+            const std::vector<std::string> rows = wrap_lines(s.substr(ind), inner - static_cast<int>(ind), 40);
+            for (size_t k = 0; k < rows.size(); ++k) out.push_back(k == 0 ? s.substr(0, ind) + rows[k] : std::string(ind, ' ') + rows[k]);
         }
         return out;
     };

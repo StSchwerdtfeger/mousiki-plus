@@ -6,6 +6,7 @@
 #include <iostream>
 #include <string>
 #include "app.h"
+#include "console_log.h"
 #include "bg_tasks.h"
 #include "process_util.h"
 #include <cstdlib>
@@ -25,6 +26,9 @@
 #endif
 
 int main(int argc, char** argv) {
+    // `mousiki --perf-log`: this session also writes the picture timing summary (every 5 s) to the console log
+    for (int i = 1; i < argc; ++i) if (std::string(argv[i]) == "--perf-log") muisc::ConsoleLog::instance().set_perf_log(true);
+    if (const char* e = std::getenv("MOUSIKI_PERF_LOG")) { if (e[0] && e[0] != '0') muisc::ConsoleLog::instance().set_perf_log(true); }
     // `mousiki --selftest-fetch`: the fetch health check (lyrics sources, cover archive, update check, tools, pinned downloads).
     if (argc > 1 && std::string(argv[1]) == "--selftest-fetch") {
 #if defined(_WIN32)

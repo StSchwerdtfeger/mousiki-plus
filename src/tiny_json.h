@@ -162,6 +162,8 @@ public:
 private:
     const std::string& s_;
     size_t i_ = 0;
+    int depth_ = 0;   // how deep the objects / arrays lie inside each other: a text of thousands of '[' in a row must not use up the stack
+    static constexpr int kMaxDepth = 200;   // (the web services and the program's own files nest a handful of levels)
 
     void skip_ws() { while (i_ < s_.size() && (s_[i_] == ' ' || s_[i_] == '\t' || s_[i_] == '\n' || s_[i_] == '\r')) ++i_; }
     char peek() const { return i_ < s_.size() ? s_[i_] : '\0'; }
@@ -169,8 +171,13 @@ private:
     bool parse_value(Value& out) {
         skip_ws();
         char c = peek();
-        if (c == '{') return parse_object(out);
-        if (c == '[') return parse_array(out);
+        if (c == '{' || c == '[') {
+            if (depth_ >= kMaxDepth) return false;
+            ++depth_;
+            const bool ok = c == '{' ? parse_object(out) : parse_array(out);
+            --depth_;
+            return ok;
+        }
         if (c == '"') return parse_string_value(out);
         if (c == 't' || c == 'f') return parse_bool(out);
         if (c == 'n') { if (s_.compare(i_, 4, "null") == 0) { i_ += 4; out = Value::make_null(); return true; } return false; }

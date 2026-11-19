@@ -4,6 +4,7 @@
 #include <array>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace muisc {
@@ -156,11 +157,18 @@ public:
     // "completed" verdict when a track is handed over to its successor).
     const HistoryPlay* live_play() const;
 
+    // A file that was renamed (the meta editor) or moved outside Mousiki (found again by its file name after a library scan, when exactly
+    // one file of the library has that name): its plays and its place in the top lists move to the new path, and add up with the plays the
+    // new path already has. Both save when something changed and return how many titles moved. Streams ("yt:...") are never touched.
+    int rename_ids(const std::vector<std::pair<std::string, std::string>>& renames);
+    int mend_ids(const std::vector<std::string>& existing_tracks);
+
     // Totals of everything that has already left the window of individual records.
     const HistoryArchive& archive() const { return archive_; }
 
 private:
     void trim_overflow();             // folds the oldest records into archive_ while over the cap
+    int remap_ids(const std::map<std::string, std::string>& moves);   // old id -> new id, in the records and in the archive
     std::string dir_;                 // history folder override (UTF-8), "" = default
     std::string file_name_ = "history.json";
     std::string file_utf8() const;

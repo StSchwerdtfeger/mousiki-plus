@@ -121,7 +121,7 @@ int theme_index(const RadioSettings& s, const std::vector<themes::Theme>& all) {
 namespace {
 enum RsId {
     kRsPlayback, kRsStartMode, kRsUseModePlayer, kRsUseModeRadio, kRsUseModeBook, kRsModeOrder1, kRsModeOrder2, kRsModeOrder3, kRsBlackBg, kRsShareProfiles, kRsRemoteApp,
-    kRsOnAir, kRsSignBorder, kRsPulse, kRsDummy, kRsVolIndicator, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
+    kRsPaneStyle, kRsOnAir, kRsSignBorder, kRsPulse, kRsDummy, kRsVolIndicator, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc, kRsBehavior, kRsBarStyle, kRsHifiRes, kRsHifiChan, kRsHifiColor, kRsHifiScale, kRsHifiAdapt, kRsHifiSplit, kRsHifiFScale, kRsHifiGain, kRsHifiRange,
     kRsScope, kRsOsciStyle,
     kRsUseMilkdrop, kRsMdFps, kRsMdRes, kRsMdGpu, kRsMdDuration, kRsMdShuffle, kRsMdBeat, kRsMdHardCuts, kRsMdTransition, kRsMdShowName,
@@ -159,6 +159,9 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {false, kRsMarquee, "Marquee scrolling"},
     };
     static const std::vector<SettingsLine> anima = {
+        {true, -1, "TOP PANE"},
+        {false, kRsPaneStyle, "Main UI Pane Style"},
+        {true, -1, ""},
         {true, -1, "ON AIR SIGN"},
         {false, kRsOnAir, "On air ascii"}, {false, kRsSignBorder, "Sign border"}, {false, kRsPulse, "Pulse wave"},
         {false, kRsGradSpeed, "Gradient wave speed"}, {false, kRsPulseSpeed, "Pulse wave speed"},
@@ -315,6 +318,7 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsPulseSpeed: return fmt_speed(kSpeedSteps[nearest_step(s.pulse_wave_speed)]);
         case kRsFluidity: return std::to_string(s.bar_fluidity());
         case kRsBehavior: return bars_preset_name(bars_preset_of(s.bar_fluidity(), s.bar_degradation(), s.bar_viscosity()));
+        case kRsPaneStyle: { static const char* n[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"}; return n[std::clamp(s.top_pane_style, 0, 5)]; }
         case kRsBarStyle: return s.bars_style == 1 ? "hi-fi" : "classic";
         case kRsHifiRes: return s.hifi_resolution == 1 ? "rough" : "fine";
         case kRsHifiChan: return s.hifi_channels == 1 ? "mono" : "stereo";
@@ -396,6 +400,7 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
             s.bar_fluidity() = kBarsPresets[to].fluidity; s.bar_degradation() = kBarsPresets[to].degradation; s.bar_viscosity() = kBarsPresets[to].viscosity;
             break;
         }
+        case kRsPaneStyle: step(s.top_pane_style, 6); break;
         case kRsBarStyle: step(s.bars_style, 2); g_rs_hifi = s.bars_style == 1; break;
         case kRsHifiRes: step(s.hifi_resolution, 2); break;
         case kRsHifiChan: step(s.hifi_channels, 2); break;
@@ -460,7 +465,7 @@ void norm_reset(RadioSettings& s) {
 }
 
 const int kPathRowCount = 6;
-const char* const kPathRows[] = {"STATION LISTS PATH", "PRESETS PATH", "DOWNLOAD PATH", "Same folder as music player", "HISTORY PATH", "AUDIO BOOK PATH"};
+const char* const kPathRows[] = {"STATION LISTS PATH", "PRESETS PATH", "DOWNLOAD PATH", "Same folder as music player", "HISTORY PATH", "MILKDROP PRESETS PATH"};
 
 std::string* path_row_text(RadioSettings& s, int row) {
     switch (row) {
@@ -468,7 +473,7 @@ std::string* path_row_text(RadioSettings& s, int row) {
         case 1: return &s.presets_path;
         case 2: return &s.download_path;
         case 4: return &s.history_path;
-        case 5: return &s.audiobook_path;   // lives in the player's config.txt (AudioBookPath=), not in radio_config.txt
+        case 5: return &s.md_presets;   // lives in the player's config.txt (MilkDropPresets=), not in radio_config.txt
     }
     return nullptr;
 }
@@ -739,6 +744,7 @@ void save_player_mode_settings(const RadioSettings& s) {
     for (int i = 0; i < 3; ++i) if (now.order[i] != s.mode_order[i]) same = false;
     if (!same) set_player_config_value("ModeOrder", muisc::mode_order_text(s.mode_order));
     if (s.audiobook_path != player_config_value("audiobookpath")) set_player_config_value("AudioBookPath", s.audiobook_path);
+    if (s.md_presets != player_config_value("milkdroppresets")) set_player_config_value("MilkDropPresets", s.md_presets);
 }
 
 bool player_black_background() {
@@ -1037,6 +1043,13 @@ RadioSettings load_radio_settings(std::string* source_out) {
         }
     }
     if (auto v = get("OnAirAscii")) s.on_air_ascii = as_bool(*v, s.on_air_ascii);
+    if (auto v = get("TopPaneStyle")) {
+        const std::string t = ascii_lower_str(*v);
+        static const char* n[] = {"one box", "three panes i", "three panes ii", "three panes iii", "two panes", "gap"};
+        int k = -1;
+        for (int i = 0; i < 6; ++i) if (t == n[i] || t == std::to_string(i)) k = i;
+        if (k >= 0) s.top_pane_style = k;
+    }
     if (auto v = get("SignBorder")) s.sign_border = as_bool(*v, s.sign_border);
     if (auto v = get("UseOscilloscope")) s.use_osci = as_bool(*v, s.use_osci);
     if (auto v = get("UseSpectrogram")) s.use_spectro = as_bool(*v, s.use_spectro);
@@ -1232,6 +1245,8 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "##-------------------------------------------\n\n"
          "OnAirAscii=" << (s.on_air_ascii ? "true" : "false") << "\n"
          "# the \" : : \" column between the ON AIR / OFF AIR sign and the station info: true | false (the sign sits in the middle of that space)\n"
+         "# the frame of the top pane: 0 one box | 1 three panes I | 2 three panes II | 3 three panes III | 4 two panes | 5 gap\n"
+         "TopPaneStyle=" << std::clamp(s.top_pane_style, 0, 5) << "\n"
          "SignBorder=" << (s.sign_border ? "true" : "false") << "\n"
          "PulseWave=" << (s.pulse_wave ? "true" : "false") << "\n"
          "DummyButtons=" << (s.dummy_buttons ? "true" : "false") << "\n"

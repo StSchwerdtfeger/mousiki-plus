@@ -305,6 +305,7 @@ private:
     int video_fx_for(const fs::path& track) const;
     VideoLook video_look_for(const fs::path& track) const;   // the effect, contrast, colours and chromatic aberration of the track's video (its own choices, else Settings)
     int video_pic_width() const;
+    int sixel_auto_pct_ = 100;   // Sixel only: the share of the picture width in use (100, 75, 56, 42), lowered while the terminal cannot take the pictures in time (see app.cpp)
     int video_res_for() const;   // the resolution of the playing track's video: its own (Style Option / big video panel), else the Setting   // the widest picture that is decoded (Settings -> Video Resolution; never wider than the video itself unless standard)
     void video_ensure_source() const;
     // The lyric block of the big video overlay: `mode` 1 lyrics, 2 lyrics + translation, 3 translation only; `tr_idx` picks the translation.
@@ -1628,6 +1629,7 @@ private:
 
     std::string peek_frame_;
     int peek_sel_ = -1, peek_cols_ = 0, peek_rows_ = 0;
+    bool theme_autosave_custom();    // colours that match no theme are saved as the theme "Last custom" (before another theme replaces them)
     int theme_current_index() const;  // index of the theme settings_ matches exactly, or -1 (custom)
     void theme_open_picker();
     void theme_open_creator(bool edit_current = false);
@@ -1856,6 +1858,7 @@ private:
     mutable SpectroSettings pv_spectro_set_;
     SpectroGfx pv_spectro_gfx_;
     void settings_preview_end() const;   // the MilkDrop preset of the preview is put back
+    void settings_preview_set_prev(const std::string& preset) const;   // a new Default Preset was chosen: it is what comes back when the preview ends
     SpectroAnalyzer* settings_preview_spectro() const;   // nullptr until a preview was drawn
     // SHIFT+0: the big oscilloscope overlay (YT left, XY right). Each picture has its own scope (own phosphor buffer) fed from
     // scope_; SHIFT+a toggles the grid, SHIFT+v the axis values, SHIFT+c asks for its colour (the digits typed so far are in scope_big_color_buf_).

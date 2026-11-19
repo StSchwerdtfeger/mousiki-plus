@@ -1,0 +1,57 @@
+name: Fuzz
+
+# libFuzzer runs on the parsers that read input from outside (fuzz/): lyrics, JSON, playlists, cue files and the requests of the remote app's
+# web server -- with AddressSanitizer and UndefinedBehaviorSanitizer. Once a week for a few minutes (a crash is an artifact of the run and
+# makes it red), and by hand (Actions -> Fuzz -> Run workflow, with the minutes per target). The valid examples in fuzz/corpus/ are the start;
+# nothing is kept between runs but the crashes.
+on:
+  schedule:
+    - cron: "17 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: "Seconds per target"
+        default: "300"
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+
+      - name: Install clang and the sanitizer runtime
+        run: sudo apt-get update && sudo apt-get install -y clang libclang-rt-dev
+
+      - name: Configure
+        run: >
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DMOUSIKI_FUZZ=ON
+          -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DMOUSIKI_USE_CCACHE=OFF -DMOUSIKI_PCH=OFF
+
+      - name: Build the fuzz targets
+        run: cmake --build build --parallel 4 --target mousiki_fuzz_lyrics mousiki_fuzz_json mousiki_fuzz_remote mousiki_fuzz_playlist mousiki_fuzz_cue mousiki_fuzz_tags
+
+      - name: Fuzz every target
+        env:
+          SECONDS_EACH: ${{ github.event.inputs.seconds || '240' }}
+          ASAN_OPTIONS: detect_leaks=0:abort_on_error=0
+        run: |
+          status=0
+          for t in lyrics json remote playlist cue tags; do
+            mkdir -p "fuzz-corpus/$t" "crashes/$t"
+            echo "::group::$t"
+            build/mousiki_fuzz_$t -max_total_time="$SECONDS_EACH" -timeout=20 -max_len=8192 -rss_limit_mb=2048 \
+              -artifact_prefix="crashes/$t/" "fuzz-corpus/$t" "fuzz/corpus/$t" || status=1
+            echo "::endgroup::"
+          done
+          exit $status
+
+      - name: Keep what crashed
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9   # v7.0.2
+        with:
+          name: fuzz-crashes
+          path: crashes

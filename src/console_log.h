@@ -1,6 +1,7 @@
 // The console log (see console_log.cpp): ConsoleLog keeps recent lines and writes them to a file at a
 // basic or verbose level.
 #pragma once
+#include <atomic>
 #include <filesystem>
 #include <mutex>
 #include <string>
@@ -61,6 +62,10 @@ public:
     // overlay. Safe to call every frame.
     std::vector<std::string> lines() const;
 
+    // `mousiki --perf-log` (or MOUSIKI_PERF_LOG=1): this session also logs the picture timing summary every 5 s (off by default: it would fill the log)
+    void set_perf_log(bool on) { perf_log_.store(on); }
+    bool perf_log() const { return perf_log_.load(); }
+
 private:
     ConsoleLog() = default;
     mutable std::mutex mutex_;
@@ -68,12 +73,13 @@ private:
     std::vector<std::string> prev_lines_;   // the end of the last session's log
     LogVerbosity level_ = LogVerbosity::Basic;
     bool initialized_ = false;
+    std::atomic<bool> perf_log_{false};
     // fs::path, not std::string: std::ofstream(std::string) opens the
     // file through the ANSI code page on Windows, so a user profile
     // containing a non-ASCII character (C:\\Users\\Jürgen\\...) could not
     // be opened at all. The fs::path overload uses the native wide path.
     fs::path log_path_;
-    static constexpr size_t kMaxLines = 1500;   // this session's lines kept in memory (the last session's tail: the same number)
+    static constexpr size_t kMaxLines = 4000;   // this session's lines kept in memory (the last session's tail: the same number)
 
     void push_line_locked(const std::string& line);
     void append_to_file(const std::string& text);

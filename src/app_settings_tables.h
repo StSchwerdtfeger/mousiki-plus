@@ -36,6 +36,7 @@ enum SetId {
     // MILKDROP (ANIMA/VIZ): the MilkDrop visuals (milkdrop.h)
     kSidUseMilkdrop, kSidMdFps, kSidMdRes, kSidMdDuration, kSidMdShuffle, kSidMdFavShuffle, kSidMdCutSens, kSidMdHardCuts, kSidMdTransition, kSidMdFx, kSidMdColors, kSidMdShowName, kSidMdAuto,
     kSidMdUseFx, kSidMdPreset, kSidMdBrowse, kSidMdGpu, kSidMdHcd, kSidMdAspect, kSidMdRatio, kSidMdMesh, kSidMdVar, kSidMdClean, kSidMdLock, kSidMdRandom,   // (Use Effect on / off; Default Preset: the preset the visuals start with; Preset Overlay: [ENTER] chooses it)
+    kSidPaneStyle,     // MAIN UI PANE STYLE: one box / three panes I-III round disk | meta data | lyrics / viz field
     kSidPauseSphere,   // SPHERE: the sphere stops turning while the track is paused
 };
 // True while the audio book player is the mode that runs (set by App::run()): its GENERAL and ANIMA/VIZ tabs leave out what only

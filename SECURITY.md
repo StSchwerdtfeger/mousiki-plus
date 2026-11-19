@@ -15,6 +15,8 @@ Use GitHub's private reporting instead: open the **Security** tab of this reposi
 and describe what you found, how to reproduce it (a sample file or the steps) and which version and system you used.
 You will get an answer there. Once a fix is released, the report can be made public together with credit to you, if you wish.
 
+What is protected, from whom and where the limits are: see the [threat model](THREAT_MODEL.md).
+
 ## What matters most
 
 Areas where a flaw would be serious:

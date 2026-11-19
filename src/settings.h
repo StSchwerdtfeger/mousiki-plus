@@ -257,6 +257,7 @@ struct Settings : VizPrefs {
     std::string box_lower_right = "\u256f";  // ╯
     std::string box_vertical = "\u2502";     // │
     std::string box_horizontal = "\u2500";   // ─
+    int top_pane_style = 0;                  // MAIN UI PANE STYLE: 0 one box round disk | meta data | lyrics / viz field, 1-3 three panes that share their walls (pane_style.h)
     bool disk_border = false;                // the ":  :" column between the disk and the meta data (false: the disk is centred in the space instead)
     std::string meta_separator = ":  :";     // separator between disk|meta|lyrics columns
     std::string list_separator = "|";        // separator in list panel between columns

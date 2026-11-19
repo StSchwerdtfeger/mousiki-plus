@@ -335,8 +335,8 @@ GfxProto gfx_probe(const std::string& pref_in) {
     const char* term = std::getenv("TERM");
     const char* prog = std::getenv("TERM_PROGRAM");
     const std::string t = term ? term : "", p = prog ? prog : "";
-    const bool env_kitty = std::getenv("KITTY_WINDOW_ID") || t == "xterm-kitty" || t == "xterm-ghostty" || p == "ghostty" || p == "WezTerm";
-    const bool env_sixel = std::getenv("WT_SESSION") || t.rfind("foot", 0) == 0 || t.find("sixel") != std::string::npos || t.rfind("mlterm", 0) == 0;
+    const bool env_kitty = std::getenv("KITTY_WINDOW_ID") || t == "xterm-kitty" || t == "xterm-ghostty" || p == "ghostty";   // (WezTerm: Kitty graphics are off in its default configuration -- enable_kitty_graphics -- so the query below decides, and without an answer Sixel, which it always speaks)
+    const bool env_sixel = std::getenv("WT_SESSION") || t.rfind("foot", 0) == 0 || t.find("sixel") != std::string::npos || t.rfind("mlterm", 0) == 0 || p == "WezTerm";
 #if !defined(_WIN32)
     if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO)) return GfxProto::None;
     // Ask: a 1x1 Kitty graphics query, then the primary device attributes (every terminal answers those, so the wait ends).

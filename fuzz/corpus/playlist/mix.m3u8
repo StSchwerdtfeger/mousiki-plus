@@ -1,0 +1,8 @@
+#EXTM3U
+#PLAYLIST:Mix
+#EXTINF:215,Artist - Title
+music/a.mp3
+#EXTINF:100,Only title
+file:///home/me/My%20Song.flac
+http://example.com/stream
+..\\win\\b.mp3

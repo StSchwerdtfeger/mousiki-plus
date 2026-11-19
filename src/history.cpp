@@ -2,6 +2,7 @@
 // day, weekday and hour), and writes the history archive as JSON.
 #include "app_dirs.h"
 #include "history.h"
+#include "moved_files.h"
 
 #include "path_utf8.h"
 #include "tiny_json.h"
@@ -16,6 +17,7 @@
 #include <ctime>
 #include <fstream>
 #include <map>
+#include <set>
 #include <sstream>
 
 namespace muisc {
@@ -308,6 +310,49 @@ void HistoryStore::trim_overflow() {
         archive_.fold(plays_.back()); // oldest record; the live one sits at the front and is never reached
         plays_.pop_back();
     }
+}
+
+int HistoryStore::remap_ids(const std::map<std::string, std::string>& moves) {
+    if (moves.empty()) return 0;
+    std::set<std::string> touched;
+    for (HistoryPlay& p : plays_) {
+        const auto it = moves.find(p.id);
+        if (it != moves.end()) { p.id = it->second; touched.insert(it->first); }
+    }
+    for (const auto& mv : moves) {
+        const auto it = archive_.titles.find(mv.first);
+        if (it == archive_.titles.end()) continue;
+        HistoryArchiveTitle src = std::move(it->second);
+        archive_.titles.erase(it);
+        auto dst = archive_.titles.find(mv.second);
+        if (dst == archive_.titles.end()) { archive_.titles[mv.second] = std::move(src); }
+        else {   // the new path was played already: the two add up
+            dst->second.plays += src.plays;
+            dst->second.listened_sec += src.listened_sec;
+            for (const auto& d : src.day_plays) dst->second.day_plays[d.first] += d.second;
+            for (size_t i = 0; i < dst->second.tod.size(); ++i) dst->second.tod[i] += src.tod[i];
+            if (dst->second.len_sec <= 0.0) dst->second.len_sec = src.len_sec;
+        }
+        touched.insert(mv.first);
+    }
+    return static_cast<int>(touched.size());
+}
+
+int HistoryStore::rename_ids(const std::vector<std::pair<std::string, std::string>>& renames) {
+    std::map<std::string, std::string> moves;
+    for (const auto& r : renames) if (!r.first.empty() && !r.second.empty() && r.first != r.second && r.first.compare(0, 3, "yt:") != 0) moves[r.first] = r.second;
+    const int n = remap_ids(moves);
+    if (n > 0) save();
+    return n;
+}
+
+int HistoryStore::mend_ids(const std::vector<std::string>& existing_tracks) {
+    std::set<std::string> ids;
+    for (const HistoryPlay& p : plays_) ids.insert(p.id);
+    for (const auto& kv : archive_.titles) ids.insert(kv.first);
+    const int n = remap_ids(find_moved(ids, existing_tracks));
+    if (n > 0) save();
+    return n;
 }
 
 void HistoryStore::save() const {

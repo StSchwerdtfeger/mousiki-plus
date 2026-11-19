@@ -421,6 +421,24 @@ bool Player::open_device_locked() {
     cfg.resampling.linear.lpfOrder = MA_MAX_FILTER_ORDER;
     cfg.dataCallback = data_callback;
     cfg.pUserData = this;
+    // The device buffer: miniaudio's default is a few milliseconds, fine for a sound card, but a sound server that reaches the speakers
+    // over a network-like path (WSLg's PulseAudio on Windows) runs dry with it: crackling, a sound that seems slow. There the buffer is 60 ms
+    // x 4. MOUSIKI_AUDIO_BUFFER_MS=<ms> sets the length of one period everywhere (0 = miniaudio's default).
+    {
+        int period_ms = 0;
+#if defined(__linux__)
+        if (std::FILE* f = std::fopen("/proc/version", "r")) {
+            char b[256] = {0};
+            const size_t n = std::fread(b, 1, sizeof b - 1, f);
+            std::fclose(f);
+            std::string v(b, n);
+            for (auto& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            if (v.find("microsoft") != std::string::npos) period_ms = 60;   // WSL
+        }
+#endif
+        if (const char* e = std::getenv("MOUSIKI_AUDIO_BUFFER_MS")) period_ms = std::clamp(std::atoi(e), 0, 500);
+        if (period_ms > 0) { cfg.periodSizeInMilliseconds = static_cast<ma_uint32>(period_ms); cfg.periods = 4; }
+    }
 
     ma_context* ctx = context_ready_ ? &context_ : nullptr;
     ma_device_id chosen{};
@@ -441,9 +459,11 @@ bool Player::open_device_locked() {
             std::string("audio: ma_device_start failed: ") + ma_result_description(start_res));
         return false;
     }
-    ConsoleLog::instance().log_verbose(
-        std::string("audio: device started, backend=") + ma_get_backend_name(device_.pContext->backend) +
-        ", rate=" + std::to_string(sample_rate_.load()) + "Hz");
+    ConsoleLog::instance().log_basic(
+        std::string("audio: device \"") + device_.playback.name + "\" started, backend=" + ma_get_backend_name(device_.pContext->backend) +
+        ", track rate=" + std::to_string(sample_rate_.load()) + " Hz, device rate=" + std::to_string(device_.playback.internalSampleRate) + " Hz, buffer=" +
+        std::to_string(device_.playback.internalPeriods) + " x " + std::to_string(device_.playback.internalPeriodSizeInFrames) + " frames" +
+        (device_.playback.internalSampleRate != static_cast<ma_uint32>(sample_rate_.load()) ? " (converted)" : ""));
 
     {
         std::lock_guard<std::mutex> dk(device_name_mutex_);

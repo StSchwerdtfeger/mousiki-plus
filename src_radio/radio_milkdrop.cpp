@@ -8,6 +8,7 @@
 #include "path_utf8.h"
 #include "settings.h"
 #include "video_fx.h"
+#include "terminal_ui.h"
 #include "library_search.h"
 #include "text_edit.h"   // normalize_for_search()
 #include "video_pipe.h"
@@ -385,6 +386,14 @@ bool build_milkdrop_block(const Style& s, const UiModel& m, int scope_w, std::ve
                 for (int i = 0; i < 216; ++i)
                     g.pal[static_cast<size_t>(i)] = {static_cast<uint8_t>(i / 36 * 51), static_cast<uint8_t>(i / 6 % 6 * 51), static_cast<uint8_t>(i % 6 * 51)};
             }
+            {   // the gaps like the player's: one empty column at the left (to the rightmost spectrum bar), half a cell at the right (as wide as the one at the top and bottom)
+                const int lcut = std::min(pw, cws), rcut = std::max(1, cws / 2);
+                for (int y = 0; y < ph; ++y) {
+                    uint8_t* rowp = g.level.data() + static_cast<size_t>(y) * pw;
+                    for (int x = 0; x < lcut; ++x) rowp[x] = 0;
+                    for (int x = std::max(0, pw - rcut); x < pw; ++x) rowp[x] = 0;
+                }
+            }
             if (nw > 0)   // the name box's cells stay free (their pixels transparent)
                 for (int y = (kPanelH - 1) * chs; y < ph; ++y)
                     for (int x = nl * cws; x < (nl + nw) * cws && x < pw; ++x) g.level[static_cast<size_t>(y) * pw + x] = 0;
@@ -502,6 +511,7 @@ std::vector<std::string> build_mdb_overlay(const Style& s, const UiModel& m) {
     if (b.searching || b.typing) title += ": search";
     else if (b.in_favs) title += ": Favourites";
     else if (b.in_recs) title += ": Recommended";
+    title += std::string("  |  effect: ") + (s.c.md_fx_on ? video_fx_name(video_fx_canon(s.c.md_fx)) : "off");
     std::vector<std::string> lines;
     lines.push_back(box_top(s, W, title, s.border));
     const int n = static_cast<int>(b.items.size());
@@ -510,20 +520,37 @@ std::vector<std::string> build_mdb_overlay(const Style& s, const UiModel& m) {
         if (i >= n) { lines.push_back(row("", false)); continue; }
         const MdBrowseItem& it = b.items[static_cast<size_t>(i)];
         const bool sel = i == b.sel;
-        const std::string mark = it.kind == 3 || it.kind == 4 ? "" : it.kind == 0 ? "" : "/";
-        std::string label = it.kind == 0 ? std::string("..") : it.name + mark;
-        std::string extra = it.kind == 5 ? it.extra : it.kind == 3 ? it.extra : it.kind == 4 ? "(missing)" : it.kind == 2 ? it.extra : "";
+        const bool is_fav = it.kind == 3 && !b.in_favs && std::find(favs().begin(), favs().end(), it.path) != favs().end();
+        std::string label = it.kind == 0 ? std::string("\xE2\x97\x82 ..")
+                          : it.kind == 1 ? "\xE2\x98\x85 Favourites (" + std::to_string(favs().size()) + ")"
+                          : it.kind == 5 ? "\xE2\x9C\x94 Recommended (" + it.extra + ")"
+                          : it.kind == 2 ? "\xE2\x96\xB8 " + it.name
+                          : (is_fav ? "\xE2\x98\x85 " : "  ") + it.name;
+        std::string extra = it.kind == 3 ? it.extra : it.kind == 4 ? "(file gone)" : it.kind == 2 ? it.extra : "";
         const int room = std::max(8, inner - 4 - (extra.empty() ? 0 : display_width(extra) + 2));
         label = truncate_str(label, room);
         std::string plain = std::string(sel ? "> " : "  ") + label;
         if (!extra.empty()) plain = pad_right(plain, inner - display_width(extra) - 1) + extra;
-        lines.push_back(row(plain, sel, it.kind == 4));
+        lines.push_back(row(plain, sel, it.kind == 4 || (!sel && it.kind == 3 && it.path == Milkdrop::instance().preset_path())));
     }
-    lines.push_back(row(b.typing || b.searching ? "search: " + b.query + (b.typing ? "_" : "") : "", false, true));
+    std::string where;
+    if (b.typing || b.searching) where = "search: " + b.query + (b.typing ? "_" : "");
+    else if (b.in_favs) where = "Favourites";
+    else if (b.in_recs) where = "Recommended";
+    else {   // Presets / folder / folder (inside a further folder: its name first)
+        fs::path rel = path_from_utf8(b.dir).lexically_relative(path_from_utf8(b.root));
+        where = "Presets";
+        for (const std::string& x : Milkdrop::instance().extra_preset_dirs()) {
+            const fs::path xr = path_from_utf8(x), r2 = path_from_utf8(b.dir).lexically_relative(xr);
+            if (!r2.empty() && *r2.begin() != "..") { where += " / " + path_utf8(xr.filename()); rel = r2; break; }
+        }
+        if (!rel.empty() && rel != "." && *rel.begin() != "..") for (const auto& part : rel) where += " / " + path_utf8(part);
+    }
+    lines.push_back(row(where, false, true));
     const int count = b.in_recs ? std::max(0, n - 1) : b.in_favs ? static_cast<int>(favs().size()) : Milkdrop::instance().preset_count();
     lines.push_back(row(std::to_string(count) + (b.in_recs ? " recommended" : b.in_favs ? " favourites" : " presets") + (b.searching ? "   " + std::to_string(n) + " found" : ""), false, true));
     const std::string keys = b.typing ? "[ENTER] done  [ESC] clear" : b.in_favs ? "[ENTER] choose  [D] remove  [/] search  [LEFT] back  [ESC] close"
-                                                                      : "[ENTER] choose / open  [F] favourites  [A] add  [/] search  [LEFT] up  [ESC] close";
+                                                                      : "[ENTER] choose / open  [F] favourites  [A] add  [/] search  [E] effect  [G/H] change  [LEFT] up  [ESC] close";
     push_legend_block(s, lines, W, {keys});
     return lines;
 }
@@ -625,19 +652,33 @@ bool md_browse_key(RadioSettings& c, UiModel& m, int k, bool arrow, std::string&
     if (b.typing) {
         if (k == 13 || k == 10) { b.typing = false; if (b.items.empty()) { b.searching = false; list_dir(b, b.root, false, ""); } else play_selected(b); }
         else if (k == 27 && !arrow) { b.typing = b.searching = false; b.query.clear(); list_dir(b, b.root, false, ""); }
-        else if (k == 127 || k == 8) { if (!b.query.empty()) b.query.pop_back(); search_run(b); }
+        else if (k == 127 || k == 8) {
+            if (b.query.empty()) { b.typing = b.searching = false; list_dir(b, b.root, false, ""); }
+            else { do b.query.pop_back(); while (!b.query.empty() && (static_cast<unsigned char>(b.query.back()) & 0xC0) == 0x80); search_run(b); play_selected(b); }
+        }
         else if (arrow && (k == 'A' || k == 'B')) { b.typing = false; move_to(b.sel + (k == 'B' ? 1 : -1)); }
-        else if (!arrow && k >= 32 && k < 127) { b.query.push_back(static_cast<char>(k)); search_run(b); }
+        else if (!arrow && ((k >= 32 && k < 127) || (k >= 128 && k < 256))) { b.query.push_back(static_cast<char>(k)); if (k < 128 || (k & 0xC0) == 0x80) { search_run(b); play_selected(b); } }
         return true;
     }
+    if (!arrow && k == kKeyHome) { move_to(0); return true; }
+    if (!arrow && k == kKeyEnd) { move_to(n - 1); return true; }
     if (arrow) {
-        if (k == 'A') move_to(b.sel - 1);
-        else if (k == 'B') move_to(b.sel + 1);
+        const int step = last_key_was_shifted() ? 12 : 1;   // (SHIFT: a page)
+        if (k == 'A') move_to(b.sel - step);
+        else if (k == 'B') move_to(b.sel + step);
         else if (k == 'D') up();
         else if (k == 'C') { const MdBrowseItem* it = current(); if (it && it->kind != 3 && it->kind != 4) k = 13; }
         if (k != 13) return true;
     }
     if (k == 27) { if (b.searching || b.in_favs || b.in_recs) up(); else finish(false); return true; }
+    if (k == 127 || k == 8) { const MdBrowseItem* it0 = n > 0 ? &b.items[0] : nullptr; if (it0 && it0->kind == 0) up(); return true; }   // (BACKSPACE: up a folder)
+    if (k == 'e' || k == 'E') { c.md_fx_on = !c.md_fx_on; notice = c.md_fx_on ? "milkdrop: the effect is on" : "milkdrop: no effect on the visuals"; radio_milkdrop_apply(c); return true; }
+    if (k == 'g' || k == 'G' || k == 'h' || k == 'H') {   // [g] / [h]: the next / previous effect
+        c.md_fx = video_fx_step(c.md_fx, k == 'h' || k == 'H' ? -1 : 1); c.md_fx_on = true;
+        notice = std::string("milkdrop effect: ") + video_fx_name(video_fx_canon(c.md_fx));
+        radio_milkdrop_apply(c);
+        return true;
+    }
     if (k == '/') { b.typing = b.searching = true; b.query.clear(); b.items.clear(); b.sel = b.top = 0; return true; }
     if (k == 'f' || k == 'F') { list_dir(b, "", true, ""); return true; }
     if (k == 'a' || k == 'A') {
@@ -651,7 +692,7 @@ bool md_browse_key(RadioSettings& c, UiModel& m, int k, bool arrow, std::string&
         radio_milkdrop_apply(c);
         return true;
     }
-    if (k == 'd' || k == 'D') {
+    if (k == 'd' || k == 'D' || k == kKeyDelete) {
         const MdBrowseItem* it = current();
         if (!b.in_favs || !it || it->kind == 0 || it->kind == 1) { notice = "milkdrop: [D] takes a preset out of the favourites (in the Favourites folder)"; return true; }
         favs_load();
@@ -673,6 +714,7 @@ bool md_browse_key(RadioSettings& c, UiModel& m, int k, bool arrow, std::string&
         else if (item.kind == 5) list_dir(b, "<recommended>", false, "");
         else if (item.kind == 2) list_dir(b, item.path, false, "");
         else if (item.kind == 3) { md.play_path(item.path); notice = "milkdrop: " + item.name; finish(true); }
+        else if (item.kind == 4) notice = "milkdrop: this favourite's file is gone ([D] takes it out)";
     }
     return true;
 }

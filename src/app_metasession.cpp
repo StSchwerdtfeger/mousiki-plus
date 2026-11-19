@@ -1005,6 +1005,8 @@ void App::meta_save_finish() {
         // Saved playlists hold file paths: let them follow the renamed files.
         for (const fs::path& dir : playlist_dirs()) PlaylistManager::rename_paths(dir, job.renamed);
         VideoLinks::get().rename_paths(job.renamed);   // the track <-> video pairs follow the files too
+        cover_store_rename_paths(job.renamed);          // so do a track's own style and options ...
+        if (!audiobook_) history_.rename_ids(job.renamed);   // ... and its plays in the listening history
         video_for_track_.clear(); ++video_rev_;
     }
     if (job.ok > 0) {

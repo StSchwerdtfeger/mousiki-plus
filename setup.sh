@@ -44,8 +44,11 @@
 #   --no-install        Don't create the launchers. By default the commands "mousiki"
 #                       and "lala" are created in ~/.local/bin (both start the app).
 #   --install           Create the launchers (the default; kept for older scripts).
-#   --no-upgrade        Don't upgrade an ffmpeg that is already installed (it is upgraded by default,
-#                       so that libopenmpt / libgme support and fixes arrive).
+#   --upgrade           Also upgrade an ffmpeg that is already installed (so that libopenmpt / libgme support and fixes
+#                       arrive). Off by default: without it only what is missing is installed and nothing that is there
+#                       is changed. (--no-upgrade is still accepted and means the default.)
+#   --dry-run           Show the plan -- what is missing, what would be installed (and with which command), what would be built
+#                       and created -- and stop. Nothing is installed, built, written or asked.
 #   (All the downloads above -- compilers, ffmpeg, yt-dlp, pykakasi -- need an internet connection.)
 #   --with-kanji        Also install pykakasi (pip install --user pykakasi): kanji are then shown in
 #                       Latin letters too (SHIFT+'). Optional; GPL-3.0, not part of Mousiki.
@@ -66,7 +69,8 @@ SKIP_DEPS=0
 BUILD_TYPE="Release"
 DO_INSTALL=1
 ASSUME_YES=0
-UPGRADE_FFMPEG=1
+UPGRADE_FFMPEG=0
+DRY_RUN=0
 SKIP_MILKDROP=0
 
 # ---------------------------------------------------------------------------
@@ -102,7 +106,9 @@ while [ $# -gt 0 ]; do
             ;;
         --install)    DO_INSTALL=1 ;;
         --no-install) DO_INSTALL=0 ;;
+        --upgrade)    UPGRADE_FFMPEG=1 ;;
         --no-upgrade) UPGRADE_FFMPEG=0 ;;
+        --dry-run)    DRY_RUN=1 ;;
         --with-kanji) WITH_KANJI=1 ;;
         --skip-milkdrop) SKIP_MILKDROP=1 ;;
         -y|--yes)     ASSUME_YES=1 ;;
@@ -404,7 +410,7 @@ install_deps() {
             brew_ffmpeg_with_retro_formats || true
         fi
         if ! ffmpeg_formats_ok; then
-            ffmpeg_has_demuxer libopenmpt || warn "your ffmpeg has no libopenmpt -- tracker modules (.mod .xm .it .s3m ...) will not play."
+            ffmpeg_has_demuxer libopenmpt || warn "your ffmpeg has no libopenmpt -- tracker modules (.mod .xm .it .s3m ...) will not play (re-run with --upgrade to upgrade it)."
             ffmpeg_has_demuxer libgme     || warn "your ffmpeg has no libgme -- console music (.nsf .spc .vgm ...) will not play."
             if [ "$PM" = "dnf" ] && rpm -q ffmpeg-free >/dev/null 2>&1; then
                 warn "Fedora's ffmpeg-free is a reduced build. Enable RPM Fusion (https://rpmfusion.org), then:  sudo dnf swap ffmpeg-free ffmpeg --allowerasing"
@@ -485,6 +491,57 @@ install_deps() {
         warn "Add this to your shell profile:  export PATH=\"\$HOME/.local/bin:\$PATH\""
     fi
 }
+
+# The plan: everything this script is about to change, printed before anything is touched (--dry-run stops after it).
+print_plan() {
+    local pm_cmd="${SUDO:+$SUDO }${PM:-<no package manager>}"
+    if [ "$DRY_RUN" -eq 1 ]; then step "Plan (dry run: nothing is changed)"; else step "Plan"; fi
+    echo "  system:   $PLATFORM, package manager: ${PM:-none found}"
+    if [ "$SKIP_DEPS" -eq 1 ]; then
+        echo "  packages: none (--skip-deps)"
+    else
+        local missing=""
+        if ! have c++ && ! have g++ && ! have clang++; then missing="$missing compiler"; fi
+        have cmake   || missing="$missing cmake"
+        have ffmpeg  || missing="$missing ffmpeg"
+        have ffprobe || missing="$missing ffprobe"
+        have yt-dlp  || missing="$missing yt-dlp"
+        have python3 || missing="$missing python3"
+        have curl    || missing="$missing curl"
+        have_sdl2    || missing="$missing SDL2(optional)"
+        have sidplayfp || [ -x "$HOME/.local/bin/sidplayfp" ] || missing="$missing sidplayfp(optional)"
+        if [ "$PLATFORM" = "linux" ]; then
+            missing="$missing ALSA/PulseAudio-dev(only if absent) OpenGL-dev(for MilkDrop)"
+            if ! have xclip && ! have wl-paste; then missing="$missing clipboard-helper(optional)"; fi
+        fi
+        if [ -n "$missing" ]; then
+            echo "  install:  $missing"
+            echo "            with: $pm_cmd (each package only if it is missing; yt-dlp falls back to pip --user)"
+        else
+            echo "  install:  nothing is missing"
+        fi
+        if [ "$UPGRADE_FFMPEG" -eq 1 ] && have ffmpeg; then
+            echo "  upgrade:  ffmpeg (--upgrade)"
+        else
+            echo "  upgrade:  none -- what is installed is left as it is (--upgrade also upgrades ffmpeg)"
+        fi
+        if have ffmpeg && ! ffmpeg_formats_ok; then
+            echo "  note:     your ffmpeg lacks libopenmpt / libgme (tracker modules, console music); that is only reported"
+            [ "$PM" = "brew" ] && echo "            (Homebrew: ffmpeg is rebuilt from the homebrew-ffmpeg tap with them)"
+        fi
+        [ "${WITH_KANJI:-0}" = 1 ] && echo "  pip:      pykakasi janome (--with-kanji; pip install --user)"
+    fi
+    echo "  build:    cmake $BUILD_TYPE in $BUILD_DIR"
+    if [ "$SKIP_MILKDROP" -eq 1 ]; then echo "  milkdrop: skipped (--skip-milkdrop)"; else echo "  milkdrop: projectM + presets from pinned, checksummed sources, under ~/.local (about 80 MB, a few minutes)"; fi
+    if [ "$DO_INSTALL" -eq 1 ]; then echo "  launchers: $HOME/.local/bin/mousiki and lala (your shell profile and PATH are never edited)"; else echo "  launchers: none (--no-install)"; fi
+    echo
+}
+
+print_plan
+if [ "$DRY_RUN" -eq 1 ]; then
+    echo "Dry run: nothing was changed."
+    exit 0
+fi
 
 if [ "$SKIP_DEPS" -eq 0 ]; then
     install_deps

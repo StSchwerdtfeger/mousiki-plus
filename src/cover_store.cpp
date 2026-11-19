@@ -2,6 +2,7 @@
 // them again by the album name.
 #include "app_dirs.h"
 #include "cover_store.h"
+#include "moved_files.h"
 #include "string_util.h"
 #include "video_fx.h"
 
@@ -15,6 +16,7 @@
 #include <future>
 #include <mutex>
 #include <chrono>
+#include <set>
 #include <sstream>
 
 #include "path_utf8.h"
@@ -370,6 +372,55 @@ void set_cover_track_style(const std::string& track_path, const CoverStyle& st) 
         save_locked(c);
     }
     choices().style_revision.fetch_add(1);   // (not cover_store_touch(): the picture itself is the same, reading it again made it blink away)
+}
+
+namespace {
+// Moves the choices of every track in `moves` (old path -> new path); a choice already made for the new path stays. Called with the lock held.
+int move_track_choices_locked(Choices& c, const std::map<std::string, std::string>& moves) {
+    std::map<std::string, std::string>* maps[] = {&c.track, &c.style, &c.vopts, &c.vmode, &c.mdopts};
+    std::set<std::string> moved;
+    for (auto* m : maps) {
+        for (const auto& mv : moves) {
+            const auto it = m->find(mv.first);
+            if (it == m->end()) continue;
+            if (!m->count(mv.second)) (*m)[mv.second] = it->second;
+            m->erase(mv.first);
+            moved.insert(mv.first);
+        }
+    }
+    if (!moved.empty()) save_locked(c);
+    return static_cast<int>(moved.size());
+}
+}  // namespace
+
+int cover_store_rename_paths(const std::vector<std::pair<std::string, std::string>>& renames) {
+    if (renames.empty()) return 0;
+    std::map<std::string, std::string> moves;
+    for (const auto& r : renames) if (!r.first.empty() && !r.second.empty() && r.first != r.second) moves[r.first] = r.second;
+    Choices& c = choices();
+    int n = 0;
+    {
+        std::lock_guard<std::mutex> lk(c.mu);
+        load_locked(c);
+        n = move_track_choices_locked(c, moves);
+    }
+    if (n > 0) { c.style_revision.fetch_add(1); c.revision.fetch_add(1); }
+    return n;
+}
+
+int cover_store_mend_tracks(const std::vector<std::string>& existing_tracks) {
+    Choices& c = choices();
+    int n = 0;
+    {
+        std::lock_guard<std::mutex> lk(c.mu);
+        load_locked(c);
+        std::set<std::string> keys;
+        for (const auto* m : {&c.track, &c.style, &c.vopts, &c.vmode, &c.mdopts}) for (const auto& kv : *m) keys.insert(kv.first);
+        const std::map<std::string, std::string> moves = muisc::find_moved(keys, existing_tracks);
+        if (!moves.empty()) n = move_track_choices_locked(c, moves);
+    }
+    if (n > 0) { c.style_revision.fetch_add(1); c.revision.fetch_add(1); }
+    return n;
 }
 
 std::string cover_fetch_failure(const std::string& album) {

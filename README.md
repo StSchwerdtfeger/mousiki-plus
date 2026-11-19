@@ -198,7 +198,7 @@ The appearance is adjusted to fit my cyber-cat themed **MeowerShell** terminal s
 
 Below is a short guide to get started, with the basic keys to know up front. For details there is the [user manual](Mousiki_User_Manual/Mousiki_User_Guide.md) (in this repo, and delivered with the installers). The manual and the help wizard are a work in progress, but in general up to date: they are re-read about every 1.5-2 weeks and checked with various tools for changes and additions. As the feature set is rather complete for what I had in mind, fewer changes are to be expected from now on.   
 
-1. **Start it.** Open a terminal (on Windows use **Windows Terminal**) and type **`mousiki`** or **`lala`**. The help wizard opens by itself on the first start (`ENTER` goes on, `ESC` closes it); `SHIFT+w` opens it again any time.
+1. **Start it.** Open a terminal (on Windows use **Windows Terminal**; on Linux **Kitty** is recommended: it draws the pictures and the many small updates smoothly, see [Fonts](#fonts-the-braille-dots)) and type **`mousiki`** or **`lala`**. The help wizard opens by itself on the first start (`ENTER` goes on, `ESC` closes it); `SHIFT+w` opens it again any time.
 2. **Add your music.** Press **`s`** (Settings), go to the paths tab and add your music folder. Press **`s`** again to save. Your titles appear in the list. After adding new titles to your music paths, rescan the library with **`SHIFT+r`**.
 3. **Play something.** When the focus is on the search bar or the local audio files pane (◀; change it with `TAB`), move to a song with `↑` / `↓` (`SHIFT+↑` / `SHIFT+↓` jumps a whole page) and press **`ENTER`**.
 4. **Learn the keys below.** They are the ones you will use most.
@@ -262,7 +262,7 @@ The help wizard and the cheat sheet both have a search function, so you don't ha
 
 ## Current Status of the Port and Modification (v5.1.0)
 
-For now the Mousiki port and feature expansion works well and also includes everything I at least wanted and made sense to me for a music player, so there might be no further major releases that add new features, except of bug-fixes that might appear to me or others in the future (feel free to start discussions or report issues!!). I might adjust the code to be more polished / robust and might optimize the setup release (Win version results currently in ~250MB size, setup itself ~80MB, portable .zip ~100MB)... Since v2.5.0 my version of Mousiki also builds on macOS/Linux again (`setup.sh`). The Linux (mostly WSL) macOS (some tests, but e.g. not for the recent projectM integration of b5.1.0) builds are less tested than the Windows one, so reports from users on those platforms would help finalize it more. 
+For now the Mousiki port and feature expansion works well and also includes everything I at least wanted and made sense to me for a music player, so there might be no further major releases that add new features, except of bug-fixes that might appear to me or others in the future (feel free to start discussions or report issues!!). I might adjust the code to be more polished / robust and might optimize the setup release (Win version results currently in ~250MB size, setup itself ~80MB, portable .zip ~100MB)... Since v2.5.0 my version of Mousiki also builds on macOS/Linux again (`setup.sh`). Linux was tested on WSL and now also in a virtual machine (VMware, Ubuntu 24.04) with **Kitty**, where it works well; macOS (some tests, but e.g. not for the recent projectM integration of b5.1.0) builds are less tested than the Windows one, so reports from users on those platforms would help finalize it more. 
 Concerning potential new features: the online-radio function is now included (see [radio mode](#radio-player)); a mixtape creator would be cool, but I'll see. Again, feel free to give feedback in the discussions, report issues you might experience using this modified port or contributing in any other way...
 
 ## About this fork of Mousiki v1.0.0
@@ -281,7 +281,7 @@ The latest larger feature additions are the mentioned **[radio player mode](#rad
 
 ## Features at a glance
 
-Everything below is in the current version (v5.1.0) and works the same on Windows, Linux and macOS but was only tested on Windows and WSL. The **[user manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** describes every key and every setting; inside the app `?` opens the cheat sheet, `<` (German keyboard; `SHIFT+,` on an English one) a list of all menus and overlays to choose from, and `SHIFT+w` the help wizard. All pictures of this README are in the folder **[readme_images/](readme_images/)**.
+Everything below is in the current version (v5.1.0) and works the same on Windows, Linux and macOS but was mainly tested on Windows, and on Linux in WSL and in a virtual machine (Ubuntu 24.04 with Kitty). The **[user manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** describes every key and every setting; inside the app `?` opens the cheat sheet, `<` (German keyboard; `SHIFT+,` on an English one) a list of all menus and overlays to choose from, and `SHIFT+w` the help wizard. All pictures of this README are in the folder **[readme_images/](readme_images/)**.
 
 ### Music player
 
@@ -633,6 +633,15 @@ By default Mousiki therefore uses **its own font**, **Cascadia Mono**, which giv
 - **Windows Terminal:** a profile *Mousiki* that the Mousiki launchers open (Cascadia Mono comes with Windows Terminal).
 - **Other terminals** (GNOME Terminal, Konsole, Kitty, WezTerm, Ghostty ...) do not let programs change their font: choose *Cascadia Mono* in the terminal's profile (Linux: the `.deb` recommends `fonts-cascadia-code`). Ghostty draws braille characters itself, in any font.
 
+**Linux: use Kitty.** Kitty (`sudo apt install kitty`; Fedora: `sudo dnf install kitty`; Arch: `sudo pacman -S kitty`; macOS: `brew install --cask kitty`) is the terminal I recommend on Linux: it shows the real pictures (Kitty graphics) for the disk, covers, video, MilkDrop and the oscilloscope, and it draws the frequent screen updates without flicker. In GNOME Terminal, for example, the same screens are braille only and can flicker a little. If Kitty does not pick Cascadia Mono up by itself, install it (`sudo apt install fonts-cascadia-code`) and set it in `~/.config/kitty/kitty.conf`:
+
+```
+font_family      Cascadia Mono
+font_size        12.0
+```
+
+(`kitty +list-fonts` shows the exact names; reload with `Ctrl+Shift+F5`.) Any other font that has the full braille block and draws it **without gaps between the dots** works as well, for example *Cascadia Code*, *JetBrains Mono* or a Nerd Font made from them; fonts that borrow the braille characters from another font show scattered dots.
+
 
 #### Use Windows Terminal
 
@@ -673,7 +682,7 @@ DownloadFolder=D:\Downloads\mousiki
 
 ### Build it yourself (Linux / macOS)
 
-Since v2.5.0 the code builds again on Linux and macOS as well (same sources, platform selected at compile time by `CMakeLists.txt`; audio via PulseAudio/PipeWire-pulse or ALSA on Linux and CoreAudio on macOS). **Portable and setup packages can be found under latest release (included since v2.5.0).** Windows remains the primary, most tested platform. `setup.sh` is the counterpart of `setup.ps1`:
+Since v2.5.0 the code builds again on Linux and macOS as well (same sources, platform selected at compile time by `CMakeLists.txt`; audio via PulseAudio/PipeWire-pulse or ALSA on Linux and CoreAudio on macOS). **Portable and setup packages can be found under latest release (included since v2.5.0).** Windows remains the primary, most tested platform; Linux was tested on WSL and in a VMware virtual machine (Ubuntu 24.04), where it works well in **Kitty** (install it with `sudo apt install kitty`, `sudo dnf install kitty` or `sudo pacman -S kitty`; see [Fonts](#fonts-the-braille-dots)). `setup.sh` is the counterpart of `setup.ps1`:
 
 ```bash
 # from the repo root
@@ -772,7 +781,7 @@ Note: the files are not signed with a purchased code-signing certificate, so Win
 
 **Fetching dependencies needs an internet connection.** `setup.sh`, `setup.ps1` and the optional steps of the installers download what Mousiki uses from the web: ffmpeg, yt-dlp, Python and CMake (through winget, your package manager or pip), and pykakasi (from pypi.org). Without a connection, install these yourself first and run the setup with `--skip-deps` / `-SkipDeps`. Some features also need the internet while you use them (lyrics, covers, online search, radio, name lookup).
 
-Mousiki uses a small number of third-party components. They are listed here with the version in this release and how they are checked (the table is generated; its date is in the last column). Licence texts are in [`THIRD_PARTY_LICENSES.txt`](THIRD_PARTY_LICENSES.txt), how to report a problem is in [`SECURITY.md`](SECURITY.md).
+Mousiki uses a small number of third-party components. They are listed here with the version in this release and how they are checked (the table is generated; its date is in the last column). Licence texts are in [`THIRD_PARTY_LICENSES.txt`](THIRD_PARTY_LICENSES.txt), how to report a problem is in [`SECURITY.md`](SECURITY.md), what is protected and where the limits are in [`THREAT_MODEL.md`](THREAT_MODEL.md).
 
 <!-- vendored-table:start (generated by tools/check_vendored.py --update-readme; do not edit by hand) -->
 | Component | Used for | Version here | Newest upstream (checked 2026-10-19) |
@@ -791,7 +800,7 @@ How this is kept in check:
 
 - **Fixed downloads.** The tools the release script bundles are pinned to one exact file each (`packaging/pins.json`). A file that differs from its pin stops the build.
 - **Code scanning.** GitHub CodeQL scans Mousiki's own C++ code and the workflows (the vendored libraries in `third_party/` are not scanned: they are unchanged upstream code).
-- **Memory-error tests.** The automated tests also run with AddressSanitizer and UndefinedBehaviorSanitizer on every push.
+- **Memory-error tests.** The automated tests also run with AddressSanitizer and UndefinedBehaviorSanitizer on every push. The parsers of outside input (lyrics, JSON, playlists, `.cue` files, remote-app requests) are also fuzzed with libFuzzer (`fuzz/`, a weekly GitHub workflow), and the normal tests feed them damaged input on every run.
 - **Updates.** Libraries are checked against their upstream releases before each release; the table above is updated then. Dependabot proposes newer versions of the GitHub Actions used for building.
 - **Third-party findings.** If one of these projects publishes a security fix, a new Mousiki release with the updated component follows. Reports are welcome ([`SECURITY.md`](SECURITY.md)).
 

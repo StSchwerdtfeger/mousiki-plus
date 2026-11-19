@@ -83,6 +83,8 @@ ColorLyricsActiveWordBg=
 ElimentDisk=true
 ## true , false -- the ":  :" column between the disk (or cover) and the meta data; false: it is left out and the disk sits in the middle of the space between the left border and the meta data
 ElimentDiskBorder=false
+## 0 , 1 , 2 , 3 , 4 , 5 (default 0) -- the frame of the upper pane (disk | meta data | lyrics / viz field): 0 = one box round all three; 1, 2, 3 = three panes I, II, III that share their walls; 4 = two panes (the disk, and meta data + lyrics / viz field in one); 5 = gap (one box with four gaps in its lines); see the preview in Settings
+TopPaneStyle=0
 ## Album Cover (music player) = the cover of the playing track takes the disk's place (needs ElimentDisk=true; a track without a cover keeps the disk)
 AlbumCover=false
 ## CoverMode: cover = just the cover | gradient = a grey cover under the disk's gradient colours (a slow wave moving diagonally, upper left to lower right) | disk = the grey cover in full resolution
