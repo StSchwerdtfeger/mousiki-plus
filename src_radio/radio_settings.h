@@ -258,6 +258,22 @@ inline int color_tab_row_count() { return kColorRowCount + 2; }   // + THEME + S
 std::string* color_field(RadioSettings& s, int row, int col);
 const std::string* color_field(const RadioSettings& s, int row, int col);
 
+// The ids of the rows of the GENERAL and ANIMA/VIZ tabs.
+enum RsId {
+    kRsPlayback, kRsStartMode, kRsUseModePlayer, kRsUseModeRadio, kRsUseModeBook, kRsModeOrder1, kRsModeOrder2, kRsModeOrder3, kRsBlackBg, kRsShareProfiles, kRsRemoteApp,
+    kRsPaneStyle, kRsOnAir, kRsSignBorder, kRsPulse, kRsDummy, kRsVolIndicator, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
+    kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc, kRsBehavior, kRsBarStyle, kRsHifiRes, kRsHifiChan, kRsHifiColor, kRsHifiScale, kRsHifiAdapt, kRsHifiSplit, kRsHifiFScale, kRsHifiGain, kRsHifiRange,
+    kRsScope, kRsOsciStyle,
+    kRsUseMilkdrop, kRsMdFps, kRsMdRes, kRsMdGpu, kRsMdDuration, kRsMdShuffle, kRsMdBeat, kRsMdHardCuts, kRsMdTransition, kRsMdShowName,
+    kRsMdFavShuffle, kRsMdHcd, kRsMdVar, kRsMdMesh, kRsMdAspect, kRsMdRatio, kRsMdClean, kRsMdUseFx, kRsMdFx, kRsMdColors,
+    kRsAudioDevice,   // [ENTER]: the CHOOSE AUDIO DEVICE overlay
+    kRsCliScripts,    // [ENTER]: the script overlay
+    kRsUseTermSettings, kRsTermSize, kRsFullScreen, kRsReduceMotion, kRsUpdateNotice, kRsLatinMacrons, kRsLatinWo, kRsLatinHanzi,   // (the player's rows of the same name; one value for all modes)
+    kRsMediaKeys,     // the system's media controls / media keys (MediaKeys= in the player's config.txt)
+    kRsTermDefaultFont, // leave the terminal's own font alone (one value for all modes: TerminalDefaultFont= in the player's config.txt)
+};
+int rs_row_id(int tab, int row);   // the id of a row (-1: none); the preview box beside the rows picks its content by it
+
 // ---- the GENERAL and ANIMA/VIZ tabs of the settings screen ----------------------------------------------------------
 // Both tabs are lists of category headers and rows (like the music player's): tab 1 GENERAL = MODES (Playback, Start Mode)
 // | MODES ON/OFF AND ORDER | TERMINAL | REMOTE / UPDATES | AUDIO (the switches); tab 2 ANIMA/VIZ = ON AIR SIGN |

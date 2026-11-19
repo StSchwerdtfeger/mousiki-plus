@@ -444,6 +444,55 @@ def radio_pane_style(binary, root, scripts):
         finally:
             sess.kill()
 
+def radio_settings_preview(binary, root, scripts):
+    """Radio settings, GENERAL and ANIMA/VIZ: the preview box beside the rows (like the music player's): a live example of the highlighted row, or
+    a few lines of text that say what it does."""
+    home = os.path.join(root, "rsp_home")
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    with open(os.path.join(cfgdir, "stations.txt"), "w", encoding="utf-8") as f:
+        f.write("# name | genre | country | codec | kbps | url | [*] favorite\nPlain Station | Rock | US | MP3 | 128 | http://127.0.0.1:9/c | *\n")
+    with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nStartMode=radio\nWizardSeen=true\n" % os.path.join(root, "music"))
+    sess = Session(binary, home, scripts, {"MOUSIKI_RADIO_NULL": "1"})
+
+    def goto(label, down=True):
+        for _ in range(90):
+            if any(label in l and ("< " in l or "[ENTER]" in l) for l in sess.screen.display):
+                return True
+            sess.send(b"\x1b[B" if down else b"\x1b[A", 0.1)
+        return False
+
+    def has(*words):
+        t = "\n".join(sess.screen.display)
+        return all(w in t for w in words)
+    try:
+        for _ in range(30):
+            sess.pump(0.5)
+            if "Plain Station" in sess.text():
+                break
+        sess.send(b"\x1b", 1.0)
+        sess.send("s", 1.5)
+        sess.send(b"\t", 1.0)                      # GENERAL
+        sess.pump(0.6)
+        check(has("Preview: Playback"), "radio settings preview: the first row (Playback) has its play-mode box")
+        check(goto("Use Terminal Settings") and sess.wait_for(lambda t: "DESCRIPTION" in t and "leaves the terminal as it is" in t, 4), "radio settings preview: Use Terminal Settings shows its description")
+        check(goto("Latin Macrons") and sess.wait_for(lambda t: "Preview: Latin Macrons" in t and "Long vowels of kana" in t, 4), "radio settings preview: Latin Macrons shows the examples")
+        check(goto("Marquee") and sess.wait_for(lambda t: "Preview: Marquee" in t and "Marquee " in t and "Meowsome" in t, 4), "radio settings preview: Marquee shows a scrolling title")
+        sess.send(b"\t", 1.0)                      # ANIMA/VIZ
+        sess.pump(0.6)
+        check(goto("Main UI Pane Style") and sess.wait_for(lambda t: "Preview: Main UI Pane Style" in t and "station info" in t, 4), "radio settings preview: Main UI Pane Style shows the frame of the pane")
+        check(goto("Dummy buttons") and sess.wait_for(lambda t: "Preview: Dummy buttons" in t and "<<<" in t, 4), "radio settings preview: Dummy buttons shows the three buttons")
+        check(goto("Volume indicator") and sess.wait_for(lambda t: "VOLUME BAR:[" in t and "85%" in t, 4), "radio settings preview: Volume indicator shows the bar at 85 %")
+        check(goto("Bars Style") and sess.wait_for(lambda t: "Preview: Bars Style" in t and "TEST Stereo Chords" in t, 4), "radio settings preview: the spectrum bars rows show the bars on the test signal")
+        check(goto("Use oscilloscope") and sess.wait_for(lambda t: "Preview: Use oscilloscope" in t and "oscilloscope" in t.split("Preview: Use oscilloscope")[1], 4), "radio settings preview: Use oscilloscope shows the scope")
+        check(goto("Use spectrogram") and sess.wait_for(lambda t: "spectrogram (braille" in t, 4), "radio settings preview: Use spectrogram shows the spectrogram")
+        check(goto("Gradient wave speed", False) and sess.wait_for(lambda t: "DESCRIPTION" in t and "colours of the ON AIR sign" in t, 4), "radio settings preview: a row without a picture (Gradient wave speed) shows its description")
+        check(sess.alive(), "radio settings preview: the radio is still running")
+    finally:
+        sess.kill()
+
+
 def radio_shared_rows(binary, root, scripts):
     """Radio settings, GENERAL tab: the rows that are the player's too (one value for all modes, kept in the player's config.txt) are there, and
     a change is written to config.txt when the settings are saved."""
@@ -5653,7 +5702,7 @@ def radio_cli_typed(binary, root, scripts):
         # the settings row
         sess.send("s", 1.2)
         sess.send(b"\t", 0.6)
-        for _ in range(9):
+        for _ in range(13):
             sess.send(b"\x1b[B", 0.15)
         sess.pump(0.4)
         check("CLI / REMOTE / UPDATES" in sess.text() and "CLI Scripts" in sess.text(), "radio settings: the category is CLI / REMOTE / UPDATES with the row CLI Scripts")
@@ -6042,7 +6091,7 @@ def theme_last_custom(binary, root, scripts):
         body = open(themes_txt, encoding="utf-8").read() if os.path.exists(themes_txt) else ""
         i = body.find("[Last custom]")
         check(i >= 0 and "ColorHeader=199" in body[i:], "last custom: the colours in use were saved as the theme Last custom")
-        try: sess.wait_for(lambda t: "Last custom" in t, 6)   # (a slow machine: the line comes a little later)
+        try: sess.wait_for(lambda t: "Last custom" in t, 20)   # (a slow machine: the line comes a little later)
         except Exception: pass
         check("Last custom" in sess.text(), "last custom: the status line says they were kept")
     finally:
@@ -6113,6 +6162,8 @@ def run_scenario(name, binary, root, scripts):
         video_fx_picker_sizes(binary, root, scripts)
     elif name == "radio_shared_rows":
         radio_shared_rows(binary, root, scripts)
+    elif name == "radio_settings_preview":
+        radio_settings_preview(binary, root, scripts)
     elif name == "radio_sign_border":
         radio_sign_border(binary, root, scripts)
     elif name == "radio_pane_style":
@@ -6186,7 +6237,7 @@ def run_scenario(name, binary, root, scripts):
 
 
 SCENARIOS = ["narrow80", "narrow100", "main", "read_lyrics_play", "karaoke_timing", "book_speed_and_devices", "paging_and_translit_row",
-             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews"]
+             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews"]
 
 
 def main():

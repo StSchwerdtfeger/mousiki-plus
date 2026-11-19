@@ -431,6 +431,8 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
 std::vector<std::string> build_adev_overlay(const RadioSettings& c, const SettingsModel& sm);
 std::vector<std::string> build_bars_overlay(const RadioSettings& c, const UiModel& m);
 std::vector<std::string> build_settings(const RadioSettings& c, const SettingsModel& sm, int W, int rows);
+void build_settings_preview(const Style& s, const UiModel& m, const RadioSettings& c, std::vector<std::string>& out);   // the preview box beside the rows of GENERAL / ANIMA/VIZ (radio_settings_preview.cpp)
+void settings_preview_end();   // the settings close: the MilkDrop preset of the preview is put back
 std::string fmt_loudness(double v);
 std::string menus_key_label(const RadioSettings& c, const char* id);
 std::string box_bottom_centred(const Style& s, int w, const std::string& text, const std::string& ansi);

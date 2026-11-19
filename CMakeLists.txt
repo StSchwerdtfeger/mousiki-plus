@@ -384,6 +384,8 @@ if(MOUSIKI_BUILD_RADIO_STANDALONE)
       src/wizard.cpp src/disk_art.cpp
       # the MilkDrop visuals (projectM is loaded at run time, nothing of it is needed to build)
       src/milkdrop.cpp
+      # the settings preview box: the spectrogram that reads "Mousiki Plus" (the Creator)
+      src/creator.cpp src/glyph_raster.cpp
       # the effect over the MilkDrop pictures (Use Effect / MilkDrop Effect) and the adaptive Sixel colours
       src/video_pipe.cpp src/video_player.cpp src/par_pool.cpp src/library_search.cpp)
   if(WIN32)

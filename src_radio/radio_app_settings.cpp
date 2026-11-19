@@ -89,6 +89,7 @@ void RadioApp::settings_close(bool save) {
     settings_snapshot_valid = false;
     key_undo.clear();
     sm.open = false; sm.editing = false; sm.theme_ui = 0; sm.remote_ov = muisc::remote_ui::State{};
+    radio_settings_preview_end();   // (the MilkDrop preset of the preview box goes back)
     set_text_entry(false);
 }
 

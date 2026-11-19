@@ -707,7 +707,7 @@ void App::handle_theme_key(int key) {
                 const bool kept = theme_autosave_custom();
                 theme_apply(settings_, chosen);
                 theme_->ui = 0;
-                status_line_ = kept ? "Your colors are kept as \"Last custom\". THEME: " + picked + " (s saves the settings)"   // (the note first: a long theme name must not push it off a narrow screen)
+                status_line_ = kept ? "Kept as \"Last custom\". THEME: " + picked + " (s saves the settings)"   // (the note first: a long theme name must not push it off a narrow screen)
                              : "THEME: " + picked + " (s saves the settings)";
             } else {
                 theme_apply(theme_->draft, t);

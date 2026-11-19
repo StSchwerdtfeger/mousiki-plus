@@ -38,6 +38,7 @@ namespace muisc::radio {
 constexpr int kUiCols = 120;
 constexpr int kUiRows = 30;
 constexpr int kMaxCols = 200;
+void radio_settings_preview_end();   // the settings close: the MilkDrop preset of the preview box is put back (radio_settings_preview.cpp)
 
 // Colour wave over the ON AIR sign. The sign always carries a top-left -> bottom-right gradient of
 // the visualizer colours; this adds a travelling wave on top. Meant to become settings later.

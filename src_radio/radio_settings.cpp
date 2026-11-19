@@ -118,21 +118,6 @@ int theme_index(const RadioSettings& s, const std::vector<themes::Theme>& all) {
     return -1;
 }
 
-namespace {
-enum RsId {
-    kRsPlayback, kRsStartMode, kRsUseModePlayer, kRsUseModeRadio, kRsUseModeBook, kRsModeOrder1, kRsModeOrder2, kRsModeOrder3, kRsBlackBg, kRsShareProfiles, kRsRemoteApp,
-    kRsPaneStyle, kRsOnAir, kRsSignBorder, kRsPulse, kRsDummy, kRsVolIndicator, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
-    kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc, kRsBehavior, kRsBarStyle, kRsHifiRes, kRsHifiChan, kRsHifiColor, kRsHifiScale, kRsHifiAdapt, kRsHifiSplit, kRsHifiFScale, kRsHifiGain, kRsHifiRange,
-    kRsScope, kRsOsciStyle,
-    kRsUseMilkdrop, kRsMdFps, kRsMdRes, kRsMdGpu, kRsMdDuration, kRsMdShuffle, kRsMdBeat, kRsMdHardCuts, kRsMdTransition, kRsMdShowName,
-    kRsMdFavShuffle, kRsMdHcd, kRsMdVar, kRsMdMesh, kRsMdAspect, kRsMdRatio, kRsMdClean, kRsMdUseFx, kRsMdFx, kRsMdColors,
-    kRsAudioDevice,   // [ENTER]: the CHOOSE AUDIO DEVICE overlay
-    kRsCliScripts,    // [ENTER]: the script overlay
-    kRsUseTermSettings, kRsTermSize, kRsFullScreen, kRsReduceMotion, kRsUpdateNotice, kRsLatinMacrons, kRsLatinWo, kRsLatinHanzi,   // (the player's rows of the same name; one value for all modes)
-    kRsMediaKeys,     // the system's media controls / media keys (MediaKeys= in the player's config.txt)
-    kRsTermDefaultFont, // leave the terminal's own font alone (one value for all modes: TerminalDefaultFont= in the player's config.txt)
-};
-}
 
 static bool g_rs_hifi = false;   // the Hi-Fi rows are listed (rs_set_hifi_rows)
 const std::vector<SettingsLine>& rs_layout(int tab) {
@@ -210,6 +195,7 @@ static int rs_id(int tab, int row) {
     for (const auto& l : rs_layout(tab)) if (!l.header && n++ == row) return l.id;
     return -1;
 }
+int rs_row_id(int tab, int row) { return rs_id(tab, row); }
 int rs_row_line(int tab, int row) {
     int n = 0, line = 0;
     for (const auto& l : rs_layout(tab)) { if (!l.header && n++ == row) return line; ++line; }
