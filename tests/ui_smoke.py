@@ -6086,14 +6086,20 @@ def theme_last_custom(binary, root, scripts):
         check("(custom)" in sess.text(), "last custom: the colours match no theme (the THEME row shows (custom))")
         sess.send(b"\r", 1.0)                       # the theme list
         sess.send(b"\x1b[B", 0.3)
-        sess.send(b"\r", 1.2)                       # another theme
+        sess.send(b"\r", 0.05)                      # another theme (no long pause: the message stays only until the next key)
+        # Look for the status line first, at once and often: a loaded machine (macOS runner) draws a moment after the key,
+        # and the file below can be read afterwards. (The wait is scaled by SLOW inside wait_for.)
+        seen = sess.wait_for(lambda t: "Last custom" in t, 20, step=0.05)
+        shot = sess.text()
         themes_txt = os.path.join(home, ".config", "mousiki", "themes.txt")
         body = open(themes_txt, encoding="utf-8").read() if os.path.exists(themes_txt) else ""
         i = body.find("[Last custom]")
         check(i >= 0 and "ColorHeader=199" in body[i:], "last custom: the colours in use were saved as the theme Last custom")
-        try: sess.wait_for(lambda t: "Last custom" in t, 20)   # (a slow machine: the line comes a little later)
-        except Exception: pass
-        check("Last custom" in sess.text(), "last custom: the status line says they were kept")
+        check(seen, "last custom: the status line says they were kept")
+        if not seen:   # (what the screen showed: the next CI run tells whether the line never came or was gone again)
+            print("  last custom: the screen at the end of the wait:")
+            for ln in shot.split("\n"):
+                if ln.strip(): print("    | " + ln.rstrip())
     finally:
         sess.kill()
 
