@@ -1727,9 +1727,11 @@ def top_pane_style(binary, root, scripts):
     gap_top = line("gap", lambda t: t.startswith("\u256d") and t.rstrip().endswith("\u256e") and t.rstrip().count(" ") == 2 and t.count("\u256e") == 1)
     gap_bottom = line("gap", lambda t: t.startswith("\u2570") and t.rstrip().endswith("\u256f") and t.rstrip().count(" ") == 2 and t.count("\u256f") == 1)
     check(gap_top != "" and gap_bottom != "", "pane style gap: one box with two gaps in the top line and two in the bottom line")
-    walls = [i for i, ch in enumerate(three_top) if ch == "\u256e"][:-1]
-    mids = [r for r in ("".join(x) for x in rows["three"]) if r.startswith("\u2502")][:3]
-    check(len(walls) == 2 and mids and all(all(m[w] == "\u2502" for w in walls) for m in mids), "pane style three panes: the walls stand under the top corners, one column each")
+    # (by cell, not by character: a wide letter or a combining mark makes a row's text shift against the top line's)
+    top_cells = next((r for r in rows["three"] if "".join(r) == three_top), [])
+    walls = [i for i, ch in enumerate(top_cells) if ch == "\u256e"][:-1]
+    mids = [r for r in rows["three"] if r and r[0] == "\u2502"][:3]
+    check(len(walls) == 2 and mids and all(all(w < len(m) and m[w] == "\u2502" for w in walls) for m in mids), "pane style three panes: the walls stand under the top corners, one column each")
 
 
 def play_mode_back(binary, root, scripts):
@@ -5977,6 +5979,8 @@ def theme_last_custom(binary, root, scripts):
         body = open(themes_txt, encoding="utf-8").read() if os.path.exists(themes_txt) else ""
         i = body.find("[Last custom]")
         check(i >= 0 and "ColorHeader=199" in body[i:], "last custom: the colours in use were saved as the theme Last custom")
+        try: sess.wait_for(lambda t: "Last custom" in t, 6)   # (a slow machine: the line comes a little later)
+        except Exception: pass
         check("Last custom" in sess.text(), "last custom: the status line says they were kept")
     finally:
         sess.kill()
