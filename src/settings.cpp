@@ -990,7 +990,7 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_FLAG("Crossfade", nullptr, fade_cross, "\n## true , false (default false) -- the end of a track and the start of the next one overlap (the next track must be loaded in advance, as for gapless playback: it is, when this is on)\n"),
     SIMPLE_NUM("FadeLength", nullptr, fade_len_ms, 500, 20000, "\n## 500 - 20000 (default 4000) -- milliseconds a fade or crossfade lasts (a track that is too short gets a shorter fade)\n"),
     SIMPLE_NUM("FadeCurve", nullptr, fade_curve, 0, 3, "\n## 0 linear , 1 exponential , 2 logarithmic , 3 logistic = S-curve (default 0) -- how the volume moves during a fade\n"),
-    SIMPLE_FLAG("TrimSilence", nullptr, fade_trim, "\n## true , false (default false) -- the silence at the start and the end of a track is not played (at most 15 s at each end; not for tracks that are only partly in memory)\n"),
+    SIMPLE_FLAG("TrimSilence", nullptr, fade_trim, "\n## true , false (default false) -- the silence at the start and the end of a track is not played (at most 15 s at each end; not for a track the Track Buffer cannot hold whole: about 3 minutes or longer at the default 64 MB -- raise Track Buffer to cut those)\n"),
     SIMPLE_NUM("TrimThreshold", nullptr, fade_trim_db, -90, -20, "\n## -90 - -20 (default -60) -- dBFS below which the start / end of a track counts as silence\n"),
     SIMPLE_FLAG("EqualizerEnabled", nullptr, eq_enabled, "\n"),
     SIMPLE_FLAG2("ElimentDisk", "Eliment_disk", "Element_disk", element_disk, "\n"),
