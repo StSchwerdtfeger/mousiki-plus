@@ -84,6 +84,8 @@ ElimentDisk=true
 ## true , false -- the ":  :" column between the disk (or cover) and the meta data; false: it is left out and the disk sits in the middle of the space between the left border and the meta data
 ElimentDiskBorder=false
 ## 0 , 1 , 2 , 3 , 4 , 5 (default 0) -- the frame of the upper pane (disk | meta data | lyrics / viz field): 0 = one box round all three; 1, 2, 3 = three panes I, II, III that share their walls; 4 = two panes (the disk, and meta data + lyrics / viz field in one); 5 = gap (one box with four gaps in its lines); see the preview in Settings
+SharpCorners=false
+## true , false -- the frames have sharp corners instead of round ones everywhere; the Settings screen (sharp by itself) gets round corners then
 TopPaneStyle=0
 ## Album Cover (music player) = the cover of the playing track takes the disk's place (needs ElimentDisk=true; a track without a cover keeps the disk)
 AlbumCover=false
@@ -251,6 +253,14 @@ MilkDropDurationVariance=0
 ## 0 - 30 seconds (default 0) -- how far the time of a preset (Preset Duration) may stray at random; 0 = every preset stays the same time
 MilkDropCleanStart=false
 ## true , false (default false) -- a preset starts from a blank picture, not from what the one before left
+MilkDropBrightness=50
+## 0 - 100 % (default 50) -- the brightness of the MilkDrop pictures; 50 = as they are, lower darker, higher brighter
+MilkDropSaturation=100
+## 0 - 100 % (default 100) -- the colours of the MilkDrop pictures; 100 = as they are, 0 = greyscale
+MilkDropContrast=0
+## 0 - 100 % (default 0) -- more contrast for the MilkDrop pictures; 0 = as they are
+MilkDropShuffleFolder=
+## empty (default: the Favourites) , Recommended , or the name of a folder made in the preset overlay -- the preset folder that the shuffle (Shuffle Favourites, then named after it) plays from
 MilkDropLockPreset=false
 ## true , false (default false) -- the preset stays: the presets do not change by themselves (Lock Preset); kept for the next start
 MilkDropEffectOn=true

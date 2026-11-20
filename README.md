@@ -163,6 +163,7 @@ Mousiki Plus is in its essence a terminal music player that was originally built
 <li>Detailed user manual (.md / .pdf)</li>
 <li>Help Wizard (in-app)</li>
 <li>Cheat Sheet (in-app)</li>
+<li><a href="CONTRIBUTING.md">Contributor guide</a> (code map, how to add a setting, tests)</li>
 </ul>
 
 </td>

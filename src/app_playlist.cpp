@@ -1389,6 +1389,8 @@ std::vector<std::string> App::build_playlist_tracks_panel(int total_width, int h
             out.push_back(bar + " " + cursor_ansi + padded + "\x1b[0m " + bar);
         } else {
             std::string queue_ansi = ansi_for(settings_.queue_color, false) + bg_ansi_for(settings_.queue_inactive_bg_color);
+            if (idx < total && playlist_->edit_tracks[static_cast<size_t>(idx)].missing)   // a file that is gone: the row in the top border colour
+                queue_ansi = ansi_for(settings_.border_color, false) + bg_ansi_for(settings_.queue_inactive_bg_color);
             out.push_back(bar + " " + queue_ansi + padded + "\x1b[0m " + bar);
         }
     }
@@ -1629,7 +1631,12 @@ void App::build_playlist_screen(std::ostringstream& frame, int W, int target_hei
             const auto lrows = layout_legend_tree(groups, W - 1);
             for (size_t i = 0; i < lrows.size(); ++i) frame << " " << paint_legend(settings_, lrows, i, border, 0, true) << "\n";
         }
-        if (!playlist_->status.empty()) frame << "\x1b[38;5;246m" << playlist_->status << "\x1b[0m\n";
+        // The track under the cursor is a file that is gone: say so, in the header colour (its row is in the border colour)
+        const bool hover_missing = playlist_->tab == 0 && playlist_->edit_focus == 2 && playlist_->edit_track_selected >= 0
+                                   && playlist_->edit_track_selected < static_cast<int>(playlist_->edit_tracks.size())
+                                   && playlist_->edit_tracks[static_cast<size_t>(playlist_->edit_track_selected)].missing;
+        if (hover_missing) frame << ansi_for(settings_.header_color, false) << "missing file" << "\x1b[0m\n";
+        else if (!playlist_->status.empty()) frame << "\x1b[38;5;246m" << playlist_->status << "\x1b[0m\n";
         else frame << "\n";
     }
 

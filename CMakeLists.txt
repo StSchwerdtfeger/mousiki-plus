@@ -447,6 +447,7 @@ if(MOUSIKI_BUILD_TESTS)
     set_property(SOURCE ${MOUSIKI_TEST_SOURCES} APPEND PROPERTY COMPILE_OPTIONS -Wall -Wextra)
   endif()
   target_include_directories(mousiki_tests PRIVATE "${CMAKE_SOURCE_DIR}/tests" "${CMAKE_SOURCE_DIR}/fuzz")
+  target_compile_definitions(mousiki_tests PRIVATE MOUSIKI_SOURCE_DIR="${CMAKE_SOURCE_DIR}")   # (test_config_example.cpp reads the example config.txt of the source tree)
   add_test(NAME mousiki_tests COMMAND mousiki_tests)
 
   # Python tests (Linux / macOS; need `pip install pyte` for the UI test, else CTest reports them as skipped).

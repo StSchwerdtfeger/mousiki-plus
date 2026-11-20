@@ -3,6 +3,7 @@
 // the oscilloscope / sphere / spectrogram, MilkDrop, the Latin letters, the marquee, the frame of the upper pane, the play mode -- or, for a
 // row that has no picture, a few lines of text that say what it does. The signals are made here (the radio's "TEST Stereo Chords" sound,
 // and a spectrogram that reads "Mousiki Plus"): no stream, no file and no network are needed, and what plays is not touched.
+#include "translit_preview.h"
 #include "radio_ui_internal.h"
 #include "bars_presets.h"
 #include "bars_help.h"
@@ -445,81 +446,21 @@ void build_settings_preview(const Style& s, const UiModel& m, const RadioSetting
     }
     case kPvMilk: o.milk = true; break;
     case kPvTranslit: {
-        // What the option changes, for the highlighted row: the examples of the manual with the result for each value; the value in use is lit.
-        struct PRow { std::string plain, ansi; };
-        std::vector<PRow> rows;
-        const std::string lit = "\x1b[7m", off = R;
-        auto example = [&](const std::string& src, const std::vector<std::string>& results, int use, const std::vector<std::string>& labels = {}) {
-            PRow r;
-            const int pad = std::max(1, 14 - display_width(src));
-            r.plain = src + std::string(static_cast<size_t>(pad), ' ') + "→ ";
-            r.ansi = r.plain;
-            for (size_t k = 0; k < results.size(); ++k) {
-                if (k) { r.plain += " | "; r.ansi += " | "; }
-                r.plain += results[k];
-                r.ansi += (static_cast<int>(k) == use ? lit : std::string()) + results[k] + off;
-            }
-            if (display_width(r.plain) <= cw || results.size() < 1) { rows.push_back(r); return; }
-            rows.push_back({src, src});   // (too wide: the source, then every result on a row of its own)
-            for (size_t k = 0; k < results.size(); ++k) {
-                const std::string lab = k < labels.size() ? labels[k] + ": " : std::string();
-                const bool u = static_cast<int>(k) == use && results.size() > 1;
-                rows.push_back({"  " + lab + results[k], "  " + lab + (u ? lit : std::string()) + results[k] + (u ? off : std::string())});
-            }
-        };
-        auto line = [&](const std::string& t) {
-            if (display_width(t) <= cw) { rows.push_back({t, t}); return; }
-            for (const std::string& w : wrap_lines(t, cw, 6)) rows.push_back({w, w});
-        };
-        // An example whose result never changes: the source with its translation, the result under it (lit, no arrow), as the wide rows above.
-        auto same = [&](const std::string& src, const std::string& result) {
-            rows.push_back({src, src});
-            rows.push_back({"  " + result, "  " + lit + result + off});
-        };
-        const int mc = c.latin_macrons ? 1 : 0, wo = c.latin_wo ? 1 : 0, hz = c.latin_hanzi;
-        auto tm = [&](const char* t, int v) { return transliterate_as(t, v, -1, -1); };
-        auto tw = [&](const char* t, int v) { return transliterate_as(t, -1, v, -1); };
-        auto th = [&](const char* t, int v) { return transliterate_as(t, -1, -1, v); };
-        std::string cap;
-        if (id == kRsLatinMacrons) {
-            line("Long vowels of kana: off | on");
-            example("ラーメン", {tm("ラーメン", 0), tm("ラーメン", 1)}, mc, {"off", "on"});
-            example("コーヒー", {tm("コーヒー", 0), tm("コーヒー", 1)}, mc, {"off", "on"});
-            example("とうきょう", {tm("とうきょう", 0), tm("とうきょう", 1)}, mc, {"off", "on"});
-            line("off: the long vowel spelled out (ou, oo, ii); on: a line over it (ō, ī).");
-            cap = std::string("Latin Macrons: ") + (mc ? "on" : "off");
-        } else if (id == kRsLatinWo) {
-            line("The particle を: wo | o");
-            example("あいをこめて", {tw("あいをこめて", 1), tw("あいをこめて", 0)}, wo ? 0 : 1, {"wo", "o"});
-            example("こえをきかせて", {tw("こえをきかせて", 1), tw("こえをきかせて", 0)}, wo ? 0 : 1, {"wo", "o"});
-            line("Written \"wo\", spoken \"o\".");
-            cap = std::string("Latin Wo: ") + (wo ? "wo" : "o");
-        } else {
-            line("Kanji/hanzi with no hint of the language: Leave | Chin. | Jap.");
-            example("東京", {th("東京", 0), th("東京", 1), th("東京", 2)}, hz, {"Leave", "Chin.", "Jap."});
-            example("张悬", {th("张悬", 0), th("张悬", 1), th("张悬", 2)}, hz, {"Leave", "Chin.", "Jap."});
-            line("(张 悬 are only used in Chinese: the same for every value)");
-            if (hz == 2 && th("東京", 2) == "東京") line("Jap. needs the kanji reader; without it they stay.");
-            line("A short poem of kanji only (this option decides):");
-            example("春眠不觉晓  \"Spring sleep, dawn goes unnoticed\"", {th("春眠不觉晓", 0), th("春眠不觉晓", 1), th("春眠不觉晓", 2)}, hz, {"Leave", "Chin.", "Jap."});
-            example("花落知多少  \"how many flowers fell?\"", {th("花落知多少", 0), th("花落知多少", 1), th("花落知多少", 2)}, hz, {"Leave", "Chin.", "Jap."});
-            line("Jap. gives the Japanese sound readings of the characters: a Chinese poem is not Japanese, so it reads oddly.");
-            line("A poem mixed with kana always stays the same (kana show it is Japanese, this option is not used):");
-            same("草の名も  \"even the names of the grass\"", th("草の名も", hz));
-            same("寂しう なりけり  \"has grown lonely\"", th("寂しう なりけり", hz));
-            same("春の雨  \"spring rain\"", th("春の雨", hz));
-            if (th("春の雨", hz).find("雨") != std::string::npos)   // (the reader has not read it here: what it makes of it)
-                line("with the reader: kusa no na mo / sabishiu narikeri / haru no ame");
-            line("kanji reader: optional (pip install pykakasi janome); the radio uses it while Latin letters are on");
-            cap = std::string("Translit. Kanji: ") + (hz == 1 ? "Chin." : hz == 2 ? "Jap." : "Leave");
-        }
-        for (const PRow& r : rows) {
-            if (display_width(r.plain) <= cw) { o.rows.push_back(r.ansi); continue; }
-            const std::string loop = r.plain + "    ";   // too wide for the box: the text scrolls
-            const int period = std::max(1, display_width(loop));
-            const int at = static_cast<int>(P.t * 5.0) % period;
-            o.rows.push_back(utf8_skip_take(loop + loop, at, cw));
-        }
+        // What the option changes, for the highlighted row: the examples with the result for each value; the value in use is lit (the same
+        // examples as the player's Settings: translit_preview.cpp).
+        TranslitPreviewIn tin;
+        tin.kind = id == kRsLatinMacrons ? 0 : id == kRsLatinWo ? 1 : 2;
+        tin.macrons = c.latin_macrons ? 1 : 0;
+        tin.wo = c.latin_wo ? 1 : 0;
+        tin.hanzi = c.latin_hanzi;
+        tin.cw = cw;
+        tin.t = P.t;
+        tin.lit = "\x1b[7m";
+        tin.off = R;
+        tin.reader_line = "kanji reader: optional (pip install pykakasi janome); the radio uses it while Latin letters are on";
+        const TranslitPreviewOut tout = translit_preview(tin);
+        o.rows.insert(o.rows.end(), tout.rows.begin(), tout.rows.end());
+        const std::string& cap = tout.caption;
         const int want = std::min(visible - 1, static_cast<int>(o.rows.size()) + 3);   // longer than the box: it grows so that nothing is cut off
         if (want > bh) { bh = want; ih = bh - 2; body_h = ih - 1; }
         if (static_cast<int>(o.rows.size()) > body_h) o.rows.resize(static_cast<size_t>(body_h));

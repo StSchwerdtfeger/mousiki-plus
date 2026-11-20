@@ -5640,6 +5640,42 @@ def audio_fades(binary, root, scripts):
     quiet = [i for i in range(f4, f4 + int(11000 * sr), 400) if peak(m, i, i + 400) < 1e-4]
     check(not quiet, "crossfade: no silent stretch between the tracks (%d)" % len(quiet))
 
+def playlist_missing_file(binary, root, scripts):
+    """A playlist that holds a file that is gone: in the playlist editor its row is in the top border colour (like the box above it) and, with the
+    cursor on it, the status line below the legend says "missing file" in the header colour."""
+    lib = os.path.join(root, "pm_music")
+    os.makedirs(os.path.join(lib, "playlists"))
+    make_wav(os.path.join(lib, "Alpha Song.wav"), 10)
+    with open(os.path.join(lib, "playlists", "Gone.txt"), "w", encoding="utf-8") as f:
+        f.write(os.path.join(lib, "Alpha Song.wav") + "\n" + os.path.join(lib, "Vanished Song.wav") + "\n")
+    home = os.path.join(root, "pm_home")
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=false\nUseLyrics=false\nColorBorderTop=196\nColorHeader=46\n" % lib)
+    sess = Session(binary, home, scripts, {"MOUSIKI_NULL_AUDIO": "1"}, quiet_stderr=True)
+    try:
+        sess.wait_for(lambda t: "Alpha Song" in t, 10)
+        sess.send("P", 1.0)
+        sess.send(b"\x1b[C", 0.8)        # the saved playlists
+        check("Gone" in sess.text(), "playlist editor: the saved playlist is listed")
+        sess.send(b"\r", 1.0)             # load it into the editor
+        sess.send(b"\t", 0.8)             # the track list
+        t = sess.text()
+        check("Vanished Song" in t and "Alpha Song" in t, "playlist editor: the playlist is loaded, the gone file is in it")
+        raw = bytes(sess.raw[-30000:]).decode("utf-8", "replace")
+        i = raw.rfind("Vanished Song")
+        check("38;5;196" in raw[max(0, i - 160):i], "playlist editor: the row of the gone file is in the border colour")
+        check("missing file" not in sess.text(), "playlist editor: no \"missing file\" while the cursor is on a file that is there")
+        sess.send(b"\x1b[B", 0.8)         # the cursor on the gone file
+        check("missing file" in sess.text(), "playlist editor: the cursor on the gone file: the status says \"missing file\"")
+        raw = bytes(sess.raw[-30000:]).decode("utf-8", "replace")
+        k = raw.rfind("missing file")
+        check("38;5;46" in raw[max(0, k - 40):k], "playlist editor: \"missing file\" is in the header colour")
+    finally:
+        sess.kill()
+
+
 def autoplay_and_sphere(binary, root, scripts):
     """Settings -> GENERAL -> AUDIO -> Auto-Play (AutoPlay=, false by default): off, the track the player opens with is loaded and stands paused (the play
     button shows PLAY, the time stays at 0:00) until the play / pause key (p); on, it plays at once. ANIMA/VIZ -> SPHERE -> Pause Sphere (PauseSphere=, false by default):
@@ -6468,6 +6504,8 @@ def run_scenario(name, binary, root, scripts):
         milkdrop_radio_book(binary, root, scripts)
     elif name == "gapless_playback":
         gapless_playback(binary, root, scripts)
+    elif name == "playlist_missing_file":
+        playlist_missing_file(binary, root, scripts)
     elif name == "audio_fades":
         audio_fades(binary, root, scripts)
     elif name == "autoplay_and_sphere":
@@ -6517,7 +6555,7 @@ def run_scenario(name, binary, root, scripts):
 
 
 SCENARIOS = ["narrow80", "narrow100", "main", "read_lyrics_play", "karaoke_timing", "book_speed_and_devices", "paging_and_translit_row",
-             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "audio_fades", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews", "override_and_previews", "sharp_and_folders"]
+             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "audio_fades", "playlist_missing_file", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews", "override_and_previews", "sharp_and_folders"]
 
 
 def main():
