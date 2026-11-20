@@ -196,7 +196,7 @@ std::string App::format_text() const {
 // Auto Video: at every new track, a track with a video switches the field to the video view; one without it to the Lyrics/Viz Default.
 void App::video_auto_apply() {
     auto why_no_video = [&]() {   // for the log: why this track has no video view
-        if (cover_track_video_opts(path_utf8(current_.path)).on == 0) return std::string("\"Video of this track\" is off (Style Option)");
+        if (video_own(path_utf8(current_.path)).on == 0) return std::string("\"Video of this track\" is off (Style Option)");
         if (VideoLinks::get().is_none(path_utf8(current_.path))) return std::string("the connection to its video was removed (Manually Couple Local Files)");
         return std::string("no video file found for it");
     };
@@ -301,27 +301,27 @@ std::string ansi_black_box_row(const std::string& s, int lead, int trail) {
 
 std::string App::video_shown_for(const fs::path& track) const {
     if (track.empty()) return std::string();
-    if (cover_track_video_opts(path_utf8(track)).on == 0) return std::string();   // hidden for this track (Style Option)
+    if (video_own(path_utf8(track)).on == 0) return std::string();   // hidden for this track (Style Option)
     return video_source_for(track);
 }
 
 int App::video_size_for(const fs::path& track) const {
-    const int own = track.empty() ? -1 : cover_track_video_opts(path_utf8(track)).size;
+    const int own = track.empty() ? -1 : video_own(path_utf8(track)).size;
     return std::clamp(own >= 0 ? own : settings_.video_size, 0, 3);
 }
 
 bool App::video_lyrics_for(const fs::path& track) const {
-    const int own = track.empty() ? -1 : cover_track_video_opts(path_utf8(track)).lyrics;
+    const int own = track.empty() ? -1 : video_own(path_utf8(track)).lyrics;
     return own >= 0 ? own != 0 : settings_.video_lyrics;
 }
 
 bool App::video_round_for(const fs::path& track) const {
-    const int own = track.empty() ? -1 : cover_track_video_opts(path_utf8(track)).round;
+    const int own = track.empty() ? -1 : video_own(path_utf8(track)).round;
     return own >= 0 ? own != 0 : settings_.video_round;
 }
 
 int App::video_res_for() const {
-    const int own = has_track_ && !current_.path.empty() ? cover_track_video_opts(path_utf8(current_.path)).res : -1;
+    const int own = has_track_ && !current_.path.empty() ? video_own(path_utf8(current_.path)).res : -1;
     return std::clamp(own >= 0 ? own : settings_.video_res, 0, 2);
 }
 
@@ -334,7 +334,7 @@ int App::video_pic_width() const {
 }
 
 VideoLook App::video_look_for(const fs::path& track) const {
-    const VideoTrackOpts o = track.empty() ? VideoTrackOpts() : cover_track_video_opts(path_utf8(track));
+    const VideoTrackOpts o = track.empty() ? VideoTrackOpts() : video_own(path_utf8(track));
     VideoLook l;
     l.fx = video_fx_canon(std::clamp(o.fx >= 0 ? o.fx : settings_.video_fx, 0, kVideoFxCount - 1));
     l.contrast = o.contrast >= 0 ? o.contrast : settings_.video_contrast;
@@ -356,12 +356,15 @@ VideoLook App::milkdrop_look() const {
     l.dither = settings_.video_dither;
     l.base = settings_.video_base;
     l.fxc = settings_.video_fxc;
+    l.brightness = std::clamp(settings_.milkdrop_bright, 0, 100);   // the grade: MilkDrop's own Brightness / Saturation / Contrast
+    l.colors = std::clamp(settings_.milkdrop_sat, 0, 100);
+    l.contrast = std::clamp(settings_.milkdrop_contrast, 0, 100);
     if (video_fx_uses_gradient(l.fx)) l.grad = video_fx_gradient(settings_);
     return l;
 }
 
 int App::video_fx_for(const fs::path& track) const {
-    const int own = track.empty() ? -1 : cover_track_video_opts(path_utf8(track)).fx;
+    const int own = track.empty() ? -1 : video_own(path_utf8(track)).fx;
     return video_fx_canon(std::clamp(own >= 0 ? own : settings_.video_fx, 0, kVideoFxCount - 1));
 }
 
@@ -460,7 +463,7 @@ const std::vector<App::VTr>& App::video_translations(const std::vector<LyricLine
 }
 
 int App::video_lyr_mode_for(const fs::path& track) const {
-    const int own = track.empty() ? -1 : cover_track_video_opts(path_utf8(track)).lyrics;
+    const int own = track.empty() ? -1 : video_own(path_utf8(track)).lyrics;
     return std::clamp(own >= 0 ? own : settings_.video_lyrics, 0, 3);
 }
 
@@ -1205,13 +1208,21 @@ std::vector<std::string> clapper_frame(int cols, int rows, double t) {
 }
 }  // namespace
 
+bool App::vfull_wants_md() const {
+    if (settings_.vfull_md_novideo && !audiobook_ && has_track_ && current_.is_local && !current_.path.empty()) {
+        const std::string trk = path_utf8(current_.path);
+        if (vfull_user_path_ != trk && video_shown_for(current_.path).empty() && cover_track_milkdrop(trk).on != 0) return true;   // (a song's own "never" wins)
+    }
+    return settings_.vfull_milkdrop;
+}
+
 App::VFullLayout App::vfull_layout() const {
     VFullLayout l;
     l.md_ok = milkdrop_usable();
     int L = std::clamp(settings_.video_layout, 0, 4);
     if (L == 4 && !l.md_ok) L = 3;   // (the quartet needs MilkDrop: without it the video + both)
     l.video_l = L;
-    if (settings_.vfull_milkdrop && l.md_ok) {
+    if (vfull_wants_md() && l.md_ok) {
         l.source_md = true;
         switch (std::clamp(settings_.milkdrop_layout, 0, 4)) {
             case 0: l.main_md = true; break;
@@ -1229,6 +1240,51 @@ App::VFullLayout App::vfull_layout() const {
 }
 
 std::string App::build_video_full(int W, const char* clear_prefix) const {
+    if (video_only_ && !video_opts_open_) {   // [f] Video only: the picture (the video, or the MilkDrop visuals when the overlay shows them) fills the whole window, nothing else
+        const int rows_all = std::max(2, term_rows_);
+        std::vector<std::string> pic;
+        const double el = has_track_ ? player_.poll_elapsed() : 0.0;
+        bool ok1 = true;
+        // (the MilkDrop visuals when the overlay shows them -- no preset name box; else the video, a track without one shows the clapperboard)
+        if (vfull_wants_md() && milkdrop_usable()) {
+            milkdrop_draw(pic, W, rows_all, 0, 0, false, 0, std::vector<std::string>(), 0);
+        } else {
+            ok1 = video_draw(pic, W, rows_all, 0, 0, false, el, 0, std::vector<std::string>(), std::max(12, W * 2 / 3));
+        }
+        video_ov_ref_.clear();
+        // No video for this track: the clapperboard and its note over the whole window (as in the box), never the MilkDrop visuals
+        std::vector<std::string> clap1;
+        const int note_rows1 = 3;
+        const std::string note1[2] = {"No video for this track.",
+                                      "Fetch video via [" + hotkey_text("HKeyVideoFetch", "ALT+V") + "] or pair local video via video options in [" + hotkey_text("HKeyMetaEditor", "M") + "]"};
+        if (!ok1 && rows_all > note_rows1 + 3 && W >= 12) {
+            static const auto t1 = std::chrono::steady_clock::now();
+            clap1 = clapper_frame(W, rows_all - note_rows1, std::chrono::duration<double>(std::chrono::steady_clock::now() - t1).count());
+        }
+        std::ostringstream fo;
+        fo << clear_prefix << "\x1b[?25l";
+        for (int r = 0; r < rows_all; ++r) {
+            std::string line = r < static_cast<int>(pic.size()) ? pic[static_cast<size_t>(r)] : std::string(static_cast<size_t>(W), ' ');
+            if (!ok1) {
+                line = std::string(static_cast<size_t>(W), ' ');
+                auto centred1 = [&](const std::string& msg0) {
+                    const std::string msg = truncate_str(msg0, W);
+                    const int pad = std::max(0, (W - display_width(msg)) / 2);
+                    return std::string(static_cast<size_t>(pad), ' ') + msg + std::string(static_cast<size_t>(std::max(0, W - pad - display_width(msg))), ' ');
+                };
+                if (!clap1.empty() && r >= rows_all - note_rows1) {
+                    if (r - (rows_all - note_rows1) < 2) line = centred1(note1[r - (rows_all - note_rows1)]);
+                } else if (!clap1.empty() && r < static_cast<int>(clap1.size())) {
+                    const float gt = static_cast<float>(r + 1) / static_cast<float>(std::max(1, rows_all + 1));
+                    line = (settings_.border_smooth ? gradient_ansi(settings_.border_color, settings_.border_color_bottom, gt, false) : ansi_for(settings_.border_color, false)) + clap1[static_cast<size_t>(r)] + "\x1b[0m";
+                } else if (clap1.empty() && (r == rows_all / 2 - 1 || r == rows_all / 2)) {
+                    line = centred1(note1[r - (rows_all / 2 - 1)]);
+                }
+            }
+            fo << line << (r + 1 < rows_all ? "\n" : "");   // (no line break after the last row: the terminal must not scroll)
+        }
+        return clamp_output_rows(fo.str(), term_rows_);
+    }
     const int H = std::max(6, term_rows_ - 1);
     // The picture keeps two empty columns to the left and to the right of it (it is scaled down to fit, never cropped), and the commands
     // take the bottom border line (row 1) and the otherwise empty last terminal row below the box (row 2).
@@ -1495,7 +1551,7 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
     const std::string lay = std::string("[SHIFT+UP/DOWN] Layout: ") + (VL.source_md ? kMdLayoutName[std::clamp(settings_.milkdrop_layout, 0, 4)] : kLayoutName[VL.video_l]);
     const std::string grid = "[SHIFT+g] Grid/Scale";
     const bool md_here = VL.md_ok;   // (projectM installed: the m key switches)
-    const std::string opts = std::string("[S] Options") + (VL.has_o ? "  [" + hotkey_text("HKeyOscMenu", "O") + "] Osci" : "") +
+    const std::string opts = std::string("[S] Options  [f] " + std::string(VL.source_md ? "Viz. only" : "Video only")) + (VL.has_o ? "  [" + hotkey_text("HKeyOscMenu", "O") + "] Osci" : "") +
                              (VL.has_s ? "  [" + hotkey_text("HKeySpectroMenu", "I") + "] Spectro" : "") +
                              (md_here ? std::string(VL.source_md ? "  [m] Video" : "  [m] MilkDrop") : std::string()) +
                              (md_here ? "  [" + visuals_key_text() + "] Visuals" : "");
@@ -1524,7 +1580,7 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
     const bool md_vis = VL.source_md || VL.kind == 1;   // (the visuals are on the screen: their preset keys)
     const std::string pre = md_vis ? "  [" + hotkey_text("HKeyToggleLyricsBack", ",") + "/" + hotkey_text("HKeyToggleLyrics", ".") + "] Preset" : std::string();
     const std::string l2 = pick({opts + pre + "   " + ovl_short + "   " + keys, opts + "   " + ovl_short + "   " + keys, opts + "   " + keys,
-                                 "[S] Options" + pre + "   " + ovl_short + "   " + keys, "[S] Options   " + ovl_short + "   " + keys, "[S] Options   " + keys, keys}, W - 2);
+                                 "[S] Options  [f] " + std::string(VL.source_md ? "Viz. only" : "Video only") + pre + "   " + ovl_short + "   " + keys, "[S] Options   " + ovl_short + "   " + keys, "[S] Options   " + keys, keys}, W - 2);
     f << centred_bottom(settings_, W, l1, border_bottom) << "\n";
     const int w2 = display_width(l2);
     const int lp = std::max(0, (W - w2) / 2);

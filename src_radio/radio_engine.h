@@ -138,6 +138,7 @@ public:
     // Oscilloscope music mode: the scopes get the stream before mono fold, equalizer, normalization and volume.
     void set_scope_raw(bool on);
     void set_stereo(bool on);
+    void set_pause_fade(bool on);       // the timeshift pause / resume fades over about 8 ms (no click)
     // Loudness normalisation like the music player's: the stream's measured loudness is brought to `target_lufs`
     // (-40..0), amplifying by at most `max_boost_db` (0..24). The gain glides over about a second.
     void set_normalization(bool on, float target_lufs, float max_boost_db);

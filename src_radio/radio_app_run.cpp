@@ -337,6 +337,10 @@ void RadioApp::interactive_setup() {
     spectro_win_was = spectro_window_running();
     record_serial_seen = engine.status().record_serial;
     sleep_unit = std::getenv("MOUSIKI_RADIO_SLEEP_UNIT") ? std::max(0.1, std::atof(std::getenv("MOUSIKI_RADIO_SLEEP_UNIT"))) : 60.0;
+    if (cfg.auto_play && !cfg.last_station.empty()) {   // GENERAL "Auto-Play": the station that was tuned last plays at once
+        for (size_t i = 0; i < ui.stations.size(); ++i)
+            if (ui.stations[i].name == cfg.last_station) { tune_to(static_cast<int>(i), false); break; }
+    }
 }
 
 // What happens once per frame before the keys are read.
@@ -598,8 +602,9 @@ int RadioApp::interactive() {
                 spectro().set_visible(false);
                 if (std::chrono::duration<double>(now - spectro_shown_at).count() >= muisc::kSpectroIdleFreeSeconds) spectro().release();   // (no spectrogram for ten seconds: its memory goes back)
             } else spectro_shown_at = now;
-            if (out.find("\x1b[2J") != std::string::npos) spectro_gfx.invalidate();
-            const bool sixel_on = (gfx == GfxProto::Sixel && ui.model.gfx.active) || (sp_img && sp_proto == 2);
+            const bool pv_img = ui.model.pv_spectro_area[0] >= 0 && sp_proto != 0 && ui.model.pv_spectro != nullptr;   // (the settings preview's spectrogram)
+            if (out.find("\x1b[2J") != std::string::npos) { spectro_gfx.invalidate(); pv_spectro_gfx.invalidate(); }
+            const bool sixel_on = (gfx == GfxProto::Sixel && ui.model.gfx.active) || (sp_img && sp_proto == 2) || (pv_img && sp_proto == 2);
             if (sixel_on && (!gfx_shown || out.find("\x1b[2J") != std::string::npos)) { ui.model.gfx.fresh = true; ui.model.gfx2.fresh = true; }
             gfx_fill_holes(out, sixel_on);
             // the image goes after the text (Sixel replaces the cells; a Kitty image sits under the text and is replaced in place)
@@ -620,6 +625,11 @@ int RadioApp::interactive() {
                 out += spectro_gfx.emit(sp_proto, cfg.spectro, spectro(), a[0], a[1], a[2], a[3], std::max(1, ui.model.cell_w),
                                         std::max(1, ui.model.cell_h), true, sk[0], sk[1], sk[2], sk[3]);
             } else if (spectro_gfx.shown()) out = spectro_gfx.clear(sp_proto) + out;   // before the new screen's text
+            if (pv_img) {
+                const int* a = ui.model.pv_spectro_area;
+                out += pv_spectro_gfx.emit(sp_proto, ui.model.pv_spectro_set, *ui.model.pv_spectro, a[0], a[1], a[2], a[3], std::max(1, ui.model.cell_w),
+                                           std::max(1, ui.model.cell_h), true, 0, 0, 0, 0);
+            } else if (pv_spectro_gfx.shown()) out = pv_spectro_gfx.clear(sp_proto) + out;
         }
         write_frame(out);
         // frame pacing: one frame every 1 / frame_rate seconds (the render time counts), never a burst to catch up
@@ -648,6 +658,7 @@ int RadioApp::interactive() {
     if (gfx_shown) { write_frame(gfx_clear(gfx)); gfx_shown = false; }
     if (gfx2_shown) { write_frame(gfx_clear(gfx, 1)); gfx2_shown = false; }
     if (spectro_gfx.shown()) write_frame(spectro_gfx.clear(gfx == GfxProto::Kitty ? 1 : 2));   // nothing of it may outlive the radio
+    if (pv_spectro_gfx.shown()) write_frame(pv_spectro_gfx.clear(gfx == GfxProto::Kitty ? 1 : 2));
     if (switch_mode) terminal_hold_alt_screen();   // the player takes the screen over: no flash of the shell in between
     return switch_mode ? kExitSwitchMode : 0;
 }

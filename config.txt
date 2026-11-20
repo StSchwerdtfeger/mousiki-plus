@@ -134,6 +134,8 @@ VideoLyrics=lyrics
 ## (with a translation shown, the last row under the picture is used first, then the lyric block grows upwards: the picture gets smaller)
 VideoAuto=true
 ## true = a track that has a video switches the field to the video view, a track without one to the Lyrics/Viz Default view
+BigVideoMilkdropNoVideo=false
+## true , false (default false) -- the big video overlay shows the MilkDrop visuals for a track that has no video, whatever the Viz/Lyrics field shows (a track with its own MilkDrop setting "never" keeps the video view; the overlay's m key still switches)
 VideoCover=cover
 ## cover = the disk shows the track's cover; thumbnail = a frame of the track's video (the cover when it has no video); disk = a track with a video shows the plain disk (no cover, no thumbnail); fallback = the cover, a frame of the video only when the track has no cover (the cover chosen for a single track in the meta editor goes before this)
 VideoSize=full
@@ -463,6 +465,20 @@ AutoPlay=false
 ## true , false (default false) -- false: when the music player starts, the track it opens with (the restored session or the first track of the library) is loaded and stands paused; the play / pause key (p) starts it. true: it starts playing at once
 Gapless=off
 ## off , album , full (default off) -- album: a track goes on into the next one without a gap when the next one (the track that follows in the play order) is of the same album (album tag and the same artist or folder; untagged files: the same folder) and has the same sample rate and channel count; full: every automatic change to the next local track (a different sample rate is resampled to the one that plays); off: the audio device is opened anew for every track (a short gap). Not for online tracks, the radio and audio books
+FadeIn=false
+## true , false (default false) -- the music player fades each track in at its start (Settings -> GENERAL -> AUDIO FADE OPTIONS)
+FadeOut=false
+## true , false (default false) -- the music player fades each track out at its end
+Crossfade=false
+## true , false (default false) -- the end of a track and the start of the next one overlap (the next track is loaded in advance, as for gapless playback: Gapless works as full while this is on)
+FadeLength=4000
+## 500 - 20000 (default 4000) -- milliseconds a fade or crossfade lasts (a track that is too short gets a shorter fade)
+FadeCurve=0
+## 0 linear , 1 exponential , 2 logarithmic , 3 logistic = S-curve (default 0) -- how the volume moves during a fade
+TrimSilence=false
+## true , false (default false) -- the silence at the start and the end of a track is not played (at most 15 s at each end; not for tracks that are only partly in memory)
+TrimThreshold=-60
+## -90 - -20 (default -60) -- dBFS below which the start / end of a track counts as silence
 AudioDevice=
 ## the sound output of all modes, as the system names it (Settings -> GENERAL -> AUDIO -> Choose Audio Device); empty = the system's default device
 RemoteApp=false

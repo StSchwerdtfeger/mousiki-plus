@@ -114,12 +114,14 @@ struct Settings : VizPrefs {
     bool milkdrop_auto_video_was = false;   // MilkDropAutoVideoWas=: Auto Video was on when Auto MilkDrop switched it off (it comes back with it)
     int milkdrop_fx = 0;               // MilkDropEffect=: a video effect over the MilkDrop pictures (its own: the video's are the track's), 0 off
     bool milkdrop_fixed_colors = false; // MilkDropSixelColors=adaptive|fixed: the colours of a palette picture (Sixel) from the picture itself, or the fixed 256
+    std::string milkdrop_shuffle_folder;  // MilkDropShuffleFolder=: the preset folder that "Shuffle Favourites" shuffles ("" = Favourites; "Recommended"; or a folder made in the preset overlay)
     bool milkdrop_fav_shuffle = false; // MilkDropShuffleFavourites=: only the favourite presets (milkdrop_favourites.txt) are played
     bool milkdrop_lock = false;        // MilkDropLockPreset=: the preset stays (Lock Preset in ":" and Settings) -- also the next time Mousiki starts
     int milkdrop_hcd = 20;             // MilkDropHardCutInterval=: 3 .. 120 s, the shortest time between two hard cuts (projectM's default 20)
     int milkdrop_ratio = 0;            // MilkDropAspectRatio=: auto (default), 1:1, 5:4, 4:3, 3:2, 16:10, 16:9, 2:1, 21:9 (milkdrop_ratio_name): the picture's shape with Aspect Correction on
     bool milkdrop_aspect = true;       // MilkDropAspectCorrection=: presets keep their proportions on a wide picture
     int milkdrop_mesh = 1;             // MilkDropMeshDetail=: 0 low (16 x 12), 1 normal (32 x 24, projectM's default), 2 high (64 x 48), 3 very high (96 x 72)
+    int milkdrop_bright = 50, milkdrop_sat = 100, milkdrop_contrast = 0;   // MilkDropBrightness= / MilkDropSaturation= / MilkDropContrast=: 0 .. 100 %, steps of 5 (50 / 100 / 0 = as projectM draws it)
     int milkdrop_var = 0;              // MilkDropDurationVariance=: 0 .. 30 s, how far the time of a preset may stray at random (0 = it stays the same)
     bool milkdrop_clean = false;       // MilkDropCleanStart=: a preset starts from a blank picture
     int milkdrop_cut_sens = 20;        // MilkDropHardCutSensitivity=: 5 .. 60 (tenths; 20 = 2.0, projectM's own default): the louder jump in volume that makes a hard cut (less = cuts more often)
@@ -172,6 +174,9 @@ struct Settings : VizPrefs {
     // milkdrop_layout (VideoFullMilkDropLayout=): 0 MilkDrop | 1 + oscilloscope (right) | 2 + oscilloscope over spectrogram (right) |
     // 3 quartet (top left oscilloscope, top right MilkDrop, bottom left video, bottom right spectrogram) | 4 video (left) + MilkDrop (right).
     bool vfull_milkdrop = false;
+    // BIG VIDEO OVERLAY -> Milkdrop When No Video (music player): the overlay opens on the MilkDrop visuals for a track without a video (whatever the
+    // Viz/Lyrics field shows), unless that track has its own MilkDrop setting "never". BigVideoMilkdropNoVideo=true|false.
+    bool vfull_md_novideo = false;
     int milkdrop_layout = 0;
     int vl_osci_style = -1;           // VideoLayoutOsciStyle=: -1 as in the options, 0 braille, 1 image
     int vl_osci_mode = -1;            // VideoLayoutOsciMode=: -1 as in the options, 0 XY, 1 YT
@@ -258,6 +263,7 @@ struct Settings : VizPrefs {
     std::string box_vertical = "\u2502";     // │
     std::string box_horizontal = "\u2500";   // ─
     int top_pane_style = 0;                  // MAIN UI PANE STYLE: 0 one box round disk | meta data | lyrics / viz field, 1-3 three panes that share their walls (pane_style.h)
+    bool sharp_corners = false;              // SharpCorners=: the frames have sharp corners (┌ ┐ └ ┘) instead of round ones; the Settings screen, which is sharp by itself, gets the round ones then
     bool disk_border = false;                // the ":  :" column between the disk and the meta data (false: the disk is centred in the space instead)
     std::string meta_separator = ":  :";     // separator between disk|meta|lyrics columns
     std::string list_separator = "|";        // separator in list panel between columns
@@ -463,6 +469,11 @@ struct Settings : VizPrefs {
     bool rate_cap_96 = true;
     // Pause and resume with a 8 ms fade instead of a hard cut (no click). config.txt: PauseFade=true|false.
     bool pause_fade = true;
+    // AUDIO FADE OPTIONS (GENERAL, music player only; audio_fade.h): fade in at the start / out at the end of a track, crossfade into the next
+    // one, how long a fade lasts (ms), the curve (0 linear, 1 exponential, 2 logarithmic, 3 logistic), cutting the silence at the ends of a
+    // track and how quiet counts as silence (dBFS). config.txt: FadeIn, FadeOut, Crossfade, FadeLength, FadeCurve, TrimSilence, TrimThreshold.
+    bool fade_in = false, fade_out = false, fade_cross = false, fade_trim = false;
+    int fade_len_ms = 4000, fade_curve = 0, fade_trim_db = -60;
     // Auto-Play (GENERAL -> AUDIO): false (the default) = when the music player starts, the track it opens with (the restored session or the
     // first of the library) is loaded and stands paused at its place; the play / pause key (p) starts it. true = it starts playing at once. config.txt: AutoPlay=.
     bool auto_play = false;

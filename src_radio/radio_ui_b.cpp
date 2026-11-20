@@ -1000,7 +1000,8 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
                     return {sel && sm.col == col ? "\x1b[7m" : "", pad_right(std::to_string(n), 5)};
                 };
                 segs = {{"", "   " + pad_right(l.text, 26) + ":  "}, field(0, c.term_cols), {"", " x "}, field(1, c.term_rows)};
-                if (sel && !sm.editing) segs.push_back({tab_cur, "  [ENTER] type (0: as is)"});
+                segs.push_back({"", "  "});
+                segs.push_back({sel && sm.col == 2 && !sm.editing ? "\x1b[7m" : "", "[ Back to default ]"});   // (as in the music player's row)
             } else
             if ((sm.tab == 1 || sm.tab == 2) && std::string(l.text) == "Volume indicator") {   // two values: the look | gradient or not (LEFT / RIGHT switch, ENTER changes)
                 segs = {{"", "   " + pad_right(l.text, 26) + ":  "}, {sel && sm.col == 0 ? "\x1b[7m" : "", v},

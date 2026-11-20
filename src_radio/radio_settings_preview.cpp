@@ -5,6 +5,7 @@
 // and a spectrogram that reads "Mousiki Plus"): no stream, no file and no network are needed, and what plays is not touched.
 #include "radio_ui_internal.h"
 #include "bars_presets.h"
+#include "bars_help.h"
 #include "creator.h"
 #include "fft_visualizer.h"
 #include "hifi_bars.h"
@@ -97,10 +98,20 @@ void spectro_gradient(const Style& s) {
 // The short texts of the DESCRIPTION box: what an option does, in a few plain lines. "" = nothing to say (the row has a preview or none).
 std::string desc_of(int id) {
     switch (id) {
+        case kRsTermSize:
+            return "The terminal's size at the start (columns x rows); 0 leaves the terminal as it is.\n[ Back to default ] puts it back to 120 x 32.";
+        case kRsPauseFade:
+            return "true: pause and resume fade over about 8 ms (no click).\nfalse: the pause cuts the sound at once.\nOne value for all modes.";
+        case kRsAutoPlay:
+            return "true: the radio tunes the station it was left on as soon as it starts.\nfalse: it starts silent; tune a station yourself.\nOne value for all modes (the music player starts the track it opens with).";
+        case kRsOrder1: case kRsOrder2: case kRsOrder3: case kRsOrder4:
+            return "The order of the \".\" cycle in the scope block: which view comes at this place. Naming a view puts it here, the view that was here takes the place it left.\nViews that are switched off below are skipped.";
         case kRsStartMode:
             return "Which mode Mousiki opens in: the music player, the radio or the audio books.";
         case kRsOnAir:
             return "The ON AIR sign left of the station info. false: the station info moves to the left edge (the pulse wave goes with the sign).";
+        case kRsSharpCorners:
+            return "true: every frame has sharp corners (┌ ┐ └ ┘) -- except this Settings screen, which then gets round ones (╭ ╮ ╰ ╯).\nfalse: the frames are round; the Settings screen is sharp.";
         case kRsSignBorder:
             return "true: the sign sits between two columns of colons.\nfalse: no frame around it.";
         case kRsPulse:
@@ -145,8 +156,12 @@ std::string desc_of(int id) {
             return "Lets the time of a preset stray by up to this many seconds at random, so the changes do not come like clockwork.";
         case kRsMdShuffle:
             return "true: the next preset is chosen at random.\nfalse: the presets follow in the order of their files.";
+        case kRsMdFolder:
+            return "The preset folder that the shuffle below plays from: the Favourites, the Recommended list, or a folder you made in the preset overlay (N there; SHIFT+A adds a preset to one).";
+        case kRsMdBright: case kRsMdSat: case kRsMdContrast:
+            return "The look of the MilkDrop pictures: Brightness 50 % = as drawn (lower darker, higher brighter), Saturation 100 % = the colours as drawn (0 = greyscale), Contrast 0 % = as drawn.";
         case kRsMdFavShuffle:
-            return "true: only your favourite presets play (add them with a in the preset overlay). Without favourites all presets play.";
+            return "true: only the presets of the folder chosen in Shuffle Folder play (the Favourites: add them with a in the preset overlay). Without any in it all presets play.";
         case kRsMdHardCuts:
             return "true: a strong beat cuts to the next preset at once. Hard Cut Sensitivity and Hard Cut Interval decide how easily.";
         case kRsMdBeat:
@@ -172,19 +187,21 @@ std::string desc_of(int id) {
 
 PvKind kind_of(int id, const RadioSettings& c) {
     switch (id) {
-        case kRsPaneStyle: return kPvPane;
+        case kRsPaneStyle: case kRsSharpCorners: return kPvPane;
         case kRsDummy: return kPvDummy;
         case kRsVolIndicator: return kPvVolume;
         case kRsVisualizer: case kRsBarStyle: case kRsHifiRes: case kRsHifiChan: case kRsHifiColor: case kRsHifiScale: case kRsHifiAdapt: case kRsHifiSplit:
         case kRsHifiFScale: case kRsHifiGain: case kRsHifiRange: case kRsBehavior: case kRsFluidity: case kRsDegr: case kRsVisc: return kPvBars;
         case kRsUseOsci: case kRsOsciStyle: return kPvScope;
+        case kRsUseSphere: return kPvSphere;
+        case kRsOrder1: case kRsOrder2: case kRsOrder3: case kRsOrder4: case kRsPauseFade: case kRsAutoPlay: case kRsTermSize: return kPvDesc;
         case kRsUseSpectro: return kPvSpectro;
         case kRsScope:   // (Osci/sphere: what the value in use shows)
             return c.scope_mode == 1 ? kPvSphere : c.scope_mode == 3 ? kPvSpectro : c.scope_mode == 4 ? kPvMilk : c.scope_mode == 2 ? kPvDesc : kPvScope;
         case kRsMarquee: return kPvMarquee;
         case kRsLatinMacrons: case kRsLatinWo: case kRsLatinHanzi: return kPvTranslit;
         case kRsPlayback: return kPvPlay;
-        case kRsMdUseFx: case kRsMdFx: case kRsMdColors: case kRsMdShowName: return kPvMilk;
+        case kRsMdUseFx: case kRsMdFx: case kRsMdColors: case kRsMdShowName: case kRsMdBright: case kRsMdSat: case kRsMdContrast: return kPvMilk;
         default: return desc_of(id).empty() ? kPvNone : kPvDesc;
     }
 }
@@ -194,6 +211,7 @@ struct PvOut {
     int w = 0;                       // the visible width of the rows (centred); 0 = left aligned
     std::string caption;
     bool milk = false;               // the rows are made in the box (a live preset)
+    bool picture = false;            // the rows are placeholders for a spectrogram picture the terminal draws (main loop: pv_spectro_gfx)
 };
 
 void milk_end() {   // the preset from before comes back
@@ -356,6 +374,17 @@ void build_settings_preview(const Style& s, const UiModel& m, const RadioSetting
             rows = {s.key + "Station: TEST Stereo Chords" + R, s.key + "Song   : Test signal" + R, "", top + R, bot + R};
         }
         (void)meta;
+        {   // what the highlighted option does (the box grows with it)
+            std::string key;
+            switch (id) {
+                case kRsVisualizer: key = "onoff"; break; case kRsBarStyle: key = "style"; break; case kRsHifiRes: key = "hifires"; break; case kRsHifiChan: key = "hifichan"; break;
+                case kRsHifiColor: key = "hificolor"; break; case kRsHifiScale: key = "hifiscale"; break; case kRsHifiAdapt: key = "hifiadapt"; break; case kRsHifiSplit: key = "hifisplit"; break;
+                case kRsHifiFScale: key = "hififscale"; break; case kRsHifiGain: key = "hifigain"; break; case kRsHifiRange: key = "hifirange"; break; case kRsBehavior: key = "behavior"; break;
+                case kRsFluidity: key = "fluidity"; break; case kRsDegr: key = "degradation"; break; case kRsVisc: key = "viscosity"; break; default: break;
+            }
+            const std::string help = muisc::bars_help(key);
+            if (!help.empty()) { rows.push_back(""); for (const std::string& w : wrap_lines(help, std::max(20, n), 5)) rows.push_back(w); }
+        }
         o.rows = rows;
         o.w = std::max(n, 28);
         o.caption = std::string(bars_preset_name(bars_preset_of(c.bar_fluidity(), c.bar_degradation(), c.bar_viscosity()))) + ": fluidity " + std::to_string(c.bar_fluidity()) +
@@ -391,9 +420,17 @@ void build_settings_preview(const Style& s, const UiModel& m, const RadioSetting
         sp.motion = 1; sp.span = 10;
         spectro_gradient(s);
         P.spec.update(sp);
-        o.rows = P.spec.braille(sp, cw, std::min(body_h, 12));
+        if (m.gfx_proto != GfxProto::None) {   // the picture wherever the terminal can show one, braille only without Kitty / Sixel
+            m.pv_spectro_set = sp;
+            m.pv_spectro = &P.spec;
+            for (int r = 0; r < std::min(body_h, 12); ++r) o.rows.push_back(gfx_hole(cw));
+            o.picture = true;
+            o.caption = "spectrogram (image; default look)";
+        } else {
+            o.rows = P.spec.braille(sp, cw, std::min(body_h, 12));
+            o.caption = "spectrogram (braille; default look)";
+        }
         o.w = cw;
-        o.caption = "spectrogram (braille; default look)";
         break;
     }
     case kPvSphere: {
@@ -434,6 +471,11 @@ void build_settings_preview(const Style& s, const UiModel& m, const RadioSetting
             if (display_width(t) <= cw) { rows.push_back({t, t}); return; }
             for (const std::string& w : wrap_lines(t, cw, 6)) rows.push_back({w, w});
         };
+        // An example whose result never changes: the source with its translation, the result under it (lit, no arrow), as the wide rows above.
+        auto same = [&](const std::string& src, const std::string& result) {
+            rows.push_back({src, src});
+            rows.push_back({"  " + result, "  " + lit + result + off});
+        };
         const int mc = c.latin_macrons ? 1 : 0, wo = c.latin_wo ? 1 : 0, hz = c.latin_hanzi;
         auto tm = [&](const char* t, int v) { return transliterate_as(t, v, -1, -1); };
         auto tw = [&](const char* t, int v) { return transliterate_as(t, -1, v, -1); };
@@ -458,10 +500,17 @@ void build_settings_preview(const Style& s, const UiModel& m, const RadioSetting
             example("张悬", {th("张悬", 0), th("张悬", 1), th("张悬", 2)}, hz, {"Leave", "Chin.", "Jap."});
             line("(张 悬 are only used in Chinese: the same for every value)");
             if (hz == 2 && th("東京", 2) == "東京") line("Jap. needs the kanji reader; without it they stay.");
-            line("Text with kana is not changed by this row. A short poem:");
-            example("草の名も", {th("草の名も", hz)}, 0);
-            example("寂しうなりけり", {th("寂しうなりけり", hz)}, 0);
-            example("春の雨", {th("春の雨", hz)}, 0);
+            line("A short poem of kanji only (this option decides):");
+            example("春眠不觉晓  \"Spring sleep, dawn goes unnoticed\"", {th("春眠不觉晓", 0), th("春眠不觉晓", 1), th("春眠不觉晓", 2)}, hz, {"Leave", "Chin.", "Jap."});
+            example("花落知多少  \"how many flowers fell?\"", {th("花落知多少", 0), th("花落知多少", 1), th("花落知多少", 2)}, hz, {"Leave", "Chin.", "Jap."});
+            line("Jap. gives the Japanese sound readings of the characters: a Chinese poem is not Japanese, so it reads oddly.");
+            line("A poem mixed with kana always stays the same (kana show it is Japanese, this option is not used):");
+            same("草の名も  \"even the names of the grass\"", th("草の名も", hz));
+            same("寂しう なりけり  \"has grown lonely\"", th("寂しう なりけり", hz));
+            same("春の雨  \"spring rain\"", th("春の雨", hz));
+            if (th("春の雨", hz).find("雨") != std::string::npos)   // (the reader has not read it here: what it makes of it)
+                line("with the reader: kusa no na mo / sabishiu narikeri / haru no ame");
+            line("kanji reader: optional (pip install pykakasi janome); the radio uses it while Latin letters are on");
             cap = std::string("Translit. Kanji: ") + (hz == 1 ? "Chin." : hz == 2 ? "Jap." : "Leave");
         }
         for (const PRow& r : rows) {
@@ -619,6 +668,12 @@ void build_settings_preview(const Style& s, const UiModel& m, const RadioSetting
     }
     const int nrows = std::min(static_cast<int>(o.rows.size()), body_h);
     if (!o.milk) vtop = std::max(0, (body_h - nrows) / 2);
+    if (o.picture && nrows > 0) {   // where the picture goes (0-based row and column)
+        m.pv_spectro_area[0] = top + 1 + vtop;
+        m.pv_spectro_area[1] = x0 + xo;
+        m.pv_spectro_area[2] = o.w;
+        m.pv_spectro_area[3] = nrows;
+    }
     for (int i = 0; i < nrows; ++i) {
         const std::string& row = o.rows[static_cast<size_t>(i)];
         if (row.empty()) continue;

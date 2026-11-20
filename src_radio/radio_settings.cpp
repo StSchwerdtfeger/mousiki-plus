@@ -142,6 +142,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {false, kRsAudioDevice, "Choose Audio Device"},
         {false, kRsStereo, "Stereo sound"}, {false, kRsNormalize, "Normalize volume"},
         {false, kRsTuneNoise, "Tuning noise"}, {false, kRsTimeshift, "Timeshift buffer"},
+        {false, kRsPauseFade, "Pause Fade"}, {false, kRsAutoPlay, "Auto-Play"},
         {true, -1, ""},
         {true, -1, "TEXT"},
         {false, kRsTermDefaultFont, "Terminal default font"},
@@ -165,17 +166,22 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {false, kRsBehavior, "Bars Behavior"}, {false, kRsFluidity, "Bars Fluidity"}, {false, kRsDegr, "Bars Degradation"}, {false, kRsVisc, "Bars Viscosity"},
         {true, -1, ""},
         {true, -1, "OSCI/SPECTRO SETTINGS"},
-        {false, kRsUseOsci, "Use oscilloscope"}, {false, kRsUseSpectro, "Use spectrogram"},   // false: not in the "." cycle (the window still works)
         {false, kRsShareProfiles, "Modes Share Settings"},
-        {false, kRsScope, "Osci/sphere"}, {false, kRsOsciStyle, "Osci style"},
+        {false, kRsOsciStyle, "Osci style"},
         {true, -1, ""},
         {true, -1, "MILKDROP"},   // the MilkDrop visuals in the scope block (projectM, when installed)
-        {false, kRsUseMilkdrop, "Use MilkDrop"}, {false, kRsMdFps, "MilkDrop Frame Rate"}, {false, kRsMdRes, "MilkDrop Resolution"}, {false, kRsMdGpu, "MilkDrop GPU"},
+        {false, kRsMdFps, "MilkDrop Frame Rate"}, {false, kRsMdRes, "MilkDrop Resolution"}, {false, kRsMdGpu, "MilkDrop GPU"},
         {false, kRsMdDuration, "Preset Duration"}, {false, kRsMdShuffle, "Shuffle Presets"}, {false, kRsMdHardCuts, "Hard Cuts"},
         {false, kRsMdBeat, "Hard Cut Sensitivity"}, {false, kRsMdTransition, "Preset Transition"}, {false, kRsMdShowName, "Show Preset Name"},
         {false, kRsMdFavShuffle, "Shuffle Favourites"}, {false, kRsMdHcd, "Hard Cut Interval"}, {false, kRsMdVar, "Duration Variance"},
         {false, kRsMdMesh, "Mesh Detail"}, {false, kRsMdAspect, "Aspect Correction"}, {false, kRsMdRatio, "Aspect Ratio"}, {false, kRsMdClean, "Clean Start"},
         {false, kRsMdUseFx, "Use Effect"}, {false, kRsMdFx, "MilkDrop Effect"}, {false, kRsMdColors, "Sixel Colours"},
+        {true, -1, ""},
+        {true, -1, "VIZ ORDER"},   // the order of the "." cycle
+        {false, kRsOrder1, "Viz Order 1"}, {false, kRsOrder2, "Viz Order 2"}, {false, kRsOrder3, "Viz Order 3"}, {false, kRsOrder4, "Viz Order 4"},
+        {true, -1, ""},
+        {true, -1, "MAIN UI VIZ FIELD"},   // the field right of the station info
+        {false, kRsScope, "Viz Field"}, {false, kRsUseOsci, "Use Oscilloscope"}, {false, kRsUseSpectro, "Use Spectrogram"}, {false, kRsUseSphere, "Use Sphere"}, {false, kRsUseMilkdrop, "Use MilkDrop"},
     };
     if (tab == 1) return on_off;
     if (g_rs_hifi) return anima;
@@ -257,6 +263,9 @@ bool* flag_of(RadioSettings& s, int id) {
         case kRsLatinWo: return &s.latin_wo;
         case kRsUseOsci: return &s.use_osci;
         case kRsUseSpectro: return &s.use_spectro;
+        case kRsUseSphere: return &s.use_sphere;
+        case kRsPauseFade: return &s.pause_fade;
+        case kRsAutoPlay: return &s.auto_play;
         case kRsBlackBg: return &s.black_background;
         case kRsUseMilkdrop: return &s.use_milkdrop;
         case kRsMdShuffle: return &s.md_shuffle;
@@ -332,6 +341,7 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsDegr: return std::to_string(s.bar_degradation());
         case kRsVisc: return std::to_string(s.bar_viscosity());
         case kRsScope: return scope_mode_name(s);
+        case kRsOrder1: case kRsOrder2: case kRsOrder3: case kRsOrder4: { static const char* n[4] = {"osci", "sphere", "spectro", "milkdrop"}; return n[std::clamp(s.viz_order[id - kRsOrder1], 0, 3)]; }
         case kRsOsciStyle: return s.osci_style == 1 ? "image" : "braille";
         case kRsMdFps: return std::to_string(s.md_fps) + " fps";
         case kRsMdRes: return std::to_string(s.md_res) + " px";
@@ -414,6 +424,14 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
         case kRsHifiRange: s.hifi_range = std::clamp(s.hifi_range + 4 * dir, 40, 100); break;
         case kRsDegr: cycle_int(s.bar_degradation(), 1, 10, dir); break;
         case kRsVisc: cycle_int(s.bar_viscosity(), 0, 10, dir); break;
+        case kRsOrder1: case kRsOrder2: case kRsOrder3: case kRsOrder4: {   // the place takes the next / previous view; the place that held it takes the old one (a swap)
+            const int slot = id - kRsOrder1;
+            const int old = s.viz_order[slot];
+            const int nw = ((old + (dir < 0 ? 3 : 1)) % 4 + 4) % 4;
+            for (int i = 0; i < 4; ++i) if (s.viz_order[i] == nw) s.viz_order[i] = old;
+            s.viz_order[slot] = nw;
+            break;
+        }
         case kRsScope: step(s.scope_mode, 5); break;   // osci, sphere, off, spectro, milkdrop (an unusable MilkDrop shows the oscilloscope: radio_milkdrop.cpp)
         case kRsOsciStyle: step(s.osci_style, 2); break;
         case kRsMdFps: s.md_fps = radio_md_step(0, s.md_fps, dir == 0 ? 1 : dir); break;
@@ -438,20 +456,35 @@ std::string osci_row_value(const RadioSettings& s, int row) {
 
 void osci_adjust(RadioSettings& s, int row, int dir) {
     if (row != kOrDisplay) { muisc::osci_adjust(static_cast<VizPrefs&>(s), row, dir); return; }
-    {   // osci -> sphere -> spectro (off only on the GENERAL tab; switched-off ones are skipped)
-            static const int order[3] = {0, 1, 3};
-            int i = s.scope_mode == 1 ? 1 : s.scope_mode == 3 ? 2 : 0;
-            for (int k = 0; k < 3; ++k) {
-                i = (i + (dir > 0 ? 1 : 2)) % 3;
-                if ((order[i] == 0 && !s.use_osci) || (order[i] == 3 && !s.use_spectro)) continue;
-                break;
-            }
-            s.scope_mode = order[i];
+    {   // the views of the VIZ ORDER, without MilkDrop (it has its own overlay); switched-off ones are skipped
+        const int nx = radio_next_scope_mode(s, s.scope_mode == 4 ? 1 : s.scope_mode, dir < 0, false);
+        s.scope_mode = nx;
     }
 }
+static std::string viz_order_text(const RadioSettings& s) {
+    static const char* n[4] = {"osci", "sphere", "spectro", "milkdrop"};
+    std::string t;
+    for (int i = 0; i < 4; ++i) t += std::string(i ? "," : "") + n[std::clamp(s.viz_order[i], 0, 3)];
+    return t;
+}
+int radio_viz_mode(int viz) { static const int m[4] = {0, 1, 3, 4}; return m[std::clamp(viz, 0, 3)]; }
+int radio_next_scope_mode(const RadioSettings& s, int cur, bool back, bool milkdrop_ok) {
+    int pos = back ? 4 : -1;   // (a block that is off: the first / last of the order)
+    for (int i = 0; i < 4; ++i) if (radio_viz_mode(s.viz_order[i]) == cur) pos = i;
+    for (int k = 1; k <= 4; ++k) {
+        const int m = radio_viz_mode(s.viz_order[((pos + (back ? -k : k)) % 4 + 4) % 4]);
+        if ((m == 0 && !s.use_osci) || (m == 1 && !s.use_sphere) || (m == 3 && !s.use_spectro) || (m == 4 && !milkdrop_ok)) continue;
+        return m;
+    }
+    return cur;
+}
 void radio_enforce_visuals(RadioSettings& s) {
-    if (s.scope_mode == 0 && !s.use_osci) s.scope_mode = 1;      // the sphere instead
-    if (s.scope_mode == 3 && !s.use_spectro) s.scope_mode = 1;
+    const int m = s.scope_mode;
+    if (m == 2) return;   // (off stays off)
+    const bool bad = (m == 0 && !s.use_osci) || (m == 1 && !s.use_sphere) || (m == 3 && !s.use_spectro) || (m == 4 && !s.use_milkdrop);
+    if (!bad) return;
+    const int nx = radio_next_scope_mode(s, m, false, s.use_milkdrop);
+    s.scope_mode = nx == m ? 1 : nx;   // none is on: the sphere is always there
 }
 
 void norm_adjust(RadioSettings& s, int row, int dir) {
@@ -731,6 +764,7 @@ void load_player_mode_settings(RadioSettings& s) {
             if (v.empty()) return def;
             return !(v == "false" || v == "0" || v == "no" || v == "off");
         };
+        s.pause_fade = flag("pausefade", true); s.auto_play = flag("autoplay", false);
         s.use_terminal_settings = flag("useterminalsettings", false); s.full_screen = flag("fullscreen", false);
         s.reduce_motion = flag("reducemotionwhenpaused", true); s.update_check = flag("updatecheck", true);
         auto num = [](const char* key, int def) { try { return std::stoi(player_config_value(key)); } catch (...) { return def; } };
@@ -767,6 +801,7 @@ void save_player_mode_settings(const RadioSettings& s) {
             const bool was = v.empty() ? def : !(v == "false" || v == "0" || v == "no" || v == "off");
             if (now != was) set_player_config_value(key, now ? "true" : "false");
         };
+        put("PauseFade", "pausefade", s.pause_fade, true); put("AutoPlay", "autoplay", s.auto_play, false);
         put("UseTerminalSettings", "useterminalsettings", s.use_terminal_settings, false); put("FullScreen", "fullscreen", s.full_screen, false);
         put("ReduceMotionWhenPaused", "reducemotionwhenpaused", s.reduce_motion, true); put("UpdateCheck", "updatecheck", s.update_check, true);
         put("LatinMacrons", "latinmacrons", s.latin_macrons, false); put("LatinWo", "latinwo", s.latin_wo, false);
@@ -1090,6 +1125,20 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("SignBorder")) s.sign_border = as_bool(*v, s.sign_border);
     if (auto v = get("UseOscilloscope")) s.use_osci = as_bool(*v, s.use_osci);
     if (auto v = get("UseSpectrogram")) s.use_spectro = as_bool(*v, s.use_spectro);
+    if (auto v = get("UseSphere")) s.use_sphere = as_bool(*v, s.use_sphere);
+    if (auto v = get("VizOrder")) {   // osci,sphere,spectro,milkdrop in some order; a name that is missing goes to the end
+        std::vector<int> order;
+        std::istringstream in(*v);
+        std::string part;
+        while (std::getline(in, part, ',')) {
+            const std::string n = ascii_lower_str(trim_ws(part));
+            const int id = n == "osci" ? 0 : n == "sphere" ? 1 : n == "spectro" ? 2 : n == "milkdrop" ? 3 : -1;
+            if (id >= 0 && std::find(order.begin(), order.end(), id) == order.end()) order.push_back(id);
+        }
+        for (int id = 0; id < 4; ++id) if (std::find(order.begin(), order.end(), id) == order.end()) order.push_back(id);
+        for (int i = 0; i < 4; ++i) s.viz_order[i] = order[static_cast<size_t>(i)];
+    }
+    if (auto v = get("LastStation")) s.last_station = *v;
     if (auto v = get("WizardSeen")) s.wizard_seen = as_bool(*v, s.wizard_seen);
     if (auto v = get("PulseWave")) s.pulse_wave = as_bool(*v, s.pulse_wave);
     if (auto v = get("DummyButtons")) s.dummy_buttons = as_bool(*v, s.dummy_buttons);
@@ -1328,6 +1377,11 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "# (SHIFT+8 spectrogram, SHIFT+9 oscilloscope) work either way\n"
          "UseOscilloscope=" << (s.use_osci ? "true" : "false") << "\n"
          "UseSpectrogram=" << (s.use_spectro ? "true" : "false") << "\n"
+         "UseSphere=" << (s.use_sphere ? "true" : "false") << "\n"
+         "# the order of the \".\" cycle (SHIFT+. the other way round): osci, sphere, spectro, milkdrop in some order\n"
+         "VizOrder=" << viz_order_text(s) << "\n"
+         "# the station that was tuned last (what Auto-Play tunes at the start)\n"
+         "LastStation=" << s.last_station << "\n"
          "# static that fades in when another station is tuned and fades out when the stream plays\n"
          "TuneNoise=" << (s.tune_noise ? "true" : "false") << "\n"
          "# a station name that is too long for its column scrolls; false = it is cut off with \"...\" instead\n"

@@ -48,6 +48,61 @@ long long known_end_frames(StreamingPcm& pcm) {
 } // namespace
 
 namespace {
+// ---- song fades (audio_fade.h) ----
+// The first frame to play / one past the last one of a track: with Trim Silence the measured ones (not for a windowed buffer, which holds
+// only part of the track), else 0 / the end of the track. -1: the end is not known yet.
+long long eff_start(const FadeSnap& f, const StreamingPcm& p) {
+    if (!f.on || !f.trim || p.windowed || p.trim_thr_db.load(std::memory_order_acquire) != f.thr_db) return 0;
+    return std::max<long long>(0, p.trim_start.load(std::memory_order_acquire));
+}
+long long eff_end(const FadeSnap& f, StreamingPcm& p) {
+    if (f.on && f.trim && !p.windowed && p.trim_thr_db.load(std::memory_order_acquire) == f.thr_db) {
+        const long long e = p.trim_end.load(std::memory_order_acquire);
+        if (e >= 0) return e;
+    }
+    return known_end_frames(p);
+}
+
+// Measures the silence at the two ends of a decoded track (once per threshold). Any thread; reads only frames that are published.
+void analyse_trim(StreamingPcm& p, const FadeSnap& f) {
+    if (!f.on || !f.trim) return;
+    if (p.trim_thr_db.load(std::memory_order_acquire) == f.thr_db && p.trim_start.load() >= 0 && (p.windowed || p.trim_end.load() >= 0)) return;
+    if (p.trim_thr_db.load(std::memory_order_acquire) != f.thr_db) { p.trim_start.store(-1); p.trim_end.store(-1); }
+    if (p.windowed) { p.trim_start.store(0); p.trim_end.store(-1); p.trim_thr_db.store(f.thr_db, std::memory_order_release); return; }
+    const int ch = p.channels >= 2 ? 2 : 1, rate = std::max(1, p.sample_rate);
+    const size_t avail = p.available.load(std::memory_order_acquire);
+    const bool done = p.decode_done.load(std::memory_order_acquire);
+    const size_t cap = static_cast<size_t>(fade::kMaxTrimSeconds * rate);
+    if (p.trim_start.load() < 0) {
+        const long long l = fade::scan_lead(p.data.data(), ch, std::min(avail, cap), rate, f.thr);
+        if (l >= 0) p.trim_start.store(fade::trimmed_start(l, rate));
+        else if (done || avail >= cap) p.trim_start.store(0);   // (nothing audible in that stretch: not cut)
+    }
+    if (p.trim_end.load() < 0 && done) {
+        const long long t = fade::scan_tail(p.data.data(), ch, avail, rate, f.thr);
+        long long e = fade::trimmed_end(t, avail, rate);
+        const long long s0 = std::max<long long>(0, p.trim_start.load());
+        if (e <= s0 + rate / 10) e = static_cast<long long>(avail);   // (nothing left to play: not cut)
+        p.trim_end.store(e);
+    }
+    p.trim_thr_db.store(f.thr_db, std::memory_order_release);
+}
+
+// A crossfade from `A` (ends at endA) into `B`: where it starts, how long it is and where `B` starts. on = false: no crossfade.
+struct XfPlan { bool on = false; long long t0 = 0, len = 0, sB = 0; };
+XfPlan plan_xf(const FadeSnap& f, StreamingPcm& A, long long startA, long long endA, StreamingPcm* B) {
+    XfPlan x;
+    if (!f.on || !f.cross || !B || endA < 0) return x;
+    const long long sB = eff_start(f, *B), endB = eff_end(f, *B);
+    long long len = std::min<long long>(f.len, (endA - startA) / 2);
+    if (endB >= 0) len = std::min<long long>(len, (endB - sB) / 2);
+    if (len < std::max(1, A.sample_rate) / 20) return x;   // (less than 50 ms: no crossfade)
+    x.on = true; x.len = len; x.t0 = endA - len; x.sB = sB;
+    return x;
+}
+} // namespace
+
+namespace {
 // Tests only (MOUSIKI_AUDIO_TAP=<file> together with MOUSIKI_NULL_AUDIO=1): every block that goes to the (silent) device is appended to
 // <file> as float32 stereo, and <file>.t gets one line per block: the steady-clock time in microseconds and the number of frames. That is
 // how the UI tests measure the gap between two tracks (the samples between them, and the time the device was closed).
@@ -85,14 +140,21 @@ void Player::data_callback_impl(ma_device* device, void* output, const void* /*i
     // Gapless: a track is handed over and the one that plays ends inside this block -- its last frames, then straight on into the next
     // one (from its first frame) in the same block. Not while paused, not at another playback speed.
     if (pcm && self->next_.load(std::memory_order_acquire) && !self->paused_.load() && std::fabs(self->speed_.load(std::memory_order_relaxed) - 1.0) <= 1e-3) {
-        const long long end = known_end_frames(*pcm);
+        const FadeSnap fs = self->fade_snap(self->sample_rate_.load());
+        const long long end = eff_end(fs, *pcm);   // (with Trim Silence: where the audible part of the track ends)
         const long long cur = self->cursor_frames_.load();
         if (end >= 0 && end - cur <= static_cast<long long>(frame_count)) {   // (<=: a block that ends exactly at the end must not report it)
             const ma_uint32 n1 = static_cast<ma_uint32>(std::clamp<long long>(end - cur, 0, frame_count));
             if (n1 > 0) render(self, pcm, out, n1, /*may_finish=*/false);   // (the main loop must not see the end: the next one follows)
+            StreamingPcm* nb_peek = self->next_.load(std::memory_order_acquire);
+            const XfPlan xp = plan_xf(fs, *pcm, eff_start(fs, *pcm), end, nb_peek);
             if (StreamingPcm* nx = self->next_.exchange(nullptr, std::memory_order_acq_rel)) {
-                self->cursor_frames_.store(0);
-                if (nx->windowed) nx->play_pos.store(0, std::memory_order_relaxed);
+                // the new track goes on where the crossfade has brought it (its first audible frame without one)
+                const long long start_nx = nx == nb_peek && xp.on ? xp.sB + xp.len : eff_start(fs, *nx);
+                self->cursor_frames_.store(start_nx);
+                self->entered_by_xf_ = nx == nb_peek && xp.on;
+                if (nx == nb_peek && xp.on) self->norm_cur_ = norm_target_for(self, *nx, nx->channels >= 2 && !self->stereo_enabled_.load());
+                if (nx->windowed) nx->play_pos.store(start_nx, std::memory_order_relaxed);
                 self->active_.store(nx, std::memory_order_release);
                 self->finished_.store(false);
                 if (frame_count > n1) render(self, nx, out + 2 * static_cast<size_t>(n1), frame_count - n1);
@@ -212,6 +274,36 @@ void Player::render(Player* self, StreamingPcm* pcm_ptr, float* out, ma_uint32 f
         return (pcm_ch == 1 || ch == 0) ? src[k] : src[k + 1];
     };
 
+    // Song fades (audio_fade.h): the first / last frame to play, the crossfade into the handed-over track, the gains of this block.
+    // Not at another playback speed (the audio book player).
+    const FadeSnap fs = self->fade_snap(sr_now);
+    const bool fades_on = fs.on && !stretch;
+    long long fS = 0, fE = -1;
+    XfPlan xf;
+    StreamingPcm* nb = nullptr;
+    size_t b_lo = 0, b_avail = 0;
+    float b_norm = 1.0f;
+    int b_ch = 1;
+    bool b_stereo = false, b_fold = false;
+    if (fades_on) {
+        fS = eff_start(fs, pcm);
+        fE = eff_end(fs, pcm);
+        if (cur < fS) {   // the silence at the start is cut: on from the first audible frame
+            long long expected = cur;
+            if (self->cursor_frames_.compare_exchange_strong(expected, fS)) cur = fS;
+            else cur = expected;
+        }
+        nb = self->next_.load(std::memory_order_acquire);
+        xf = plan_xf(fs, pcm, fS, fE, nb);
+        if (xf.on) {
+            nb->readable(b_lo, b_avail);
+            b_ch = nb->channels >= 2 ? 2 : 1;
+            b_stereo = b_ch == 2 && self->stereo_enabled_.load();
+            b_fold = b_ch == 2 && !b_stereo;
+            b_norm = norm_on ? norm_target_for(self, *nb, b_fold) : 1.0f;
+        }
+    }
+    const bool fade_trim_end = fades_on && fs.trim && fE >= 0;
     // Windowed: the position only moves on over frames that are actually there (after a seek the decoder needs a
     // moment to get there: that moment is a short silence, not a skipped stretch of the track).
     const float ramp_step = 1.0f / std::max(8.0f, 0.008f * static_cast<float>(sr_now));   // 8 ms from full to silent
@@ -234,6 +326,8 @@ void Player::render(Player* self, StreamingPcm* pcm_ptr, float* out, ma_uint32 f
             b = pcm_ch == 1 ? src[k] : src[k + 1];
             have = true;
         } else if (windowed) gap = true;
+        if (have && fade_trim_end && idx >= fE) have = false;   // (the silence at the end is cut)
+        bool mixing = false;
         if (have) {
             if (raw_out) {
                 raw_out[2 * i] = a;
@@ -247,6 +341,31 @@ void Player::render(Player* self, StreamingPcm* pcm_ptr, float* out, ma_uint32 f
             } else {
                 l = r = 0.5f * (a + b);
             }
+            if (fades_on) {   // the fade in / out of this track, or the crossfade into the next one
+                float fg = 1.0f;
+                if (xf.on && idx >= xf.t0 && idx < fE) {
+                    const float pr = static_cast<float>(idx - xf.t0) / static_cast<float>(xf.len);
+                    fg = fade::xfade_out(fs.curve, pr);
+                    const float gb = fade::xfade_in(fs.curve, pr) * std::min(8.0f, b_norm / std::max(0.05f, norm_cur));
+                    const long long bi = xf.sB + (idx - xf.t0);
+                    if (bi >= 0 && static_cast<size_t>(bi) >= b_lo && static_cast<size_t>(bi) < b_avail) {
+                        const size_t kb = nb->slot(static_cast<size_t>(bi));
+                        const float ba = nb->data[kb], bb = b_ch == 1 ? nb->data[kb] : nb->data[kb + 1];
+                        const float lb = b_ch == 1 ? ba : b_stereo ? ba : 0.5f * (ba + bb);
+                        const float rb = b_ch == 1 ? ba : b_stereo ? bb : 0.5f * (ba + bb);
+                        l = l * fg + lb * gb;
+                        r = r * fg + rb * gb;
+                        mixing = true;
+                        fg = 1.0f;
+                    }
+                } else if (fs.out && !xf.on && fE >= 0 && idx < fE && fE - idx < fs.len) {
+                    fg = fade::shape(fs.curve, static_cast<float>(fE - idx) / static_cast<float>(fs.len));
+                }
+                if (fs.in && !self->entered_by_xf_ && idx >= fS && idx - fS < fs.len)
+                    fg *= fade::shape(fs.curve, static_cast<float>(idx - fS) / static_cast<float>(fs.len));
+                l *= fg;
+                r *= fg;
+            }
             if (eq_run) self->eq_.process(l, r); // before volume/normalisation: tone shaping on the raw signal
             if (smooth) {
                 if (want_paused) ramp = std::max(0.0f, ramp - ramp_step);
@@ -256,7 +375,7 @@ void Player::render(Player* self, StreamingPcm* pcm_ptr, float* out, ma_uint32 f
             l *= g;
             r *= g;
         }
-        if (norm_on || norm_cur > 1.001f || eq_run) { l = soft_limit(l); r = soft_limit(r); }
+        if (norm_on || norm_cur > 1.001f || eq_run || mixing) { l = soft_limit(l); r = soft_limit(r); }
         out[2 * i]     = l;
         out[2 * i + 1] = r;
         if (mono_out) mono_out[i] = 0.5f * (l + r);
@@ -302,6 +421,8 @@ void Player::render(Player* self, StreamingPcm* pcm_ptr, float* out, ma_uint32 f
     if (pcm.decode_done.load() &&
         new_cur >= 0 && static_cast<size_t>(new_cur) >= pcm.available.load(std::memory_order_acquire)) {
         if (may_finish) self->finished_.store(true);
+    } else if (fade_trim_end && new_cur >= fE && may_finish) {
+        self->finished_.store(true);   // (the silence at the end is cut: the track is over where the audible part ends)
     }
     // a seek (seek_relative) while this block was being made wins over the position this block reached
     self->ts_last_cur_ = new_cur;
@@ -525,6 +646,47 @@ void Player::set_normalization(bool enabled, float target_lufs, float max_boost_
     norm_target_lufs_.store(std::clamp(target_lufs, -40.0f, 0.0f));
     norm_max_boost_db_.store(std::clamp(max_boost_db, 0.0f, 24.0f));
     norm_enabled_.store(enabled);
+}
+
+void Player::set_fade_options(const FadeOptions& o) {
+    fo_in_.store(o.in); fo_out_.store(o.out); fo_cross_.store(o.cross); fo_trim_.store(o.trim);
+    fo_len_ms_.store(std::clamp(o.len_ms, 500, 20000));
+    fo_curve_.store(std::clamp(o.curve, 0, fade::kCurveCount - 1));
+    fo_thr_db_.store(std::clamp(o.thr_db, -90, -20));
+    fo_enabled_.store(o.enabled);
+}
+
+FadeSnap Player::fade_snap(int sr) const {
+    FadeSnap f;
+    f.in = fo_in_.load(); f.out = fo_out_.load(); f.cross = fo_cross_.load(); f.trim = fo_trim_.load();
+    f.on = fo_enabled_.load() && (f.in || f.out || f.cross || f.trim);
+    f.curve = fo_curve_.load();
+    f.thr_db = fo_thr_db_.load();
+    f.thr = fade::db_to_lin(f.thr_db);
+    f.len = static_cast<long long>(fo_len_ms_.load()) * std::max(1, sr) / 1000;
+    return f;
+}
+
+float Player::norm_target_for(const Player* self, const StreamingPcm& p, bool fold_to_mono) {
+    if (!self->norm_enabled_.load()) return 1.0f;
+    const float lufs = (fold_to_mono ? p.loudness_mono_lufs : p.loudness_lufs).load(std::memory_order_relaxed);
+    if (std::isnan(lufs)) return 1.0f;
+    const float db = std::clamp(self->norm_target_lufs_.load() - lufs, -30.0f, self->norm_max_boost_db_.load());
+    return std::pow(10.0f, db / 20.0f);
+}
+
+// UI thread, every frame: measures the silence at the ends of the playing and the preloaded track (cheap: nothing to do once measured).
+void Player::service_trim() {
+    const FadeSnap f = fade_snap(std::max(1, sample_rate_.load()));
+    if (!f.on || !f.trim) return;
+    std::shared_ptr<StreamingPcm> a, b;
+    {
+        std::unique_lock<std::mutex> lk(mutex_, std::try_to_lock);
+        if (!lk.owns_lock()) return;
+        a = pcm_; b = next_pcm_;
+    }
+    if (a) analyse_trim(*a, f);
+    if (b) analyse_trim(*b, f);
 }
 
 void Player::set_equalizer(bool enabled, const EqGains& gains_db) {

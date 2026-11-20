@@ -26,6 +26,7 @@ enum SetId {
     kSidBookSpeed,     // audio book player: the playback speed (0.5x - 3.0x, the pitch stays)
     kSidBarStyle, kSidHifiRes, kSidHifiChan, kSidHifiColor, kSidHifiScale, kSidHifiAdapt, kSidHifiSplit, kSidHifiFScale, kSidHifiGain, kSidHifiRange, kSidBarBehavior,   // SPECTRUM BARS: classic / Hi-Fi and the three rows only Hi-Fi shows
     kSidReduceMotion,  // TERMINAL: a low frame rate while paused and untouched
+    kSidSharpCorners,  // MAIN UI PANE STYLE: sharp corners for all frames (not in the Settings screen)
     kSidDiskBorder,    // DISK: the ":  :" column between the disk and the meta data on / off
     kSidPauseFade,     // AUDIO: pause / resume fade over about 8 ms (no click)
     kSidCliScripts,    // CLI / REMOTE / UPDATES: [ENTER] opens the script overlay
@@ -33,9 +34,10 @@ enum SetId {
     kSidSpectroHistory,  // OSCI/SPECTRO SETTINGS: keep analysing the sound while no spectrogram is shown (true, default) or only while one is (false: less RAM)
     kSidAutoPlay,      // AUDIO: the track the music player opens with starts playing (true) or stands paused (false, default)
     kSidGapless,       // AUDIO: Gapless Playback off / album / full
+    kSidFadeIn, kSidFadeOut, kSidFadeCross, kSidFadeLen, kSidFadeCurve, kSidFadeTrim, kSidFadeThr, kSidVideoAuto, kSidBigMdNoVideo,   // AUDIO FADE OPTIONS (music player only)
     // MILKDROP (ANIMA/VIZ): the MilkDrop visuals (milkdrop.h)
-    kSidUseMilkdrop, kSidMdFps, kSidMdRes, kSidMdDuration, kSidMdShuffle, kSidMdFavShuffle, kSidMdCutSens, kSidMdHardCuts, kSidMdTransition, kSidMdFx, kSidMdColors, kSidMdShowName, kSidMdAuto,
-    kSidMdUseFx, kSidMdPreset, kSidMdBrowse, kSidMdGpu, kSidMdHcd, kSidMdAspect, kSidMdRatio, kSidMdMesh, kSidMdVar, kSidMdClean, kSidMdLock, kSidMdRandom,   // (Use Effect on / off; Default Preset: the preset the visuals start with; Preset Overlay: [ENTER] chooses it)
+    kSidUseMilkdrop, kSidMdFps, kSidMdRes, kSidMdDuration, kSidMdShuffle, kSidMdFolder, kSidMdFavShuffle, kSidMdCutSens, kSidMdHardCuts, kSidMdTransition, kSidMdFx, kSidMdColors, kSidMdShowName, kSidMdAuto,
+    kSidMdUseFx, kSidMdPreset, kSidMdBrowse, kSidMdGpu, kSidMdHcd, kSidMdAspect, kSidMdRatio, kSidMdMesh, kSidMdVar, kSidMdBright, kSidMdSat, kSidMdContrast, kSidMdClean, kSidMdLock, kSidMdRandom,   // (Use Effect on / off; Default Preset: the preset the visuals start with; Preset Overlay: [ENTER] chooses it)
     kSidPaneStyle,     // MAIN UI PANE STYLE: one box / three panes I-III round disk | meta data | lyrics / viz field
     kSidPauseSphere,   // SPHERE: the sphere stops turning while the track is paused
 };

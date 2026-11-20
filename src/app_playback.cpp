@@ -116,7 +116,7 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
     // "Use mp4 audio for this song" (Style Option / video options): a song paired with a video plays the audio of that video instead of its
     // own file. Worked out here on the main thread (the pairing looks into the library); a video itself always plays its own audio.
     std::string video_audio;
-    if (is_local && settings_.video_mode && !LocalSource::is_video_file(local_path) && cover_track_video_opts(path_utf8(local_path)).mp4audio == 1)
+    if (is_local && settings_.video_mode && !LocalSource::is_video_file(local_path) && video_own(path_utf8(local_path)).mp4audio == 1)
         video_audio = video_source_for(local_path);
     LoadJob job;
     job.local_path = local_path; job.title = title; job.artist = artist; job.location_label = location_label; job.is_local = is_local;
@@ -992,6 +992,7 @@ void App::queue_add_selected_impl(bool at_end) {
         queue_.insert(queue_.begin() + pos, std::move(item));
         ++qst_.next_run;
     }
+    queue_added_at_ = std::chrono::steady_clock::now();
     clamp_queue_selected();
     queue_reveal(at_end ? static_cast<int>(queue_.size()) - 1 : std::clamp(qst_.next_run - 1, 0, static_cast<int>(queue_.size()) - 1));
 }
@@ -1013,6 +1014,7 @@ std::string App::queue_playlist(const std::string& name) {
         queue_.push_back({true, t.title, t.artist, t.path, "", false, name});
         ++added;
     }
+    if (added > 0) queue_added_at_ = std::chrono::steady_clock::now();
     clamp_queue_selected();
     queue_reveal(static_cast<int>(queue_.size()) - 1);
     return "queued " + std::to_string(added) + " track" + (added == 1 ? "" : "s") + " from \"" + name + "\""

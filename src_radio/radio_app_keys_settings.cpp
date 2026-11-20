@@ -371,7 +371,14 @@ bool RadioApp::key_settings(KeyCtx& kc) {
                 return;
             }
             if (size_row) {   // LEFT / RIGHT switch between the columns and the rows, ENTER types the one that is lit (0 = leave the terminal as it is)
-                if (dir != 0) { sm.col = dir > 0 ? 1 : 0; sm.status = "[ENTER] types the number that is lit; [<-] [->] switch between columns and rows"; return; }
+                if (dir != 0) { sm.col = std::clamp(sm.col + dir, 0, 2); sm.status = "[ENTER] types the number that is lit (or sets the size back to the default); [<-] [->] switch between columns, rows and the button; 0 = leave the terminal as it is"; return; }
+                if (sm.col == 2) {   // [ Back to default ]
+                    cfg.term_cols = muisc::Settings::kTermColsDefault; cfg.term_rows = muisc::Settings::kTermRowsDefault;
+                    sm.col = 0; sm.dirty = true;
+                    sm.status = "terminal size: back to the default, " + std::to_string(cfg.term_cols) + " x " + std::to_string(cfg.term_rows);
+                    if (!cfg.full_screen && !cfg.use_terminal_settings) { muisc::terminal_apply_size(cfg.term_cols, cfg.term_rows, false); sm.status += " -- asked the terminal for it (it may refuse)"; out_clear_next = true; }
+                    return;
+                }
                 sm.buffer = std::to_string(sm.col == 1 ? cfg.term_rows : cfg.term_cols);
                 sm.edit.to_end(sm.buffer); sm.editing = true; sm.status.clear(); set_text_entry(true);
                 return;

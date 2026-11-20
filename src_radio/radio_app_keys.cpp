@@ -602,15 +602,10 @@ bool RadioApp::key_main(KeyCtx& kc) {
         case '(': toggle_spectro_window(); break;   // SHIFT+8: the spectrogram in its own window
         case '|': toggle_milkdrop_window(); break;  // the MilkDrop pictures in their own window (key_translate() hands ";" over as this)
         case '.': case ',': {                  // the scope block: oscilloscope -> sphere -> spectrogram -> MilkDrop -> oscilloscope ("," the other way round)
-            // (what is switched off on the ANIMA/VIZ tab is skipped, MilkDrop also when projectM is not installed; the sphere is always there)
+            // (the order is the VIZ ORDER of the ANIMA/VIZ tab; what is switched off there is skipped, MilkDrop also when projectM is not installed)
             const bool md_ok = radio_milkdrop_usable(cfg);
             const bool back = key_translate(cfg, k) == ',';
-            for (int n = 0; n < 4; ++n) {
-                if (back) cfg.scope_mode = cfg.scope_mode == 0 ? 4 : cfg.scope_mode == 4 ? 3 : cfg.scope_mode == 3 ? 1 : 0;
-                else cfg.scope_mode = cfg.scope_mode == 0 ? 1 : cfg.scope_mode == 1 ? 3 : cfg.scope_mode == 3 ? 4 : 0;
-                if ((cfg.scope_mode == 0 && !cfg.use_osci) || (cfg.scope_mode == 3 && !cfg.use_spectro) || (cfg.scope_mode == 4 && !md_ok)) continue;
-                break;
-            }
+            cfg.scope_mode = radio_next_scope_mode(cfg, cfg.scope_mode, back, md_ok);
             if (cfg.scope_mode == 4) { ui.model.notice = "scope block: milkdrop (" + window_key_label("VisualsMenu") + " opens its options)"; notice_until = ui.model.t_sec + 4; }
             ui.model.settings.dirty = true;
             break;

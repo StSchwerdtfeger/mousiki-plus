@@ -7,6 +7,7 @@
 #include "cover_store.h"
 #include "meta_state.h"
 #include "milkdrop.h"
+#include "milkdrop_folders.h"
 #include "path_utf8.h"
 #include "settings.h"
 #include "terminal_ui.h"
@@ -37,7 +38,28 @@ template <size_t N> int md_step(const int (&a)[N], int cur, int dir) {
     const long n = std::clamp<long>(static_cast<long>(k) + dir, 0, static_cast<long>(N) - 1);
     return a[static_cast<size_t>(n)];
 }
-enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdDuration, kMdShuffle, kMdFavShuffle, kMdHardCuts, kMdCutSens, kMdTransition, kMdFps, kMdRes, kMdGpu, kMdUseFx, kMdFx, kMdColors, kMdName, kMdHcd, kMdVar, kMdMesh, kMdAspect, kMdRatio, kMdClean, kMdView, kMdRows };
+// (in the order of the overlay: general / shuffle and transition / graphics and performance)
+enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdName, kMdUseFx, kMdFx, kMdView, kMdOverride,
+             kMdBright, kMdSat, kMdContrast,
+             kMdDuration, kMdShuffle, kMdFolder, kMdFavShuffle, kMdHardCuts, kMdCutSens, kMdTransition, kMdHcd, kMdVar,
+             kMdFps, kMdRes, kMdGpu, kMdColors, kMdMesh, kMdAspect, kMdRatio, kMdClean, kMdRows };
+const char* md_label(int row, bool ts) {
+    switch (row) {
+        case kMdPreset: return "Preset"; case kMdBrowse: return "Preset Overlay"; case kMdRandom: return "Random Preset"; case kMdLock: return "Lock Preset";
+        case kMdName: return "Show Preset Name"; case kMdUseFx: return "Use Effect"; case kMdFx: return "Effect";
+        case kMdView: return ts ? "MilkDrop (this track)" : "Auto MilkDrop"; case kMdOverride: return "Override Individual Settings";
+        case kMdBright: return "Brightness"; case kMdSat: return "Saturation"; case kMdContrast: return "Contrast";
+        case kMdDuration: return "Preset Duration"; case kMdShuffle: return "Shuffle All Presets"; case kMdFolder: return "Shuffle Folder"; case kMdFavShuffle: return "Shuffle Favourites";
+        case kMdHardCuts: return "Hard Cuts"; case kMdCutSens: return "Hard Cut Sensitivity"; case kMdTransition: return "Preset Transition";
+        case kMdHcd: return "Hard Cut Interval"; case kMdVar: return "Duration Variance";
+        case kMdFps: return "Frame Rate"; case kMdRes: return "Resolution"; case kMdGpu: return "GPU"; case kMdColors: return "Sixel Colours";
+        case kMdMesh: return "Mesh Detail"; case kMdAspect: return "Aspect Correction"; case kMdRatio: return "Aspect Ratio"; case kMdClean: return "Clean Start";
+        default: return "";
+    }
+}
+const char* md_category(int row) {   // the heading that stands above this row ("" = none)
+    return row == kMdPreset ? "GENERAL" : row == kMdBright ? "PICTURE" : row == kMdDuration ? "SHUFFLE / TRANSITION" : row == kMdFps ? "GRAPHICS / PERFORMANCE" : "";
+}
 const int kMdCutSensSteps[] = {5, 10, 15, 20, 25, 30, 40, 50, 60};
 } // namespace
 
@@ -76,7 +98,7 @@ void App::milkdrop_apply_settings() const {
     o.variance = static_cast<float>(std::clamp(settings_.milkdrop_var, 0, 30));
     o.clean_start = settings_.milkdrop_clean;
     o.favourites_only = e.favs;
-    if (o.favourites_only) { md_favs_load(); o.favourites = md_favs_; }
+    if (o.favourites_only) o.favourites = md_shuffle_paths();
     Milkdrop::instance().configure(o);
 }
 
@@ -116,7 +138,8 @@ namespace {
 bool md_track_wants_lock(const MilkdropTrackOpts& mo) { return (!mo.preset.empty() && mo.keep != 0) || mo.keep == 1; }
 }
 
-void App::milkdrop_track_live(const MilkdropTrackOpts& mo) {
+void App::milkdrop_track_live(const MilkdropTrackOpts& mo_in) {
+    const MilkdropTrackOpts mo = md_override_ ? MilkdropTrackOpts{} : mo_in;
     md_trk_ = mo;
     md_track_fx_ = mo.fx >= 0 && mo.fx < kVideoFxCount ? mo.fx : -1;
     Milkdrop& m = Milkdrop::instance();
@@ -132,7 +155,7 @@ bool App::milkdrop_shown_in_field() const {
 }
 
 void App::milkdrop_effect_step(int dir, bool global) {
-    const bool own = !global && !audiobook_ && has_track_ && current_.is_local && !current_.path.empty();
+    const bool own = !global && !md_override_ && !audiobook_ && has_track_ && current_.is_local && !current_.path.empty();
     int nx = 0;
     if (own) {
         const std::string trk = path_utf8(current_.path);
@@ -153,7 +176,7 @@ void App::milkdrop_effect_step(int dir, bool global) {
 }
 
 void App::milkdrop_effect_toggle(bool global) {
-    const bool own = !global && !audiobook_ && has_track_ && current_.is_local && !current_.path.empty();
+    const bool own = !global && !md_override_ && !audiobook_ && has_track_ && current_.is_local && !current_.path.empty();
     bool now_on = false;
     if (own) {
         const std::string trk = path_utf8(current_.path);
@@ -173,7 +196,7 @@ void App::milkdrop_effect_toggle(bool global) {
 
 void App::milkdrop_track_apply() {
     MilkdropTrackOpts mo;
-    if (!audiobook_ && has_track_ && current_.is_local && !current_.path.empty()) mo = cover_track_milkdrop(path_utf8(current_.path));
+    if (!md_override_ && !audiobook_ && has_track_ && current_.is_local && !current_.path.empty()) mo = cover_track_milkdrop(path_utf8(current_.path));
     md_trk_ = mo;
     const bool want_lock = md_track_wants_lock(mo);
     // first give back what was done for the track before (unless the view was changed by hand meanwhile)
@@ -261,12 +284,17 @@ void App::milkdrop_auto_apply() {
 // ---- the overlay ----
 
 bool App::md_row_shown(int row) const {
-    (void)row;   // (every row is shown in the track menu too: the drawing rows are global and say so)
-    return true;
+    return !(row == kMdOverride && !md_scope_track_.empty());   // (every row is shown in the track menu too: the drawing rows are global and say so; the override is only in the general overlay)
+}
+
+static bool md_track_has(int i, const MilkdropTrackOpts& t) {   // the playing track has a value of its own for this row
+    return (i == kMdDuration && t.dur >= 0) || (i == kMdShuffle && t.shuf >= 0) || (i == kMdFavShuffle && t.favs >= 0) || (i == kMdCutSens && t.hcs >= 0) ||
+           (i == kMdHardCuts && t.cuts >= 0) || (i == kMdTransition && t.trans >= 0) || (i == kMdUseFx && t.fxon >= 0) || (i == kMdFx && t.fx >= 0) ||
+           (i == kMdName && t.name >= 0) || (i == kMdPreset && !t.preset.empty()) || (i == kMdLock && t.keep >= 0);
 }
 
 static bool md_global_row(int row) {   // (how the pictures are drawn: not a matter of one track)
-    return row == kMdFps || row == kMdRes || row == kMdGpu || row == kMdColors || row == kMdHcd || row == kMdVar || row == kMdMesh || row == kMdAspect || row == kMdRatio || row == kMdClean;
+    return row == kMdFolder || row == kMdBright || row == kMdSat || row == kMdContrast || row == kMdFps || row == kMdRes || row == kMdGpu || row == kMdColors || row == kMdHcd || row == kMdVar || row == kMdMesh || row == kMdAspect || row == kMdRatio || row == kMdClean;
 }
 
 std::string App::milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const {
@@ -292,9 +320,13 @@ std::string App::milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const
             return onoff(m.locked());
         case kMdDuration: return own(ts ? rec->dur : 0, secs(ts ? rec->dur : sd), secs(sd));
         case kMdShuffle: return own(ts ? rec->shuf : 0, onoff(ts ? rec->shuf == 1 : settings_.milkdrop_shuffle), onoff(settings_.milkdrop_shuffle));
+        case kMdFolder: {
+            const std::string f = md_shuffle_label();
+            return f + " (" + std::to_string(md_shuffle_paths().size()) + ")";
+        }
         case kMdFavShuffle: {
-            md_favs_load();
-            auto fav = [&](bool b) { return !b ? std::string("off") : md_favs_.empty() ? std::string("on (none yet: all)") : "on (" + std::to_string(md_favs_.size()) + ")"; };
+            const size_t nf = md_shuffle_paths().size();
+            auto fav = [&](bool b) { return !b ? std::string("off") : nf == 0 ? std::string("on (none yet: all)") : "on (" + std::to_string(nf) + ")"; };
             return own(ts ? rec->favs : 0, fav(ts ? rec->favs == 1 : settings_.milkdrop_fav_shuffle), fav(settings_.milkdrop_fav_shuffle));
         }
         case kMdCutSens: return own(ts ? rec->hcs : 0, tenths(ts ? rec->hcs : std::clamp(settings_.milkdrop_cut_sens, 5, 60)), tenths(std::clamp(settings_.milkdrop_cut_sens, 5, 60)));
@@ -302,12 +334,21 @@ std::string App::milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const
         case kMdTransition: return own(ts ? rec->trans : 0, cut(ts ? rec->trans : settings_.milkdrop_transition), cut(settings_.milkdrop_transition));
         case kMdFps: return std::to_string(settings_.milkdrop_fps) + " fps";
         case kMdRes: return std::to_string(settings_.milkdrop_res) + " px";
-        case kMdGpu: return milkdrop_gpu_label(settings_.milkdrop_gpu);
+        case kMdGpu: {
+            std::string g = milkdrop_gpu_label(settings_.milkdrop_gpu);
+            const std::string r = m.renderer();
+            if (settings_.milkdrop_gpu.empty() && !r.empty()) g += " (" + r + ")";   // (what draws now, next to "automatic")
+            return g;
+        }
+        case kMdOverride: return md_override_ ? "on (this session)" : "off";
         case kMdUseFx: return own(ts ? rec->fxon : 0, onoff(ts ? rec->fxon == 1 : settings_.milkdrop_fx_on), onoff(settings_.milkdrop_fx_on));
         case kMdFx: {
             const std::string dflt = video_fx_name(video_fx_canon(settings_.milkdrop_fx));
             return ts && rec->fx < 0 ? "as Settings (" + dflt + ")" : ts ? std::string(video_fx_name(video_fx_canon(rec->fx))) : dflt;
         }
+        case kMdBright: return std::to_string(std::clamp(settings_.milkdrop_bright, 0, 100)) + "%";
+        case kMdSat: return std::to_string(std::clamp(settings_.milkdrop_sat, 0, 100)) + "%";
+        case kMdContrast: return std::to_string(std::clamp(settings_.milkdrop_contrast, 0, 100)) + "%";
         case kMdColors: return settings_.milkdrop_fixed_colors ? "fixed" : "adaptive";
         case kMdName: return own(ts ? rec->name : 0, onoff(ts ? rec->name == 1 : settings_.milkdrop_show_name), onoff(settings_.milkdrop_show_name));
         case kMdHcd: return std::to_string(std::clamp(settings_.milkdrop_hcd, 3, 120)) + " s";
@@ -341,56 +382,49 @@ std::vector<std::string> App::build_milkdrop_menu_panel() const {
     const bool ts = !md_scope_track_.empty();
     const MilkdropTrackOpts rec = ts ? cover_track_milkdrop(md_scope_track_) : MilkdropTrackOpts();
     md_favs_load();
-    const char* labels[kMdRows] = {"Preset", "Preset Overlay", "Random Preset", "Lock Preset", "Preset Duration", "Shuffle Presets", "Shuffle Favourites", "Hard Cuts",
-                                   "Hard Cut Sensitivity", "Preset Transition", "Frame Rate", "Resolution", "GPU", "Use Effect", "Effect", "Sixel Colours", "Show Preset Name", "Hard Cut Interval", "Duration Variance", "Mesh Detail", "Aspect Correction", "Aspect Ratio", "Clean Start", ts ? "MilkDrop (this track)" : "Auto MilkDrop"};
     std::vector<std::string> lines;
     lines.push_back(box_top(ts ? "Visuals: MilkDrop (this track)" : "Visuals: MilkDrop", W, border));
     if (ts) {   // (the note in the highlight colours, as in the video options)
         const std::string t = truncate_str("Only for this track: " + md_scope_title_, inner);
         lines.push_back(bar + " " + ansi_for(settings_.header_color, false) + pad_right(t, inner) + R + " " + bar);
     }
+    std::vector<std::string> body;
+    int sel_line = 0;
+    const bool track_wins = !ts && has_track_ && !audiobook_ && !md_override_;   // (what the playing track has of its own is what shows, and what is in force)
     for (int i = 0; i < kMdRows; ++i) {
         if (!md_row_shown(i)) continue;
-        const bool sel = i == md_menu_row_;
-        std::string val = milkdrop_row_value(i, ts ? &rec : nullptr);
-        if (ts && md_global_row(i)) val += "  (all tracks)";
-        if (!ts && has_track_ && !audiobook_) {   // (a value the playing track has of its own wins over Settings: say so, or the change looks lost)
-            const MilkdropTrackOpts& t = md_trk_;
-            const bool mine = (i == kMdDuration && t.dur >= 0) || (i == kMdShuffle && t.shuf >= 0) || (i == kMdFavShuffle && t.favs >= 0) || (i == kMdCutSens && t.hcs >= 0) ||
-                              (i == kMdHardCuts && t.cuts >= 0) || (i == kMdTransition && t.trans >= 0) || (i == kMdUseFx && t.fxon >= 0) || (i == kMdFx && t.fx >= 0) ||
-                              (i == kMdName && t.name >= 0);
-            if (mine) val += "  (this track has its own)";
+        if (md_category(i)[0]) {   // (a heading above each group, in the header colour)
+            if (i != kMdPreset) body.push_back(row("", false));
+            const std::string hc = ansi_for(settings_.header_color, false);
+            body.push_back(bar + " " + hc + pad_right(std::string(md_category(i)), inner) + R + " " + bar);
         }
+        const bool sel = i == md_menu_row_;
+        if (sel) sel_line = static_cast<int>(body.size());
+        std::string val;
+        if (track_wins) {   // (the value in force: the track's own when it has one, else Settings)
+            const MilkdropTrackOpts& t = md_trk_;
+            const bool mine = md_track_has(i, t);
+            val = mine ? milkdrop_row_value(i, &t) + "  (this track)" : milkdrop_row_value(i, nullptr);
+        } else {
+            val = milkdrop_row_value(i, ts ? &rec : nullptr);
+            if (ts && md_global_row(i)) val += "  (all tracks)";
+        }
+        const std::string lab_text = i == kMdFavShuffle ? "Shuffle " + md_shuffle_label() : std::string(md_label(i, ts));
         std::string plain;
         if (i == kMdPreset) {   // the preset's name gets the room the label leaves
-            const std::string lab = std::string(sel ? "> " : "  ") + pad_right(labels[i], 10);
+            const std::string lab = std::string(sel ? "> " : "  ") + pad_right(lab_text, 10);
             plain = lab + "< " + truncate_str(val, std::max(4, inner - display_width(lab) - 4)) + " >";
         } else {
-            plain = std::string(sel ? "> " : "  ") + pad_right(labels[i], 22) + pad_left(val, std::max(1, inner - 24));
+            const int vw = std::max(1, inner - 32);
+            const std::string tv = display_width(val) > vw ? truncate_str(val, vw) : val;
+            plain = std::string(sel ? "> " : "  ") + pad_right(lab_text, 30) + pad_left(tv, vw);
         }
-        lines.push_back(row(plain, sel, !ok));
+        body.push_back(row(plain, sel, !ok));
     }
-    lines.push_back(row("", false));
+    body.push_back(row("", false));
     if (!ok) {
-        lines.push_back(row("Not available: " + why, false, true));
-        lines.push_back(row("Install projectM 4 and a preset pack (see the manual).", false, true));
-    } else {
-        char info[160];
-        const int idx = m.preset_index(), cnt = m.preset_count();
-        if (cnt > 0 && idx >= 0) std::snprintf(info, sizeof info, "preset %d of %d   one picture %.0f ms", idx + 1, cnt, m.frame_ms());
-        else if (cnt > 0) std::snprintf(info, sizeof info, "a preset outside the list (%d in it)   one picture %.0f ms", cnt, m.frame_ms());
-        else std::snprintf(info, sizeof info, "%s", m.running() ? "starting ..." : "not running (nothing shows it)");
-        lines.push_back(row(info, false, true));
-        if (md_pic_w_ > 0 && gfxs_.proto != GfxProto::None) {   // (what each picture costs on its way to the terminal: the big overlay sends the most)
-            char pi[160];
-            std::snprintf(pi, sizeof pi, "picture %dx%d px: colours %.0f ms, to the terminal %.0f ms", md_pic_w_, md_pic_h_,
-                          video_timing().quant_ms.load(), video_timing().encode_ms.load());
-            lines.push_back(row(pi, false, true));
-        }
-        const std::string r = m.renderer();
-        if (!r.empty()) lines.push_back(row("drawn by " + r + (r.find("llvmpipe") != std::string::npos || r.find("softpipe") != std::string::npos ? " (software)" : ""), false, true));
-        const std::string d = m.presets_dir();
-        if (!d.empty()) lines.push_back(row("presets: " + d, false, true));
+        body.push_back(row("Not available: " + why, false, true));
+        body.push_back(row("Install projectM 4 and a preset pack (see the manual).", false, true));
     }
     auto leg_in = [&](const std::string& plain) {
         const std::string tx = truncate_str(plain, inner);
@@ -399,8 +433,21 @@ std::vector<std::string> App::build_milkdrop_menu_panel() const {
     };
     auto leg_bot = [&](const std::string& tx) { return centred_bottom(settings_, W, tx, border_bottom); };
     const std::string close_keys = (hotkey_text("HKeyVisualsMenu", ":") == "-" ? std::string() : hotkey_text("HKeyVisualsMenu", ":") + " / ") + "ESC";
-    if (ts) push_legend_block(lines, W, border_bottom, {"[UP/DOWN] select   [LEFT/RIGHT] change   [ENTER] pin / change", "[d] as in Settings   [N] / [B] next / previous   [" + close_keys + "] back"}, leg_in, leg_bot);
-    else push_legend_block(lines, W, border_bottom, {"[UP/DOWN] select   [LEFT/RIGHT] change   [ENTER] random", "[N] / [B] next / previous   [L] lock   [" + close_keys + "] close"}, leg_in, leg_bot);
+    std::vector<std::string> leg;
+    if (ts) push_legend_block(leg, W, border_bottom, {"[UP/DOWN] select   [LEFT/RIGHT] change   [ENTER] pin / change", "[d] as in Settings   [N] / [B] next / previous   [" + close_keys + "] back"}, leg_in, leg_bot);
+    else push_legend_block(leg, W, border_bottom, {"[UP/DOWN] select   [LEFT/RIGHT] change   [ENTER] random", "[N] / [B] next / previous   [L] lock   [" + close_keys + "] close"}, leg_in, leg_bot);
+    // the rows scroll with the cursor when the window is not tall enough (the headings and rows are about 35 lines)
+    const int avail = std::max(6, term_rows_ - 1 - static_cast<int>(lines.size()) - static_cast<int>(leg.size()));
+    const int total = static_cast<int>(body.size());
+    if (total <= avail) { for (const std::string& l : body) lines.push_back(l); }
+    else {
+        const int first = std::clamp(sel_line - avail / 2, 0, total - avail);
+        for (int i = first; i < first + avail; ++i) {
+            if ((i == first && first > 0) || (i == first + avail - 1 && first + avail < total)) lines.push_back(row(i == first ? "  \u25b2 ..." : "  \u25bc ...", false, true));
+            else lines.push_back(body[static_cast<size_t>(i)]);
+        }
+    }
+    for (const std::string& l : leg) lines.push_back(l);
     return lines;
 }
 
@@ -455,9 +502,9 @@ void App::milkdrop_menu_track_adjust(int row, int dir, bool reset) {
         default: return;
     }
     set_cover_track_milkdrop(md_scope_track_, mo);
-    const char* labels[kMdRows] = {"preset", "", "", "lock", "preset duration", "shuffle", "shuffle favourites", "hard cuts",
-                                   "hard cut sensitivity", "preset transition", "", "", "", "effect on / off", "effect", "", "preset name", "", "", "", "", "", "", "MilkDrop"};
-    const std::string msg = std::string("this track: ") + labels[row] + " " + milkdrop_row_value(row, &mo);
+    std::string lab = row == kMdFavShuffle ? "Shuffle " + md_shuffle_label() : std::string(md_label(row, true));
+    for (char& ch : lab) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    const std::string msg = "this track: " + lab + " " + milkdrop_row_value(row, &mo);
     status_line_ = "milkdrop: " + msg;
     if (meta_) meta_->sty_msg = "saved: " + msg;
     if (playing) {
@@ -476,12 +523,21 @@ void App::milkdrop_menu_adjust(int row, int dir) {
         case kMdDuration: settings_.milkdrop_preset_secs = md_step(kMdDurSteps, settings_.milkdrop_preset_secs, dir); break;
         case kMdBrowse: if (dir > 0) mdb_open(); return;
         case kMdShuffle: settings_.milkdrop_shuffle = !settings_.milkdrop_shuffle; break;
+        case kMdFolder: {   // the folder that is shuffled: Favourites, Recommended, the folders made in the preset overlay
+            const std::vector<std::string> ch = md_folder_choices();
+            const std::string now = md_shuffle_label();
+            size_t at = 0;
+            for (size_t i = 0; i < ch.size(); ++i) if (ch[i] == now) at = i;
+            at = (at + (dir < 0 ? ch.size() - 1 : 1)) % ch.size();
+            settings_.milkdrop_shuffle_folder = at == 0 ? std::string() : ch[at];
+            status_line_ = "milkdrop: the shuffle plays from " + ch[at] + " (" + std::to_string(md_shuffle_paths().size()) + " presets)";
+            break;
+        }
         case kMdFavShuffle:
             settings_.milkdrop_fav_shuffle = !settings_.milkdrop_fav_shuffle;
-            md_favs_load();
             status_line_ = !settings_.milkdrop_fav_shuffle ? "milkdrop: all presets again"
-                         : md_favs_.empty() ? "milkdrop: only favourites -- there are none yet ([a] in the Preset Overlay): all presets until then"
-                         : "milkdrop: only the " + std::to_string(md_favs_.size()) + " favourites";
+                         : md_shuffle_paths().empty() ? "milkdrop: only " + md_shuffle_label() + " -- there are no presets in it yet ([a] / SHIFT+a in the Preset Overlay): all presets until then"
+                         : "milkdrop: only the " + std::to_string(md_shuffle_paths().size()) + " presets of " + md_shuffle_label();
             break;
         case kMdCutSens: settings_.milkdrop_cut_sens = md_step(kMdCutSensSteps, settings_.milkdrop_cut_sens, dir); break;
         case kMdHardCuts: settings_.milkdrop_hard_cuts = !settings_.milkdrop_hard_cuts; break;
@@ -498,6 +554,9 @@ void App::milkdrop_menu_adjust(int row, int dir) {
             status_line_ = "milkdrop GPU: " + milkdrop_gpu_label(settings_.milkdrop_gpu) + " -- the visuals restart on it";
             break;
         }
+        case kMdBright: settings_.milkdrop_bright = std::clamp(settings_.milkdrop_bright + 5 * dir, 0, 100); milkdrop_pic_key_.clear(); break;
+        case kMdSat: settings_.milkdrop_sat = std::clamp(settings_.milkdrop_sat + 5 * dir, 0, 100); milkdrop_pic_key_.clear(); break;
+        case kMdContrast: settings_.milkdrop_contrast = std::clamp(settings_.milkdrop_contrast + 5 * dir, 0, 100); milkdrop_pic_key_.clear(); break;
         case kMdHcd: settings_.milkdrop_hcd = md_step(kMdHcdSteps, settings_.milkdrop_hcd, dir); break;
         case kMdVar: settings_.milkdrop_var = md_step(kMdVarSteps, settings_.milkdrop_var, dir); break;
         case kMdMesh: settings_.milkdrop_mesh = std::clamp(settings_.milkdrop_mesh + dir, 0, 3); status_line_ = "milkdrop mesh: " + mesh_name(settings_.milkdrop_mesh) + " -- the visuals restart"; break;
@@ -521,8 +580,17 @@ void App::milkdrop_menu_adjust(int row, int dir) {
             break;
         case kMdName: settings_.milkdrop_show_name = !settings_.milkdrop_show_name; break;
         case kMdView: milkdrop_auto_set(!settings_.milkdrop_auto); break;
+        case kMdOverride:   // for this session only: the general settings are used, the track's own ones stay as they are
+            md_override_ = !md_override_;
+            milkdrop_track_apply();
+            milkdrop_pic_key_.clear();
+            status_line_ = md_override_ ? "milkdrop: the general settings are used for every track (the individual ones are kept; until you turn this off or quit)"
+                                        : "milkdrop: individual track settings are in force again";
+            return;   // (nothing to save: not kept)
         default: break;
     }
+    if (!md_override_ && has_track_ && !audiobook_ && md_track_has(row, md_trk_) && row != kMdPreset && row != kMdLock)
+        status_line_ = "milkdrop: the general setting changed, but this track has its own value for it, which stays in force (Override Individual Settings uses the general ones)";
     milkdrop_apply_settings();
     if (row != kMdPreset && row != kMdRandom && row != kMdLock && row != kMdBrowse) save_settings(settings_);   // (saved with every change: not only when the menu is closed by ESC)
 }
@@ -594,6 +662,32 @@ void App::md_favs_save() const {
     write_text_atomic(md_favs_file(), o.str());
 }
 
+fs::path App::md_config_dir() const { return config_path().parent_path(); }
+
+std::vector<std::string> App::md_folder_choices() const {
+    std::vector<std::string> v = {"Favourites", "Recommended"};
+    for (const std::string& n : mdf::names(md_config_dir())) v.push_back(n);
+    return v;
+}
+
+std::string App::md_shuffle_label() const {
+    const std::string& f = settings_.milkdrop_shuffle_folder;
+    if (f.empty() || f == "Favourites") return "Favourites";
+    if (f == "Recommended") return f;
+    return mdf::exists(md_config_dir(), f) ? f : std::string("Favourites");   // (a folder that is gone: the Favourites)
+}
+
+std::vector<std::string> App::md_shuffle_paths() const {
+    const std::string l = md_shuffle_label();
+    if (l == "Favourites") { md_favs_load(); return md_favs_; }
+    if (l == "Recommended") return const_cast<App*>(this)->md_recommended_paths();
+    std::error_code ec;
+    const auto t = fs::last_write_time(mdf::dir_of(md_config_dir()) / path_from_utf8(l + ".txt"), ec);
+    const std::string key = l + "|" + (ec ? std::string("-") : std::to_string(t.time_since_epoch().count()));
+    if (md_shuf_key_ != key) { md_shuf_cache_ = mdf::load(md_config_dir(), l); md_shuf_key_ = key; }
+    return md_shuf_cache_;
+}
+
 bool App::mdb_is_extra_root(const fs::path& d) const {
     for (const std::string& e : Milkdrop::instance().extra_preset_dirs()) if (path_from_utf8(e).lexically_normal() == d.lexically_normal()) return true;
     return false;
@@ -612,11 +706,13 @@ bool App::mdb_inside(const std::string& file) const {
 }
 
 static const char* const kMdbRecs = "<recommended>";   // (mdb_dir_ while the Recommended folder is shown)
+static const std::string kMdbUserPre = "<folder>:";    // (mdb_dir_ while a folder of the user is shown: this, then its name)
 
 void App::mdb_list(const std::string& dir, bool favs, const std::string& select_path) {
     mdb_items_.clear();
     mdb_in_favs_ = favs;
     mdb_in_recs_ = !favs && dir == kMdbRecs;
+    mdb_in_user_ = (!favs && dir.compare(0, kMdbUserPre.size(), kMdbUserPre) == 0) ? dir.substr(kMdbUserPre.size()) : std::string();
     mdb_dir_ = dir;
     const fs::path root = path_from_utf8(mdb_root_);
     if (mdb_in_recs_) {
@@ -628,6 +724,13 @@ void App::mdb_list(const std::string& dir, bool favs, const std::string& select_
             if (!rel.empty() && *rel.begin() != "..") { for (const auto& part : rel) if (part != ".") where += (where.empty() ? "" : " / ") + path_utf8(part); }
             else where = path_utf8(p.parent_path().filename());
             mdb_items_.push_back({3, path_utf8(p.stem()), f, where});
+        }
+    } else if (!mdb_in_user_.empty()) {
+        mdb_items_.push_back({0, "..", mdb_root_, ""});
+        std::error_code ec;
+        for (const std::string& f : mdf::load(md_config_dir(), mdb_in_user_)) {
+            const fs::path p = path_from_utf8(f);
+            mdb_items_.push_back({fs::is_regular_file(p, ec) ? 3 : 4, path_utf8(p.stem()), f, ""});
         }
     } else if (favs) {
         mdb_items_.push_back({0, "..", mdb_root_, ""});
@@ -645,6 +748,7 @@ void App::mdb_list(const std::string& dir, bool favs, const std::string& select_
             md_favs_load();
             mdb_items_.push_back({1, "Favourites", "", ""});
             { const size_t nrec = md_recommended_paths().size(); if (nrec > 0) mdb_items_.push_back({5, "Recommended", std::to_string(nrec), ""}); }   // (path: how many)
+            for (const std::string& n : mdf::names(md_config_dir())) mdb_items_.push_back({6, n, std::to_string(mdf::load(md_config_dir(), n).size()), ""});   // (the folders of the user; path: how many)
         }
         std::vector<MdbItem> folders, presets;
         std::error_code ec;
@@ -745,7 +849,7 @@ void App::mdb_close(bool chosen) {
     Milkdrop& m = Milkdrop::instance();
     if (!chosen && mdb_moved_ && !mdb_prev_path_.empty()) m.play_path(mdb_prev_path_);   // back to the preset from before
     m.set_locked(mdb_prev_locked_);
-    mdb_open_ = false;
+    mdb_open_ = false; mdb_del_ask_.clear(); mdb_pick_open_ = false; mdb_new_ = false;
     mdb_track_.clear();
     mdb_default_ = false;
     milkdrop_pic_key_.clear();
@@ -801,6 +905,15 @@ std::vector<std::string> App::md_recommended_paths() {
     std::vector<fs::path> files;
     files.push_back(path_from_utf8(root).parent_path() / "recommended.txt");
     files.push_back(config_path().parent_path() / "milkdrop_recommended.txt");
+    // The list is asked for on every redraw of the MilkDrop options (their values show how many presets a folder has): resolving it walks
+    // the whole preset index for every line of the lists, so it is made once and kept until the preset folders or the two lists change.
+    std::string ckey = mdb_index_root_ + "|" + std::to_string(mdb_index_.size());
+    for (const fs::path& f : files) {
+        std::error_code ec;
+        const auto t = fs::last_write_time(f, ec);
+        ckey += "|" + (ec ? std::string("-") : std::to_string(t.time_since_epoch().count()));
+    }
+    if (!md_rec_key_.empty() && md_rec_key_ == ckey) return md_rec_cache_;
     std::vector<std::string> lowered;
     lowered.reserve(mdb_index_.size());
     for (const MdbIdx& e : mdb_index_) { std::string l = lower_ascii(e.path); std::replace(l.begin(), l.end(), '\\', '/'); lowered.push_back(std::move(l)); }
@@ -835,6 +948,8 @@ std::vector<std::string> App::md_recommended_paths() {
             }
         }
     }
+    md_rec_key_ = ckey;
+    md_rec_cache_ = out;
     return out;
 }
 
@@ -868,6 +983,7 @@ void App::mdb_search_clear() {
 }
 
 void App::handle_mdb_key(int key) {
+    md_shuf_key_.clear();   // (a key may change a folder file: the shuffle list is read again)
     const bool arrow = last_key_was_arrow();
     const int n = static_cast<int>(mdb_items_.size());
     const int page = std::max(1, term_rows_ - 8);
@@ -880,14 +996,55 @@ void App::handle_mdb_key(int key) {
     auto enter = [&](const MdbItem it) {   // (a copy: mdb_list() replaces the list the item came from)
         if (it.kind == 0) {   // up
             const bool from_favs = mdb_in_favs_, from_recs = mdb_in_recs_;
-            const std::string from = from_favs || from_recs ? std::string() : mdb_dir_;
+            const std::string from_user = mdb_in_user_;
+            const std::string from = from_favs || from_recs || !from_user.empty() ? std::string() : mdb_dir_;
             mdb_list(it.path, false, from);   // (on the folder it came from)
             if (from_favs || from_recs) for (size_t k = 0; k < mdb_items_.size(); ++k) if (mdb_items_[k].kind == (from_favs ? 1 : 5)) mdb_sel_ = static_cast<int>(k);
+            if (!from_user.empty()) for (size_t k = 0; k < mdb_items_.size(); ++k) if (mdb_items_[k].kind == 6 && mdb_items_[k].name == from_user) mdb_sel_ = static_cast<int>(k);
         } else if (it.kind == 5) mdb_list(kMdbRecs, false, "");
+        else if (it.kind == 6) mdb_list(kMdbUserPre + it.name, false, "");
         else if (it.kind == 1) mdb_list(mdb_root_, true, "");
         else if (it.kind == 2) mdb_list(it.path, false, "");
         mdb_preview();
     };
+    if (mdb_new_) {   // the name of a new folder
+        if (arrow) return;
+        if (key == 27) { mdb_new_ = false; mdb_new_add_ = false; status_line_ = "milkdrop: no folder made"; return; }
+        if (key == '\r' || key == '\n') {
+            std::string made;
+            if (!mdf::create(md_config_dir(), mdb_new_name_, &made)) status_line_ = mdb_new_name_.empty() ? "milkdrop: a folder needs a name" : "milkdrop: no folder made -- \"" + mdb_new_name_ + "\" is there already or is a name of its own (Favourites, Recommended)";
+            else {
+                status_line_ = "milkdrop: the folder \"" + made + "\" is made";
+                if (mdb_new_add_ && !mdb_pick_preset_.empty()) { mdf::add(md_config_dir(), made, mdb_pick_preset_); status_line_ += ", the preset is in it"; }
+                if (mdb_in_favs_ || mdb_in_recs_ || !mdb_in_user_.empty() || mdb_searching_) { /* (the list stays) */ }
+                else mdb_list(mdb_dir_, false, "");
+            }
+            mdb_new_ = false; mdb_new_add_ = false;
+            return;
+        }
+        if (key == 127 || key == 8) { while (!mdb_new_name_.empty()) { const unsigned char c = static_cast<unsigned char>(mdb_new_name_.back()); mdb_new_name_.pop_back(); if ((c & 0xC0) != 0x80) break; } return; }
+        if (((key >= 32 && key < 127) || (key >= 128 && key < 256)) && mdb_new_name_.size() < 60) mdb_new_name_ += static_cast<char>(key);
+        return;
+    }
+    if (!mdb_del_ask_.empty()) {   // the warning before a folder is deleted
+        if (arrow) return;
+        if (key == 'y' || key == 'Y' || key == '\r' || key == '\n') {
+            const std::string name = mdb_del_ask_;
+            mdb_del_ask_.clear();
+            MdbUndo u; u.kind = 1; u.folder = name; u.paths = mdf::load(md_config_dir(), name); u.was_shuffle = settings_.milkdrop_shuffle_folder == name;
+            mdf::remove_folder(md_config_dir(), name);
+            mdb_undo_push(u);
+            if (settings_.milkdrop_shuffle_folder == name) settings_.milkdrop_shuffle_folder.clear();
+            status_line_ = "milkdrop: the folder \"" + name + "\" is deleted (SHIFT+u brings it back)";
+            mdb_list(mdb_dir_, false, "");
+            milkdrop_apply_settings();
+        } else if (key == 27 || key == 'n' || key == 'N') {
+            mdb_del_ask_.clear();
+            status_line_ = "milkdrop: the folder is kept";
+        }
+        return;
+    }
+    if (mdb_pick_open_) { mdb_pick_key(key); return; }
     if (arrow && (key == 'A' || key == 'B')) { move_to(mdb_sel_ + (key == 'B' ? 1 : -1) * (last_key_was_shifted() ? page : 1)); return; }
     // --- the search: "/" types a query; the results are every preset that matches, best first
     if (mdb_typing_ && !arrow) {
@@ -916,7 +1073,7 @@ void App::handle_mdb_key(int key) {
     if (!arrow && key == kKeyEnd) { move_to(n - 1); return; }
     if (n > 0 && arrow && key == 'C') {
         const MdbItem it = mdb_items_[static_cast<size_t>(mdb_sel_)];
-        if (it.kind == 1 || it.kind == 2 || it.kind == 5) enter(it);
+        if (it.kind == 1 || it.kind == 2 || it.kind == 5 || it.kind == 6) enter(it);
         return;
     }
     if (arrow && key == 'D') {   // up a folder
@@ -966,7 +1123,41 @@ void App::handle_mdb_key(int key) {
         mdb_preview();
         return;
     }
-    if (key == 'a' || key == 'A') {
+    if (key == 'n' || key == 'N') {   // a new folder of presets
+        if (mdb_searching_ || mdb_in_favs_ || mdb_in_recs_ || !mdb_in_user_.empty()) { status_line_ = "milkdrop: [n] makes a new folder (in the list of the preset folders: [\u2190] goes up)"; return; }
+        mdb_new_ = true; mdb_new_name_.clear(); mdb_new_add_ = false; mdb_pick_preset_.clear();
+        return;
+    }
+    if (key == 'U') {   // SHIFT+u: takes back the last delete
+        if (!mdb_undo_pop()) status_line_ = "milkdrop: nothing to undo";
+        return;
+    }
+    if (key == 'A') {   // SHIFT+a: the folder this preset goes into
+        if (it.kind != 3) { status_line_ = "milkdrop: SHIFT+a adds a preset (not a folder) to a folder of your choice"; return; }
+        mdb_pick_open(it.path, it.name);
+        return;
+    }
+    if ((key == 'd' || key == 'D' || key == kKeyDelete) && !mdb_in_user_.empty() && (it.kind == 3 || it.kind == 4)) {
+        {
+            MdbUndo u; u.kind = 2; u.folder = mdb_in_user_; u.preset = it.path;
+            const std::vector<std::string> before = mdf::load(md_config_dir(), mdb_in_user_);
+            u.index = static_cast<size_t>(std::find(before.begin(), before.end(), it.path) - before.begin());
+            mdb_undo_push(u);
+        }
+        mdf::remove_preset(md_config_dir(), mdb_in_user_, it.path);
+        status_line_ = "milkdrop: " + it.name + " taken out of \"" + mdb_in_user_ + "\" (SHIFT+u brings it back)";
+        const int keep = mdb_sel_;
+        mdb_list(mdb_dir_, false, "");
+        mdb_sel_ = std::clamp(keep, 0, static_cast<int>(mdb_items_.size()) - 1);
+        milkdrop_apply_settings();
+        mdb_preview();
+        return;
+    }
+    if ((key == 'd' || key == 'D' || key == kKeyDelete) && it.kind == 6) {   // a folder of the user: deleted (the presets stay where they are) with a second press
+        mdb_del_ask_ = it.name;   // (a warning first: [ENTER] / [y] deletes it, SHIFT+u brings it back)
+        return;
+    }
+    if (key == 'a') {
         if (it.kind != 3) { status_line_ = "milkdrop: [a] adds a preset (not a folder) to the favourites"; return; }
         md_favs_load();
         if (std::find(md_favs_.begin(), md_favs_.end(), it.path) != md_favs_.end()) { status_line_ = "milkdrop: " + it.name + " is a favourite already"; return; }
@@ -978,9 +1169,14 @@ void App::handle_mdb_key(int key) {
         return;
     }
     if ((key == 'd' || key == 'D' || key == kKeyDelete) && mdb_in_favs_ && (it.kind == 3 || it.kind == 4)) {
+        {
+            MdbUndo u; u.kind = 3; u.preset = it.path;
+            u.index = static_cast<size_t>(std::find(md_favs_.begin(), md_favs_.end(), it.path) - md_favs_.begin());
+            mdb_undo_push(u);
+        }
         md_favs_.erase(std::remove(md_favs_.begin(), md_favs_.end(), it.path), md_favs_.end());
         md_favs_save();
-        status_line_ = "milkdrop: " + it.name + " taken out of the favourites (" + std::to_string(md_favs_.size()) + " left)";
+        status_line_ = "milkdrop: " + it.name + " taken out of the favourites (" + std::to_string(md_favs_.size()) + " left, SHIFT+u brings it back)";
         const int keep = mdb_sel_;
         mdb_list(mdb_root_, true, "");
         mdb_sel_ = std::clamp(keep, 0, static_cast<int>(mdb_items_.size()) - 1);
@@ -988,13 +1184,145 @@ void App::handle_mdb_key(int key) {
         mdb_preview();
         return;
     }
-    if (key == 'd' || key == 'D') status_line_ = "milkdrop: [d] takes a preset out of the favourites (in the Favourites folder)";
+    if (key == 'd' || key == 'D') status_line_ = "milkdrop: [d] takes a preset out of the favourites or of a folder (in that folder)";
+}
+
+void App::mdb_undo_push(MdbUndo u) {
+    mdb_undo_.push_back(std::move(u));
+    if (mdb_undo_.size() > 30) mdb_undo_.erase(mdb_undo_.begin());
+}
+
+// SHIFT+u: the delete that was made last is taken back (a folder with its presets, a preset in its place in a folder / in the favourites).
+bool App::mdb_undo_pop() {
+    if (mdb_undo_.empty()) return false;
+    const MdbUndo u = mdb_undo_.back();
+    mdb_undo_.pop_back();
+    if (u.kind == 1) {
+        if (mdf::exists(md_config_dir(), u.folder)) { status_line_ = "milkdrop: the folder \"" + u.folder + "\" is there again already"; return true; }
+        mdf::save(md_config_dir(), u.folder, u.paths);
+        if (u.was_shuffle) settings_.milkdrop_shuffle_folder = u.folder;
+        status_line_ = "milkdrop: the folder \"" + u.folder + "\" is back (" + std::to_string(u.paths.size()) + " presets)";
+        if (mdb_in_favs_ || mdb_in_recs_ || !mdb_in_user_.empty() || mdb_searching_) { /* (the list stays) */ }
+        else mdb_list(mdb_dir_, false, "");
+    } else if (u.kind == 2) {
+        std::vector<std::string> v = mdf::load(md_config_dir(), u.folder);
+        if (std::find(v.begin(), v.end(), u.preset) == v.end()) v.insert(v.begin() + static_cast<std::ptrdiff_t>(std::min(u.index, v.size())), u.preset);
+        mdf::save(md_config_dir(), u.folder, v);
+        status_line_ = "milkdrop: the preset is back in \"" + u.folder + "\"";
+        if (mdb_in_user_ == u.folder) mdb_list(mdb_dir_, false, u.preset);
+    } else {
+        md_favs_load();
+        if (std::find(md_favs_.begin(), md_favs_.end(), u.preset) == md_favs_.end()) md_favs_.insert(md_favs_.begin() + static_cast<std::ptrdiff_t>(std::min(u.index, md_favs_.size())), u.preset);
+        md_favs_save();
+        status_line_ = "milkdrop: the preset is back in the favourites (" + std::to_string(md_favs_.size()) + ")";
+        if (mdb_in_favs_) mdb_list(mdb_root_, true, u.preset);
+    }
+    milkdrop_apply_settings();
+    mdb_preview();
+    return true;
+}
+
+// SHIFT+a in the preset overlay: the small overlay that chooses the folder a preset is added to (Favourites, the folders of the user, a new one).
+void App::mdb_pick_open(const std::string& preset, const std::string& title) {
+    mdb_pick_names_.clear();
+    mdb_pick_names_.push_back("Favourites");
+    for (const std::string& n : mdf::names(md_config_dir())) mdb_pick_names_.push_back(n);
+    mdb_pick_names_.push_back("+ New folder ...");
+    mdb_pick_sel_ = 0;
+    mdb_pick_preset_ = preset;
+    mdb_pick_title_ = title;
+    mdb_pick_open_ = true;
+}
+
+bool App::mdb_pick_key(int key) {
+    const bool arrow = last_key_was_arrow();
+    const int n = static_cast<int>(mdb_pick_names_.size());
+    if (arrow) {
+        if (key == 'A') mdb_pick_sel_ = (mdb_pick_sel_ + n - 1) % n;
+        else if (key == 'B') mdb_pick_sel_ = (mdb_pick_sel_ + 1) % n;
+        else if (key == 'D') mdb_pick_open_ = false;
+        return true;
+    }
+    if (key == 27) { mdb_pick_open_ = false; return true; }
+    if (key == '\r' || key == '\n' || key == ' ') {
+        const std::string name = mdb_pick_names_[static_cast<size_t>(mdb_pick_sel_)];
+        mdb_pick_open_ = false;
+        if (mdb_pick_sel_ == n - 1) { mdb_new_ = true; mdb_new_name_.clear(); mdb_new_add_ = true; return true; }   // (the preset goes into it once it is made)
+        if (name == "Favourites") {
+            md_favs_load();
+            if (std::find(md_favs_.begin(), md_favs_.end(), mdb_pick_preset_) != md_favs_.end()) status_line_ = "milkdrop: " + mdb_pick_title_ + " is a favourite already";
+            else { md_favs_.push_back(mdb_pick_preset_); md_favs_save(); status_line_ = "milkdrop: " + mdb_pick_title_ + " added to the favourites (" + std::to_string(md_favs_.size()) + ")"; }
+        } else {
+            const int r = mdf::add(md_config_dir(), name, mdb_pick_preset_);
+            status_line_ = r == 0 ? "milkdrop: " + mdb_pick_title_ + " added to \"" + name + "\"" : r == 1 ? "milkdrop: " + mdb_pick_title_ + " is in \"" + name + "\" already" : "milkdrop: the folder \"" + name + "\" could not be written";
+            if (mdb_in_user_ == name) mdb_list(mdb_dir_, false, mdb_pick_preset_);
+        }
+        milkdrop_apply_settings();
+        return true;
+    }
+    return true;
+}
+
+std::vector<std::string> App::mdb_pick_panel() const {
+    const int W = 44, inner = W - 4;
+    const std::string border = ansi_for(settings_.border_color, false);
+    const std::string border_bottom = ansi_for(settings_.border_color_bottom, false);
+    const std::string R = "\x1b[0m", HI = "\x1b[7m";
+    const std::string bar = border + settings_.box_vertical + R;
+    std::vector<std::string> lines;
+    lines.push_back(box_top("ADD TO A FOLDER", W, border));
+    const std::string t = truncate_str(mdb_pick_title_, inner);
+    lines.push_back(bar + " " + ansi_for(settings_.header_color, false) + pad_right(t, inner) + R + " " + bar);
+    const int n = static_cast<int>(mdb_pick_names_.size());
+    const int vis = std::clamp(term_rows_ - 12, 3, 12);
+    const int top = std::clamp(mdb_pick_sel_ - vis / 2, 0, std::max(0, n - vis));
+    for (int i = top; i < std::min(n, top + vis); ++i) {
+        const bool sel = i == mdb_pick_sel_;
+        std::string name = mdb_pick_names_[static_cast<size_t>(i)];
+        std::string txt = std::string(sel ? "> " : "  ") + truncate_str(name, inner - 2);
+        lines.push_back(bar + " " + (sel ? HI : "") + pad_right(txt, inner) + R + " " + bar);
+    }
+    lines.push_back(box_bottom(W, "[ENTER] add  [ESC] cancel", border_bottom));
+    return lines;
+}
+
+std::string App::mdb_floating(int W) const {
+    std::ostringstream f;
+    if (mdb_new_) {
+        const int PW = 44, inner = PW - 4;
+        const std::string border = ansi_for(settings_.border_color, false);
+        const std::string R = "\x1b[0m";
+        const std::string bar = border + settings_.box_vertical + R;
+        std::vector<std::string> lines;
+        lines.push_back(box_top("NEW FOLDER", PW, border));
+        lines.push_back(bar + " " + ansi_for(settings_.header_color, false) + pad_right("The name of the folder:", inner) + R + " " + bar);
+        lines.push_back(bar + " " + pad_right(truncate_str(mdb_new_name_ + "\u2588", inner), inner) + " " + bar);
+        lines.push_back(box_bottom(PW, mdb_new_add_ ? "[ENTER] make it, add the preset  [ESC] cancel" : "[ENTER] make it  [ESC] cancel", ansi_for(settings_.border_color_bottom, false)));
+        draw_floating_panel(f, lines, PW, W);
+    } else if (!mdb_del_ask_.empty()) {
+        const int PW = 56, inner = PW - 4;
+        const std::string border = ansi_for(settings_.border_color, false);
+        const std::string R = "\x1b[0m";
+        const std::string bar = border + settings_.box_vertical + R;
+        const std::string head = ansi_for(settings_.header_color, false);
+        std::vector<std::string> lines;
+        lines.push_back(box_top("DELETE FOLDER?", PW, border));
+        lines.push_back(bar + " " + head + pad_right(truncate_str("\"" + mdb_del_ask_ + "\"", inner), inner) + R + " " + bar);
+        const size_t cnt = mdf::load(md_config_dir(), mdb_del_ask_).size();
+        std::vector<std::string> txt = wrap_lines("The folder and its list of " + std::to_string(cnt) + " preset" + (cnt == 1 ? "" : "s") + " are deleted. The presets themselves stay where they are. SHIFT+u brings the folder back.", inner, 6);
+        for (const std::string& t : txt) lines.push_back(bar + " " + pad_right(t, inner) + " " + bar);
+        lines.push_back(box_bottom(PW, "[ENTER/y] delete  [ESC/n] keep", ansi_for(settings_.border_color_bottom, false)));
+        draw_floating_panel(f, lines, PW, W);
+    } else if (mdb_pick_open_) {
+        draw_floating_panel(f, mdb_pick_panel(), 44, W);
+    }
+    return f.str();
 }
 
 // The preset overlay over the whole screen: the folder on the left, the visuals (the preview) on the right.
 std::string App::build_mdb_screen(int W, const char* clear_prefix) const {
     const int H = std::max(6, term_rows_ - 1);
-    const int ph = H - 2;
+    const int ph = H - 2;   // (the box; its bottom border carries the first row of commands, the second row stands below it)
     int left_w = std::clamp(W * 2 / 5, 30, 64);
     const int mg = 1;
     int pw = W - 2 - left_w - 1 - 2 * mg;
@@ -1023,6 +1351,7 @@ std::string App::build_mdb_screen(int W, const char* clear_prefix) const {
             left.push_back(" " + search_idle_sgr(settings_) + pad_right(truncate_str(where + cnt, inner), inner) + "\x1b[0m ");
             left.push_back(std::string(static_cast<size_t>(left_w), ' '));
         } else if (mdb_in_favs_) where = "Favourites";
+        else if (!mdb_in_user_.empty()) where = "Folder: " + mdb_in_user_;
         else if (mdb_in_recs_) where = "Recommended";
         else {
             fs::path rel = path_from_utf8(mdb_dir_).lexically_relative(path_from_utf8(mdb_root_));
@@ -1053,6 +1382,7 @@ std::string App::build_mdb_screen(int W, const char* clear_prefix) const {
             case 0: text = "◂ .."; break;
             case 1: text = "★ Favourites (" + std::to_string(md_favs_.size()) + ")"; sgr = "\x1b[1m" + ansi_for(settings_.header_color, false); break;
             case 5: text = "\u2714 Recommended (" + it.path + ")"; sgr = "\x1b[1m" + ansi_for(settings_.header_color, false); break;
+            case 6: text = "\u25a4 " + it.name + " (" + it.path + ")"; sgr = "\x1b[1m" + ansi_for(settings_.header_color, false); break;
             case 2: text = "▸ " + it.name; break;
             case 3: text = "  " + it.name; break;   // (a search result: its folder follows, grey)
             default: text = "  " + it.name + "  (file gone)"; sgr = "\x1b[90m"; break;
@@ -1070,7 +1400,7 @@ std::string App::build_mdb_screen(int W, const char* clear_prefix) const {
     }
     std::ostringstream f;
     f << clear_prefix << "\x1b[?25l";
-    const std::string count = mdb_in_recs_ ? std::to_string(mdb_items_.size() > 0 ? mdb_items_.size() - 1 : 0) + " recommended" : mdb_in_favs_ ? std::to_string(md_favs_.size()) + " favourites" : std::to_string(Milkdrop::instance().preset_count()) + " presets";
+    const std::string count = !mdb_in_user_.empty() ? std::to_string(mdb_items_.size() > 0 ? mdb_items_.size() - 1 : 0) + " in " + mdb_in_user_ : mdb_in_recs_ ? std::to_string(mdb_items_.size() > 0 ? mdb_items_.size() - 1 : 0) + " recommended" : mdb_in_favs_ ? std::to_string(md_favs_.size()) + " favourites" : std::to_string(Milkdrop::instance().preset_count()) + " presets";
     const std::string fx_now = milkdrop_look().fx == 0 ? std::string("off") : std::string(video_fx_name(milkdrop_look().fx));
     f << box_top(!mdb_track_.empty() ? "MILKDROP FOR THIS TRACK: " + truncate_str(mdb_track_title_, std::max(10, W - 40))
                  : mdb_default_ ? "MILKDROP DEFAULT PRESET  " + count : "MILKDROP PRESETS  " + count + "  |  effect: " + fx_now, W, border) << "\n";
@@ -1083,14 +1413,23 @@ std::string App::build_mdb_screen(int W, const char* clear_prefix) const {
         }
         f << bar << "\n";
     }
-    const std::string legend = mdb_typing_ ? "type to search (fuzzy)  [\u2191\u2193] select  [ENTER] to the list  [ESC] clear"
-                             : mdb_searching_ ? "[\u2191\u2193] select  [ENTER] choose  [a] add to favourites  [/] search  [ESC/\u2190] clear"
-                             : mdb_in_favs_ ? "[\u2191\u2193] select  [ENTER] choose  [d] remove from favourites  [/] search  [\u2190] back  [ESC] close"
-                             : !mdb_track_.empty() ? "[ENTER] this track's preset  [f] favourites  [a] add to favourites  [/] search  [e] effect  [g/h] change  [\u2190] up  [ESC] back"
-                             : mdb_default_ ? "[ENTER] the default preset  [f] favourites  [a] add to favourites  [/] search  [e] effect  [g/h] change  [\u2190] up  [ESC] back"
-                                            : "[\u2191\u2193] select  [ENTER] choose / open  [f] favourites  [a] add  [/] search  [e] effect  [g/h] change  [\u2190] up  [ESC] close";
-    f << box_bottom(W, legend, border_bottom.empty() ? border : border_bottom);
-    return clamp_output_rows(f.str(), term_rows_);
+    // The commands: two centred rows under the box
+    std::string leg1, leg2;
+    if (mdb_typing_) { leg1 = "type to search (fuzzy)  [\u2191\u2193] select"; leg2 = "[ENTER] to the list  [ESC] clear"; }
+    else if (mdb_searching_) { leg1 = "[\u2191\u2193] select  [ENTER] choose  [a] add to favourites  [SHIFT+a] add to a folder"; leg2 = "[/] search  [ESC/\u2190] clear"; }
+    else if (mdb_in_favs_) { leg1 = "[\u2191\u2193] select  [ENTER] choose  [d] remove from favourites  [SHIFT+u] undo remove"; leg2 = "[SHIFT+a] add to a folder  [/] search  [e] effect  [\u2190] back  [ESC] close"; }
+    else if (!mdb_in_user_.empty()) { leg1 = "[\u2191\u2193] select  [ENTER] choose  [d] remove from this folder  [SHIFT+u] undo remove"; leg2 = "[SHIFT+a] add to another folder  [/] search  [e] effect  [\u2190] back  [ESC] close"; }
+    else if (!mdb_track_.empty()) { leg1 = "[ENTER] this track's preset  [f] favourites  [a] add to favourites  [SHIFT+a] add to a folder"; leg2 = "[/] search  [e] effect  [g/h] change  [\u2190] up  [ESC] back"; }
+    else if (mdb_default_) { leg1 = "[ENTER] the default preset  [f] favourites  [a] add to favourites  [SHIFT+a] add to a folder"; leg2 = "[/] search  [e] effect  [g/h] change  [\u2190] up  [ESC] back"; }
+    else { leg1 = "[ENTER] choose / open  [f] favourites  [a] add to favourites  [SHIFT+a] add to a folder  [n] new folder"; leg2 = "[d] delete folder  [SHIFT+u] undo delete  [/] search  [e] effect  [\u2190] up  [ESC] close"; }
+    // like the big video overlay: row 1 sits ON the bottom border line (centred), row 2 below the box in the otherwise empty last terminal row
+    f << centred_bottom(settings_, W, truncate_str(leg1, W - 6), border_bottom.empty() ? border : border_bottom);
+    std::string out = clamp_output_rows(f.str(), term_rows_);   // (the clamp would cut a row after the box: row 2 is added behind it)
+    if (term_rows_ > H) {
+        const std::string l2 = truncate_str(leg2, W - 2);
+        out += "\n" + std::string(static_cast<size_t>(std::max(0, (W - display_width(l2)) / 2)), ' ') + (border_bottom.empty() ? border : border_bottom) + l2 + "\x1b[0m";   // (no line break after it: the terminal must not scroll)
+    }
+    return out;
 }
 
 } // namespace muisc

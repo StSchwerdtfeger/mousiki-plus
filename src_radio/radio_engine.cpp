@@ -565,6 +565,8 @@ struct RadioEngine::Impl {
     std::atomic<bool> muted{false};
     std::atomic<bool> primed{false};
     std::atomic<bool> stereo{true};
+    std::atomic<bool> pause_fade{true};   // Pause Fade (Settings): the pause fades the sound out / in over about 8 ms
+    float pf_ramp = 1.0f, pf_l = 0.0f, pf_r = 0.0f;   // (the audio callback only: the level of the fade, the last frame heard)
     // Tuning noise: a burst of radio static that fades in when a station is tuned and fades out once the new stream plays.
     std::atomic<bool> noise_on{false};        // the ON/OFF option
     std::atomic<bool> noise_hold{false};      // set by tune(): static stays up until the stream plays (or the cap runs out)
@@ -674,6 +676,25 @@ struct RadioEngine::Impl {
             out[i * 2 + 1] *= gain * self->norm_cur;
             if (eq_run) { out[i * 2] = soft(out[i * 2]); out[i * 2 + 1] = soft(out[i * 2 + 1]); }
         }
+
+        // Pause Fade: the pause does not cut the sound (a click): the last frame heard dies away over about 8 ms, and the sound comes back the same way.
+        if (self->pause_fade.load(std::memory_order_relaxed)) {
+            const float step = 1.0f / (0.008f * static_cast<float>(kRate));
+            if (self->paused.load(std::memory_order_relaxed)) {
+                if (self->pf_ramp > 0.0f)
+                    for (size_t i = 0; i < want; ++i) {
+                        out[i * 2] = self->pf_l * self->pf_ramp; out[i * 2 + 1] = self->pf_r * self->pf_ramp;
+                        self->pf_ramp = std::max(0.0f, self->pf_ramp - step);
+                    }
+            } else if (got > 0) {
+                if (self->pf_ramp < 1.0f)
+                    for (size_t i = 0; i < got; ++i) {
+                        out[i * 2] *= self->pf_ramp; out[i * 2 + 1] *= self->pf_ramp;
+                        self->pf_ramp = std::min(1.0f, self->pf_ramp + step);
+                    }
+                self->pf_l = out[(got - 1) * 2]; self->pf_r = out[(got - 1) * 2 + 1];
+            }
+        } else self->pf_ramp = 1.0f;
 
         // Tuning noise: attack ~0.12 s, held until the stream really plays (at least 0.45 s, at most 6 s), release ~0.9 s.
         if (self->noise_on.load(std::memory_order_relaxed) || self->noise_env > 0.0005f) {
@@ -970,6 +991,7 @@ void RadioEngine::go_live() {
 void RadioEngine::set_muted(bool m) { impl_->muted.store(m); }
 void RadioEngine::set_scope_raw(bool on) { impl_->scope_raw_on.store(on, std::memory_order_relaxed); }
 
+void RadioEngine::set_pause_fade(bool on) { impl_->pause_fade.store(on); }
 void RadioEngine::set_stereo(bool on) {
     if (impl_->stereo.exchange(on) != on) impl_->meter_reset.store(true);   // mono and stereo measure differently
 }

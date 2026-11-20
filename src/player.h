@@ -16,8 +16,12 @@
 #include "oscilloscope_visualizer.h"
 #include "equalizer.h"
 #include "time_stretch.h"
+#include "audio_fade.h"
 
 namespace muisc {
+
+// The song fade options as the audio thread uses them (len in frames at the rate in use, thr linear).
+struct FadeSnap { bool on = false, in = false, out = false, cross = false, trim = false; int curve = 0, thr_db = -60; long long len = 0; float thr = 0.001f; };
 
 // Plays back a StreamingPcm buffer (mono or stereo) through a real audio device via
 // miniaudio, using the backend pinned in audio_backend.h
@@ -110,6 +114,16 @@ public:
     void set_speed(double s) { speed_.store(std::clamp(s, TimeStretch::kMinSpeed, TimeStretch::kMaxSpeed)); }
     double speed() const { return speed_.load(); }
 
+    // Song fades (audio_fade.h; Settings -> GENERAL -> AUDIO FADE OPTIONS, the music player only: App leaves `enabled` off in the audio book
+    // mode). in / out: a fade at the start / the end of every track; cross: the end of a track and the start of the next one overlap (the next
+    // track is handed over by the gapless machinery, App makes it prepare it whatever Gapless says); len_ms: how long a fade lasts; curve:
+    // audio_fade.h Curve; trim: the silence at the start and the end of a track is cut (the fades and the crossfade then work on the audible
+    // part), thr_db: what counts as silence (dBFS). Atomics only -- callable from any thread, takes effect within a block.
+    struct FadeOptions { bool enabled = false, in = false, out = false, cross = false, trim = false; int len_ms = 4000, curve = 0, thr_db = -60; };
+    void set_fade_options(const FadeOptions& o);
+    // Main thread, once per frame: measures the silence at the ends of the playing and the handed-over track as soon as their audio is decoded.
+    void service_trim();
+
     double poll_elapsed() const;
     // The playback time for pictures: poll_elapsed() moves in the steps of the sound device (one block of samples, 10-50 ms), which made a
     // video's pictures come early or late by up to a block. This one goes on from the last step by the time that has passed since (at the
@@ -195,6 +209,11 @@ private:
     bool commit_switch_locked();                // the callback took next_: next_pcm_ becomes pcm_; mutex_ held
     bool switch_unreported_ = false;            // a switch committed (by any of the calls) that take_switch() has not reported yet; mutex_
     static void render(Player* self, StreamingPcm* pcm, float* out, ma_uint32 frame_count, bool may_finish = true);
+    FadeSnap fade_snap(int sr) const;   // the fade options as one snapshot for the audio thread
+    static float norm_target_for(const Player* self, const StreamingPcm& p, bool fold_to_mono);   // the loudness gain this track gets (1 without normalisation / measurement)
+    std::atomic<bool> fo_enabled_{false}, fo_in_{false}, fo_out_{false}, fo_cross_{false}, fo_trim_{false};
+    std::atomic<int> fo_len_ms_{4000}, fo_curve_{0}, fo_thr_db_{-60};
+    bool entered_by_xf_ = false;   // audio thread: the playing track came in through a crossfade (no fade in on top of it)
     FftVisualizer* fft_sink_ = nullptr;
     OscilloscopeVisualizer* scope_sink_ = nullptr; // raw-waveform feed; same lifetime rules as fft_sink_
     std::atomic<int> sample_rate_{44100};

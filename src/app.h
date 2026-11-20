@@ -303,6 +303,7 @@ private:
     bool video_lyrics_for(const fs::path& track) const;   // Use Lyrics on Video (the lyric line in the video view): the track's own, else the VIDEO overlay
     bool video_round_for(const fs::path& track) const;   // Rounded Corners of the picture: the track's own, else Settings
     int video_fx_for(const fs::path& track) const;
+    VideoTrackOpts video_own(const std::string& track) const;   // the track's own video options (none while Override Individual Settings is on)
     VideoLook video_look_for(const fs::path& track) const;   // the effect, contrast, colours and chromatic aberration of the track's video (its own choices, else Settings)
     int video_pic_width() const;
     int sixel_auto_pct_ = 100;   // Sixel only: the share of the picture width in use (100, 75, 56, 42), lowered while the terminal cannot take the pictures in time (see app.cpp)
@@ -338,6 +339,8 @@ private:
     bool md_track_view_ = false, md_track_off_ = false, md_track_locked_ = false;
     bool md_user_locked_ = false;   // the lock as it was before a track's preset locked it (given back after that track)
     int md_track_fx_ = -1;          // the effect of the track that plays (Style Option -> More Options), -1 = MilkDropEffect=
+    bool md_override_ = false;      // Override Individual Settings (MilkDrop): for this session, the general settings are used for every track
+    bool video_override_ = false;   // the same for the video options
     MilkdropTrackOpts md_trk_;      // everything the track that plays has of its own (More Options): the values laid over Settings, -1 = as in Settings
     // The values in force: Settings, with the playing track's own over them (the visuals overlay of the big video, and Style Option ->
     // More Options, change the track's; Settings and the visuals overlay of the main screen change Settings).
@@ -374,13 +377,14 @@ private:
     bool milkdrop_usable() const;           // the view can be shown (switched on and projectM installed)
     // The visuals overlay (":", HKeyVisualsMenu): the MilkDrop preset and options.
     int md_menu_row_ = 0;
-    static constexpr int kMdMenuPanelWidth = 60;
+    static constexpr int kMdMenuPanelWidth = 64;
     std::vector<std::string> build_milkdrop_menu_panel() const;
     void handle_milkdrop_menu_key(int key);
     void milkdrop_menu_adjust(int row, int dir);
     // The preset overlay (the visuals overlay's "Preset Overlay" row): the preset folder like the folder overlay, the live visuals on the
     // right as the preview (the highlighted preset is played at once), a "Favourites" folder on top. ENTER chooses, [a] adds to the
     // favourites, [d] takes one out of them, ESC goes back (the preset from before comes back unless one was chosen).
+    // (kind 6: a folder made by the user)
     struct MdbItem { int kind = 0; std::string name, path, where; };   // where: the folder of a search result   // kind: 0 up, 1 the favourites, 2 a folder, 3 a preset, 4 a favourite whose file is gone
     bool mdb_open_ = false;
     std::string mdb_track_;              // "" = the visuals overlay's preset overlay; a track: Style Option -> More Options of that track
@@ -390,6 +394,27 @@ private:
     void milkdrop_auto_apply();        // at a track's start: the field to the visuals (Auto MilkDrop)
     bool mdb_in_recs_ = false;           // the Recommended folder is shown (a list that ships with Mousiki, resolved by name in the installed presets)
     bool mdb_in_favs_ = false;           // the favourites folder is shown
+    std::string mdb_in_user_;            // the folder of the user that is shown ("" = none)
+    bool mdb_pick_open_ = false;         // SHIFT+a: the small overlay that chooses the folder a preset is added to
+    int mdb_pick_sel_ = 0;
+    std::vector<std::string> mdb_pick_names_;   // "Favourites", then the folders of the user, then "+ New folder"
+    std::string mdb_pick_preset_, mdb_pick_title_;
+    bool mdb_new_ = false;               // the name of a new folder is typed
+    std::string mdb_new_name_;
+    bool mdb_new_add_ = false;           // ... and the preset (mdb_pick_preset_) goes into it
+    std::string mdb_del_ask_;            // the folder that [d] asked to delete: a warning asks first ([ENTER] / [y] deletes, [ESC] / [n] keeps it)
+    struct MdbUndo { int kind = 0; std::string folder, preset; std::vector<std::string> paths; size_t index = 0; bool was_shuffle = false; };   // kind 1: a folder, 2: a preset out of a folder, 3: a preset out of the favourites
+    std::vector<MdbUndo> mdb_undo_;      // SHIFT+u brings back what [d] deleted last (the newest at the end)
+    void mdb_undo_push(MdbUndo u);
+    bool mdb_undo_pop();
+    fs::path md_config_dir() const;
+    std::vector<std::string> md_shuffle_paths() const;   // the presets of the folder that is shuffled (MilkDropShuffleFolder)
+    std::string md_shuffle_label() const;                // its name ("Favourites" when none is chosen)
+    std::vector<std::string> md_folder_choices() const;  // Favourites, Recommended, the folders of the user
+    std::vector<std::string> mdb_pick_panel() const;
+    void mdb_pick_open(const std::string& preset, const std::string& title);
+    bool mdb_pick_key(int key);
+    std::string mdb_floating(int W) const;               // the small overlays of the preset overlay (SHIFT+a, the name of a new folder)
     std::string mdb_root_, mdb_dir_;     // the preset folder, the folder shown (UTF-8)
     std::vector<MdbItem> mdb_items_;
     int mdb_sel_ = 0;
@@ -405,6 +430,10 @@ private:
     void mdb_close(bool chosen);
     void mdb_build_index();                       // every preset of the preset folder(s), once (the search, Recommended)
     std::vector<std::string> md_recommended_paths();   // the Recommended list, resolved to preset files that exist
+    std::string md_rec_key_;                           // what the cached Recommended list was made from (the preset folders, the lists' time stamps)
+    std::vector<std::string> md_rec_cache_;
+    mutable std::string md_shuf_key_;                  // the same for the folder that is shuffled (the file's time stamp)
+    mutable std::vector<std::string> md_shuf_cache_;
     bool mdb_inside(const std::string& file) const;   // the file lies under the preset folder or one of the extra preset folders
     bool mdb_is_extra_root(const fs::path& d) const;
     void mdb_list(const std::string& dir, bool favs, const std::string& select_path);
@@ -443,6 +472,8 @@ private:
     // kind 0 = the main picture with a column on the right (oscilloscope and / or spectrogram), 1 = the quartet, 2 = video | MilkDrop.
     struct VFullLayout { int kind = 0; bool main_md = false, source_md = false, has_o = false, has_s = false, md_ok = false; int video_l = 0; };
     VFullLayout vfull_layout() const;
+    bool vfull_wants_md() const;   // the big overlay shows MilkDrop: the m choice / what it opened with, or "Milkdrop When No Video" for this track
+    std::string vfull_user_path_;  // the track the m key chose the overlay's source for (the rule above leaves that track alone)
     static bool vl_has_osci(int layout) { return layout == 1 || layout == 3; }
     static bool vl_has_spectro(int layout) { return layout == 2 || layout == 3; }
     VizPrefs layout_osci_view() const;
@@ -496,6 +527,7 @@ private:
     void video_set_size(int size);
     void video_set_fx(int fx);
     void video_track_fx_step(int dir);   // the next / previous effect of this track (Style Option's "Video Effect")
+    bool video_only_ = false;   // [f] in the big video overlay: the picture alone over the whole window (no border, legend or info); not kept
     bool video_full_ = false;   // HKeyVideoFull: the video over the whole screen
     bool video_field_rows(std::vector<std::string>& rows, int W, int H, int area_col, bool second_slot, double t, const std::vector<std::string>& line_rows, bool trim_right = false) const;
     long long added_time_of(const fs::path& p) const;   // file_added_time(), looked up once per file (cleared on rescan)
@@ -687,6 +719,7 @@ private:
     std::chrono::steady_clock::time_point row_meta_refilter_at_{};   // throttle of poll_pending_row_meta_tags()
     // Seeking with the arrow keys lights the << / >> labels of the buttons in BORDER_COLOR BOTTOM (build_progress_panel) for a moment.
     std::chrono::steady_clock::time_point seek_flash_until_{};
+    std::chrono::steady_clock::time_point queue_added_at_{};   // when a track was last added to the queue (the big list overlay says "track added" for a moment)
     int seek_flash_dir_ = 0;                                           // -1: the << button, 1: the >> button
     void seek_flash(int dir);                                          // called by the seek keys
     void poll_pending_row_meta_tags();
@@ -1549,6 +1582,8 @@ private:
     GaplessState gap_;
     bool gapless_predict(GapTarget& t);
     void gapless_tick();
+    int gapless_mode() const;       // Gapless Playback including what a crossfade needs
+    void apply_fade_options();      // AUDIO FADE OPTIONS to the player (not in the audio book player)
     void gapless_cancel();
     void gapless_on_switch();
     std::string gapless_album_mismatch(const LoadJob& j, const TrackMetadata& next, const fs::path& next_path, int next_rate, const fs::path& decode_from);

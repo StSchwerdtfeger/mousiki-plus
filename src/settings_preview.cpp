@@ -21,6 +21,7 @@
 #include "oscilloscope_visualizer.h"
 #include "sphere_visualizer.h"
 #include "spectrogram.h"
+#include "bars_help.h"
 #include "waveform.h"
 #include "translit.h"
 #include "terminal_ui.h"
@@ -146,6 +147,24 @@ std::string pv_desc(int id, const Settings& s) {
             return "Plays quiet and loud tracks at about the same loudness, so the volume need not be changed between songs. Target and boost are set in the SHIFT+v overlay.";
         case kSidRateCap:
             return "true: a file above 96 kHz (176.4, 192 kHz ...) is played at 96 kHz. That is far beyond hearing, uses less memory and works on more sound devices.\nfalse: it plays at its own rate, up to 768 kHz.";
+        case kSidFadeIn:
+            return "The sound of each track comes up from silence at its start over the Length set below (the first audible sample when Cut Silence is on).";
+        case kSidFadeOut:
+            return "The sound of each track goes down to silence at its end over the Length set below.";
+        case kSidFadeCross:
+            return "The end of a track and the start of the next one overlap for the Length set below; the next track is loaded early (this switches Gapless Playback to full while it is on). A track shorter than twice the Length gets a shorter overlap. Not in the audio book player.";
+        case kSidFadeLen:
+            return "How long a fade in, fade out or crossfade lasts. A short track gets a shorter fade.";
+        case kSidFadeCurve:
+            return "How the volume moves during a fade.\nlinear: even steps.\nexponential: slow at first, fast at the end of a fade in.\nlogarithmic: fast at first, slow at the end of a fade in.\nlogistic: an S-curve, soft at both ends.\nA crossfade keeps the loudness even in the middle.";
+        case kSidFadeTrim:
+            return "The silence at the start and at the end of a track is not played (at most 15 s at each end). The track is measured once when it is loaded; it costs next to nothing. Tracks that are only partly in memory (very long ones) are not cut.";
+        case kSidFadeThr:
+            return "Below this level the start and the end of a track count as silence (Cut Silence). -60 dB only cuts real silence; -40 dB also cuts very quiet fade-outs.";
+        case kSidVideoAuto:
+            return "on: a track that has a video shows it by itself, a track without one shows the Lyrics/Viz Default. Switching it on switches Auto MilkDrop off (the two take turns).";
+        case kSidBigMdNoVideo:
+            return "on: the big video overlay opens on the MilkDrop visuals for a track that has no video, whatever the Viz/Lyrics field shows. A track with its own MilkDrop setting \"never\" keeps the video view, and the m key in the overlay still switches.";
         case kSidGapless:
             return "off: a short gap between two tracks.\nalbum: no gap between tracks with the same album tag (and the same artist or folder; no tag: the same folder) and the same sample rate.\nfull: no gap between any two tracks that follow by themselves; another sample rate is converted.";
         case kSidUseTermSettings:
@@ -180,12 +199,16 @@ std::string pv_desc(int id, const Settings& s) {
             return "true: the preset stays until you change it yourself via n / b, Random or the preset overlay, whatever the time or a beat says.";
         case kSidMdDuration:
             return "How long a preset plays before the next one follows. off: no change by time (hard cuts can still change it).";
+        case kSidMdBright: case kSidMdSat: case kSidMdContrast:
+            return "The look of the MilkDrop pictures, like the video's grade: Brightness 50 % = as drawn (lower darker, higher brighter), Saturation 100 % = the colours as drawn (0 = greyscale), Contrast 0 % = as drawn.";
         case kSidMdVar:
             return "Lets the time of a preset stray by up to this many seconds at random, so the changes do not come like clockwork.";
         case kSidMdShuffle:
             return "true: the next preset is chosen at random.\nfalse: the presets follow in the order of their files.";
+        case kSidMdFolder:
+            return "The preset folder that the shuffle below plays from: the Favourites, the Recommended list, or a folder you made in the preset overlay (n there; SHIFT+a adds a preset to one).";
         case kSidMdFavShuffle:
-            return "true: only your favourite presets play (add them with a in the preset overlay). Without favourites all presets play.";
+            return "true: only the presets of the folder chosen in Shuffle Folder play (the Favourites: add them with a in the preset overlay). Without any in it all presets play.";
         case kSidMdHardCuts:
             return "true: a strong beat cuts to the next preset at once. Hard Cut Sensitivity and Hard Cut Interval decide how easily.";
         case kSidMdCutSens:
@@ -213,8 +236,9 @@ PvKind kind_of(int id, const Settings& s) {
         case kSidVideoCover: return kPvNone;
         case kSidVideoClap: return kPvClap;
         case kSidMdPreset: return s.milkdrop_default_preset.empty() ? kPvDesc : kPvMilk;   // (Default Preset: its own preset live once one is chosen; before, the description)
-        case kSidMdUseFx: case kSidMdFx: case kSidMdColors: case kSidMdShowName: return kPvMilk;   // (a live preset: with the effect, the name box and the Sixel colours as set)
+        case kSidMdUseFx: case kSidMdFx: case kSidMdColors: case kSidMdShowName: case kSidMdBright: case kSidMdSat: case kSidMdContrast: return kPvMilk;   // (a live preset: with the effect, the name box and the Sixel colours as set)
         case kSidDisk: case kSidDiskSpeed: case kSidDiskBorder: return kPvDisk;
+        case kSidSharpCorners: return kPvPane;
         case kSidAlbumCover: case kSidCoverMode: case kSidCoverContrast: case kSidCoverBrightness: case kSidCoverColors: case kSidCoverGradSat: case kSidCoverChroma:
         case kSidCoverSearch: return kPvCover;
         case kSidVolIndicator: case kSidDummy: return kPvVolume;
@@ -312,7 +336,7 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
     {   // the MilkDrop preview: the preset "amandio c - secret garden 4" while its row is shown; the preset from before comes back afterwards
         Milkdrop& M = Milkdrop::instance();
         if (kind == kPvMilk && !milkdrop_usable())   // (no MilkDrop here: the rows of the MilkDrop settings keep their text, the field rows show the lyrics)
-            shown = (id == kSidMdPreset || id == kSidMdUseFx || id == kSidMdFx || id == kSidMdColors || id == kSidMdShowName) ? kPvDesc : kPvLyrics;
+            shown = (id == kSidMdPreset || id == kSidMdUseFx || id == kSidMdFx || id == kSidMdColors || id == kSidMdShowName || id == kSidMdBright || id == kSidMdSat || id == kSidMdContrast) ? kPvDesc : kPvLyrics;
         // (the preset chosen as Default Preset; none chosen: the sample preset "amandio c - secret garden 4")
         const std::string md_want = shown == kPvMilk ? settings_.milkdrop_default_preset : std::string();
         auto md_play = [&] { if (md_want.empty()) M.play_named("amandio c - secret garden 4"); else M.play_path(md_want); P.md_cur = md_want; P.md_fresh = true; };
@@ -563,6 +587,17 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             rows = {ansi_for(settings_.border_color, false) + "Title : Chords" + R, ansi_for(settings_.border_color, false) + "Artist: Test signal" + R, ""};
             for (const auto& l : hr) rows.push_back(l + R);
         }
+        {   // what the highlighted option does (the box grows with it)
+            std::string key;
+            switch (id) {
+                case kSidVisualizer: key = "onoff"; break; case kSidBarStyle: key = "style"; break; case kSidHifiRes: key = "hifires"; break; case kSidHifiChan: key = "hifichan"; break;
+                case kSidHifiColor: key = "hificolor"; break; case kSidHifiScale: key = "hifiscale"; break; case kSidHifiAdapt: key = "hifiadapt"; break; case kSidHifiSplit: key = "hifisplit"; break;
+                case kSidHifiFScale: key = "hififscale"; break; case kSidHifiGain: key = "hifigain"; break; case kSidHifiRange: key = "hifirange"; break; case kSidBarBehavior: key = "behavior"; break;
+                case kSidVisFluidity: key = "fluidity"; break; case kSidVisDegr: key = "degradation"; break; case kSidVisVisc: key = "viscosity"; break; default: break;
+            }
+            const std::string help = bars_help(key);
+            if (!help.empty()) { rows.push_back(""); for (const std::string& w : wrap_lines(help, std::max(20, n), 5)) rows.push_back(w); }
+        }
         out.rows = rows;
         out.w = n;
         out.caption = std::string(bars_preset_name(bars_preset_of(settings_.bar_fluidity(), settings_.bar_degradation(), settings_.bar_viscosity()))) + ": fluidity " + std::to_string(settings_.bar_fluidity()) + "  degradation " + std::to_string(settings_.bar_degradation()) +
@@ -686,6 +721,11 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             for (const std::string& w : wrap_lines(t, cw, 6)) rows.push_back({w, w});
         };
         // Every result is what Mousiki itself makes of the example with that value (transliterate_as()): nothing is written in by hand.
+        // An example whose result never changes: the source with its translation, the result under it (lit, no arrow), as the wide rows above.
+        auto same = [&](const std::string& src, const std::string& result) {
+            rows.push_back({src, src});
+            rows.push_back({"  " + result, "  " + lit + result + off});
+        };
         const int m = settings_.latin_macrons ? 1 : 0, wo = settings_.latin_wo ? 1 : 0, hz = settings_.latin_hanzi;
         auto tm = [&](const char* t, int v) { return transliterate_as(t, v, -1, -1); };
         auto tw = [&](const char* t, int v) { return transliterate_as(t, -1, v, -1); };
@@ -714,12 +754,16 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             example("\u5f20\u60ac", {th("\u5f20\u60ac", 0), th("\u5f20\u60ac", 1), th("\u5f20\u60ac", 2)}, hz, {"Leave", "Chin.", "Jap."});   // 张悬 (Deserts Chang, a Taiwanese singer-songwriter): only Chinese writes it, so every value reads it as Chinese
             line("(\u5f20 \u60ac are only used in Chinese: the same for every value)");
             if (hz == 2 && th("\u6771\u4eac", 2) == "\u6771\u4eac") line("Jap. needs the kanji reader; without it they stay.");
-            line("Text with kana is not changed by this row. A short poem:");
-            example("\u8349\u306e\u540d\u3082", {th("\u8349\u306e\u540d\u3082", hz)}, 0);   // 草の名も
-            example("\u5bc2\u3057\u3046\u306a\u308a\u3051\u308a", {th("\u5bc2\u3057\u3046\u306a\u308a\u3051\u308a", hz)}, 0);   // 寂しうなりけり
-            example("\u6625\u306e\u96e8", {th("\u6625\u306e\u96e8", hz)}, 0);   // 春の雨
+            line("A short poem of kanji only (this option decides):");
+            example("\u6625\u7720\u4e0d\u89c9\u6653  \"Spring sleep, dawn goes unnoticed\"", {th("\u6625\u7720\u4e0d\u89c9\u6653", 0), th("\u6625\u7720\u4e0d\u89c9\u6653", 1), th("\u6625\u7720\u4e0d\u89c9\u6653", 2)}, hz, {"Leave", "Chin.", "Jap."});   // 春眠不觉晓
+            example("\u82b1\u843d\u77e5\u591a\u5c11  \"how many flowers fell?\"", {th("\u82b1\u843d\u77e5\u591a\u5c11", 0), th("\u82b1\u843d\u77e5\u591a\u5c11", 1), th("\u82b1\u843d\u77e5\u591a\u5c11", 2)}, hz, {"Leave", "Chin.", "Jap."});   // 花落知多少
+            line("Jap. gives the Japanese sound readings of the characters: a Chinese poem is not Japanese, so it reads oddly.");
+            line("A poem mixed with kana always stays the same (kana show it is Japanese, this option is not used):");
+            same("\u8349\u306e\u540d\u3082  \"even the names of the grass\"", th("\u8349\u306e\u540d\u3082", hz));   // 草の名も
+            same("\u5bc2\u3057\u3046 \u306a\u308a\u3051\u308a  \"has grown lonely\"", th("\u5bc2\u3057\u3046 \u306a\u308a\u3051\u308a", hz));   // 寂しうなりけり
+            same("\u6625\u306e\u96e8  \"spring rain\"", th("\u6625\u306e\u96e8", hz));   // 春の雨
             if (th("\u6625\u306e\u96e8", hz).find("\u96e8") != std::string::npos)   // (the reader has not read it here: what it makes of it)
-                line("with the reader: kusa no na mo / sabishiunarikeri / haru no ame");
+                line("with the reader: kusa no na mo / sabishiu narikeri / haru no ame");
             line(reader);
             cap = std::string("Translit. Kanji: ") + (hz == 1 ? "Chin." : hz == 2 ? "Jap." : "Leave");
         } else {   // kSidLatinLookup

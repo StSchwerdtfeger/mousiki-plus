@@ -60,6 +60,11 @@ struct StreamingPcm {
     std::atomic<float> loudness_mono_lufs{std::numeric_limits<float>::quiet_NaN()};
     std::atomic<bool> loudness_final{false};   // decode ended -- lufs won't change any more
     static constexpr double kMinAnalysisSeconds = 15.0;
+    // Song fades (audio_fade.h): the first frame to play and one past the last one once the silence at the two ends is cut. -1 = not
+    // measured yet; trim_thr_db is the threshold (dBFS) they were measured with. Written by Player (analyse_trim()), read by the audio thread.
+    std::atomic<long long> trim_start{-1};
+    std::atomic<long long> trim_end{-1};
+    std::atomic<int> trim_thr_db{9999};
     LoudnessMeter meter;                       // decode thread only
     LoudnessMeter meter_mono;                  // decode thread only; fed only when channels == 2
 

@@ -2,6 +2,7 @@
 // text-field pieces the panels and overlays use. The rest of App lives in the app_*.cpp files next to
 // this one, grouped by topic.
 #include "app.h"
+#include "corners.h"
 #include "milkdrop.h"
 #include "app_state_vf.h"
 #include "app_state_rl.h"
@@ -683,6 +684,7 @@ App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(sh
     set_emoji_mode(settings_.emoji_mode);
     player_.set_stereo(settings_.stereo);
     player_.set_pause_fade(settings_.pause_fade);
+    apply_fade_options();
     player_.set_device(settings_.audio_device);   // the sound output (Settings -> GENERAL -> AUDIO "Choose Audio Device")
     adev_->applied = settings_.audio_device;
     player_.set_normalization(settings_.normalize,
@@ -1076,6 +1078,14 @@ void App::run_poll_terminal(TerminalIO& term, bool& gfx_shown) {
         if (gfx_shown) { write_frame(gfx_clear(gfxs_.proto)); gfx_shown = false; }
         gfxs_.proto = gfx_probe(settings_.gfx_protocol);
         gfxs_.probed_pref = settings_.gfx_protocol;
+        {   // what was detected, for the console log: the first thing to look at when a terminal misbehaves
+            auto env = [](const char* n) { const char* v = std::getenv(n); return std::string(v ? v : "-"); };
+            int cwp = 0, chp = 0;
+            gfx_cell_pixels(settings_.cell_pixels, cwp, chp);
+            ConsoleLog::instance().log_basic("terminal: TERM=" + env("TERM") + " TERM_PROGRAM=" + env("TERM_PROGRAM") + " WT_SESSION=" + (std::getenv("WT_SESSION") ? "yes" : "no") +
+                                             " MOUSIKI_GFX=" + env("MOUSIKI_GFX") + "; pictures: " + gfx_name(gfxs_.proto) + " (setting '" + settings_.gfx_protocol + "'); a cell is " +
+                                             std::to_string(cwp) + "x" + std::to_string(chp) + " px");
+        }
     }
     // Drain every key already queued before rendering, rather than
     // one per frame. A single keystroke can arrive as more than one
@@ -1351,6 +1361,9 @@ int App::run() {
             milkdrop_drawn_ = false;   // (set by milkdrop_draw())
             gfx3_.active = false;      // (the effect list's own picture: switched on again by fxpick_picture() when it needs the third slot)
             frame_str = render_frame(term);
+            if (settings_.sharp_corners) {   // (the Settings screen is drawn sharp: with the option on it is the one that is round)
+                if (mode_ == Mode::Settings || mode_ == Mode::ColorEdit) roundify_corners(frame_str); else sharpen_corners(frame_str);
+            }
         } catch (const std::exception& e) {
             ConsoleLog::instance().log_basic(std::string("render skipped (") + std::to_string(term.cols()) + "x" + std::to_string(term.rows()) + "): " + e.what());
             force_redraw_ = true;

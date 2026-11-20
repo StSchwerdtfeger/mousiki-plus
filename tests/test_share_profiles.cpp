@@ -110,3 +110,35 @@ TEST(radio_settings_roundtrip_is_stable) {
     CHECK_EQ(back.image_detail, 1);
     CHECK_EQ(radio::radio_settings_text(back), radio::radio_settings_text(r));
 }
+
+// The radio's VIZ ORDER, Use Sphere and the last station are its own (radio_config.txt); Pause Fade and Auto-Play are the player's (config.txt).
+TEST(radio_viz_order_use_sphere_and_shared_pause_fade_round_trip) {
+    mt::TempHome home;
+    save_settings(load_settings());   // (the player's config.txt exists: the shared values go there)
+    radio::RadioSettings r = radio::load_radio_settings();
+    CHECK(r.use_sphere);
+    CHECK(r.pause_fade);
+    CHECK(!r.auto_play);
+    r.use_sphere = false;
+    r.viz_order[0] = 3; r.viz_order[1] = 2; r.viz_order[2] = 1; r.viz_order[3] = 0;
+    r.last_station = "Plain Station";
+    r.pause_fade = false;
+    r.auto_play = true;
+    CHECK(radio::save_radio_settings(r));
+    radio::RadioSettings b = radio::load_radio_settings();
+    CHECK(!b.use_sphere);
+    CHECK_EQ(b.viz_order[0], 3);
+    CHECK_EQ(b.viz_order[3], 0);
+    CHECK_EQ(b.last_station, std::string("Plain Station"));
+    CHECK(!b.pause_fade);
+    CHECK(b.auto_play);
+    // the cycle follows the order and skips what is off: milkdrop, spectro, (sphere off), osci
+    CHECK_EQ(radio::radio_next_scope_mode(b, 4, false, true), 3);
+    CHECK_EQ(radio::radio_next_scope_mode(b, 3, false, true), 0);
+    CHECK_EQ(radio::radio_next_scope_mode(b, 0, false, true), 4);
+    CHECK_EQ(radio::radio_next_scope_mode(b, 4, false, false), 3);   // MilkDrop cannot run here
+    // the player's file got the shared values
+    const std::string cfg = read_file(config_path());
+    CHECK(cfg.find("PauseFade=false") != std::string::npos);
+    CHECK(cfg.find("AutoPlay=true") != std::string::npos);
+}

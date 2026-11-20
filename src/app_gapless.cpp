@@ -177,9 +177,23 @@ void App::gapless_on_switch() {
     }
 }
 
+// Gapless Playback as it works now: a crossfade needs the next track in memory early and any track (full), so it makes it "full".
+int App::gapless_mode() const { return settings_.fade_cross && !audiobook_ ? 2 : settings_.gapless; }
+
+// The AUDIO FADE OPTIONS to the player (music player only: not for audio books).
+void App::apply_fade_options() {
+    Player::FadeOptions o;
+    o.enabled = !audiobook_;
+    o.in = settings_.fade_in; o.out = settings_.fade_out; o.cross = settings_.fade_cross; o.trim = settings_.fade_trim;
+    o.len_ms = settings_.fade_len_ms; o.curve = settings_.fade_curve; o.thr_db = settings_.fade_trim_db;
+    player_.set_fade_options(o);
+}
+
 void App::gapless_tick() {
+    apply_fade_options();   // (also follows a change of mode: no fades in the audio book player)
+    player_.service_trim();
     if (gap_.phase == 2 && player_.take_switch()) { gapless_on_switch(); return; }
-    const bool on = settings_.gapless != 0 && !audiobook_ && has_track_ && current_.is_local && !advancing_ && !load_in_progress_.load() &&
+    const bool on = gapless_mode() != 0 && !audiobook_ && has_track_ && current_.is_local && !advancing_ && !load_in_progress_.load() &&
                     device_->play_pending_gen.load() == 0 && current_.pcm && !creator_->show && std::fabs(player_.speed() - 1.0) < 1e-3;
     if (!on || current_.pcm.get() != gap_.for_pcm) {
         if (gap_.phase != 0) { gapless_cancel(); if (gap_.phase != 0) return; }
@@ -190,7 +204,7 @@ void App::gapless_tick() {
     const auto now = std::chrono::steady_clock::now();
     if (gap_.phase == 0) {
         const double remaining = static_cast<double>(total_sec_) - player_.poll_elapsed();
-        if (total_sec_ == 0 || remaining > kGapLeadSeconds || now < gap_.next_check) return;
+        if (total_sec_ == 0 || remaining > std::max(kGapLeadSeconds, settings_.fade_cross ? settings_.fade_len_ms / 1000.0 + 6.0 : 0.0) || now < gap_.next_check) return;
         gap_.next_check = now + kGapCheck;
         GapTarget t;
         if (!gapless_predict(t)) return;   // (asked again in a moment: the queue or the mode may still change)
@@ -206,11 +220,11 @@ void App::gapless_tick() {
         j.is_local = true;
         j.want_stereo = settings_.stereo;
         j.sid_seconds = settings_.sid_play_length;
-        if (settings_.video_mode && !LocalSource::is_video_file(j.local_path) && cover_track_video_opts(t.path).mp4audio == 1)
+        if (settings_.video_mode && !LocalSource::is_video_file(j.local_path) && video_own(t.path).mp4audio == 1)
             j.video_audio = video_source_for(j.local_path);
         j.gap = job;
         j.force_rate = player_.sample_rate();
-        j.album_only = settings_.gapless == 1;
+        j.album_only = gapless_mode() == 1;
         j.cur_path = current_.path;
         j.cur_album = metadata_.album;
         j.cur_artist = metadata_.artist;

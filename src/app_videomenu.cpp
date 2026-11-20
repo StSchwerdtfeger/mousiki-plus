@@ -174,6 +174,13 @@ void App::video_menu_change(int row, int dir) {
             status_line_ = settings_.video_clap == 1 ? "show clap loading: clap -- a small clapperboard shows while a video loads" : settings_.video_clap == 0 ? "show clap loading: text note -- the text \"video: starting ...\" shows while a video loads" : "show clap loading: none -- nothing shows while a video loads";
             video_pic_key_.clear();
             break;
+        case kVmOverride:
+            video_override_ = !video_override_;
+            video_for_track_.clear(); ++video_rev_;
+            video_pic_key_.clear();
+            status_line_ = video_override_ ? "video: the general settings are used for every track (the individual ones are kept; until you turn this off or quit)" : "video: individual track settings are in force again";
+            force_redraw_ = true;
+            break;
         default: break;
     }
 }
@@ -197,7 +204,12 @@ void App::video_set_fx(int fx) {
     status_line_ = std::string("video effect: ") + video_fx_name(settings_.video_fx);
 }
 
+VideoTrackOpts App::video_own(const std::string& track) const {
+    return video_override_ ? VideoTrackOpts() : cover_track_video_opts(track);   // (Override Individual Settings: the tracks' own values stay stored, but are not used)
+}
+
 void App::video_track_fx_step(int dir) {
+    if (video_override_) { video_set_fx(video_fx_step(settings_.video_fx, dir)); return; }   // (the general effect: the track's own is not in force)
     const int nx = video_fx_step(video_fx_for(current_.path), dir);
     VideoTrackOpts o = cover_track_video_opts(path_utf8(current_.path));
     o.fx = nx;   // always the effect of this track (the same one as in the Style Option overlay), never the general setting
@@ -226,7 +238,16 @@ void App::milkdrop_overlay_open() {
 void App::video_full_toggle() {
     if (audiobook_) { status_line_ = "video: not available in the audio book player"; return; }
     video_full_ = !video_full_;
-    if (video_full_) { spectro_.full = false; scope_big_ = false; video_pic_key_.clear(); }
+    video_only_ = false;
+    if (video_full_) {
+        spectro_.full = false; scope_big_ = false; video_pic_key_.clear();
+        // Opened with the video key / button: the overlay shows the VIDEO (also when MilkDrop was what it showed last time and when the small field
+        // is on the video view); only a field that shows the MilkDrop visuals right now carries them over. (The m key still switches, and the
+        // MilkDrop overlay key sets its own source after this.)
+        settings_.vfull_milkdrop = milkdrop_shown_in_field();
+        vfull_user_path_.clear();
+        milkdrop_pic_key_.clear();
+    }
     else video_pic_key_.clear();
     status_line_ = video_full_ ? "full screen video (ESC or " + hotkey_text("HKeyVideoFull", "v") + " closes, UP/DOWN change the effect, TAB the lyrics)" : "";
     force_redraw_ = true;
@@ -256,6 +277,12 @@ void App::video_opts_change(int row, int dir, bool reset) {
         case kVoGradSat: o.gsat = reset ? -1 : vopts_step(o.gsat, dir, 100, 5); break;
         case kVoResolution: o.res = reset ? -1 : vopts_step(o.res, dir, 2, 1); break;
         case kVoRounded: o.round = reset ? -1 : vopts_step(o.round, dir, 1, 1); break;
+        case kVoOverride:   // for this session only; nothing is saved
+            video_override_ = !video_override_;
+            video_for_track_.clear(); ++video_rev_;
+            status_line_ = video_override_ ? "video: the general settings are used for every track (the individual ones are kept; until you turn this off or quit)" : "video: individual track settings are in force again";
+            video_pic_key_.clear(); force_redraw_ = true;
+            return;
         case kVoMp4Audio: {   // Use mp4 audio for this song (a song paired with a video): the audio is loaded again at the same time
             const int before = o.mp4audio;
             o.mp4audio = reset ? -1 : (o.mp4audio == 1 ? -1 : 1);
@@ -288,12 +315,13 @@ std::vector<std::string> App::video_opts_rows(int inner) const {
         {"Video Resolution", o.res >= 0 ? std::string(video_res_name(o.res)) : std::string("as in Settings (") + video_res_name(settings_.video_res) + ")"},
         {"Video Rounded Corners", o.round >= 0 ? std::string(o.round ? "on" : "off") : std::string("as in Settings (") + (settings_.video_round ? "on" : "off") + ")"},
     };
+    rows.push_back({"Override Individual Settings", video_override_ ? std::string("on (this session)") : std::string("off")});
     if (video_opts_pair_) rows.push_back({"Use mp4 audio for this song", o.mp4audio == 1 ? std::string("true") : std::string("false")});
     std::vector<std::string> out;
     auto plain = [&](const std::string& t) { return pad_right(truncate_str(t, inner), inner); };
     {   // the note in the header colour, as in Style Option
         const std::string hc = ansi_for(settings_.header_color, false);
-        out.push_back(hc + plain(" Only for this track.") + (hc.empty() ? "" : "\x1b[0m"));
+        out.push_back(hc + plain(video_override_ ? " Only for this track (override on: not used)." : " Only for this track.") + (hc.empty() ? "" : "\x1b[0m"));
     }
     out.push_back(plain(""));
     for (int i = 0; i < static_cast<int>(rows.size()); ++i) {
@@ -364,9 +392,11 @@ bool App::video_full_key(int key) {
         return true;   // (nothing else works under the panel)
     }
     if (!arrow && (key == 's' || key == 'S')) { video_opts_open_ = true; video_opts_sel_ = 0; video_opts_pair_ = song_paired_with_video(current_.path); force_redraw_ = true; return true; }
-    if (!arrow && (key == 27 || key_is("HKeyVideoFull", key))) { video_full_ = false; video_opts_open_ = false; video_pic_key_.clear(); force_redraw_ = true; return true; }
+    if (!arrow && key == 'f') { video_only_ = !video_only_; video_pic_key_.clear(); milkdrop_pic_key_.clear(); force_redraw_ = true; return true; }   // the picture alone, over the whole window
+    if (!arrow && key == 27 && video_only_) { video_only_ = false; video_pic_key_.clear(); milkdrop_pic_key_.clear(); force_redraw_ = true; return true; }   // (ESC first brings the box back)
+    if (!arrow && (key == 27 || key_is("HKeyVideoFull", key))) { video_only_ = false; video_full_ = false; video_opts_open_ = false; video_pic_key_.clear(); force_redraw_ = true; return true; }
     if (!arrow && (key_is("HKeyQueueOverlay", key) || key_is("HKeyListOverlay", key) || key_is("HKeyFolderOverlay", key))) {   // the big queue / list / folder overlay: the big video gives way to it
-        video_full_ = false; video_opts_open_ = false; video_pic_key_.clear(); force_redraw_ = true;
+        video_only_ = false; video_full_ = false; video_opts_open_ = false; video_pic_key_.clear(); force_redraw_ = true;
         if (key_is("HKeyQueueOverlay", key)) queue_overlay_open();
         else if (key_is("HKeyListOverlay", key)) list_overlay_open();
         else folder_overlay_open();
@@ -395,12 +425,13 @@ bool App::video_full_key(int key) {
     }
     if (!arrow && key == 'm') {   // the video <-> the MilkDrop visuals (the play mode key is not needed over the big picture)
         std::string why;
-        if (!settings_.vfull_milkdrop && !milkdrop_usable()) {
+        if (!vfull_wants_md() && !milkdrop_usable()) {
             Milkdrop::instance().available(&why);
             status_line_ = settings_.use_milkdrop ? "milkdrop: cannot run here -- " + why : "milkdrop: switched off (Settings -> ANIMA/VIZ -> Use MilkDrop)";
             return true;
         }
-        settings_.vfull_milkdrop = !settings_.vfull_milkdrop;
+        settings_.vfull_milkdrop = !vfull_wants_md();
+        vfull_user_path_ = has_track_ && !current_.path.empty() ? path_utf8(current_.path) : std::string();   // (this track: the choice stays, whatever the rule says)
         set_config_value("VideoFullSource", settings_.vfull_milkdrop ? "milkdrop" : "video");
         status_line_ = settings_.vfull_milkdrop ? "big overlay: the MilkDrop visuals (SHIFT+UP / DOWN: their layouts, " + visuals_key_text() + ": their options)" : "big overlay: the video";
         video_pic_key_.clear();
@@ -419,6 +450,7 @@ bool App::video_full_key(int key) {
         return true;
     }
     if (arrow && (key == 'A' || key == 'B') && vfull_layout().source_md) {   // the MilkDrop visuals are shown: UP / DOWN change THEIR effect (this track's own, as the video's)
+        if (md_override_) { milkdrop_effect_step(key == 'B' ? 1 : -1, true); return true; }   // (Override Individual Settings: the general effect)
         MilkdropTrackOpts mo = cover_track_milkdrop(path_utf8(current_.path));
         const MdEff e = milkdrop_eff();
         const int start = mo.fx >= 0 ? mo.fx : settings_.milkdrop_fx;
@@ -584,6 +616,7 @@ std::vector<std::string> App::build_video_menu_panel() const {
         lines.push_back(row(entry(vmenu_sel_ == kVmBuffer, "Buffer", "< " + std::to_string(settings_.video_buffer) + " MB >"), vmenu_sel_ == kVmBuffer));
     }
     lines.push_back(row(entry(vmenu_sel_ == kVmClap, "Show Clap Loading", std::string("< ") + (settings_.video_clap == 2 ? "none" : settings_.video_clap == 0 ? "text note" : "clap") + " >"), vmenu_sel_ == kVmClap));
+    lines.push_back(row(entry(vmenu_sel_ == kVmOverride, "Override Individual Settings", toggle(video_override_)), vmenu_sel_ == kVmOverride));
     lines.push_back(button(kVmFullScreen, "Full Screen Video"));
     lines.push_back(section("Videos for songs"));
     lines.push_back(button(kVmCouple, "Manually Couple Local Files"));

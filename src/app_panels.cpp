@@ -467,6 +467,8 @@ void App::meta_panel_info(MetaPanel& m) const {
         // tags look like.
         // (Hi-Fi bars are up to four rows high: as many as the meta data leave, at least two)
         const bool hifi_bars = settings_.element_visualizer && settings_.bars_style == 1;
+        // with a wall (three panes) or the field's edge (two panes) right of the meta data the bars end one column earlier: in the middle of their pane / not touching the field
+        const int bar_trim = (m.wall_w > 0 || (show_viz && settings_.top_pane_style == 4)) ? 1 : 0;
         const int viz_rows = !settings_.element_visualizer ? 0 : hifi_bars ? std::clamp(panel_h - 11, 2, 4) : 2;
         const int last_meta_row = panel_h - viz_rows - 1;
         // `marquee_slot` >= 0: the value always takes exactly one row and, when
@@ -560,7 +562,7 @@ void App::meta_panel_info(MetaPanel& m) const {
                 kv("Length", clock(total) + (complete ? "" : " +"));
                 kv("Heard", clock(done) + "  (" + std::to_string(static_cast<int>(100.0 * done / total + 0.5)) + " %)");
             }
-            kv("Sampling", metadata_.sampling);
+            kv("Sampling", sampling_text(metadata_.sampling));
             kv("Format", metadata_.format);
             kv("File size", metadata_.file_size);
         } else {
@@ -568,7 +570,7 @@ void App::meta_panel_info(MetaPanel& m) const {
         kv("Artist", shown.artist, 1, 1);
         kv("Album", shown.album, 1, 2);
         kv("Year", shown.year);
-        kv("Sampling", metadata_.sampling);
+        kv("Sampling", sampling_text(metadata_.sampling));
         kv("Type", metadata_.type);
         kv("Format", format_text());
         kv("File size", metadata_.file_size);
@@ -583,7 +585,7 @@ void App::meta_panel_info(MetaPanel& m) const {
         // per instruction, with the second row directly above it.
         if (hifi_bars) {
             // the Hi-Fi style: a stereo spectrum, a braille dot column per frequency step, at the frame rate of the program
-            const int viz_w = std::min(meta_w, show_viz ? 48 : 96);
+            const int viz_w = std::min(meta_w, show_viz ? 48 : 96) - bar_trim;
             bars = fft_.compute_bars(48, viz_dt_);   // (the sphere below uses the classic bars)
             HifiView hv;
             hv.cells = viz_w; hv.rows = viz_rows; hv.resolution = settings_.hifi_resolution; hv.channels = settings_.hifi_channels;
@@ -606,7 +608,7 @@ void App::meta_panel_info(MetaPanel& m) const {
                 meta_rows[static_cast<size_t>(panel_h - viz_rows + r)] = line;
             }
         } else if (settings_.element_visualizer) {
-            int viz_w = std::min(meta_w, show_viz ? 48 : 96);
+            int viz_w = std::min(meta_w, show_viz ? 48 : 96) - bar_trim;
             bars = fft_.compute_bars(viz_w, viz_dt_);
             std::string viz_top, viz_bottom;
             int nbars = static_cast<int>(bars.size());

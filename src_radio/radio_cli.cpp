@@ -62,7 +62,7 @@ const RSetting kRadioSettings[] = {
     {"OnAirAscii", &RadioSettings::on_air_ascii}, {"SignBorder", &RadioSettings::sign_border}, {"PulseWave", &RadioSettings::pulse_wave}, {"DummyButtons", &RadioSettings::dummy_buttons},
     {"Visualizer", &RadioSettings::element_visualizer}, {"StereoSound", &RadioSettings::stereo}, {"NormalizeVolume", &RadioSettings::normalize},
     {"TuneNoise", &RadioSettings::tune_noise}, {"MarqueeScrolling", &RadioSettings::marquee}, {"UseOscilloscope", &RadioSettings::use_osci},
-    {"UseSpectrogram", &RadioSettings::use_spectro},
+    {"UseSpectrogram", &RadioSettings::use_spectro}, {"UseSphere", &RadioSettings::use_sphere},
 };
 const RSetting* find_rsetting(const std::string& key) {
     std::string k = key;

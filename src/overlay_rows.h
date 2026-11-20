@@ -28,7 +28,8 @@ enum VMenuRow : int {
     kVmFrameRate,       // Frame Rate (25 | 60)
     kVmBuffer,
     kVmClap,            // Show Clap Loading
-    kVmLastSetting = kVmClap,   // (rows up to here change a setting with the arrow keys; the rest are buttons)
+    kVmOverride,        // Override Individual Settings (this session only: the settings of the tracks of their own are not used)
+    kVmLastSetting = kVmOverride,   // (rows up to here change a setting with the arrow keys; the rest are buttons)
     kVmFullScreen,      // [ Full Screen Video ]
     kVmCouple,          // [ Manually Couple Local Files ]
     kVmQuickSearch,     // [ Quick Search/Down. YT ]
@@ -51,6 +52,7 @@ enum VOptsRow : int {
     kVoGradSat,
     kVoResolution,
     kVoRounded,
+    kVoOverride,
     kVoMp4Audio,
     kVoRowCount
 };

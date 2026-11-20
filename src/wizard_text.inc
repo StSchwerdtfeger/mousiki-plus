@@ -137,9 +137,12 @@ TABLE OF CONTENT: [[Header]]
   2.8 Settings and Color Themes[[Header]]
    2.8.1 Settings Basics
    2.8.2 Colors and Color Themes
-   2.8.3 GENERAL, ANIMA/VIZ and PATHS
-   2.8.4 Hotkeys, Reference and About
-   2.8.5 Console, Logs and Status Messages
+   2.8.3 GENERAL Tab
+   2.8.4 ANIMA/VIZ Tab
+   2.8.5 PATHS Tab
+   2.8.6 REFERENCE Tab (Hotkeys)
+   2.8.7 ABOUT APP Tab
+   2.8.8 Console, Logs and Status Messages
 
 3 RADIO PLAYER MODE[[Header]]
   3.0 Radio Player Introduction
@@ -1864,9 +1867,7 @@ When in the CHOOSE THEME list [SHIFT+p] shows a still copy of the main screen in
 any key goes back.
 
 [[New Page]]
-2.8.3 GENERAL, ANIMA/VIZ AND PATHS [[Header]]
-
-=====[[Header]] GENERAL TAB =====[[Header]]  
+2.8.3 GENERAL TAB [[Header]]
 
 Most of the rows are changed with [<-/->] to set the respective value to either true/false or
 toggle other values. Some options demand input, such as terminal size. 
@@ -1910,10 +1911,10 @@ marquee.
 [Playback Speed:][[Legend]]                                   audio books only: 0.5x - 3.0x in steps of 0.05 (default
                                                   1.0x); the voice keeps its pitch. The same value as
                                                   [SHIFT+<-] / [SHIFT+->] in the audio book player.
-)WIZ",
-R"WIZ(
+
 [Track Buffer (MB):][[Legend]]                                default = 64 (about 3 minutes of CD-quality stereo): a
-                                                  track whose decoded audio is smaller is held whole in
+)WIZ",
+R"WIZ(                                                  track whose decoded audio is smaller is held whole in
                                                   RAM, so seeking is instant; a bigger one uses a moving
                                                   2-minute window (a jump outside it takes a moment).
                                                   [ENTER] types a number (64 up to a quarter of the RAM,
@@ -1937,6 +1938,22 @@ R"WIZ(
                                                   same sample rate and channels follows without a gap.
                                                   full = every automatic change to the next local track,
                                                   any album (another sample rate is resampled).
+
+[AUDIO FADE OPTIONS:][[Header]]  (music player only)
+[Fade In:][[Legend]]                                           on = a track comes up from silence at its start.
+[Fade Out:][[Legend]]                                          on = a track goes down to silence at its end.
+[Crossfade:][[Legend]]                                         on = the end of a track and the start of the next one
+                                                  overlap (the next track is loaded early; Gapless
+                                                  Playback works as "full" while this is on).
+[Length:][[Legend]]                                            how long a fade or crossfade lasts, 1 - 20 s (default
+                                                  4 s). A short track gets a shorter fade.
+[Curve:][[Legend]]                                             linear (default), exponential, logarithmic or
+                                                  logistic (an S-curve). A crossfade keeps the loudness
+                                                  even in the middle.
+[Cut Silence:][[Legend]]                                       on = the silence at the start and the end of a track
+                                                  (at most 15 s each) is not played. Measured once per
+                                                  track; costs next to no CPU or memory.
+[Silence Below:][[Legend]]                                     -40 ... -80 dB (default -60): what counts as silence.
 
 [TERMINAL:][[Header]]
 [Black Background:][[Legend]]                                 on = the terminal is black and plain text takes the list
@@ -1991,7 +2008,8 @@ R"WIZ(
 
 [Update Notice:][[Legend]]                                    a quiet once-a-day look for a newer release; a small
                                                   window, once per version ([ESC] close, [o] open the
-                                                  Github release page).
+)WIZ",
+R"WIZ(                                                  Github release page).
 
 [Check Update:][[Legend]]                                     [ENTER] on this row asks GitHub for the newest release
                                                   now and writes the answer on this screen (needs Python 3
@@ -2009,8 +2027,7 @@ In the audio book mode some rows carry the book's own names (same meaning as in 
 [Use Book Notes] = Use Lyrics Engine: the notes view takes part in the cycle. 
 [Notes/Viz Default:] = Lyrics/Viz Default (what the field starts with) and ...
 [When No Notes Show:] = When No Lyrics Show (the book has no notes).
-)WIZ",
-R"WIZ([Viz Order 1 to 4] set the order of the views for [,/.], 
+[Viz Order 1 to 4] set the order of the views for [,/.], 
 [Mode Order 1 to 3] the order of the modes.
 [Book Gradient Wave:][[Legend]] with Book Cover on: true = the colour wave runs over the grey cover, false = the  
         		        coverkeeps its own colours (the row below Book Cover; also in config.txt as 
@@ -2091,7 +2108,9 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 
 
 
-=====[[Header]] ANIMA/VIZ TAB =====[[Header]] 
+
+[[New Page]]
+2.8.4 ANIMA/VIZ TAB [[Header]]
 
 [LYRICS/VIZ FIELD:][[Header]]  
 [Lyrics/Viz Default:][[Legend]]                               With what the view field starts with.
@@ -2099,7 +2118,8 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   view you pick, or nothing.
 [When No Video Shows][[Legend]]                               What the video view shows when the track has no video:
                                                   the lyrics (default), a visual or nothing.
-
+)WIZ",
+R"WIZ(
 [LYRICS:][[Header]]                          
 [Lyrics Alignment][[Legend]]                                  Aligned left / center / right
 [Lyrics Animation][[Legend]]                                  Style full,word by word, letter by letter, active line
@@ -2116,8 +2136,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   strong.
 [Video Base Layer][[Legend]]                                  The structure under the tube looks: scanlines / aperture
                                                   grille / shadow mask / slot mask / clean (default).
-)WIZ",
-R"WIZ([Video Effect Contrast][[Legend]]                             How hard the blacks of the photographic looks are: full
+[Video Effect Contrast][[Legend]]                             How hard the blacks of the photographic looks are: full
                                                   / reduced (default) / low; palette looks are never
                                                   touched; Halftone CMYK: the print's strength (100 / 70 /
                                                   50 %).
@@ -2190,7 +2209,8 @@ R"WIZ([Video Effect Contrast][[Legend]]                             How hard the
                                                   Disk looks: the cover is spread over the whole
                                                   brightness range (bright like the plain disk), its dark
                                                   parts are lifted to at least this share and it is
-                                                  sharpened. Audio book cover with the wave: a brightness
+)WIZ",
+R"WIZ(                                                  sharpened. Audio book cover with the wave: a brightness
                                                   curve, 50% = as it is, more = brighter, less = darker.
 [Cover Colors:][[Legend]]                                     0% .. 100% in steps of 5% (default 0%). How much of the
                                                   cover's own colours shows through the gradient (Cover
@@ -2203,8 +2223,7 @@ R"WIZ([Video Effect Contrast][[Legend]]                             How hard the
                                                   fades to grey in the middle; this brings the colour
                                                   back (0% = the plain blend, 100% = as saturated as a
                                                   straight line between the two colours). Only the colour
-)WIZ",
-R"WIZ(                                                  of the dots changes, the picture stays as it is. Also in
+                                                  of the dots changes, the picture stays as it is. Also in
                                                   the VIDEO SETTINGS overlay and, for one track, in Style
                                                   Option.
 [Cover Search:][[Legend]]                                     says where the cover is looked for:
@@ -2285,7 +2304,8 @@ R"WIZ(                                                  of the dots changes, the
                                                   the moving braille blocks (disk), in all modes.
 
 [SPECTRUM BARS:][[Header]]               
-[On/Off:][[Legend]]                                           shows or hides the spectrum bars under the meta data
+)WIZ",
+R"WIZ([On/Off:][[Legend]]                                           shows or hides the spectrum bars under the meta data
                                                   field.
 
 [Bars Style:][[Legend]]                                       Classic is the bar display as before. Hi-Fi is a stereo
@@ -2300,8 +2320,7 @@ R"WIZ(                                                  of the dots changes, the
 [Hi-Fi Height:][[Legend]]                                     (Hi-Fi only) Full, Medium, Low or Very low: Medium, Low
                                                   and Very low keep the middle levels lower, the peaks
                                                   still reach the top (default: Low).
-)WIZ",
-R"WIZ([Hi-Fi Adapt Height:][[Legend]]                               (Hi-Fi only) On = the height adapts to the song: dense,
+[Hi-Fi Adapt Height:][[Legend]]                               (Hi-Fi only) On = the height adapts to the song: dense,
                                                   compressed music is bent down more (default: on).
 [Hi-Fi Frequency Scale:][[Legend]]                            (Hi-Fi only) linear, logarithmic, mel, bark or erb, as
                                                   in the spectrogram options (default: mel).
@@ -2371,7 +2390,9 @@ R"WIZ([Hi-Fi Adapt Height:][[Legend]]                               (Hi-Fi only)
 
 
 
-=====[[Header]] PATHS TAB: =====[[Header]]
+
+[[New Page]]
+2.8.5 PATHS TAB [[Header]]
 
 [LOCAL PATH][[Header]] the folders scanned for music (several, plus "+ new path")
 [DOWNLOAD PATH][[Header]]                                     where [y] saves streams
@@ -2383,7 +2404,8 @@ R"WIZ([Hi-Fi Adapt Height:][[Legend]]                               (Hi-Fi only)
 [AUDIO BOOK PATH][[Header]]                                   One folder only, since books are sorted by book folders
                                                   with the chapters themselves (doesn't happen inside
                                                   Mousiki). Every book folder within it with audio files
-                                                  is considered one book. A .cue file rests beside each
+)WIZ",
+R"WIZ(                                                  is considered one book. A .cue file rests beside each
                                                   book and keeps its narrator, publisher and year and
                                                   other meta data. The music player's library leaves files
                                                   stored in this folder out (also from its searches): the
@@ -2398,13 +2420,12 @@ speed, no TRANSLITERATION category). The audio book mode has its own look: colou
 visualizations, borders, play mode and sound are kept in audiobook_config.txt, apart from the player and
 the radio. Paths, hotkeys, the mode switches and the like are the same in all three modes (config.txt).
 Changing LOCAL PATH rescans at once. Changing the playlist or history folder copies what is there; nothing
-)WIZ",
-R"WIZ(is moved or deleted. Changed folders only stick when you save with [s]. A warning will appear in case you
+is moved or deleted. Changed folders only stick when you save with [s]. A warning will appear in case you
 have unsaved changes.
 
 
 [[New Page]]
-2.8.4 HOTKEYS, REFERENCE AND ABOUT [[Header]]
+2.8.6 REFERENCE TAB (HOTKEYS) [[Header]]
 
 REFERENCE TAB: [[Header]]
 The longest tab. It lists every rebindable command, grouped like the cheat sheet (PLAYBACK,
@@ -2424,13 +2445,16 @@ never lose a command by accident. [*] and [ESC] are reserved. Keys that are not 
 editors and overlays, [ENTER], the arrows, [CTRL+s] ...) are fixed. The cheat sheet [?] lists
 those, and it always shows the default keys.
 
+[[New Page]]
+2.8.7 ABOUT APP TAB [[Header]]
+
 ABOUT APP TAB: [[Header]]
 The credits and versions, centred on the tab and placed in its vertical middle, two rows higher;
 [UP]/[DOWN] scroll it only when the window is too small.
 
 
 [[New Page]]
-2.8.5 CONSOLE, LOGS AND STATUS MESSAGES [[Header]]
+2.8.8 CONSOLE, LOGS AND STATUS MESSAGES [[Header]]
 
 OPEN: [[Header]]
 [t] on the main screen opens the console, a read-only view with two panes. [ESC], [t] or [T] close it.
@@ -2517,7 +2541,8 @@ KEYS ON THE MAIN SCREEN: [[Header]]
 [SHIFT+p] presets   [SHIFT+s] radio browser   [SHIFT+k] station lists   [SHIFT+l] big stations overlay
 [h] history   [s] settings   [?] cheat sheet   [<] menus index   [SHIFT+w] this wizard   [q] quit
 [°] (German [SHIFT+^]; other keyboards [&])  choose the audio device (2.6.5)
-
+)WIZ",
+R"WIZ(
 THE BIG STATIONS OVERLAY: [[Header]]
 [SHIFT+l] shows the STATIONS pane over the whole screen plus a PRESET NAME column.
 [a] adds a station by its stream URL ([TAB] switches URL <-> NAME; an empty name becomes the host name).
@@ -2546,8 +2571,7 @@ and unique. Every change is written to presets.txt at once.
 
 KEYS IN THE PRESETS MENU: [[Header]]
 [TAB]                  SEARCH > SELECT PRESET > STATIONS
-)WIZ",
-R"WIZ([ENTER]                in STATIONS: tune in. In SELECT PRESET: open that preset and tune its 
+[ENTER]                in STATIONS: tune in. In SELECT PRESET: open that preset and tune its 
                        first filled slot...
 [1-0], [e r t d f g]   in STATIONS: put the hovered station in that slot; the same key again 
                        clears it... 
@@ -2681,7 +2705,8 @@ move, [HOME]/[END] jump to the ends.
 [3] HABITS         sessions, time per day, channels, and listening by hour and by weekday
 A new HISTORY line starts whenever the channel, the artist or the title changes. Lines heard for less
 than 3 seconds are dropped. A session ends after a gap of 30 minutes. The newest 10 000 lines are
-kept one by one; older ones are folded into lifetime totals, so TOP CHANNELS and HABITS stay lifetime
+)WIZ",
+R"WIZ(kept one by one; older ones are folded into lifetime totals, so TOP CHANNELS and HABITS stay lifetime
 figures.
 
 HEARD A SONG ON THE RADIO? DOWNLOAD IT: [[Header]]
@@ -2709,8 +2734,7 @@ COLORS (ONLY THE RADIO HAS): [[Header]]
 ON_AIR            the diagonal gradient of the ON AIR sign, the needle, the lamp and LIVE
 OSCI              left / right color of the oscilloscope
 FREQUENCY_BAR     the line and ticks of the dial / the numbers and dots
-)WIZ",
-R"WIZ(VOLUME            current / possible part of the volume bar
+VOLUME            current / possible part of the volume bar
 PRESETS           inactive slots (FG/BG) and the shortcut letters
 BORDER_COLOR, METADATA, VIZ, LIST, HEADER, LEGEND and TAB_NAMES work as in the player, and so do the
 THEME row, [e], [SHIFT+d] and the unsaved-changes questions.
@@ -2812,7 +2836,8 @@ An image of a women rading a book (a grey version of a colour picture) takes the
 It is drawn as small braille dots (a 60 x 60 dot field) and stays still; the colour wave of the 
 radio's ON AIR sign runs over it diagonally, from the upper left to the lower right. In a terminal 
 with Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm ...) it is a real transparent 
-image at full pixel resolution instead of braille dots (a terminal without them gets the braille 
+)WIZ",
+R"WIZ(image at full pixel resolution instead of braille dots (a terminal without them gets the braille 
 version, which does not look nice though, to be honest). The original of the beautiful default 
 image is done by Kamara Rahmat (iyaniyan; taken from Unsplash).
 
@@ -2835,8 +2860,7 @@ of the book and how much of it has been heard, then sampling, format and file si
 MENUS FROM OTHER MODES: [[Header]] 
 The converter [SHIFT+c] works on the audio books and searches folders with [/f:]. The equalizer
 [SHIFT+e] and sleept timer [SHIFT+z] is also available in this mode. 
-)WIZ",
-R"WIZ(
+
 
 [[New Page]]
 4.1.2 BOOK TAGS [[Header]]
@@ -2939,7 +2963,8 @@ book, chapter, time; the newest first, notes last.
 [ESC]      closes/clears sorting.
 
 BIG LIBRARY OVERLAY [SHIFT+s]: [[Header]] 
-It has a search pane on top ([/] types, the words narrow the list) and the audio book pane below it.
+)WIZ",
+R"WIZ(It has a search pane on top ([/] types, the words narrow the list) and the audio book pane below it.
 [ENTER] / [->] on a book opens it and inserts its chapters below it, [<-] or [ESC] closes it; 
                a diamond marks a bookmark.
 [ENTER]        on a chapter plays it (the bookmark question first), [CTRL+p] plays it from its start 
@@ -2964,8 +2989,7 @@ resume choices work the same. Inside one file [n] / [b] jump; "next chapter" pla
 A book is sometimes one long file. [ALT+l] (macOS: [SHIFT+j]) opens the chapter marks of the chapter
 that plays (else the chapter under the cursor starts). The window shows where you are and the marks:
 number, time, title, length. You set them while listening:
-)WIZ",
-R"WIZ([m]        a mark at the point you listen at. The first mark adds the start (0:00:00, "Chapter 1"). 
+[m]        a mark at the point you listen at. The first mark adds the start (0:00:00, "Chapter 1"). 
            A new mark is called "Chapter N" (the standard titles are renumbered when one is inserted); 
            the title field opens with it selected:[ENTER] keeps it, typing replaces it.
 [a]        a mark by its time, h:mm:ss (or m:ss), then the title.        
@@ -3069,7 +3093,8 @@ WHERE TO TYPE IT: [[Header]]
               pane (COMMAND LINE)             what commands logged and the errors of scripts.
  Scripts      type  edit  or  /cs:             The script overlay (5.1.6): library and editor. /cs:words
                                               lists the matching scripts in the library pane.
-              Settings -> GENERAL -> CLI / REMOTE / UPDATES -> CLI Scripts [ENTER] opens it too.
+)WIZ",
+R"WIZ(              Settings -> GENERAL -> CLI / REMOTE / UPDATES -> CLI Scripts [ENTER] opens it too.
  From outside mousiki --cli "..."             A running Mousiki does it (5.1.9).
 
 KEYS IN A COMMAND LINE: [[Header]]
@@ -3098,8 +3123,7 @@ WHAT THE REPLIES LOOK LIKE: [[Header]]
 5.1.4 CLI COMMANDS: PLAYBACK [[Header]]
 
 Examples use the library of a music lover: the playlist Meow-Music with Kaneko Ayano (Sayōnara anata,
-)WIZ",
-R"WIZ(さよーならあなた; Romance sengen) and The Smashing Pumpkins (Tonight, Tonight; Cupid de Locke).
+さよーならあなた; Romance sengen) and The Smashing Pumpkins (Tonight, Tonight; Cupid de Locke).
 play sayonara finds Sayōnara anata (accents do not matter). The name before the dash in the answers is
 the folder of the title (the artist folder).
 
@@ -3194,7 +3218,8 @@ starting with - may fail. Example, meow.cli (type: run meow):
 startup.cli runs once, about 2.5 s after the start. aliases.cli holds your aliases.
 
 THE SCRIPT OVERLAY: [[Header]]
-Two panes. Open it with  edit  or with  /cs:  ([ENTER] on a match).
+)WIZ",
+R"WIZ(Two panes. Open it with  edit  or with  /cs:  ([ENTER] on a match).
  Left, the library   [ENTER] load   [n] new   [m] rename   [r] run   [/] search
                      [x] delete (moved to cli/deleted/, nothing is erased)
  Right, the editor   [CTRL+S] saves, [CTRL+R] runs the text in it (the answers appear under OUTPUT)
@@ -3220,8 +3245,7 @@ hooks.cli (edit hooks) runs commands when something happens, one line each:
  * Typed at the keyboard, quit / clear-queue / queue clear ask: type  yes  within 20 seconds.
  * force <command> runs such a command without asking. In scripts, timers, hooks and from outside it
    is needed, because nobody is there to confirm:  force queue clear
-)WIZ",
-R"WIZ( * From the network (5.1.9) there is no quit, force, yes, set, alias, unalias, edit, open,
+ * From the network (5.1.9) there is no quit, force, yes, set, alias, unalias, edit, open,
    clear-queue, queue clear, rescan, wizard, switch-mode. Scripts started from the network run with
    the same limits.
  * A script that calls itself ends after 1000 lines; at most 50 timers wait; a timer is at most 24 h.

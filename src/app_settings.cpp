@@ -62,6 +62,12 @@
 
 namespace muisc {
 
+namespace {
+constexpr int kFadeLenChoices[] = {1000, 2000, 3000, 4000, 5000, 6000, 8000, 10000, 12000, 15000, 20000};
+std::string fade_len_label(int ms) { return std::to_string((ms + 500) / 1000) + " s"; }
+std::string fade_curve_name(int c) { return c == 1 ? "exponential" : c == 2 ? "logarithmic" : c == 3 ? "logistic (S-curve)" : "linear"; }
+}  // namespace
+
 void App::settings_open() {
     text_disengage();
     settings_snapshot_ = settings_;
@@ -97,6 +103,7 @@ void App::settings_close(bool save) {
             }
             player_.set_stereo(settings_.stereo);
             player_.set_pause_fade(settings_.pause_fade);
+            apply_fade_options();
             player_.set_normalization(settings_.normalize, static_cast<float>(settings_.normalize_target_lufs),
                                       static_cast<float>(settings_.normalize_max_boost_db));
             set_emoji_mode(settings_.emoji_mode);
@@ -680,7 +687,13 @@ void App::handle_theme_key(int key) {
         return;
     }
     if (theme_->ui == 1 || theme_->ui == 3) {
-        if (theme_->peek) { theme_->peek = false; peek_frame_.clear(); force_redraw_ = true; return; }   // any key closes the preview
+        if (theme_->peek && last_key_was_arrow() && (key == 'A' || key == 'B')) {   // UP / DOWN in the open preview: the previous / next theme, shown at once
+            if (key == 'A') { if (theme_->sel > 0) --theme_->sel; }
+            else if (theme_->sel < n - 1) ++theme_->sel;
+            peek_frame_.clear(); force_redraw_ = true;
+            return;
+        }
+        if (theme_->peek) { theme_->peek = false; peek_frame_.clear(); force_redraw_ = true; return; }   // any other key closes the preview
         if (key == 'P' && !last_key_was_arrow() && theme_->sel >= 0 && theme_->sel < n) { theme_->peek = true; peek_frame_.clear(); force_redraw_ = true; return; }
         if (key == 27 || key == 'q' || key == 'Q') { theme_->ui = (theme_->ui == 3) ? 2 : 0; return; }
         if ((key == 'A' || key == 'B') && last_key_was_arrow() && last_key_was_shifted()) {   // SHIFT+up / down: a page
@@ -805,6 +818,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidDisk: return settings_.element_disk ? "Show Disk / Cover" : "Remove Field";
             case kSidDummy: v = settings_.element_dummy_buttons; break;
             case kSidDiskBorder: v = settings_.disk_border; break;
+            case kSidSharpCorners: v = settings_.sharp_corners; break;
             case kSidQueue: v = settings_.element_queue; break;
             case kSidWave: v = settings_.element_waveform; break;
             case kSidVizField: v = settings_.element_vizfield; break;
@@ -836,6 +850,10 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidMdHcd: return std::to_string(std::clamp(settings_.milkdrop_hcd, 3, 120)) + " s";
             case kSidMdMesh: return mesh_name(settings_.milkdrop_mesh);
             case kSidMdRatio: return milkdrop_ratio_name(settings_.milkdrop_ratio);
+            case kSidMdBright: return std::to_string(std::clamp(settings_.milkdrop_bright, 0, 100)) + "%";
+            case kSidMdSat: return std::to_string(std::clamp(settings_.milkdrop_sat, 0, 100)) + "%";
+            case kSidMdContrast: return std::to_string(std::clamp(settings_.milkdrop_contrast, 0, 100)) + "%";
+            case kSidMdFolder: return md_shuffle_label();
             case kSidMdVar: return settings_.milkdrop_var <= 0 ? std::string("off") : std::to_string(std::clamp(settings_.milkdrop_var, 0, 30)) + " s";
             case kSidMdTransition: return settings_.milkdrop_transition <= 0 ? std::string("cut") : std::to_string(settings_.milkdrop_transition) + " s";
             case kSidMdFx: return video_fx_name(video_fx_canon(settings_.milkdrop_fx));
@@ -898,6 +916,15 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidBookSpeed: return speed_label(settings_.book_speed);
             case kSidAudioDevice: return audio_device_label() + "  [ENTER] choose";
             case kSidNormalize: v = settings_.normalize; break;
+            case kSidVideoAuto: v = settings_.video_auto; break;
+            case kSidBigMdNoVideo: v = settings_.vfull_md_novideo; break;
+            case kSidFadeIn: v = settings_.fade_in; break;
+            case kSidFadeOut: v = settings_.fade_out; break;
+            case kSidFadeCross: v = settings_.fade_cross; break;
+            case kSidFadeTrim: v = settings_.fade_trim; break;
+            case kSidFadeLen: return fade_len_label(settings_.fade_len_ms);
+            case kSidFadeCurve: return fade_curve_name(settings_.fade_curve);
+            case kSidFadeThr: return std::to_string(settings_.fade_trim_db) + " dB";
             case kSidMetaOnly: v = settings_.meta_only; break;
             case kSidEmoji: return settings_.emoji_mode == 1 ? "Safe" : settings_.emoji_mode == 2 ? "All" : "Off";
             case kSidMarquee: v = settings_.marquee; break;
@@ -1025,7 +1052,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidVideoLyrics: return {"none", "lyrics", "lyrics+transl.", "transl."};
             case kSidVideoSize: return {"regular", "cropped", "full", "framed"};
             case kSidVideoFx: { std::vector<std::string> o; for (int i = 0; i < kVideoFxShown; ++i) o.push_back(video_fx_name(kVideoFxOrder[i])); return o; }
-            case kSidVideoContrast: case kSidVideoBrightness: case kSidVideoColors: case kSidVideoGradSat: { std::vector<std::string> o; for (int i = 0; i <= 100; i += 5) o.push_back(std::to_string(i) + "%"); return o; }
+            case kSidMdBright: case kSidMdSat: case kSidMdContrast: case kSidVideoContrast: case kSidVideoBrightness: case kSidVideoColors: case kSidVideoGradSat: { std::vector<std::string> o; for (int i = 0; i <= 100; i += 5) o.push_back(std::to_string(i) + "%"); return o; }
             case kSidVideoChroma: case kSidCoverChroma: return {"off", "subtle", "medium", "strong"};
             case kSidVideoDither: { std::vector<std::string> o; for (int i = 0; i < kDitherPatterns; ++i) o.push_back(dither_name(i)); return o; }
             case kSidVideoBase: { std::vector<std::string> o; for (int i = 0; i < kBaseLayers; ++i) o.push_back(base_name(i)); return o; }
@@ -1037,6 +1064,9 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidVideoMp3: return {"false", "true"};
             case kSidVideoFps: return {"25", "60"};
             case kSidGapless: return {"off", "album", "full"};
+            case kSidFadeLen: { std::vector<std::string> o; for (int ms : kFadeLenChoices) o.push_back(fade_len_label(ms)); return o; }
+            case kSidFadeCurve: return {"linear", "exponential", "logarithmic", "logistic (S-curve)"};
+            case kSidFadeThr: return {"-40 dB", "-50 dB", "-60 dB", "-70 dB", "-80 dB"};
             case kSidVideoBuffer: { std::vector<std::string> o; for (int c : kVideoBufferChoices) o.push_back(std::to_string(c) + " MB"); return o; }
             case kSidOrder1: case kSidOrder2: case kSidOrder3: case kSidOrder4: case kSidOrder5: case kSidOrder6:
                 if (g_settings_book_layout) return {"sphere", "osci", "spectro", viz_row_name(3), "milkdrop"};   // (no video view in the audio book)
@@ -1048,6 +1078,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidMdHcd: return {"3 s", "5 s", "10 s", "15 s", "20 s", "30 s", "45 s", "60 s", "90 s", "120 s"};
             case kSidMdMesh: return {mesh_name(0), mesh_name(1), mesh_name(2), mesh_name(3)};
             case kSidMdRatio: { std::vector<std::string> o; for (int i = 0; i < kMilkRatioCount; ++i) o.push_back(milkdrop_ratio_name(i)); return o; }
+            case kSidMdFolder: return md_folder_choices();
             case kSidMdVar: return {"off", "2 s", "5 s", "10 s", "15 s", "20 s", "30 s"};
             case kSidMdGpu: { std::vector<std::string> o{"automatic"}; for (const MilkdropGpu& g : Milkdrop::gpus()) o.push_back(g.label); return o; }
             case kSidMdPreset: case kSidMdBrowse: case kSidMdRandom: return {};   // not a switch: ENTER opens the preset overlay
@@ -1141,6 +1172,13 @@ void App::settings_commit_edit_impl() {
         if (id == kSidVideoLyrics) { settings_.video_lyrics = v == "lyrics" ? 1 : v == "lyrics+transl." ? 2 : v == "transl." ? 3 : 0; video_pic_key_.clear(); return; }
         if (id == kSidVideoSize) { settings_.video_size = v == "cropped" ? 1 : v == "full" ? 2 : v == "framed" ? 3 : 0; video_pic_key_.clear(); return; }
         if (id == kSidVideoFx) { settings_.video_fx = video_fx_from(v); video_pic_key_.clear(); return; }
+        if (id == kSidMdBright || id == kSidMdSat || id == kSidMdContrast) {
+            std::string d = v;
+            if (!d.empty() && d.back() == '%') d.pop_back();
+            (id == kSidMdBright ? settings_.milkdrop_bright : id == kSidMdSat ? settings_.milkdrop_sat : settings_.milkdrop_contrast) = std::clamp((muisc::atoi_safe(d.c_str()) + 2) / 5 * 5, 0, 100);
+            milkdrop_pic_key_.clear();
+            return;
+        }
         if (id == kSidVideoContrast || id == kSidVideoBrightness || id == kSidVideoColors || id == kSidVideoGradSat) {
             std::string d = v;
             if (!d.empty() && d.back() == '%') d.pop_back();
@@ -1166,6 +1204,7 @@ void App::settings_commit_edit_impl() {
         if (id == kSidMdHcd) { settings_.milkdrop_hcd = std::clamp(std::atoi(v.c_str()), 3, 120); return; }
         if (id == kSidMdRatio) { settings_.milkdrop_ratio = milkdrop_ratio_from(v); return; }
         if (id == kSidMdMesh) { for (int i = 0; i < 4; ++i) if (v == mesh_name(i)) settings_.milkdrop_mesh = i; return; }
+        if (id == kSidMdFolder) { settings_.milkdrop_shuffle_folder = v == "Favourites" ? std::string() : v; return; }
         if (id == kSidMdVar) { settings_.milkdrop_var = v == "off" ? 0 : std::clamp(std::atoi(v.c_str()), 0, 30); return; }
         if (id == kSidMdRes) { settings_.milkdrop_res = std::clamp(std::atoi(v.c_str()), 160, 1920); milkdrop_pic_key_.clear(); return; }
         if (id == kSidMdDuration) { settings_.milkdrop_preset_secs = v == "off" ? 0 : std::clamp(std::atoi(v.c_str()), 0, 600); return; }
@@ -1181,6 +1220,9 @@ void App::settings_commit_edit_impl() {
         if (id == kSidVideoRes) { settings_.video_res = video_res_from(v); video_pic_key_.clear(); return; }
         if (id == kSidVideoMp3) { settings_.video_mp3 = v == "true"; return; }
         if (id == kSidVideoFps) { settings_.video_fps = v == "60" ? 60 : 25; return; }
+        if (id == kSidFadeLen) { settings_.fade_len_ms = std::clamp(static_cast<int>(std::lround(std::atof(v.c_str()) * 1000.0)), 500, 20000); apply_fade_options(); return; }
+        if (id == kSidFadeCurve) { settings_.fade_curve = v == "exponential" ? 1 : v == "logarithmic" ? 2 : v.rfind("logistic", 0) == 0 ? 3 : 0; apply_fade_options(); return; }
+        if (id == kSidFadeThr) { settings_.fade_trim_db = std::clamp(std::atoi(v.c_str()), -90, -20); apply_fade_options(); return; }
         if (id == kSidGapless) { settings_.gapless = v == "full" ? 2 : v == "album" ? 1 : 0; return; }
         if (id == kSidVideoBuffer) { const int mb = muisc::atoi_safe(v.c_str()); int best = kVideoBufferChoices[0]; for (int c : kVideoBufferChoices) if (mb >= c) best = c; settings_.video_buffer = best; return; }
         if (id == kSidNoVideoViz) {
@@ -1356,6 +1398,7 @@ void App::settings_commit_edit_impl() {
             case kSidAlbumCover: settings_.album_cover = is_true; break;
             case kSidDummy: settings_.element_dummy_buttons = is_true; break;
             case kSidDiskBorder: settings_.disk_border = is_true; break;
+            case kSidSharpCorners: settings_.sharp_corners = is_true; force_redraw_ = true; break;
             case kSidReduceMotion: settings_.reduce_motion_paused = is_true; break;
             case kSidAutoPlay: settings_.auto_play = is_true; break;
             case kSidPauseSphere: settings_.pause_sphere = is_true; break;
@@ -1374,6 +1417,16 @@ void App::settings_commit_edit_impl() {
             case kSidVizField: settings_.element_vizfield = is_true; break;
             case kSidLyricsEngine: settings_.element_lyrics = is_true; break;
             case kSidVisualizer: settings_.element_visualizer = is_true; break;
+            case kSidVideoAuto:
+                settings_.video_auto = is_true;
+                if (is_true && settings_.milkdrop_auto) { settings_.milkdrop_auto = false; settings_.milkdrop_auto_video_was = false; }   // (the two take turns)
+                if (is_true) video_auto_apply();
+                break;
+            case kSidBigMdNoVideo: settings_.vfull_md_novideo = is_true; vfull_user_path_.clear(); video_pic_key_.clear(); milkdrop_pic_key_.clear(); break;
+            case kSidFadeIn: settings_.fade_in = is_true; apply_fade_options(); break;
+            case kSidFadeOut: settings_.fade_out = is_true; apply_fade_options(); break;
+            case kSidFadeCross: settings_.fade_cross = is_true; apply_fade_options(); gap_.last_why.clear(); break;
+            case kSidFadeTrim: settings_.fade_trim = is_true; apply_fade_options(); break;
             case kSidPauseFade:
                 settings_.pause_fade = is_true;
                 player_.set_pause_fade(is_true);
@@ -1684,6 +1737,15 @@ void App::settings_cycle(int dir) {
     if (id == kSidGapless) status_line_ = settings_.gapless == 2 ? "gapless: full -- every automatic change to the next local track goes on without a gap (another sample rate is resampled)"
                                       : settings_.gapless == 1 ? "gapless: album -- the next track of the same album (same sample rate and channels) follows without a gap"
                                       : "gapless: off -- the audio device is opened anew for every track";
+    if (id == kSidVideoAuto) status_line_ = settings_.video_auto ? "auto video: a track with a video shows it by itself, one without it the Lyrics/Viz Default (Auto MilkDrop goes off)" : "auto video: off";
+    if (id == kSidBigMdNoVideo) status_line_ = settings_.vfull_md_novideo ? "big video overlay: a track without a video shows the MilkDrop visuals (a track set to \"never\" keeps the video view)" : "big video overlay: it opens on the video, or on what the field shows";
+    if (id == kSidFadeIn) status_line_ = settings_.fade_in ? "fade in: on -- a track fades in at its start" : "fade in: off";
+    if (id == kSidFadeOut) status_line_ = settings_.fade_out ? "fade out: on -- a track fades out at its end" : "fade out: off";
+    if (id == kSidFadeCross) status_line_ = settings_.fade_cross ? "crossfade: on -- the end of a track and the start of the next one overlap (the next track is loaded early, as for gapless full)" : "crossfade: off";
+    if (id == kSidFadeLen) status_line_ = "fade length: " + fade_len_label(settings_.fade_len_ms) + " -- a track that is too short gets a shorter fade";
+    if (id == kSidFadeCurve) status_line_ = "fade curve: " + fade_curve_name(settings_.fade_curve);
+    if (id == kSidFadeTrim) status_line_ = settings_.fade_trim ? "cut silence: on -- the silence at the start and the end of a track is not played" : "cut silence: off";
+    if (id == kSidFadeThr) status_line_ = "silence below " + std::to_string(settings_.fade_trim_db) + " dB counts as silence";
     if (id == kSidAutoPlay) status_line_ = settings_.auto_play ? "auto-play: on -- the track the music player opens with starts playing at once (next start)" : "auto-play: off -- the track the music player opens with stands paused at its place (the play / pause key (p) starts it; next start)";
     if (id == kSidPauseSphere) status_line_ = settings_.pause_sphere ? "pause sphere: on -- the sphere stops turning while the track is paused" : "pause sphere: off -- the sphere goes on turning while the track is paused";
     if (id == kSidPauseFade) status_line_ = settings_.pause_fade ? "pause fade: on -- pause and resume fade over about 8 ms (no click)" : "pause fade: off -- pause cuts the sound at once (a click is possible)";

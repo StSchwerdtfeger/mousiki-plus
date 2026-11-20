@@ -1,6 +1,8 @@
 // Track metadata via ffprobe: reads duration and tags (artist, title, album, year) for the lists and
 // the metadata panel, and every tag of a file for the queue search.
 #include "metadata_probe.h"
+#include <cstdio>
+#include <cstdlib>
 #include "local_source.h"
 #include "chiptune.h"
 #include "chip_meta.h"
@@ -179,6 +181,21 @@ static TrackMetadata probe_metadata_impl(const fs::path& file, const std::string
 }
 
 // Tracker modules and chiptunes: what the side file next to them holds is put over what the file itself reports.
+std::string sampling_text(const std::string& sampling) {
+    size_t n = 0;
+    while (n < sampling.size() && std::isdigit(static_cast<unsigned char>(sampling[n]))) ++n;
+    if (n == 0 || n > 7) return sampling;
+    std::string unit = sampling.substr(n);
+    std::transform(unit.begin(), unit.end(), unit.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    if (!unit.empty() && unit != "khz" && unit != "hz") return sampling;
+    const long hz = std::atol(sampling.substr(0, n).c_str());
+    if (hz <= 0) return sampling;
+    char b[32];
+    if (hz % 1000 == 0) std::snprintf(b, sizeof b, "%ld kHz", hz / 1000);
+    else std::snprintf(b, sizeof b, "%.1f kHz", static_cast<double>(hz) / 1000.0);
+    return b;
+}
+
 std::string probe_all_tag_text(const fs::path& file) {
     // no names after format_tags / stream_tags: ffprobe prints every tag it finds (stream tags too: Ogg / Opus keep them there)
     const ProcResult r = run_capture({"ffprobe", "-v", "error", "-show_entries", "format_tags:stream_tags",

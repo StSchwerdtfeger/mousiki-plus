@@ -166,6 +166,11 @@ struct RadioSettings : VizPrefs {
     bool remote_cli = false;      // config.txt RemoteAppCli=true: /api/cli
     bool use_osci = true;                       // GENERAL "Use oscilloscope": false = never in the scope block / "." cycle
     bool use_spectro = true;                    // GENERAL "Use spectrogram": the same for the spectrogram
+    bool use_sphere = true;                     // "Use Sphere": the same for the sphere (it stays as the last resort when everything is off)
+    int viz_order[4] = {0, 1, 2, 3};            // the order of the "." cycle: 0 osci, 1 sphere, 2 spectro, 3 milkdrop (VizOrder=osci,sphere,spectro,milkdrop)
+    bool pause_fade = true;                     // PauseFade= in the player's config.txt (one value for all modes): the pause fades over about 8 ms
+    bool auto_play = false;                     // AutoPlay= in the player's config.txt: the radio tunes the station it was left on at the start
+    std::string last_station;                   // LastStation=: the name of the station that was tuned last (what Auto-Play tunes)
     // The help wizard (SHIFT+w): false means it has never been shown here, so
     // the first start of the radio after an install opens it by itself. Set
     // and written the first time it is closed, exactly like the player's
@@ -269,6 +274,8 @@ enum RsId {
     kRsAudioDevice,   // [ENTER]: the CHOOSE AUDIO DEVICE overlay
     kRsCliScripts,    // [ENTER]: the script overlay
     kRsUseTermSettings, kRsTermSize, kRsFullScreen, kRsReduceMotion, kRsUpdateNotice, kRsLatinMacrons, kRsLatinWo, kRsLatinHanzi,   // (the player's rows of the same name; one value for all modes)
+    kRsPauseFade, kRsAutoPlay,   // (the player's rows of the same name: PauseFade= / AutoPlay= in the player's config.txt, one value for all modes)
+    kRsUseSphere, kRsOrder1, kRsOrder2, kRsOrder3, kRsOrder4,   // Use Sphere; Viz Order 1..4 (the order of the "." cycle)
     kRsMediaKeys,     // the system's media controls / media keys (MediaKeys= in the player's config.txt)
     kRsTermDefaultFont, // leave the terminal's own font alone (one value for all modes: TerminalDefaultFont= in the player's config.txt)
 };
@@ -296,6 +303,8 @@ void radio_milkdrop_apply(const RadioSettings& c);
 bool radio_milkdrop_usable(const RadioSettings& c, std::string* why = nullptr);
 std::string radio_md_gpu_step(const std::string& cur, int dir);   // MilkDrop GPU row: automatic, then every card (Linux) -> the next one
 int radio_md_step(int which, int cur, int dir);   // MilkDrop rows: 0 frame rate, 1 resolution, 2 preset duration -> the next step
+int radio_viz_mode(int viz);                                              // the scope_mode of a viz_order value (0 osci, 1 sphere, 2 spectro, 3 milkdrop -> 0, 1, 3, 4)
+int radio_next_scope_mode(const RadioSettings& s, int cur, bool back, bool milkdrop_ok);   // the next view of the "." cycle that is switched on (cur itself when none)
 std::string scope_mode_name(const RadioSettings& s);                    // "osci" | "sphere" | "off" | "spectro" | "milkdrop"
 // Start Mode lives in the music player's config.txt (StartMode=player|radio): read it / write just that line.
 std::string player_start_mode();

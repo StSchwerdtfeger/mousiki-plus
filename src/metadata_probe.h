@@ -8,6 +8,10 @@ namespace muisc {
 
 namespace fs = std::filesystem;
 
+// The sampling rate as it is shown: ffprobe gives Hz ("48000", kept in TrackMetadata::sampling as "48000KHz" for the rate lookup),
+// the screen says "48 kHz" / "44.1 kHz" (the radio's own wording). Anything that is not such a figure is returned as it is.
+std::string sampling_text(const std::string& sampling);
+
 struct TrackMetadata {
     std::string name;
     std::string artist = "-";

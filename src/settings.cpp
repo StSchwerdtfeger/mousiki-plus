@@ -887,6 +887,10 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_NUM("MilkDropHardCutInterval", nullptr, milkdrop_hcd, 3, 120, "\n## 3 - 120 seconds (default 20) -- the shortest time between two hard cuts (Hard Cuts)\n"),
     SIMPLE_FLAG("MilkDropAspectCorrection", nullptr, milkdrop_aspect, "\n## true , false (default true) -- the picture is no wider than 16:9, a wider place gets bars at the sides so a preset is not cut off at the top and bottom (false: it fills the whole place)\n"),
     SIMPLE_NUM("MilkDropMeshDetail", nullptr, milkdrop_mesh, 0, 3, "\n## 0 low (16 x 12) , 1 normal (32 x 24, default) , 2 high (64 x 48) , 3 very high (96 x 72) -- the warp mesh of the presets: finer = more detail, more work for the graphics card\n"),
+    SIMPLE_TEXT("MilkDropShuffleFolder", nullptr, milkdrop_shuffle_folder, "\n## empty (default: the Favourites) , Recommended , or the name of a folder made in the preset overlay -- the preset folder that the shuffle (Shuffle Favourites, then named after it) plays from\n"),
+    SIMPLE_NUM("MilkDropBrightness", nullptr, milkdrop_bright, 0, 100, "\n## 0 - 100 % (default 50) -- the brightness of the MilkDrop pictures; 50 = as they are, lower darker, higher brighter\n"),
+    SIMPLE_NUM("MilkDropSaturation", nullptr, milkdrop_sat, 0, 100, "\n## 0 - 100 % (default 100) -- the colours of the MilkDrop pictures; 100 = as they are, 0 = greyscale\n"),
+    SIMPLE_NUM("MilkDropContrast", nullptr, milkdrop_contrast, 0, 100, "\n## 0 - 100 % (default 0) -- more contrast for the MilkDrop pictures; 0 = as they are\n"),
     SIMPLE_NUM("MilkDropDurationVariance", nullptr, milkdrop_var, 0, 30, "\n## 0 - 30 seconds (default 0) -- how far the time of a preset (Preset Duration) may stray at random; 0 = every preset stays the same time\n"),
     SIMPLE_FLAG("MilkDropCleanStart", nullptr, milkdrop_clean, "\n## true , false (default false) -- a preset starts from a blank picture, not from what the one before left\n"),
     SIMPLE_FLAG("MilkDropLockPreset", nullptr, milkdrop_lock, "\n## true , false (default false) -- the preset stays: the presets do not change by themselves (Lock Preset); kept for the next start\n"),
@@ -906,6 +910,7 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_FLAG("VideoMode", "video_mode", video_mode, "\n"),
     SIMPLE_FLAG("VideoView", "video_view", video_view, "\n"),
     SIMPLE_FLAG("VideoAuto", "video_auto", video_auto, "\n"),
+    SIMPLE_FLAG("BigVideoMilkdropNoVideo", nullptr, vfull_md_novideo, "\n## true , false (default false) -- the big video overlay shows the MilkDrop visuals for a track that has no video, whatever the Viz/Lyrics field shows (a track with its own MilkDrop setting \"never\" keeps the video view; the overlay's m key still switches)\n"),
     SIMPLE_FLAG("MetaDataOnly", "meta_only", meta_only, "\n"),
     SIMPLE_NUM("VideoLayout", nullptr, video_layout, 0, 4, "\n"),
     SIMPLE_NUM("VideoFullMilkDropLayout", nullptr, milkdrop_layout, 0, 4, "\n"),
@@ -973,12 +978,20 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_COLOUR("ColorLegendCommand", "legend_cmd_color", legend_cmd_color),
     SIMPLE_FLAG("AutoPlay", nullptr, auto_play, "\n## true , false (default false) -- false: when the music player starts, the track it opens with (the restored session or the first track of the library) is loaded and stands paused; the play / pause key (p) starts it. true: it starts playing at once\n"),
     SIMPLE_FLAG("PauseSphere", nullptr, pause_sphere, "\n## true , false (default false) -- true: the sphere stops turning while the track is paused; false: it goes on turning (at the full frame rate, also with ReduceMotionWhenPaused)\n"),
+    SIMPLE_FLAG("SharpCorners", "sharp_corners", sharp_corners, "\n## true , false -- the frames have sharp corners instead of round ones everywhere; the Settings screen (sharp by itself) gets round corners then\n"),
     SIMPLE_FLAG("ElimentDiskBorder", "eliment_disk_border", disk_border, "\n## true , false -- the \":  :\" column between the disk (or cover) and the meta data; false: it is left out and the disk sits in the middle of the space between the left border and the meta data\n"),
     SIMPLE_NUM("TopPaneStyle", nullptr, top_pane_style, 0, 5, "\n## 0 , 1 , 2 , 3 , 4 , 5 (default 0) -- the frame of the upper pane (disk | meta data | lyrics / viz field): 0 = one box round all three; 1, 2, 3 = three panes I, II, III that share their walls; 4 = two panes (the disk, and meta data + lyrics / viz field in one); 5 = gap (one box with four gaps in its lines); see the preview in Settings\n"),
     SIMPLE_FLAG("TerminalDefaultFont", nullptr, terminal_default_font, "\n## true , false -- true = Mousiki leaves the terminal's own font alone; false = Mousiki's window uses the font of TerminalFont= (Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Terminal Default Font)\n"),
     SIMPLE_FLAG("MarqueeScrolling", nullptr, marquee, "\n"),
     SIMPLE_FLAG("StereoPlayback", nullptr, stereo, "\n"),
     SIMPLE_FLAG("NormalizeVolume", nullptr, normalize, "\n"),
+    SIMPLE_FLAG("FadeIn", nullptr, fade_in, "\n## true , false (default false) -- the music player fades each track in at its start (Settings -> GENERAL -> AUDIO FADE OPTIONS)\n"),
+    SIMPLE_FLAG("FadeOut", nullptr, fade_out, "\n## true , false (default false) -- the music player fades each track out at its end\n"),
+    SIMPLE_FLAG("Crossfade", nullptr, fade_cross, "\n## true , false (default false) -- the end of a track and the start of the next one overlap (the next track must be loaded in advance, as for gapless playback: it is, when this is on)\n"),
+    SIMPLE_NUM("FadeLength", nullptr, fade_len_ms, 500, 20000, "\n## 500 - 20000 (default 4000) -- milliseconds a fade or crossfade lasts (a track that is too short gets a shorter fade)\n"),
+    SIMPLE_NUM("FadeCurve", nullptr, fade_curve, 0, 3, "\n## 0 linear , 1 exponential , 2 logarithmic , 3 logistic = S-curve (default 0) -- how the volume moves during a fade\n"),
+    SIMPLE_FLAG("TrimSilence", nullptr, fade_trim, "\n## true , false (default false) -- the silence at the start and the end of a track is not played (at most 15 s at each end; not for tracks that are only partly in memory)\n"),
+    SIMPLE_NUM("TrimThreshold", nullptr, fade_trim_db, -90, -20, "\n## -90 - -20 (default -60) -- dBFS below which the start / end of a track counts as silence\n"),
     SIMPLE_FLAG("EqualizerEnabled", nullptr, eq_enabled, "\n"),
     SIMPLE_FLAG2("ElimentDisk", "Eliment_disk", "Element_disk", element_disk, "\n"),
     SIMPLE_FLAG2("ElimentQueue", "Eliment_queue", "Element_queue", element_queue, "\n"),
@@ -2214,6 +2227,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     auto tf = [](bool v) -> const char* { return v ? "true" : "false"; };
     write_simple_setting(out, s, "ElimentDisk");
     write_simple_setting(out, s, "ElimentDiskBorder");
+    write_simple_setting(out, s, "SharpCorners");
     write_simple_setting(out, s, "TopPaneStyle");
     out << "LatinLetters=" << tf(s.latin_letters) << "\n## true , false -- Japanese, Korean and Chinese titles, tags and lyrics are shown in Latin letters (switch with SHIFT+' on a US keyboard, see HKeyTranslit)\n";
     out << "LyricsNameVariants=" << tf(s.lyrics_name_variants) << "\n## true , false -- a lyrics search (also the refetch) that finds nothing tries other spellings: the Latin-letters spelling, the title / artist without their Latin or without their Japanese part, the title alone\n";
@@ -2250,6 +2264,7 @@ static void write_settings(std::ostream& out, const Settings& s) {
     out << "## Include Lyrics (the & overlay): none | lyrics | both (lyrics + translation) | translation = what is shown under the video's picture (true / false of older versions still work)\n";
     out << "## (with a translation shown, the last row under the picture is used first, then the lyric block grows upwards: the picture gets smaller)\n";
     write_simple_setting(out, s, "VideoAuto");
+    write_simple_setting(out, s, "BigVideoMilkdropNoVideo");
     out << "## true = a track that has a video switches the field to the video view, a track without one to the Lyrics/Viz Default view\n";
     out << "VideoCover=" << (s.video_cover == 1 ? "thumbnail" : s.video_cover == 2 ? "disk" : s.video_cover == 3 ? "fallback" : "cover") << "\n";
     out << "## cover = the disk shows the track's cover; thumbnail = a frame of the track's video (the cover, then the disk, when it has no video); disk = a track with a video shows the plain disk (no cover, no thumbnail)\n";
@@ -2304,7 +2319,7 @@ write_simple_setting(out, s, "VideoLayout");
     write_simple_setting(out, s, "UseSphere");
     for (const char* k : {"UseMilkDrop", "MilkDropView", "MilkDropPresets", "MilkDropDefaultPreset", "MilkDropGpu", "MilkDropFrameRate", "MilkDropResolution", "MilkDropWindowResolution", "MilkDropPresetDuration",
                           "MilkDropAuto", "MilkDropAutoVideoWas", "MilkDropShuffle", "MilkDropShuffleFavourites", "MilkDropHardCutSensitivity", "MilkDropHardCuts", "MilkDropHardCutInterval", "MilkDropLockPreset", "MilkDropTransition", "MilkDropShowName",
-                          "MilkDropAspectCorrection", "MilkDropMeshDetail", "MilkDropDurationVariance", "MilkDropCleanStart"})
+                          "MilkDropAspectCorrection", "MilkDropMeshDetail", "MilkDropDurationVariance", "MilkDropCleanStart", "MilkDropBrightness", "MilkDropSaturation", "MilkDropContrast", "MilkDropShuffleFolder"})
         write_simple_setting(out, s, k);
     out << "MilkDropEffect=" << video_fx_key(s.milkdrop_fx) << "\n## off (default) or a video effect name (as VideoFx=) -- an effect over the MilkDrop pictures, their own (the video's effect belongs to the track's video)\n";
     write_simple_setting(out, s, "MilkDropEffectOn");
@@ -2435,6 +2450,13 @@ write_simple_setting(out, s, "VideoLayout");
     out << "##             LOUDNESS NORMALIZATION\n";
     out << "##-------------------------------------------\n\n";
     write_simple_setting(out, s, "NormalizeVolume");
+    write_simple_setting(out, s, "FadeIn");
+    write_simple_setting(out, s, "FadeOut");
+    write_simple_setting(out, s, "Crossfade");
+    write_simple_setting(out, s, "FadeLength");
+    write_simple_setting(out, s, "FadeCurve");
+    write_simple_setting(out, s, "TrimSilence");
+    write_simple_setting(out, s, "TrimThreshold");
     out << "NormalizeTargetLufs=" << s.normalize_target_lufs << "\n";
     out << "NormalizeMaxBoostDb=" << s.normalize_max_boost_db << "\n";
     out << "## Each track is measured (LUFS) while it decodes and played at NormalizeTargetLufs.\n";
@@ -2637,7 +2659,7 @@ void copy_look(const Settings& src, Settings& dst) {
     MOUSIKI_LOOK(viz_left_color); MOUSIKI_LOOK(viz_center_color); MOUSIKI_LOOK(viz_right_color);
     MOUSIKI_LOOK(lyr_inactive_color); MOUSIKI_LOOK(lyr_active_line_color); MOUSIKI_LOOK(lyr_active_word_color);
     // elements and visualizations
-    MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(disk_border); MOUSIKI_LOOK(top_pane_style); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
+    MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(disk_border); MOUSIKI_LOOK(top_pane_style); MOUSIKI_LOOK(sharp_corners); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
     MOUSIKI_LOOK(volume_indicator); MOUSIKI_LOOK(volume_gradient); MOUSIKI_LOOK(element_vizfield); MOUSIKI_LOOK(element_lyrics);
     MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
     MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_extra_paths); MOUSIKI_LOOK(milkdrop_gpu); MOUSIKI_LOOK(milkdrop_lock); MOUSIKI_LOOK(milkdrop_hcd); MOUSIKI_LOOK(milkdrop_aspect); MOUSIKI_LOOK(milkdrop_ratio); MOUSIKI_LOOK(milkdrop_mesh); MOUSIKI_LOOK(milkdrop_var); MOUSIKI_LOOK(milkdrop_clean); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res); MOUSIKI_LOOK(milkdrop_win_res);
@@ -2719,7 +2741,7 @@ Settings load_book_settings(const Settings& player, bool* wants_default_theme) {
 static bool is_look_key(const std::string& key) {
     static const char* const prefixes[] = {"Color", "BorderGradient", "Eliment", "Volume", "VizLyricsField", "LyricViz", "VizDefault", "NoLyricsViz",
                                            "UseLyrics", "UseOscilloscope", "UseSpectrogram", "UseSphere", "UseMilkDrop", "MilkDrop", "VizOrder", "Osci", "Scope", "Spectro",
-                                           "Visualizer", "WaveformStyle", "DiskRotationSpeed", "MetaDataOnly", "PlaybackMode", "UpperLeftCorner",
+                                           "Visualizer", "Hifi", "TopPane", "SharpCorners", "WaveformStyle", "DiskRotationSpeed", "MetaDataOnly", "PlaybackMode", "UpperLeftCorner",
                                            "UpperRightCorner", "BottomLeftCorner", "LowerRightCorner", "Vertical", "Horizontal", "Seprator", "ListSeparator",
                                            "Normalize", "EqualizerEnabled", "EqualizerBands", "StereoPlayback"};
     for (const char* p : prefixes) if (key.compare(0, std::strlen(p), p) == 0) return true;

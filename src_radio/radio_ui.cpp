@@ -578,6 +578,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     m.gfx2.active = false;
     m.spectro_used = false;
     m.spectro_area[0] = -1;
+    m.pv_spectro_area[0] = -1;
     m.spectro_skip[2] = m.spectro_skip[3] = 0;
     if (m.wizard_open) return build_wizard(s, m, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
     if (m.cheat_open) return build_cheatsheet(s, m, std::clamp(m.cols, kUiCols, kMaxCols), std::max(m.rows, kUiRows));
@@ -609,14 +610,6 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     // other blocks are centred in the free space so the pane looks filled.
     const bool show_sign = cfg.on_air_ascii;   // the pulse wave lives behind the sign: no sign, no pulse
     const bool show_scope = cfg.scope_mode != 2;
-    std::vector<int> bars;
-    if (cfg.element_visualizer || cfg.scope_mode == 1) {
-        auto& fft = engine.fft();
-        fft.set_fluidity(cfg.visualizer_fluidity);
-        fft.set_degradation_speed(cfg.visualizer_degradation_speed);
-        fft.set_viscosity(cfg.visualizer_viscosity);
-        bars = fft.compute_bars(std::min(kMetaW, 48), m.dt);
-    }
     // Sign on: sign | station info | scope (scope takes the free width; with the scope off the sign and the info are
     // centred). Sign off (like the player's disk off): the station info moves to the left edge and the scope is
     // centred in the rest of the pane at its usual width.
@@ -629,6 +622,17 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     const bool psplit = panestyle::split(pstyle);
     const int wall_w = psplit && pstyle != 4 && cfg.scope_mode != 2 && avail - fixed_w - 2 >= 12 ? 2 : 0;
     const int rest_w = std::max(1, avail - fixed_w - wall_w);
+    // The spectrum bars: with a wall (or the field's edge, "two panes") right of the station info they end one column earlier, so the bars stand in the
+    // middle of their pane (two blanks on each side with a wall) / do not touch the scope block
+    const int bar_w = std::min(kMetaW, 48) - ((wall_w > 0 || (pstyle == 4 && cfg.scope_mode != 2)) ? 1 : 0);
+    std::vector<int> bars;
+    if (cfg.element_visualizer || cfg.scope_mode == 1) {
+        auto& fft = engine.fft();
+        fft.set_fluidity(cfg.visualizer_fluidity);
+        fft.set_degradation_speed(cfg.visualizer_degradation_speed);
+        fft.set_viscosity(cfg.visualizer_viscosity);
+        bars = fft.compute_bars(bar_w, m.dt);
+    }
     const int natural_scope = std::max(1, avail - kLeftW - kSepW - kMetaW - wall_w);
     const int scope_w = !show_scope ? 0 : show_sign ? rest_w : std::min(rest_w, natural_scope);
     const int extra = (show_scope || !show_sign) ? 0 : rest_w;
@@ -651,7 +655,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     std::vector<std::string> hifi_lines;
     if (cfg.element_visualizer && cfg.bars_style == 1) {   // the Hi-Fi style: stereo braille columns at the frame rate
         HifiView hv;
-        hv.cells = std::min(kMetaW, 48); hv.rows = std::clamp(kPanelH - 11, 2, 4);
+        hv.cells = bar_w; hv.rows = std::clamp(kPanelH - 11, 2, 4);
         hv.resolution = cfg.hifi_resolution; hv.channels = cfg.hifi_channels; hv.color = cfg.hifi_color; hv.scale = cfg.hifi_scale; hv.adapt = cfg.hifi_adapt; hv.split = cfg.hifi_split;
         hv.fluidity = cfg.hifi_fluidity; hv.degradation = cfg.hifi_degradation;
         hv.viscosity = cfg.hifi_viscosity; hv.dt = m.dt;

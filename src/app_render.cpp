@@ -519,7 +519,7 @@ std::string App::render_frame(TerminalIO& term) {
             theme_apply(settings_, theme_->list[static_cast<size_t>(theme_->sel)]);
             mode_ = Mode::Browse;
             theme_->ui = 0;
-            status_line_ = "THEME PREVIEW: " + theme_->list[static_cast<size_t>(theme_->sel)].name + "  (any key goes back)";
+            status_line_ = "THEME PREVIEW: " + theme_->list[static_cast<size_t>(theme_->sel)].name + "  (UP / DOWN: another theme, any other key goes back)";
             theme_->peek_busy = true;
             force_redraw_ = true;
             try { peek_frame_ = render_frame(term); } catch (...) { peek_frame_.clear(); }

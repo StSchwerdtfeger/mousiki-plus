@@ -315,6 +315,28 @@ TEST(book_profile_is_saved_apart_from_the_players_file) {
     CHECK(ss.str().find("ColorBorderTop=46") != std::string::npos);
 }
 
+// The MilkDrop settings and the top pane style of the audio book mode are its own: a change there leaves the music player's file alone.
+TEST(book_profile_keeps_milkdrop_and_top_pane_style_of_its_own) {
+    mt::TempHome home;
+    Settings player = load_settings();
+    player.milkdrop_fps = 30;
+    player.top_pane_style = 0;
+    save_settings(player);
+    Settings book = load_book_settings(player);
+    book.milkdrop_fps = 45;
+    book.milkdrop_shuffle = !player.milkdrop_shuffle;
+    book.top_pane_style = 4;
+    save_settings(book);
+    const Settings again = load_settings();
+    CHECK_EQ(again.milkdrop_fps, 30);
+    CHECK_EQ(again.milkdrop_shuffle, player.milkdrop_shuffle);
+    CHECK_EQ(again.top_pane_style, 0);
+    const Settings b2 = load_book_settings(again);
+    CHECK_EQ(b2.milkdrop_fps, 45);
+    CHECK_EQ(b2.milkdrop_shuffle, book.milkdrop_shuffle);
+    CHECK_EQ(b2.top_pane_style, 4);
+}
+
 // A built-in theme picked in the audio book mode must still be that theme after the profile was saved and read again
 // (the settings screen names the theme by comparing its colours).
 TEST(book_profile_keeps_a_picked_theme_exactly) {
@@ -917,4 +939,29 @@ TEST(settings_video_frame_rate_is_25_or_60) {
     CHECK_EQ(with("120"), 60);
     CHECK_EQ(with("30"), 25);
     CHECK_EQ(with("nonsense"), 25);
+}
+
+// Sharp Corners is part of the look: the audio book mode keeps its own value, the music player's file is left alone.
+TEST(book_profile_keeps_sharp_corners_of_its_own) {
+    mt::TempHome home;
+    Settings player = load_settings();
+    CHECK(!player.sharp_corners);
+    save_settings(player);
+    Settings book = load_book_settings(player);
+    book.sharp_corners = true;
+    save_settings(book);
+    const Settings again = load_settings();
+    CHECK(!again.sharp_corners);                                // the music player stays round
+    const Settings b2 = load_book_settings(again);
+    CHECK(b2.sharp_corners);                                    // the audio book mode is sharp
+    Settings p2 = again;
+    p2.sharp_corners = true;
+    save_settings(p2);
+    const Settings b3 = load_book_settings(load_settings());
+    CHECK(b3.sharp_corners);                                    // (its own value, kept)
+    book = b3;
+    book.sharp_corners = false;
+    save_settings(book);
+    CHECK(load_settings().sharp_corners);                       // the player keeps its sharp corners
+    CHECK(!load_book_settings(load_settings()).sharp_corners);
 }

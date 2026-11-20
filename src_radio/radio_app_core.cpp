@@ -19,6 +19,7 @@ void RadioApp::load_storage() {
 // Settings that live in the audio path (mono fold, loudness normalisation): pushed to the engine at start and after every change.
 void RadioApp::apply_audio() {
     engine.set_stereo(cfg.stereo);
+    engine.set_pause_fade(cfg.pause_fade);
     engine.set_tune_noise(cfg.tune_noise);
     engine.set_normalization(cfg.normalize, static_cast<float>(cfg.normalize_target_lufs), static_cast<float>(cfg.normalize_max_boost_db));
     engine.set_equalizer(cfg.eq_enabled, cfg.eq_gains);
@@ -74,6 +75,7 @@ void RadioApp::tune_to(int idx, bool record) {
     }
     muisc::ConsoleLog::instance().log_basic("radio: tuning " + ui.stations[static_cast<size_t>(idx)].name);
     engine.tune(ui.stations[static_cast<size_t>(idx)], idx);
+    if (cfg.last_station != ui.stations[static_cast<size_t>(idx)].name) { cfg.last_station = ui.stations[static_cast<size_t>(idx)].name; ui.model.settings.dirty = true; }   // (what Auto-Play tunes at the next start)
 }
 
 void RadioApp::tune_visible(int vis_pos) {

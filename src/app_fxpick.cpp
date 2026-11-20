@@ -66,13 +66,13 @@ VideoLook App::fxpick_bg_look(const fs::path& track, const VideoLook& own) const
     // the highlighted effect is shown behind the list where choosing it would change this picture: the track's own effect (VIDEO OPTIONS, Style Option of
     // this track), or the effect of Settings / the VIDEO overlay for a track that has no effect of its own
     const bool applies = (fxpick_.target == 2 && tp == path_utf8(current_.path)) || (fxpick_.target == 3 && meta_ && meta_->sty_track == tp) ||
-                         ((fxpick_.target == 0 || fxpick_.target == 1) && cover_track_video_opts(tp).fx < 0);
+                         ((fxpick_.target == 0 || fxpick_.target == 1) && video_own(tp).fx < 0);
     if (!applies) return own;
     VideoLook l = own;
     l.fx = video_fx_canon(std::clamp(cur < 0 ? settings_.video_fx : cur, 0, kVideoFxCount - 1));
     if (video_fx_uses_gradient(l.fx)) {
         l.grad = video_fx_gradient(settings_);
-        const int gs = cover_track_video_opts(tp).gsat;
+        const int gs = video_own(tp).gsat;
         if (gs >= 0) l.grad.sat = gs;
     }
     return l;
@@ -187,7 +187,7 @@ VideoLook App::fxpick_look(int fx) const {
     l.fx = video_fx_canon(std::clamp(fx < 0 ? settings_.video_fx : fx, 0, kVideoFxCount - 1));
     if (video_fx_uses_gradient(l.fx)) {
         l.grad = video_fx_gradient(settings_);
-        const int own = track.empty() ? -1 : cover_track_video_opts(path_utf8(track)).gsat;
+        const int own = track.empty() ? -1 : video_own(path_utf8(track)).gsat;
         if (own >= 0) l.grad.sat = own;
     }
     return l;

@@ -24,6 +24,7 @@
 #include "radio_eq.h"
 #include "radio_settings.h"
 #include "terminal_gfx.h"
+#include "spectrogram.h"
 #include "radio_history.h"
 #include "radio_yt.h"
 #include "remote_server.h"
@@ -312,9 +313,16 @@ inline constexpr int kRecordBack[] = {0, 60, 300, 600, 900, 1800, -1};
 
 // The preset overlay of the MilkDrop visuals (overlay 12, radio_milkdrop.cpp): the preset folder (and the extra ones) with Favourites and
 // Recommended on top, a search over every preset; the preset under the cursor plays at once.
-struct MdBrowseItem { int kind = 3; std::string name, path, extra; };   // kind: 0 "..", 1 Favourites, 2 folder, 3 preset, 5 Recommended (extra = how many)
+struct MdBrowseItem { int kind = 3; std::string name, path, extra; };   // kind: 0 "..", 1 Favourites, 2 folder, 3 preset, 5 Recommended (extra = how many), 6 a folder of the user (extra = how many)
+struct MdUndo { int kind = 0; std::string folder, preset; std::vector<std::string> paths; size_t index = 0; bool was_shuffle = false; };   // SHIFT+U: 1 a folder, 2 a preset out of a folder, 3 a preset out of the favourites
 struct MdBrowse {
     bool typing = false, searching = false, in_favs = false, in_recs = false, moved = false, prev_locked = false;
+    std::string in_user;   // the folder of the user that is shown ("" = none; kind 6 items)
+    bool pick_open = false, naming = false, new_add = false;   // SHIFT+A: the folder a preset goes into; the name of a new folder
+    int pick_sel = 0;
+    std::vector<std::string> pick_names;
+    std::string pick_preset, pick_title, new_name, del_ask;   // del_ask: the folder that [D] asked to delete (a warning asks first)
+    std::vector<MdUndo> undo;                                  // SHIFT+U brings back what [D] deleted last (the newest at the end)
     std::string root, dir, prev_path, query;
     std::vector<MdBrowseItem> items;
     int sel = 0, top = 0;
@@ -359,6 +367,9 @@ struct UiModel {
     mutable int spectro_area[4] = {-1, 0, 0, 0};
     mutable int spectro_skip[4] = {0, 0, 0, 0};
     mutable bool spectro_used = false;
+    mutable int pv_spectro_area[4] = {-1, 0, 0, 0};   // the settings preview's spectrogram picture: where (row, column, width, height in cells; -1 = none)
+    mutable SpectroSettings pv_spectro_set;            // ... its settings (the plain defaults) and its own analyzer (radio_settings_preview.cpp)
+    mutable SpectroAnalyzer* pv_spectro = nullptr;
     // Record overlay (y): the stream position and the buffered time when it opened, so "from now on" is exactly then.
     long long rec_anchor = 0;
     double rec_avail_sec = 0.0;     // how far back from rec_anchor the buffer reaches
@@ -438,9 +449,11 @@ std::vector<std::string> build_phone_screen(const UiModel& m, const RadioStatus&
 // The node to select after UP / DOWN / LEFT / RIGHT (dir 0 / 1 / 2 / 3) from node `sel`.
 // The MilkDrop visuals overlay (":", overlay 11; radio_milkdrop.cpp): its rows (0 Preset .. 11 Show in the Scope Block); a change of one
 // (dir -1 / +1; `notice` gets the status text when there is one).
-inline constexpr int kMdRowCount = 24;
-enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdDuration, kMdShuffle, kMdFavShuffle, kMdHardCuts, kMdCutSens, kMdTransition, kMdFps, kMdRes, kMdGpu, kMdUseFx, kMdFx, kMdColors,
-             kMdHcd, kMdVar, kMdMesh, kMdAspect, kMdRatio, kMdClean, kMdName, kMdScope };
+inline constexpr int kMdRowCount = 28;
+enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdName, kMdUseFx, kMdFx, kMdScope,
+             kMdBright, kMdSat, kMdContrast,
+             kMdDuration, kMdShuffle, kMdFolder, kMdFavShuffle, kMdHardCuts, kMdCutSens, kMdTransition, kMdHcd, kMdVar,
+             kMdFps, kMdRes, kMdGpu, kMdColors, kMdMesh, kMdAspect, kMdRatio, kMdClean };
 void md_overlay_adjust(RadioSettings& c, int row, int dir, std::string& notice);
 VideoLook radio_milkdrop_look(const RadioSettings& c);   // the effect over the pictures (also the MilkDrop window's)
 // The preset overlay (overlay 12): open it (false + notice when there is no preset folder), a key (true = handled; `close` = leave it), the text a search needs.
