@@ -185,6 +185,12 @@ TABLE OF CONTENT: [[Header]]
    5.1.8 CLI in the Radio
    5.1.9 CLI from Outside, Home Assistant
 
+6 DEFAULT VALUES[[Header]]
+  6.1 Default Values: Colors
+  6.2 Default Values: General Settings
+  6.3 Default Values: Anima/Viz, Emoji, Marquee, Sound
+  6.4 Default Values: Hotkeys
+
 [[New Page]]
 
 1.0 OVERVIEW OF THE CAPABILITIES OF MOUSIKI PLUS: [[Header]]
@@ -3319,3 +3325,418 @@ HOME ASSISTANT (configuration.yaml): [[Header]]
        url: "http://192.168.1.20:4747/api/cli?pin=123456&line={{ line | urlencode }}"
    automation: ... service: rest_command.mousiki   data: { line: "playlist 1; volume 30" }
  On a laptop: curl "http://192.168.1.20:4747/api/cli?pin=123456&line=status"
+
+[[New Page]]
+6 DEFAULT VALUES [[Header]]
+
+What each setting is when config.txt does not mention it. Generated from the program's own defaults.
+The radio (radio_config.txt) and the audio book mode (audiobook_config.txt) keep their own files.
+
+6.1 DEFAULT VALUES: COLORS [[Header]]
+
+Colour numbers of the 256-colour palette (ColorCodes=palette).
+
+ColorCodes                         palette
+ColorBorderTop                     170
+ColorBorderBottom                  104
+BorderGradient                     smooth
+ColorDiskTop                       170
+ColorDiskBottom                    30
+ColorMetadataKey                   140
+ColorMetadataVal                   182
+ColorVizLeft                       170
+ColorVizRight                      30
+ColorProgressBarPlayed             213
+ColorProgressBarPending            182
+ColorHeader                        227
+ColorLegend                        199
+ColorLegendCommand                 213
+ColorTabCurrent                    199
+ColorTabOther                      227
+ColorChangeFg                      231
+ColorChangeBg                      199
+ColorFocus                         183
+ColorSearchFg                      231
+ColorSearchBg                      199
+ColorSearchInactiveFg              75
+ColorSearchInactiveBg              (empty)
+ColorListInactiveFg                75
+ColorListInactiveBg                (empty)
+ColorListPlayingFg                 16
+ColorListPlayingBg                 182
+ColorListCursorFg                  227
+ColorListCursorBg                  238
+ColorQueueInactiveFg               75
+ColorQueueInactiveBg               (empty)
+ColorQueuePlayingFg                16
+ColorQueuePlayingBg                182
+ColorQueueCursorFg                 75
+ColorQueueCursorBg                 240
+ColorLyricsInactiveFg              75
+ColorLyricsInactiveBg              (empty)
+ColorLyricsActiveLineFg            182
+ColorLyricsActiveLineBg            (empty)
+ColorLyricsActiveWordFg            75
+ColorLyricsActiveWordBg            (empty)
+
+[[New Page]]
+6.2 DEFAULT VALUES: GENERAL SETTINGS [[Header]]
+
+Switches, numbers and texts of the GENERAL tab and the files they belong to.
+
+ElimentDisk                        true
+ElimentDiskBorder                  false
+SharpCorners                       false
+TopPaneStyle                       0
+LatinLetters                       false
+LyricsNameVariants                 true
+LatinMacrons                       false
+LatinWo                            false
+LatinNameLookup                    false
+LatinHanziDefault                  leave
+AlbumCover                         false
+CoverMode                          disk
+CoverContrast                      0
+CoverBrightness                    50
+CoverColors                        0
+CoverGradientSaturation            30
+BulkAddSave                        true
+BulkAddVideo                       false
+CoverChroma                        off
+CoverSearch                        default
+ElimentDummyButtons                true
+ElimentQueue                       true
+ElimentWaveForm                    true
+VolumeIndicator                    disk
+VolumeGradient                     false
+VizLyricsField                     true
+ElimentLyrics                      true
+LyricViz                           osci
+VizDefault                         osci
+VideoLyrics                        lyrics
+VideoAuto                          true
+BigVideoMilkdropNoVideo            false
+VideoCover                         cover
+VideoSize                          full
+VideoFx                            off
+VideoContrast                      0
+VideoBrightness                    50
+VideoColors                        100
+VideoGradientSaturation            85
+VideoRound                         true
+VideoClap                          none
+VideoChroma                        subtle
+VideoBase                          clean
+VideoBaseDefault                   clean
+VideoEffectContrast                reduced
+VideoDither                        interleaved noise
+VideoResolution                    standard
+VideoFrameRate                     25
+VideoBuffer                        32
+VideoMp3                           true
+VideoLayout                        0
+VideoFullSource                    video
+VideoFullMilkDropLayout            0
+VideoLayoutOsciStyle               default
+VideoLayoutOsciMode                default
+VideoLayoutSpectroStyle            default
+VideoLayoutSpectroView             default
+VideoLayoutScales                  true
+VideoDownHeight                    720
+VideoMode                          true
+VideoView                          false
+NoVideoViz                         lyrics
+NoLyricsViz                        osci
+UseLyrics                          true
+UseOscilloscope                    true
+UseSpectrogram                     true
+UseSphere                          true
+UseMilkDrop                        true
+MilkDropView                       false
+MilkDropPresets                    (empty)
+MilkDropDefaultPreset              (empty)
+MilkDropGpu                        (empty)
+MilkDropFrameRate                  30
+MilkDropResolution                 480
+MilkDropWindowResolution           1280
+MilkDropPresetDuration             25
+MilkDropAuto                       false
+MilkDropAutoVideoWas               false
+MilkDropShuffle                    true
+MilkDropShuffleFavourites          false
+MilkDropHardCutSensitivity         20
+MilkDropHardCuts                   true
+MilkDropHardCutInterval            20
+MilkDropLockPreset                 false
+MilkDropTransition                 3
+MilkDropShowName                   true
+MilkDropAspectCorrection           true
+MilkDropMeshDetail                 1
+MilkDropDurationVariance           0
+MilkDropCleanStart                 false
+MilkDropBrightness                 50
+MilkDropSaturation                 100
+MilkDropContrast                   0
+MilkDropShuffleFolder              (empty)
+MilkDropEffect                     off
+MilkDropEffectOn                   true
+MilkDropAspectRatio                auto
+MilkDropSixelColors                adaptive
+VizOrder                           sphere,osci,spectro,lyrics,video,m
+OsciDecay                          0.80
+OsciDotThreshold                   0.28
+OsciTailBrightness                 0.45
+OsciInterpolation                  true
+OsciZAxis                          false
+OsciZDepth                         0.70
+OsciZSource                        speed
+OsciTraceLength                    1024
+OsciRotate                         false
+OsciMonoPhase                      true
+OsciPalette                        gradient
+OsciGlow                           0.60
+OsciFrameRate                      30
+OsciMusicMode                      false
+OsciCrtBeam                        false
+OsciLowRateBlanking                true
+OsciDwellBrightness                true
+OsciRoughMode                      true
+OsciImageDecay                     0.80
+OsciImageDotThreshold              0.28
+OsciImageTailBrightness            0.45
+OsciImageInterpolation             true
+OsciImageZAxis                     false
+OsciImageZDepth                    0.70
+OsciImageZSource                   speed
+OsciImageTraceLength               1024
+OsciImageRotate                    false
+OsciImageMonoPhase                 true
+OsciImagePalette                   gradient
+OsciImageGlow                      0.60
+OsciImageFrameRate                 30
+OsciImageMusicMode                 false
+OsciImageCrtBeam                   true
+OsciImageLowRateBlanking           true
+OsciImageDwellBrightness           true
+OsciImageRoughMode                 false
+ScopeGrid                          true
+ScopeValues                        true
+ScopeGridColor                     (empty)
+ScopeYtTimeUnit                    ms
+ScopeYtTimeDiv                     8
+ScopeYtValueDiv                    4
+ScopeYtInfo                        both
+ScopeXyDiv                         4
+ScopeXyInfo                        both
+OsciMode                           xy
+OsciStyle                          braille
+OsciImageProtocol                  auto
+OsciImageResolution                half
+OsciImageDetail                    normal
+SpectroStyle                       image
+SpectroMotion                      sweep
+SpectroScale                       mel
+SpectroMinFreq                     0
+SpectroMaxFreq                     20000
+SpectroGain                        20
+SpectroRange                       80
+SpectroFrequencyGain               0
+SpectroWindowSize                  2048
+SpectroZeroPadding                 2
+SpectroColors                      roseus
+SpectroChannels                    both
+SpectroTimeSpan                    30
+SpectroLabels                      true
+SpectroView                        spectrogram
+SpectroWaterfallGraphs             40
+SpectroWaterfallSpacing            120
+SpectroWaterfallSlant              25
+SpectroWaterfallHeight             30
+SpectroWaterfallResolution         normal
+SpectroLastStyle0                  1
+Visualizer                         true
+MetaDataOnly                       false
+
+[[New Page]]
+6.3 DEFAULT VALUES: ANIMA/VIZ, EMOJI, MARQUEE, SOUND [[Header]]
+
+ANIMA/VIZ tab: visuals, video, MilkDrop, the field, emoji, marquee, stereo and loudness normalization.
+
+VisualizerFluidity                 10
+WaveformStyle                      smooth
+DiskRotationSpeed                  0.1
+StartMode                          player
+UseModePlayer                      true
+UseModeRadio                       true
+UseModeAudiobook                   true
+ModeOrder                          player,radio,audiobook
+BlackBackground                    true
+RemoteApp                          false
+RemoteAppPort                      4747
+RemoteAppPin                       (empty)
+ShareProfiles                      false
+SpectroHistory                     true
+BookmarkAsk                        true
+BookCoverWave                      true
+TerminalDefaultFont                false
+TerminalFont                       Cascadia Mono
+AudioDevice                        (empty)
+BookSpeed                          1.00
+BookCover                          false
+UpdateCheck                        true
+TrackBufferMB                      64
+TerminalCols                       120
+TerminalRows                       32
+UseTerminalSettings                false
+FullScreen                         false
+ReduceMotionWhenPaused             true
+RateCap96                          true
+PauseFade                          true
+AutoPlay                           false
+Gapless                            off
+PauseSphere                        false
+MediaKeys                          true
+RemoteAppCli                       false
+RemoteAppHosts                     (empty)
+PlaybackMode                       list
+VisualizerDegradationSpeed         8
+VisualizerViscosity                3
+VisualizerStyle                    hifi
+HifiResolution                     fine
+HifiChannels                       stereo
+HifiScale                          low
+HifiFrequencyScale                 mel
+HifiGain                           -2
+HifiRange                          68
+HifiFluidity                       10
+HifiDegradationSpeed               8
+HifiViscosity                      3
+HifiAdapt                          on
+HifiSplit                          add
+HifiColor                          gradient
+LyricsAlignment                    center
+LyricsAnimation                    full
+ReplaceEmoji                       true
+MarqueeScrolling                   true
+StereoPlayback                     true
+NormalizeVolume                    true
+FadeIn                             false
+FadeOut                            false
+Crossfade                          false
+FadeLength                         4000
+FadeCurve                          0
+TrimSilence                        false
+TrimThreshold                      -60
+NormalizeTargetLufs                -16
+NormalizeMaxBoostDb                9
+EqualizerEnabled                   false
+EqualizerBands                     0,0,0,0,0,0,0,0,0,0
+ConsoleVerbosity                   basic
+SleepFade                          true
+MenuIndexClassic                   false
+WizardSeen                         false
+SidPlayLength                      180
+KaraokeLyricsSize                  1
+TranslateService                   google
+TranslateTo                        en
+TranslateFrom                      auto
+AutoSave                           true
+AutoSaveIndicator                  true
+AutoSaveDelayInSec                 30
+AutoSaveChr                        •
+AutoSaveIndicatorType              blink
+AutoSaveC1                         (empty)
+AutoSaveC2                         (empty)
+
+[[New Page]]
+6.4 DEFAULT VALUES: HOTKEYS [[Header]]
+
+The hotkeys as they are bound without a HKey...= line in config.txt (the word after HKey is the action).
+
+Setting                            s
+NavigateUp                         ARROW_KEY_UP
+NavigateDown                       ARROW_KEY_DOWN
+Play                               ENTER
+PlayNextSong                       n
+PlayPreviousSong                   b
+TogglePlayPause                    p
+CyclePlayMode                      m
+CyclePlayModeBack                  j
+Search                             /
+SeekForward                        ARROW_KEY_RIGHT
+SeekBackward                       ARROW_KEY_LEFT
+IncreaseVolume                     +
+DecreaseVolume                     -
+AddHoveringSongToQueue             a
+RemoveHoveringSongFromQueue        d
+SwitchBetweenCards                 TAB
+FilterForFolder                    f
+ClearFilter                        c
+Quit                               q
+DownloadStream                     y
+ToggleNormalize                    
+ToggleMetaOnly                     N
+MetaEditor                         M
+History                            H
+Equalizer                          E
+ScopeWindow                        )
+Console                            t
+ListOverlay                        L
+ClearQueue                         X
+CycleSortMode                      T
+QueueMoveDown                      5
+ToggleLyricsBack                   ,
+ShuffleNext                        #
+CoverFetch                         ALT+C
+RetryLyrics                        l
+Video                              Y
+ToggleMute                         x
+AudioDevice                        &
+Menus                              <
+BarsMenu                           B
+OscMenu                            O
+KaraokeBigger                      *
+KaraokeSmaller                     _
+QueueMoveTop                       $
+CoverNext                          CTRL+Z
+ToggleLyrics                       .
+Playlist                           P
+QueueMoveUp                        4
+SleepTimer                         Z
+Cheatsheet                         ?
+SpectroWindow                      (
+MilkdropWindow                     ;
+QueueAddEnd                        e
+SpectroFull                        U
+NormMenu                           V
+VisualsMenu                        :
+VideoFx                            g
+AddToPlaylist                      A
+QueueUndoClear                     CTRL+SHIFT+Z
+QueueToPlaylist                    CTRL+SHIFT+U
+VideoFxBack                        h
+BulkAdd                            G
+StyleOptions                       S
+VideoFetch                         ALT+V
+Translit                           "
+RefreshUi                          r
+LyricsTiming                       ALT+L
+Creator                            ^
+FetchTags                          B
+Rescan                             R
+Karaoke                            k
+ScopeBig                           =
+QueueMoveBottom                    %
+QueueLock                          !
+ToggleWaveform                     w
+QueueOverlay                       K
+SpectroMenu                        I
+ModePrev                           _
+FolderOverlay                      F
+ModeNext                           *
+ConvertOverlay                     C
+CoverPrev                          CTRL+T
+Bookmark                           B
+VideoFull                          v
+ReadLyrics                         CTRL+L
+Wizard                             W

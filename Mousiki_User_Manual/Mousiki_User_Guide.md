@@ -192,6 +192,7 @@ The key shown for each command is the **default binding**. Your own bindings may
   - [System media controls: media keys and now playing (Windows, Linux, macOS)](#system-media-controls-media-keys-and-now-playing-windows-linux-macos)
 - **[14. Automated tests](#14-automated-tests)**
 - **[15. Upgrades and your settings](#15-upgrades-and-your-settings)**
+- **[16. Default values](#16-default-values)**
 - **[About this app](#about-this-app)**
   - [Original developer of v1.0](#original-developer-of-v10)
   - [Windows port, incl. extensive modifications up to v5.1.0 (including the radio and audio book modes)](#windows-port-incl-extensive-modifications-up-to-v510-including-the-radio-and-audio-book-modes)
@@ -3461,6 +3462,235 @@ In the radio, a live station has no length, so the position slider is off; the s
 **New version notice.** With **Update Notice** on (Settings -> GENERAL -> CLI / REMOTE / UPDATES, `UpdateCheck=true`, the default), Mousiki asks the project's releases page once a day, in the background, whether a newer version exists and tells you **once per version** with a small window (*Mousiki 4.7.1 is out. You are using 4.6.0.* and the address of the release, plus the note that your configuration stays the same when you update by installing the newer version (a new command whose default key you already use for something else is left unbound, see Settings -> REFERENCE; the status line names it once when Mousiki starts, e.g. *new command without a key: HKeyVisualsMenu (its key ":" is HKeyX's)*); for the portable versions the note says: unzip the new version over the old folder, or copy your `data` folder into the new one, and keep `portable.txt` next to the launcher (without it the configs in `data` are not found); `ESC` Close, `o` Go to release). It appears as soon as the main screen is showing (not on top of a menu or the help wizard). It never installs anything -- how to update depends on how you installed Mousiki (`winget upgrade`, `scoop update`, `brew upgrade`, the installer or the `.deb`). The answer is kept in `update_check.txt` in the config folder. **Check Update** (Settings -> GENERAL -> CLI / REMOTE / UPDATES, the row under *Update Notice*) does the same check at once: press `ENTER` on the row and the answer appears on the settings screen; it ignores the once-a-day rule and works even when *Update Notice* is off.
 
 Installing a new version never deletes your settings (`config.txt`, `radio_config.txt` ... live in the config folder, not in the program folder). The first time a new version saves a settings file, the previous file is kept as **`config.txt.bak`** / **`radio_config.txt.bak`** next to it (one backup, replaced at the next upgrade), so you can go back if something looks wrong. The files carry a `# Written by Mousiki v...` line for that.
+
+<!-- DEFAULTS BEGIN -->
+## 16. Default values
+
+What every setting is when `config.txt` does not mention it (a new installation, or a line you delete). The list is generated from the program's own defaults, so it is always current; the key names are the ones of `config.txt`. The radio keeps its own file (`radio_config.txt`) with the same names for the rows it shares, and the audio book mode keeps its own look in `audiobook_config.txt`.
+
+### Colors
+
+Colour numbers of the 256-colour palette (`ColorCodes=palette`).
+
+| Key | Default | Key | Default |
+|---|---|---|---|
+| `ColorCodes` | `palette` | `ColorSearchBg` | `199` |
+| `ColorBorderTop` | `170` | `ColorSearchInactiveFg` | `75` |
+| `ColorBorderBottom` | `104` | `ColorSearchInactiveBg` | (empty) |
+| `BorderGradient` | `smooth` | `ColorListInactiveFg` | `75` |
+| `ColorDiskTop` | `170` | `ColorListInactiveBg` | (empty) |
+| `ColorDiskBottom` | `30` | `ColorListPlayingFg` | `16` |
+| `ColorMetadataKey` | `140` | `ColorListPlayingBg` | `182` |
+| `ColorMetadataVal` | `182` | `ColorListCursorFg` | `227` |
+| `ColorVizLeft` | `170` | `ColorListCursorBg` | `238` |
+| `ColorVizRight` | `30` | `ColorQueueInactiveFg` | `75` |
+| `ColorProgressBarPlayed` | `213` | `ColorQueueInactiveBg` | (empty) |
+| `ColorProgressBarPending` | `182` | `ColorQueuePlayingFg` | `16` |
+| `ColorHeader` | `227` | `ColorQueuePlayingBg` | `182` |
+| `ColorLegend` | `199` | `ColorQueueCursorFg` | `75` |
+| `ColorLegendCommand` | `213` | `ColorQueueCursorBg` | `240` |
+| `ColorTabCurrent` | `199` | `ColorLyricsInactiveFg` | `75` |
+| `ColorTabOther` | `227` | `ColorLyricsInactiveBg` | (empty) |
+| `ColorChangeFg` | `231` | `ColorLyricsActiveLineFg` | `182` |
+| `ColorChangeBg` | `199` | `ColorLyricsActiveLineBg` | (empty) |
+| `ColorFocus` | `183` | `ColorLyricsActiveWordFg` | `75` |
+| `ColorSearchFg` | `231` | `ColorLyricsActiveWordBg` | (empty) |
+
+### General settings
+
+Switches, numbers and texts of the GENERAL tab and the files they belong to.
+
+| Key | Default | Key | Default |
+|---|---|---|---|
+| `ElimentDisk` | `true` | `MilkDropAspectCorrection` | `true` |
+| `ElimentDiskBorder` | `false` | `MilkDropMeshDetail` | `1` |
+| `SharpCorners` | `false` | `MilkDropDurationVariance` | `0` |
+| `TopPaneStyle` | `0` | `MilkDropCleanStart` | `false` |
+| `LatinLetters` | `false` | `MilkDropBrightness` | `50` |
+| `LyricsNameVariants` | `true` | `MilkDropSaturation` | `100` |
+| `LatinMacrons` | `false` | `MilkDropContrast` | `0` |
+| `LatinWo` | `false` | `MilkDropShuffleFolder` | (empty) |
+| `LatinNameLookup` | `false` | `MilkDropEffect` | `off` |
+| `LatinHanziDefault` | `leave` | `MilkDropEffectOn` | `true` |
+| `AlbumCover` | `false` | `MilkDropAspectRatio` | `auto` |
+| `CoverMode` | `disk` | `MilkDropSixelColors` | `adaptive` |
+| `CoverContrast` | `0` | `VizOrder` | `sphere,osci,spectro,lyrics,video,milkdrop` |
+| `CoverBrightness` | `50` | `OsciDecay` | `0.80` |
+| `CoverColors` | `0` | `OsciDotThreshold` | `0.28` |
+| `CoverGradientSaturation` | `30` | `OsciTailBrightness` | `0.45` |
+| `BulkAddSave` | `true` | `OsciInterpolation` | `true` |
+| `BulkAddVideo` | `false` | `OsciZAxis` | `false` |
+| `CoverChroma` | `off` | `OsciZDepth` | `0.70` |
+| `CoverSearch` | `default` | `OsciZSource` | `speed` |
+| `ElimentDummyButtons` | `true` | `OsciTraceLength` | `1024` |
+| `ElimentQueue` | `true` | `OsciRotate` | `false` |
+| `ElimentWaveForm` | `true` | `OsciMonoPhase` | `true` |
+| `VolumeIndicator` | `disk` | `OsciPalette` | `gradient` |
+| `VolumeGradient` | `false` | `OsciGlow` | `0.60` |
+| `VizLyricsField` | `true` | `OsciFrameRate` | `30` |
+| `ElimentLyrics` | `true` | `OsciMusicMode` | `false` |
+| `LyricViz` | `osci` | `OsciCrtBeam` | `false` |
+| `VizDefault` | `osci` | `OsciLowRateBlanking` | `true` |
+| `VideoLyrics` | `lyrics` | `OsciDwellBrightness` | `true` |
+| `VideoAuto` | `true` | `OsciRoughMode` | `true` |
+| `BigVideoMilkdropNoVideo` | `false` | `OsciImageDecay` | `0.80` |
+| `VideoCover` | `cover` | `OsciImageDotThreshold` | `0.28` |
+| `VideoSize` | `full` | `OsciImageTailBrightness` | `0.45` |
+| `VideoFx` | `off` | `OsciImageInterpolation` | `true` |
+| `VideoContrast` | `0` | `OsciImageZAxis` | `false` |
+| `VideoBrightness` | `50` | `OsciImageZDepth` | `0.70` |
+| `VideoColors` | `100` | `OsciImageZSource` | `speed` |
+| `VideoGradientSaturation` | `85` | `OsciImageTraceLength` | `1024` |
+| `VideoRound` | `true` | `OsciImageRotate` | `false` |
+| `VideoClap` | `none` | `OsciImageMonoPhase` | `true` |
+| `VideoChroma` | `subtle` | `OsciImagePalette` | `gradient` |
+| `VideoBase` | `clean` | `OsciImageGlow` | `0.60` |
+| `VideoBaseDefault` | `clean` | `OsciImageFrameRate` | `30` |
+| `VideoEffectContrast` | `reduced` | `OsciImageMusicMode` | `false` |
+| `VideoDither` | `interleaved noise` | `OsciImageCrtBeam` | `true` |
+| `VideoResolution` | `standard` | `OsciImageLowRateBlanking` | `true` |
+| `VideoFrameRate` | `25` | `OsciImageDwellBrightness` | `true` |
+| `VideoBuffer` | `32` | `OsciImageRoughMode` | `false` |
+| `VideoMp3` | `true` | `ScopeGrid` | `true` |
+| `VideoLayout` | `0` | `ScopeValues` | `true` |
+| `VideoFullSource` | `video` | `ScopeGridColor` | (empty) |
+| `VideoFullMilkDropLayout` | `0` | `ScopeYtTimeUnit` | `ms` |
+| `VideoLayoutOsciStyle` | `default` | `ScopeYtTimeDiv` | `8` |
+| `VideoLayoutOsciMode` | `default` | `ScopeYtValueDiv` | `4` |
+| `VideoLayoutSpectroStyle` | `default` | `ScopeYtInfo` | `both` |
+| `VideoLayoutSpectroView` | `default` | `ScopeXyDiv` | `4` |
+| `VideoLayoutScales` | `true` | `ScopeXyInfo` | `both` |
+| `VideoDownHeight` | `720` | `OsciMode` | `xy` |
+| `VideoMode` | `true` | `OsciStyle` | `braille` |
+| `VideoView` | `false` | `OsciImageProtocol` | `auto` |
+| `NoVideoViz` | `lyrics` | `OsciImageResolution` | `half` |
+| `NoLyricsViz` | `osci` | `OsciImageDetail` | `normal` |
+| `UseLyrics` | `true` | `SpectroStyle` | `image` |
+| `UseOscilloscope` | `true` | `SpectroMotion` | `sweep` |
+| `UseSpectrogram` | `true` | `SpectroScale` | `mel` |
+| `UseSphere` | `true` | `SpectroMinFreq` | `0` |
+| `UseMilkDrop` | `true` | `SpectroMaxFreq` | `20000` |
+| `MilkDropView` | `false` | `SpectroGain` | `20` |
+| `MilkDropPresets` | (empty) | `SpectroRange` | `80` |
+| `MilkDropDefaultPreset` | (empty) | `SpectroFrequencyGain` | `0` |
+| `MilkDropGpu` | (empty) | `SpectroWindowSize` | `2048` |
+| `MilkDropFrameRate` | `30` | `SpectroZeroPadding` | `2` |
+| `MilkDropResolution` | `480` | `SpectroColors` | `roseus` |
+| `MilkDropWindowResolution` | `1280` | `SpectroChannels` | `both` |
+| `MilkDropPresetDuration` | `25` | `SpectroTimeSpan` | `30` |
+| `MilkDropAuto` | `false` | `SpectroLabels` | `true` |
+| `MilkDropAutoVideoWas` | `false` | `SpectroView` | `spectrogram` |
+| `MilkDropShuffle` | `true` | `SpectroWaterfallGraphs` | `40` |
+| `MilkDropShuffleFavourites` | `false` | `SpectroWaterfallSpacing` | `120` |
+| `MilkDropHardCutSensitivity` | `20` | `SpectroWaterfallSlant` | `25` |
+| `MilkDropHardCuts` | `true` | `SpectroWaterfallHeight` | `30` |
+| `MilkDropHardCutInterval` | `20` | `SpectroWaterfallResolution` | `normal` |
+| `MilkDropLockPreset` | `false` | `SpectroLastStyle0` | `1` |
+| `MilkDropTransition` | `3` | `Visualizer` | `true` |
+| `MilkDropShowName` | `true` | `MetaDataOnly` | `false` |
+
+### Anima/Viz, emoji, marquee, sound
+
+ANIMA/VIZ tab: visuals, video, MilkDrop, the field, emoji, marquee, stereo and loudness normalization.
+
+| Key | Default | Key | Default |
+|---|---|---|---|
+| `VisualizerFluidity` | `10` | `HifiFrequencyScale` | `mel` |
+| `WaveformStyle` | `smooth` | `HifiGain` | `-2` |
+| `DiskRotationSpeed` | `0.1` | `HifiRange` | `68` |
+| `StartMode` | `player` | `HifiFluidity` | `10` |
+| `UseModePlayer` | `true` | `HifiDegradationSpeed` | `8` |
+| `UseModeRadio` | `true` | `HifiViscosity` | `3` |
+| `UseModeAudiobook` | `true` | `HifiAdapt` | `on` |
+| `ModeOrder` | `player,radio,audiobook` | `HifiSplit` | `add` |
+| `BlackBackground` | `true` | `HifiColor` | `gradient` |
+| `RemoteApp` | `false` | `LyricsAlignment` | `center` |
+| `RemoteAppPort` | `4747` | `LyricsAnimation` | `full` |
+| `RemoteAppPin` | (empty) | `ReplaceEmoji` | `true` |
+| `ShareProfiles` | `false` | `MarqueeScrolling` | `true` |
+| `SpectroHistory` | `true` | `StereoPlayback` | `true` |
+| `BookmarkAsk` | `true` | `NormalizeVolume` | `true` |
+| `BookCoverWave` | `true` | `FadeIn` | `false` |
+| `TerminalDefaultFont` | `false` | `FadeOut` | `false` |
+| `TerminalFont` | `Cascadia Mono` | `Crossfade` | `false` |
+| `AudioDevice` | (empty) | `FadeLength` | `4000` |
+| `BookSpeed` | `1.00` | `FadeCurve` | `0` |
+| `BookCover` | `false` | `TrimSilence` | `false` |
+| `UpdateCheck` | `true` | `TrimThreshold` | `-60` |
+| `TrackBufferMB` | `64` | `NormalizeTargetLufs` | `-16` |
+| `TerminalCols` | `120` | `NormalizeMaxBoostDb` | `9` |
+| `TerminalRows` | `32` | `EqualizerEnabled` | `false` |
+| `UseTerminalSettings` | `false` | `EqualizerBands` | `0,0,0,0,0,0,0,0,0,0` |
+| `FullScreen` | `false` | `ConsoleVerbosity` | `basic` |
+| `ReduceMotionWhenPaused` | `true` | `SleepFade` | `true` |
+| `RateCap96` | `true` | `MenuIndexClassic` | `false` |
+| `PauseFade` | `true` | `WizardSeen` | `false` |
+| `AutoPlay` | `false` | `SidPlayLength` | `180` |
+| `Gapless` | `off` | `KaraokeLyricsSize` | `1` |
+| `PauseSphere` | `false` | `TranslateService` | `google` |
+| `MediaKeys` | `true` | `TranslateTo` | `en` |
+| `RemoteAppCli` | `false` | `TranslateFrom` | `auto` |
+| `RemoteAppHosts` | (empty) | `AutoSave` | `true` |
+| `PlaybackMode` | `list` | `AutoSaveIndicator` | `true` |
+| `VisualizerDegradationSpeed` | `8` | `AutoSaveDelayInSec` | `30` |
+| `VisualizerViscosity` | `3` | `AutoSaveChr` | `•` |
+| `VisualizerStyle` | `hifi` | `AutoSaveIndicatorType` | `blink` |
+| `HifiResolution` | `fine` | `AutoSaveC1` | (empty) |
+| `HifiChannels` | `stereo` | `AutoSaveC2` | (empty) |
+| `HifiScale` | `low` |  | |
+
+### Hotkeys
+
+The hotkeys as they are bound without a `HKey...=` line in `config.txt` (the word after `HKey` is the action).
+
+| Key | Default | Key | Default |
+|---|---|---|---|
+| `Setting` | `s` | `QueueMoveTop` | `$` |
+| `NavigateUp` | `ARROW_KEY_UP` | `CoverNext` | `CTRL+Z` |
+| `NavigateDown` | `ARROW_KEY_DOWN` | `ToggleLyrics` | `.` |
+| `Play` | `ENTER` | `Playlist` | `P` |
+| `PlayNextSong` | `n` | `QueueMoveUp` | `4` |
+| `PlayPreviousSong` | `b` | `SleepTimer` | `Z` |
+| `TogglePlayPause` | `p` | `Cheatsheet` | `?` |
+| `CyclePlayMode` | `m` | `SpectroWindow` | `(` |
+| `CyclePlayModeBack` | `j` | `MilkdropWindow` | `;` |
+| `Search` | `/` | `QueueAddEnd` | `e` |
+| `SeekForward` | `ARROW_KEY_RIGHT` | `SpectroFull` | `U` |
+| `SeekBackward` | `ARROW_KEY_LEFT` | `NormMenu` | `V` |
+| `IncreaseVolume` | `+` | `VisualsMenu` | `:` |
+| `DecreaseVolume` | `-` | `VideoFx` | `g` |
+| `AddHoveringSongToQueue` | `a` | `AddToPlaylist` | `A` |
+| `RemoveHoveringSongFromQueue` | `d` | `QueueUndoClear` | `CTRL+SHIFT+Z` |
+| `SwitchBetweenCards` | `TAB` | `QueueToPlaylist` | `CTRL+SHIFT+U` |
+| `FilterForFolder` | `f` | `VideoFxBack` | `h` |
+| `ClearFilter` | `c` | `BulkAdd` | `G` |
+| `Quit` | `q` | `StyleOptions` | `S` |
+| `DownloadStream` | `y` | `VideoFetch` | `ALT+V` |
+| `ToggleNormalize` | `` | `Translit` | `"` |
+| `ToggleMetaOnly` | `N` | `RefreshUi` | `r` |
+| `MetaEditor` | `M` | `LyricsTiming` | `ALT+L` |
+| `History` | `H` | `Creator` | `^` |
+| `Equalizer` | `E` | `FetchTags` | `B` |
+| `ScopeWindow` | `)` | `Rescan` | `R` |
+| `Console` | `t` | `Karaoke` | `k` |
+| `ListOverlay` | `L` | `ScopeBig` | `=` |
+| `ClearQueue` | `X` | `QueueMoveBottom` | `%` |
+| `CycleSortMode` | `T` | `QueueLock` | `!` |
+| `QueueMoveDown` | `5` | `ToggleWaveform` | `w` |
+| `ToggleLyricsBack` | `,` | `QueueOverlay` | `K` |
+| `ShuffleNext` | `#` | `SpectroMenu` | `I` |
+| `CoverFetch` | `ALT+C` | `ModePrev` | `_` |
+| `RetryLyrics` | `l` | `FolderOverlay` | `F` |
+| `Video` | `Y` | `ModeNext` | `*` |
+| `ToggleMute` | `x` | `ConvertOverlay` | `C` |
+| `AudioDevice` | `&` | `CoverPrev` | `CTRL+T` |
+| `Menus` | `<` | `Bookmark` | `B` |
+| `BarsMenu` | `B` | `VideoFull` | `v` |
+| `OscMenu` | `O` | `ReadLyrics` | `CTRL+L` |
+| `KaraokeBigger` | `*` | `Wizard` | `W` |
+| `KaraokeSmaller` | `_` |  | |
+
+<!-- DEFAULTS END -->
 
 ---
 

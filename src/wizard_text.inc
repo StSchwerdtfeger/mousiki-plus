@@ -187,6 +187,12 @@ TABLE OF CONTENT: [[Header]]
    5.1.8 CLI in the Radio
    5.1.9 CLI from Outside, Home Assistant
 
+6 DEFAULT VALUES[[Header]]
+  6.1 Default Values: Colors
+  6.2 Default Values: General Settings
+  6.3 Default Values: Anima/Viz, Emoji, Marquee, Sound
+  6.4 Default Values: Hotkeys
+
 [[New Page]]
 
 1.0 OVERVIEW OF THE CAPABILITIES OF MOUSIKI PLUS: [[Header]]
@@ -213,10 +219,10 @@ music or notes.
 
 LYRICS AND KARAOKE: [[Header]]
 Synced lyrics are fetched for local and online tracks, with word-by-word animation, a timing editor,
-several versions per song, lyrics added by hand and a reader with translation (Google / MyMemory, or
-written by hand), transliteration and export. Karaoke mode shows the lines in large letters with the disk
 )WIZ",
-R"WIZ(colors.
+R"WIZ(several versions per song, lyrics added by hand and a reader with translation (Google / MyMemory, or
+written by hand), transliteration and export. Karaoke mode shows the lines in large letters with the disk
+colors.
 
 VIDEO: [[Header]]
 Video files join the library, and a sound file can be paired with a video. The field shows the video with
@@ -349,11 +355,11 @@ menus of a mode that you have switched off are not there).
 [AUDIO BOOK PLAYER: Main][[Header]]
 ┌─ [System][[Header]] ────────────────────┐ ┌─ [Library and Meta Data][[Header]] ───┐
 │ Settings [s]                │ │ Library Overlay [SHIFT+s] │
-│ Console / logs / status [t] │ │ Tag Editor [SHIFT+m]      │
+)WIZ",
+R"WIZ(│ Console / logs / status [t] │ │ Tag Editor [SHIFT+m]      │
 │ Help Wizard [SHIFT+w]       │ │ Reading History [SHIFT+h] │
 │ Cheat Sheet [?]             │ │ Chapter Marks [ALT+L]     │
-)WIZ",
-R"WIZ(│ File Conversion [SHIFT+c]   │ └───────────────────────────┘
+│ File Conversion [SHIFT+c]   │ └───────────────────────────┘
 └─────────────────────────────┘
 ┌─ [Bookmarks and Notes][[Header]] ───┐ ┌─ [Sound][[Header]] ──────────────────────────┐
 │ Bookmark List [SHIFT+k] │ │ Equalizer [SHIFT+e]              │
@@ -478,12 +484,12 @@ locked queue); the others stay where they are.
 ADDING/CHANGING PATHS: [[Header]]
 
 HOW TO GET TO THE SETTINGS PATH TAB: [[Header]]
-[s]  Settings [[Legend]] ->>  PATHS [[Header]] ->>  LOCAL PATH [[Header]] to set several paths.
+)WIZ",
+R"WIZ([s]  Settings [[Legend]] ->>  PATHS [[Header]] ->>  LOCAL PATH [[Header]] to set several paths.
 For more details on all the SETTINGS TABS see chapter SETTINGS AND COLOR THEMES[[Header]]. 
 
 Move onto a row, press [ENTER], type in folder path, hit [ENTER] again to change/add a path. 
-)WIZ",
-R"WIZ(An empty line plus [ENTER] removes that path. Paths accept "~" and "%USERPROFILE%" and both 
+An empty line plus [ENTER] removes that path. Paths accept "~" and "%USERPROFILE%" and both 
 slash directions on Windows.
 Music files and video files (see 2.1.2.1 SUPPORTED FORMATS) in these folders are found.
 Committing a change rescans the library at once. Note that the download folder is included in
@@ -633,13 +639,13 @@ the same file name and therefore does not rely on the history itself, but is bui
 to the history file that is created by yt-dlp using it outside Mousiki so duplicates are avoided.
 When using yt-dlp outside of Mousiki it is recommended to point the history file to the same folder
 Mousiki is creating inside the chosen download path as seen below (maybe create a shell profile
-function for downloading songs and playlists from it). NOTE: When the download folder is changed in
+)WIZ",
+R"WIZ(function for downloading songs and playlists from it). NOTE: When the download folder is changed in
 Mousiki, the history folder will be copied (not moved!) to avoid history amnesia on the yt-dlp side.
 
 YT-DLP COMMAND POINTING AT SHARED HISTORY FOLDER: [[Header]]
 yt-dlp -x -P "<download folder>" --download-archive "<download folder>/history/downloaded_history.txt"
-)WIZ",
-R"WIZ(<playlist-url>
+<playlist-url>
 
 
 [[New Page]]
@@ -772,12 +778,12 @@ STYLE OPTION:[[Header]] a small overlay with the look of THIS track
                       default). More rows, for this track only: Video of this track on / off, Video Size,
                       Video Effect, Video Base Layer, Video Effect Contrast, Video Contrast, Video
                       Brightness, Video Colors, Video Chromatic Aberration, Video Dither Pattern, Video
-                      Gradient Saturation.
+)WIZ",
+R"WIZ(                      Gradient Saturation.
 [MilkDrop:][[Legend]]             With projectM installed two more rows: MilkDrop for this track as it comes / on /
                       off, and More Options: [ENTER] opens the preset overlay of this track with its
                       Preset, Keep and Effect.
-)WIZ",
-R"WIZ([Keys:][[Legend]]                 [<-][->] change a row; [DEL] or [d] puts it back to "as in Settings"; [t] switches
+[Keys:][[Legend]]                 [<-][->] change a row; [DEL] or [d] puts it back to "as in Settings"; [t] switches
                       between a real picture (Kitty / Sixel terminals, the default) and braille dots.
 [Preview:][[Legend]]              A wide terminal adds a preview of the cover with the chosen look on the right.
 [Priority:][[Legend]]             The track's own values win over the album's look and over Settings; while the track
@@ -914,12 +920,12 @@ download folder first.
 PLAYLISTS TAB: [[Header]]
 
 SEARCH AND ADD TO QUEUE: Search and choose a playlist and hit [ENTER] to add to queue.
-
+)WIZ",
+R"WIZ(
 EXPORT/IMPORT: Use [e/i] to import or export playlists in the M3U/M3U8 format. Playlists
 created with Mousiki are stored in its own format, but they can be exported in M3U/M3U8.
 Both dialogs have a scope row: export: [Currently (filtered) list] writes every playlist the
-)WIZ",
-R"WIZ((filtered) list shows; import: [Whole folder] takes every file of the folder. Defaults: the 
+(filtered) list shows; import: [Whole folder] takes every file of the folder. Defaults: the 
 "export" and "import" folders inside the playlist folder. Import never touches its files: a 
 COPY goes to "imported_lists" in the playlist folder, which so holds only the given lists. 
 A track whose file is not on this computer (a list from someone else) is looked up in your 
@@ -1035,11 +1041,11 @@ Marks:[[Header]] [ ] not searched  [~] searching  [?] several videos, a choice i
              (the file stays on the disk)
 [SHIFT+a]    download only the chosen video of the song under the cursor
 [SHIFT+f]    DOWNLOAD all chosen videos only (mp4) into video_down in the download folder, named
-             like the song and paired with it. A single hit is a choice already; several hits are
+)WIZ",
+R"WIZ(             like the song and paired with it. A single hit is a choice already; several hits are
              NEVER picked automatically.
              The found videos and your choices are saved at every change: leaving without
-)WIZ",
-R"WIZ(             downloading loses nothing (video_fetch_state.json).
+             downloading loses nothing (video_fetch_state.json).
 [CTRL+c]     cancel a running download        [ESC] back / close (a download goes on)
 
 VIDEO FILES TAB:[[Header]] [ALT+Left/Right] (or [Left/Right] outside a text field) switches tabs.
@@ -1147,11 +1153,11 @@ lyrics are loaded). The lines move live while you adjust, so you can judge the o
 [-> <-:][[Legend]]                    Lyrics later / earlier by 0.1 s.
 [UP DOWN:][[Legend]]                  Lyrics later / earlier by 0.5 s.
 [R:][[Legend]]                        Back to 0 (range +/- 120 s).
-[SHIFT+<-/->:][[Legend]]              Seek the playing track back / forth.
+)WIZ",
+R"WIZ([SHIFT+<-/->:][[Legend]]              Seek the playing track back / forth.
 [ENTER or S:][[Legend]]               Save into the lyrics file of the track: a standard [offset:...] tag, which other
                           players understand too.
-)WIZ",
-R"WIZ([ESC or ALT+L:][[Legend]]             Cancel, the old offset comes back.
+[ESC or ALT+L:][[Legend]]             Cancel, the old offset comes back.
 [Hint:][[Legend]]                     A positive offset makes the lyrics appear later, so use it when they are too
                           early.
 
@@ -1259,10 +1265,10 @@ picture in Kitty / Sixel terminals, braille dots elsewhere.
 
 ROW[[Header]]                           WHAT IT DOES[[Header]]
 [Use Video in Lyrics Field][[Legend]]     The VIDEO view joins the [,/.] cycle (Viz Order 5): the picture of
-                              the track's video with the current lyric line under it. With "When
-                              No Video Shows" set to none the cycle skips it for a track without a
 )WIZ",
-R"WIZ(                              video.
+R"WIZ(                              the track's video with the current lyric line under it. With "When
+                              No Video Shows" set to none the cycle skips it for a track without a
+                              video.
 [Include Lyrics][[Legend]]                What shows under the picture: none (the picture gets the whole
                               field), lyrics, lyrics+transl. or transl. (the saved translation).
                               The translation uses the last row first, then the picture shrinks.
@@ -1353,11 +1359,11 @@ this song (false = the song's own audio, true = the audio of its video; changed 
 the audio is loaded again at the same time). On the video rows Style Option previews the video.
 
 BUTTONS IN THE OVERLAY:[[Header]]
-BUTTON[[Legend]]                            WHAT IT DOES[[Legend]]
+)WIZ",
+R"WIZ(BUTTON[[Legend]]                            WHAT IT DOES[[Legend]]
 [ Full Screen Video ]             The same as [v] (below).
 [ Manually Couple Local Files ]   Connect a song and a video by hand (VIDEO OPTION below). [ALT+v]
-)WIZ",
-R"WIZ(                                  there switches to Fetch Videos.
+                                  there switches to Fetch Videos.
 [ Quick Search/Down. YT ]         Search YouTube with previews and download one video into
                                   video_down (QUICK SEARCH below).
 [ General Fetch Videos Menu ]     Opens FETCH VIDEOS [ALT+v] (page 2.3.7).
@@ -1484,13 +1490,13 @@ Each style keeps its own values, so switching between braille and image never lo
 [R] resets only the style in use.
 Starting points for braille: crisp scope = Decay 0.65, Dot threshold 0.35, Tail 0.60.
 Dreamy glow = 0.90, 0.20, 0.25.
-Oscilloscope music (e.g. Jerobeam Fenderson): Osci music mode on, Beam CRT, Decay about 0.10,
+)WIZ",
+R"WIZ(Oscilloscope music (e.g. Jerobeam Fenderson): Osci music mode on, Beam CRT, Decay about 0.10,
 Image resolution full, Image detail high -- close to osci-render. Lossless files work best.
 
 THE BIG OSCILLOSCOPE: [[Header]]
 [SHIFT+0] (the [=] key; German keyboard SHIFT+0) opens it over the whole screen: YT (amplitude over
-)WIZ",
-R"WIZ(time) on the left, XY on the right. [SHIFT+o] opens the options on top.
+time) on the left, XY on the right. [SHIFT+o] opens the options on top.
 [SHIFT+a] grid and frame on/off     [SHIFT+v] axis values: percent, milliseconds under YT
 [SHIFT+c] grid color (0-255)        [SHIFT+p] grid metrics: time unit, divisions, calm readouts
 [LEFT/RIGHT] image <-> braille      [UP/DOWN] oscilloscope music mode on / off
@@ -1601,7 +1607,8 @@ never change the picture.
 
 [[New Page]]
 2.5.5 CREATOR [[Header]]
-
+)WIZ",
+R"WIZ(
 OPEN:[[Header]] [^] (on a German keyboard: [^] then [SPACE]) opens the creator. The first row picks the
 mode: Text to sound, or Microphone.
 
@@ -1609,8 +1616,7 @@ TEXT TO SOUND: [[Header]]
 Makes music out of a text, saves it as a WAV file, plays it and shows it in a full-screen preview.
 
 OSCILLOSCOPE (XY): [[Header]]
-)WIZ",
-R"WIZ(Left = x, right = y: the beam draws the outlines of your text again and again, 30 - 120 times a second.
+Left = x, right = y: the beam draws the outlines of your text again and again, 30 - 120 times a second.
 
 SPECTROGRAM: [[Header]]
 The text is the spectrogram: time left to right, pitch bottom to top, brightness = loudness. Only the
@@ -1757,15 +1763,15 @@ it is back, the overlay then lists it as "(not found)".
 ONE CHOICE FOR ALL MODES: [[Header]]
 The choice is written to config.txt at once (AudioDevice=, the name as the system gives it; empty
 means the system default). The [s] / [ESC] of the settings screen neither save nor undo it.
-
+)WIZ",
+R"WIZ(
 THE KEY: [[Header]]
 [°] where it is [SHIFT+^] (German, Austrian, Swiss layouts), [&] elsewhere (US / UK keyboards have no
 °; [%] stays the queue's "move to the bottom" key). It can be changed in Settings, REFERENCE
 (Choose Audio Device), in the radio too.
 
 [[New Page]]
-)WIZ",
-R"WIZ(2.7.1 LISTENING HISTORY [[Header]]
+2.7.1 LISTENING HISTORY [[Header]]
 
 OPEN: [[Header]] [SHIFT+h] opens the history; [ESC], [q] or [SHIFT+h] close it.
 Jump to a tab with [1] - [4] or move with [<-/->].
@@ -1904,13 +1910,13 @@ marquee.
 [Mode Order 1-3:][[Legend]]                                   sets the order of the cycle, just like Viz Order 1-4.
                                                   Picking a mode for a place swaps it with the place that
                                                   held it; [SHIFT and +/-] walks cycles through the set
-                                                  order.
+)WIZ",
+R"WIZ(                                                  order.
 
 [MAIN UI PANE STYLE:][[Header]]
 [Top Pane Style:][[Legend]]                                   the frame of the upper pane (disk | meta data | lyrics /
                                                   viz field): one box (default), three panes I / II / III,
-)WIZ",
-R"WIZ(                                                  two panes or gap. The preview shows the shape. The radio
+                                                  two panes or gap. The preview shows the shape. The radio
                                                   has the same row (ANIMA/VIZ tab, TOP PANE).
 
 [Sharp Corners:][[Legend]]                                    true = sharp frame corners everywhere (the Settings
@@ -2001,11 +2007,11 @@ R"WIZ(                                                  two panes or gap. The pr
                                                   still for 2 seconds (less CPU, less traffic over
                                                   SSH). Any key brings the full rate back. A
                                                   turning sphere keeps the full rate (see Pause
-                                                  Sphere in ANIMA/VIZ -> SPHERE). The radio does
+)WIZ",
+R"WIZ(                                                  Sphere in ANIMA/VIZ -> SPHERE). The radio does
                                                   the same when no station is tuned (or the stream
                                                   is paused).
-)WIZ",
-R"WIZ(
+
 [CLI / REMOTE / UPDATES:][[Header]]
 [CLI Scripts:][[Legend]]                                       [ENTER] opens the script overlay of the command line:
                                                   the library of scripts on the left, the editor on the
@@ -2105,10 +2111,10 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   "ha".
 
 [Translit. Kanji:][[Legend]]                                  Leave (default) = characters that could be Japanese or
-                                                  Chinese (東京) stay as they are; Chin. = read as Chinese
-                                                  (pinyin); Jap. = read as Japanese (kept unless the
 )WIZ",
-R"WIZ(                                                  optional kanji reader knows them). Same as
+R"WIZ(                                                  Chinese (東京) stay as they are; Chin. = read as Chinese
+                                                  (pinyin); Jap. = read as Japanese (kept unless the
+                                                  optional kanji reader knows them). Same as
                                                   LatinHanziDefault in the config.txt.
 
 [Latin Name Lookup:][[Legend]]                                off by default. On = artists written in Chinese
@@ -2207,10 +2213,10 @@ R"WIZ(                                                  optional kanji reader kn
                                                   Transparent parts of a cover show a plain grey in the
                                                   dots, so the whole disk stays visible.
                                                   4. Cover behind Disk v2 - the same, but the dots
-                                                  themselves turn smoothly around the centre.
-                                                  5. Cover behind Disk (Full Anima) - the same, but the
 )WIZ",
-R"WIZ(                                                  dots follow the exact braille animation of the disk:
+R"WIZ(                                                  themselves turn smoothly around the centre.
+                                                  5. Cover behind Disk (Full Anima) - the same, but the
+                                                  dots follow the exact braille animation of the disk:
                                                   rotated and rounded to the dot grid, some of them come
                                                   and go as it turns (the effect of the disk look of the
                                                   Volume Indicator).
@@ -2294,10 +2300,10 @@ R"WIZ(                                                  dots follow the exact br
 [Duration Variance / Hard Cut Interval / Clean Start:][[Legend]]  off, 20 s, off (defaults): random stray of a
                                                   preset's time, the shortest time between hard cuts,
                                                   start from a blank picture.
-[Default Preset / Use Effect:][[Legend]]                      the preset the visuals start with ([ENTER] opens the
-                                                  preset list); Use Effect = off switches the effect over
 )WIZ",
-R"WIZ(                                                  the visuals off. [:] from the big video overlay changes
+R"WIZ([Default Preset / Use Effect:][[Legend]]                      the preset the visuals start with ([ENTER] opens the
+                                                  preset list); Use Effect = off switches the effect over
+                                                  the visuals off. [:] from the big video overlay changes
                                                   the current track only.
 
 
@@ -2391,10 +2397,10 @@ R"WIZ(                                                  the visuals off. [:] fro
                                                   while a track plays, shown or not, so its picture is
                                                   complete when opened (about 11 MB of RAM). off = it
                                                   analyses only while a spectrogram is shown and for 10 s
-                                                  after, then gives its memory back; a spectrogram opened
-                                                  later starts empty and fills as the music goes on.
 )WIZ",
-R"WIZ(
+R"WIZ(                                                  after, then gives its memory back; a spectrogram opened
+                                                  later starts empty and fills as the music goes on.
+
 [VIZ/LYRICS ORDER:][[Header]]      
 [Viz Order:][[Legend]]                                        1-6, the order of the views in the [,/.] cycle.
 
@@ -2521,10 +2527,10 @@ Equalizer [SHIFT+e], oscilloscope [SHIFT+o] / [SHIFT+0], spectrogram [SHIFT+i] /
 sleep timer [SHIFT+z], text fields, the cheat sheet [?] and this wizard [SHIFT+w] work with the same keys
 and overlays as described in chapters 2.5 to 2.8. Differences: the radio keeps its own equalizer curve,
 oscilloscope values and settings in radio_config.txt; the sleep timer stops the stream (no "Stop after
-current song"); the visualization field is the scope block right of the station info and [,/.] cycles
-oscilloscope, sphere, spectrogram and MilkDrop (there are no lyrics). The spectrogram has its waterfall
 )WIZ",
-R"WIZ(view here too ([SHIFT+i], View). [:] opens the MilkDrop visuals overlay with the player's rows and its
+R"WIZ(current song"); the visualization field is the scope block right of the station info and [,/.] cycles
+oscilloscope, sphere, spectrogram and MilkDrop (there are no lyrics). The spectrogram has its waterfall
+view here too ([SHIFT+i], View). [:] opens the MilkDrop visuals overlay with the player's rows and its
 preset overlay ([P]: folders, Favourites, Recommended, search); the radio keeps its own MilkDrop options
 (radio_config.txt, ANIMA/VIZ -> MILKDROP). No video effect rows there.
 
@@ -2680,12 +2686,12 @@ Every jump is shown for 4 seconds under the scope block, e.g. -0:30 | 2:30 behin
 You can never go back before the moment you tuned in: internet radio only delivers from "now".
 Catching up with the forward key hands back to the live stream without a gap. Tuning another
 station, [x] or quitting clears the buffer.
-
+)WIZ",
+R"WIZ(
 THE BUFFER: [[Header]]
 The size is [s] Settings[[Header]] ->> GENERAL[[Header]] ->> Timeshift buffer (5, 15, 30, 45 or 60 minutes,
 default 30). The file is radio_timeshift.pcm in ~/.cache/mousiki/ and takes about 11.5 MB per minute
-)WIZ",
-R"WIZ((about 345 MB for 30 minutes). It is written by the stream thread and never touched by the screen
+(about 345 MB for 30 minutes). It is written by the stream thread and never touched by the screen
 loop, so the interface stays as fast as without it. It is deleted when the radio closes.
 If a pause lasts longer than the buffer, the oldest part is overwritten and playback continues
 from the oldest audio that is still there.
@@ -2828,10 +2834,10 @@ the first row [<- ..] ENTER goes back up or hitting [ESC]. A search shows all bo
 
 PANES: [[Header]]
 BOOKS (left)      only folders: one row per book with its number of chapters. [ENTER] opens the book.
-                  [/] searches the books, [ESC] shows all books again; in the chapter pane [ESC] goes 
-                  back to the library pane; in a folder of the library pane [<-] and [ESC] go one step 
 )WIZ",
-R"WIZ(                  up in the folder hierarchy.
+R"WIZ(                  [/] searches the books, [ESC] shows all books again; in the chapter pane [ESC] goes 
+                  back to the library pane; in a folder of the library pane [<-] and [ESC] go one step 
+                  up in the folder hierarchy.
 CHAPTERS (right)  takes the place of the queue: the files of the open book in natural order
                   ("Chapter 2" before "Chapter 10"). A .m4b / .mka (or an MP3 with chapter frames)
                   shows the chapters INSIDE the file as rows, with their own titles and lengths.
@@ -2948,10 +2954,10 @@ NOTES: [[Header]]
            time stamp is passed.
            [CTRL+n] goes on in the big notes overlay (same text, same caret), there [CTRL+n] comes back.
            A shown note: [CTRL+n] opens it there for editing. The time stamp (@ h:mm:ss) always stays
-           whole.
-[SHIFT+l]  all notes in a full-screen overlay: the list left (chapter, time, title), the note right.
 )WIZ",
-R"WIZ(           [ENTER] (or [t]) edits it right there, [f] shows it in the field, [SHIFT+p] plays from that 
+R"WIZ(           whole.
+[SHIFT+l]  all notes in a full-screen overlay: the list left (chapter, time, title), the note right.
+           [ENTER] (or [t]) edits it right there, [f] shows it in the field, [SHIFT+p] plays from that 
            point (the note is in the field after the overlay is closed), the right pane becomes the
            editor,
            [n] writes a new note at the playing point, [x] deletes, [SHIFT+e] / [SHIFT+i] export / import
@@ -3085,10 +3091,10 @@ Long press on the phone: its own settings (base colours, size of the braille dot
 NO CONNECTION? [[Header]] same Wi-Fi? A VPN blocks the home network unless "local network access" is allowed in it.
 Windows: [f] in the overlay opens the port in the firewall. Test: http://127.0.0.1:4747 on the computer.
 SAFE: [[Header]] off by default, home network only (other addresses are turned away), PIN for every
-command, 10 wrong PINs lock that one device out for a minute (not your phone). Plain HTTP: use it on
-a network you trust. Windows asks once whether Mousiki may accept connections: allow private networks.
 )WIZ",
-R"WIZ(
+R"WIZ(command, 10 wrong PINs lock that one device out for a minute (not your phone). Plain HTTP: use it on
+a network you trust. Windows asks once whether Mousiki may accept connections: allow private networks.
+
 ABOUT THE PIN: [[Header]] it keeps others on your Wi-Fi from using the remote, it is not a strong lock: 4 to 8
 digits, and the connection is plain HTTP, so the PIN travels unencrypted (anyone who can read your
 network traffic sees it) and sits in the address (?pin=...), so it can land in a browser history or
@@ -3199,11 +3205,11 @@ seeks in beta. mousiki --query help gives the list of commands as its answer.
  rescan                  read the music folders again          scanning the music folders
  open <where>            console settings cheatsheet wizard    opened settings
                          history queue folders equalizer
-                         playlist scripts
+)WIZ",
+R"WIZ(                         playlist scripts
  settings [words]        the settings `set` can change         2: VideoGradientSaturation=85 ...
  set <setting> <value>   change and SAVE a flag or number      VideoGradientSaturation=60 (saved)
-)WIZ",
-R"WIZ( get <setting>           read a setting                        85
+ get <setting>           read a setting                        85
  * asks for confirmation, see SAFETY (5.1.7)
 
 [[New Page]]
@@ -3329,10 +3335,10 @@ ALSO IN THE RADIO: [[Header]]
 HTTP FOR HOME ASSISTANT AND SCRIPTS ON OTHER COMPUTERS: [[Header]]
  1. Settings -> GENERAL -> CLI / REMOTE / UPDATES -> Remote App: ON (note the address and the PIN).
  2. config.txt:  RemoteAppCli=true   (off by default; read at the start)
- 3. GET http://<address>:4747/api/cli?pin=<PIN>&line=<command line, url-encoded>[&wait=<s>]
-    answers {"ok":true,"reply":"...","lines":["...","..."]}   ok:false = the command failed.
 )WIZ",
-R"WIZ(    403 = wrong PIN or RemoteAppCli is off, 504 = no answer within wait (4 s, up to 30).
+R"WIZ( 3. GET http://<address>:4747/api/cli?pin=<PIN>&line=<command line, url-encoded>[&wait=<s>]
+    answers {"ok":true,"reply":"...","lines":["...","..."]}   ok:false = the command failed.
+    403 = wrong PIN or RemoteAppCli is off, 504 = no answer within wait (4 s, up to 30).
     GET /api/status?pin=<PIN> gives the playing state as JSON.
 
 LIMITS: [[Header]]
@@ -3347,5 +3353,422 @@ HOME ASSISTANT (configuration.yaml): [[Header]]
        url: "http://192.168.1.20:4747/api/cli?pin=123456&line={{ line | urlencode }}"
    automation: ... service: rest_command.mousiki   data: { line: "playlist 1; volume 30" }
  On a laptop: curl "http://192.168.1.20:4747/api/cli?pin=123456&line=status"
+
+[[New Page]]
+6 DEFAULT VALUES [[Header]]
+
+What each setting is when config.txt does not mention it. Generated from the program's own defaults.
+The radio (radio_config.txt) and the audio book mode (audiobook_config.txt) keep their own files.
+
+6.1 DEFAULT VALUES: COLORS [[Header]]
+
+Colour numbers of the 256-colour palette (ColorCodes=palette).
+
+ColorCodes                         palette
+ColorBorderTop                     170
+ColorBorderBottom                  104
+BorderGradient                     smooth
+ColorDiskTop                       170
+ColorDiskBottom                    30
+ColorMetadataKey                   140
+ColorMetadataVal                   182
+ColorVizLeft                       170
+ColorVizRight                      30
+ColorProgressBarPlayed             213
+ColorProgressBarPending            182
+ColorHeader                        227
+ColorLegend                        199
+ColorLegendCommand                 213
+ColorTabCurrent                    199
+ColorTabOther                      227
+ColorChangeFg                      231
+ColorChangeBg                      199
+ColorFocus                         183
+ColorSearchFg                      231
+ColorSearchBg                      199
+ColorSearchInactiveFg              75
+ColorSearchInactiveBg              (empty)
+ColorListInactiveFg                75
+ColorListInactiveBg                (empty)
+ColorListPlayingFg                 16
+ColorListPlayingBg                 182
+ColorListCursorFg                  227
+ColorListCursorBg                  238
+ColorQueueInactiveFg               75
+ColorQueueInactiveBg               (empty)
+ColorQueuePlayingFg                16
+ColorQueuePlayingBg                182
+ColorQueueCursorFg                 75
+ColorQueueCursorBg                 240
+ColorLyricsInactiveFg              75
+ColorLyricsInactiveBg              (empty)
+ColorLyricsActiveLineFg            182
+ColorLyricsActiveLineBg            (empty)
+ColorLyricsActiveWordFg            75
+ColorLyricsActiveWordBg            (empty)
+
+[[New Page]]
+6.2 DEFAULT VALUES: GENERAL SETTINGS [[Header]]
+
+Switches, numbers and texts of the GENERAL tab and the files they belong to.
+
+ElimentDisk                        true
+ElimentDiskBorder                  false
+SharpCorners                       false
+TopPaneStyle                       0
+LatinLetters                       false
+LyricsNameVariants                 true
+LatinMacrons                       false
+LatinWo                            false
+LatinNameLookup                    false
+LatinHanziDefault                  leave
+AlbumCover                         false
+CoverMode                          disk
+CoverContrast                      0
+CoverBrightness                    50
+CoverColors                        0
+CoverGradientSaturation            30
+BulkAddSave                        true
+BulkAddVideo                       false
+CoverChroma                        off
+CoverSearch                        default
+ElimentDummyButtons                true
+ElimentQueue                       true
+ElimentWaveForm                    true
+VolumeIndicator                    disk
+VolumeGradient                     false
+VizLyricsField                     true
+ElimentLyrics                      true
+LyricViz                           osci
+VizDefault                         osci
+VideoLyrics                        lyrics
+VideoAuto                          true
+BigVideoMilkdropNoVideo            false
+VideoCover                         cover
+VideoSize                          full
+VideoFx                            off
+VideoContrast                      0
+VideoBrightness                    50
+VideoColors                        100
+VideoGradientSaturation            85
+VideoRound                         true
+VideoClap                          none
+VideoChroma                        subtle
+VideoBase                          clean
+VideoBaseDefault                   clean
+VideoEffectContrast                reduced
+VideoDither                        interleaved noise
+VideoResolution                    standard
+VideoFrameRate                     25
+VideoBuffer                        32
+VideoMp3                           true
+VideoLayout                        0
+VideoFullSource                    video
+VideoFullMilkDropLayout            0
+VideoLayoutOsciStyle               default
+VideoLayoutOsciMode                default
+VideoLayoutSpectroStyle            default
+VideoLayoutSpectroView             default
+VideoLayoutScales                  true
+VideoDownHeight                    720
+VideoMode                          true
+VideoView                          false
+NoVideoViz                         lyrics
+NoLyricsViz                        osci
+UseLyrics                          true
+UseOscilloscope                    true
+UseSpectrogram                     true
+UseSphere                          true
+UseMilkDrop                        true
+MilkDropView                       false
+MilkDropPresets                    (empty)
+MilkDropDefaultPreset              (empty)
+MilkDropGpu                        (empty)
+MilkDropFrameRate                  30
+MilkDropResolution                 480
+MilkDropWindowResolution           1280
+MilkDropPresetDuration             25
+MilkDropAuto                       false
+MilkDropAutoVideoWas               false
+MilkDropShuffle                    true
+MilkDropShuffleFavourites          false
+MilkDropHardCutSensitivity         20
+MilkDropHardCuts                   true
+MilkDropHardCutInterval            20
+MilkDropLockPreset                 false
+MilkDropTransition                 3
+MilkDropShowName                   true
+MilkDropAspectCorrection           true
+MilkDropMeshDetail                 1
+MilkDropDurationVariance           0
+MilkDropCleanStart                 false
+MilkDropBrightness                 50
+MilkDropSaturation                 100
+MilkDropContrast                   0
+MilkDropShuffleFolder              (empty)
+MilkDropEffect                     off
+MilkDropEffectOn                   true
+MilkDropAspectRatio                auto
+MilkDropSixelColors                adaptive
+VizOrder                           sphere,osci,spectro,lyrics,video,m
+OsciDecay                          0.80
+OsciDotThreshold                   0.28
+OsciTailBrightness                 0.45
+OsciInterpolation                  true
+OsciZAxis                          false
+OsciZDepth                         0.70
+OsciZSource                        speed
+OsciTraceLength                    1024
+OsciRotate                         false
+OsciMonoPhase                      true
+OsciPalette                        gradient
+OsciGlow                           0.60
+OsciFrameRate                      30
+OsciMusicMode                      false
+OsciCrtBeam                        false
+OsciLowRateBlanking                true
+OsciDwellBrightness                true
+OsciRoughMode                      true
+OsciImageDecay                     0.80
+OsciImageDotThreshold              0.28
+OsciImageTailBrightness            0.45
+OsciImageInterpolation             true
+)WIZ",
+R"WIZ(OsciImageZAxis                     false
+OsciImageZDepth                    0.70
+OsciImageZSource                   speed
+OsciImageTraceLength               1024
+OsciImageRotate                    false
+OsciImageMonoPhase                 true
+OsciImagePalette                   gradient
+OsciImageGlow                      0.60
+OsciImageFrameRate                 30
+OsciImageMusicMode                 false
+OsciImageCrtBeam                   true
+OsciImageLowRateBlanking           true
+OsciImageDwellBrightness           true
+OsciImageRoughMode                 false
+ScopeGrid                          true
+ScopeValues                        true
+ScopeGridColor                     (empty)
+ScopeYtTimeUnit                    ms
+ScopeYtTimeDiv                     8
+ScopeYtValueDiv                    4
+ScopeYtInfo                        both
+ScopeXyDiv                         4
+ScopeXyInfo                        both
+OsciMode                           xy
+OsciStyle                          braille
+OsciImageProtocol                  auto
+OsciImageResolution                half
+OsciImageDetail                    normal
+SpectroStyle                       image
+SpectroMotion                      sweep
+SpectroScale                       mel
+SpectroMinFreq                     0
+SpectroMaxFreq                     20000
+SpectroGain                        20
+SpectroRange                       80
+SpectroFrequencyGain               0
+SpectroWindowSize                  2048
+SpectroZeroPadding                 2
+SpectroColors                      roseus
+SpectroChannels                    both
+SpectroTimeSpan                    30
+SpectroLabels                      true
+SpectroView                        spectrogram
+SpectroWaterfallGraphs             40
+SpectroWaterfallSpacing            120
+SpectroWaterfallSlant              25
+SpectroWaterfallHeight             30
+SpectroWaterfallResolution         normal
+SpectroLastStyle0                  1
+Visualizer                         true
+MetaDataOnly                       false
+
+[[New Page]]
+6.3 DEFAULT VALUES: ANIMA/VIZ, EMOJI, MARQUEE, SOUND [[Header]]
+
+ANIMA/VIZ tab: visuals, video, MilkDrop, the field, emoji, marquee, stereo and loudness normalization.
+
+VisualizerFluidity                 10
+WaveformStyle                      smooth
+DiskRotationSpeed                  0.1
+StartMode                          player
+UseModePlayer                      true
+UseModeRadio                       true
+UseModeAudiobook                   true
+ModeOrder                          player,radio,audiobook
+BlackBackground                    true
+RemoteApp                          false
+RemoteAppPort                      4747
+RemoteAppPin                       (empty)
+ShareProfiles                      false
+SpectroHistory                     true
+BookmarkAsk                        true
+BookCoverWave                      true
+TerminalDefaultFont                false
+TerminalFont                       Cascadia Mono
+AudioDevice                        (empty)
+BookSpeed                          1.00
+BookCover                          false
+UpdateCheck                        true
+TrackBufferMB                      64
+TerminalCols                       120
+TerminalRows                       32
+UseTerminalSettings                false
+FullScreen                         false
+ReduceMotionWhenPaused             true
+RateCap96                          true
+PauseFade                          true
+AutoPlay                           false
+Gapless                            off
+PauseSphere                        false
+MediaKeys                          true
+RemoteAppCli                       false
+RemoteAppHosts                     (empty)
+PlaybackMode                       list
+VisualizerDegradationSpeed         8
+VisualizerViscosity                3
+VisualizerStyle                    hifi
+HifiResolution                     fine
+HifiChannels                       stereo
+HifiScale                          low
+HifiFrequencyScale                 mel
+HifiGain                           -2
+HifiRange                          68
+HifiFluidity                       10
+HifiDegradationSpeed               8
+HifiViscosity                      3
+HifiAdapt                          on
+HifiSplit                          add
+HifiColor                          gradient
+LyricsAlignment                    center
+LyricsAnimation                    full
+ReplaceEmoji                       true
+MarqueeScrolling                   true
+StereoPlayback                     true
+NormalizeVolume                    true
+FadeIn                             false
+FadeOut                            false
+Crossfade                          false
+FadeLength                         4000
+FadeCurve                          0
+TrimSilence                        false
+TrimThreshold                      -60
+NormalizeTargetLufs                -16
+NormalizeMaxBoostDb                9
+EqualizerEnabled                   false
+EqualizerBands                     0,0,0,0,0,0,0,0,0,0
+ConsoleVerbosity                   basic
+SleepFade                          true
+MenuIndexClassic                   false
+WizardSeen                         false
+SidPlayLength                      180
+KaraokeLyricsSize                  1
+TranslateService                   google
+TranslateTo                        en
+TranslateFrom                      auto
+AutoSave                           true
+AutoSaveIndicator                  true
+AutoSaveDelayInSec                 30
+AutoSaveChr                        •
+AutoSaveIndicatorType              blink
+AutoSaveC1                         (empty)
+AutoSaveC2                         (empty)
+
+[[New Page]]
+6.4 DEFAULT VALUES: HOTKEYS [[Header]]
+
+The hotkeys as they are bound without a HKey...= line in config.txt (the word after HKey is the action).
+
+Setting                            s
+NavigateUp                         ARROW_KEY_UP
+NavigateDown                       ARROW_KEY_DOWN
+Play                               ENTER
+PlayNextSong                       n
+PlayPreviousSong                   b
+TogglePlayPause                    p
+CyclePlayMode                      m
+CyclePlayModeBack                  j
+Search                             /
+SeekForward                        ARROW_KEY_RIGHT
+SeekBackward                       ARROW_KEY_LEFT
+IncreaseVolume                     +
+DecreaseVolume                     -
+AddHoveringSongToQueue             a
+RemoveHoveringSongFromQueue        d
+SwitchBetweenCards                 TAB
+FilterForFolder                    f
+ClearFilter                        c
+Quit                               q
+DownloadStream                     y
+ToggleNormalize                    
+ToggleMetaOnly                     N
+MetaEditor                         M
+History                            H
+Equalizer                          E
+ScopeWindow                        )
+Console                            t
+ListOverlay                        L
+ClearQueue                         X
+CycleSortMode                      T
+QueueMoveDown                      5
+ToggleLyricsBack                   ,
+ShuffleNext                        #
+CoverFetch                         ALT+C
+RetryLyrics                        l
+Video                              Y
+ToggleMute                         x
+AudioDevice                        &
+Menus                              <
+BarsMenu                           B
+OscMenu                            O
+KaraokeBigger                      *
+KaraokeSmaller                     _
+QueueMoveTop                       $
+CoverNext                          CTRL+Z
+ToggleLyrics                       .
+Playlist                           P
+QueueMoveUp                        4
+SleepTimer                         Z
+Cheatsheet                         ?
+SpectroWindow                      (
+MilkdropWindow                     ;
+QueueAddEnd                        e
+SpectroFull                        U
+NormMenu                           V
+VisualsMenu                        :
+VideoFx                            g
+)WIZ",
+R"WIZ(AddToPlaylist                      A
+QueueUndoClear                     CTRL+SHIFT+Z
+QueueToPlaylist                    CTRL+SHIFT+U
+VideoFxBack                        h
+BulkAdd                            G
+StyleOptions                       S
+VideoFetch                         ALT+V
+Translit                           "
+RefreshUi                          r
+LyricsTiming                       ALT+L
+Creator                            ^
+FetchTags                          B
+Rescan                             R
+Karaoke                            k
+ScopeBig                           =
+QueueMoveBottom                    %
+QueueLock                          !
+ToggleWaveform                     w
+QueueOverlay                       K
+SpectroMenu                        I
+ModePrev                           _
+FolderOverlay                      F
+ModeNext                           *
+ConvertOverlay                     C
+CoverPrev                          CTRL+T
+Bookmark                           B
+VideoFull                          v
+ReadLyrics                         CTRL+L
+Wizard                             W
 )WIZ",
 nullptr };
