@@ -429,6 +429,22 @@ static int g_cache_style = 0;
 // The kanji reader (scripts/kanji_reading.py) marks long vowels with letters of its own: a i u e o with a macron = the vowel doubled,
 // o with a circumflex = o + u. Here they get the style of the settings: macrons (the circumflex one is an o macron as well) or
 // the plain spelling (aa ii uu ee oo, ou).
+// The particle を: the reader writes it "o" (a word of its own). With "wo" on, the single-letter words "o" become "wo" -- only when there are
+// exactly as many of them as を in the text (else a plain "o" word could be something else, and the text stays as it is).
+static std::string style_reader_wo(const std::string& in, const std::string& text, bool wo) {
+    if (!wo) return in;
+    size_t n_wo = 0;
+    for (size_t p = text.find("\xE3\x82\x92"); p != std::string::npos; p = text.find("\xE3\x82\x92", p + 3)) ++n_wo;
+    if (n_wo == 0) return in;
+    std::vector<size_t> at;
+    for (size_t i = 0; i < in.size(); ++i)
+        if (in[i] == 'o' && (i == 0 || in[i - 1] == ' ') && (i + 1 == in.size() || in[i + 1] == ' ')) at.push_back(i);
+    if (at.size() != n_wo) return in;
+    std::string out = in;
+    for (size_t k = at.size(); k-- > 0;) out.insert(at[k], "w");
+    return out;
+}
+
 static std::string style_reader_text(const std::string& in, bool macrons) {
     static const char* const kMarked[][2] = {{"\xC4\x81", "aa"}, {"\xC4\xAB", "ii"}, {"\xC5\xAB", "uu"}, {"\xC4\x93", "ee"}, {"\xC5\x8D", "oo"}, {"\xC3\xB4", "ou"}, {"\xC3\x94", "Ou"}};
     std::string out;
@@ -492,7 +508,7 @@ static std::string translit_uncached_locked(const std::string& text) {
             if (sc == Script::Unknown && g_default_hanzi.load() == 2) sc = Script::Japanese;
             reader_hit = sc == Script::Japanese;
         }
-        if (w != g_whole.end() && (reader_hit || !g_reader_keys.count(w->first))) r = reader_hit ? style_reader_text(w->second, g_macrons.load()) : w->second;
+        if (w != g_whole.end() && (reader_hit || !g_reader_keys.count(w->first))) r = reader_hit ? style_reader_wo(style_reader_text(w->second, g_macrons.load()), text, g_wo.load()) : w->second;
         else if (split_latin_cjk(text, pair) && latin_cjk_agree(pair)) r = pair.latin;   // (the pair is written both ways: the Latin one)
         else {
             r = transliterate_impl(text);

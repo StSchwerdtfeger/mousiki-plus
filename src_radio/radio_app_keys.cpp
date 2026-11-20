@@ -334,7 +334,7 @@ bool RadioApp::key_overlays_b(KeyCtx& kc) {
         std::string note;
         bool closed = false;
         md_browse_key(cfg, ui.model, k, arrow, note, closed);
-        set_text_entry(ui.model.overlay == 12 && ui.model.mdb.typing);
+        set_text_entry(ui.model.overlay == 12 && (ui.model.mdb.typing || ui.model.mdb.naming));
         if (closed) { settings_save(); ui.model.settings.dirty = true; out_clear_next = true; }
         if (!note.empty()) { ui.model.notice = note; notice_until = ui.model.t_sec + 4; }
         return true;

@@ -1,5 +1,6 @@
 // The radio's screen: draws the station list, the player and the overlays, and handles the radio's
 // keys. It is the largest file of the radio mode.
+#include "../src/corners.h"
 #include "radio_ui.h"
 #include "overlay_common.h"
 #include "about_text.h"
@@ -787,7 +788,15 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
 
 // BorderGradient=smooth: the finished frame's border lines get the colour of their row, fading from ColorBorderTop (first
 // line with a border) to ColorBorderBottom (last one). The panel builders keep drawing with the two plain colours.
+static std::vector<std::string> render_radio_frame_core(const UiModel& m, const RadioStatus& st, RadioEngine& engine, const RadioSettings& cfg_in);
 std::vector<std::string> render_radio_frame(const UiModel& m, const RadioStatus& st, RadioEngine& engine, const RadioSettings& cfg_in) {
+    std::vector<std::string> v = render_radio_frame_core(m, st, engine, cfg_in);
+    if (cfg_in.sharp_corners)   // (sharp corners everywhere; the Settings screen is drawn sharp, so with the option on it gets the round ones)
+        for (std::string& row : v) { if (m.settings.open) muisc::roundify_corners(row); else muisc::sharpen_corners(row); }
+    return v;
+}
+
+static std::vector<std::string> render_radio_frame_core(const UiModel& m, const RadioStatus& st, RadioEngine& engine, const RadioSettings& cfg_in) {
     // SHIFT+p in the theme picker: the normal main screen, drawn with the highlighted theme and kept still (the first frame
     // is stored and handed out again until the preview closes, the theme changes or the window is resized)
     const SettingsModel& sm0 = m.settings;

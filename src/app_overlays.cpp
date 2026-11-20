@@ -252,12 +252,12 @@ std::vector<std::string> App::build_list_overlay_panel(int panel_w, int list_row
         if (remaining > 0) parts.push_back("( " + std::to_string(remaining) + " more )");
         parts.push_back("page " + std::to_string(page) + "/" + std::to_string(pages));
         const bool just_added = std::chrono::steady_clock::now() - queue_added_at_ < std::chrono::milliseconds(1800) && queue_added_at_.time_since_epoch().count() != 0;
-        parts.push_back("queue: " + std::to_string(queue_.size()) + (just_added ? " - track added" : ""));
+        parts.push_back("queue: " + std::to_string(queue_.size()) + (just_added ? " - " + ansi_for(settings_.header_color, false) + "track added" + ansi_for(settings_.border_color_bottom, false) : std::string()));
         std::string footer;
         for (;;) {
             footer.clear();
             for (size_t i = 0; i < parts.size(); ++i) footer += (i ? "  " : "") + parts[i];
-            if (parts.empty() || display_width(footer) + 5 <= panel_w) break;
+            if (parts.empty() || display_width(strip_csi(footer)) + 5 <= panel_w) break;
             parts.pop_back();
         }
         if (parts.empty()) footer.clear();

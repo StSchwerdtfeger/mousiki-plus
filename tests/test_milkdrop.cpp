@@ -92,3 +92,43 @@ TEST(milkdrop_favourites_and_play_path) {
     CHECK(pump_until([&] { return !m.favourites_in_use() && m.preset_count() > 2; }));
     m.shutdown();
 }
+
+#include "milkdrop_folders.h"
+#include "corners.h"
+#include <fstream>
+
+TEST(milkdrop_preset_folders_make_add_remove) {
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "mousiki_mdf_test";
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    CHECK_EQ(mdf::clean_name("  My/Mix: *1*  "), std::string("MyMix 1"));
+    CHECK(mdf::clean_name("favourites").empty());
+    CHECK(mdf::clean_name("Recommended").empty());
+    CHECK(mdf::create(dir, "Chill"));
+    CHECK(!mdf::create(dir, "chill") || mdf::names(dir).size() == 2);   // (a second file name differing in case: the file system decides)
+    CHECK(mdf::create(dir, "Alpha"));
+    CHECK(mdf::exists(dir, "Chill"));
+    CHECK_EQ(mdf::add(dir, "Chill", "/p/a.milk"), 0);
+    CHECK_EQ(mdf::add(dir, "Chill", "/p/a.milk"), 1);   // (there already)
+    CHECK_EQ(mdf::add(dir, "Chill", "/p/b.milk"), 0);
+    CHECK_EQ(mdf::load(dir, "Chill").size(), static_cast<size_t>(2));
+    CHECK(mdf::remove_preset(dir, "Chill", "/p/a.milk"));
+    CHECK_EQ(mdf::load(dir, "Chill").size(), static_cast<size_t>(1));
+    const auto names = mdf::names(dir);
+    CHECK(names.size() >= 2);
+    CHECK_EQ(names[0], std::string("Alpha"));   // (sorted by name)
+    CHECK(mdf::remove_folder(dir, "Chill"));
+    CHECK(!mdf::exists(dir, "Chill"));
+    fs::remove_all(dir);
+}
+
+TEST(sharp_corners_swap_the_round_glyphs_and_keep_the_length) {
+    std::string s = "\xE2\x95\xAD\xE2\x94\x80\xE2\x95\xAE x \xE2\x95\xB0\xE2\x94\x80\xE2\x95\xAF";   // ╭─╮ x ╰─╯
+    const size_t n = s.size();
+    muisc::sharpen_corners(s);
+    CHECK_EQ(s.size(), n);
+    CHECK_EQ(s, std::string("\xE2\x94\x8C\xE2\x94\x80\xE2\x94\x90 x \xE2\x94\x94\xE2\x94\x80\xE2\x94\x98"));   // ┌─┐ x └─┘
+    muisc::roundify_corners(s);   // (the Settings screen: the other way round)
+    CHECK_EQ(s, std::string("\xE2\x95\xAD\xE2\x94\x80\xE2\x95\xAE x \xE2\x95\xB0\xE2\x94\x80\xE2\x95\xAF"));
+}

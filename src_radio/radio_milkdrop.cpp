@@ -118,7 +118,7 @@ std::vector<std::string> recommended() {
     for (const fs::path& f : files) {
         std::error_code ec;
         const auto t = fs::last_write_time(f, ec);
-        ckey += "|" + (ec ? std::string("-") : std::to_string(t.time_since_epoch().count()));
+        ckey += "|" + (ec ? std::string("-") : std::to_string(static_cast<long long>(t.time_since_epoch().count())));
     }
     if (!cache_key.empty() && cache_key == ckey) return cache;
     std::vector<std::string> lowered;

@@ -151,7 +151,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
     };
     static const std::vector<SettingsLine> anima = {
         {true, -1, "TOP PANE"},
-        {false, kRsPaneStyle, "Main UI Pane Style"},
+        {false, kRsPaneStyle, "Main UI Pane Style"}, {false, kRsSharpCorners, "Sharp Corners"},
         {true, -1, ""},
         {true, -1, "ON AIR SIGN"},
         {false, kRsOnAir, "On air ascii"}, {false, kRsSignBorder, "Sign border"}, {false, kRsPulse, "Pulse wave"},
@@ -171,11 +171,11 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {true, -1, ""},
         {true, -1, "MILKDROP"},   // the MilkDrop visuals in the scope block (projectM, when installed)
         {false, kRsMdFps, "MilkDrop Frame Rate"}, {false, kRsMdRes, "MilkDrop Resolution"}, {false, kRsMdGpu, "MilkDrop GPU"},
-        {false, kRsMdDuration, "Preset Duration"}, {false, kRsMdShuffle, "Shuffle Presets"}, {false, kRsMdHardCuts, "Hard Cuts"},
+        {false, kRsMdDuration, "Preset Duration"}, {false, kRsMdShuffle, "Shuffle All Presets"}, {false, kRsMdHardCuts, "Hard Cuts"},
         {false, kRsMdBeat, "Hard Cut Sensitivity"}, {false, kRsMdTransition, "Preset Transition"}, {false, kRsMdShowName, "Show Preset Name"},
-        {false, kRsMdFavShuffle, "Shuffle Favourites"}, {false, kRsMdHcd, "Hard Cut Interval"}, {false, kRsMdVar, "Duration Variance"},
+        {false, kRsMdFolder, "Shuffle Folder"}, {false, kRsMdFavShuffle, "Shuffle Favourites"}, {false, kRsMdHcd, "Hard Cut Interval"}, {false, kRsMdVar, "Duration Variance"},
         {false, kRsMdMesh, "Mesh Detail"}, {false, kRsMdAspect, "Aspect Correction"}, {false, kRsMdRatio, "Aspect Ratio"}, {false, kRsMdClean, "Clean Start"},
-        {false, kRsMdUseFx, "Use Effect"}, {false, kRsMdFx, "MilkDrop Effect"}, {false, kRsMdColors, "Sixel Colours"},
+        {false, kRsMdUseFx, "Use Effect"}, {false, kRsMdFx, "MilkDrop Effect"}, {false, kRsMdBright, "MilkDrop Brightness"}, {false, kRsMdSat, "MilkDrop Saturation"}, {false, kRsMdContrast, "MilkDrop Contrast"}, {false, kRsMdColors, "Sixel Colours"},
         {true, -1, ""},
         {true, -1, "VIZ ORDER"},   // the order of the "." cycle
         {false, kRsOrder1, "Viz Order 1"}, {false, kRsOrder2, "Viz Order 2"}, {false, kRsOrder3, "Viz Order 3"}, {false, kRsOrder4, "Viz Order 4"},
@@ -246,6 +246,7 @@ bool* flag_of(RadioSettings& s, int id) {
     switch (id) {
         case kRsOnAir: return &s.on_air_ascii;
         case kRsSignBorder: return &s.sign_border;
+        case kRsSharpCorners: return &s.sharp_corners;
         case kRsPulse: return &s.pulse_wave;
         case kRsDummy: return &s.dummy_buttons;
         case kRsVisualizer: return &s.element_visualizer;
@@ -351,6 +352,10 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsMdTransition: return s.md_transition <= 0 ? std::string("cut") : std::to_string(s.md_transition) + " s";
         case kRsMdHcd: return std::to_string(std::clamp(s.md_hcd, 3, 120)) + " s";
         case kRsMdVar: return s.md_var <= 0 ? std::string("off") : std::to_string(s.md_var) + " s";
+        case kRsMdFolder: return radio_md_shuffle_label(s);
+        case kRsMdBright: return std::to_string(std::clamp(s.md_bright, 0, 100)) + "%";
+        case kRsMdSat: return std::to_string(std::clamp(s.md_sat, 0, 100)) + "%";
+        case kRsMdContrast: return std::to_string(std::clamp(s.md_contrast, 0, 100)) + "%";
         case kRsMdMesh: return mesh_name(s.md_mesh);
         case kRsMdRatio: return milkdrop_ratio_name(s.md_ratio);
         case kRsMdFx: return video_fx_name(video_fx_canon(s.md_fx));
@@ -442,6 +447,10 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
         case kRsMdTransition: s.md_transition = std::clamp(s.md_transition + (dir == 0 ? 1 : dir), 0, 10); break;
         case kRsMdHcd: s.md_hcd = radio_md_step(3, s.md_hcd, dir == 0 ? 1 : dir); break;
         case kRsMdVar: s.md_var = radio_md_step(4, s.md_var, dir == 0 ? 1 : dir); break;
+        case kRsMdFolder: s.md_shuffle_folder = radio_md_folder_step(s, dir == 0 ? 1 : dir); break;
+        case kRsMdBright: s.md_bright = std::clamp(s.md_bright + 5 * (dir == 0 ? 1 : dir), 0, 100); break;
+        case kRsMdSat: s.md_sat = std::clamp(s.md_sat + 5 * (dir == 0 ? 1 : dir), 0, 100); break;
+        case kRsMdContrast: s.md_contrast = std::clamp(s.md_contrast + 5 * (dir == 0 ? 1 : dir), 0, 100); break;
         case kRsMdMesh: s.md_mesh = std::clamp(s.md_mesh + (dir == 0 ? 1 : dir), 0, 3); break;
         case kRsMdRatio: s.md_ratio = (s.md_ratio + (dir < 0 ? kMilkRatioCount - 1 : 1)) % kMilkRatioCount; break;
         case kRsMdFx: s.md_fx = video_fx_step(s.md_fx, dir == 0 ? 1 : dir); break;
@@ -1123,6 +1132,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
         if (k >= 0) s.top_pane_style = k;
     }
     if (auto v = get("SignBorder")) s.sign_border = as_bool(*v, s.sign_border);
+    if (auto v = get("SharpCorners")) s.sharp_corners = as_bool(*v, s.sharp_corners);
     if (auto v = get("UseOscilloscope")) s.use_osci = as_bool(*v, s.use_osci);
     if (auto v = get("UseSpectrogram")) s.use_spectro = as_bool(*v, s.use_spectro);
     if (auto v = get("UseSphere")) s.use_sphere = as_bool(*v, s.use_sphere);
@@ -1159,6 +1169,10 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("MilkDropShowName")) s.md_show_name = as_bool(*v, s.md_show_name);
     if (auto v = get("MilkDropShuffleFavourites")) s.md_fav_shuffle = as_bool(*v, s.md_fav_shuffle);
     if (auto v = get("MilkDropHardCutInterval")) s.md_hcd = std::clamp(muisc::atoi_safe(v->c_str()), 3, 120);
+    if (auto v = get("MilkDropShuffleFolder")) s.md_shuffle_folder = trim_ws(*v);
+    if (auto v = get("MilkDropBrightness")) s.md_bright = std::clamp(muisc::atoi_safe(v->c_str()), 0, 100);
+    if (auto v = get("MilkDropSaturation")) s.md_sat = std::clamp(muisc::atoi_safe(v->c_str()), 0, 100);
+    if (auto v = get("MilkDropContrast")) s.md_contrast = std::clamp(muisc::atoi_safe(v->c_str()), 0, 100);
     if (auto v = get("MilkDropDurationVariance")) s.md_var = std::clamp(muisc::atoi_safe(v->c_str()), 0, 30);
     if (auto v = get("MilkDropMeshDetail")) s.md_mesh = std::clamp(muisc::atoi_safe(v->c_str()), 0, 3);
     if (auto v = get("MilkDropAspectRatio")) s.md_ratio = milkdrop_ratio_from(ascii_lower_str(trim_ws(*v)));
@@ -1333,6 +1347,8 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "# the \" : : \" column between the ON AIR / OFF AIR sign and the station info: true | false (the sign sits in the middle of that space)\n"
          "# the frame of the top pane: 0 one box | 1 three panes I | 2 three panes II | 3 three panes III | 4 two panes | 5 gap\n"
          "TopPaneStyle=" << std::clamp(s.top_pane_style, 0, 5) << "\n"
+         "# true: sharp corners for all frames (the Settings screen, sharp by itself, gets round ones)\n"
+         "SharpCorners=" << (s.sharp_corners ? "true" : "false") << "\n"
          "SignBorder=" << (s.sign_border ? "true" : "false") << "\n"
          "PulseWave=" << (s.pulse_wave ? "true" : "false") << "\n"
          "DummyButtons=" << (s.dummy_buttons ? "true" : "false") << "\n"
@@ -1364,6 +1380,10 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "MilkDropShuffleFavourites=" << (s.md_fav_shuffle ? "true" : "false") << "\n"
          "MilkDropHardCutInterval=" << s.md_hcd << "\n"
          "MilkDropDurationVariance=" << s.md_var << "\n"
+         "MilkDropShuffleFolder=" << s.md_shuffle_folder << "\n"
+         "MilkDropBrightness=" << s.md_bright << "\n"
+         "MilkDropSaturation=" << s.md_sat << "\n"
+         "MilkDropContrast=" << s.md_contrast << "\n"
          "MilkDropMeshDetail=" << s.md_mesh << "\n"
          "MilkDropAspectCorrection=" << (s.md_aspect ? "true" : "false") << "\n"
          "MilkDropAspectRatio=" << milkdrop_ratio_name(s.md_ratio) << "\n"

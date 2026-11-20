@@ -22,6 +22,8 @@
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <cstring>
+#include <set>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
@@ -1083,10 +1085,14 @@ static bool apply_simple_setting(Settings& s, const std::string& key, const std:
     return true;
 }
 
+// Which table entries write_settings() has written so far (so the ones that no line names are added at the end, see there).
+static thread_local std::set<const SimpleSetting*>* g_simple_written = nullptr;
+
 static void write_simple_setting(std::ostream& out, const Settings& cs, const char* key) {
     Settings& s = const_cast<Settings&>(cs);   // (the accessors give a reference; the value is only read here)
     const SimpleSetting* e = find_simple_setting(key);
     if (!e) return;
+    if (g_simple_written) g_simple_written->insert(e);
     out << e->key << "=";
     if (e->quoted) out << "\"";
     if (e->flag) out << (e->flag(s) ? "true" : "false"); else if (e->num) out << e->num(s); else out << e->str(s);
@@ -2152,7 +2158,7 @@ Settings load_settings() {
     return s;
 }
 
-static void write_settings(std::ostream& out, const Settings& s) {
+static void write_settings_body(std::ostream& out, const Settings& s) {
     out << "# Mousiki Configuration File\n";
     out << config_stamp_line() << "  (the first save by a newer version keeps the previous file as config.txt.bak)\n";
     out << "# Location: $HOME/.config/mousiki/config.txt\n";
@@ -2603,6 +2609,24 @@ write_simple_setting(out, s, "VideoLayout");
         if (!found) out << k << "=\"" << v << "\"\n";
     }
     out << "\n";
+}
+
+// A setting in the kSimpleSettings table is always saved: write_settings_body() puts each one where its line belongs in the file (it
+// names them with write_simple_setting), and one that no line names -- a new entry whose write call was forgotten -- is added here at
+// the end, so it is never lost on the next save. (The example config.txt test then tells where it should stand.)
+static void write_settings(std::ostream& out, const Settings& s) {
+    std::set<const SimpleSetting*> done;
+    g_simple_written = &done;
+    write_settings_body(out, s);
+    g_simple_written = nullptr;
+    bool header = false;
+    for (const SimpleSetting& e : kSimpleSettings) {
+        if (done.count(&e)) continue;
+        if (!std::strcmp(e.key, "progress_timestamp_color") || !std::strcmp(e.key, "button_color")) continue;   // (read only on purpose: see the table)
+        if (!header) { out << "# More settings\n"; header = true; }
+        write_simple_setting(out, s, e.key);
+    }
+    if (header) out << "\n";
 }
 
 std::string settings_to_text(const Settings& s) {

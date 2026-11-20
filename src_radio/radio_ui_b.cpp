@@ -990,7 +990,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
             std::string v = rs_row_value(c, sm.tab, rr);
             // the "disk" look of the Volume indicator is shown as two braille blocks of the animation itself
             if ((sm.tab == 1 || sm.tab == 2) && v == muisc::kVolIndicatorNames[muisc::kVolStyleDisk]) v = muisc::volume_disk_snippet(muisc::volume_clock_angle());
-            std::vector<Seg> segs = {{"", "   " + pad_right(l.text, 26) + ":  "}, {sel ? "\x1b[7m" : "", v}};
+            std::vector<Seg> segs = {{"", "   " + pad_right(l.id == kRsMdFavShuffle ? truncate_str("Shuffle " + radio_md_shuffle_label(c), 26) : std::string(l.text), 26) + ":  "}, {sel ? "\x1b[7m" : "", v}};
             if (sm.tab == 1 && std::string(l.text) == "Terminal Size") {   // columns x rows: two numbers (LEFT / RIGHT switch, ENTER types the lit one)
                 auto field = [&](int col, int n) -> Seg {
                     if (sel && sm.editing && sm.col == col) {
@@ -1019,7 +1019,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
         for (int i = 0; i < total; ++i) if (dl[static_cast<size_t>(i)].row == sm.row) cur = i;
         int first = std::clamp(cur - avail / 2, 0, std::max(0, total - avail));
         if (first <= 2 && cur < avail) first = 0;   // near the top: keep the first category header visible (as long as the cursor row still fits)
-        else if (first > 0 && dl[static_cast<size_t>(first)].row >= 0 && dl[static_cast<size_t>(first) - 1].row < 0) first = std::max(0, first - 1);
+        else if (first > 0 && cur < first - 1 + avail && dl[static_cast<size_t>(first)].row >= 0 && dl[static_cast<size_t>(first) - 1].row < 0) first = std::max(0, first - 1);
         for (int i = first; i < total && i < first + avail; ++i) {
             std::vector<Seg> segs = dl[static_cast<size_t>(i)].segs;
             line(segs);

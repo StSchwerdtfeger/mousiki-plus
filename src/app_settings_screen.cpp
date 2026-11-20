@@ -505,7 +505,7 @@ void App::settings_tab_general(SettingsPaint& c) const {
             const int r = row_of_line++;
             const bool sel = (r == settings_row_ && mode_ != Mode::ColorEdit);
             const bool ed = (r == settings_row_ && mode_ == Mode::ColorEdit);
-            pos(y, 6, pad(L.text, 25)); pos(y, 32, ":");
+            pos(y, 6, pad(L.id == kSidMdFavShuffle ? truncate_str("Shuffle " + md_shuffle_label(), 25) : std::string(L.text), 25)); pos(y, 32, ":");
             const bool buf_row = settings_tab_ == 1 && settings_item_id(1, r) == kSidTrackBuffer;
             const bool vol_row = (settings_tab_ == 1 || settings_tab_ == 2) && settings_item_id(settings_tab_, r) == kSidVolIndicator;   // two values: the look | gradient or not
             const bool term_row = settings_tab_ == 1 && settings_item_id(1, r) == kSidTermSize;       // two typed numbers: columns x rows

@@ -13,6 +13,7 @@
 #include "milkdrop.h"
 #include "oscilloscope_visualizer.h"
 #include "pane_style.h"
+#include "preview_shared.h"
 #include "sphere_visualizer.h"
 #include "spectrogram.h"
 #include "translit.h"
@@ -50,29 +51,7 @@ struct PvState {
 };
 PvState& pv() { static PvState p; return p; }
 
-void chord_frames(double& t, size_t n, std::vector<float>& lr) {   // the radio's test signal (aevalsrc in radio_engine.cpp), 48 kHz stereo
-    constexpr double rate = 48000.0;
-    lr.resize(n * 2);
-    for (size_t i = 0; i < n; ++i, t += 1.0 / rate) {
-        const double l = 0.30 * std::sin(kTwoPi * 220.0 * t + 2.0 * std::sin(kTwoPi * 0.20 * t)) + 0.20 * std::sin(kTwoPi * 277.18 * t);
-        const double r = 0.30 * std::sin(kTwoPi * 329.63 * t + 2.0 * std::sin(kTwoPi * 0.13 * t)) + 0.20 * std::sin(kTwoPi * 220.0 * t);
-        lr[2 * i] = static_cast<float>(l);
-        lr[2 * i + 1] = static_cast<float>(r);
-    }
-}
 
-std::string strip_csi(const std::string& s) {
-    std::string o;
-    for (size_t i = 0; i < s.size(); ++i) {
-        if (s[i] == '\x1b' && i + 1 < s.size() && s[i + 1] == '[') {
-            i += 2;
-            while (i < s.size() && !(s[i] >= '@' && s[i] <= '~')) ++i;
-            continue;
-        }
-        o += s[i];
-    }
-    return o;
-}
 int vis_w(const std::string& s) { return display_width(strip_csi(s)); }
 
 std::vector<std::string> split_nl(const std::string& t) {
@@ -298,8 +277,8 @@ void build_settings_preview(const Style& s, const UiModel& m, const RadioSetting
                     lr[2 * i] = P.text_audio[2 * k]; lr[2 * i + 1] = P.text_audio[2 * k + 1];
                 }
                 P.text_pos = (P.text_pos + n) % total;
-            } else chord_frames(t, n, lr);
-        } else chord_frames(t, n, lr);
+            } else preview_chord_frames(t, n, lr);
+        } else preview_chord_frames(t, n, lr);
         P.sig = t;
         std::vector<float> mono(n);
         for (size_t i = 0; i < n; ++i) mono[i] = 0.5f * (lr[2 * i] + lr[2 * i + 1]);
@@ -484,34 +463,11 @@ void build_settings_preview(const Style& s, const UiModel& m, const RadioSetting
     }
     case kPvPane: {   // the frame of the upper pane, as it is drawn (the same helpers): sign | station info | scope block
         const int w = std::clamp(cw, 24, 44);
-        const int style = std::clamp(c.top_pane_style, 0, 5);
-        const bool split = panestyle::split(style);
-        const int c1 = split ? (style == 4 ? w / 3 : w / 4) : -1, c2 = split && style != 4 ? w * 5 / 8 : -1;
-        std::vector<int> walls;
-        if (c1 >= 0) walls.push_back(c1);
-        if (c2 >= 0) walls.push_back(c2);
         const panestyle::Glyphs g{c.box_upper_left, c.box_upper_right, c.box_lower_left, c.box_lower_right, c.box_horizontal, c.box_vertical};
-        const std::string bar = panestyle::wall(g, s.border), midw = panestyle::wall(g, style, s.border);
-        const int b1 = split ? c1 : w / 4, b2 = split ? c2 : w * 5 / 8;
-        const struct { int from, to; const char* text; } names[] = {{1, b1, "sign"}, {b1 + 1, b2, "station info"}, {b2 + 1, w - 1, "scope / viz"}};
-        o.rows.push_back(panestyle::row(g, style, true, w, walls, s.border));
-        for (int r = 0; r < 3; ++r) {
-            std::string line = bar;
-            for (int col = 1; col < w - 1; ++col) {
-                if (col == c1 || col == c2) { line += midw; continue; }
-                bool placed = false;
-                if (r == 1) for (const auto& n : names) {
-                    const int len = static_cast<int>(std::strlen(n.text)), start = n.from + std::max(0, (n.to - n.from - len) / 2);
-                    if (col == start && start + len <= n.to) { line += s.legend + n.text + R; col += len - 1; placed = true; break; }
-                }
-                if (!placed) line += ' ';
-            }
-            o.rows.push_back(line + bar);
-        }
-        o.rows.push_back(panestyle::row(g, style, false, w, walls, s.border_bottom));
+        PanePreview pp = pane_preview(c.top_pane_style, w, "sign", "station info", "scope / viz", g, s.border, s.border_bottom, s.legend, R);
+        o.rows = std::move(pp.rows);
         o.w = w;
-        static const char* const kCaptions[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"};
-        o.caption = kCaptions[style];
+        o.caption = pp.caption;
         break;
     }
     case kPvPlay: {   // the small play-mode box beside the search bar (the letter changes with the value), then what each mode does

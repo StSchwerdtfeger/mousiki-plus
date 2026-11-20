@@ -178,19 +178,6 @@ std::string focus_indicator(const Settings& s, const std::string&) {
     return " " + focus_sgr(s) + "◀" + "\x1b[0m" + "\001";
 }
 
-// The text of `s` without its CSI colour sequences (what is really drawn).
-std::string strip_csi(const std::string& s) {
-    std::string plain;
-    for (size_t k = 0; k < s.size(); ++k) {
-        if (s[k] == '\x1b' && k + 1 < s.size() && s[k + 1] == '[') {
-            k += 2;
-            while (k < s.size() && !(s[k] >= 0x40 && s[k] <= 0x7e)) ++k;
-            continue;
-        }
-        plain += s[k];
-    }
-    return plain;
-}
 
 std::string App::box_top(const std::string& label_in, int total_width, const std::string& border_ansi) const {
     // A title wider than the pane is cut with "..." so the top border keeps its width. A wider line

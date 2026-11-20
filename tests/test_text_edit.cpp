@@ -602,3 +602,11 @@ TEST(manual_translations_are_numbered_and_listed_after_the_machine_ones) {
     CHECK_EQ(list_lyrics_translations(track, v, plain).size(), static_cast<size_t>(2));
     fs::remove_all(dir, ec);
 }
+
+TEST(latin_wo_changes_the_particle_of_a_reader_text) {
+    translit_set_style(false, false);
+    const std::string a = transliterate_as("あいをこめて", -1, 0, -1);
+    const std::string b = transliterate_as("あいをこめて", -1, 1, -1);
+    CHECK(a != b);   // (wo / o: the two differ)
+    CHECK(b.find("wo") != std::string::npos);
+}

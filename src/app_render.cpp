@@ -282,6 +282,7 @@ std::optional<std::string> App::render_takeover_screen(int term_cols, int W, boo
         std::string out = build_mdb_screen(W, hard_clear ? "\x1b[2J\x1b[H" : "\x1b[H");
         frame_main_len_ = out.size();
         gfxs_.ok = gfx_.active;
+        out += mdb_floating(W);
         return out;
     }
     if (mode_ == Mode::Settings || mode_ == Mode::ColorEdit || (mode_ == Mode::AudioDevice && adev_->from_settings)) {
@@ -731,6 +732,8 @@ std::string App::render_frame(TerminalIO& term) {
         std::string out = build_mdb_screen(W, clear_prefix);
         frame_main_len_ = out.size();
         gfxs_.ok = gfx_.active;
+        out += mdb_floating(W);
+        if (mdb_new_ || mdb_pick_open_) cut_gfx_holes();
         return out;
     }
     // HKeyVideoFull: the video over the whole screen

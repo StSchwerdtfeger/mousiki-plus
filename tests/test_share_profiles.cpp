@@ -142,3 +142,28 @@ TEST(radio_viz_order_use_sphere_and_shared_pause_fade_round_trip) {
     CHECK(cfg.find("PauseFade=false") != std::string::npos);
     CHECK(cfg.find("AutoPlay=true") != std::string::npos);
 }
+
+TEST(milkdrop_picture_look_and_shuffle_folder_round_trip) {
+    mt::TempHome home;
+    Settings s = load_settings();
+    CHECK_EQ(s.milkdrop_bright, 50);
+    CHECK_EQ(s.milkdrop_sat, 100);
+    CHECK_EQ(s.milkdrop_contrast, 0);
+    s.milkdrop_bright = 65; s.milkdrop_sat = 30; s.milkdrop_contrast = 20; s.milkdrop_shuffle_folder = "My Mix"; s.sharp_corners = true;
+    save_settings(s);
+    const Settings t = load_settings();
+    CHECK_EQ(t.milkdrop_bright, 65);
+    CHECK_EQ(t.milkdrop_sat, 30);
+    CHECK_EQ(t.milkdrop_contrast, 20);
+    CHECK_EQ(t.milkdrop_shuffle_folder, std::string("My Mix"));
+    CHECK(t.sharp_corners);
+    radio::RadioSettings r = radio::load_radio_settings();
+    r.md_bright = 70; r.md_sat = 40; r.md_contrast = 10; r.md_shuffle_folder = "Recommended"; r.sharp_corners = true;
+    CHECK(radio::save_radio_settings(r));
+    const radio::RadioSettings b = radio::load_radio_settings();
+    CHECK_EQ(b.md_bright, 70);
+    CHECK_EQ(b.md_sat, 40);
+    CHECK_EQ(b.md_contrast, 10);
+    CHECK_EQ(b.md_shuffle_folder, std::string("Recommended"));
+    CHECK(b.sharp_corners);
+}

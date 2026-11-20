@@ -963,7 +963,7 @@ void App::build_vf_screen(std::ostringstream& frame, int W, int target_height) c
         groups.push_back({"Delete", {"[DEL] Delete this video file (asked first)\001Delete", "[u] Undo last deletion\001Undo", "[CTRL+3 / m] Make an mp3 from a video only file\001mp3", "[ESC] Back/Exit\001Exit"}});
     } else {
     groups.push_back({"Move", {in_text ? "[\xe2\x86\x90\xe2\x86\x92] Cursor" : "[\xe2\x86\x90\xe2\x86\x92] Tab", "[TAB] Focus", "[\xe2\x86\x91\xe2\x86\x93] Navi.", "[SHIFT+\xe2\x86\x91\xe2\x86\x93] Page\001Page", "[CTRL+\xe2\x86\x91\xe2\x86\x93] Top/bottom\001Top/bot.", "[ENTER] Videos / Choose\001Choose"}});
-    groups.push_back({"Search", {"[s] This song\001This", "[r] Re-fetch (song with a video)\001Re-fetch", "[SHIFT+s] All shown songs\001All shown", "[CTRL+t] File name + tags / file name / tags\001Source", "[o] Open page"}});
+    groups.push_back({"Search", {"[s] Search this song\001Search this", "[r] Re-fetch (song with a video)\001Re-fetch", "[SHIFT+s] All shown songs\001All shown", "[CTRL+t] File name + tags / file name / tags\001Source", "[o] Open page"}});
     groups.push_back({"Find", {"[/] Filter field", "[CTRL+f] Missing video / all / with video / chosen\001Songs"}});
     groups.push_back({"Fetch", {"[SHIFT+a] Download only current selected\001Download current", "[SHIFT+f] Download all chosen (" + std::to_string(chosen) + ")\001Download all (" + std::to_string(chosen) + ")", "[c] Clear choice\001Clear"}});
     groups.push_back({"Session", {"[CTRL+c] Cancel download\001Cancel", "[ESC] Back/Exit\001Exit"}});

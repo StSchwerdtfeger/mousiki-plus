@@ -683,7 +683,7 @@ std::vector<std::string> App::md_shuffle_paths() const {
     if (l == "Recommended") return const_cast<App*>(this)->md_recommended_paths();
     std::error_code ec;
     const auto t = fs::last_write_time(mdf::dir_of(md_config_dir()) / path_from_utf8(l + ".txt"), ec);
-    const std::string key = l + "|" + (ec ? std::string("-") : std::to_string(t.time_since_epoch().count()));
+    const std::string key = l + "|" + (ec ? std::string("-") : std::to_string(static_cast<long long>(t.time_since_epoch().count())));
     if (md_shuf_key_ != key) { md_shuf_cache_ = mdf::load(md_config_dir(), l); md_shuf_key_ = key; }
     return md_shuf_cache_;
 }
@@ -911,7 +911,7 @@ std::vector<std::string> App::md_recommended_paths() {
     for (const fs::path& f : files) {
         std::error_code ec;
         const auto t = fs::last_write_time(f, ec);
-        ckey += "|" + (ec ? std::string("-") : std::to_string(t.time_since_epoch().count()));
+        ckey += "|" + (ec ? std::string("-") : std::to_string(static_cast<long long>(t.time_since_epoch().count())));
     }
     if (!md_rec_key_.empty() && md_rec_key_ == ckey) return md_rec_cache_;
     std::vector<std::string> lowered;

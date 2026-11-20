@@ -102,6 +102,7 @@ struct RadioSettings : VizPrefs {
     // --- the GENERAL tab ---------------------------------------------------------------------------
     bool on_air_ascii = true;                   // the ON AIR sign (with its colour wave)
     int top_pane_style = 0;                     // TopPaneStyle= (0-5, as the player's): one box, three panes I / II / III, two panes, gap
+    bool sharp_corners = false;                 // SharpCorners=: sharp corners (┌ ┐ └ ┘) for all frames; the Settings screen (sharp by itself) gets the round ones
     bool sign_border = false;                   // the " : : " column between the ON AIR / OFF AIR sign and the station info (false, the default: none, the sign sits in the middle of that space)
     bool pulse_wave = true;                     // the faint circle burst behind the sign
     bool dummy_buttons = true;                  // the <<< MUTE >>> boxes next to the frequency band
@@ -121,6 +122,8 @@ struct RadioSettings : VizPrefs {
     int md_hcd = 20, md_var = 0, md_mesh = 1;
     int md_ratio = 0;   // MilkDropAspectRatio= (milkdrop_ratio_name)
     bool md_aspect = true, md_clean = false, md_fav_shuffle = false;
+    int md_bright = 50, md_sat = 100, md_contrast = 0;   // MilkDropBrightness= / MilkDropSaturation= / MilkDropContrast=: 0 .. 100 %, steps of 5 (50 / 100 / 0 = as drawn)
+    std::string md_shuffle_folder;   // MilkDropShuffleFolder=: the folder that "Shuffle Favourites" plays from ("" = Favourites, "Recommended", or a folder made in the preset overlay)
     // a video effect over the pictures (MilkDropEffect=, MilkDropEffectOn=: off keeps the choice) and the Sixel colours (MilkDropSixelColors=: fixed or taken from each picture)
     int md_fx = 0;
     bool md_fx_on = true, md_fixed_colors = false;
@@ -266,11 +269,11 @@ const std::string* color_field(const RadioSettings& s, int row, int col);
 // The ids of the rows of the GENERAL and ANIMA/VIZ tabs.
 enum RsId {
     kRsPlayback, kRsStartMode, kRsUseModePlayer, kRsUseModeRadio, kRsUseModeBook, kRsModeOrder1, kRsModeOrder2, kRsModeOrder3, kRsBlackBg, kRsShareProfiles, kRsRemoteApp,
-    kRsPaneStyle, kRsOnAir, kRsSignBorder, kRsPulse, kRsDummy, kRsVolIndicator, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
+    kRsPaneStyle, kRsSharpCorners, kRsOnAir, kRsSignBorder, kRsPulse, kRsDummy, kRsVolIndicator, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
     kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc, kRsBehavior, kRsBarStyle, kRsHifiRes, kRsHifiChan, kRsHifiColor, kRsHifiScale, kRsHifiAdapt, kRsHifiSplit, kRsHifiFScale, kRsHifiGain, kRsHifiRange,
     kRsScope, kRsOsciStyle,
     kRsUseMilkdrop, kRsMdFps, kRsMdRes, kRsMdGpu, kRsMdDuration, kRsMdShuffle, kRsMdBeat, kRsMdHardCuts, kRsMdTransition, kRsMdShowName,
-    kRsMdFavShuffle, kRsMdHcd, kRsMdVar, kRsMdMesh, kRsMdAspect, kRsMdRatio, kRsMdClean, kRsMdUseFx, kRsMdFx, kRsMdColors,
+    kRsMdFavShuffle, kRsMdFolder, kRsMdBright, kRsMdSat, kRsMdContrast, kRsMdHcd, kRsMdVar, kRsMdMesh, kRsMdAspect, kRsMdRatio, kRsMdClean, kRsMdUseFx, kRsMdFx, kRsMdColors,
     kRsAudioDevice,   // [ENTER]: the CHOOSE AUDIO DEVICE overlay
     kRsCliScripts,    // [ENTER]: the script overlay
     kRsUseTermSettings, kRsTermSize, kRsFullScreen, kRsReduceMotion, kRsUpdateNotice, kRsLatinMacrons, kRsLatinWo, kRsLatinHanzi,   // (the player's rows of the same name; one value for all modes)
@@ -302,6 +305,10 @@ inline int timeshift_minutes(const RadioSettings& s) { return kTimeshiftMinutes[
 void radio_milkdrop_apply(const RadioSettings& c);
 bool radio_milkdrop_usable(const RadioSettings& c, std::string* why = nullptr);
 std::string radio_md_gpu_step(const std::string& cur, int dir);   // MilkDrop GPU row: automatic, then every card (Linux) -> the next one
+std::string radio_md_shuffle_label(const RadioSettings& c);                  // the folder that the shuffle plays from ("Favourites" when none is chosen)
+std::vector<std::string> radio_md_shuffle_paths(const RadioSettings& c);     // its presets
+std::vector<std::string> radio_md_folder_choices();                          // Favourites, Recommended, the folders of the user
+std::string radio_md_folder_step(const RadioSettings& c, int dir);           // the setting value ("" = Favourites) one choice on
 int radio_md_step(int which, int cur, int dir);   // MilkDrop rows: 0 frame rate, 1 resolution, 2 preset duration -> the next step
 int radio_viz_mode(int viz);                                              // the scope_mode of a viz_order value (0 osci, 1 sphere, 2 spectro, 3 milkdrop -> 0, 1, 3, 4)
 int radio_next_scope_mode(const RadioSettings& s, int cur, bool back, bool milkdrop_ok);   // the next view of the "." cycle that is switched on (cur itself when none)

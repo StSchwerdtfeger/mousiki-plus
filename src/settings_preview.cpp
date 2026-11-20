@@ -7,6 +7,7 @@
 // with a spectrogram the Creator makes from the text "Mousiki Plus". No file, no network and no ffmpeg are needed.
 #include <cstring>
 #include "pane_style.h"
+#include "preview_shared.h"
 #include "app.h"
 #include "coverfetch_state.h"
 #include "hifi_bars.h"
@@ -78,17 +79,6 @@ struct SettingsPreviewState {
 
 namespace {
 
-// The chord test signal of the radio (aevalsrc in src_radio/radio_engine.cpp), 48 kHz stereo.
-void chord_frames(double& t, size_t n, std::vector<float>& lr) {
-    constexpr double rate = 48000.0;
-    lr.resize(n * 2);
-    for (size_t i = 0; i < n; ++i, t += 1.0 / rate) {
-        const double l = 0.30 * std::sin(kTwoPi * 220.0 * t + 2.0 * std::sin(kTwoPi * 0.20 * t)) + 0.20 * std::sin(kTwoPi * 277.18 * t);
-        const double r = 0.30 * std::sin(kTwoPi * 329.63 * t + 2.0 * std::sin(kTwoPi * 0.13 * t)) + 0.20 * std::sin(kTwoPi * 220.0 * t);
-        lr[2 * i] = static_cast<float>(l);
-        lr[2 * i + 1] = static_cast<float>(r);
-    }
-}
 
 // A made-up song for the progress waveform: swells, a quiet part, a loud finish.
 std::vector<float> sample_pcm() {
@@ -385,8 +375,8 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
                     lr[2 * i] = P.text_audio[2 * k]; lr[2 * i + 1] = P.text_audio[2 * k + 1];
                 }
                 P.text_pos = (P.text_pos + n) % total;
-            } else chord_frames(t, n, lr);
-        } else chord_frames(t, n, lr);
+            } else preview_chord_frames(t, n, lr);
+        } else preview_chord_frames(t, n, lr);
         P.sig = t;
         std::vector<float> mono(n);
         for (size_t i = 0; i < n; ++i) mono[i] = 0.5f * (lr[2 * i] + lr[2 * i + 1]);
@@ -866,37 +856,12 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
     }
     case kPvPane: {   // the frame of the upper pane, as it is drawn (the same helpers): disk | meta data | lyrics / viz field
         const int w = std::clamp(cw, 24, 44);
-        const int style = std::clamp(settings_.top_pane_style, 0, 5);
-        const bool split = panestyle::split(style);
-        const int c1 = split ? (style == 4 ? w / 3 : w / 4) : -1, c2 = split && style != 4 ? w * 5 / 8 : -1;   // (two panes: one wall, the meta data and the field share a box)
-        std::vector<int> walls;
-        if (c1 >= 0) walls.push_back(c1);
-        if (c2 >= 0) walls.push_back(c2);
-        const panestyle::Glyphs g = panestyle::glyphs(settings_);
-        const std::string border = ansi_for(settings_.border_color, false);
-        const std::string border_b = ansi_for(settings_.border_color_bottom, false);
-        const std::string dim = ansi_for(settings_.legend_color, false);
-        const std::string bar = panestyle::wall(g, border), mid = panestyle::wall(g, style, border);
-        const int b1 = split ? c1 : w / 4, b2 = split ? c2 : w * 5 / 8;   // (where the names are centred: between the walls)
-        const struct { int from, to; const char* text; } names[] = {{1, b1, "disk"}, {b1 + 1, b2, "meta data"}, {b2 + 1, w - 1, "lyrics / viz"}};
-        out.rows.push_back(panestyle::row(g, style, true, w, walls, border));
-        for (int r = 0; r < 3; ++r) {
-            std::string line = bar;
-            for (int c = 1; c < w - 1; ++c) {
-                if (c == c1 || c == c2) { line += mid; continue; }
-                bool placed = false;
-                if (r == 1) for (const auto& n : names) {
-                    const int len = static_cast<int>(std::strlen(n.text)), start = n.from + std::max(0, (n.to - n.from - len) / 2);
-                    if (c == start && start + len <= n.to) { line += dim + n.text + "\x1b[0m"; c += len - 1; placed = true; break; }
-                }
-                if (!placed) line += ' ';
-            }
-            out.rows.push_back(line + bar);
-        }
-        out.rows.push_back(panestyle::row(g, style, false, w, walls, border_b));
+        PanePreview pp = pane_preview(settings_.top_pane_style, w, "disk", "meta data", "lyrics / viz", panestyle::glyphs(settings_),
+                                      ansi_for(settings_.border_color, false), ansi_for(settings_.border_color_bottom, false),
+                                      ansi_for(settings_.legend_color, false), "\x1b[0m");
+        out.rows = std::move(pp.rows);
         out.w = w;
-        static const char* const kCaptions[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"};
-        out.caption = kCaptions[style];
+        out.caption = pp.caption;
         break;
     }
     case kPvMilk: out.milk = true; break;
