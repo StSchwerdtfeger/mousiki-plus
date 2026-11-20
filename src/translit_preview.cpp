@@ -8,6 +8,8 @@ namespace muisc {
 
 TranslitPreviewOut translit_preview(const TranslitPreviewIn& in) {
     TranslitPreviewOut out;
+    const std::string& lit = in.lit;
+    const std::string& off = in.off;
     struct PRow { std::string plain, ansi; };
     std::vector<PRow> rows;
         // one example: the source, then the results with the index of the one in use

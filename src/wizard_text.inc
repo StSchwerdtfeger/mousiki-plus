@@ -1380,6 +1380,8 @@ KEY[[Header]]                     ACTION[[Header]]
 [SHIFT+UP/DOWN]         layout: video / + oscilloscope / + spectrogram / + both, in a column right
                         of the video / quartet (osci top left, MilkDrop top right, video bottom
                         left, spectrogram bottom right; when projectM is installed)
+[f]                     the picture alone over the whole window (legend "Video only"; with
+                        the MilkDrop visuals "Viz. only"); [f] or [ESC] brings the frame back
 [m]                     the video or the MilkDrop visuals (VideoFullSource=). With the visuals,
                         [SHIFT+UP/DOWN] goes through their own layouts: MilkDrop / + osci /
                         + osci and spectrogram / quartet / video left and MilkDrop right
@@ -1487,10 +1489,10 @@ Image resolution full, Image detail high -- close to osci-render. Lossless files
 
 THE BIG OSCILLOSCOPE: [[Header]]
 [SHIFT+0] (the [=] key; German keyboard SHIFT+0) opens it over the whole screen: YT (amplitude over
-time) on the left, XY on the right. [SHIFT+o] opens the options on top.
-[SHIFT+a] grid and frame on/off     [SHIFT+v] axis values: percent, milliseconds under YT
 )WIZ",
-R"WIZ([SHIFT+c] grid color (0-255)        [SHIFT+p] grid metrics: time unit, divisions, calm readouts
+R"WIZ(time) on the left, XY on the right. [SHIFT+o] opens the options on top.
+[SHIFT+a] grid and frame on/off     [SHIFT+v] axis values: percent, milliseconds under YT
+[SHIFT+c] grid color (0-255)        [SHIFT+p] grid metrics: time unit, divisions, calm readouts
 [LEFT/RIGHT] image <-> braille      [UP/DOWN] oscilloscope music mode on / off
 With Osci style: image and a terminal that speaks Kitty graphics or Sixel both pictures are real
 pixel images; otherwise they are drawn in braille dots. 100 % on the axes is the loudest part of the
@@ -1571,7 +1573,9 @@ Mesh Detail the warp grid: finer = more detail, more work. Aspect Correction: ke
 THE PRESET OVERLAY: [[Header]]
 The row Preset Overlay (or [P]) opens the preset folders with the visuals beside it as the preview:
 [ENTER] chooses, [a] adds a favourite, [d] takes one out (the Favourites folder is on top), [/] searches
-every preset (fuzzy). The Recommended folder is a hand-picked list that ships with Mousiki. Shuffle
+every preset (fuzzy), [n] makes a folder of your own, [SHIFT+a] adds the preset to the Favourites or a folder, [d] on a folder asks
+first (ENTER / y deletes, ESC / n keeps), [SHIFT+u] undoes the last delete. The commands are in the border colour: row 1 on the bottom
+border, row 2 below the box. The Recommended folder is a hand-picked list that ships with Mousiki. Shuffle
 Favourites plays only the favourites. Its own row for the effect and [g/h] work there as well.
 
 IN THE BIG VIDEO OVERLAY: [[Header]]
@@ -1605,7 +1609,8 @@ TEXT TO SOUND: [[Header]]
 Makes music out of a text, saves it as a WAV file, plays it and shows it in a full-screen preview.
 
 OSCILLOSCOPE (XY): [[Header]]
-Left = x, right = y: the beam draws the outlines of your text again and again, 30 - 120 times a second.
+)WIZ",
+R"WIZ(Left = x, right = y: the beam draws the outlines of your text again and again, 30 - 120 times a second.
 
 SPECTROGRAM: [[Header]]
 The text is the spectrogram: time left to right, pitch bottom to top, brightness = loudness. Only the
@@ -1614,8 +1619,7 @@ notes of a scale play (pentatonic minor by default), so it sounds like music.
 ROWS: [[Header]]
 Text ([|] = new line), Sound, Length (5 - 60 s), Invert, the options of the chosen sound, Scope grid
 (on/off), Create, save and preview, and Created files... (a list of the files made so far; [ENTER] opens
-)WIZ",
-R"WIZ(one in the preview).
+one in the preview).
 
 [UP]/[DOWN] pick a row, [<-/->] or [ENTER] change it, [ESC] closes.
 [SPACE] does nothing here (it only types a space in the text), so nothing is created by accident.
@@ -1760,7 +1764,8 @@ THE KEY: [[Header]]
 (Choose Audio Device), in the radio too.
 
 [[New Page]]
-2.7.1 LISTENING HISTORY [[Header]]
+)WIZ",
+R"WIZ(2.7.1 LISTENING HISTORY [[Header]]
 
 OPEN: [[Header]] [SHIFT+h] opens the history; [ESC], [q] or [SHIFT+h] close it.
 Jump to a tab with [1] - [4] or move with [<-/->].
@@ -1770,8 +1775,7 @@ THE FOUR TABS: [[Header]]
 [2] TOP TRACKS       one row per title: Title | Artist, length, play count
 [3] TOP PLAYLISTS    the top 5 saved playlists of the week, month, quarter, year and overall
 [4] HABITS           sessions, time per day, tracks per session, skips, replays, completion
-)WIZ",
-R"WIZ(
+
 KEYS: [[Header]]
 [UP]/[DOWN]   move (on TOP PLAYLISTS and HABITS they scroll)
 [ENTER]       on HISTORY or TOP TRACKS: play it now (the overlay stays open)
@@ -1902,6 +1906,17 @@ marquee.
                                                   held it; [SHIFT and +/-] walks cycles through the set
                                                   order.
 
+[MAIN UI PANE STYLE:][[Header]]
+[Top Pane Style:][[Legend]]                                   the frame of the upper pane (disk | meta data | lyrics /
+                                                  viz field): one box (default), three panes I / II / III,
+)WIZ",
+R"WIZ(                                                  two panes or gap. The preview shows the shape. The radio
+                                                  has the same row (ANIMA/VIZ tab, TOP PANE).
+
+[Sharp Corners:][[Legend]]                                    true = sharp frame corners everywhere (the Settings
+                                                  screen, sharp by itself, gets round ones then); default
+                                                  false. Each mode keeps its own value.
+
 [AUDIO:][[Header]]
 [Choose Audio Device:][[Legend]]                              shows the sound output in use (System Default unless you
                                                   picked one); [ENTER] opens the CHOOSE AUDIO DEVICE
@@ -1913,8 +1928,7 @@ marquee.
                                                   [SHIFT+<-] / [SHIFT+->] in the audio book player.
 
 [Track Buffer (MB):][[Legend]]                                default = 64 (about 3 minutes of CD-quality stereo): a
-)WIZ",
-R"WIZ(                                                  track whose decoded audio is smaller is held whole in
+                                                  track whose decoded audio is smaller is held whole in
                                                   RAM, so seeking is instant; a bigger one uses a moving
                                                   2-minute window (a jump outside it takes a moment).
                                                   [ENTER] types a number (64 up to a quarter of the RAM,
@@ -1952,7 +1966,7 @@ R"WIZ(                                                  track whose decoded audi
                                                   even in the middle.
 [Cut Silence:][[Legend]]                                       on = the silence at the start and the end of a track
                                                   (at most 15 s each) is not played. Measured once per
-                                                  track; costs next to no CPU or memory.
+                                                  track; costs next to no CPU or memory. Not for tracks longer than the Track Buffer holds (about 3 minutes at the default 64 MB).
 [Silence Below:][[Legend]]                                     -40 ... -80 dB (default -60): what counts as silence.
 
 [TERMINAL:][[Header]]
@@ -1990,7 +2004,8 @@ R"WIZ(                                                  track whose decoded audi
                                                   Sphere in ANIMA/VIZ -> SPHERE). The radio does
                                                   the same when no station is tuned (or the stream
                                                   is paused).
-
+)WIZ",
+R"WIZ(
 [CLI / REMOTE / UPDATES:][[Header]]
 [CLI Scripts:][[Legend]]                                       [ENTER] opens the script overlay of the command line:
                                                   the library of scripts on the left, the editor on the
@@ -2008,8 +2023,7 @@ R"WIZ(                                                  track whose decoded audi
 
 [Update Notice:][[Legend]]                                    a quiet once-a-day look for a newer release; a small
                                                   window, once per version ([ESC] close, [o] open the
-)WIZ",
-R"WIZ(                                                  Github release page).
+                                                  Github release page).
 
 [Check Update:][[Legend]]                                     [ENTER] on this row asks GitHub for the newest release
                                                   now and writes the answer on this screen (needs Python 3
@@ -2093,7 +2107,8 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 [Translit. Kanji:][[Legend]]                                  Leave (default) = characters that could be Japanese or
                                                   Chinese (東京) stay as they are; Chin. = read as Chinese
                                                   (pinyin); Jap. = read as Japanese (kept unless the
-                                                  optional kanji reader knows them). Same as
+)WIZ",
+R"WIZ(                                                  optional kanji reader knows them). Same as
                                                   LatinHanziDefault in the config.txt.
 
 [Latin Name Lookup:][[Legend]]                                off by default. On = artists written in Chinese
@@ -2118,14 +2133,14 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   view you pick, or nothing.
 [When No Video Shows][[Legend]]                               What the video view shows when the track has no video:
                                                   the lyrics (default), a visual or nothing.
-)WIZ",
-R"WIZ(
+
 [LYRICS:][[Header]]                          
 [Lyrics Alignment][[Legend]]                                  Aligned left / center / right
 [Lyrics Animation][[Legend]]                                  Style full,word by word, letter by letter, active line
                                                   only, active word only, line by line.
 
 [VIDEO:][[Header]]
+[Auto Video][[Legend]]                                          the same switch as in the video menu: a track with a video shows it.
 [Video Size][[Legend]] Regular / cropped / full / framed picture in the small field.
 [Video Effect][[Legend]]                                      A retro look for the picture (also in the full screen
                                                   video, with a preview here).
@@ -2155,6 +2170,12 @@ R"WIZ(
                                                    colours) / none: what shows while a video loads.
 [yt-dlp mp3 from mp4][[Legend]]                               true / false: SEARCH YT also saves a video's sound as an
                                                   mp3 (no song as target).
+
+[BIG VIDEO OVERLAY:][[Header]]
+[Milkdrop When No Video:][[Legend]]                           true = the big video overlay [v] opens on the MilkDrop
+                                                  visuals for a track without a video (default false: the
+                                                  clapperboard). A track whose own MilkDrop is "never"
+                                                  keeps the clapperboard; [m] always decides.
 
 [DISK:][[Header]]
 [Eliment Disk / Cover:][[Legend]]                             shows or hides the disk field in the player area: the
@@ -2188,7 +2209,8 @@ R"WIZ(
                                                   4. Cover behind Disk v2 - the same, but the dots
                                                   themselves turn smoothly around the centre.
                                                   5. Cover behind Disk (Full Anima) - the same, but the
-                                                  dots follow the exact braille animation of the disk:
+)WIZ",
+R"WIZ(                                                  dots follow the exact braille animation of the disk:
                                                   rotated and rounded to the dot grid, some of them come
                                                   and go as it turns (the effect of the disk look of the
                                                   Volume Indicator).
@@ -2209,8 +2231,7 @@ R"WIZ(
                                                   Disk looks: the cover is spread over the whole
                                                   brightness range (bright like the plain disk), its dark
                                                   parts are lifted to at least this share and it is
-)WIZ",
-R"WIZ(                                                  sharpened. Audio book cover with the wave: a brightness
+                                                  sharpened. Audio book cover with the wave: a brightness
                                                   curve, 50% = as it is, more = brighter, less = darker.
 [Cover Colors:][[Legend]]                                     0% .. 100% in steps of 5% (default 0%). How much of the
                                                   cover's own colours shows through the gradient (Cover
@@ -2275,7 +2296,8 @@ R"WIZ(                                                  sharpened. Audio book co
                                                   start from a blank picture.
 [Default Preset / Use Effect:][[Legend]]                      the preset the visuals start with ([ENTER] opens the
                                                   preset list); Use Effect = off switches the effect over
-                                                  the visuals off. [:] from the big video overlay changes
+)WIZ",
+R"WIZ(                                                  the visuals off. [:] from the big video overlay changes
                                                   the current track only.
 
 
@@ -2304,8 +2326,7 @@ R"WIZ(                                                  sharpened. Audio book co
                                                   the moving braille blocks (disk), in all modes.
 
 [SPECTRUM BARS:][[Header]]               
-)WIZ",
-R"WIZ([On/Off:][[Legend]]                                           shows or hides the spectrum bars under the meta data
+[On/Off:][[Legend]]                                           shows or hides the spectrum bars under the meta data
                                                   field.
 
 [Bars Style:][[Legend]]                                       Classic is the bar display as before. Hi-Fi is a stereo
@@ -2372,7 +2393,8 @@ R"WIZ([On/Off:][[Legend]]                                           shows or hid
                                                   analyses only while a spectrogram is shown and for 10 s
                                                   after, then gives its memory back; a spectrogram opened
                                                   later starts empty and fills as the music goes on.
-
+)WIZ",
+R"WIZ(
 [VIZ/LYRICS ORDER:][[Header]]      
 [Viz Order:][[Legend]]                                        1-6, the order of the views in the [,/.] cycle.
 
@@ -2404,8 +2426,7 @@ R"WIZ([On/Off:][[Legend]]                                           shows or hid
 [AUDIO BOOK PATH][[Header]]                                   One folder only, since books are sorted by book folders
                                                   with the chapters themselves (doesn't happen inside
                                                   Mousiki). Every book folder within it with audio files
-)WIZ",
-R"WIZ(                                                  is considered one book. A .cue file rests beside each
+                                                  is considered one book. A .cue file rests beside each
                                                   book and keeps its narrator, publisher and year and
                                                   other meta data. The music player's library leaves files
                                                   stored in this folder out (also from its searches): the
@@ -2502,7 +2523,8 @@ and overlays as described in chapters 2.5 to 2.8. Differences: the radio keeps i
 oscilloscope values and settings in radio_config.txt; the sleep timer stops the stream (no "Stop after
 current song"); the visualization field is the scope block right of the station info and [,/.] cycles
 oscilloscope, sphere, spectrogram and MilkDrop (there are no lyrics). The spectrogram has its waterfall
-view here too ([SHIFT+i], View). [:] opens the MilkDrop visuals overlay with the player's rows and its
+)WIZ",
+R"WIZ(view here too ([SHIFT+i], View). [:] opens the MilkDrop visuals overlay with the player's rows and its
 preset overlay ([P]: folders, Favourites, Recommended, search); the radio keeps its own MilkDrop options
 (radio_config.txt, ANIMA/VIZ -> MILKDROP). No video effect rows there.
 
@@ -2541,8 +2563,7 @@ KEYS ON THE MAIN SCREEN: [[Header]]
 [SHIFT+p] presets   [SHIFT+s] radio browser   [SHIFT+k] station lists   [SHIFT+l] big stations overlay
 [h] history   [s] settings   [?] cheat sheet   [<] menus index   [SHIFT+w] this wizard   [q] quit
 [°] (German [SHIFT+^]; other keyboards [&])  choose the audio device (2.6.5)
-)WIZ",
-R"WIZ(
+
 THE BIG STATIONS OVERLAY: [[Header]]
 [SHIFT+l] shows the STATIONS pane over the whole screen plus a PRESET NAME column.
 [a] adds a station by its stream URL ([TAB] switches URL <-> NAME; an empty name becomes the host name).
@@ -2663,7 +2684,8 @@ station, [x] or quitting clears the buffer.
 THE BUFFER: [[Header]]
 The size is [s] Settings[[Header]] ->> GENERAL[[Header]] ->> Timeshift buffer (5, 15, 30, 45 or 60 minutes,
 default 30). The file is radio_timeshift.pcm in ~/.cache/mousiki/ and takes about 11.5 MB per minute
-(about 345 MB for 30 minutes). It is written by the stream thread and never touched by the screen
+)WIZ",
+R"WIZ((about 345 MB for 30 minutes). It is written by the stream thread and never touched by the screen
 loop, so the interface stays as fast as without it. It is deleted when the radio closes.
 If a pause lasts longer than the buffer, the oldest part is overwritten and playback continues
 from the oldest audio that is still there.
@@ -2705,8 +2727,7 @@ move, [HOME]/[END] jump to the ends.
 [3] HABITS         sessions, time per day, channels, and listening by hour and by weekday
 A new HISTORY line starts whenever the channel, the artist or the title changes. Lines heard for less
 than 3 seconds are dropped. A session ends after a gap of 30 minutes. The newest 10 000 lines are
-)WIZ",
-R"WIZ(kept one by one; older ones are folded into lifetime totals, so TOP CHANNELS and HABITS stay lifetime
+kept one by one; older ones are folded into lifetime totals, so TOP CHANNELS and HABITS stay lifetime
 figures.
 
 HEARD A SONG ON THE RADIO? DOWNLOAD IT: [[Header]]
@@ -2809,7 +2830,8 @@ PANES: [[Header]]
 BOOKS (left)      only folders: one row per book with its number of chapters. [ENTER] opens the book.
                   [/] searches the books, [ESC] shows all books again; in the chapter pane [ESC] goes 
                   back to the library pane; in a folder of the library pane [<-] and [ESC] go one step 
-                  up in the folder hierarchy.
+)WIZ",
+R"WIZ(                  up in the folder hierarchy.
 CHAPTERS (right)  takes the place of the queue: the files of the open book in natural order
                   ("Chapter 2" before "Chapter 10"). A .m4b / .mka (or an MP3 with chapter frames)
                   shows the chapters INSIDE the file as rows, with their own titles and lengths.
@@ -2836,8 +2858,7 @@ An image of a women rading a book (a grey version of a colour picture) takes the
 It is drawn as small braille dots (a 60 x 60 dot field) and stays still; the colour wave of the 
 radio's ON AIR sign runs over it diagonally, from the upper left to the lower right. In a terminal 
 with Kitty graphics or Sixel (Windows Terminal 1.22+, Kitty, WezTerm ...) it is a real transparent 
-)WIZ",
-R"WIZ(image at full pixel resolution instead of braille dots (a terminal without them gets the braille 
+image at full pixel resolution instead of braille dots (a terminal without them gets the braille 
 version, which does not look nice though, to be honest). The original of the beautiful default 
 image is done by Kamara Rahmat (iyaniyan; taken from Unsplash).
 
@@ -2929,7 +2950,8 @@ NOTES: [[Header]]
            A shown note: [CTRL+n] opens it there for editing. The time stamp (@ h:mm:ss) always stays
            whole.
 [SHIFT+l]  all notes in a full-screen overlay: the list left (chapter, time, title), the note right.
-           [ENTER] (or [t]) edits it right there, [f] shows it in the field, [SHIFT+p] plays from that 
+)WIZ",
+R"WIZ(           [ENTER] (or [t]) edits it right there, [f] shows it in the field, [SHIFT+p] plays from that 
            point (the note is in the field after the overlay is closed), the right pane becomes the
            editor,
            [n] writes a new note at the playing point, [x] deletes, [SHIFT+e] / [SHIFT+i] export / import
@@ -2963,8 +2985,7 @@ book, chapter, time; the newest first, notes last.
 [ESC]      closes/clears sorting.
 
 BIG LIBRARY OVERLAY [SHIFT+s]: [[Header]] 
-)WIZ",
-R"WIZ(It has a search pane on top ([/] types, the words narrow the list) and the audio book pane below it.
+It has a search pane on top ([/] types, the words narrow the list) and the audio book pane below it.
 [ENTER] / [->] on a book opens it and inserts its chapters below it, [<-] or [ESC] closes it; 
                a diamond marks a bookmark.
 [ENTER]        on a chapter plays it (the bookmark question first), [CTRL+p] plays it from its start 
@@ -3066,7 +3087,8 @@ Windows: [f] in the overlay opens the port in the firewall. Test: http://127.0.0
 SAFE: [[Header]] off by default, home network only (other addresses are turned away), PIN for every
 command, 10 wrong PINs lock that one device out for a minute (not your phone). Plain HTTP: use it on
 a network you trust. Windows asks once whether Mousiki may accept connections: allow private networks.
-
+)WIZ",
+R"WIZ(
 ABOUT THE PIN: [[Header]] it keeps others on your Wi-Fi from using the remote, it is not a strong lock: 4 to 8
 digits, and the connection is plain HTTP, so the PIN travels unencrypted (anyone who can read your
 network traffic sees it) and sits in the address (?pin=...), so it can land in a browser history or
@@ -3093,8 +3115,7 @@ WHERE TO TYPE IT: [[Header]]
               pane (COMMAND LINE)             what commands logged and the errors of scripts.
  Scripts      type  edit  or  /cs:             The script overlay (5.1.6): library and editor. /cs:words
                                               lists the matching scripts in the library pane.
-)WIZ",
-R"WIZ(              Settings -> GENERAL -> CLI / REMOTE / UPDATES -> CLI Scripts [ENTER] opens it too.
+              Settings -> GENERAL -> CLI / REMOTE / UPDATES -> CLI Scripts [ENTER] opens it too.
  From outside mousiki --cli "..."             A running Mousiki does it (5.1.9).
 
 KEYS IN A COMMAND LINE: [[Header]]
@@ -3181,7 +3202,8 @@ seeks in beta. mousiki --query help gives the list of commands as its answer.
                          playlist scripts
  settings [words]        the settings `set` can change         2: VideoGradientSaturation=85 ...
  set <setting> <value>   change and SAVE a flag or number      VideoGradientSaturation=60 (saved)
- get <setting>           read a setting                        85
+)WIZ",
+R"WIZ( get <setting>           read a setting                        85
  * asks for confirmation, see SAFETY (5.1.7)
 
 [[New Page]]
@@ -3218,8 +3240,7 @@ starting with - may fail. Example, meow.cli (type: run meow):
 startup.cli runs once, about 2.5 s after the start. aliases.cli holds your aliases.
 
 THE SCRIPT OVERLAY: [[Header]]
-)WIZ",
-R"WIZ(Two panes. Open it with  edit  or with  /cs:  ([ENTER] on a match).
+Two panes. Open it with  edit  or with  /cs:  ([ENTER] on a match).
  Left, the library   [ENTER] load   [n] new   [m] rename   [r] run   [/] search
                      [x] delete (moved to cli/deleted/, nothing is erased)
  Right, the editor   [CTRL+S] saves, [CTRL+R] runs the text in it (the answers appear under OUTPUT)
@@ -3310,7 +3331,8 @@ HTTP FOR HOME ASSISTANT AND SCRIPTS ON OTHER COMPUTERS: [[Header]]
  2. config.txt:  RemoteAppCli=true   (off by default; read at the start)
  3. GET http://<address>:4747/api/cli?pin=<PIN>&line=<command line, url-encoded>[&wait=<s>]
     answers {"ok":true,"reply":"...","lines":["...","..."]}   ok:false = the command failed.
-    403 = wrong PIN or RemoteAppCli is off, 504 = no answer within wait (4 s, up to 30).
+)WIZ",
+R"WIZ(    403 = wrong PIN or RemoteAppCli is off, 504 = no answer within wait (4 s, up to 30).
     GET /api/status?pin=<PIN> gives the playing state as JSON.
 
 LIMITS: [[Header]]

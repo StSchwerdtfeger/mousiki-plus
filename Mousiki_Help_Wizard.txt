@@ -1368,6 +1368,8 @@ KEY[[Header]]                     ACTION[[Header]]
 [SHIFT+UP/DOWN]         layout: video / + oscilloscope / + spectrogram / + both, in a column right
                         of the video / quartet (osci top left, MilkDrop top right, video bottom
                         left, spectrogram bottom right; when projectM is installed)
+[f]                     the picture alone over the whole window (legend "Video only"; with
+                        the MilkDrop visuals "Viz. only"); [f] or [ESC] brings the frame back
 [m]                     the video or the MilkDrop visuals (VideoFullSource=). With the visuals,
                         [SHIFT+UP/DOWN] goes through their own layouts: MilkDrop / + osci /
                         + osci and spectrogram / quartet / video left and MilkDrop right
@@ -1558,7 +1560,9 @@ Mesh Detail the warp grid: finer = more detail, more work. Aspect Correction: ke
 THE PRESET OVERLAY: [[Header]]
 The row Preset Overlay (or [P]) opens the preset folders with the visuals beside it as the preview:
 [ENTER] chooses, [a] adds a favourite, [d] takes one out (the Favourites folder is on top), [/] searches
-every preset (fuzzy). The Recommended folder is a hand-picked list that ships with Mousiki. Shuffle
+every preset (fuzzy), [n] makes a folder of your own, [SHIFT+a] adds the preset to the Favourites or a folder, [d] on a folder asks
+first (ENTER / y deletes, ESC / n keeps), [SHIFT+u] undoes the last delete. The commands are in the border colour: row 1 on the bottom
+border, row 2 below the box. The Recommended folder is a hand-picked list that ships with Mousiki. Shuffle
 Favourites plays only the favourites. Its own row for the effect and [g/h] work there as well.
 
 IN THE BIG VIDEO OVERLAY: [[Header]]
@@ -1887,6 +1891,16 @@ marquee.
                                                   held it; [SHIFT and +/-] walks cycles through the set
                                                   order.
 
+[MAIN UI PANE STYLE:][[Header]]
+[Top Pane Style:][[Legend]]                                   the frame of the upper pane (disk | meta data | lyrics /
+                                                  viz field): one box (default), three panes I / II / III,
+                                                  two panes or gap. The preview shows the shape. The radio
+                                                  has the same row (ANIMA/VIZ tab, TOP PANE).
+
+[Sharp Corners:][[Legend]]                                    true = sharp frame corners everywhere (the Settings
+                                                  screen, sharp by itself, gets round ones then); default
+                                                  false. Each mode keeps its own value.
+
 [AUDIO:][[Header]]
 [Choose Audio Device:][[Legend]]                              shows the sound output in use (System Default unless you
                                                   picked one); [ENTER] opens the CHOOSE AUDIO DEVICE
@@ -1936,7 +1950,7 @@ marquee.
                                                   even in the middle.
 [Cut Silence:][[Legend]]                                       on = the silence at the start and the end of a track
                                                   (at most 15 s each) is not played. Measured once per
-                                                  track; costs next to no CPU or memory.
+                                                  track; costs next to no CPU or memory. Not for tracks longer than the Track Buffer holds (about 3 minutes at the default 64 MB).
 [Silence Below:][[Legend]]                                     -40 ... -80 dB (default -60): what counts as silence.
 
 [TERMINAL:][[Header]]
@@ -2108,6 +2122,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   only, active word only, line by line.
 
 [VIDEO:][[Header]]
+[Auto Video][[Legend]]                                          the same switch as in the video menu: a track with a video shows it.
 [Video Size][[Legend]] Regular / cropped / full / framed picture in the small field.
 [Video Effect][[Legend]]                                      A retro look for the picture (also in the full screen
                                                   video, with a preview here).
@@ -2137,6 +2152,12 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                    colours) / none: what shows while a video loads.
 [yt-dlp mp3 from mp4][[Legend]]                               true / false: SEARCH YT also saves a video's sound as an
                                                   mp3 (no song as target).
+
+[BIG VIDEO OVERLAY:][[Header]]
+[Milkdrop When No Video:][[Legend]]                           true = the big video overlay [v] opens on the MilkDrop
+                                                  visuals for a track without a video (default false: the
+                                                  clapperboard). A track whose own MilkDrop is "never"
+                                                  keeps the clapperboard; [m] always decides.
 
 [DISK:][[Header]]
 [Eliment Disk / Cover:][[Legend]]                             shows or hides the disk field in the player area: the
