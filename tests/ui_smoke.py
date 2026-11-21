@@ -876,7 +876,7 @@ def paging_and_translit_row(binary, root, scripts):
             return ""
         # GENERAL tab: Top Pane Style, Disk Border, Playback, Start Mode, Display queue, MODES ON/OFF AND ORDER (6 rows), AUDIO (9 rows: Choose Audio Device ... Pause Fade, Auto-Play,
         # Gapless Playback), TERMINAL: Black Background, then Use Terminal Settings (row 21; Sharp Corners sits under Disk Border)
-        for _ in range(21):
+        for _ in range(28):
             sess.send(b"\x1b[B", 0.1)
         check("Use Terminal Settings" in find("Use Terminal Settings") and "false" in find("Use Terminal Settings"),
               "use terminal settings: the row exists and is false by default")
@@ -2132,16 +2132,18 @@ def disk_field_setting(binary, root, scripts):
         t = sess.text()
         check("DISK / COVER OPTIONS" in t and "Eliment Disk / Cover" in t and "Album Cover" in t, "disk field: the tab has DISK and DISK / COVER OPTIONS")
         check(t.index("Disk Speed") < t.index("DISK / COVER OPTIONS") < t.index("Album Cover"), "disk field: Disk Speed is under DISK, Album Cover under DISK / COVER OPTIONS")
-        for _ in range(23):                                 # to Eliment Disk (after Lyrics/Viz Default: When No Lyrics Show, When No Video Shows, Lyrics Alignment, Lyrics Animation, Include Lyrics, Video Size, Effect, Contrast, Colors, Chromatic Aberration, Dither Pattern, Base Layer, Effect Contrast, Rounded Corners, Show Clap Loading, Disk/Cover/Thumbnail, Resolution, Frame Rate, Buffer, yt-dlp mp3 from mp4)
+        for _ in range(25):                                 # to Eliment Disk (Auto Video is the first VIDEO row; after Lyrics/Viz Default: When No Lyrics Show, When No Video Shows, Lyrics Alignment, Lyrics Animation, Include Lyrics, Video Size, Effect, Contrast, Colors, Chromatic Aberration, Dither Pattern, Base Layer, Effect Contrast, Rounded Corners, Show Clap Loading, Disk/Cover/Thumbnail, Resolution, Frame Rate, Buffer, yt-dlp mp3 from mp4)
             sess.send(b"\x1b[B", 0.2)
         sess.pump(0.6)
         check("Show Disk / Cover" in sess.text(), "disk field: the row says Show Disk / Cover")
         sess.send(b"\x1b[C", 1.0)
+        if not ("Remove Field" in sess.text() and "Disk / Cover field removed" in sess.text()):
+            sess.dump("disk field: Remove Field did not empty the preview")
         check("Remove Field" in sess.text() and "Disk / Cover field removed" in sess.text(), "disk field: Remove Field empties the preview")
         sess.send(b"\x1b[C", 1.0)
         check("Show Disk / Cover" in sess.text() and "Disk / Cover field removed" not in sess.text(), "disk field: Show Disk / Cover brings the preview back")
         check(sess.alive(), "disk field: the program is still running")
-        for _ in range(6):                                  # up to Show Clap Loading (yt-dlp mp3 from mp4, Video Buffer, Video Frame Rate, Video Resolution and Disk/Cover/Thumbnail are in between)
+        for _ in range(7):                                  # up to Show Clap Loading (Milkdrop When No Video, yt-dlp mp3 from mp4, Video Buffer, Video Frame Rate, Video Resolution and Disk/Cover/Thumbnail are in between)
             sess.send(b"\x1b[A", 0.2)
         sess.pump(0.8)
         t = sess.text()
@@ -5726,6 +5728,26 @@ def audio_fades_edges(binary, root, scripts):
         command(sess, "seek 4")             # into the fade out of a 10 s track (3 s fade)
         sess.pump(4.0)
     m_keys = run("keys", "FadeIn=true\nFadeOut=true\nFadeLength=3000\nFadeCurve=1\n", [("01 Alpha", 440, 10, 0), ("02 Beta", 660, 10, 0)], keys_script)
+    # --- the click on pause: with Pause Fade the level ramps down / up over a few ms; without it the signal is cut at a random phase, a step
+    # that a steady tone never has. The largest step between two samples is compared with the largest step of the tone itself.
+    def pause_script(sess):
+        sess.pump(1.5)
+        for _ in range(3):
+            sess.send("p", 0.7)
+            sess.send("p", 0.7)
+        sess.pump(1.0)
+    def max_step(m):
+        return max((abs(m[i] - m[i - 1]) for i in range(1, len(m))), default=0.0)
+    m_pf = run("pausefade", "", [("01 Tone", 440, 10, 0)], pause_script)
+    m_pn = run("pausecut", "PauseFade=false\n", [("01 Tone", 440, 10, 0)], pause_script)   # (the control: the same without the fade; its line comes last and wins)
+    peak_tone = max(m_pf) or 1.0
+    natural = 2 * 3.14159265 * 440 / 44100 * peak_tone          # the steepest step of the tone itself
+    check(max_step(m_pf) < 2.0 * natural + 0.002, "pause fade: pausing and resuming three times makes no step in the sound (%.4f, the tone itself %.4f)" % (max_step(m_pf), natural))
+    check(max_step(m_pn) > 4.0 * natural, "pause fade: the control (Pause Fade off) does show the step, so the measurement can see it (%.4f)" % max_step(m_pn))
+    # --- repeat one (PlaybackMode loop) with the crossfade on: the track goes round without a gap and the app stays up
+    m_loop = run("loop", "PlaybackMode=loop\nCrossfade=true\nFadeLength=2000\n", [("01 Round", 440, 8, 0)], lambda sess: sess.pump(15.0))
+    check(len(m_loop) > int(13000 * sr), "repeat one + crossfade: the sound goes on past the end of the track (%.0f ms recorded)" % (len(m_loop) / sr))
+    check(longest_gap(m_loop, first_sound(m_loop)) < 300, "repeat one + crossfade: no gap where the track starts again (%.0f ms)" % longest_gap(m_loop, first_sound(m_loop)))
     full = max(m_keys[len(m_keys) // 2:] or [0])      # (the second half: after the pause, the skip and the seek)
     check(full > 0.03, "fades: sound after pause, resume, next and a seek (%.3f)" % full)
     check(longest_gap(m_keys, first_sound(m_keys)) < 1500, "fades: pause, next and a seek leave no long silence (%.0f ms)" % longest_gap(m_keys, first_sound(m_keys)))
@@ -5941,7 +5963,7 @@ def settings_cli_row(binary, root, scripts):
         check("false" in find("Pause Fade"), "pause fade: RIGHT switches it off")
         sess.send(b"\x1b[D", 0.6)
         check("true" in find("Pause Fade"), "pause fade: LEFT switches it on again")
-        for _ in range(7):           # Auto-Play, Gapless Playback, Black Background, Use Terminal Settings, Terminal Size, Full Screen, Reduce Motion
+        for _ in range(14):           # Auto-Play, (7 fade rows),  Gapless Playback, Black Background, Use Terminal Settings, Terminal Size, Full Screen, Reduce Motion
             sess.send(b"\x1b[B", 0.15)
         sess.send(b"\x1b[B", 0.5)    # CLI Scripts
         check("CLI / REMOTE / UPDATES" in sess.text() and "CLI Scripts" in find("CLI Scripts"), "cli row: the category is CLI / REMOTE / UPDATES and has the row CLI Scripts")
