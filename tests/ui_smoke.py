@@ -5640,6 +5640,96 @@ def audio_fades(binary, root, scripts):
     quiet = [i for i in range(f4, f4 + int(11000 * sr), 400) if peak(m, i, i + 400) < 1e-4]
     check(not quiet, "crossfade: no silent stretch between the tracks (%d)" % len(quiet))
 
+def audio_fades_edges(binary, root, scripts):
+    """The edges of the fades (music player), measured on the sound that goes to the (silent) test device (MOUSIKI_AUDIO_TAP):
+    Cut Silence on a long track (one the Track Buffer cannot hold whole: its silence at the start and at the end is cut, too); a track that is
+    shorter than two fades (the fade in and out share it, the middle is still at full level); pause, resume, skip to the next track and a seek in
+    the middle of fades: the sound goes on and nothing falls silent for long."""
+    import array, shutil, subprocess
+    if not shutil.which("ffmpeg"):
+        print("  skipped: audio fade edges (ffmpeg is not installed on this machine)")
+        return
+    def make(lib, name, freq, secs, pad):
+        af = ["-af", "adelay=%d|%d,apad=pad_dur=%d" % (pad * 1000, pad * 1000, pad)] if pad else []
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=frequency=%d:duration=%s:sample_rate=44100" % (freq, secs),
+                        "-ac", "2"] + af + [os.path.join(lib, name + ".flac")], check=True)
+    def run(tag, cfg, tracks, script):
+        """script(sess): what to do once the first track plays. Returns the left channel (absolute values) of everything that was played."""
+        lib = os.path.join(root, "afe_music_" + tag)
+        os.makedirs(lib)
+        for t in tracks:
+            make(lib, *t)
+        home = os.path.join(root, "afe_home_" + tag)
+        os.makedirs(os.path.join(home, ".config", "mousiki"))
+        with open(os.path.join(home, ".config", "mousiki", "config.txt"), "w", encoding="utf-8") as f:
+            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=true\nNormalizeVolume=false\nPauseFade=true\nUseLyrics=false\nGapless=off\n%s" % (lib, cfg))
+        tap = os.path.join(root, "afe_tap_" + tag + ".raw")
+        sess = Session(binary, home, scripts, {"MOUSIKI_NULL_AUDIO": "1", "MOUSIKI_AUDIO_TAP": tap}, quiet_stderr=True)
+        try:
+            sess.wait_for(lambda t: tracks[0][0] in t, 10)
+            script(sess)
+        finally:
+            sess.kill()
+        d = array.array("f")
+        with open(tap, "rb") as f:
+            d.frombytes(f.read())
+        return [abs(x) for x in d[0::2]]
+    def command(sess, line):
+        sess.send("/", 0.5)
+        sess.send("c:", 0.5)
+        sess.send(line + "\r", 1.0)
+        sess.send(b"\x1b", 0.5)
+    sr = 44.1
+    def first_sound(m):
+        return next((i for i in range(len(m)) if m[i] > 1e-4), len(m))
+    def longest_gap(m, start):
+        """The longest silent stretch (ms) after `start`, not counting the one before the first sound."""
+        best = run_len = 0
+        for i in range(start, len(m)):
+            if m[i] < 1e-4:
+                run_len += 1
+                best = max(best, run_len)
+            else:
+                run_len = 0
+        return best / sr
+    # --- Cut Silence on a long track: 4 s of silence at both ends, 230 s of sound (about 84 MB decoded: more than the 64 MB Track Buffer holds)
+    def long_script(sess):
+        sess.pump(7.0)                      # the whole file is read meanwhile
+        command(sess, "seek 224")           # 10 s before the audible end
+        sess.pump(18.0)                     # the end, the start again (the playlist goes on with this track)
+    long_track = [("01 Long", 330, 230, 4)]
+    m_cut = run("longcut", "TrimSilence=true\nTrackBufferMB=64\n", long_track, long_script)
+    m_raw = run("longraw", "TrimSilence=false\nTrackBufferMB=64\n", long_track, long_script)
+    check(first_sound(m_cut) < int(1500 * sr) and first_sound(m_raw) > int(3000 * sr),
+          "cut silence (long track): the 4 s of silence before it are not played (first sound at %.0f ms, %.0f ms without the cut)" % (first_sound(m_cut) / sr, first_sound(m_raw) / sr))
+    g_cut = longest_gap(m_cut, first_sound(m_cut))
+    g_raw = longest_gap(m_raw, first_sound(m_raw))
+    check(g_raw > 6000 and g_cut < 2500,
+          "cut silence (long track): the silence at its end is not played either (longest silent stretch %.0f ms, %.0f ms without the cut)" % (g_cut, g_raw))
+    # --- a track shorter than two fades: 2 s of sound with a 4 s fade in and out: each one gets half of it, the middle reaches the full level
+    def short_script(sess):
+        sess.pump(3.5)
+    m_plain = run("shortplain", "", [("01 Short", 440, 2, 0)], short_script)
+    m_fade = run("shortfade", "FadeIn=true\nFadeOut=true\nFadeLength=4000\nFadeCurve=0\n", [("01 Short", 440, 2, 0)], short_script)
+    f_p, f_f = first_sound(m_plain), first_sound(m_fade)
+    full = max(m_plain[f_p + int(800 * sr):f_p + int(1200 * sr)] or [0])
+    mid = max(m_fade[f_f + int(900 * sr):f_f + int(1100 * sr)] or [0])
+    check(full > 0.05 and mid > 0.7 * full, "fades (short track): the middle of a 2 s track with a 4 s fade is near the full level (%.3f of %.3f)" % (mid, full))
+    # --- pause, resume, next, a seek: the sound goes on
+    def keys_script(sess):
+        sess.pump(1.0)
+        sess.send("p", 1.0)                 # pause (the level ramps down over a few ms)
+        sess.send("p", 1.0)                 # resume
+        sess.send("n", 2.0)                 # the next track, during the fade in of the new one
+        t = sess.text()
+        check("02 Beta" in t, "fades: the next key (n) during a fade starts the next track")
+        command(sess, "seek 4")             # into the fade out of a 10 s track (3 s fade)
+        sess.pump(4.0)
+    m_keys = run("keys", "FadeIn=true\nFadeOut=true\nFadeLength=3000\nFadeCurve=1\n", [("01 Alpha", 440, 10, 0), ("02 Beta", 660, 10, 0)], keys_script)
+    full = max(m_keys[len(m_keys) // 2:] or [0])      # (the second half: after the pause, the skip and the seek)
+    check(full > 0.03, "fades: sound after pause, resume, next and a seek (%.3f)" % full)
+    check(longest_gap(m_keys, first_sound(m_keys)) < 1500, "fades: pause, next and a seek leave no long silence (%.0f ms)" % longest_gap(m_keys, first_sound(m_keys)))
+
 def playlist_missing_file(binary, root, scripts):
     """A playlist that holds a file that is gone: in the playlist editor its row is in the top border colour (like the box above it) and, with the
     cursor on it, the status line below the legend says "missing file" in the header colour."""
@@ -6508,6 +6598,8 @@ def run_scenario(name, binary, root, scripts):
         playlist_missing_file(binary, root, scripts)
     elif name == "audio_fades":
         audio_fades(binary, root, scripts)
+    elif name == "audio_fades_edges":
+        audio_fades_edges(binary, root, scripts)
     elif name == "autoplay_and_sphere":
         autoplay_and_sphere(binary, root, scripts)
     elif name == "main_lyrics_translation_key":
@@ -6555,7 +6647,7 @@ def run_scenario(name, binary, root, scripts):
 
 
 SCENARIOS = ["narrow80", "narrow100", "main", "read_lyrics_play", "karaoke_timing", "book_speed_and_devices", "paging_and_translit_row",
-             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "audio_fades", "playlist_missing_file", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews", "override_and_previews", "sharp_and_folders"]
+             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "audio_fades", "audio_fades_edges", "playlist_missing_file", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews", "override_and_previews", "sharp_and_folders"]
 
 
 def main():

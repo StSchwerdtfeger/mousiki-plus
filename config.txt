@@ -486,7 +486,7 @@ FadeLength=4000
 FadeCurve=0
 ## 0 linear , 1 exponential , 2 logarithmic , 3 logistic = S-curve (default 0) -- how the volume moves during a fade
 TrimSilence=false
-## true , false (default false) -- the silence at the start and the end of a track is not played (at most 15 s at each end; not for a track the Track Buffer cannot hold whole: about 3 minutes or longer at the default 64 MB -- raise Track Buffer to cut those)
+## true , false (default false) -- the silence at the start and the end of a track is not played (at most 15 s at each end; a long track, one the Track Buffer cannot hold whole (about 3 minutes or longer at the default 64 MB), is cut too: its end once the whole file has been read, a few seconds after it started)
 TrimThreshold=-60
 ## -90 - -20 (default -60) -- dBFS below which the start / end of a track counts as silence
 AudioDevice=

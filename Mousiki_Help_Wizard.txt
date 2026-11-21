@@ -1956,7 +1956,9 @@ marquee.
                                                   even in the middle.
 [Cut Silence:][[Legend]]                                       on = the silence at the start and the end of a track
                                                   (at most 15 s each) is not played. Measured once per
-                                                  track; costs next to no CPU or memory. Not for tracks longer than the Track Buffer holds (about 3 minutes at the default 64 MB).
+                                                  track; costs next to no CPU or memory. Long tracks (over
+                                                  about 3 minutes at the default 64 MB) are cut too: the
+                                                  end once the whole file has been read, a few seconds in.
 [Silence Below:][[Legend]]                                     -40 ... -80 dB (default -60): what counts as silence.
 
 [TERMINAL:][[Header]]

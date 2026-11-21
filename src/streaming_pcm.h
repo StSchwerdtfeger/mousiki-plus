@@ -89,6 +89,7 @@ struct StreamingPcm {
     // waveform figures of the analysis pass (windowed): sum of squares of the mono fold per kEnvGran frames
     static constexpr size_t kEnvGran = 256;
     std::vector<float> env_sumsq;                   // written by the analysis pass; read after analysis_done
+    std::vector<float> env_peak;                    // the same granules: the largest |sample| of either channel (the silence at the ends: Cut Silence)
     std::atomic<bool> analysis_done{false};
     std::atomic<bool> cancelled{false};             // the file must be let go now (a cut, a rename): the decode threads end and close it
     std::atomic<long> internal_refs{0};             // shared_ptr holders that are the decode threads themselves
@@ -191,12 +192,18 @@ struct StreamingPcm {
         for (size_t i = 0; i < frames; ++i) {
             const float m = ch == 2 ? 0.5f * (samples[2 * i] + samples[2 * i + 1]) : samples[i];
             env_acc_ += static_cast<double>(m) * m;
-            if (++env_n_ == kEnvGran) { env_sumsq.push_back(static_cast<float>(env_acc_)); env_acc_ = 0; env_n_ = 0; }
+            const float pk = ch == 2 ? std::max(std::fabs(samples[2 * i]), std::fabs(samples[2 * i + 1])) : std::fabs(samples[i]);
+            if (pk > env_pk_) env_pk_ = pk;
+            if (++env_n_ == kEnvGran) {
+                env_sumsq.push_back(static_cast<float>(env_acc_));
+                env_peak.push_back(env_pk_);
+                env_acc_ = 0; env_n_ = 0; env_pk_ = 0.0f;
+            }
         }
     }
     void analyse_end() {
-        if (env_n_ > 0) env_sumsq.push_back(static_cast<float>(env_acc_));
-        env_acc_ = 0; env_n_ = 0;
+        if (env_n_ > 0) { env_sumsq.push_back(static_cast<float>(env_acc_)); env_peak.push_back(env_pk_); }
+        env_acc_ = 0; env_n_ = 0; env_pk_ = 0.0f;
     }
 
     // Decode thread only. `frames` interleaved frames.
@@ -241,6 +248,7 @@ struct StreamingPcm {
 
 private:
     double env_acc_ = 0;
+    float env_pk_ = 0.0f;
     size_t env_n_ = 0;
     void publish_loudness() {
         const double l = meter.integrated_lufs();

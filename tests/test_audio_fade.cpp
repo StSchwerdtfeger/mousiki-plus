@@ -2,6 +2,7 @@
 #include "test_framework.h"
 #include "audio_fade.h"
 #include "settings.h"
+#include "streaming_pcm.h"
 
 #include <cmath>
 #include <vector>
@@ -79,4 +80,37 @@ TEST(fade_settings_round_trip_and_defaults) {
     CHECK_EQ(t.fade_curve, 3);
     CHECK_EQ(t.fade_trim_db, -50);
     CHECK(t.vfull_md_novideo);
+}
+
+// A long track is not held whole: the analysis pass keeps the largest |sample| of every 256 frames, and the silence at its end is read from those.
+TEST(fade_tail_of_a_long_track_comes_from_the_peaks) {
+    const int rate = 1000;                                   // (a small rate keeps the test short: 15 s = 15000 frames)
+    const size_t gran = 256, total = 40000;
+    std::vector<float> peaks((total + gran - 1) / gran, 0.0f);
+    for (size_t g = 0; g < peaks.size(); ++g) if ((g + 1) * gran <= 30000) peaks[g] = 0.5f;   // sound up to frame 30000, then silence
+    const long long t = fade::scan_tail_peaks(peaks.data(), peaks.size(), gran, total, rate, 0.001f);
+    CHECK(t >= 29900 && t <= 30000);
+    CHECK_EQ(fade::scan_tail_peaks(peaks.data(), peaks.size(), gran, total, rate, 0.9f), -1);   // nothing that loud
+    std::vector<float> quiet(peaks.size(), 0.0f);
+    CHECK_EQ(fade::scan_tail_peaks(quiet.data(), quiet.size(), gran, total, rate, 0.001f), -1);   // silence all through the last stretch
+    std::vector<float> loud(peaks.size(), 0.5f);
+    CHECK_EQ(fade::scan_tail_peaks(loud.data(), loud.size(), gran, total, rate, 0.001f), static_cast<long long>(total) - 1);   // the very end is audible
+    CHECK_EQ(fade::scan_tail_peaks(nullptr, 0, gran, total, rate, 0.001f), -1);
+}
+
+TEST(stream_analysis_keeps_the_peak_of_every_granule) {
+    StreamingPcm p;
+    p.sample_rate = 44100;
+    p.channels = 2;
+    std::vector<float> buf(2 * 1000, 0.0f);
+    buf[2 * 300 + 1] = -0.7f;     // right channel, frame 300 (granule 1)
+    buf[2 * 900] = 0.4f;          // left channel, frame 900 (granule 3)
+    p.analyse(buf.data(), 1000);
+    p.analyse_end();
+    CHECK_EQ(p.env_peak.size(), static_cast<size_t>(4));      // 1000 frames = 3 whole granules and a rest
+    CHECK(p.env_peak[0] == 0.0f);
+    CHECK(std::fabs(p.env_peak[1] - 0.7f) < 1e-6f);
+    CHECK(p.env_peak[2] == 0.0f);
+    CHECK(std::fabs(p.env_peak[3] - 0.4f) < 1e-6f);
+    CHECK_EQ(p.env_peak.size(), p.env_sumsq.size());
 }

@@ -49,14 +49,14 @@ long long known_end_frames(StreamingPcm& pcm) {
 
 namespace {
 // ---- song fades (audio_fade.h) ----
-// The first frame to play / one past the last one of a track: with Trim Silence the measured ones (not for a windowed buffer, which holds
-// only part of the track), else 0 / the end of the track. -1: the end is not known yet.
+// The first frame to play / one past the last one of a track: with Trim Silence the measured ones (a windowed track: the start from the window
+// at its beginning, the end from the peaks of the analysis pass), else 0 / the end of the track. -1: the end is not known yet.
 long long eff_start(const FadeSnap& f, const StreamingPcm& p) {
-    if (!f.on || !f.trim || p.windowed || p.trim_thr_db.load(std::memory_order_acquire) != f.thr_db) return 0;
+    if (!f.on || !f.trim || p.trim_thr_db.load(std::memory_order_acquire) != f.thr_db) return 0;
     return std::max<long long>(0, p.trim_start.load(std::memory_order_acquire));
 }
 long long eff_end(const FadeSnap& f, StreamingPcm& p) {
-    if (f.on && f.trim && !p.windowed && p.trim_thr_db.load(std::memory_order_acquire) == f.thr_db) {
+    if (f.on && f.trim && p.trim_thr_db.load(std::memory_order_acquire) == f.thr_db) {
         const long long e = p.trim_end.load(std::memory_order_acquire);
         if (e >= 0) return e;
     }
@@ -66,13 +66,40 @@ long long eff_end(const FadeSnap& f, StreamingPcm& p) {
 // Measures the silence at the two ends of a decoded track (once per threshold). Any thread; reads only frames that are published.
 void analyse_trim(StreamingPcm& p, const FadeSnap& f) {
     if (!f.on || !f.trim) return;
-    if (p.trim_thr_db.load(std::memory_order_acquire) == f.thr_db && p.trim_start.load() >= 0 && (p.windowed || p.trim_end.load() >= 0)) return;
+    if (p.trim_thr_db.load(std::memory_order_acquire) == f.thr_db && p.trim_start.load() >= 0 && p.trim_end.load() >= 0) return;
     if (p.trim_thr_db.load(std::memory_order_acquire) != f.thr_db) { p.trim_start.store(-1); p.trim_end.store(-1); }
-    if (p.windowed) { p.trim_start.store(0); p.trim_end.store(-1); p.trim_thr_db.store(f.thr_db, std::memory_order_release); return; }
     const int ch = p.channels >= 2 ? 2 : 1, rate = std::max(1, p.sample_rate);
+    const size_t cap = static_cast<size_t>(fade::kMaxTrimSeconds * rate);
+    if (p.windowed) {
+        // A long track: its beginning is read from the window while that still holds frame 0 (if the playing position has moved on, or a
+        // seek came first, the start is not cut); its end from the peaks that the analysis pass keeps, once that has been through the file.
+        if (p.trim_start.load() < 0) {
+            size_t lo = 0, hi = 0;
+            p.readable(lo, hi);
+            if (lo != 0 || p.play_pos.load(std::memory_order_relaxed) > static_cast<long long>(cap)) p.trim_start.store(0);
+            else if (hi > 0) {
+                const long long l = fade::scan_lead(p.data.data(), ch, std::min(hi, cap), rate, f.thr);
+                size_t lo2 = 0, hi2 = 0;
+                p.readable(lo2, hi2);
+                if (lo2 != 0) p.trim_start.store(0);   // (the window slid while it was read)
+                else if (l >= 0) p.trim_start.store(fade::trimmed_start(l, rate));
+                else if (hi >= cap || p.decode_done.load(std::memory_order_acquire)) p.trim_start.store(0);
+            }
+        }
+        if (p.trim_end.load() < 0 && p.analysis_done.load(std::memory_order_acquire)) {
+            const size_t total = p.total_frames.load(std::memory_order_acquire) > 0 ? p.total_frames.load(std::memory_order_acquire)
+                                                                                      : p.env_peak.size() * StreamingPcm::kEnvGran;
+            const long long t = fade::scan_tail_peaks(p.env_peak.data(), p.env_peak.size(), StreamingPcm::kEnvGran, total, rate, f.thr);
+            long long e = fade::trimmed_end(t, total, rate);
+            const long long s0 = std::max<long long>(0, p.trim_start.load());
+            if (total == 0 || e <= s0 + rate / 10) e = static_cast<long long>(total);   // (nothing left to play: not cut)
+            p.trim_end.store(e);
+        }
+        if (p.trim_start.load() >= 0) p.trim_thr_db.store(f.thr_db, std::memory_order_release);
+        return;
+    }
     const size_t avail = p.available.load(std::memory_order_acquire);
     const bool done = p.decode_done.load(std::memory_order_acquire);
-    const size_t cap = static_cast<size_t>(fade::kMaxTrimSeconds * rate);
     if (p.trim_start.load() < 0) {
         const long long l = fade::scan_lead(p.data.data(), ch, std::min(avail, cap), rate, f.thr);
         if (l >= 0) p.trim_start.store(fade::trimmed_start(l, rate));
@@ -283,6 +310,7 @@ void Player::render(Player* self, StreamingPcm* pcm_ptr, float* out, ma_uint32 f
     StreamingPcm* nb = nullptr;
     size_t b_lo = 0, b_avail = 0;
     float b_norm = 1.0f;
+    long long fio = fs.len;   // the length of a fade in / out: a track shorter than twice the fade has each one half of it (they never overlap)
     int b_ch = 1;
     bool b_stereo = false, b_fold = false;
     if (fades_on) {
@@ -293,6 +321,7 @@ void Player::render(Player* self, StreamingPcm* pcm_ptr, float* out, ma_uint32 f
             if (self->cursor_frames_.compare_exchange_strong(expected, fS)) cur = fS;
             else cur = expected;
         }
+        if (fE >= 0) fio = std::max<long long>(1, std::min<long long>(fs.len, (fE - fS) / 2));
         nb = self->next_.load(std::memory_order_acquire);
         xf = plan_xf(fs, pcm, fS, fE, nb);
         if (xf.on) {
@@ -358,11 +387,11 @@ void Player::render(Player* self, StreamingPcm* pcm_ptr, float* out, ma_uint32 f
                         mixing = true;
                         fg = 1.0f;
                     }
-                } else if (fs.out && !xf.on && fE >= 0 && idx < fE && fE - idx < fs.len) {
-                    fg = fade::shape(fs.curve, static_cast<float>(fE - idx) / static_cast<float>(fs.len));
+                } else if (fs.out && !xf.on && fE >= 0 && idx < fE && fE - idx < fio) {
+                    fg = fade::shape(fs.curve, static_cast<float>(fE - idx) / static_cast<float>(fio));
                 }
-                if (fs.in && !self->entered_by_xf_ && idx >= fS && idx - fS < fs.len)
-                    fg *= fade::shape(fs.curve, static_cast<float>(idx - fS) / static_cast<float>(fs.len));
+                if (fs.in && !self->entered_by_xf_ && idx >= fS && idx - fS < fio)
+                    fg *= fade::shape(fs.curve, static_cast<float>(idx - fS) / static_cast<float>(fio));
                 l *= fg;
                 r *= fg;
             }
@@ -414,6 +443,7 @@ void Player::render(Player* self, StreamingPcm* pcm_ptr, float* out, ma_uint32 f
             new_cur = static_cast<long long>(total);
             if (may_finish) self->finished_.store(true);
         } else if (pcm.decode_failed.load() && may_finish) self->finished_.store(true);
+        else if (fade_trim_end && new_cur >= fE && may_finish) self->finished_.store(true);   // (the silence at the end is cut)
     } else
     // Only truly "finished" once decode is done AND playback has caught
     // all the way up to everything it ever produced — not just the

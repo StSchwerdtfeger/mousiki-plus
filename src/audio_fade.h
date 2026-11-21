@@ -83,6 +83,18 @@ inline long long scan_tail(const float* data, int channels, size_t frames, int r
     }
     return -1;
 }
+// scan_tail_peaks(): the same for a long track whose samples are not all held: `peaks` is the largest |sample| of each `gran` frames (kept by
+// the analysis pass), `total` the length in frames. Returns the last frame of the last audible granule (within kMaxTrimSeconds of the end),
+// or -1 when there is none in that stretch.
+inline long long scan_tail_peaks(const float* peaks, size_t n, size_t gran, size_t total, int rate, float thr) {
+    if (!peaks || n == 0 || gran == 0 || total == 0) return -1;
+    const size_t cap = static_cast<size_t>(kMaxTrimSeconds * rate) / gran + 1;
+    for (size_t k = 0; k < std::min(cap, n); ++k) {
+        const size_t g = n - 1 - k;
+        if (peaks[g] >= thr) return static_cast<long long>(std::min(total, (g + 1) * gran) - 1);
+    }
+    return -1;
+}
 // Where a track starts / ends once the silence is cut: the first frame to play and one past the last one.
 inline long long trimmed_start(long long lead_audible, int rate) {
     if (lead_audible < 0) return 0;

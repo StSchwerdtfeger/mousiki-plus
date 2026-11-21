@@ -149,7 +149,7 @@ std::string pv_desc(int id, const Settings& s) {
         case kSidFadeCurve:
             return "How the volume moves during a fade.\nlinear: even steps.\nexponential: slow at first, fast at the end of a fade in.\nlogarithmic: fast at first, slow at the end of a fade in.\nlogistic: an S-curve, soft at both ends.\nA crossfade keeps the loudness even in the middle.";
         case kSidFadeTrim:
-            return "The silence at the start and at the end of a track is not played (at most 15 s at each end). The track is measured once when it is loaded; it costs next to nothing. A track that the Track Buffer cannot hold whole (about 3 minutes or longer at the default 64 MB; raise Track Buffer to cut those) is not cut.";
+            return "The silence at the start and at the end of a track is not played (at most 15 s at each end). The track is measured once when it is loaded; it costs next to nothing. A long track (one the Track Buffer cannot hold whole: about 3 minutes or longer at the default 64 MB) is cut too: its start while it begins, its end once the whole file has been read, a few seconds after it started.";
         case kSidFadeThr:
             return "Below this level the start and the end of a track count as silence (Cut Silence). -60 dB only cuts real silence; -40 dB also cuts very quiet fade-outs.";
         case kSidVideoAuto:
