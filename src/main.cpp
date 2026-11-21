@@ -5,6 +5,8 @@
 #include <clocale>
 #include <iostream>
 #include <string>
+#include <thread>
+#include <chrono>
 #include "app.h"
 #include "console_log.h"
 #include "bg_tasks.h"
@@ -163,6 +165,14 @@ int main(int argc, char** argv) {
             mode = muisc::next_mode_in(muisc::read_mode_config(), mode, g_mode_switch_dir);   // (the settings screens save before they switch)
             rc = 0;
         }
+        // The program is on its way out and everything that matters is saved by now. Whatever may still block on the way (a helper program
+        // of the system, a network call of a detached thread, a destructor) must not keep the process alive: a watchdog ends it for good.
+        std::thread([rc_now = rc] {
+            std::this_thread::sleep_for(std::chrono::seconds(15));
+            std::cout.flush();
+            std::cerr.flush();
+            std::_Exit(rc_now);
+        }).detach();
         // quit from another mode: now the players really end (each saves, so it first takes over what the last one changed)
         if (app && app->suspended()) { muisc::sync_shared(*last_run, shared_settings); app->shutdown(); }
         if (book_app && book_app->suspended()) { muisc::sync_shared(*last_run, book_settings); book_app->shutdown(); }
