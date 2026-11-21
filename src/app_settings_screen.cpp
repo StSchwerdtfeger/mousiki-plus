@@ -844,6 +844,7 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
             return std::min(edge, std::max(20, want));
         }
         if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTrackBuffer) return 5;   // Track Buffer (MB): five digits (at most 16384)
+        if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTermSize) return 5;   // Terminal Size: two fields of five digits
         return 20;
     };
     // The painted value itself: selection reversed, window scrolled so the
@@ -983,6 +984,7 @@ void App::build_settings_screen(std::ostringstream& frame, int W, int player_h) 
         } else {
             int cy = 3 + settings_row_;
             int cx = 35 + caret_col;
+            if (settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidTermSize && settings_col_ == 1) cx = 43 + caret_col;   // the rows field of "[ 120 ] x [ 30 ]"
             if (settings_tab_ == 3) { const PathRow cr = path_row(settings_row_); (void)cr; }
             if (settings_tab_ == 1 || settings_tab_ == 2) {
                 // GENERAL and ANIMA/VIZ scroll when the terminal is short: recompute the exact scroll the renderer used.

@@ -1,5 +1,6 @@
 #include "radio_app.h"
 #include "path_utf8.h"
+#include "milkdrop.h"
 #if defined(_WIN32)
 #include "win_compat.h"
 #endif
@@ -270,6 +271,7 @@ bool RadioApp::key_settings(KeyCtx& kc) {
     [[maybe_unused]] const int nvis = kc.nvis;
     [[maybe_unused]] int& menus_inject = kc.menus_inject;
     // ------------------------------------------------------------------ RADIO SETTINGS (s)
+    if (ui.model.settings.open && ui.model.overlay == 12) return key_overlays_b(kc);   // the preset overlay opened from here has the keys
     if (ui.model.settings.open) {
         SettingsModel& sm = ui.model.settings;
         if (sm.remote_ov.open) {   // the REMOTE APP overlay has the keys
@@ -352,6 +354,31 @@ bool RadioApp::key_settings(KeyCtx& kc) {
                 if (dir == 0) cliov_open("", "", true);
                 else sm.status = "[ENTER] opens the script overlay: the scripts of the command line (CLI)";
                 return;
+            }
+            if (sm.tab == 2) {   // the MilkDrop rows that are not values: the preset overlay, a random preset
+                const std::string lab = rs_row_label(sm.tab, sm.row);
+                if (lab == "Default Preset" || lab == "Preset Overlay") {
+                    if (dir == 0 || (lab == "Default Preset" && dir > 0)) {
+                        std::string note;
+                        if (md_browse_open_from_settings(cfg, ui.model, note, lab == "Default Preset")) out_clear_next = true;
+                        if (!note.empty()) sm.status = note;
+                    } else sm.status = "[ENTER] opens the preset overlay";
+                    return;
+                }
+                if (lab == "Random Preset") {
+                    std::string why;
+                    if (dir != 0) sm.status = "[ENTER] plays a random preset";
+                    else if (!radio_milkdrop_usable(cfg, &why)) sm.status = "milkdrop: cannot run here -- " + why;
+                    else { Milkdrop::instance().random_preset(); sm.status = "milkdrop: a random preset"; }
+                    return;
+                }
+                if (lab == "Lock Preset") {
+                    cfg.md_lock = !cfg.md_lock;
+                    Milkdrop::instance().set_locked(cfg.md_lock);
+                    sm.dirty = true;
+                    sm.status = cfg.md_lock ? "milkdrop: the preset stays" : "milkdrop: the presets change again";
+                    return;
+                }
             }
             if (sm.tab == 1 && std::string(rs_row_label(sm.tab, sm.row)) == "Remote App") {   // opens the REMOTE APP overlay
                 sm.remote_ov = muisc::remote_ui::State{};
@@ -486,6 +513,11 @@ bool RadioApp::key_settings(KeyCtx& kc) {
             if (k == 'h') toggle(-1);
             else if (k == 'l') toggle(+1);
             else if (k == 13 || k == 10 || k == ' ') toggle(0);
+            else if (sm.tab == 2 && (k == 'd' || k == 'D' || k == kKeyDelete || k == 127 || k == 8) && std::string(rs_row_label(sm.tab, sm.row)) == "Default Preset") {
+                cfg.md_default_preset.clear();
+                radio_milkdrop_apply(cfg);
+                sm.dirty = true; sm.status = "milkdrop: no default preset (the visuals start with one from the list)";
+            }
             return true;
         }
         if (sm.row == 2) {                                              // SMOOTHNESS: rough <-> smooth

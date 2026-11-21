@@ -325,6 +325,7 @@ struct MdBrowseItem { int kind = 3; std::string name, path, extra; };   // kind:
 struct MdUndo { int kind = 0; std::string folder, preset; std::vector<std::string> paths; size_t index = 0; bool was_shuffle = false; };   // SHIFT+U: 1 a folder, 2 a preset out of a folder, 3 a preset out of the favourites
 struct MdBrowse {
     bool typing = false, searching = false, in_favs = false, in_recs = false, moved = false, prev_locked = false;
+    bool from_settings = false, default_pick = false;   // opened from the RADIO SETTINGS (ESC comes back there); ENTER on a preset makes it the Default Preset
     std::string in_user;   // the folder of the user that is shown ("" = none; kind 6 items)
     bool pick_open = false, naming = false, new_add = false;   // SHIFT+A: the folder a preset goes into; the name of a new folder
     int pick_sel = 0;
@@ -466,6 +467,8 @@ void md_overlay_adjust(RadioSettings& c, int row, int dir, std::string& notice);
 VideoLook radio_milkdrop_look(const RadioSettings& c);   // the effect over the pictures (also the MilkDrop window's)
 // The preset overlay (overlay 12): open it (false + notice when there is no preset folder), a key (true = handled; `close` = leave it), the text a search needs.
 bool md_browse_open(RadioSettings& c, UiModel& m, std::string& notice);
+// The same, from the RADIO SETTINGS: ESC comes back there; with `pick_default` ENTER on a preset makes it the Default Preset.
+bool md_browse_open_from_settings(RadioSettings& c, UiModel& m, std::string& notice, bool pick_default);
 bool md_browse_key(RadioSettings& c, UiModel& m, int k, bool arrow, std::string& notice, bool& close);
 void md_favs_reload();   // after the favourites file changed (the engine's list follows)
 int menus_move(int sel, int dir, bool classic = false);

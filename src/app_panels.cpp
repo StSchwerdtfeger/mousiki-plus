@@ -692,6 +692,7 @@ void App::meta_panel_field(MetaPanel& m) const {
     // the active line — windowed so the active line's wrapped block is
     // always vertically centered, blank-padded at the edges.
     lyric_rows.assign(panel_h, std::string(lyrics_w, ' '));
+    bool md_in_field = false;   // (the field shows the MilkDrop picture this frame)
     lyrics_wide = false;   // the full size picture also takes the column of padding at the right: the gap to the border is as small as at the top and bottom
     lyrics_avail = false;
     lyrics_delay = 0.0; // lyrics timing correction (ALT+L), seconds, + = lyrics later
@@ -758,7 +759,7 @@ void App::meta_panel_field(MetaPanel& m) const {
             lyric_rows[start + i] =
                 gradient_ansi(settings_.disk_color, settings_.disk_color_end, t) + body + "\x1b[0m";
         }
-    } else if (settings_.milkdrop_view && lyrics_w >= 12 && panel_h >= 4 && milkdrop_usable() &&
+    } else if (settings_.milkdrop_view && lyrics_w >= 12 && panel_h >= 4 && milkdrop_usable() && !(audiobook_ && settings_.book_force_note && book_field_has_note()) &&   // (Force Note: a note in the field shows alone, no picture behind it)
                [&]() {   // the MilkDrop view: the visuals fill the field (like the full-field video); false: they cannot run (the usual view then)
                    const int lpad = 1;   // (one empty column at the left, as the video has)
                    const bool wide = gfxs_.proto != GfxProto::None;
@@ -767,6 +768,7 @@ void App::meta_panel_field(MetaPanel& m) const {
                    if (!milkdrop_field_rows(mrows, fw, panel_h, 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + lpad, cover_pic_img || book_pic_img, wide)) return false;
                    for (int i = 0; i < panel_h && i < static_cast<int>(mrows.size()); ++i) lyric_rows[static_cast<size_t>(i)] = std::string(static_cast<size_t>(lpad), ' ') + mrows[static_cast<size_t>(i)];
                    lyrics_wide = wide;
+                   md_in_field = true;
                    return true;
                }()) {
         // (drawn: lyric_rows hold the picture's cells)
@@ -847,7 +849,8 @@ void App::meta_panel_field(MetaPanel& m) const {
             int area_viz = video_missing ? settings_.novideo_viz : settings_.element_lyrics ? settings_.nolyrics_viz : settings_.lyric_viz;   // (video_missing: "When No Video Shows", 3 = nothing)
             if (area_viz < 3 && !settings_.viz_usable(area_viz)) area_viz = 3;   // nothing is switched on: an empty field
             if (area_viz == 4 && (!settings_.video_mode || audiobook_)) area_viz = 3;   // (When No Lyrics Show = video: needs the Video mode)
-            if (area_viz == 5 && !(settings_.use_milkdrop && milkdrop_usable())) area_viz = 3;   // (MilkDrop: needs it on and able to run)
+            if (area_viz == 5 && !(settings_.use_milkdrop && milkdrop_usable())) area_viz = 3;
+            if ((area_viz == 4 || area_viz == 5) && audiobook_ && settings_.book_force_note && book_field_has_note()) area_viz = 3;   // (Force Note: no picture under the note)   // (MilkDrop: needs it on and able to run)
             if (area_viz == 4 || area_viz == 5) {   // the video of the track / the MilkDrop visuals fill the field (no lyric line: there are no lyrics)
                 const int lpad = 1;
                 const bool wide = gfxs_.proto != GfxProto::None;
@@ -860,6 +863,7 @@ void App::meta_panel_field(MetaPanel& m) const {
                 if (ok) {
                     for (int i = 0; i < panel_h && i < static_cast<int>(arows.size()); ++i) lyric_rows[static_cast<size_t>(i)] = std::string(static_cast<size_t>(lpad), ' ') + arows[static_cast<size_t>(i)];
                     lyrics_wide = wide;
+                    if (area_viz == 5) md_in_field = true;
                     area_viz = -1;   // (drawn)
                 } else area_viz = 3;
             }
@@ -1064,7 +1068,9 @@ void App::meta_panel_field(MetaPanel& m) const {
     }
 
     // Audio book: the note that is typed or shown takes the field's place (oscilloscope / spectrogram come back when it is put away).
-    if (audiobook_ && lyrics_w >= 12 && book_field_has_note()) lyric_rows = book_note_field_rows(lyrics_w, panel_h);
+    // (Force Note off: a note that is only shown does not take the place of MilkDrop -- its picture is a layer over the text, so the two cannot
+    // share the field; the note being written always does, one cannot type blind.)
+    if (audiobook_ && lyrics_w >= 12 && book_field_has_note() && !(md_in_field && !settings_.book_force_note && !book_->note_edit)) lyric_rows = book_note_field_rows(lyrics_w, panel_h);
 }
 
 std::vector<std::string> App::build_metadata_panel(int total_width) const {

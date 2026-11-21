@@ -1302,7 +1302,7 @@ std::vector<std::string> App::build_playlist_tracks_panel(int total_width, int h
         sel_pos = "  " + std::to_string(playlist_->edit_track_selected + 1) + "/"
                 + std::to_string(playlist_->edit_tracks.size());
     }
-    std::string label = "TRACKS (" + std::to_string(playlist_->edit_tracks.size()) + ")" + sel_pos
+    std::string label = "PLAYLIST TRACKS (" + std::to_string(playlist_->edit_tracks.size()) + ")" + sel_pos
                        + (playlist_->edit_focus == 2 ? focus_indicator(settings_, border_ansi) : ""); // filled triangle: focus indicator,
                                                                         // same purpose as LIBRARY's "\u2588" text
                                                                         // cursor but this panel has no text field

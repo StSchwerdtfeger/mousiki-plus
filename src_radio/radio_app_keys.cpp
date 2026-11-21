@@ -344,7 +344,8 @@ bool RadioApp::key_overlays_b(KeyCtx& kc) {
         std::string note;
         if (k == 3 || k == kKeyCtrlC) { ui.model.overlay = 0; settings_save(); running = false; return true; }
         if (arrow) {
-            if (k == 'A') orow = orow <= 0 ? kMdRowCount - 1 : orow - 1;
+            if ((k == 'A' || k == 'B') && (last_key_was_shifted() || last_key_was_page())) orow = std::clamp(orow + (k == 'A' ? -8 : 8), 0, kMdRowCount - 1);   // SHIFT+UP / DOWN, PgUp / PgDn: a page (not around the ends)
+            else if (k == 'A') orow = orow <= 0 ? kMdRowCount - 1 : orow - 1;
             else if (k == 'B') orow = orow >= kMdRowCount - 1 ? 0 : orow + 1;
             else if (k == 'C' && orow == kMdBrowse) md_browse_open(cfg, ui.model, note);
             else if (k == 'C' || k == 'D') { md_overlay_adjust(cfg, orow, k == 'C' ? +1 : -1, note); ui.model.settings.dirty = true; }

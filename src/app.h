@@ -1681,6 +1681,7 @@ private:
     // those are Enter-to-type only.
     void settings_cycle(int dir);
     std::vector<std::string> settings_options_for(int tab, int row) const;
+    bool settings_row_is_pick(int tab, int row) const;   // a switch / pick from words: ENTER changes it (no input field)
     int settings_max_row() const; // last valid row index for the current tab
     int settings_tab_first_line(int W, int visible) const;       // first layout line shown on tab 1 / 2 (scrolling)
     // Every overlay sizes itself from term_rows_ directly.

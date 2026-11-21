@@ -674,9 +674,9 @@ int TerminalIO::poll_key_raw() {
     if (c == '\x1b') {
         unsigned char seq[2] = {0, 0};
         if (read(STDIN_FILENO, &seq[0], 1) != 1) { g_last_key_was_arrow = false; return 27; }
-        // APC string (ESC _ ... ESC \): the terminal's answer to a picture command (kitty graphics protocol, e.g. "ESC _ i=0;OK ESC \").
-        // It is not a key. Swallow all of it, or its tail ("=0;OK") would arrive as typed keys -- the K of "OK" is SHIFT+k, which toggled
-        // the big queue overlay open again right after ESC closed it (closing redraws the picture, which draws a new reply).
+        // APC string (ESC _ ... ESC \): the terminal's answer to a picture command (kitty graphics protocol, e.g. "ESC _ i=0;OK ESC \\", as
+        // iTerm2 sends it). It is not a key. Swallow all of it, or its tail ("=0;OK") would arrive as typed keys -- the K of "OK" is SHIFT+k,
+        // which toggled the big queue overlay open again right after ESC closed it (closing redraws the picture, which draws a new reply).
         if (seq[0] == '_') {
             unsigned char prev = 0, b = 0;
             for (;;) {

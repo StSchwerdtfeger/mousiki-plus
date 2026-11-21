@@ -260,6 +260,7 @@ void radio_milkdrop_apply(const RadioSettings& c) {
     { static const int mw[] = {16, 32, 64, 96}, mh[] = {12, 24, 48, 72}; const int mi = std::clamp(c.md_mesh, 0, 3); o.mesh_w = mw[mi]; o.mesh_h = mh[mi]; }
     o.variance = std::clamp(c.md_var, 0, 30);
     o.clean_start = c.md_clean;
+    o.start_preset = c.md_default_preset;
     o.favourites_only = c.md_fav_shuffle;
     if (o.favourites_only) o.favourites = radio_md_shuffle_paths(c);
     Milkdrop::instance().configure(o);
@@ -622,9 +623,9 @@ std::vector<std::string> build_mdb_screen(const Style& s, const UiModel& m, int 
     const int in_w = W - 2;
     std::string leg1, leg2;
     if (b.typing) { leg1 = "type to search (fuzzy)  [UP/DOWN] select"; leg2 = "[ENTER] to the list  [ESC] clear"; }
-    else if (b.searching) { leg1 = "[UP/DOWN] select  [ENTER] choose  [a] add to favourites  [A] add to a folder"; leg2 = "[/] search  [ESC / LEFT] clear"; }
+    else if (b.searching) { leg1 = "[UP/DOWN] select  [ENTER] choose  [a] add to favourites  [A] add to a folder"; leg2 = "[F] favourites  [/] search  [ESC / LEFT] clear"; }
     else if (b.in_favs) { leg1 = "[UP/DOWN] select  [ENTER] choose  [D] remove from favourites  [U] undo remove"; leg2 = "[A] add to a folder  [/] search  [E] effect  [LEFT] back  [ESC] close"; }
-    else if (!b.in_user.empty()) { leg1 = "[UP/DOWN] select  [ENTER] choose  [D] remove from this folder  [U] undo remove"; leg2 = "[A] add to another folder  [/] search  [E] effect  [LEFT] back  [ESC] close"; }
+    else if (!b.in_user.empty()) { leg1 = "[UP/DOWN] select  [ENTER] choose  [D] remove from this folder  [U] undo remove"; leg2 = "[F] favourites  [A] add to another folder  [/] search  [E] effect  [LEFT] back  [ESC] close"; }
     else { leg1 = "[ENTER] choose / open  [F] favourites  [a] add to favourites  [A] add to a folder  [N] new folder"; leg2 = "[D] delete folder  [U] undo delete  [/] search  [E] effect  [LEFT] up  [ESC] close"; }
     // (SHIFT+a / SHIFT+u are the capitals here) The legend as in the player: line 1 centred on the bottom border, line 2 below the box, both in the border colour.
     out.push_back(box_bottom_centred(s, W, truncate_str(leg1, W - 6), s.border_bottom));
@@ -761,6 +762,13 @@ bool md_browse_open(RadioSettings& c, UiModel& m, std::string& notice) {
     return true;
 }
 
+bool md_browse_open_from_settings(RadioSettings& c, UiModel& m, std::string& notice, bool pick_default) {
+    if (!md_browse_open(c, m, notice)) return false;
+    m.mdb.from_settings = true;
+    m.mdb.default_pick = pick_default;
+    return true;
+}
+
 bool md_browse_key(RadioSettings& c, UiModel& m, int k, bool arrow, std::string& notice, bool& close) {
     MdBrowse& b = m.mdb;
     Milkdrop& md = Milkdrop::instance();
@@ -770,7 +778,8 @@ bool md_browse_key(RadioSettings& c, UiModel& m, int k, bool arrow, std::string&
         md.set_locked(b.prev_locked);
         c.md_lock = md.locked();
         close = true;
-        m.overlay = 11;
+        m.overlay = b.from_settings ? 0 : 11;
+        b.from_settings = b.default_pick = false;
     };
     auto current = [&]() -> const MdBrowseItem* { return b.sel >= 0 && b.sel < n ? &b.items[static_cast<size_t>(b.sel)] : nullptr; };
     auto up = [&]() {
@@ -883,7 +892,7 @@ bool md_browse_key(RadioSettings& c, UiModel& m, int k, bool arrow, std::string&
         return true;
     }
     if (k == '/') { b.typing = b.searching = true; b.query.clear(); b.items.clear(); b.sel = b.top = 0; return true; }
-    if (k == 'f' || k == 'F') { list_dir(b, "", true, ""); return true; }
+    if (k == 'f' || k == 'F') { b.typing = b.searching = false; b.query.clear(); list_dir(b, "", true, ""); return true; }   // (a search is left: the Favourites list replaces it)
     if ((k == 'n' || k == 'N') && !arrow) {   // a new folder of presets
         if (b.searching || b.in_favs || b.in_recs || !b.in_user.empty()) { notice = "milkdrop: [N] makes a new folder (in the list of the preset folders: LEFT goes up)"; return true; }
         b.naming = true; b.new_name.clear(); b.new_add = false; b.pick_preset.clear();
@@ -985,7 +994,12 @@ bool md_browse_key(RadioSettings& c, UiModel& m, int k, bool arrow, std::string&
         else if (item.kind == 5) list_dir(b, "<recommended>", false, "");
         else if (item.kind == 6) list_dir(b, item.path, false, "");
         else if (item.kind == 2) list_dir(b, item.path, false, "");
-        else if (item.kind == 3) { md.play_path(item.path); notice = "milkdrop: " + item.name; finish(true); }
+        else if (item.kind == 3) {
+            md.play_path(item.path);
+            if (b.default_pick) { c.md_default_preset = item.path; radio_milkdrop_apply(c); notice = "milkdrop: the default preset is " + item.name; }
+            else notice = "milkdrop: " + item.name;
+            finish(true);
+        }
         else if (item.kind == 4) notice = "milkdrop: this favourite's file is gone ([D] takes it out)";
     }
     return true;

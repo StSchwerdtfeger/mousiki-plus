@@ -34,6 +34,7 @@ constexpr double kTwoPi = 6.28318530717958647692;
 const char* const R = "\x1b[0m";
 
 struct PvState {
+    std::string md_cur;   // the preset the MilkDrop sample shows (a Default Preset, else the sample)
     std::chrono::steady_clock::time_point last{};
     bool have_last = false;
     double dt = 0.033, t = 0.0, sig = 0.0;
@@ -160,6 +161,14 @@ std::string desc_of(int id) {
             return "Sixel terminals only. adaptive: the colours are taken from each picture. fixed: one fixed colour set for all pictures (steadier, less exact).";
         case kRsMdShowName:
             return "true: the preset's name shows in a small box over the picture for 3 seconds after it changed.";
+        case kRsMdPreset:
+            return "The preset the visuals start with. ENTER (or RIGHT) opens the preset overlay to choose it, d clears it (then the first preset the pack gives is used).";
+        case kRsMdBrowse:
+            return "ENTER opens the preset overlay: the folders of presets, the Favourites and the Recommended list, with a live preview of the preset under the cursor.\nIn it: ENTER choose, f the Favourites, a / SHIFT+a add a preset to the favourites / a folder, / search, e effect.";
+        case kRsMdRandom:
+            return "ENTER plays a random preset now.";
+        case kRsMdLock:
+            return "true: the preset stays until you change it yourself (n / b, Random or the preset overlay), whatever the time or a beat says.";
         default: break;
     }
     return "";
@@ -182,6 +191,7 @@ PvKind kind_of(int id, const RadioSettings& c) {
         case kRsLatinMacrons: case kRsLatinWo: case kRsLatinHanzi: return kPvTranslit;
         case kRsPlayback: return kPvPlay;
         case kRsMdUseFx: case kRsMdFx: case kRsMdColors: case kRsMdShowName: case kRsMdBright: case kRsMdSat: case kRsMdContrast: return kPvMilk;
+        case kRsMdPreset: return c.md_default_preset.empty() ? kPvDesc : kPvMilk;   // (its own preset live once one is chosen; before, the description)
         default: return desc_of(id).empty() ? kPvNone : kPvDesc;
     }
 }
@@ -234,12 +244,14 @@ void build_settings_preview(const Style& s, const UiModel& m, const RadioSetting
     if (kind == kPvMilk && !radio_milkdrop_usable(c)) shown = desc_of(id).empty() ? kPvNone : kPvDesc;
     if (shown == kPvMilk) {   // the sample preset, locked; the one from before comes back afterwards
         Milkdrop& M = Milkdrop::instance();
+        const std::string want = id == kRsMdPreset ? c.md_default_preset : std::string();   // (Default Preset: its own preset live)
         if (!P.md_active) {
             P.md_prev = M.preset_path();
             if (!M.locked()) { M.set_locked(true); P.md_locked = true; }
-            M.play_named("amandio c - secret garden 4");
+            if (!want.empty()) M.play_path(want); else M.play_named("amandio c - secret garden 4");
+            P.md_cur = want;
             P.md_active = true; P.md_fresh = true;
-        }
+        } else if (P.md_cur != want) { if (!want.empty()) M.play_path(want); else M.play_named("amandio c - secret garden 4"); P.md_cur = want; }
     } else milk_end();
     if (shown == kPvNone) return;
 

@@ -866,6 +866,9 @@ def paging_and_translit_row(binary, root, scripts):
               "cheat sheet: music player shows its categories, none of the audio book mode")
         sess.send(b"\x1b", 0.8)
         check("Alpha Song" in sess.text(), "paging: ESC leaves the cheat sheet")
+        # a terminal's answer to a picture command (iTerm2: ESC _ i=0;OK ESC \) is no typed keys: its K would open the queue overlay
+        sess.send(b"\x1b_i=0;OK\x1b\\", 1.0)
+        check("SEARCH QUEUE" not in sess.text() and "Alpha Song" in sess.text(), "input: an APC reply (ESC _ ... ESC \\) is swallowed, not typed")
 
         # settings -> GENERAL -> TRANSLITERATION -> Translit. Kanji
         sess.send("s", 1.5)
@@ -881,6 +884,10 @@ def paging_and_translit_row(binary, root, scripts):
             sess.send(b"\x1b[B", 0.1)
         check("Use Terminal Settings" in find("Use Terminal Settings") and "false" in find("Use Terminal Settings"),
               "use terminal settings: the row exists and is false by default")
+        sess.send(b"\r", 0.6)   # ENTER on a switch changes it (no input field); twice brings it back
+        check("true" in find("Use Terminal Settings"), "settings: ENTER on a true / false row switches it to true (no input field)")
+        sess.send(b"\r", 0.6)
+        check("false" in find("Use Terminal Settings"), "settings: ENTER again switches it back to false")
         sess.send(b"\x1b[B", 0.1)
         check("Terminal Size" in find("Terminal Size") and "120" in find("Terminal Size") and "32" in find("Terminal Size"),
               "terminal size: the row shows 120 x 32 by default")
@@ -890,6 +897,11 @@ def paging_and_translit_row(binary, root, scripts):
         for _ in range(3):
             sess.send(b"\x7f", 0.1)
         sess.send("5", 0.2)
+        ty = next((i for i, l in enumerate(sess.screen.display) if "Terminal Size" in l), -1)
+        tl = sess.screen.display[ty] if ty >= 0 else ""
+        xs = tl.find("x") if "x" in tl else -1
+        check(ty >= 0 and sess.screen.cursor.y == ty and 0 <= xs < sess.screen.cursor.x <= xs + 8,
+              "terminal size: the text cursor stands in the rows field while it is typed (cursor %s, row %r)" % ((sess.screen.cursor.y, sess.screen.cursor.x), tl.strip()[:70]))
         sess.send(b"\r", 0.8)
         # raised to the minimum: the status line says so, and the row shows 28 (either one proves it; the status line can
         # be replaced by another message on a slow machine)
@@ -2131,11 +2143,18 @@ def disk_field_setting(binary, root, scripts):
         sess.send(b"\t", 0.5)
         sess.send(b"\t", 0.8)                               # ANIMA/VIZ
         t = sess.text()
-        check("DISK / COVER OPTIONS" in t and "Eliment Disk / Cover" in t and "Album Cover" in t, "disk field: the tab has DISK and DISK / COVER OPTIONS")
-        check(t.index("Disk Speed") < t.index("DISK / COVER OPTIONS") < t.index("Album Cover"), "disk field: Disk Speed is under DISK, Album Cover under DISK / COVER OPTIONS")
-        for _ in range(25):                                 # to Eliment Disk (Auto Video is the first VIDEO row; after Lyrics/Viz Default: When No Lyrics Show, When No Video Shows, Lyrics Alignment, Lyrics Animation, Include Lyrics, Video Size, Effect, Contrast, Colors, Chromatic Aberration, Dither Pattern, Base Layer, Effect Contrast, Rounded Corners, Show Clap Loading, Disk/Cover/Thumbnail, Resolution, Frame Rate, Buffer, yt-dlp mp3 from mp4)
+        check("LYRICS/VIZ FIELD" in t and "VIZ/LYRICS ORDER" in t and "TOGGLE LYRICS/VIZ" in t, "disk field: the tab starts with LYRICS/VIZ FIELD, the order and the toggles")
+        seen = t
+        ordered = False
+        for _ in range(38):                                 # past the 13 rows of VIZ/LYRICS ORDER and TOGGLE LYRICS/VIZ, and the 25 below (to Eliment Disk (Auto Video is the first VIDEO row; after Lyrics/Viz Default: When No Lyrics Show, When No Video Shows, Lyrics Alignment, Lyrics Animation, Include Lyrics, Video Size, Effect, Contrast, Colors, Chromatic Aberration, Dither Pattern, Base Layer, Effect Contrast, Rounded Corners, Show Clap Loading, Disk/Cover/Thumbnail, Resolution, Frame Rate, Buffer, yt-dlp mp3 from mp4)
             sess.send(b"\x1b[B", 0.2)
+            seen += "\n" + sess.text()
+            tt = sess.text()
+            if "Disk Speed" in tt and "DISK / COVER OPTIONS" in tt and "Album Cover" in tt and tt.index("Disk Speed") < tt.index("DISK / COVER OPTIONS") < tt.index("Album Cover"): ordered = True
         sess.pump(0.6)
+        seen += "\n" + sess.text()
+        check("DISK / COVER OPTIONS" in seen and "Disk Speed" in seen and "Album Cover" in seen, "disk field: the tab has DISK and DISK / COVER OPTIONS")
+        check(ordered, "disk field: Disk Speed is under DISK, Album Cover under DISK / COVER OPTIONS")
         check("Show Disk / Cover" in sess.text(), "disk field: the row says Show Disk / Cover")
         sess.send(b"\x1b[C", 1.0)
         if not ("Remove Field" in sess.text() and "Disk / Cover field removed" in sess.text()):
@@ -4530,19 +4549,19 @@ def settings_general_texts(binary, root, scripts):
         sess.pump(1.0)
         t = sess.text()
         check("Preview: Latin Name Lookup" in t and "MusicBrainz" in t and "HAKU" in t and "\u67f3\u4e95" in t, "settings: the Latin Name Lookup preview explains the lookup and shows HAKU and the kanji name")
-        # SHIFT+RIGHT / LEFT switch the tabs (the legend names them); Use MilkDrop is the last row of MAIN UI VIZ/LYRICS FIELD
+        # SHIFT+RIGHT / LEFT switch the tabs (the legend names them); Use MilkDrop is the last row of TOGGLE LYRICS/VIZ
         check("[SHIFT+\u2190\u2192/TAB] Switch tab" in sess.text(), "settings: the legend reads [SHIFT+<-->/TAB] Switch tab")
         sess.send(b"\x1b[1;2C", 1.0)
-        check("ANIMA/VIZ" in sess.text() and sess.wait_for(lambda t: "DISK" in t and "Start Mode" not in t, 4), "settings: SHIFT+RIGHT goes to the next tab (ANIMA/VIZ)")
+        check("ANIMA/VIZ" in sess.text() and sess.wait_for(lambda t: "LYRICS/VIZ FIELD" in t and "Start Mode" not in t, 4), "settings: SHIFT+RIGHT goes to the next tab (ANIMA/VIZ)")
         seen = ""
-        for _ in range(14):
+        for _ in range(60):   # (the TOGGLE LYRICS/VIZ rows stand under the first category now: scroll on to the MILKDROP block)
             seen += "\n" + sess.text()
-            if "Use MilkDrop" in sess.text():
+            if "MilkDrop GPU" in sess.text() and "Use MilkDrop" in seen:
                 break
             sess.send(b"\x1b[1;2B", 0.5)
         seen += "\n" + sess.text()
-        check("Use MilkDrop" in seen and seen.rfind("Use Sphere") < seen.rfind("Use MilkDrop") and seen.rfind("MAIN UI VIZ/LYRICS FIELD") < seen.rfind("Use MilkDrop"),
-              "settings: Use MilkDrop is in MAIN UI VIZ/LYRICS FIELD, under Use Sphere")
+        check("Use MilkDrop" in seen and seen.rfind("Use Sphere") < seen.rfind("Use MilkDrop") and seen.rfind("TOGGLE LYRICS/VIZ") < seen.rfind("Use MilkDrop"),
+              "settings: Use MilkDrop is in TOGGLE LYRICS/VIZ, under Use Sphere")
         check("MilkDrop GPU" in seen, "settings: the MILKDROP block has the MilkDrop GPU row")
         check("Auto Video" in seen and "BIG VIDEO OVERLAY" in seen and "Milkdrop When No Video" in seen, "settings: ANIMA/VIZ has Auto Video (VIDEO) and the BIG VIDEO OVERLAY category with Milkdrop When No Video")
         sess.send(b"\x1b[1;2D", 1.0)
@@ -4628,7 +4647,7 @@ def video_fx_list_frozen(binary, root, scripts):
     lib = os.path.join(root, "vff_music")
     os.makedirs(lib)
     ff = ["ffmpeg", "-v", "error", "-y"]
-    ok = subprocess.run(ff + ["-f", "lavfi", "-i", "sine=frequency=440:duration=40", os.path.join(lib, "Clip Song.mp3")], capture_output=True).returncode == 0
+    ok = subprocess.run(ff + ["-f", "lavfi", "-i", "sine=frequency=440:duration=40", "-metadata", "title=\u3055\u304f\u3089", "-metadata", "artist=Test", os.path.join(lib, "Clip Song.mp3")], capture_output=True).returncode == 0
     ok &= subprocess.run(ff + ["-f", "lavfi", "-i", "testsrc2=size=320x180:rate=25:duration=40", "-pix_fmt", "yuv420p", os.path.join(lib, "Clip Song.mp4")], capture_output=True).returncode == 0
     make_wav(os.path.join(lib, "Plain Song.wav"), 40)
     if not ok:
@@ -4639,7 +4658,7 @@ def video_fx_list_frozen(binary, root, scripts):
         cfgdir = os.path.join(home, ".config", "mousiki")
         os.makedirs(cfgdir)
         with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
-            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=true\nVideoMode=true\nHKeyVideo=Y\nVideoAuto=true\n" % lib)
+            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=true\nVideoMode=true\nHKeyVideo=Y\nVideoAuto=true\nLatinLetters=true\n" % lib)
         # (MOUSIKI_SYNC_WRITE: every frame is written before the next is made -- this harness reads the terminal far slower than a terminal does, and
         # with the frames written behind its back the pictures would wait for it; the picture logic itself is the same)
         sess = Session(binary, home, scripts, {"MOUSIKI_NULL_AUDIO": "1", "KITTY_WINDOW_ID": "1", "TERM": "xterm-kitty", "MOUSIKI_SYNC_WRITE": "1"}, quiet_stderr=True, gfx=True)
@@ -4683,12 +4702,27 @@ def video_fx_list_frozen(binary, root, scripts):
         check("VIDEO OPTIONS" in t and "Video Contrast" in t and p is not None and p["col"] > 60 and p["c"] >= 40, "VIDEO OPTIONS: the options on the left, the video as a big picture on the right (%s)" % p)
         sess.send(b"\x1b", 1.0)
         sess.send(b"\x1b", 1.0)
+        # the big overlay's title is transliterated like the main screen (LatinLetters on: the kana title reads "sakura")
+        sess.send("v", 1.5)
+        check("sakura" in sess.text().lower(), "big video overlay: the title is transliterated (%r)" % next((l.strip()[:80] for l in sess.screen.display if "VIDEO" in l), None))
+        sess.send(b"\x1b", 1.0)
+        sess.send(b"\x1b", 1.0)
+        # [f] Video only: the picture alone, centred in the window (equal gaps left / right and above / below, give or take a cell)
+        sess.send("v", 1.5)
+        sess.send("f", 1.5)
+        settle_pic(sess, 7201, 40, 15)
+        pv = sess.pics.get(7201)
+        gaps = (pv["col"], COLS - pv["col"] - pv["c"], pv["row"], ROWS - pv["row"] - pv["r"]) if pv else None
+        print("  video only geometry:", pv, gaps)
+        check(pv is not None and abs(gaps[0] - gaps[1]) <= 1 and abs(gaps[2] - gaps[3]) <= 1, "video only: the picture is centred (gaps left, right, top, bottom %s)" % (gaps,))
+        sess.send(b"\x1b", 1.0)
+        sess.send(b"\x1b", 1.0)
         # Settings: the list's preview is a picture; a track without a video shows the cat
         sess.send("n", 2.5)   # (Plain Song: no video)
         sess.send("s", 1.2)
         sess.send(b"\t", 0.5)
         sess.send(b"\t", 0.8)
-        for _ in range(7):
+        for _ in range(21):   # Video Effect: after the 13 rows of VIZ/LYRICS ORDER and TOGGLE LYRICS/VIZ, 3 + 2 + 3 rows of the first categories
             sess.send(b"\x1b[B", 0.15)
         sess.send(b"\r", 2.5)
         check("VIDEO EFFECT" in sess.text(), "effect list: it opens from Settings")
@@ -4838,14 +4872,14 @@ def milkdrop_radio_book(binary, root, scripts):
         t = sess.text()
         check("MILKDROP" in t and "Show Preset Name" in t, "radio: ANIMA/VIZ has the MILKDROP block")
         check("Sixel Colours" in t and "MilkDrop Effect" in t, "radio: ANIMA/VIZ has the effect rows too")
-        for _ in range(40):   # VIZ ORDER and MAIN UI VIZ FIELD follow (the Use rows live there, not in the MILKDROP block)
+        for _ in range(40):   # VIZ ORDER and VIZ TOGGLE follow (the Use rows live there, not in the MILKDROP block)
             if re.search(r"Use MilkDrop\s+:", sess.text()):   # the row itself (the description text also mentions "Use MilkDrop")
                 break
             sess.send(b"\x1b[B", 0.35)   # (the MilkDrop rows redraw a live preview, so single steps need a little time)
         sess.pump(0.6)
         t2 = sess.text()
-        if not ("MAIN UI VIZ FIELD" in t2 and "Use MilkDrop" in t2 and "Use Sphere" in t2): sess.dump("radio use rows")
-        check("MAIN UI VIZ FIELD" in t2 and "Use MilkDrop" in t2 and "Use Sphere" in t2, "radio: ANIMA/VIZ has the MAIN UI VIZ FIELD block with the Use rows")
+        if not ("VIZ TOGGLE" in t2 and "Use MilkDrop" in t2 and "Use Sphere" in t2): sess.dump("radio use rows")
+        check("VIZ TOGGLE" in t2 and "Use MilkDrop" in t2 and "Use Sphere" in t2, "radio: ANIMA/VIZ has the VIZ TOGGLE block with the Use rows")
         for _ in range(3):   # SHIFT+UP: ten rows at a time (three presses cannot reach this far with single steps)
             sess.send(b"\x1b[1;2A", 0.3)
         sess.pump(0.5)

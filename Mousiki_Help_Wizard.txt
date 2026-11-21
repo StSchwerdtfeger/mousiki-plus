@@ -572,7 +572,7 @@ DIFFERENT SEARCH CAPABILITIES:[[Header]]
 [/b:]  +  query       Bandcamp                live on [ENTER]
 [/yv:] +  query       YouTube videos          live on [ENTER] (SEARCH YT)
 [/c:]  +  command     the command line        [ENTER] runs it, [ESC] leaves (type help)
-[/cs:] +  words       the CLI scripts         [ENTER] opens the script overlay  (editor: [SHIFT+UP/DOWN] marks lines, [m] renames)
+[/cs:] +  words       the CLI scripts         [ENTER] opens the editor ([SHIFT+UP/DOWN] marks, [m] renames)
 [/p:]  +  query       your saved playlists    live
 [/f:]  +  query       your folders            live
 
@@ -747,8 +747,8 @@ COVER OPTIONS:[[Header]] move down to [ Cover Options ] and hit [ENTER]
                       fetched_covers folder, the album's covers; a file outside the library, e.g. in
                       video_down, also finds the library's fetched_covers by album name. "Automatic" lets
                       Settings -> Cover Search decide.
-[The disk shows:][[Legend]]       Above the pictures: as in the settings / the cover / the video thumbnail (a frame of
-                      THIS track's video, shown in the preview) / the plain disk / the cover, else the
+[The disk shows:][[Legend]]       Above the pictures: as in the settings / the cover / the video thumbnail (a frame
+                      of THIS track's video, shown in the preview) / the plain disk / the cover, else the
                       thumbnail.
 [Priority:][[Legend]]             A picture chosen here weighs most (the track shows it at once; Automatic gives the
                       decision back to the settings). The choice goes before the album default of the
@@ -1101,8 +1101,8 @@ timing!), they can be fetched again under a different query.
                           as soon as they are loaded.
 [Older versions:][[Legend]]           Fetching again does not replace the older version as long as there were timing
                           adjustments or the lyrics differ.
-[Delete:][[Legend]]                   Lyrics can be deleted in the retry form or in the READ LYRICS overlay ([CTRL+l],
-                          see below).
+[Delete:][[Legend]]                   Lyrics can be deleted in the retry form or in the READ LYRICS overlay
+                          ([CTRL+l], see below).
 
 ADD LYRICS MANUALLY:[[Header]]
 Own lyrics used to work only by name (Song.mp3 -> Song.lrc in the "lyrics" folder next to the track, or
@@ -1124,19 +1124,19 @@ library, and it can be undone.
                           at the start.
 [ENTER on button:][[Legend]]          Adds. A file already added to the locked track by hand shows as locked in with
                           the note "Added manually; hit DEL to unassign".
-[CTRL+t:][[Legend]]                   Track list: artist - title or file names (also while typing; the pane title says
-                          which one is on).
+[CTRL+t:][[Legend]]                   Track list: artist - title or file names (also while typing; the pane title
+                          says which one is on).
 [CTRL+f:][[Legend]]                   Shows only the tracks without saved lyrics.
-[CTRL+o:][[Legend]]                   Names the locked-in lyrics file like the file you picked (the copy remembers it)
-                          or like the copy in the lyrics folder.
+[CTRL+o:][[Legend]]                   Names the locked-in lyrics file like the file you picked (the copy remembers
+                          it) or like the copy in the lyrics folder.
 [CTRL+c:][[Legend]]                   Clears the choice (anywhere): the lyrics file is unlocked, the current track is
                           the locked track again.
 [DEL (twice):][[Legend]]              Unassigns manually added lyrics of the locked-in track: the file itself stays,
                           the previous lyrics come back.
 [ESC:][[Legend]]                      Closes.
-[Old lyrics:][[Legend]]               The lyrics in use so far are kept as an older version. A re-fetch never replaces
-                          lyrics added by hand: the fetched ones are saved as an older version you can
-                          switch to.
+[Old lyrics:][[Legend]]               The lyrics in use so far are kept as an older version. A re-fetch never
+                          replaces lyrics added by hand: the fetched ones are saved as an older version you
+                          can switch to.
 
 LYRICS RUNNING EARLY OR LATE: THE TIMING OVERLAY[[Header]]
 [ALT+L] (macOS: [SHIFT+j]) opens the overlay, on the main screen and in karaoke mode (only while synced
@@ -1145,8 +1145,8 @@ lyrics are loaded). The lines move live while you adjust, so you can judge the o
 [UP DOWN:][[Legend]]                  Lyrics later / earlier by 0.5 s.
 [R:][[Legend]]                        Back to 0 (range +/- 120 s).
 [SHIFT+<-/->:][[Legend]]              Seek the playing track back / forth.
-[ENTER or S:][[Legend]]               Save into the lyrics file of the track: a standard [offset:...] tag, which other
-                          players understand too.
+[ENTER or S:][[Legend]]               Save into the lyrics file of the track: a standard [offset:...] tag, which
+                          other players understand too.
 [ESC or ALT+L:][[Legend]]             Cancel, the old offset comes back.
 [Hint:][[Legend]]                     A positive offset makes the lyrics appear later, so use it when they are too
                           early.
@@ -1186,7 +1186,8 @@ translations and the text itself.
 [SHIFT+t:][[Legend]]                  Shows / cycles / hides translations (a translation that is there is shown at
                           once).
 [d or DEL:][[Legend]]                 Deletes a translation.
-[SHIFT+7 or /:][[Legend]]             Search every lyrics file of the library by name ([SHIFT+7] on a German keyboard,
+[SHIFT+7 or /:][[Legend]]             Search every lyrics file of the library by name ([SHIFT+7] on a German
+                          keyboard,
                           [/] on an English one): type to filter, [UP]/[DOWN] pick, [ENTER] shows the
                           file,
                           [ESC] closes the search.
@@ -1198,8 +1199,8 @@ translations and the text itself.
                           clears them, [CTRL+z] or [CTRL+y] undoes (10 steps), [CTRL+r] redoes. [CTRL+t]
                           switches the Latin letters ([CTRL+2] too, but not every terminal sends it). Long
                           lines are broken into rows.
-[Editor: result:][[Legend]]           A machine translation that is edited is kept as it was: your version is saved as
-                          a new "Manual Translation" ("Manual Translation 2" ... for more), which the
+[Editor: result:][[Legend]]           A machine translation that is edited is kept as it was: your version is saved
+                          as a new "Manual Translation" ("Manual Translation 2" ... for more), which the
                           TRANSLATION pane lists.
 [e:][[Legend]]                        Exports the lyrics into the folder "export" inside the lyrics folder: the
                           original only, or with the translation and / or the transliteration (Latin
@@ -1565,11 +1566,12 @@ Mesh Detail the warp grid: finer = more detail, more work. Aspect Correction: ke
 
 THE PRESET OVERLAY: [[Header]]
 The row Preset Overlay (or [P]) opens the preset folders with the visuals beside it as the preview:
-[ENTER] chooses, [a] adds a favourite, [d] takes one out (the Favourites folder is on top), [/] searches
-every preset (fuzzy), [n] makes a folder of your own, [SHIFT+a] adds the preset to the Favourites or a folder, [d] on a folder asks
-first (ENTER / y deletes, ESC / n keeps), [SHIFT+u] undoes the last delete. The commands are in the border colour: row 1 on the bottom
-border, row 2 below the box. The Recommended folder is a hand-picked list that ships with Mousiki. Shuffle
-Favourites plays only the favourites. Its own row for the effect and [g/h] work there as well.
+[ENTER] chooses, [a] adds a favourite, [d] takes one out (the Favourites folder is on top), [f] goes to
+the Favourites folder, [/] searches every preset (fuzzy), [n] makes a folder of your own, [SHIFT+a] adds
+the preset to the Favourites or a folder, [d] on a folder asks first (ENTER / y deletes, ESC / n keeps),
+[SHIFT+u] undoes the last delete. The commands are in the border colour: row 1 on the bottom border, row
+2 below the box. The Recommended folder is a hand-picked list that ships with Mousiki. Shuffle Favourites
+plays only the favourites. Its own row for the effect and [g/h] work there as well.
 
 IN THE BIG VIDEO OVERLAY: [[Header]]
 [v] opens it, [m] switches between the video and the visuals. With the visuals, [SHIFT+UP/DOWN] goes
@@ -1815,7 +1817,8 @@ COLORS; GENERAL; ANIMA/VIZ; PATHS; REFERENCE; ABOUT APP ([TAB] steps through the
 
 MOVING AND EDITING: [[Header]]
 [UP]/[DOWN]  previous / next row         [<-/->]  step through the values of a row, applied at once
-[ENTER]      edit the value as free text
+[ENTER]      a switch or a pick from words (true / false, a look ...): changes it, like [->]; a number, a
+             colour or a path: edit it as free text
 
 SAVING AND LEAVING: [[Header]]
 Every change is live: you see and hear it while you are still in the settings. But only [s] writes
@@ -1887,9 +1890,9 @@ marquee.
                                                   mode).
 
 [MODES ON/OFF AND ORDER:][[Header]]
-[Use Music Player / Use Radio / Use Audio Books:][[Legend]]   false = the mode is left out of the [SHIFT and +] cycle;
-                                                  one mode always stays on, the remaining mode set to
-                                                  true, when all others are turned off, can't be turned
+[Use Music Player / Use Radio / Use Audio Books:][[Legend]]   false = the mode is left out of the [SHIFT and +]
+                                                  cycle; one mode always stays on, the remaining mode set
+                                                  to true, when all others are turned off, can't be turned
                                                   off...
 
 [Mode Order 1-3:][[Legend]]                                   sets the order of the cycle, just like Viz Order 1-4.
@@ -1898,20 +1901,19 @@ marquee.
                                                   order.
 
 [MAIN UI PANE STYLE:][[Header]]
-[Top Pane Style:][[Legend]]                                   the frame of the upper pane (disk | meta data | lyrics /
-                                                  viz field): one box (default), three panes I / II / III,
-                                                  two panes or gap. The preview shows the shape. The radio
-                                                  has the same row (ANIMA/VIZ tab, TOP PANE).
+[Top Pane Style:][[Legend]]                                   the frame of the upper pane (disk | meta data | lyrics
+                                                  / viz field): one box (default), three panes I / II /
+                                                  III, two panes or gap. The preview shows the shape. The
+                                                  radio has the same row (ANIMA/VIZ tab, TOP PANE).
 
 [Sharp Corners:][[Legend]]                                    true = sharp frame corners everywhere (the Settings
                                                   screen, sharp by itself, gets round ones then); default
                                                   false. Each mode keeps its own value.
 
 [AUDIO:][[Header]]
-[Choose Audio Device:][[Legend]]                              shows the sound output in use (System Default unless you
-                                                  picked one); [ENTER] opens the CHOOSE AUDIO DEVICE
-                                                  overlay (2.6.5). One choice for all modes, saved at
-                                                  once.
+[Choose Audio Device:][[Legend]]                              shows the sound output in use (System Default unless
+                                                  you picked one); [ENTER] opens the CHOOSE AUDIO DEVICE
+                                                  overlay (2.6.5). One choice for all modes, saved at once.
 
 [Playback Speed:][[Legend]]                                   audio books only: 0.5x - 3.0x in steps of 0.05 (default
                                                   1.0x); the voice keeps its pitch. The same value as
@@ -1962,9 +1964,9 @@ marquee.
 [Silence Below:][[Legend]]                                     -40 ... -80 dB (default -60): what counts as silence.
 
 [TERMINAL:][[Header]]
-[Black Background:][[Legend]]                                 on = the terminal is black and plain text takes the list
-                                                  color while Mousiki runs; the terminals own colors come
-                                                  back after exiting Mousiki.
+[Black Background:][[Legend]]                                 on = the terminal is black and plain text takes the
+                                                  list color while Mousiki runs; the terminals own colors
+                                                  come back after exiting Mousiki.
 
 [Use Terminal Settings:][[Legend]]                            true = Mousiki leaves the terminal size as it is:
                                                   Terminal Size and Full Screen are ignored (they keep
@@ -2033,6 +2035,8 @@ In the audio book mode some rows carry the book's own names (same meaning as in 
 [Viz/Notes Field:][[Legend]] = Viz/Lyrics Field: the field under the meta data (the book's notes, the oscilloscope,
                                                  the spectrogram, the sphere). 
 [Use Book Notes] = Use Lyrics Engine: the notes view takes part in the cycle. 
+[Force Note] (audio book): on = a shown note is shown alone, no MilkDrop picture; off = it is not shown
+                                                 while MilkDrop fills the field.
 [Notes/Viz Default:] = Lyrics/Viz Default (what the field starts with) and ...
 [When No Notes Show:] = When No Lyrics Show (the book has no notes).
 [Viz Order 1 to 4] set the order of the views for [,/.], 
@@ -2122,10 +2126,24 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 
 [LYRICS/VIZ FIELD:][[Header]]  
 [Lyrics/Viz Default:][[Legend]]                               With what the view field starts with.
-[When No Lyrics Show][[Legend]]                               What the lyrics area shows when there are no lyrics: the
-                                                  view you pick, or nothing.
+[When No Lyrics Show][[Legend]]                               What the lyrics area shows when there are no lyrics:
+                                                  the view you pick, or nothing.
 [When No Video Shows][[Legend]]                               What the video view shows when the track has no video:
                                                   the lyrics (default), a visual or nothing.
+
+[VIZ/LYRICS ORDER:][[Header]]      
+[Viz Order:][[Legend]]                                        1-6, the order of the views in the [,/.] cycle.
+
+[TOGGLE LYRICS/VIZ:][[Header]] 
+[Viz/Lyrics Field:][[Legend]]                                 false = no field, the meta data take its place.
+
+[Use Video:][[Legend]]                                        The video mode ([&] key) as a setting; the video view
+                                                  is the 5th place of the [,/.] cycle (Viz Order 5).
+                                                  The preview plays a short sample video in a loop.
+[Use Lyrics Engine / Use Oscilloscope / Use Spectrogram / Use Sphere / Use MilkDrop:][[Legend]]
+                                                  When a Viz. is set to false it leaves that view out of
+                                                  the [,/.] cycle entirely. The oscilloscope/spectrogram,
+                                                  overlays and their extra window modes remain functional!
 
 [LYRICS:][[Header]]                          
 [Lyrics Alignment][[Legend]]                                  Aligned left / center / right
@@ -2133,7 +2151,8 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   only, active word only, line by line.
 
 [VIDEO:][[Header]]
-[Auto Video][[Legend]]                                          the same switch as in the video menu: a track with a video shows it.
+[Auto Video][[Legend]]                                          the same switch as in the video menu: a track with a
+                                                    video shows it.
 [Video Size][[Legend]] Regular / cropped / full / framed picture in the small field.
 [Video Effect][[Legend]]                                      A retro look for the picture (also in the full screen
                                                   video, with a preview here).
@@ -2142,8 +2161,9 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 [Video Colors][[Legend]]                                      0 = greyscale .. 100 % as they are.
 [Video Chromatic Aberration][[Legend]]                        Red and blue pushed apart: off / subtle / medium /
                                                   strong.
-[Video Base Layer][[Legend]]                                  The structure under the tube looks: scanlines / aperture
-                                                  grille / shadow mask / slot mask / clean (default).
+[Video Base Layer][[Legend]]                                  The structure under the tube looks: scanlines /
+                                                  aperture grille / shadow mask / slot mask / clean
+                                                  (default).
 [Video Effect Contrast][[Legend]]                             How hard the blacks of the photographic looks are: full
                                                   / reduced (default) / low; palette looks are never
                                                   touched; Halftone CMYK: the print's strength (100 / 70 /
@@ -2161,8 +2181,8 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 [Video Buffer][[Legend]]                                      MB of decoded frames kept ahead of the picture.
 [Show Clap Loading][[Legend]]                                  text note / clap (a small clapperboard in the border
                                                    colours) / none: what shows while a video loads.
-[yt-dlp mp3 from mp4][[Legend]]                               true / false: SEARCH YT also saves a video's sound as an
-                                                  mp3 (no song as target).
+[yt-dlp mp3 from mp4][[Legend]]                               true / false: SEARCH YT also saves a video's sound as
+                                                  an mp3 (no song as target).
 
 [BIG VIDEO OVERLAY:][[Header]]
 [Milkdrop When No Video:][[Legend]]                           true = the big video overlay [v] opens on the MilkDrop
@@ -2274,8 +2294,8 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 
 
 [MILKDROP:][[Header]]
-[MilkDrop GPU:][[Legend]]                                     automatic (default), or the graphics card that draws the
-                                                  visuals (Linux; elsewhere the system decides).
+[MilkDrop GPU:][[Legend]]                                     automatic (default), or the graphics card that draws
+                                                  the visuals (Linux; elsewhere the system decides).
 [MilkDrop Frame Rate / Resolution:][[Legend]]                 30 pictures a second, 480 pixels across (defaults);
                                                   more costs more (no graphics card: the processor draws).
 [Preset Duration / Shuffle / Transition:][[Legend]]           25 s, random, a 3 s blend (defaults).
@@ -2346,9 +2366,9 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 [Bars Behavior:][[Legend]]                                    a preset for the three rows below: lively, default,
                                                   smooth or slow ("custom" when you changed a value).
                                                   Classic and Hi-Fi keep their own values.
-[Bars Fluidity:][[Legend]]                                    sets the stiffness/friction of the bars moving up, where
-                                                  a low value means the bars snap upwards instantly. The
-                                                  higher the value, the softer the jump.
+[Bars Fluidity:][[Legend]]                                    sets the stiffness/friction of the bars moving up,
+                                                  where a low value means the bars snap upwards instantly.
+                                                  The higher the value, the softer the jump.
 [Bars Degradation (1-10):][[Legend]]                          how slow/smooth the value fades, where low values make
                                                   it fade slowly...
 [Bars Viscosity (1-10):][[Legend]]                            How much neighboring bars are blended into each other.
@@ -2374,30 +2394,17 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 [Waveform Style][[Legend]]                                    Switched between raw / smooth, same as like [w].
 
 [OSCI/SPECTRO SETTINGS:][[Header]]
-[Modes Share Settings:][[Legend]]                             on = the music, radio and audio book player use the same
-                                                  settings for the oscilloscope/spectrogram settings; each
-                                                  modes own values are kept and come back when turned off
-                                                  again.
-[Keep Spectrogram History:][[Legend]]                         on (default) = the spectrogram keeps analysing the sound
-                                                  while a track plays, shown or not, so its picture is
-                                                  complete when opened (about 11 MB of RAM). off = it
+[Modes Share Settings:][[Legend]]                             on = the music, radio and audio book player use the
+                                                  same settings for the oscilloscope/spectrogram settings;
+                                                  each modes own values are kept and come back when turned
+                                                  off again.
+[Keep Spectrogram History:][[Legend]]                         on (default) = the spectrogram keeps analysing the
+                                                  sound while a track plays, shown or not, so its picture
+                                                  is complete when opened (about 11 MB of RAM). off = it
                                                   analyses only while a spectrogram is shown and for 10 s
                                                   after, then gives its memory back; a spectrogram opened
                                                   later starts empty and fills as the music goes on.
 
-[VIZ/LYRICS ORDER:][[Header]]      
-[Viz Order:][[Legend]]                                        1-6, the order of the views in the [,/.] cycle.
-
-[MAIN UI VIZ/LYRICS FIELD:][[Header]] 
-[Viz/Lyrics Field:][[Legend]]                                 false = no field, the meta data take its place.
-
-[Use Video:][[Legend]]                                        The video mode ([&] key) as a setting; the video view
-                                                  is the 5th place of the [,/.] cycle (Viz Order 5).
-                                                  The preview plays a short sample video in a loop.
-[Use Lyrics Engine / Use Oscilloscope / Use Spectrogram / Use Sphere / Use MilkDrop:][[Legend]]
-                                                  When a Viz. is set to false it leaves that view out of
-                                                  the [,/.] cycle entirely. The oscilloscope/spectrogram,
-                                                  overlays and their extra window modes remain functional!
 
 
 
@@ -3289,13 +3296,13 @@ WHERE TO TYPE IT: [[Header]]
 ALSO IN THE RADIO: [[Header]]
  alias n = <chain>, unalias    the shared aliases.cli
  settings [words]              the settings  set  can change
- set <setting> <on|off|toggle> the on/off rows: PulseWave, OnAirAscii, DummyButtons, Visualizer, StereoSound,
-                               NormalizeVolume, TuneNoise, MarqueeScrolling, UseOscilloscope, UseSpectrogram;
-                               saved at once; not over the network
+ set <setting> <on|off|toggle> the on/off rows: PulseWave, OnAirAscii, DummyButtons, Visualizer,
+                               StereoSound, NormalizeVolume, TuneNoise, MarqueeScrolling,
+                               UseOscilloscope, UseSpectrogram; saved at once; not over the network
  hooks.cli                     on <event> = <commands>
    Events                      station-change, pause, resume, stream-error, idle
    Filled in                   {station} {title} {artist} {state} {volume}; at most 8 runs in 10 s
-   Shared with the player      pause / resume fire in both, the player's track-change / queue-empty only there
+   Shared with the player      pause / resume fire in both; track-change / queue-empty only in the player
  quit                          only: mousiki --cmd quit
 
 [[New Page]]
@@ -3455,6 +3462,7 @@ VideoView                          false
 NoVideoViz                         lyrics
 NoLyricsViz                        osci
 UseLyrics                          true
+BookForceNote                      true
 UseOscilloscope                    true
 UseSpectrogram                     true
 UseSphere                          true

@@ -122,6 +122,7 @@ struct RadioSettings : VizPrefs {
     int md_hcd = 20, md_var = 0, md_mesh = 1;
     int md_ratio = 0;   // MilkDropAspectRatio= (milkdrop_ratio_name)
     bool md_aspect = true, md_clean = false, md_fav_shuffle = false;
+    std::string md_default_preset;   // MilkDropDefaultPreset=: the preset the visuals start with (a .milk file; "" = one from the list)
     int md_bright = 50, md_sat = 100, md_contrast = 0;   // MilkDropBrightness= / MilkDropSaturation= / MilkDropContrast=: 0 .. 100 %, steps of 5 (50 / 100 / 0 = as drawn)
     std::string md_shuffle_folder;   // MilkDropShuffleFolder=: the folder that "Shuffle Favourites" plays from ("" = Favourites, "Recommended", or a folder made in the preset overlay)
     // a video effect over the pictures (MilkDropEffect=, MilkDropEffectOn=: off keeps the choice) and the Sixel colours (MilkDropSixelColors=: fixed or taken from each picture)
@@ -274,6 +275,7 @@ enum RsId {
     kRsScope, kRsOsciStyle,
     kRsUseMilkdrop, kRsMdFps, kRsMdRes, kRsMdGpu, kRsMdDuration, kRsMdShuffle, kRsMdBeat, kRsMdHardCuts, kRsMdTransition, kRsMdShowName,
     kRsMdFavShuffle, kRsMdFolder, kRsMdBright, kRsMdSat, kRsMdContrast, kRsMdHcd, kRsMdVar, kRsMdMesh, kRsMdAspect, kRsMdRatio, kRsMdClean, kRsMdUseFx, kRsMdFx, kRsMdColors,
+    kRsMdPreset, kRsMdBrowse, kRsMdRandom, kRsMdLock,   // Default Preset ([ENTER] / [RIGHT]: the preset overlay, [d] clears it), Preset Overlay, Random Preset, Lock Preset
     kRsAudioDevice,   // [ENTER]: the CHOOSE AUDIO DEVICE overlay
     kRsCliScripts,    // [ENTER]: the script overlay
     kRsUseTermSettings, kRsTermSize, kRsFullScreen, kRsReduceMotion, kRsUpdateNotice, kRsLatinMacrons, kRsLatinWo, kRsLatinHanzi,   // (the player's rows of the same name; one value for all modes)

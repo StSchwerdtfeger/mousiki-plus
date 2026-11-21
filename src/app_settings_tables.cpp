@@ -45,6 +45,15 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidLyricViz, "Lyrics/Viz Default"}, {false, kSidNoLyricsViz, "When No Lyrics Show"},
         {false, kSidNoVideoViz, "When No Video Shows"},
         {true, -1, ""},
+        {true, -1, "VIZ/LYRICS ORDER"},
+        {false, kSidOrder1, "Viz Order 1"}, {false, kSidOrder2, "Viz Order 2"},
+        {false, kSidOrder3, "Viz Order 3"}, {false, kSidOrder4, "Viz Order 4"}, {false, kSidOrder5, "Viz Order 5"}, {false, kSidOrder6, "Viz Order 6"},
+        {true, -1, ""},
+        {true, -1, "TOGGLE LYRICS/VIZ"},   // the field right of the meta data
+        {false, kSidVizField, "Viz/Lyrics Field"}, {false, kSidUseLyrics, "Use Lyrics Engine"}, {false, kSidUseVideo, "Use Video"},
+        {false, kSidUseOsci, "Use Oscilloscope"},                                            // false: left out entirely
+        {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"}, {false, kSidUseMilkdrop, "Use MilkDrop"},    // (not in the "." cycle)
+        {true, -1, ""},
         {true, -1, "LYRICS"},
         {false, kSidLyrAlign, "Lyrics Alignment"}, {false, kSidLyrAnim, "Lyrics Animation"},
         {true, -1, ""},
@@ -87,15 +96,6 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {true, -1, "OSCI/SPECTRO SETTINGS"},
         {false, kSidShareProfiles, "Modes Share Settings"},
         {false, kSidSpectroHistory, "Keep Spectrogram History"},
-        {true, -1, ""},
-        {true, -1, "VIZ/LYRICS ORDER"},
-        {false, kSidOrder1, "Viz Order 1"}, {false, kSidOrder2, "Viz Order 2"},
-        {false, kSidOrder3, "Viz Order 3"}, {false, kSidOrder4, "Viz Order 4"}, {false, kSidOrder5, "Viz Order 5"}, {false, kSidOrder6, "Viz Order 6"},
-        {true, -1, ""},
-        {true, -1, "MAIN UI VIZ/LYRICS FIELD"},   // the field right of the meta data
-        {false, kSidVizField, "Viz/Lyrics Field"}, {false, kSidUseLyrics, "Use Lyrics Engine"}, {false, kSidUseVideo, "Use Video"},
-        {false, kSidUseOsci, "Use Oscilloscope"},                                            // false: left out entirely
-        {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"}, {false, kSidUseMilkdrop, "Use MilkDrop"},    // (not in the "." cycle)
     };
     // The audio book player: the same tabs without what only the music player uses (the play mode, the lyrics, the disk's
     // speed, the display queue), the lyrics view called "notes", the disk's place taken by the book cover.
@@ -134,6 +134,15 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {true, -1, "NOTES/VIZ FIELD"},
         {false, kSidLyricViz, "Notes/Viz Default"}, {false, kSidNoLyricsViz, "When No Notes Show"},
         {true, -1, ""},
+        {true, -1, "VIZ/NOTES ORDER"},
+        {false, kSidOrder1, "Viz Order 1"}, {false, kSidOrder2, "Viz Order 2"},
+        {false, kSidOrder3, "Viz Order 3"}, {false, kSidOrder4, "Viz Order 4"}, {false, kSidOrder5, "Viz Order 5"},
+        {true, -1, ""},
+        {true, -1, "TOGGLE VIZ/NOTES"},
+        {false, kSidVizField, "Viz/Notes Field"}, {false, kSidUseLyrics, "Use Book Notes"}, {false, kSidBookForceNote, "Force Note"},
+        {false, kSidUseOsci, "Use Oscilloscope"},
+        {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"}, {false, kSidUseMilkdrop, "Use MilkDrop"},
+        {true, -1, ""},
         {true, -1, "BOOK COVER"},
         {false, kSidBookCover, "Book Cover"}, {false, kSidBookCoverWave, "Book Gradient Wave"}, {false, kSidCoverContrast, "Cover Contrast"},
         {false, kSidCoverBrightness, "Cover Brightness"}, {false, kSidCoverColors, "Cover Colors"},
@@ -158,20 +167,11 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidShareProfiles, "Modes Share Settings"},
         {false, kSidSpectroHistory, "Keep Spectrogram History"},
         {true, -1, ""},
-        {true, -1, "VIZ/NOTES ORDER"},
-        {false, kSidOrder1, "Viz Order 1"}, {false, kSidOrder2, "Viz Order 2"},
-        {false, kSidOrder3, "Viz Order 3"}, {false, kSidOrder4, "Viz Order 4"}, {false, kSidOrder5, "Viz Order 5"},
-        {true, -1, ""},
         {true, -1, "MILKDROP"},
         {false, kSidMdFps, "MilkDrop Frame Rate"}, {false, kSidMdRes, "MilkDrop Resolution"}, {false, kSidMdGpu, "MilkDrop GPU"}, {false, kSidMdMesh, "Mesh Detail"}, {false, kSidMdAspect, "Aspect Correction"}, {false, kSidMdRatio, "Aspect Ratio"},
         {false, kSidMdPreset, "Default Preset"}, {false, kSidMdBrowse, "Preset Overlay"}, {false, kSidMdRandom, "Random Preset"}, {false, kSidMdLock, "Lock Preset"},
         {false, kSidMdDuration, "Preset Duration"}, {false, kSidMdVar, "Duration Variance"}, {false, kSidMdShuffle, "Shuffle All Presets"}, {false, kSidMdFolder, "Shuffle Folder"}, {false, kSidMdFavShuffle, "Shuffle Favourites"}, {false, kSidMdHardCuts, "Hard Cuts"}, {false, kSidMdCutSens, "Hard Cut Sensitivity"},
         {false, kSidMdHcd, "Hard Cut Interval"}, {false, kSidMdTransition, "Preset Transition"}, {false, kSidMdClean, "Clean Start"}, {false, kSidMdUseFx, "Use Effect"}, {false, kSidMdFx, "MilkDrop Effect"}, {false, kSidMdBright, "MilkDrop Brightness"}, {false, kSidMdSat, "MilkDrop Saturation"}, {false, kSidMdContrast, "MilkDrop Contrast"}, {false, kSidMdColors, "Sixel Colours"}, {false, kSidMdShowName, "Show Preset Name"}, {false, kSidMdAuto, "Auto MilkDrop"},
-        {true, -1, ""},
-        {true, -1, "MAIN UI VIZ/NOTES FIELD"},
-        {false, kSidVizField, "Viz/Notes Field"}, {false, kSidUseLyrics, "Use Book Notes"},
-        {false, kSidUseOsci, "Use Oscilloscope"},
-        {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"}, {false, kSidUseMilkdrop, "Use MilkDrop"},
     };
     const std::vector<SetLine>& base = g_settings_book_layout ? (tab == 1 ? book_on_off : book_anima) : (tab == 1 ? on_off : anima);
     if (g_settings_hifi_rows) return base;

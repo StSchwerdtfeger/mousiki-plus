@@ -871,6 +871,7 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_FLAG("UseModeAudiobook", nullptr, use_mode[2], "\n"),
     SIMPLE_FLAG("VideoLayoutScales", nullptr, vl_scales, "\n"),
     SIMPLE_FLAG("UseLyrics", nullptr, use_lyrics, "\n"),
+    SIMPLE_FLAG("BookForceNote", nullptr, book_force_note, "\n## audio book: true = while a note is shown in the Viz/Notes field, only the note is drawn there (no MilkDrop or other picture), false = the picture stays behind it\n"),
     SIMPLE_FLAG("UseOscilloscope", nullptr, use_osci, "\n"),
     SIMPLE_FLAG("UseSpectrogram", nullptr, use_spectro, "\n"),
     SIMPLE_FLAG("UseSphere", nullptr, use_sphere, "\n"),
@@ -2320,6 +2321,7 @@ write_simple_setting(out, s, "VideoLayout");
     out << "## What the field shows while the lyrics view is on but no lyrics are available (sphere | osci | spectro | none | video | milkdrop).\n";
     out << "## Picking one turns its \"Use ...\" switch below on; switching that off again moves this pick to the next visual that is on.\n";
     write_simple_setting(out, s, "UseLyrics");
+    write_simple_setting(out, s, "BookForceNote");
     write_simple_setting(out, s, "UseOscilloscope");
     write_simple_setting(out, s, "UseSpectrogram");
     write_simple_setting(out, s, "UseSphere");
@@ -2685,7 +2687,7 @@ void copy_look(const Settings& src, Settings& dst) {
     // elements and visualizations
     MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(disk_border); MOUSIKI_LOOK(top_pane_style); MOUSIKI_LOOK(sharp_corners); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
     MOUSIKI_LOOK(volume_indicator); MOUSIKI_LOOK(volume_gradient); MOUSIKI_LOOK(element_vizfield); MOUSIKI_LOOK(element_lyrics);
-    MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
+    MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(book_force_note); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
     MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_extra_paths); MOUSIKI_LOOK(milkdrop_gpu); MOUSIKI_LOOK(milkdrop_lock); MOUSIKI_LOOK(milkdrop_hcd); MOUSIKI_LOOK(milkdrop_aspect); MOUSIKI_LOOK(milkdrop_ratio); MOUSIKI_LOOK(milkdrop_mesh); MOUSIKI_LOOK(milkdrop_var); MOUSIKI_LOOK(milkdrop_clean); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res); MOUSIKI_LOOK(milkdrop_win_res);
     MOUSIKI_LOOK(milkdrop_preset_secs); MOUSIKI_LOOK(milkdrop_shuffle); MOUSIKI_LOOK(milkdrop_fav_shuffle); MOUSIKI_LOOK(milkdrop_auto); MOUSIKI_LOOK(milkdrop_auto_video_was); MOUSIKI_LOOK(milkdrop_fx); MOUSIKI_LOOK(milkdrop_fixed_colors); MOUSIKI_LOOK(milkdrop_cut_sens); MOUSIKI_LOOK(milkdrop_fx_on); MOUSIKI_LOOK(milkdrop_default_preset); MOUSIKI_LOOK(milkdrop_hard_cuts);
     MOUSIKI_LOOK(milkdrop_transition); MOUSIKI_LOOK(milkdrop_show_name);
@@ -2764,7 +2766,7 @@ Settings load_book_settings(const Settings& player, bool* wants_default_theme) {
 // The keys of config.txt that belong to the look (see copy_look): only these go into audiobook_config.txt.
 static bool is_look_key(const std::string& key) {
     static const char* const prefixes[] = {"Color", "BorderGradient", "Eliment", "Volume", "VizLyricsField", "LyricViz", "VizDefault", "NoLyricsViz",
-                                           "UseLyrics", "UseOscilloscope", "UseSpectrogram", "UseSphere", "UseMilkDrop", "MilkDrop", "VizOrder", "Osci", "Scope", "Spectro",
+                                           "UseLyrics", "BookForceNote", "UseOscilloscope", "UseSpectrogram", "UseSphere", "UseMilkDrop", "MilkDrop", "VizOrder", "Osci", "Scope", "Spectro",
                                            "Visualizer", "Hifi", "TopPane", "SharpCorners", "WaveformStyle", "DiskRotationSpeed", "MetaDataOnly", "PlaybackMode", "UpperLeftCorner",
                                            "UpperRightCorner", "BottomLeftCorner", "LowerRightCorner", "Vertical", "Horizontal", "Seprator", "ListSeparator",
                                            "Normalize", "EqualizerEnabled", "EqualizerBands", "StereoPlayback"};

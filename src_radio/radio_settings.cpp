@@ -171,6 +171,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {true, -1, ""},
         {true, -1, "MILKDROP"},   // the MilkDrop visuals in the scope block (projectM, when installed)
         {false, kRsMdFps, "MilkDrop Frame Rate"}, {false, kRsMdRes, "MilkDrop Resolution"}, {false, kRsMdGpu, "MilkDrop GPU"},
+        {false, kRsMdPreset, "Default Preset"}, {false, kRsMdBrowse, "Preset Overlay"}, {false, kRsMdRandom, "Random Preset"}, {false, kRsMdLock, "Lock Preset"},
         {false, kRsMdDuration, "Preset Duration"}, {false, kRsMdShuffle, "Shuffle All Presets"}, {false, kRsMdHardCuts, "Hard Cuts"},
         {false, kRsMdBeat, "Hard Cut Sensitivity"}, {false, kRsMdTransition, "Preset Transition"}, {false, kRsMdShowName, "Show Preset Name"},
         {false, kRsMdFolder, "Shuffle Folder"}, {false, kRsMdFavShuffle, "Shuffle Favourites"}, {false, kRsMdHcd, "Hard Cut Interval"}, {false, kRsMdVar, "Duration Variance"},
@@ -180,7 +181,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {true, -1, "VIZ ORDER"},   // the order of the "." cycle
         {false, kRsOrder1, "Viz Order 1"}, {false, kRsOrder2, "Viz Order 2"}, {false, kRsOrder3, "Viz Order 3"}, {false, kRsOrder4, "Viz Order 4"},
         {true, -1, ""},
-        {true, -1, "MAIN UI VIZ FIELD"},   // the field right of the station info
+        {true, -1, "VIZ TOGGLE"},   // the field right of the station info
         {false, kRsScope, "Viz Field"}, {false, kRsUseOsci, "Use Oscilloscope"}, {false, kRsUseSpectro, "Use Spectrogram"}, {false, kRsUseSphere, "Use Sphere"}, {false, kRsUseMilkdrop, "Use MilkDrop"},
     };
     if (tab == 1) return on_off;
@@ -276,6 +277,7 @@ bool* flag_of(RadioSettings& s, int id) {
         case kRsMdAspect: return &s.md_aspect;
         case kRsMdClean: return &s.md_clean;
         case kRsMdUseFx: return &s.md_fx_on;
+        case kRsMdLock: return &s.md_lock;
         default: return nullptr;
     }
 }
@@ -344,6 +346,9 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsScope: return scope_mode_name(s);
         case kRsOrder1: case kRsOrder2: case kRsOrder3: case kRsOrder4: { static const char* n[4] = {"osci", "sphere", "spectro", "milkdrop"}; return n[std::clamp(s.viz_order[id - kRsOrder1], 0, 3)]; }
         case kRsOsciStyle: return s.osci_style == 1 ? "image" : "braille";
+        case kRsMdPreset: return (s.md_default_preset.empty() ? std::string("none (one from the list)") : truncate_str(path_utf8(path_from_utf8(s.md_default_preset).stem()), 40)) + "  [ENTER] choose, [d] clear";
+        case kRsMdBrowse: return "[ENTER] open";
+        case kRsMdRandom: return "[ENTER] a random preset";
         case kRsMdFps: return std::to_string(s.md_fps) + " fps";
         case kRsMdRes: return std::to_string(s.md_res) + " px";
         case kRsMdGpu: return milkdrop_gpu_label(s.md_gpu);
@@ -1170,6 +1175,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("MilkDropShuffleFavourites")) s.md_fav_shuffle = as_bool(*v, s.md_fav_shuffle);
     if (auto v = get("MilkDropHardCutInterval")) s.md_hcd = std::clamp(muisc::atoi_safe(v->c_str()), 3, 120);
     if (auto v = get("MilkDropShuffleFolder")) s.md_shuffle_folder = trim_ws(*v);
+    if (auto v = get("MilkDropDefaultPreset")) s.md_default_preset = trim_ws(*v);
     if (auto v = get("MilkDropBrightness")) s.md_bright = std::clamp(muisc::atoi_safe(v->c_str()), 0, 100);
     if (auto v = get("MilkDropSaturation")) s.md_sat = std::clamp(muisc::atoi_safe(v->c_str()), 0, 100);
     if (auto v = get("MilkDropContrast")) s.md_contrast = std::clamp(muisc::atoi_safe(v->c_str()), 0, 100);
@@ -1381,6 +1387,7 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "MilkDropHardCutInterval=" << s.md_hcd << "\n"
          "MilkDropDurationVariance=" << s.md_var << "\n"
          "MilkDropShuffleFolder=" << s.md_shuffle_folder << "\n"
+         "MilkDropDefaultPreset=" << s.md_default_preset << "\n"
          "MilkDropBrightness=" << s.md_bright << "\n"
          "MilkDropSaturation=" << s.md_sat << "\n"
          "MilkDropContrast=" << s.md_contrast << "\n"

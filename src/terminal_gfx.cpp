@@ -104,6 +104,7 @@ std::string kitty_emit(const GfxFrame& f) {
         const bool more = off + kChunk < payload.size();
         o += "\x1b_G";
         if (off == 0) { o += keys; o += ','; }
+        if (off != 0) o += "q=2,";   // (the later chunks may carry q too: some terminals answer per chunk otherwise)
         o += more ? "m=1;" : "m=0;";
         o.append(payload, off, kChunk);
         o += "\x1b\\";

@@ -284,6 +284,7 @@ void App::milkdrop_auto_apply() {
 // ---- the overlay ----
 
 bool App::md_row_shown(int row) const {
+    if (row == kMdOverride && audiobook_) return false;   // (the audio book has no individual MilkDrop settings per track: nothing to override)
     return !(row == kMdOverride && !md_scope_track_.empty());   // (every row is shown in the track menu too: the drawing rows are global and say so; the override is only in the general overlay)
 }
 
@@ -604,6 +605,17 @@ void App::handle_milkdrop_menu_key(int key) {
     };
     auto change = [&](int row, int dir) { if (ts) milkdrop_menu_track_adjust(row, dir, false); else milkdrop_menu_adjust(row, dir); };
     if (!md_row_shown(md_menu_row_)) move(1);
+    if (arrow && (key == 'A' || key == 'B') && (last_key_was_shifted() || last_key_was_page())) {   // SHIFT+UP / DOWN, PgUp / PgDn: a page of rows (not around the ends)
+        const int d = key == 'A' ? -1 : 1;
+        for (int step = 0, cur = md_menu_row_; step < 8; ++step) {
+            int nxt = cur;
+            do { nxt += d; } while (nxt >= 0 && nxt < kMdRows && !md_row_shown(nxt));
+            if (nxt < 0 || nxt >= kMdRows) break;
+            cur = nxt;
+            md_menu_row_ = cur;
+        }
+        return;
+    }
     if (arrow && key == 'A') { move(-1); return; }
     if (arrow && key == 'B') { move(1); return; }
     if (arrow && (key == 'C' || key == 'D')) { change(md_menu_row_, key == 'C' ? 1 : -1); return; }
@@ -1416,9 +1428,9 @@ std::string App::build_mdb_screen(int W, const char* clear_prefix) const {
     // The commands: two centred rows under the box
     std::string leg1, leg2;
     if (mdb_typing_) { leg1 = "type to search (fuzzy)  [\u2191\u2193] select"; leg2 = "[ENTER] to the list  [ESC] clear"; }
-    else if (mdb_searching_) { leg1 = "[\u2191\u2193] select  [ENTER] choose  [a] add to favourites  [SHIFT+a] add to a folder"; leg2 = "[/] search  [ESC/\u2190] clear"; }
+    else if (mdb_searching_) { leg1 = "[\u2191\u2193] select  [ENTER] choose  [a] add to favourites  [SHIFT+a] add to a folder"; leg2 = "[f] favourites  [/] search  [ESC/\u2190] clear"; }
     else if (mdb_in_favs_) { leg1 = "[\u2191\u2193] select  [ENTER] choose  [d] remove from favourites  [SHIFT+u] undo remove"; leg2 = "[SHIFT+a] add to a folder  [/] search  [e] effect  [\u2190] back  [ESC] close"; }
-    else if (!mdb_in_user_.empty()) { leg1 = "[\u2191\u2193] select  [ENTER] choose  [d] remove from this folder  [SHIFT+u] undo remove"; leg2 = "[SHIFT+a] add to another folder  [/] search  [e] effect  [\u2190] back  [ESC] close"; }
+    else if (!mdb_in_user_.empty()) { leg1 = "[\u2191\u2193] select  [ENTER] choose  [d] remove from this folder  [SHIFT+u] undo remove"; leg2 = "[f] favourites  [SHIFT+a] add to another folder  [/] search  [e] effect  [\u2190] back  [ESC] close"; }
     else if (!mdb_track_.empty()) { leg1 = "[ENTER] this track's preset  [f] favourites  [a] add to favourites  [SHIFT+a] add to a folder"; leg2 = "[/] search  [e] effect  [g/h] change  [\u2190] up  [ESC] back"; }
     else if (mdb_default_) { leg1 = "[ENTER] the default preset  [f] favourites  [a] add to favourites  [SHIFT+a] add to a folder"; leg2 = "[/] search  [e] effect  [g/h] change  [\u2190] up  [ESC] back"; }
     else { leg1 = "[ENTER] choose / open  [f] favourites  [a] add to favourites  [SHIFT+a] add to a folder  [n] new folder"; leg2 = "[d] delete folder  [SHIFT+u] undo delete  [/] search  [e] effect  [\u2190] up  [ESC] close"; }

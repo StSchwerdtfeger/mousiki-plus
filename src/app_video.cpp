@@ -349,7 +349,7 @@ VideoLook App::video_look_for(const fs::path& track) const {
 }
 
 // The look of the MilkDrop pictures: their own effect (MilkDropEffect=) with the video's dither pattern, base layer, effect contrast and
-// gradient; no grade (contrast, colours, brightness, chromatic aberration stay as projectM draws them).
+// gradient; and the grade of the visuals overlay (Brightness, Saturation, Contrast: milkdrop_bright / _sat / _contrast); no chromatic aberration.
 VideoLook App::milkdrop_look() const {
     VideoLook l;
     l.fx = !milkdrop_eff().fx_on ? 0 : video_fx_canon(std::clamp(md_track_fx_ >= 0 && mode_ != Mode::Settings ? md_track_fx_ : settings_.milkdrop_fx, 0, kVideoFxCount - 1));   // (the track's own first; Settings shows its own value; Use Effect off: none)
@@ -574,7 +574,7 @@ void App::clap_loading_fill(std::vector<std::string>& rows, int W, int H, int ab
 }
 
 // Draws the video's picture into a box of W x H cells (rows: H strings of W columns, the picture's cells as placeholders in a
-// picture terminal or braille dots). mode 0: the whole picture, centred | 1: the same with two columns cut off each side | 2: fills
+// picture terminal or braille dots). mode 0: the whole picture, centred | 3: the same, with equal gaps left / right and above / below (the [f] Video only view) | 1: the same with two columns cut off each side | 2: fills
 // the box, cropped to fit. `ov`: lyric rows (width ov_w) as a small black box over the bottom of the box (cut out of the picture).
 // abs_col / abs_row: where the box starts on the screen. false: no video.
 namespace {
@@ -725,7 +725,7 @@ bool App::video_draw_src(Src& V, bool playing_one, bool is_video, std::string& p
                 V.fit(W * cw0, H * ch0, 1.0, fw, fh);
                 vcols = std::clamp((fw + cw0 / 2) / cw0, 1, W);
                 vrows = std::clamp((fh + ch0 / 2) / ch0, 1, H);
-                if constexpr (std::is_same_v<Src, MilkdropSource>) { vcols = centred(vcols, W, static_cast<double>(fw) / cw0, 1); vrows = centred(vrows, H, static_cast<double>(fh) / ch0, 1); }
+                if (std::is_same_v<Src, MilkdropSource> || mode == 3) { vcols = centred(vcols, W, static_cast<double>(fw) / cw0, 1); vrows = centred(vrows, H, static_cast<double>(fh) / ch0, 1); }
                 const int maxw = md_maxw;
                 const double f = std::min(1.0, static_cast<double>(maxw) / (vcols * cw0));
                 dw = std::max(2, static_cast<int>(vcols * cw0 * f) & ~1);
@@ -734,7 +734,7 @@ bool App::video_draw_src(Src& V, bool playing_one, bool is_video, std::string& p
                 V.fit(W * 2, H * 4, 2.0 * cw0 / ch0, fw, fh);   // a braille dot is cw0 / 2 wide and ch0 / 4 high
                 vcols = std::clamp((fw + 1) / 2, 1, W);
                 vrows = std::clamp((fh + 3) / 4, 1, H);
-                if constexpr (std::is_same_v<Src, MilkdropSource>) { vcols = centred(vcols, W, fw / 2.0, 1); vrows = centred(vrows, H, fh / 4.0, 1); }
+                if (std::is_same_v<Src, MilkdropSource> || mode == 3) { vcols = centred(vcols, W, fw / 2.0, 1); vrows = centred(vrows, H, fh / 4.0, 1); }
                 dw = vcols * 2; dh = vrows * 4;
             }
             outw = dw; outh = dh;
@@ -1249,7 +1249,7 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
         if (vfull_wants_md() && milkdrop_usable()) {
             milkdrop_draw(pic, W, rows_all, 0, 0, false, 0, std::vector<std::string>(), 0);
         } else {
-            ok1 = video_draw(pic, W, rows_all, 0, 0, false, el, 0, std::vector<std::string>(), std::max(12, W * 2 / 3));
+            ok1 = video_draw(pic, W, rows_all, 0, 0, false, el, 3, std::vector<std::string>(), std::max(12, W * 2 / 3));   // (mode 3: centred with equal gaps)
         }
         video_ov_ref_.clear();
         // No video for this track: the clapperboard and its note over the whole window (as in the box), never the MilkDrop visuals
@@ -1519,7 +1519,8 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
     };
     std::ostringstream f;
     f << clear_prefix << "\x1b[?25l";
-    f << box_top(truncate_str(title, std::max(8, W - 6 - display_width(title_time))) + title_time, W, border) << "\n";
+    const std::string title_shown = apply_font_map(title, settings_.font_map);   // (the Latin letters switch and the font map, as in the main screen)
+    f << box_top(truncate_str(title_shown, std::max(8, W - 6 - display_width(title_time))) + title_time, W, border) << "\n";
     std::vector<std::string> side = osc;
     side.insert(side.end(), spl.begin(), spl.end());
     auto row_of = [](const std::vector<std::string>& v, int r, int w) { return r >= 0 && r < static_cast<int>(v.size()) ? v[static_cast<size_t>(r)] : std::string(static_cast<size_t>(w), ' '); };

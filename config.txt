@@ -199,6 +199,8 @@ NoLyricsViz=osci
 ## What the field shows while the lyrics view is on but no lyrics are available (sphere | osci | spectro | none, default spectro).
 ## Picking one turns its "Use ..." switch below on; switching that off again moves this pick to the next visual that is on.
 UseLyrics=true
+## Audio book: true = while a note is shown in the Viz/Notes field, only the note is drawn there (no MilkDrop or other picture behind it); false = a shown note does not appear while MilkDrop fills the field (a note you are writing always does). Default true.
+BookForceNote=true
 UseOscilloscope=true
 UseSpectrogram=true
 UseSphere=true

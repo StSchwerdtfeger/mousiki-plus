@@ -930,6 +930,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidMarquee: v = settings_.marquee; break;
             case kSidTermDefaultFont: v = settings_.terminal_default_font; break;
             case kSidUseLyrics: v = settings_.use_lyrics; break;
+            case kSidBookForceNote: v = settings_.book_force_note; break;
             case kSidUseOsci: v = settings_.use_osci; break;
             case kSidUseSpectro: v = settings_.use_spectro; break;
             case kSidUseSphere: v = settings_.use_sphere; break;
@@ -1131,6 +1132,21 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
         }
     }
     return {};
+}
+
+// True when the row on the GENERAL / ANIMA/VIZ tabs is a switch or a pick from a list of words, so ENTER can simply change it. A row whose
+// choices are numbers (percentages, seconds, dB, frame rates ... -- at most one word such as "off" among them) is typed as text instead.
+bool App::settings_row_is_pick(int tab, int row) const {
+    if (tab != 1 && tab != 2) return false;
+    const std::vector<std::string> o = settings_options_for(tab, row);
+    if (o.empty()) return false;
+    size_t numeric = 0;
+    for (const std::string& t : o) {
+        size_t i = 0;
+        while (i < t.size() && (t[i] == '-' || t[i] == '+' || t[i] == ' ')) ++i;
+        if (i < t.size() && std::isdigit(static_cast<unsigned char>(t[i]))) ++numeric;
+    }
+    return numeric + 1 < o.size() || o.size() <= 2;   // (numbers all but one at most: a number row)
 }
 
 // Matches g_config[k] = edit_buffer -- stored close to verbatim, no
@@ -1477,6 +1493,7 @@ void App::settings_commit_edit_impl() {
                 break;
             case kSidUseVideo: if (settings_.video_mode != is_true) video_toggle(); break;   // the same as the hotkey (lists the videos, rescans)
             case kSidUseLyrics: settings_.use_lyrics = is_true; break;
+            case kSidBookForceNote: settings_.book_force_note = is_true; break;
             case kSidUseOsci: settings_.use_osci = is_true; break;
             case kSidUseSpectro: settings_.use_spectro = is_true; break;
             case kSidUseSphere: settings_.use_sphere = is_true; break;
@@ -1715,6 +1732,9 @@ void App::settings_cycle(int dir) {
         status_line_ = settings_.element_vizfield ? "viz/lyrics field: on" + note
                                                   : "viz/lyrics field: off -- the meta data take its place, no lyrics are fetched for it";
     }
+    if (id == kSidBookForceNote)
+        status_line_ = settings_.book_force_note ? "force note: on -- a note in the field shows alone, without a picture behind it" + note
+                                                 : "force note: off -- a shown note is not displayed while MilkDrop fills the field" + note;
     if (id == kSidUseLyrics) {
         status_line_ = settings_.use_lyrics ? "lyrics engine: on (lyrics are fetched when the field shows them)" + note
                                             : "lyrics engine: off, no lyrics are fetched" + note;
@@ -2223,6 +2243,9 @@ void App::handle_settings_key(int key) {
             return;
         }
         if ((settings_tab_ == 1 || settings_tab_ == 2) && settings_item_id(settings_tab_, settings_row_) == kSidVideoFx) { fxpick_open(0); return; }   // the list of all effects (two columns and a preview)
+        // A switch or a pick from a list (true / false, a look, a mode ...): ENTER changes it, as RIGHT does -- typing "true" into a field
+        // helps nobody. Rows that take a number (percentages, seconds, sizes, ...) and the text rows keep the input field.
+        if ((settings_tab_ == 1 || settings_tab_ == 2) && settings_row_is_pick(settings_tab_, settings_row_)) { settings_cycle(1); return; }
         color_edit_buffer_ = settings_get_value(settings_row_, settings_col_);
         edit_caret_ = edit_anchor_ = color_edit_buffer_.size(); // caret starts at the end, as usual
         edit_owner_ = "settings"; // claim the shared caret -- see edit_focus()

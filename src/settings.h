@@ -92,6 +92,7 @@ struct Settings : VizPrefs {
     // Settings -> ANIMA/VIZ "Use Lyrics / Use Oscilloscope / Use Spectrogram": false leaves that one out entirely (no
     // lyrics fetching, not in the "." cycle; the sphere is always there). The windows (SHIFT+8 / SHIFT+9) work anyway.
     bool use_lyrics = true;
+    bool book_force_note = true;    // audio book: while a note is in the field, no picture (MilkDrop / video) is drawn there, only the note
     bool use_osci = true;
     bool use_spectro = true;
     // "Use Sphere": false leaves the sphere out of the "." cycle as well. config.txt: UseSphere=.
