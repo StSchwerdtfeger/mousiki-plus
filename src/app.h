@@ -1829,6 +1829,10 @@ private:
     // [ESC] closes it, [o] opens the release page. It waits (update_pending_) until the main screen is showing.
     bool update_pending_ = false;
     std::string update_latest_, update_current_, update_url_;
+    // The same panel for an old yt-dlp (ytdlp_update.h): update_kind_ 1, the sentence in update_note_; [u] updates it, [o] opens its releases page.
+    int update_kind_ = 0;
+    std::string update_note_;
+    void ytdlp_answer(const std::string& msg);   // a late answer of `update` / the panel: the status line, the log and the command line's list
 
     // Background tasks that are started and left to run (tags, lyrics, waveforms, translations ...): spawn_bg() counts them in
     // bg_, long loops stop early once bg_->quit is set, and wait_background() (main.cpp, at exit) waits for them. A task that is

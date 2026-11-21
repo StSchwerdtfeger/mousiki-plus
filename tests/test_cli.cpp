@@ -227,6 +227,25 @@ TEST(cli_status_json_and_format) {
     remote::stop();
 }
 
+TEST(cli_script_rename_special_names) {
+    mt::TempHome home;
+    std::string err, note;
+    CHECK(cli::write_script("startup", {"volume 33"}, err));
+    CHECK(cli::rename_script("startup", "mine", err, &note));        // a fresh empty startup stays behind
+    CHECK(std::filesystem::exists(cli::script_path("startup")) && std::filesystem::file_size(cli::script_path("startup")) == 0);
+    CHECK(std::filesystem::exists(cli::script_path("mine")));
+    CHECK(note.find("fresh empty startup") != std::string::npos);
+    CHECK(cli::write_script("startup", {"volume 10"}, err));
+    CHECK(cli::rename_script("mine", "startup", err, &note));        // the current one is kept as startup_old1
+    CHECK(std::filesystem::exists(cli::script_path("startup_old1")));
+    CHECK(note.find("startup_old1") != std::string::npos);
+    CHECK(cli::write_script("other", {"volume 5"}, err));
+    CHECK(cli::rename_script("other", "startup", err));              // the next number is taken
+    CHECK(std::filesystem::exists(cli::script_path("startup_old2")));
+    CHECK(!cli::rename_script("startup", "startup", err));
+    CHECK(!cli::rename_script("startup_old1", "startup_old2", err)); // ordinary names are still not overwritten
+}
+
 TEST(cli_script_rename_trash_and_search) {
     mt::TempHome home;
     std::string err;

@@ -880,6 +880,18 @@ std::vector<std::string> App::build_update_panel() const {
         const std::string t = truncate_str(plain, inner);
         return bar + " " + t + std::string(static_cast<size_t>(std::max(0, inner - display_width(t))), ' ') + " " + bar;
     };
+    if (update_kind_ == 1) {   // an old yt-dlp (ytdlp_update.h)
+        std::vector<std::string> out;
+        out.push_back(box_top("Old yt-dlp", W, border));
+        out.push_back(row(""));
+        for (const std::string& l : wrap_lines(update_note_, inner, 12)) out.push_back(row(l));
+        out.push_back(row(""));
+        for (const std::string& l : wrap_lines("[u] runs the update now (yt-dlp -U, or pip for a pip copy; no administrator rights; a copy that a package manager owns is left alone and the answer names its command).", inner, 6))
+            out.push_back(row(l));
+        out.push_back(row(""));
+        out.push_back(box_bottom(W, "[ESC] Close  [u] Update  [o] Releases", border_bottom));
+        return out;
+    }
     std::string ver = update_latest_;
     while (!ver.empty() && (ver[0] == 'v' || ver[0] == 'V')) ver.erase(0, 1);
     std::string shown_url = update_url_;

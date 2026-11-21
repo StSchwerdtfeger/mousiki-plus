@@ -95,6 +95,7 @@ class Session:
         env.pop("WT_SESSION", None)
         if scripts:
             env["MOUSIKI_SCRIPTS_DIR"] = scripts
+        env["MOUSIKI_NO_YTDLP_CHECK"] = "1"   # (no yt-dlp notice over the screens; the yt-dlp scenario turns it on again)
         env.update(env_extra or {})
         self.pid, self.fd = pty.fork()
         if self.pid == 0:
@@ -3827,6 +3828,20 @@ def cli_scripts_overlay(binary, root, scripts):
         check("echo hello" in sess.text() and "night.cli *" in sess.text(), "scripts: typing edits the buffer and marks it changed")
         sess.send(b"\x13", 0.8)   # CTRL+S
         check("saved night.cli" in sess.text() and "night.cli *" not in sess.text(), "scripts: CTRL+S saves")
+        # whole lines: SHIFT+UP marks, CTRL+C copies, CTRL+V pastes them above the caret's line, DEL deletes
+        sess.send(b"\x1b[1;2A", 0.4)   # SHIFT+UP from the last line ("echo hello") -> marks two lines
+        check("2 lines marked" in sess.text() and "[CTRL+C] copy" in sess.text(), "scripts: SHIFT+UP marks whole lines and the legend offers copy / cut / delete")
+        sess.send(b"\x03", 0.5)   # CTRL+C
+        check("COPIED 2 lines" in sess.text(), "scripts: CTRL+C copies the marked lines")
+        sess.send(b"\x16", 0.5)   # CTRL+V: the two lines go above the caret's line
+        check("PASTED 2 lines" in sess.text() and "night.cli *" in sess.text(), "scripts: CTRL+V pastes the copied lines")
+        sess.send(b"\x1b[1;2A", 0.3)
+        sess.send(b"\x1b[1;2A", 0.3)
+        sess.send(b"\x1b[3~", 0.5)   # DELETE on marked lines
+        check("DELETED 3 lines" in sess.text(), "scripts: DELETE removes the marked lines")
+        sess.send(b"\x1b", 0.4)
+        sess.send(b"\x13", 0.8)
+        sess.send(b"\x15", 0.0) if False else None
         check("echo hello" in open(os.path.join(cfgdir, "cli", "night.cli"), encoding="utf-8").read(), "scripts: the file on disk has the new line")
         sess.send(b"\x1b", 0.8)   # leave: unchanged text closes at once
         check("EDITOR" not in sess.text(), "scripts: ESC closes the overlay when nothing is unsaved")
@@ -3838,6 +3853,19 @@ def cli_scripts_overlay(binary, root, scripts):
         sess.send("brand-new\r", 1.0)
         check("brand-new" in sess.text() and os.path.exists(os.path.join(cfgdir, "cli", "brand-new.cli")), "scripts: [n] makes a new script file")
         sess.send(b"\t", 0.3)
+        check("[m]ren" in sess.text() and "[x]del" in sess.text() and "[r]un" in sess.text() and "[h]elp" in sess.text(), "scripts: the library legend (in the border) names new, rename, delete, run and help")
+        check("[CTRL+S] save" in sess.text() and "[ESC] close" in sess.text(), "scripts: the editor legend (in the border) is complete")
+        sess.send("h", 0.6)   # the list of all commands
+        check("COMMANDS (" in sess.text() and "toggle play / pause" in sess.text() and "[ESC] back" in sess.text(), "scripts: [h] opens the list of all commands with a short description")
+        sess.send(b"\x1b[F", 0.4)   # End
+        check("help" in sess.text() and "EDITOR" not in sess.text(), "scripts: the command list scrolls (End shows the last commands)")
+        sess.send(b"\x1b", 0.5)
+        check("EDITOR" in sess.text() and "COMMANDS (" not in sess.text(), "scripts: ESC closes the command list and not the overlay")
+        sess.send("m", 0.5)
+        sess.send(b"\x15", 0.0) if False else None
+        sess.send(b"\x7f" * 12, 0.3)
+        sess.send("renamed\r", 1.0)
+        check(os.path.exists(os.path.join(cfgdir, "cli", "renamed.cli")) and not os.path.exists(os.path.join(cfgdir, "cli", "brand-new.cli")), "scripts: [m] renames the marked script")
         sess.send("x", 0.5)
         sess.send(b"\x1b", 0.5)
         sess.send(b"\x1b", 0.8)
@@ -5925,6 +5953,72 @@ def spectro_history_setting(binary, root, scripts):
         sess.kill()
 
 
+def ytdlp_update_flow(binary, root, scripts):
+    """yt-dlp: an installed copy that is far behind the newest release (a fake yt-dlp first on PATH; the newest version is in the stored answer of
+    the day, so no network) is recommended once at start; `update yt-dlp` in the command line runs `yt-dlp -U` and says old -> new."""
+    home = os.path.join(root, "yu_home")
+    lib = os.path.join(root, "yu_music")
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    fake = os.path.join(root, "yu_bin")
+    os.makedirs(cfgdir)
+    os.makedirs(fake)
+    make_wav(os.path.join(lib, "Alpha Song.wav"), 30)
+    with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\n" % lib)
+    with open(os.path.join(cfgdir, "ytdlp_check.txt"), "w", encoding="utf-8") as f:
+        f.write("checked=%d\nlatest=2026.10.26\nnotified=\n" % int(time.time()))
+    ver = os.path.join(fake, "ver")
+    with open(ver, "w", encoding="utf-8") as f:
+        f.write("2026.07.01\n")
+    prog = os.path.join(fake, "yt-dlp")
+    with open(prog, "w", encoding="utf-8") as f:
+        f.write('#!/bin/sh\nv="$(dirname "$0")/ver"\ncase "$1" in\n  --version) cat "$v" ;;\n'
+                '  -U) if [ "$(cat "$v")" = 2026.10.26 ]; then echo "yt-dlp is up to date (stable@2026.10.26 from yt-dlp/yt-dlp)"; '
+                'else echo 2026.10.26 > "$v"; echo "Updated yt-dlp to stable@2026.10.26 from yt-dlp/yt-dlp"; fi ;;\nesac\n')
+    os.chmod(prog, 0o755)
+    sess = Session(binary, home, scripts, {"PATH": fake + os.pathsep + os.environ.get("PATH", ""), "MOUSIKI_NO_YTDLP_CHECK": "0"}, quiet_stderr=True)
+    try:
+        for _ in range(30):
+            sess.pump(0.5)
+            if "HELP WIZARD" in sess.text():
+                break
+        sess.send(b"\x1b", 1.0)
+        for _ in range(20):
+            sess.pump(0.5)
+            if "Alpha Song" in sess.text():
+                break
+        seen = sess.wait_for(lambda t: "Old yt-dlp" in t, 15, step=0.2)
+        check(seen, "yt-dlp: an installed copy far behind the newest release is recommended in a small panel at start")
+        if not seen:
+            sess.dump("yt-dlp: no recommendation")
+        text = sess.text()
+        check("yt-dlp 2026.07.01 is installed" in text and "[u] Update" in text, "yt-dlp: ... it names the installed version and offers [u] Update")
+        sess.send("u", 0.5)
+        check("Old yt-dlp" not in sess.text(), "yt-dlp: [u] closes the panel")
+        with open(ver, encoding="utf-8") as f:
+            ok = False
+            for _ in range(60):
+                f.seek(0)
+                if f.read().strip() == "2026.10.26":
+                    ok = True
+                    break
+                sess.pump(0.25)
+        check(ok, "yt-dlp: [u] ran the update (the fake program was updated)")
+        sess.send("/", 0.5)
+        sess.send("c:", 0.6)
+        done = sess.wait_for(lambda t: "2026.07.01 -> 2026.10.26" in t, 10, step=0.2)
+        check(done, "yt-dlp: the answer (old -> new) is in the command line's list")
+        if not done:
+            sess.dump("yt-dlp: no answer in the list")
+        sess.send("update yt-dlp\r", 0.5)
+        again = sess.wait_for(lambda t: "already the newest" in t, 15, step=0.2)
+        check(again, "yt-dlp: `update yt-dlp` once more says that it is already the newest")
+        sess.send("update bogus\r", 0.8)
+        check("update yt-dlp" in sess.text(), "yt-dlp: an unknown word after update is explained")
+    finally:
+        sess.kill()
+
+
 def settings_cli_row(binary, root, scripts):
     """Settings -> GENERAL: the category CLI / REMOTE / UPDATES with the row CLI Scripts (ENTER opens the script overlay, ESC returns) and
     the Pause Fade row in AUDIO."""
@@ -6574,6 +6668,8 @@ def run_scenario(name, binary, root, scripts):
         cli_commands(binary, root, scripts)
     elif name == "settings_cli_row":
         settings_cli_row(binary, root, scripts)
+    elif name == "ytdlp_update_flow":
+        ytdlp_update_flow(binary, root, scripts)
     elif name == "xdg_dirs":
         xdg_dirs(binary, root, scripts)
     elif name == "radio_cli":
@@ -6669,7 +6765,7 @@ def run_scenario(name, binary, root, scripts):
 
 
 SCENARIOS = ["narrow80", "narrow100", "main", "read_lyrics_play", "karaoke_timing", "book_speed_and_devices", "paging_and_translit_row",
-             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "audio_fades", "audio_fades_edges", "playlist_missing_file", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews", "override_and_previews", "sharp_and_folders"]
+             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "audio_fades", "audio_fades_edges", "playlist_missing_file", "ytdlp_update_flow", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews", "override_and_previews", "sharp_and_folders"]
 
 
 def main():

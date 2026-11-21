@@ -89,7 +89,7 @@ blockquote{border-left:3px solid #d0d7de;padding:0 .8em;color:#57606a}
 hr{border:0;border-top:1px solid #d0d7de;margin:.8em 0}
 @page{size:A4;margin:%(margin)smm}
 """ % dict(p, padx=p["pad"] + 3)
-    return '<!doctype html><html><head><meta charset="utf-8"><title>Mousiki User Guide v5.1.0</title><base href="%s"><style>%s</style></head><body>%s</body></html>' % (
+    return '<!doctype html><html><head><meta charset="utf-8"><title>Mousiki User Guide v5.2.0</title><base href="%s"><style>%s</style></head><body>%s</body></html>' % (
         base_dir.as_uri() + "/", css, body)
 
 

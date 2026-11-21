@@ -572,7 +572,7 @@ DIFFERENT SEARCH CAPABILITIES:[[Header]]
 [/b:]  +  query       Bandcamp                live on [ENTER]
 [/yv:] +  query       YouTube videos          live on [ENTER] (SEARCH YT)
 [/c:]  +  command     the command line        [ENTER] runs it, [ESC] leaves (type help)
-[/cs:] +  words       the CLI scripts         [ENTER] opens the script overlay
+[/cs:] +  words       the CLI scripts         [ENTER] opens the script overlay  (editor: [SHIFT+UP/DOWN] marks lines, [m] renames)
 [/p:]  +  query       your saved playlists    live
 [/f:]  +  query       your folders            live
 
@@ -2014,7 +2014,10 @@ marquee.
 
 [Update Notice:][[Legend]]                                    a quiet once-a-day look for a newer release; a small
                                                   window, once per version ([ESC] close, [o] open the
-                                                  Github release page).
+                                                  Github release page). It also compares the installed
+                                                  yt-dlp with the newest one: a line in the console log
+                                                  and, when it is 14 days or more behind, a small window
+                                                  once per newest release ([u] update, [o] releases).
 
 [Check Update:][[Legend]]                                     [ENTER] on this row asks GitHub for the newest release
                                                   now and writes the answer on this screen (needs Python 3
@@ -3179,6 +3182,8 @@ seeks in beta. mousiki --query help gives the list of commands as its answer.
  playlists               the saved playlists, numbered         1. Meow-Music
  playlist <n>            queue playlist n (starts it if idle)  playlist 1 queued: 4 titles  now: ...
  rescan                  read the music folders again          scanning the music folders
+ update / update yt-dlp  compare / update yt-dlp (player only; comparing yt-dlp ... (the answer
+                         scripts: force update yt-dlp)         follows in the status line, the log)
  open <where>            console settings cheatsheet wizard    opened settings
                          history queue folders equalizer
                          playlist scripts
@@ -3248,7 +3253,7 @@ hooks.cli (edit hooks) runs commands when something happens, one line each:
  * force <command> runs such a command without asking. In scripts, timers, hooks and from outside it
    is needed, because nobody is there to confirm:  force queue clear
  * From the network (5.1.9) there is no quit, force, yes, set, alias, unalias, edit, open,
-   clear-queue, queue clear, rescan, wizard, switch-mode. Scripts started from the network run with
+   clear-queue, queue clear, rescan, wizard, switch-mode, update. Scripts started from the network run with
    the same limits.
  * A script that calls itself ends after 1000 lines; at most 50 timers wait; a timer is at most 24 h.
  * Errors of scripts, timers and hooks go to the console log (CLI error: ...) with the line.

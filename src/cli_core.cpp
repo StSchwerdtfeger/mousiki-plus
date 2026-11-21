@@ -148,13 +148,32 @@ bool write_script(const std::string& name, const std::vector<std::string>& lines
     return true;
 }
 
-bool rename_script(const std::string& from, const std::string& to, std::string& error) {
+bool is_special_script(const std::string& name) { return name == "startup" || name == "aliases"; }
+
+bool rename_script(const std::string& from, const std::string& to, std::string& error, std::string* note) {
     if (!valid_name(from) || !valid_name(to)) { error = "a script name has letters, digits, - _ . only"; return false; }
     std::error_code ec;
     if (!fs::exists(script_path(from), ec)) { error = "no script called \"" + from + "\""; return false; }
-    if (fs::exists(script_path(to), ec)) { error = "\"" + to + "\" exists already"; return false; }
+    if (from == to) { error = "\"" + to + "\" is the name it has"; return false; }
+    std::string kept;   // the file that was in the way of a special name
+    if (fs::exists(script_path(to), ec)) {
+        if (!is_special_script(to)) { error = "\"" + to + "\" exists already"; return false; }
+        for (int i = 1; i < 10000; ++i) {
+            kept = to + "_old" + std::to_string(i);
+            if (!fs::exists(script_path(kept), ec)) break;
+        }
+        fs::rename(script_path(to), script_path(kept), ec);
+        if (ec) { error = "could not keep the current " + to + " as " + kept; return false; }
+    }
     fs::rename(script_path(from), script_path(to), ec);
     if (ec) { error = "could not rename it"; return false; }
+    std::string msg;
+    if (!kept.empty()) msg = "the former " + to + " is now " + kept;
+    if (is_special_script(from)) {   // Mousiki looks for this name: a fresh, empty file stays behind
+        std::string e2;
+        if (write_script(from, {}, e2)) msg += std::string(msg.empty() ? "" : "; ") + "a fresh empty " + from + " was created";
+    }
+    if (note) *note = msg;
     return true;
 }
 

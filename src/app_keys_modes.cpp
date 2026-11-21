@@ -2,6 +2,7 @@
 // Part of class App (src/app.h): the key handlers of the overlays, one function per mode (split out of App::handle_key).
 // Split out of app.cpp; the includes are the same as there.
 #include "app.h"
+#include "ytdlp_update.h"
 #include "app_state_rl.h"
 #include "app_state_sleep.h"
 #include "app_state_eq.h"
@@ -119,8 +120,12 @@ void App::handle_update_notice_key(int key) {
     // The new-version popup: [o] opens the release page (and closes it), ESC closes it; other keys do nothing, so a
     // key meant for the player is not lost silently behind it (it is small and one key away from gone).
     const bool arrow = last_key_was_arrow();
-    if (!arrow && (key == 'o' || key == 'O')) {
-        if (!open_url(update_url_)) { status_line_ = "could not open the browser: " + update_url_; }
+    if (update_kind_ == 1 && !arrow && (key == 'u' || key == 'U')) {   // an old yt-dlp: update it (the answer comes in the status line and the log)
+        ytdlp_answer(ytdlp_update::update_now() ? "updating yt-dlp ..." : "an update check is still running");
+        mode_ = Mode::Browse;
+    } else if (!arrow && (key == 'o' || key == 'O')) {
+        const std::string url = update_kind_ == 1 ? std::string("https://github.com/yt-dlp/yt-dlp/releases/latest") : update_url_;
+        if (!open_url(url)) { status_line_ = "could not open the browser: " + url; }
         mode_ = Mode::Browse;
     } else if (!arrow && key == 27) {
         mode_ = Mode::Browse;

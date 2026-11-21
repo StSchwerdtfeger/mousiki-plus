@@ -1,4 +1,5 @@
-"""Asks GitHub which release of Mousiki Plus is the newest one and prints {"ok": true, "tag": "v5.1.0", "url": "..."}.
+"""Asks GitHub which release of Mousiki Plus is the newest one and prints {"ok": true, "tag": "v5.2.0", "url": "..."}.
+With the argument yt-dlp/yt-dlp it asks for the newest yt-dlp release instead ({"ok": true, "tag": "2026.10.26", ...}).
 
 Called by Mousiki at start-up (at most once a day; switch it off with UpdateCheck=false in config.txt). Only the public
 releases page of the project is read; nothing about you or your music is sent. Uses only Python's standard library."""
@@ -11,7 +12,10 @@ if hasattr(sys.stdout, "reconfigure"):
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-API = "https://api.github.com/repos/StSchwerdtfeger/mousiki-plus/releases/latest"
+# the projects this script may ask about (the argument is never put into the address unchecked)
+REPOS = ("StSchwerdtfeger/mousiki-plus", "yt-dlp/yt-dlp")
+repo = sys.argv[1] if len(sys.argv) > 1 else REPOS[0]
+API = "https://api.github.com/repos/%s/releases/latest" % (repo if repo in REPOS else REPOS[0])
 
 
 def emit(obj):

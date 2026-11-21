@@ -32,7 +32,11 @@ std::filesystem::path script_path(const std::string& name);
 bool read_script(const std::string& name, std::vector<std::string>& lines, std::string& error);
 bool write_script(const std::string& name, const std::vector<std::string>& lines, std::string& error);
 
-bool rename_script(const std::string& from, const std::string& to, std::string& error);   // refuses an existing name
+// Renames a script; refuses an existing name, except for the two special ones: a script named "startup" / "aliases" takes the place of the
+// current file, which is kept as startup_old1 (aliases_old1 ...; the first number not in use). Renaming startup / aliases itself leaves a fresh
+// empty file of that name behind. `note` (when given) says what else happened.
+bool rename_script(const std::string& from, const std::string& to, std::string& error, std::string* note = nullptr);
+bool is_special_script(const std::string& name);   // "startup" or "aliases"
 bool trash_script(const std::string& name, std::string& error);   // moves the file to cli/deleted/ (nothing is erased)
 // every word of the query in the name or the text (case does not matter); an empty query matches all
 bool script_matches(const std::string& name, const std::string& text, const std::string& query);

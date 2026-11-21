@@ -16,6 +16,7 @@
 #include "remote_control.h"
 #include "remote_server.h"
 #include "update_check.h"
+#include "ytdlp_update.h"
 #include "media_session.h"
 #include "app_internal.h"
 #include "selftest.h"
@@ -138,6 +139,7 @@ int main(int argc, char** argv) {
     std::unique_ptr<muisc::App> app, book_app;
     try {
         muisc::update_check::start(muisc::locate_script("check_update.py"));   // a quiet look for a newer release (once a day, in the background)
+        muisc::ytdlp_update::start(muisc::locate_script("check_update.py"));   // and for an old yt-dlp (the same switch; one log line, a recommendation once)
         int mode = std::max(0, muisc::mode_index(muisc::read_start_mode()));   // 0 music player, 1 radio, 2 audio book player
         for (;;) {
             if (mode != 1) {

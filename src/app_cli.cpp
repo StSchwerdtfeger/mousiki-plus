@@ -17,6 +17,7 @@
 #include "string_util.h"
 #include "cli_core.h"
 #include "settings.h"
+#include "ytdlp_update.h"
 #include <algorithm>
 #include <cstdio>
 #include <sstream>
@@ -73,6 +74,7 @@ const Cmd kCmds[] = {
     {"open",          "<where>",                     "open console, settings, cheatsheet, wizard, history, queue, folders, equalizer, playlist", 3, false, false},
     {"edit",          "[script]",                    "open the script overlay (library and editor), on a script",   3, false, false},
     {"rescan",        "",                            "scan the music folders again",                            0, false, false},
+    {"update",        "[check | yt-dlp]",            "compare yt-dlp with the newest release; update yt-dlp installs it (force in a script)", 3, false, false},
     {"echo",          "<text>",                      "write text (a script's message)",                         3, false, false},
     {"log",           "<text>",                      "write text into the log of the console",                  3, false, false},
     {"wait",          "<time>",                      "a script waits: 5, 5s, 2m, 1h30m",                        3, false, false},
@@ -108,6 +110,13 @@ std::string join_lines(const std::vector<std::string>& v) {
 }
 
 }  // namespace
+
+// Every command with its usage and a very short description, "usage<TAB>description" (the list of the script overlay, [h]).
+std::vector<std::string> cli_command_list() {
+    std::vector<std::string> v;
+    for (const Cmd& c : kCmds) v.push_back(std::string(c.name) + (c.usage[0] ? " " : "") + c.usage + "\t" + c.help + (c.caution ? "  (force in scripts)" : ""));
+    return v;
+}
 
 cli::State App::cli_state() const {
     cli::State st;
@@ -357,7 +366,7 @@ std::string App::cli_exec(const std::string& line_in, cli::Job& job, bool& ok, b
     // from the web server (/api/cli: Home Assistant & co): the harmless set -- nothing that quits, changes settings or scripts, opens
     // screens or empties the queue, and no `force` (so also `run` of a script cannot do more than the endpoint itself)
     if (job.origin == Origin::Network) {
-        static const char* const kDenied[] = {"quit", "force", "yes", "set", "alias", "unalias", "edit", "open", "clear-queue", "rescan", "wizard", "switch-mode"};
+        static const char* const kDenied[] = {"quit", "force", "yes", "set", "alias", "unalias", "edit", "open", "clear-queue", "rescan", "wizard", "switch-mode", "update"};
         for (const char* d : kDenied)
             if (name == d) return fail(name + " is not allowed over the network (use it at the keyboard, or `mousiki --cli` on this computer)");
         if (name == "queue" && ascii_lower_str(cli::trim(arg)).compare(0, 5, "clear") == 0) return fail("queue clear is not allowed over the network");
@@ -605,6 +614,11 @@ std::string App::cli_exec(const std::string& line_in, cli::Job& job, bool& ok, b
         return n.empty() ? "script overlay" : "editing " + n;
     }
     if (name == "rescan") { rescan_library(); return "scanning the music folders"; }
+    if (name == "update") {   // yt-dlp: the comparison, or the update itself (it changes a program: typed, or `force` in a script)
+        bool started = false;
+        const std::string answer = ytdlp_update::run_command(arg, locate_script("check_update.py"), forced || job.origin == Origin::Typed, started);
+        return started ? answer : fail(answer);
+    }
     if (name == "status") {
         if (!has_track_) return std::string("nothing playing  vol ") + std::to_string(player_.volume()) + "%  queue " + std::to_string(queue_.size());
         return state_word() + ": " + track_line() + "  mode " + play_mode_name(settings_.play_mode) + "  queue " + std::to_string(queue_.size());

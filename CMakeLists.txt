@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(mousiki VERSION 5.1.0 LANGUAGES CXX C)
+project(mousiki VERSION 5.2.0 LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -379,7 +379,7 @@ if(MOUSIKI_BUILD_RADIO_STANDALONE)
       # shared with the player: the oscilloscope and the terminal picture output (Kitty / Sixel)
       src/oscilloscope_visualizer.cpp src/terminal_gfx.cpp src/remote_control.cpp src/cli_core.cpp src/remote_server.cpp src/remote_overlay.cpp src/qr_code.cpp src/terminal_font.cpp
       # the player's settings code: Share Profiles, Remote App, the shared oscilloscope / spectrogram rows
-      src/settings.cpp src/translit.cpp src/translit_preview.cpp src/preview_shared.cpp src/lyrics_fetcher.cpp src/TextSanitizer.cpp src/osci_settings.cpp src/update_check.cpp src/open_url.cpp src/bg_tasks.cpp src/media_session.cpp src/media_session_mpris.cpp
+      src/settings.cpp src/translit.cpp src/translit_preview.cpp src/preview_shared.cpp src/lyrics_fetcher.cpp src/TextSanitizer.cpp src/osci_settings.cpp src/update_check.cpp src/ytdlp_update.cpp src/open_url.cpp src/bg_tasks.cpp src/media_session.cpp src/media_session_mpris.cpp
       # the help wizard (SHIFT+w): its pages, and the disk its welcome page spins
       src/wizard.cpp src/disk_art.cpp
       # the MilkDrop visuals (projectM is loaded at run time, nothing of it is needed to build)

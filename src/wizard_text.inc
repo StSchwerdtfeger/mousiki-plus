@@ -577,7 +577,7 @@ DIFFERENT SEARCH CAPABILITIES:[[Header]]
 [/b:]  +  query       Bandcamp                live on [ENTER]
 [/yv:] +  query       YouTube videos          live on [ENTER] (SEARCH YT)
 [/c:]  +  command     the command line        [ENTER] runs it, [ESC] leaves (type help)
-[/cs:] +  words       the CLI scripts         [ENTER] opens the script overlay
+[/cs:] +  words       the CLI scripts         [ENTER] opens the script overlay  (editor: [SHIFT+UP/DOWN] marks lines, [m] renames)
 [/p:]  +  query       your saved playlists    live
 [/f:]  +  query       your folders            live
 
@@ -2031,7 +2031,10 @@ R"WIZ(                                                  SSH). Any key brings the
 
 [Update Notice:][[Legend]]                                    a quiet once-a-day look for a newer release; a small
                                                   window, once per version ([ESC] close, [o] open the
-                                                  Github release page).
+                                                  Github release page). It also compares the installed
+                                                  yt-dlp with the newest one: a line in the console log
+                                                  and, when it is 14 days or more behind, a small window
+                                                  once per newest release ([u] update, [o] releases).
 
 [Check Update:][[Legend]]                                     [ENTER] on this row asks GitHub for the newest release
                                                   now and writes the answer on this screen (needs Python 3
@@ -2106,12 +2109,12 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   on = "wo". This option is independent of Latin Macrons.
                                                   The small tsu doubles the next sound (ittemo); a
                                                   full-size tsu before te / ta, as lyrics sites often
-                                                  write it (いつて), is read the same way (itte). The
+)WIZ",
+R"WIZ(                                                  write it (いつて), is read the same way (itte). The
                                                   particle は is written "wa" when it stands alone, after
                                                   de / ni / to / e / kara at the end of a phrase or before
                                                   nai, and after a kanji (boku wa); inside words it stays
-)WIZ",
-R"WIZ(                                                  "ha".
+                                                  "ha".
 
 [Translit. Kanji:][[Legend]]                                  Leave (default) = characters that could be Japanese or
                                                   Chinese (東京) stay as they are; Chin. = read as Chinese
@@ -2209,12 +2212,12 @@ R"WIZ(                                                  "ha".
                                                   3. Cover behind Disk - the grey cover in full resolution
                                                   behind the turning disk: the dots of the disk are
                                                   pinholes through which the cover shines at full
-                                                  brightness; the rest is the terminal background, like a
+)WIZ",
+R"WIZ(                                                  brightness; the rest is the terminal background, like a
                                                   sheet of paper in front of the cover. The dots stay on
                                                   their grid and only the pattern of the disk turns.
                                                   Transparent parts of a cover show a plain grey in the
-)WIZ",
-R"WIZ(                                                  dots, so the whole disk stays visible.
+                                                  dots, so the whole disk stays visible.
                                                   4. Cover behind Disk v2 - the same, but the dots
                                                   themselves turn smoothly around the centre.
                                                   5. Cover behind Disk (Full Anima) - the same, but the
@@ -2296,12 +2299,12 @@ R"WIZ(                                                  dots, so the whole disk 
                                                   more costs more (no graphics card: the processor draws).
 [Preset Duration / Shuffle / Transition:][[Legend]]           25 s, random, a 3 s blend (defaults).
 [Hard Cut Sensitivity / Hard Cuts / Show Preset Name:][[Legend]]  2.0, on, on (defaults). The same rows are in [:].
-[Mesh Detail / Aspect Correction:][[Legend]]                  normal, on (defaults): the warp grid of the presets
+)WIZ",
+R"WIZ([Mesh Detail / Aspect Correction:][[Legend]]                  normal, on (defaults): the warp grid of the presets
                                                   (finer = more detail, more work for the card);
                                                   proportions kept.
 [Duration Variance / Hard Cut Interval / Clean Start:][[Legend]]  off, 20 s, off (defaults): random stray of a
-)WIZ",
-R"WIZ(                                                  preset's time, the shortest time between hard cuts,
+                                                  preset's time, the shortest time between hard cuts,
                                                   start from a blank picture.
 [Default Preset / Use Effect:][[Legend]]                      the preset the visuals start with ([ENTER] opens the
                                                   preset list); Use Effect = off switches the effect over
@@ -2393,12 +2396,12 @@ R"WIZ(                                                  preset's time, the short
 [OSCI/SPECTRO SETTINGS:][[Header]]
 [Modes Share Settings:][[Legend]]                             on = the music, radio and audio book player use the same
                                                   settings for the oscilloscope/spectrogram settings; each
-                                                  modes own values are kept and come back when turned off
+)WIZ",
+R"WIZ(                                                  modes own values are kept and come back when turned off
                                                   again.
 [Keep Spectrogram History:][[Legend]]                         on (default) = the spectrogram keeps analysing the sound
                                                   while a track plays, shown or not, so its picture is
-)WIZ",
-R"WIZ(                                                  complete when opened (about 11 MB of RAM). off = it
+                                                  complete when opened (about 11 MB of RAM). off = it
                                                   analyses only while a spectrogram is shown and for 10 s
                                                   after, then gives its memory back; a spectrogram opened
                                                   later starts empty and fills as the music goes on.
@@ -2522,13 +2525,13 @@ PLAYER -> RADIO:[[Header]] the player is paused and kept in memory (queue, posit
 RADIO -> OTHER MODE:[[Header]] the radio is closed completely, so it only uses resources while you 
 are in it. Files added to your music folders meanwhile are found after [SHIFT+r] in the player.
 [q] (or [CTRL+c]) in the radio quits the program, both modes end.
-
+)WIZ",
+R"WIZ(
 WHAT THE RADIO SHARES WITH THE PLAYER: [[Header]]
 Equalizer [SHIFT+e], oscilloscope [SHIFT+o] / [SHIFT+0], spectrogram [SHIFT+i] / [SHIFT+u], spectrum bars
 [SHIFT+b], scope and spectrogram windows [)] / [(], loudness normalization [SHIFT+v] (radio: also [v]),
 sleep timer [SHIFT+z], text fields, the cheat sheet [?] and this wizard [SHIFT+w] work with the same keys
-)WIZ",
-R"WIZ(and overlays as described in chapters 2.5 to 2.8. Differences: the radio keeps its own equalizer curve,
+and overlays as described in chapters 2.5 to 2.8. Differences: the radio keeps its own equalizer curve,
 oscilloscope values and settings in radio_config.txt; the sleep timer stops the stream (no "Stop after
 current song"); the visualization field is the scope block right of the station info and [,/.] cycles
 oscilloscope, sphere, spectrogram and MilkDrop (there are no lyrics). The spectrogram has its waterfall
@@ -2681,12 +2684,12 @@ disk, so live radio can be treated like a recording.
 KEYS: [[Header]]
 [SPACE]   pause. The station keeps arriving in the buffer; [SPACE] again resumes where you stopped
 the square bracket keys (left / right)   back / forward 30 seconds
-                                         (German keyboard: [ALT GR+8] / [ALT GR+9])
+)WIZ",
+R"WIZ(                                         (German keyboard: [ALT GR+8] / [ALT GR+9])
 the curly bracket keys (left / right)    back 5 minutes / back to live
                                          (German keyboard: [ALT GR+7] / [ALT GR+0])
 Every jump is shown for 4 seconds under the scope block, e.g. -0:30 | 2:30 behind live.
-)WIZ",
-R"WIZ(You can never go back before the moment you tuned in: internet radio only delivers from "now".
+You can never go back before the moment you tuned in: internet radio only delivers from "now".
 Catching up with the forward key hands back to the live stream without a gap. Tuning another
 station, [x] or quitting clears the buffer.
 
@@ -2825,11 +2828,11 @@ chapter that plays is paused and everything stays as it was.
 SETTING IT UP: [[Header]] 
 Settings -> PATHS -> AUDIO BOOK PATH takes ONE folder (also listed in the radio's
 settings). Every folder in it that directly holds audio files is one book; the files in it are its
-chapters. A .cue file next to each book files records where you last stopped listening.
+)WIZ",
+R"WIZ(chapters. A .cue file next to each book files records where you last stopped listening.
 The books pane walks through the folders like a tree: a folder that holds other books shows as 
 [> Name  n books], ENTER goes into it (its own audio files come first, then the folders below), 
-)WIZ",
-R"WIZ(the first row [<- ..] ENTER goes back up or hitting [ESC]. A search shows all books flat.
+the first row [<- ..] ENTER goes back up or hitting [ESC]. A search shows all books flat.
 
 
 [[New Page]]
@@ -2950,10 +2953,10 @@ title, and the start of the chapter; the choice opens the resume offer.
 
 NOTES: [[Header]]
 [SHIFT+n]  a note at the time you pressed [SHIFT+n] (not when you save): the field of the visualizations 
-           becomes the editor. First line = title, [ENTER] goes on to the text. [CTRL+SHIFT+s] saves; 
-           [ESC] stops typing, then [SHIFT+s] saves, [ENTER] types on, [ESC] again discards. 
 )WIZ",
-R"WIZ(           The audio goes on while writing a note and the note is shown in the future when the respective 
+R"WIZ(           becomes the editor. First line = title, [ENTER] goes on to the text. [CTRL+SHIFT+s] saves; 
+           [ESC] stops typing, then [SHIFT+s] saves, [ENTER] types on, [ESC] again discards. 
+           The audio goes on while writing a note and the note is shown in the future when the respective 
            time stamp is passed.
            [CTRL+n] goes on in the big notes overlay (same text, same caret), there [CTRL+n] comes back.
            A shown note: [CTRL+n] opens it there for editing. The time stamp (@ h:mm:ss) always stays
@@ -3085,12 +3088,12 @@ prev/next station, pause, live, stop.
 LISTS (player): on top the local list (tap a title: it plays), below the saved playlists (tap one: its
 titles go into the queue, starts it when nothing plays). A tap on the other list gives it the focus; UP /
 DOWN move the list in focus a whole page. CLEAR QUEUE at the bottom: tap twice.
-
+)WIZ",
+R"WIZ(
 STATIONS (radio): the whole station list, tap a station to tune it. UP / DOWN page, BACK returns.
 [RADIO]/[PLAYER] at the top switches the mode.
 Long press on the phone: its own settings (base colours, size of the braille dots, PIN).
-)WIZ",
-R"WIZ(
+
 NO CONNECTION? [[Header]] same Wi-Fi? A VPN blocks the home network unless "local network access" is allowed in it.
 Windows: [f] in the overlay opens the port in the firewall. Test: http://127.0.0.1:4747 on the computer.
 SAFE: [[Header]] off by default, home network only (other addresses are turned away), PIN for every
@@ -3201,11 +3204,13 @@ seeks in beta. mousiki --query help gives the list of commands as its answer.
  queue shuffle           shuffle the queue                     queue shuffled
  queue clear *           empty the queue (asks for yes)        queue cleared (3 titles)
  search <words>          filter the local list                 3 matches for "pumpkins"
- search                  clear the filter                      filter cleared: 120 titles
- playlists               the saved playlists, numbered         1. Meow-Music
 )WIZ",
-R"WIZ( playlist <n>            queue playlist n (starts it if idle)  playlist 1 queued: 4 titles  now: ...
+R"WIZ( search                  clear the filter                      filter cleared: 120 titles
+ playlists               the saved playlists, numbered         1. Meow-Music
+ playlist <n>            queue playlist n (starts it if idle)  playlist 1 queued: 4 titles  now: ...
  rescan                  read the music folders again          scanning the music folders
+ update / update yt-dlp  compare / update yt-dlp (player only; comparing yt-dlp ... (the answer
+                         scripts: force update yt-dlp)         follows in the status line, the log)
  open <where>            console settings cheatsheet wizard    opened settings
                          history queue folders equalizer
                          playlist scripts
@@ -3275,7 +3280,7 @@ hooks.cli (edit hooks) runs commands when something happens, one line each:
  * force <command> runs such a command without asking. In scripts, timers, hooks and from outside it
    is needed, because nobody is there to confirm:  force queue clear
  * From the network (5.1.9) there is no quit, force, yes, set, alias, unalias, edit, open,
-   clear-queue, queue clear, rescan, wizard, switch-mode. Scripts started from the network run with
+   clear-queue, queue clear, rescan, wizard, switch-mode, update. Scripts started from the network run with
    the same limits.
  * A script that calls itself ends after 1000 lines; at most 50 timers wait; a timer is at most 24 h.
  * Errors of scripts, timers and hooks go to the console log (CLI error: ...) with the line.
@@ -3327,13 +3332,13 @@ ALSO IN THE RADIO: [[Header]]
  -----------------------------------  ------------------------------------------------------------
  mousiki --cmd play "tonight"         a name that is no numeric command is a command line
  mousiki --cli "volume 30; next"      send a line, do not wait
- mousiki --query get volume           send, wait, print the reply. Exit: 0 ok, 3 error, 4 no answer,
+)WIZ",
+R"WIZ( mousiki --query get volume           send, wait, print the reply. Exit: 0 ok, 3 error, 4 no answer,
                                       1 Mousiki not running, 2 wrong usage. (--wait / --timeout)
  mousiki --run meow                   run a script
  mousiki --scripts                    list the scripts
  mousiki --status                     what plays; also --json, a key (volume), --format "{title}"
-)WIZ",
-R"WIZ( Example:  mousiki --query "playlist 1; play cupid"
+ Example:  mousiki --query "playlist 1; play cupid"
 
 HTTP FOR HOME ASSISTANT AND SCRIPTS ON OTHER COMPUTERS: [[Header]]
  1. Settings -> GENERAL -> CLI / REMOTE / UPDATES -> Remote App: ON (note the address and the PIN).
@@ -3517,7 +3522,8 @@ OsciDecay                          0.80
 OsciDotThreshold                   0.28
 OsciTailBrightness                 0.45
 OsciInterpolation                  true
-OsciZAxis                          false
+)WIZ",
+R"WIZ(OsciZAxis                          false
 OsciZDepth                         0.70
 OsciZSource                        speed
 OsciTraceLength                    1024
@@ -3527,8 +3533,7 @@ OsciPalette                        gradient
 OsciGlow                           0.60
 OsciFrameRate                      30
 OsciMusicMode                      false
-)WIZ",
-R"WIZ(OsciCrtBeam                        false
+OsciCrtBeam                        false
 OsciLowRateBlanking                true
 OsciDwellBrightness                true
 OsciRoughMode                      true
@@ -3722,7 +3727,8 @@ CoverFetch                         ALT+C
 RetryLyrics                        l
 Video                              Y
 ToggleMute                         x
-AudioDevice                        &
+)WIZ",
+R"WIZ(AudioDevice                        &
 Menus                              <
 BarsMenu                           B
 OscMenu                            O
@@ -3733,8 +3739,7 @@ CoverNext                          CTRL+Z
 ToggleLyrics                       .
 Playlist                           P
 QueueMoveUp                        4
-)WIZ",
-R"WIZ(SleepTimer                         Z
+SleepTimer                         Z
 Cheatsheet                         ?
 SpectroWindow                      (
 MilkdropWindow                     ;

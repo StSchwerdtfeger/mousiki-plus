@@ -1122,6 +1122,7 @@ void App::run_poll_terminal(TerminalIO& term, bool& gfx_shown) {
                    (mode_ == Mode::VideoFetch && (vfs_->focus == 0 || vf_.running)) ||   // (CTRL+c cancels a running download)
                    mode_ == Mode::VideoLink ||                                          // (CTRL+c clears the choice; a search field is in use)
                    mode_ == Mode::VideoSearch ||
+                   (mode_ == Mode::CliScripts && cliov_ && (cliov_->focus == 1 || cliov_->filtering || cliov_->prompt != 0)) ||   // the script editor (CTRL+c / x / v: text and whole lines)
                    playlist_text_field);
 
     for (int key = term.poll_key(); key != 0; key = term.poll_key()) {

@@ -1,6 +1,6 @@
 <div align="center">
     
-# 📻 Mousiki Plus v5.1.0 - Music (-Video), Radio and Audio Book Player 🎵 
+# 📻 Mousiki Plus v5.2.0 - Music (-Video), Radio and Audio Book Player 🎵 
 (Windows · Linux · macOS)  
 
 <p align="center">
@@ -47,6 +47,7 @@ Mousiki Plus is in its essence a terminal music player that was originally built
 <li>Real pictures in Kitty / Sixel terminals, braille everywhere else</li>
 <li>Colour themes, incl. colour-blind friendly ones</li>
 <li>Album covers in place of the disk</li>
+<li>Six frame styles for the top of the screen</li>
 </ul>
 
 </td>
@@ -54,7 +55,7 @@ Mousiki Plus is in its essence a terminal music player that was originally built
 
 ### 🔊 Audio
 <ul>
-<li>Gapless playback (optional)</li>
+<li>Gapless playback, fades, crossfade and Cut Silence (optional)</li>
 <li>10-band equalizer with presets</li>
 <li>Loudness normalization, stereo / mono</li>
 <li>Sleep timer, audio device control</li>
@@ -127,7 +128,7 @@ Mousiki Plus is in its essence a terminal music player that was originally built
 <li>Spectrum bars, incl. Hi-Fi stereo analyzer</li>
 <li>XY / YT oscilloscope</li>
 <li>2D and 3D (waterfall) spectrogram</li>
-<li>projectM visualizations (MilkDrop)</li>
+<li>projectM visualizations (MilkDrop) with preset folders</li>
 <li>Creator: text / microphone to oscilloscope and spectrogram</li>
 </ul>
 
@@ -235,7 +236,7 @@ The help wizard and the cheat sheet both have a search function, so you don't ha
 - [Overview](#overview)
 - [Getting started](#getting-started)
 - [About this fork of Mousiki v1.0.0](#about-this-fork-of-mousiki-v100)
-- [Current Status of the Port and Modification (v5.1.0)](#current-status-of-the-port-and-modification-v510)
+- [Current Status of the Port and Modification (v5.2.0)](#current-status-of-the-port-and-modification-v520)
 - [Features at a glance](#features-at-a-glance)
   - [Music player](#music-player)
   - [Visualizations](#visualizations)
@@ -261,7 +262,7 @@ The help wizard and the cheat sheet both have a search function, so you don't ha
 - [Images](#images)
 
 
-## Current Status of the Port and Modification (v5.1.0)
+## Current Status of the Port and Modification (v5.2.0)
 
 For now the Mousiki port and feature expansion works well and also includes everything I at least wanted and made sense to me for a music player, so there might be no further major releases that add new features, except of bug-fixes that might appear to me or others in the future (feel free to start discussions or report issues!!). I might adjust the code to be more polished / robust and might optimize the setup release (Win version results currently in ~250MB size, setup itself ~80MB, portable .zip ~100MB)... Since v2.5.0 my version of Mousiki also builds on macOS/Linux again (`setup.sh`). Linux was tested on WSL and now also in a virtual machine (VMware, Ubuntu 24.04) with **Kitty**, where it works well; macOS (some tests, but e.g. not for the recent projectM integration of b5.1.0) builds are less tested than the Windows one, so reports from users on those platforms would help finalize it more. 
 Concerning potential new features: the online-radio function is now included (see [radio mode](#radio-player)); a mixtape creator would be cool, but I'll see. Again, feel free to give feedback in the discussions, report issues you might experience using this modified port or contributing in any other way...
@@ -282,7 +283,7 @@ The latest larger feature additions are the mentioned **[radio player mode](#rad
 
 ## Features at a glance
 
-Everything below is in the current version (v5.1.0) and works the same on Windows, Linux and macOS but was mainly tested on Windows, and on Linux in WSL and in a virtual machine (Ubuntu 24.04 with Kitty). The **[user manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** describes every key and every setting; inside the app `?` opens the cheat sheet, `<` (German keyboard; `SHIFT+,` on an English one) a list of all menus and overlays to choose from, and `SHIFT+w` the help wizard. All pictures of this README are in the folder **[readme_images/](readme_images/)**.
+Everything below is in the current version (v5.2.0) and works the same on Windows, Linux and macOS but was mainly tested on Windows, and on Linux in WSL and in a virtual machine (Ubuntu 24.04 with Kitty). The **[user manual](Mousiki_User_Manual/Mousiki_User_Guide.md)** describes every key and every setting; inside the app `?` opens the cheat sheet, `<` (German keyboard; `SHIFT+,` on an English one) a list of all menus and overlays to choose from, and `SHIFT+w` the help wizard. All pictures of this README are in the folder **[readme_images/](readme_images/)**.
 
 ### Music player
 
@@ -402,12 +403,13 @@ Playlist editor with M3U import / export, Latin letters for Japanese / Korean / 
 
 ### Sound
 
-10-band equalizer with presets, loudness normalization, stereo / mono, sleep timer and gapless playback.
+10-band equalizer with presets, loudness normalization, stereo / mono, sleep timer, gapless playback and fades.
 
 <details>
 <summary>Details and screenshots</summary>
 
 - **10-band equalizer** with 12 presets and your own presets, **loudness normalization**, stereo / mono, a **sleep timer**.
+- **Fades** (off by default; Settings → GENERAL → AUDIO FADE OPTIONS): fade in, fade out, **crossfade** between tracks, four curves, and **Cut Silence** (skips the silence at the start and end of a track, also in long files).
 - **Gapless playback** (off by default): *album* plays the tracks of an album (same sample rate and channels) into each other without a single silent sample, *full* every automatic change to the next local track.
 
 <table>
@@ -558,7 +560,7 @@ However you install it, the app starts with either of two commands: **`mousiki`*
 > [!IMPORTANT]
 > `setup.ps1` itself **requires PowerShell 7 or newer** (`#Requires -Version 7.0`); it will refuse to run in Windows PowerShell 5.1. The finished `mousiki.exe` was tested in PowerShell 7.6.6 *and* 5.1. If you only have 5.1, build manually (see below).
 
-Optional parameters: `-SkipDeps` (configure and build only, don't touch winget/pip), `-BuildType Debug` (default is `Release`) and `-NoInstall` (see below).
+Optional parameters: `-SkipDeps` (configure and build only, don't touch winget/pip), `-BuildType Debug` (default is `Release`), `-NoInstall` (see below), `-DryRun` (show the whole plan and change nothing) and `-UpgradeFfmpeg` (also upgrade an FFmpeg that is already installed; off by default).
 
 After the build, `setup.ps1` creates the two commands **`mousiki`** and **`lala`** (both start the app) as small launchers in `%LOCALAPPDATA%\Mousiki\bin` and adds that folder to your user `PATH`; open a new terminal and type either one. `-NoInstall` skips this.
 
@@ -698,7 +700,8 @@ Options:
 | Option | Effect |
 |---|---|
 | `--skip-deps` | configure and build only, don't touch the package manager / pip |
-| `--no-upgrade` | don't upgrade an FFmpeg that is already installed (by default it is upgraded, so that libopenmpt / libgme support arrives) |
+| `--upgrade` | also upgrade an FFmpeg that is already installed (off by default: only what is missing is installed, nothing that is there is changed; an FFmpeg without libopenmpt / libgme is replaced anyway) |
+| `--dry-run` | show the plan (what is missing, what would be installed and with which command, built and created) and stop; nothing is changed |
 | `--debug`, `--build-type Release\|Debug` | build type (default `Release`) |
 | `--no-install` | don't create the launchers. By default `setup.sh` creates `~/.local/bin/mousiki` and `~/.local/bin/lala`, so you can start the app from anywhere by typing `mousiki` or `lala` (`--install` is still accepted and does the same as the default) |
 | `-y`, `--yes` | don't ask before installing packages |
@@ -802,7 +805,7 @@ How this is kept in check:
 - **Fixed downloads.** The tools the release script bundles are pinned to one exact file each (`packaging/pins.json`). A file that differs from its pin stops the build.
 - **Code scanning.** GitHub CodeQL scans Mousiki's own C++ code and the workflows (the vendored libraries in `third_party/` are not scanned: they are unchanged upstream code).
 - **Memory-error tests.** The automated tests also run with AddressSanitizer and UndefinedBehaviorSanitizer on every push. The parsers of outside input (lyrics, JSON, playlists, `.cue` files, remote-app requests) are also fuzzed with libFuzzer (`fuzz/`, a weekly GitHub workflow), and the normal tests feed them damaged input on every run.
-- **Updates.** Libraries are checked against their upstream releases before each release; the table above is updated then. Dependabot proposes newer versions of the GitHub Actions used for building.
+- **Updates.** Libraries are checked against their upstream releases before each release; the table above is updated then. Dependabot proposes newer versions of the GitHub Actions used for building. An old yt-dlp is noticed at start-up, and `update yt-dlp` in Mousiki's command line updates it (a copy that a package manager owns is left alone; nothing runs with administrator rights).
 - **Third-party findings.** If one of these projects publishes a security fix, a new Mousiki release with the updated component follows. Reports are welcome ([`SECURITY.md`](SECURITY.md)).
 
 ## Images

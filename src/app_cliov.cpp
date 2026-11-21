@@ -5,10 +5,12 @@
 #include "app_state_cliov.h"
 #include "cli_core.h"
 #include "text_edit.h"
+#include "line_block.h"
 #include "app_internal.h"
 #include "utf8_util.h"
 #include "console_log.h"
 #include <algorithm>
+#include <cstdlib>
 #include <set>
 
 namespace muisc {
@@ -54,7 +56,7 @@ void App::cliov_load(const std::string& name) {
     if (l.empty()) l.push_back("");
     o.lines = l;
     o.cur = name;
-    o.cy = 0; o.cx = o.anchor = 0; o.top = 0;
+    o.cy = 0; o.cx = o.anchor = 0; o.top = 0; o.mark = -1;
     o.dirty = false; o.discard_armed = false;
     o.note.clear();
 }
@@ -136,6 +138,17 @@ void App::handle_cliov_key(int key) {
     auto line_end = [&] { o.cx = o.anchor = o.lines[static_cast<size_t>(o.cy)].size(); };
     auto fit_cx = [&] { o.cx = o.anchor = std::min(o.cx, o.lines[static_cast<size_t>(o.cy)].size()); };
 
+    if (o.help_open) {   // the list of the commands ([h]): UP / DOWN / PgUp / PgDn / HOME / END move, ESC, ENTER or h close it
+        const int total = static_cast<int>(cli_command_list().size());
+        const int page = std::max(1, o.rows - 1);
+        if (arrow && (key == 'A' || key == 'B')) o.help_sel += (key == 'A' ? -1 : 1) * ((shifted || last_key_was_page()) ? page : 1);
+        else if (!arrow && key == kKeyHome) o.help_sel = 0;
+        else if (!arrow && key == kKeyEnd) o.help_sel = total - 1;
+        else if (!arrow && (key == 27 || key == '\r' || key == '\n' || key == 'h' || key == 'H' || key == 'q')) { o.help_open = false; return; }
+        o.help_sel = std::clamp(o.help_sel, 0, std::max(0, total - 1));
+        return;
+    }
+
     if (o.prompt == 1 || o.prompt == 2) {   // a name: a new script / the new name of the one selected
         if (!arrow && key == 27) { o.prompt = 0; o.note.clear(); return; }
         if (!arrow && (key == '\r' || key == '\n')) {
@@ -159,12 +172,14 @@ void App::handle_cliov_key(int key) {
                 o.note = "new script " + n;
             } else {
                 const std::string from = o.names.empty() || o.shown.empty() ? std::string() : o.names[static_cast<size_t>(o.shown[static_cast<size_t>(o.sel)])];
-                if (!cli::rename_script(from, n, err)) { o.note = err; return; }
+                std::string extra;
+                if (!cli::rename_script(from, n, err, &extra)) { o.note = err; return; }
                 if (o.cur == from) o.cur = n;
+                else if (o.cur == n && !o.dirty) cliov_load(n);   // (the file of that name is another one now: show it)
                 o.prompt = 0;
                 cliov_refresh();
                 for (size_t i = 0; i < o.shown.size(); ++i) if (o.names[static_cast<size_t>(o.shown[i])] == n) o.sel = static_cast<int>(i);
-                o.note = "renamed to " + n;
+                o.note = "renamed to " + n + (extra.empty() ? std::string() : " (" + extra + ")");
             }
             return;
         }
@@ -197,6 +212,7 @@ void App::handle_cliov_key(int key) {
         }
     }
 
+    if (!arrow && key == 27 && o.focus == 1 && o.mark >= 0) { o.mark = -1; o.note.clear(); return; }   // (the first ESC only takes the marks away)
     if (!arrow && key == 27) {
         if (o.dirty && !o.discard_armed) { o.discard_armed = true; o.note = "unsaved changes: CTRL+S saves, ESC again closes without saving"; return; }
         o.dirty = false; o.discard_armed = false;
@@ -205,7 +221,7 @@ void App::handle_cliov_key(int key) {
         force_redraw_ = true;
         return;
     }
-    if (!arrow && key == 9) { o.focus ^= 1; return; }
+    if (!arrow && key == 9) { o.focus ^= 1; o.mark = -1; return; }
     if (!arrow && key == kKeyCtrlS) { cliov_save(); return; }
     if (!arrow && key == kKeyCtrlR) { cliov_run(o.focus == 1); return; }
     o.discard_armed = false;
@@ -227,12 +243,16 @@ void App::handle_cliov_key(int key) {
         if (!arrow && (key == '\r' || key == '\n' || key == 'e' || key == 'E')) { pick(); return; }
         if (!arrow && key == '/') { o.filtering = true; edit_focus("cliov-filter", o.filter); return; }
         if (!arrow && (key == 'n' || key == 'N')) { o.prompt = 1; o.name_buf.clear(); edit_caret_ = edit_anchor_ = 0; o.note = "name of the new script:"; return; }
-        if (!arrow && (key == 'm' || key == 'M') && n > 0) { o.prompt = 2; o.name_buf = o.names[static_cast<size_t>(o.shown[static_cast<size_t>(o.sel)])]; edit_caret_ = edit_anchor_ = o.name_buf.size(); o.note = "new name:"; return; }
+        if (!arrow && (key == 'm' || key == 'M') && n > 0) {   // rename the script that is marked (the cursor row)
+            const std::string cur_name = o.names[static_cast<size_t>(o.shown[static_cast<size_t>(o.sel)])];
+            if (!std::filesystem::exists(cli::script_path(cur_name))) { o.note = cur_name + " has no file yet"; return; }
+            o.prompt = 2; o.name_buf = o.names[static_cast<size_t>(o.shown[static_cast<size_t>(o.sel)])]; edit_caret_ = edit_anchor_ = o.name_buf.size(); o.note = "new name:"; return; }
         if (!arrow && (key == 'x' || key == 'X') && n > 0) {
             const std::string nm = o.names[static_cast<size_t>(o.shown[static_cast<size_t>(o.sel)])];
             if (!std::filesystem::exists(cli::script_path(nm))) { o.note = nm + " has no file yet"; return; }
             o.prompt = 3; o.note = "move " + nm + " to deleted/ ? [y/n]"; return;
         }
+        if (!arrow && (key == 'h' || key == 'H')) { o.help_open = true; o.help_sel = 0; o.help_top = 0; return; }
         if (!arrow && (key == 'r' || key == 'R')) { cliov_run(false); return; }
         if (!arrow && (key == 'c' || key == 'C')) { o.out.clear(); return; }
         return;
@@ -241,6 +261,56 @@ void App::handle_cliov_key(int key) {
     // the editor
     std::string& line = o.lines[static_cast<size_t>(o.cy)];
     const int n = static_cast<int>(o.lines.size());
+    // Whole lines: SHIFT+UP / DOWN marks them (from the line where it began to the caret's line), CTRL+C copies, CTRL+X cuts, DELETE /
+    // BACKSPACE deletes them, CTRL+V puts lines (also from another program) above the caret's line, or in place of the marked ones.
+    // PgUp / PgDn page (they used to share SHIFT+UP / DOWN with it: a keyboard without them still pages with the mouse-free keys HOME / END).
+    if (arrow && (key == 'A' || key == 'B') && shifted && !last_key_was_page()) {
+        if (o.mark < 0) o.mark = o.cy;
+        o.cy = std::clamp(o.cy + (key == 'A' ? -1 : 1), 0, n - 1);
+        fit_cx();
+        const int cnt = std::abs(o.cy - o.mark) + 1;
+        o.note = std::to_string(cnt) + (cnt == 1 ? " line" : " lines") + " marked";
+        return;
+    }
+    if (o.mark >= 0) {
+        const int lo = std::min(o.mark, o.cy), hi = std::max(o.mark, o.cy);
+        const int cnt = hi - lo + 1;
+        const std::string what = std::to_string(cnt) + (cnt == 1 ? " line" : " lines");
+        if (!arrow && key == kKeyCtrlC) { clipboard_set(lineblock::join_lines(o.lines, lo, hi)); o.note = "COPIED " + what; o.mark = -1; return; }
+        if (!arrow && (key == kKeyCtrlX || key == kKeyDelete || key == 127 || key == 8)) {
+            if (key == kKeyCtrlX) clipboard_set(lineblock::join_lines(o.lines, lo, hi));
+            int at = 0;
+            lineblock::erase_lines(o.lines, lo, hi, at);
+            o.cy = at; o.cx = o.anchor = 0; o.mark = -1; o.dirty = true;
+            o.note = (key == kKeyCtrlX ? "CUT " : "DELETED ") + what;
+            return;
+        }
+        if (!arrow && key == kKeyCtrlV) {   // the marked lines are replaced by what is on the clipboard
+            const std::string clip = clipboard_get();
+            if (lineblock::clean_text(clip).empty()) { o.note = "the clipboard is empty"; return; }
+            int at = 0;
+            lineblock::erase_lines(o.lines, lo, hi, at);
+            o.cy = at; o.cx = 0; o.mark = -1;
+            std::string text = lineblock::clean_text(clip);
+            if (text.back() != '\n') text += "\n";   // (a text of one line replaces lines too: as a whole line)
+            const int added = lineblock::paste_lines(o.lines, o.cy, o.cx, text, kMaxLines);
+            o.anchor = o.cx = 0;
+            o.dirty = true;
+            o.note = "PASTED " + std::to_string(std::max(0, added)) + " lines in place of " + what;
+            return;
+        }
+        o.mark = -1;   // any other key takes the marks away and does what it does
+        o.note.clear();
+    }
+    if (!arrow && key == kKeyCtrlV) {   // lines from the clipboard (a copy of marked lines, or a text of several lines from another program)
+        const int added = lineblock::paste_lines(o.lines, o.cy, o.cx, clipboard_get(), kMaxLines);
+        if (added >= 0) {
+            o.anchor = o.cx;
+            o.dirty = true;
+            o.note = "PASTED " + std::to_string(added) + (added == 1 ? " line" : " lines") + (added >= 1 && o.lines.size() >= kMaxLines ? " (500 lines at most)" : "");
+            return;
+        }
+    }
     if (arrow && (key == 'A' || key == 'B')) {
         const int step = shifted ? std::max(1, o.rows - 1) : 1;
         o.cy = std::clamp(o.cy + (key == 'A' ? -step : step), 0, n - 1);
@@ -283,12 +353,23 @@ void App::handle_cliov_key(int key) {
 void App::build_cliov_screen(std::ostringstream& frame, int W, int target_height) const {
     const CliOvState& o = *cliov_;
     const std::string border = ansi_for(settings_.border_color, false);
-    const int lw = std::clamp(W / 4, 24, 36);
+    const int lw = std::clamp(W / 4 + 7, 24, 40);   // (wide enough for the library legend: [n]ew [m]ren [x]del [r]un [h]elp at 120 columns)
     const int rw = std::max(30, W - lw);
     const int H = std::max(8, target_height);
     const int inner_rows = H - 2;                                   // between the top and the bottom border
     const int out_rows = std::clamp(inner_rows / 5, 2, 4);
     const int ed_rows = std::max(2, inner_rows - out_rows - 1);     // minus the separator line
+    // The legend sits in the bottom border, as in the other overlays. The commands are packed in the order of their importance with the
+    // separator; what does not fit the width of the pane is left out.
+    auto legend_text = [](const std::vector<std::string>& items, const std::string& sep, int cols) {
+        std::string t;
+        for (const std::string& it : items) {
+            const std::string add = t.empty() ? it : sep + it;
+            if (display_width(t + add) > cols) break;
+            t += add;
+        }
+        return t;
+    };
     o.rows = ed_rows;
 
     // --- the library (left) ---
@@ -323,10 +404,18 @@ void App::build_cliov_screen(std::ostringstream& frame, int W, int target_height
         if (nm == o.cur) label += o.dirty ? " *" : " \xE2\x80\xA2";
         L.push_back(box_line((i == sel ? (o.focus == 0 ? "> " : "- ") : "  ") + truncate_str(label, lw - 6), lw, border));
     }
-    L.push_back(box_bottom(lw, o.focus == 0 ? "[n]ew [m]ove [x] del [r]un" : "[TAB] library", border));
+    const std::vector<std::string> lib_items = o.focus == 0
+        ? std::vector<std::string>{"[n]ew", "[m] rename", "[x] del", "[r]un", "[h]elp", "[ENTER] load", "[/] search", "[TAB] editor"}
+        : std::vector<std::string>{"[TAB] library"};
+    std::string lib_leg = legend_text(lib_items, " ", lw - 5);
+    if (o.focus == 0)   // the four commands should all show: shorter spellings for a narrow pane
+        for (const char* v : {"[n]ew [m] rename [x] del [r]un [h]elp", "[n]ew [m]ren [x]del [r]un [h]elp", "[n]ew [m]ren [x]del [r]un [h]", "[n]ew [m]ren [x]del [h]elp", "[n] [m] [x] [r] [h]"})
+            if (display_width(v) <= lw - 5) { lib_leg = v; break; }
+    L.push_back(box_bottom(lw, lib_leg, border));
 
     // --- the editor (right) ---
     std::vector<std::string> R;
+    if (o.help_open) R.push_back(box_top("COMMANDS (" + std::to_string(cli_command_list().size()) + ")  \xE2\x97\x80", rw, border)); else
     R.push_back(box_top(std::string("EDITOR  ") + (o.cur.empty() ? "(no script: [n] in the library)" : o.cur + ".cli") + (o.dirty ? " *" : "") + (o.focus == 1 ? " \xE2\x97\x80" : ""), rw, border));
     const int total_lines = static_cast<int>(o.lines.size());
     int top = std::clamp(o.top, 0, std::max(0, total_lines - ed_rows));
@@ -334,12 +423,35 @@ void App::build_cliov_screen(std::ostringstream& frame, int W, int target_height
     if (o.cy >= top + ed_rows) top = o.cy - ed_rows + 1;
     o.top = top;
     const int text_w = std::max(4, rw - 4 - 4);
+    const std::vector<std::string> cmds = o.help_open ? cli_command_list() : std::vector<std::string>();
+    if (o.help_open) {   // the commands instead of the text: the usage on the left (as typed), the short description after it
+        const int total = static_cast<int>(cmds.size());
+        int htop = std::clamp(o.help_top, 0, std::max(0, total - ed_rows));
+        if (o.help_sel < htop) htop = o.help_sel;
+        if (o.help_sel >= htop + ed_rows) htop = o.help_sel - ed_rows + 1;
+        o.help_top = htop;
+        int uw = 0;
+        for (const std::string& c : cmds) uw = std::max<int>(uw, static_cast<int>(display_width(c.substr(0, c.find('\t')))));
+        const int ucol = std::min<int>(static_cast<int>(uw), std::max(10, (rw - 4) * 2 / 5));
+        for (int r = 0; r < ed_rows; ++r) {
+            const int i = htop + r;
+            if (i >= total) { R.push_back(box_line("", rw, border)); continue; }
+            const size_t tab = cmds[static_cast<size_t>(i)].find('\t');
+            std::string use = truncate_str(cmds[static_cast<size_t>(i)].substr(0, tab), ucol);
+            while (static_cast<int>(display_width(use)) < ucol) use += ' ';
+            std::string row = (i == o.help_sel ? "> " : "  ") + use + "  " + cmds[static_cast<size_t>(i)].substr(tab + 1);
+            R.push_back(box_line(truncate_str(row, rw - 4), rw, border));
+        }
+    } else
     for (int r = 0; r < ed_rows; ++r) {
         const int i = top + r;
         if (i >= total_lines) { R.push_back(box_line("", rw, border)); continue; }
         char num[16];
         std::snprintf(num, sizeof num, "%3d ", i + 1);
-        if (i == o.cy && o.focus == 1) {
+        if (o.focus == 1 && o.mark >= 0 && i >= std::min(o.mark, o.cy) && i <= std::max(o.mark, o.cy)) {   // a marked line
+            const std::string t = truncate_str(o.lines[static_cast<size_t>(i)], text_w);
+            R.push_back(box_line_field(num, "\x1b[7m" + t + "\x1b[0m", display_width(t), rw, border));
+        } else if (i == o.cy && o.focus == 1) {
             const EditPaint p = paint_edit_field(o.lines[static_cast<size_t>(i)], o.cx, o.anchor, text_w, std::string(), true);
             R.push_back(box_line_field(num, p.s, p.cols, rw, border));
         } else {
@@ -357,10 +469,11 @@ void App::build_cliov_screen(std::ostringstream& frame, int W, int target_height
             R.push_back(box_line(i >= 0 && i < n ? truncate_str(o.out[static_cast<size_t>(i)], rw - 4) : std::string(), rw, border));
         }
     }
-    const std::vector<std::string> legs = {"[CTRL+S] save | [CTRL+R] run | [TAB] library | [ESC] close", "[CTRL+S] save | [CTRL+R] run | [ESC] close", "[CTRL+R] run | [ESC] close"};
-    std::string leg = legs.back();
-    for (const std::string& s : legs) if (display_width(s) <= rw - 4) { leg = s; break; }
-    R.push_back(box_bottom(rw, o.focus == 1 && !o.note.empty() && o.prompt == 0 ? truncate_str(o.note, rw - 6) : leg, border));
+    std::vector<std::string> items = {"[CTRL+S] save", "[CTRL+R] run", "[SHIFT+UP/DOWN] mark lines", "[TAB] library", "[ESC] close"};
+    if (o.focus == 1 && o.mark >= 0) items = {"[CTRL+C] copy", "[CTRL+X] cut", "[DEL] delete", "[CTRL+V] replace", "[ESC] unmark"};
+    if (o.help_open) items = {"[UP/DOWN] scroll", "[PgUp/PgDn] page", "[HOME/END]", "[ESC] back"};
+    const std::string leg = legend_text(items, " | ", rw - 4);
+    R.push_back(box_bottom(rw, o.focus == 1 && o.mark < 0 && !o.note.empty() && o.prompt == 0 ? truncate_str(o.note, rw - 6) : leg, border));
 
     for (size_t i = 0; i < L.size() && i < R.size(); ++i) frame << L[i] << R[i] << "\n";
 }

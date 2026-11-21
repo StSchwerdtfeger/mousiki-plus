@@ -29,6 +29,7 @@
 #include "process_util.h"
 #include "app_internal.h"
 #include "update_check.h"
+#include "ytdlp_update.h"
 #include "open_url.h"
 #include "app_settings_tables.h"
 #include <cstring>
@@ -317,6 +318,14 @@ void App::remote_apply(const remote::Command& c) {
     force_redraw_ = true;
 }
 
+// A late answer about yt-dlp (`update`, the panel's [u]): the status line (which the Settings screen shows) and the command line's list.
+void App::ytdlp_answer(const std::string& msg) {
+    status_line_ = msg;   // (the console log has it already: ytdlp_update writes its answers itself)
+    cli_out_.push_back("  " + msg);
+    while (cli_out_.size() > 200) cli_out_.erase(cli_out_.begin());
+    force_redraw_ = true;
+}
+
 // Commands from `mousiki --cmd ...` and the status file for `mousiki --status`. Called every frame.
 void App::remote_poll() {
     const char* const mode_name = audiobook_ ? "audiobook" : "player";   // (the audio book is its own mode for the remote app)
@@ -332,6 +341,7 @@ void App::remote_poll() {
                 status_line_ = "a newer release is out: Mousiki " + v + " (you have " + cr.current + "): " + update_check::release_url({cr.latest, cr.current, cr.url});
                 // the same popup as at start-up ([o] release page, [ESC] close); it waits for the main screen, so it opens
                 // when Settings is left (leaving Settings with ESC discards unsaved changes, so it is not forced open)
+                update_kind_ = 0;
                 update_latest_ = cr.latest; update_current_ = cr.current; update_url_ = update_check::release_url({cr.latest, cr.current, cr.url});
                 update_pending_ = true;
             }
@@ -339,10 +349,25 @@ void App::remote_poll() {
             force_redraw_ = true;
         }
     }
+    {   // yt-dlp: the answers of `update` / `update yt-dlp` (status line, log, the command line's list)
+        ytdlp_update::Status ys;
+        if (ytdlp_update::take_check(ys)) {
+            ytdlp_answer(ytdlp_update::describe(ys) + (ytdlp_update::recommended(ys) ? "  -- type  update yt-dlp" : std::string()));
+        }
+        ytdlp_update::Result yr;
+        if (ytdlp_update::take_update(yr)) ytdlp_answer(yr.message);
+    }
     {   // "a newer version is out": once; the popup waits until the main screen is showing
         update_check::Notice n;
         if (!update_pending_ && update_check::take(n)) {
+            update_kind_ = 0;
             update_latest_ = n.latest; update_current_ = n.current; update_url_ = update_check::release_url(n);
+            update_pending_ = true;
+        }
+        std::string ytdlp_note;   // (an old yt-dlp: the same popup, once per newest release; it waits behind a Mousiki notice)
+        if (!update_pending_ && mode_ == Mode::Browse && !meta_->save.active && ytdlp_update::take_notice(ytdlp_note)) {
+            update_kind_ = 1;
+            update_note_ = ytdlp_note;
             update_pending_ = true;
         }
         if (update_pending_ && mode_ == Mode::Browse && !meta_->save.active) {
