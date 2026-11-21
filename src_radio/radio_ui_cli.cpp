@@ -128,7 +128,7 @@ std::vector<std::string> build_console(const Style& s, const UiModel& m, int W, 
 
 std::vector<std::string> build_cliov(const Style& s, const UiModel& m, int W, int rows_total) {
     const CliOvModel& o = m.cliov;
-    const int lw = std::clamp(W / 4, 24, 36);
+    const int lw = std::clamp(W / 4 + 7, 24, 40);   // (wide enough for the library legend at 120 columns)
     const int rw = std::max(30, W - lw);
     const int H = std::max(8, rows_total);
     const int inner_rows = H - 2;
@@ -163,21 +163,59 @@ std::vector<std::string> build_cliov(const Style& s, const UiModel& m, int W, in
         const std::string text = std::string(i == sel ? (o.focus == 0 ? "> " : "- ") : "  ") + truncate_str(label, linner - 2);
         L.push_back(box_line(s, seg_line({{i == sel && o.focus == 0 ? s.list_cursor : s.list, pad_right(text, linner)}}, linner), s.border));
     }
-    L.push_back(box_bottom(s, lw, o.focus == 0 ? "[n]ew [m]ove [x] del [r]un" : "[TAB] library", s.border_bottom));
+    auto legend_text = [](const std::vector<std::string>& items, const std::string& sep, int cols) {   // as many commands as fit, in the order of their importance
+        std::string t;
+        for (const std::string& it : items) {
+            const std::string add = t.empty() ? it : sep + it;
+            if (display_width(t + add) > cols) break;
+            t += add;
+        }
+        return t;
+    };
+    std::string lib_leg = "[TAB] library";
+    if (o.focus == 0) {
+        lib_leg = legend_text({"[n]ew", "[m] rename", "[x] del", "[r]un", "[h]elp", "[ENTER] load", "[/] search", "[TAB] editor"}, " ", lw - 5);
+        for (const char* v : {"[n]ew [m] rename [x] del [r]un [h]elp", "[n]ew [m]ren [x]del [r]un [h]elp", "[n]ew [m]ren [x]del [r]un [h]", "[n]ew [m]ren [x]del [h]elp", "[n] [m] [x] [r] [h]"})
+            if (display_width(v) <= lw - 5) { lib_leg = v; break; }
+    }
+    L.push_back(box_bottom(s, lw, lib_leg, s.border_bottom));
 
-    R.push_back(box_top(s, rw, std::string("EDITOR  ") + (o.cur.empty() ? "(no script: [n] in the library)" : o.cur + ".cli") + (o.dirty ? " *" : "") + (o.focus == 1 ? " \xE2\x97\x80" : ""), s.border));
+    const std::vector<std::string> cmds = o.help_open ? radio_command_list() : std::vector<std::string>();
+    R.push_back(box_top(s, rw, o.help_open ? "COMMANDS (" + std::to_string(cmds.size()) + ")  \xE2\x97\x80" : std::string("EDITOR  ") + (o.cur.empty() ? "(no script: [n] in the library)" : o.cur + ".cli") + (o.dirty ? " *" : "") + (o.focus == 1 ? " \xE2\x97\x80" : ""), s.border));
     const int total_lines = static_cast<int>(o.lines.size());
     int top = std::clamp(o.top, 0, std::max(0, total_lines - ed_rows));
     if (o.cy < top) top = o.cy;
     if (o.cy >= top + ed_rows) top = o.cy - ed_rows + 1;
     o.top = top;
     const int text_w = std::max(4, rinner - 4);
+    if (o.help_open) {   // the commands instead of the text: the usage on the left (as typed), the short description after it
+        const int total = static_cast<int>(cmds.size());
+        int htop = std::clamp(o.help_top, 0, std::max(0, total - ed_rows));
+        if (o.help_sel < htop) htop = o.help_sel;
+        if (o.help_sel >= htop + ed_rows) htop = o.help_sel - ed_rows + 1;
+        o.help_top = htop;
+        int uw = 0;
+        for (const std::string& c : cmds) uw = std::max<int>(uw, static_cast<int>(display_width(c.substr(0, c.find('\t')))));
+        const int ucol = std::min<int>(uw, std::max(10, rinner * 2 / 5));
+        for (int r = 0; r < ed_rows; ++r) {
+            const int i = htop + r;
+            if (i >= total) { R.push_back(box_line(s, spaces(rinner), s.border)); continue; }
+            const std::string& c = cmds[static_cast<size_t>(i)];
+            const size_t tab = c.find('\t');
+            std::string use = truncate_str(c.substr(0, tab), ucol);
+            while (static_cast<int>(display_width(use)) < ucol) use += ' ';
+            const std::string row = std::string(i == o.help_sel ? "> " : "  ") + use + "  " + c.substr(tab + 1);
+            R.push_back(box_line(s, seg_line({{i == o.help_sel ? s.list_cursor : s.list, pad_right(truncate_str(row, rinner), rinner)}}, rinner), s.border));
+        }
+    } else
     for (int r = 0; r < ed_rows; ++r) {
         const int i = top + r;
         if (i >= total_lines) { R.push_back(box_line(s, spaces(rinner), s.border)); continue; }
         char num[16];
         std::snprintf(num, sizeof num, "%3d ", i + 1);
-        if (i == o.cy && o.focus == 1) {
+        if (o.focus == 1 && o.mark >= 0 && i >= std::min(o.mark, o.cy) && i <= std::max(o.mark, o.cy)) {   // a marked line
+            R.push_back(box_line(s, s.header + num + kReset + seg_line({{s.list_cursor, pad_right(truncate_str(o.lines[static_cast<size_t>(i)], text_w), text_w)}}, text_w), s.border));
+        } else if (i == o.cy && o.focus == 1) {
             EditState e; e.caret = o.cx; e.anchor = o.anchor;
             const EditPaint p = paint_edit_field(o.lines[static_cast<size_t>(i)], e, text_w, std::string(), true);
             R.push_back(box_line(s, s.header + num + kReset + p.s + spaces(std::max(0, text_w - p.cols)), s.border));
@@ -196,10 +234,11 @@ std::vector<std::string> build_cliov(const Style& s, const UiModel& m, int W, in
             R.push_back(box_line(s, seg_line({{s.list, pad_right(truncate_str(i >= 0 && i < n ? o.out[static_cast<size_t>(i)] : std::string(), rinner), rinner)}}, rinner), s.border));
         }
     }
-    const std::vector<std::string> legs = {"[CTRL+S] save | [CTRL+R] run | [TAB] library | [ESC] close", "[CTRL+S] save | [CTRL+R] run | [ESC] close", "[CTRL+R] run | [ESC] close"};
-    std::string leg = legs.back();
-    for (const std::string& x : legs) if (display_width(x) <= rw - 4) { leg = x; break; }
-    R.push_back(box_bottom(s, rw, o.focus == 1 && !o.note.empty() && o.prompt == 0 ? truncate_str(o.note, rw - 6) : leg, s.border_bottom));
+    std::vector<std::string> items = {"[CTRL+S] save", "[CTRL+R] run", "[SHIFT+UP/DOWN] mark lines", "[TAB] library", "[ESC] close"};
+    if (o.focus == 1 && o.mark >= 0) items = {"[CTRL+C] copy", "[CTRL+X] cut", "[DEL] delete", "[CTRL+V] replace", "[ESC] unmark"};
+    if (o.help_open) items = {"[UP/DOWN] scroll", "[PgUp/PgDn] page", "[HOME/END]", "[ESC] back"};
+    const std::string leg = legend_text(items, " | ", rw - 4);
+    R.push_back(box_bottom(s, rw, o.focus == 1 && o.mark < 0 && !o.help_open && !o.note.empty() && o.prompt == 0 ? truncate_str(o.note, rw - 6) : leg, s.border_bottom));
 
     std::vector<std::string> out;
     for (size_t i = 0; i < L.size() && i < R.size(); ++i) out.push_back(L[i] + R[i]);

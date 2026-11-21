@@ -8,6 +8,7 @@
 #include "console_log.h"
 
 #include "path_utf8.h"
+#include "ytdlp_update.h"
 #include <cmath>
 #include <sstream>
 
@@ -19,6 +20,7 @@ namespace {
 struct RCmd { const char* name; const char* usage; const char* help; };
 const RCmd kRadioCmds[] = {
     {"help", "[command]", "this list, or one command"},
+    {"update", "[check | yt-dlp]", "compare the installed yt-dlp with the newest release, or update yt-dlp (typed commands only)"},
     {"status", "", "what plays: station, song, volume, live / paused / behind"},
     {"play", "[n | words]", "tune the station under the cursor (or station n, or the first one that matches the words), or resume a paused / muted one"},
     {"pause", "", "pause the live stream (it keeps buffering; play continues where you were)"},
@@ -87,6 +89,15 @@ const std::pair<const char*, const char*> kRadioAlias[] = {
 std::string lower(std::string s) { for (char& c : s) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); return s; }
 
 }  // namespace
+
+// How the radio finds scripts/check_update.py: the player's program sets it (main.cpp); the standalone radio has none.
+std::filesystem::path (*muisc::radio::radio_script_locator)(const std::string&) = nullptr;
+
+std::vector<std::string> muisc::radio::radio_command_list() {
+    std::vector<std::string> v;
+    for (const RCmd& c : kRadioCmds) v.push_back(std::string(c.name) + (*c.usage ? " " : "") + c.usage + "\t" + c.help);
+    return v;
+}
 
 cli::State RadioApp::cli_state() const {
     const RadioStatus rs = engine.status();
@@ -227,6 +238,19 @@ void RadioApp::cli_fire_hook(const std::string& event) {
 
 void RadioApp::cli_tick() {
     cli_hooks_tick();
+    {   // the late answers of `update` / `update yt-dlp` (the module has written its own console-log lines)
+        muisc::ytdlp_update::Status st;
+        muisc::ytdlp_update::Result res;
+        std::string msg;
+        if (muisc::ytdlp_update::take_check(st)) msg = muisc::ytdlp_update::describe(st);
+        else if (muisc::ytdlp_update::take_update(res)) msg = res.message;
+        if (!msg.empty()) {
+            ui.model.notice = msg;
+            notice_until = ui.model.t_sec + 8;
+            ui.model.cli.out.push_back("  " + msg);
+            if (ui.model.cli.out.size() > 200) ui.model.cli.out.erase(ui.model.cli.out.begin());
+        }
+    }
     const auto now = std::chrono::steady_clock::now();
     for (size_t i = 0; i < cli_timers.size();) {
         if (cli_timers[i].at > now) { ++i; continue; }
@@ -365,6 +389,16 @@ std::string RadioApp::cli_exec(const std::string& line_in, cli::Job& job, bool& 
     }
     if (name == "status") return cli_station_line() + "  mode " + (ui.model.shuffle ? "shuffle" : "list");
     if (name == "echo") return arg;
+    if (name == "update") {   // the yt-dlp comparison / update (the module answers later: the answer goes to the status line and the command line's list)
+        const std::string a = lower(arg);
+        const bool upd = a == "yt-dlp" || a == "ytdlp" || a == "yt-dlp now";
+        if (upd && job.origin != cli::Origin::Typed) return fail("update yt-dlp changes a program on this computer: type it yourself in the command line (c:)");
+        if (!muisc::radio::radio_script_locator) return fail("update is not available in the standalone radio (it needs the scripts folder of Mousiki)");
+        bool started = false;
+        const std::string answer = muisc::ytdlp_update::run_command(arg, muisc::radio::radio_script_locator("check_update.py"), job.origin == cli::Origin::Typed, started);
+        if (!started) return fail(answer);
+        return answer;
+    }
     if (name == "wait") {
         double sec = 0;
         if (!cli::parse_duration(arg, sec, 3600.0)) return fail("wait <time>: 5, 5s, 2m (at most 1h)");

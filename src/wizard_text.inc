@@ -3209,8 +3209,8 @@ R"WIZ( search                  clear the filter                      filter clea
  playlists               the saved playlists, numbered         1. Meow-Music
  playlist <n>            queue playlist n (starts it if idle)  playlist 1 queued: 4 titles  now: ...
  rescan                  read the music folders again          scanning the music folders
- update / update yt-dlp  compare / update yt-dlp (player only; comparing yt-dlp ... (the answer
-                         scripts: force update yt-dlp)         follows in the status line, the log)
+ update / update yt-dlp  compare / update yt-dlp (scripts:     comparing yt-dlp ... (the answer
+                         force update yt-dlp; the radio: typed) follows in the status line, the log)
  open <where>            console settings cheatsheet wizard    opened settings
                          history queue folders equalizer
                          playlist scripts

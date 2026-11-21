@@ -290,12 +290,20 @@ struct CliOvModel {
     mutable int top = 0;
     mutable int rows = 10;
     bool dirty = false, discard_armed = false;
+    int mark = -1;                // marked lines: from this line to the caret's line (-1 = none); SHIFT+UP / DOWN
+    bool help_open = false;       // [h] in the library: the list of all commands replaces the editor
+    int help_sel = 0;
+    mutable int help_top = 0;
     int prompt = 0;               // 1 new script (a name), 2 rename, 3 delete (y / n)
     std::string name_buf;
     EditState nedit;
     std::vector<std::string> out; // what the last runs answered
     std::string note;
 };
+// Every radio command as "usage<TAB>description" (radio_cli.cpp): the list of the script overlay, [h].
+std::vector<std::string> radio_command_list();
+// Set by the player's main.cpp: finds a file of the scripts folder (null in the standalone radio, whose `update` command then says so).
+extern std::filesystem::path (*radio_script_locator)(const std::string&);
 // "c:" at the start of the SEARCH box (the command line), and "cs:" (the search of the scripts).
 inline bool search_is_cli(const std::string& b) {
     size_t i = 0;

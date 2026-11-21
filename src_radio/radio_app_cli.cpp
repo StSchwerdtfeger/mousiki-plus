@@ -7,6 +7,7 @@
 #include "console_log.h"
 #include "text_edit.h"
 #include "terminal_ui.h"
+#include "line_block.h"
 
 #include <algorithm>
 #include <set>
@@ -199,7 +200,7 @@ void RadioApp::cliov_load(const std::string& name) {
     if (l.empty()) l.push_back("");
     o.lines = l;
     o.cur = name;
-    o.cy = 0; o.cx = o.anchor = 0; o.top = 0;
+    o.cy = 0; o.cx = o.anchor = 0; o.top = 0; o.mark = -1; o.help_open = false;
     o.dirty = false; o.discard_armed = false;
     o.note.clear();
 }
@@ -277,6 +278,16 @@ bool RadioApp::key_cliov(KeyCtx& kc) {
         for (size_t i = 0; i < o.shown.size(); ++i) if (o.names[static_cast<size_t>(o.shown[i])] == n) o.sel = static_cast<int>(i);
     };
 
+    if (o.help_open) {   // the list of the commands ([h]): UP / DOWN / PgUp / PgDn / HOME / END move, ESC, ENTER or h close it
+        const int total = static_cast<int>(radio_command_list().size());
+        const int page = std::max(1, o.rows - 1);
+        if (arrow && (key == 'A' || key == 'B')) o.help_sel += (key == 'A' ? -1 : 1) * ((shifted || last_key_was_page()) ? page : 1);
+        else if (!arrow && key == kKeyHome) o.help_sel = 0;
+        else if (!arrow && key == kKeyEnd) o.help_sel = total - 1;
+        else if (!arrow && (key == 27 || key == 13 || key == 10 || key == 'h' || key == 'H' || key == 'q')) { o.help_open = false; return true; }
+        o.help_sel = std::clamp(o.help_sel, 0, std::max(0, total - 1));
+        return true;
+    }
     if (o.prompt == 1 || o.prompt == 2) {   // a name: a new script / the new name of the one selected
         if (!arrow && key == 27) { o.prompt = 0; o.note.clear(); return true; }
         if (!arrow && (key == 13 || key == 10)) {
@@ -300,12 +311,14 @@ bool RadioApp::key_cliov(KeyCtx& kc) {
                 o.note = "new script " + n;
             } else {
                 const std::string from = o.names.empty() || o.shown.empty() ? std::string() : o.names[static_cast<size_t>(o.shown[static_cast<size_t>(o.sel)])];
-                if (!cli::rename_script(from, n, err)) { o.note = err; return true; }
+                std::string extra;
+                if (!cli::rename_script(from, n, err, &extra)) { o.note = err; return true; }
                 if (o.cur == from) o.cur = n;
+                else if (o.cur == n && !o.dirty) cliov_load(n);   // (the file of that name is another one now: show it)
                 o.prompt = 0;
                 cliov_refresh();
                 select_name(n);
-                o.note = "renamed to " + n;
+                o.note = "renamed to " + n + (extra.empty() ? std::string() : " (" + extra + ")");
             }
             return true;
         }
@@ -333,6 +346,7 @@ bool RadioApp::key_cliov(KeyCtx& kc) {
             return true;
         }
     }
+    if (!arrow && key == 27 && o.focus == 1 && o.mark >= 0) { o.mark = -1; o.note.clear(); return true; }   // (the first ESC only takes the marks away)
     if (!arrow && key == 27) {
         if (o.dirty && !o.discard_armed) { o.discard_armed = true; o.note = "unsaved changes: CTRL+S saves, ESC again closes without saving"; return true; }
         o.dirty = false; o.discard_armed = false;
@@ -341,7 +355,7 @@ bool RadioApp::key_cliov(KeyCtx& kc) {
         set_text_entry(ui.model.con.open ? ui.model.con.pane == 2 : ui.model.search_focus);
         return true;
     }
-    if (!arrow && key == 9) { o.focus ^= 1; return true; }
+    if (!arrow && key == 9) { o.focus ^= 1; o.mark = -1; return true; }
     if (!arrow && key == kKeyCtrlS) { cliov_save(); return true; }
     if (!arrow && key == kKeyCtrlR) { cliov_run(o.focus == 1); return true; }
     o.discard_armed = false;
@@ -369,6 +383,7 @@ bool RadioApp::key_cliov(KeyCtx& kc) {
             if (!std::filesystem::exists(cli::script_path(nm))) { o.note = nm + " has no file yet"; return true; }
             o.prompt = 3; o.note = "move " + nm + " to deleted/ ? [y/n]"; return true;
         }
+        if (!arrow && (key == 'h' || key == 'H')) { o.help_open = true; o.help_sel = 0; o.help_top = 0; return true; }
         if (!arrow && (key == 'r' || key == 'R')) { cliov_run(false); return true; }
         if (!arrow && (key == 'c' || key == 'C')) { o.out.clear(); return true; }
         return true;
@@ -377,6 +392,54 @@ bool RadioApp::key_cliov(KeyCtx& kc) {
     // the editor
     std::string& line = o.lines[static_cast<size_t>(o.cy)];
     const int n = static_cast<int>(o.lines.size());
+    // Whole lines: SHIFT+UP / DOWN marks them, CTRL+C copies, CTRL+X cuts, DELETE / BACKSPACE deletes them, CTRL+V puts lines above the
+    // caret's line or in place of the marked ones. PgUp / PgDn page (as in the player).
+    if (arrow && (key == 'A' || key == 'B') && shifted && !last_key_was_page()) {
+        if (o.mark < 0) o.mark = o.cy;
+        o.cy = std::clamp(o.cy + (key == 'A' ? -1 : 1), 0, n - 1);
+        fit_cx();
+        const int cnt = std::abs(o.cy - o.mark) + 1;
+        o.note = std::to_string(cnt) + (cnt == 1 ? " line" : " lines") + " marked";
+        return true;
+    }
+    if (o.mark >= 0) {
+        const int lo = std::min(o.mark, o.cy), hi = std::max(o.mark, o.cy);
+        const int cnt = hi - lo + 1;
+        const std::string what = std::to_string(cnt) + (cnt == 1 ? " line" : " lines");
+        if (!arrow && key == kKeyCtrlC) { muisc::clipboard_set(muisc::lineblock::join_lines(o.lines, lo, hi)); o.note = "COPIED " + what; o.mark = -1; return true; }
+        if (!arrow && (key == kKeyCtrlX || key == kKeyDelete || key == 127 || key == 8)) {
+            if (key == kKeyCtrlX) muisc::clipboard_set(muisc::lineblock::join_lines(o.lines, lo, hi));
+            int at = 0;
+            muisc::lineblock::erase_lines(o.lines, lo, hi, at);
+            o.cy = at; o.cx = o.anchor = 0; o.mark = -1; o.dirty = true;
+            o.note = (key == kKeyCtrlX ? "CUT " : "DELETED ") + what;
+            return true;
+        }
+        if (!arrow && key == kKeyCtrlV) {   // the marked lines are replaced by what is on the clipboard
+            std::string text = muisc::lineblock::clean_text(muisc::clipboard_get());
+            if (text.empty()) { o.note = "the clipboard is empty"; return true; }
+            int at = 0;
+            muisc::lineblock::erase_lines(o.lines, lo, hi, at);
+            o.cy = at; o.cx = 0; o.mark = -1;
+            if (text.back() != '\n') text += "\n";
+            const int added = muisc::lineblock::paste_lines(o.lines, o.cy, o.cx, text, kMaxLines);
+            o.anchor = o.cx = 0;
+            o.dirty = true;
+            o.note = "PASTED " + std::to_string(std::max(0, added)) + " lines in place of " + what;
+            return true;
+        }
+        o.mark = -1;   // any other key takes the marks away and does what it does
+        o.note.clear();
+    }
+    if (!arrow && key == kKeyCtrlV) {   // lines from the clipboard (a copy of marked lines, or a text of several lines from another program)
+        const int added = muisc::lineblock::paste_lines(o.lines, o.cy, o.cx, muisc::clipboard_get(), kMaxLines);
+        if (added >= 0) {
+            o.anchor = o.cx;
+            o.dirty = true;
+            o.note = "PASTED " + std::to_string(added) + (added == 1 ? " line" : " lines");
+            return true;
+        }
+    }
     if (arrow && (key == 'A' || key == 'B')) {
         const int step = shifted ? std::max(1, o.rows - 1) : 1;
         o.cy = std::clamp(o.cy + (key == 'A' ? -step : step), 0, n - 1);
