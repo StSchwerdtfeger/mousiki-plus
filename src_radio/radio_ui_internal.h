@@ -2,9 +2,11 @@
 #pragma once
 
 #include "radio_ui.h"
+#include "vivid.h"
 #include "overlay_common.h"
 #include "about_text.h"
 #include "border_gradient.h"
+#include "corners.h"
 #include "scope_big.h"
 #include "scope_window.h"
 #include "keyboard_layout.h"
@@ -69,9 +71,9 @@ struct Style {
         freq_mhz = ansi_fg(c.freq_mhz);
     }
     // ON AIR sign: upper left -> bottom right (t = 0 .. 1).
-    std::string onair_at(float t) const { return gradient_fg(c.on_air_upper_left, c.on_air_bottom_right, t); }
+    std::string onair_at(float t) const { return muisc::vivid_sgr(gradient_fg(c.on_air_upper_left, c.on_air_bottom_right, t), c.on_air_vivid); }
     // FFT spectrum under the station info (3-stop if a centre colour is set).
-    std::string viz_at(float t) const { return gradient3_fg(c.viz_left, c.viz_center, c.viz_right, t); }
+    std::string viz_at(float t) const { return muisc::vivid_sgr(gradient3_fg(c.viz_left, c.viz_center, c.viz_right, t), c.bars_vivid); }
     // Oscilloscope.
     std::string osci_at(float t) const { return gradient_fg(c.osci_left, c.osci_right, t); }
 };
@@ -143,7 +145,6 @@ inline const void* scroll_id(int n) { return reinterpret_cast<const void*>(stati
 constexpr int kSideW = 33;   // right of the band: buttons 3 x 11 = 33, volume line 33
 constexpr int kBandGap = 1;  // blank column between the band's right border and the buttons / volume bar
 constexpr int kBtnW = 11;                            // three buttons = 33 columns
-constexpr int kVolBar = 15;                          // volume bar cells
 constexpr double kBandLo = 87.5, kBandHi = 108.0;
 
 // The small name box (same construction as the music player's Oscilloscope overlay: titled box, plain
@@ -363,9 +364,9 @@ std::vector<Seg> legend_segs(const std::string& key, const std::string& cmd, con
 std::string seg_line(const std::vector<Seg>& segs, int width);
 std::string spaces(int n);
 std::string repeat(const std::string& s, int n);
-std::vector<Seg> volume_fill_segs(const Style& s, int hashes);
+std::vector<Seg> volume_fill_segs(const Style& s, int hashes, int total = muisc::kVolBarCells);
 std::string box_edge(const Style& s, bool top, int w, const std::vector<Seg>& label, const std::string& ansi);
-std::string box_top(const Style& s, int w, const std::string& label, const std::string& ansi);
+std::string box_top(const Style& s, int w, const std::string& label, const std::string& ansi, bool bold_ok = true);   // (Thick Borders: the title in bold; false for a label that is not a title)
 std::string box_bottom(const Style& s, int w, const std::string& label, const std::string& ansi);
 std::string box_line(const Style& s, const std::string& content, const std::string& ansi);
 std::string field_row(const std::string& base, const std::string& prefix, const std::string& text, const EditState& e,

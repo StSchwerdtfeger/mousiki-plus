@@ -83,9 +83,11 @@ ColorLyricsActiveWordBg=
 ElimentDisk=true
 ## true , false -- the ":  :" column between the disk (or cover) and the meta data; false: it is left out and the disk sits in the middle of the space between the left border and the meta data
 ElimentDiskBorder=false
-## 0 , 1 , 2 , 3 , 4 , 5 (default 0) -- the frame of the upper pane (disk | meta data | lyrics / viz field): 0 = one box round all three; 1, 2, 3 = three panes I, II, III that share their walls; 4 = two panes (the disk, and meta data + lyrics / viz field in one); 5 = gap (one box with four gaps in its lines); see the preview in Settings
-SharpCorners=false
 ## true , false -- the frames have sharp corners instead of round ones everywhere; the Settings screen (sharp by itself) gets round corners then
+SharpCorners=false
+## 0 , 1 (default 0) -- 0 = thin frame lines, 1 = thick frame lines with thick round corners and bold pane titles (the whole frame is drawn with the small font "Mousiki Corners", which Mousiki installs; the terminal font list needs it after the main font, else the lines are heavy but the round corners stay thin). An older value 2 counts as 1
+ThickBorders=0
+## 0 , 1 , 2 , 3 , 4 , 5 (default 0) -- the frame of the upper pane (disk | meta data | lyrics / viz field): 0 = one box round all three; 1, 2, 3 = three panes I, II, III that share their walls; 4 = two panes (the disk, and meta data + lyrics / viz field in one); 5 = gap (one box with four gaps in its lines); see the preview in Settings
 TopPaneStyle=0
 ## Album Cover (music player) = the cover of the playing track takes the disk's place (needs ElimentDisk=true; a track without a cover keeps the disk)
 AlbumCover=false
@@ -93,7 +95,7 @@ AlbumCover=false
 ## behind the turning disk; the disk's dots are pinholes that let it shine through at full brightness, they stay on a fixed grid and only
 ## the pattern turns | disk2 = the same, the dots themselves turn | full = the same with the disk's full animation: its dots are rounded to the dot grid as it turns, so some come and go
 CoverMode=disk
-## CoverContrast = 0 .. 150 (percent, steps of 5): more contrast for the album cover (0 = the cover as it is, 100 = 2.5 times the distance from the middle grey, 150 = 3.25 times)
+## CoverContrast = 0 .. 200 (percent, steps of 5): more contrast for the album cover (0 = the cover as it is, 100 = 2.5 times the distance from the middle grey, 200 = 4 times)
 CoverContrast=0
 ## CoverBrightness = 0 .. 100 (percent, steps of 5): the cover behind the disk -- how bright its dots are lifted (0 = the picture's own range; more = brighter, like the plain disk)
 CoverBrightness=50
@@ -101,6 +103,17 @@ CoverBrightness=50
 CoverColors=0
 ## CoverGradientSaturation = 0 .. 100 (percent, steps of 5): the cover looks (music player) -- how vivid the disk's gradient is between its two colours (0 = the plain blend of the two, which fades to grey in the middle; 30 = default; 100 = as saturated as a straight line between the two colours). Only the colour of the dots changes, not the picture
 CoverGradientSaturation=30
+## DiskVividness = 0 .. 150 (percent, steps of 5): the plain disk (no cover) -- how vivid its gradient colours are. 0 = as before; more makes the colours fuller and brighter, the way the neon edge effects of the video and MilkDrop look.
+DiskVividness=0
+## ScopeVividness / SpectrogramVividness / BarsVividness / VolumeBarVividness = as disk, or 0 .. 150 (percent): how vivid the gradient colours of the braille oscilloscope, the braille spectrogram, the spectrum bars and the volume bar are. "as disk" (the default) uses the value of DiskVividness.
+## WaveformVividness = 0 .. 150 (percent, steps of 5): the progress waveform -- how vivid its played and remaining colours are. Its own value: the other vividness settings do not change it. 0 = as before.
+WaveformVividness=0
+ScopeVividness=as disk
+SpectrogramVividness=as disk
+BarsVividness=as disk
+VolumeBarVividness=as disk
+## CoverVividness = as disk (the value of DiskVividness), or 0 .. 150 (percent, steps of 5): the disk and the cover behind it -- how vivid the dots are. 0 = as before; more lifts the dots towards the full colours of the disk gradient and pushes the colours away from grey, the way the neon edge effects of the video and MilkDrop look (the effect itself is not applied to the cover)
+CoverVividness=as disk
 ## BulkAddSave = BULK ADD (SHIFT+g): true = the tracks you add are saved in the download folder when they play (as every streamed track is); false = play only: a track that was not in the download folder before is deleted again after it has played (CTRL+s in the BULK ADD panel changes it)
 BulkAddSave=true
 ## BulkAddVideo = BULK ADD: true = the video of each added track is downloaded too, when the track plays (needs Video mode; with BulkAddSave=false it is deleted with the track; CTRL+o in the BULK ADD panel changes it)
@@ -147,7 +160,7 @@ VideoFx=off
 VideoContrast=0
 ## 0 .. 100 (percent, steps of 5) -- more contrast for the video's picture (0 = as it is)
 VideoBrightness=50
-## 0 .. 100 (percent, steps of 5) -- the brightness of the video's picture (50 = as it is, lower = darker, higher = brighter; a track can have its own: Style Option)
+## 0 .. 100 (percent, steps of 5) -- the brightness of the video's picture (50 = as it is, lower = darker, higher = brighter; a track can have its own: individual video settings)
 VideoColors=100
 ## 0 .. 100 (percent, steps of 5) -- the video's colours (0 = greyscale, 100 = as they are)
 VideoClap=none
@@ -155,17 +168,19 @@ VideoClap=none
 VideoChroma=subtle
 ## chromatic aberration of the video's picture (red and blue pushed apart, more towards the corners; works with every effect): off | subtle | medium | strong
 VideoBase=clean
-## the structure of the screen under the tube looks (CRT, VHS, Glitch, Quiet Glitch, Phosphor Green / Amber / Green Glow): scanlines | aperture grille (Trinitron stripes) | shadow mask (fine round dots) | slot mask | clean (no structure, default); a track can have its own: Style Option
+## the structure of the screen under the tube looks (CRT, VHS, Glitch, Quiet Glitch, Phosphor Green / Amber / Green Glow): scanlines | aperture grille (Trinitron stripes) | shadow mask (fine round dots) | slot mask | clean (no structure, default); a track can have its own: individual video settings
 VideoBaseDefault=clean
 ## set by Mousiki, leave it as it is: it tells a newer version that this file knows clean as the default Base Layer (a file without this line, from before that, has its VideoBase read as clean once)
 VideoEffectContrast=reduced
-## how hard the blacks and whites of the photographic video looks are (Scanlines, CRT, VHS, Glitch, Quiet Glitch, Pixel, Gradient, Film, Silent Film, Interlace, Technicolor, LaserDisc): full (no softening: the deepest blacks) | reduced (default: the blacks lifted a little, the whites lowered a little) | low (blacks lifted more, whites lowered more: the shadows keep their detail). The palette and mask looks (Game Boy, Dither, CGA, ASCII, Neon Edge ...) need their hard blacks and are never touched; for Halftone CMYK and its High-Res version it is the strength of the print: full 100 %, reduced 70 %, low 50 % over the picture (a track can have its own: Style Option)
+## how hard the blacks and whites of the photographic video looks are (Scanlines, CRT, VHS, Glitch, Quiet Glitch, Pixel, Gradient, Film, Silent Film, Interlace, Technicolor, LaserDisc): full (no softening: the deepest blacks) | reduced (default: the blacks lifted a little, the whites lowered a little) | low (blacks lifted more, whites lowered more: the shadows keep their detail). The palette and mask looks (Game Boy, Dither, CGA, ASCII, Neon Edge ...) need their hard blacks and are never touched; for Halftone CMYK and its High-Res version it is the strength of the print: full 100 %, reduced 70 %, low 50 % over the picture (a track can have its own: individual video settings)
 VideoDither=interleaved noise
-## the pattern of the dots where a look dithers (Game Boy, EGA 16, Dither B/W and Gradient) and where the picture is reduced to the 256 colours of a terminal's picture protocol (e.g. sixel): auto (each look's own) | blue noise | bayer 2x2 | bayer 4x4 | bayer 8x8 | interleaved noise (default) | golden ratio (a track can have its own: Style Option)
+## the pattern of the dots where a look dithers (Game Boy, EGA 16, Dither B/W and Gradient) and where the picture is reduced to the 256 colours of a terminal's picture protocol (e.g. sixel): auto (each look's own) | blue noise | bayer 2x2 | bayer 4x4 | bayer 8x8 | interleaved noise (default) | golden ratio (a track can have its own: individual video settings)
 VideoGradientSaturation=85
-## the video looks that use the gradient colours (Gradient, Dither Gradient, Neon Edge Gradient, Game Boy gradient): how saturated those colours are, 0 .. 100 (percent, steps of 5; 100 = the colours as they are, lower = paler, 0 = grey of the same brightness; 85 = default); a track can have its own: Style Option
+## VideoGradientVividness = 0 .. 100 (percent, steps of 5): the video looks that use the gradient colours (Gradient, Dither Gradient, Neon Edge Gradient, the Game Boy gradient looks) -- how vivid those colours are. 0 = as before; more makes them fuller and brighter (pushed away from grey most around 50 %, brighter up to 100 %). A track can have its own: individual video settings.
+VideoGradientVividness=0
+## the video looks that use the gradient colours (Gradient, Dither Gradient, Neon Edge Gradient, Game Boy gradient): how saturated those colours are, 0 .. 100 (percent, steps of 5; 100 = the colours as they are, lower = paler, 0 = grey of the same brightness; 85 = default); a track can have its own: individual video settings
 VideoRound=true
-## Rounded Corners: the corners of the video's picture are cut round like the corners of the UI (a track can have its own: Style Option): true | false
+## Rounded Corners: the corners of the video's picture are cut round like the corners of the UI (a track can have its own: individual video settings): true | false
 VideoResolution=standard
 ## the sharpness of the video's picture: standard (up to 640 px wide, Sixel 480; the soft look) | high (1280 px, Sixel 720; Kitty in true colour) | full (1920 px, Sixel 960; Kitty in true colour). Wider pictures need more of the terminal and the processor
 VideoFrameRate=25
@@ -226,7 +241,7 @@ MilkDropWindowResolution=1280
 MilkDropPresetDuration=25
 ## 0 - 600 (default 25) -- seconds until the next MilkDrop preset (0 = it stays until you change it)
 MilkDropAuto=false
-## true , false (default false) -- Auto MilkDrop: the field shows the MilkDrop visuals for every track (a track's Style Option can say no); it switches Auto Video off meanwhile and back on after
+## true , false (default false) -- Auto MilkDrop: the field shows the MilkDrop visuals for every track (a track's MilkDrop settings can say no); it switches Auto Video off meanwhile and back on after
 MilkDropAutoVideoWas=false
 ## (set by Mousiki) Auto Video was on when Auto MilkDrop switched it off: it comes back on with Auto MilkDrop off
 MilkDropShuffle=true

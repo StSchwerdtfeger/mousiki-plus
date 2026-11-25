@@ -1,7 +1,9 @@
 // app_panels.cpp
 // Part of class App (src/app.h): The panels of the main screen: metadata, progress bar, search bar, list and queue.
 // Split out of app.cpp; the includes are the same as there.
+#include "terminal_font.h"
 #include "app.h"
+#include "vivid.h"
 #include "app_state_sleep.h"
 #include "playlist_state.h"
 #include "meta_state.h"
@@ -220,12 +222,20 @@ void spectro_gradient_from(const Settings& st) {
     int r0 = 255, g0 = 255, b0 = 255, r1 = 255, g1 = 255, b1 = 255;
     osci_palette_rgb(st, 0, 0.0f, r0, g0, b0);
     osci_palette_rgb(st, 0, 1.0f, r1, g1, b1);
+    {   // Spectrogram Gradient Vividness (as disk = the disk's): the two ends made fuller and brighter
+        const float v = static_cast<float>(std::clamp(st.vivid_of(st.spectro_vivid), 0, 150)) / 100.0f;
+        float a[3] = {static_cast<float>(r0), static_cast<float>(g0), static_cast<float>(b0)}, b[3] = {static_cast<float>(r1), static_cast<float>(g1), static_cast<float>(b1)};
+        vivid_boost(a, v); vivid_boost(b, v);
+        r0 = static_cast<int>(a[0] + 0.5f); g0 = static_cast<int>(a[1] + 0.5f); b0 = static_cast<int>(a[2] + 0.5f);
+        r1 = static_cast<int>(b[0] + 0.5f); g1 = static_cast<int>(b[1] + 0.5f); b1 = static_cast<int>(b[2] + 0.5f);
+    }
     auto c8 = [](int v) { return static_cast<uint8_t>(std::clamp(v, 0, 255)); };
     spectro_set_gradient({c8(r0), c8(g0), c8(b0)}, {c8(r1), c8(g1), c8(b1)});
 }
 VideoFxGradient video_fx_gradient(const Settings& st) {
     VideoFxGradient g;
     g.sat = std::clamp(st.video_grad_sat, 0, 100);
+    g.vivid = std::clamp(st.video_grad_vivid, 0, 100);
     const std::string* col[3] = {&st.viz_left_color, &st.viz_center_color, &st.viz_right_color};
     std::string own[3];
     if (st.viz_center_color.empty()) {   // a two colour gradient: the middle is halfway
@@ -329,7 +339,7 @@ struct App::MetaPanel {
     int book_extra = 0;
     int sep_w = 0;
     int wall_w = 0;     // Pane Style "three panes": the two columns (a blank and the wall) between the meta data and the field, taken from the field
-    int disk_pad = 0;   // Disk Border off: the columns the disk moves right to sit in the middle of the space before the meta data
+    int disk_pad = 0;   // Classic Disk Border off: the columns the disk moves right to sit in the middle of the space before the meta data
     int panel_h = 0;
     int fixed_extra = 0;
     int avail = 0;
@@ -419,7 +429,7 @@ void App::meta_panel_disk(MetaPanel& m) const {
         for (size_t row_i = 0; row_i < disk_frame.size(); ++row_i) {
             float t = disk_frame.size() > 1 ? static_cast<float>(row_i) / static_cast<float>(disk_frame.size() - 1) : 0.0f;
             std::string disk_end = settings_.disk_color_end;
-            std::string row_ansi = gradient_ansi(settings_.disk_color, disk_end, t);
+            std::string row_ansi = disk_gradient_ansi(settings_.disk_color, disk_end, t, settings_.disk_vivid);
             disk_frame[row_i] = row_ansi + disk_frame[row_i] + "\x1b[0m";
         }
     }
@@ -595,12 +605,12 @@ void App::meta_panel_info(MetaPanel& m) const {
             const auto& pal = spectro_palette(settings_.spectro.scheme);
             std::vector<std::string> hrows = hifi_rows(hifi(), hv,
                 [&](float t) {
-                    return !settings_.viz_center_color.empty() ? multi_stop_gradient_ansi(settings_.viz_left_color, settings_.viz_center_color, settings_.viz_right_color, t)
-                                                              : gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t);
+                    return !settings_.viz_center_color.empty() ? vivid_multi_stop_gradient_ansi(settings_.viz_left_color, settings_.viz_center_color, settings_.viz_right_color, t, settings_.vivid_of(settings_.bars_vivid))
+                                                              : vivid_gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t, settings_.vivid_of(settings_.bars_vivid));
                 },
                 [&](float f) {
                     const auto& c = pal[static_cast<size_t>(std::clamp(48 + static_cast<int>(f * 207.0f), 0, 255))];
-                    return "\x1b[38;2;" + std::to_string(c[0]) + ";" + std::to_string(c[1]) + ";" + std::to_string(c[2]) + "m";
+                    return vivid_sgr("\x1b[38;2;" + std::to_string(c[0]) + ";" + std::to_string(c[1]) + ";" + std::to_string(c[2]) + "m", settings_.vivid_of(settings_.bars_vivid));
                 });
             for (int r = 0; r < viz_rows; ++r) {
                 std::string line = hrows[static_cast<size_t>(r)];
@@ -617,9 +627,9 @@ void App::meta_panel_info(MetaPanel& m) const {
                 float t = nbars > 1 ? static_cast<float>(i) / static_cast<float>(nbars - 1) : 0.0f;
                 std::string bar_ansi;
                 if (!settings_.viz_center_color.empty()) {
-                    bar_ansi = multi_stop_gradient_ansi(settings_.viz_left_color, settings_.viz_center_color, settings_.viz_right_color, t);
+                    bar_ansi = vivid_multi_stop_gradient_ansi(settings_.viz_left_color, settings_.viz_center_color, settings_.viz_right_color, t, settings_.vivid_of(settings_.bars_vivid));
                 } else {
-                    bar_ansi = gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t);
+                    bar_ansi = vivid_gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t, settings_.vivid_of(settings_.bars_vivid));
                 }
                 viz_bottom += bar_ansi;
                 viz_bottom += fft_glyph(std::min(level, 4));
@@ -757,15 +767,18 @@ void App::meta_panel_field(MetaPanel& m) const {
                   + std::string(lyrics_w - left - kTapeArtWidth, ' ')
                 : utf8_skip_take(tape[static_cast<size_t>(i)], -left, lyrics_w); // column narrower than the art: keep its middle, never wrap braille cells
             lyric_rows[start + i] =
-                gradient_ansi(settings_.disk_color, settings_.disk_color_end, t) + body + "\x1b[0m";
+                disk_gradient_ansi(settings_.disk_color, settings_.disk_color_end, t, settings_.disk_vivid) + body + "\x1b[0m";   // (Disk Gradient Vividness)
         }
     } else if (settings_.milkdrop_view && lyrics_w >= 12 && panel_h >= 4 && milkdrop_usable() && !(audiobook_ && settings_.book_force_note && book_field_has_note()) &&   // (Force Note: a note in the field shows alone, no picture behind it)
                [&]() {   // the MilkDrop view: the visuals fill the field (like the full-field video); false: they cannot run (the usual view then)
-                   const int lpad = 1;   // (one empty column at the left, as the video has)
                    const bool wide = gfxs_.proto != GfxProto::None;
+                   const int lpad = (wide && m.wall_w > 0) ? 0 : 1;   // (one empty column at the left, as the video has; none beside a wall of the three panes: the picture then touches the wall as it touches the right border)
                    const int fw = lyrics_w + (wide ? 1 : 0) - lpad;
                    std::vector<std::string> mrows;
-                   if (!milkdrop_field_rows(mrows, fw, panel_h, 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + lpad, cover_pic_img || book_pic_img, wide)) return false;
+                   trim_left_next_ = wide && m.wall_w > 0;
+                   const bool md_ok = milkdrop_field_rows(mrows, fw, panel_h, 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + lpad, cover_pic_img || book_pic_img, wide);
+                   trim_left_next_ = false;
+                   if (!md_ok) return false;
                    for (int i = 0; i < panel_h && i < static_cast<int>(mrows.size()); ++i) lyric_rows[static_cast<size_t>(i)] = std::string(static_cast<size_t>(lpad), ' ') + mrows[static_cast<size_t>(i)];
                    lyrics_wide = wide;
                    md_in_field = true;
@@ -776,7 +789,7 @@ void App::meta_panel_field(MetaPanel& m) const {
                [&]() {   // (false: no video for this track -> "When No Video Shows" decides, see video_missing)   // the Video view: the picture of the track's video with the current lyric line under it
                    const int vsize = video_size_for(current_.path);
                    const bool wide = vsize == 2 && gfxs_.proto != GfxProto::None;   // (a picture: the spare column minus half a cell, so the gap at the right is as wide as the one at the top and bottom)
-                   const int lpad = 1;   // one empty column at the left of the picture: the gap to the meta data column (its bars) is as wide as the one to the right border
+                   const int lpad = (wide && m.wall_w > 0) ? 0 : 1;   // one empty column at the left of the picture: the gap to the meta data column (its bars) is as wide as the one to the right border; none beside a wall of the three panes (the picture touches it as it touches the right border)
                    const int fw = lyrics_w + (wide ? 1 : 0) - lpad;   // the width video_field_rows gets; the lyric line is wrapped to the width it will be shown in (video_field_rows)
                    std::vector<std::string> line_rows;
                    video_ov_ref_.clear();
@@ -807,7 +820,10 @@ void App::meta_panel_field(MetaPanel& m) const {
                        }
                    }
                    std::vector<std::string> vrows;
-                   if (!video_field_rows(vrows, fw, panel_h, 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + lpad, cover_pic_img, elapsed, line_rows, wide)) { video_missing = true; return false; }
+                   trim_left_next_ = wide && m.wall_w > 0;
+                   const bool vf_ok = video_field_rows(vrows, fw, panel_h, 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + lpad, cover_pic_img, elapsed, line_rows, wide);
+                   trim_left_next_ = false;
+                   if (!vf_ok) { video_missing = true; return false; }
                    for (int i = 0; i < panel_h && i < static_cast<int>(vrows.size()); ++i) lyric_rows[static_cast<size_t>(i)] = std::string(static_cast<size_t>(lpad), ' ') + vrows[static_cast<size_t>(i)];
                    lyrics_wide = wide;
                    return true;
@@ -852,14 +868,16 @@ void App::meta_panel_field(MetaPanel& m) const {
             if (area_viz == 5 && !(settings_.use_milkdrop && milkdrop_usable())) area_viz = 3;
             if ((area_viz == 4 || area_viz == 5) && audiobook_ && settings_.book_force_note && book_field_has_note()) area_viz = 3;   // (Force Note: no picture under the note)   // (MilkDrop: needs it on and able to run)
             if (area_viz == 4 || area_viz == 5) {   // the video of the track / the MilkDrop visuals fill the field (no lyric line: there are no lyrics)
-                const int lpad = 1;
                 const bool wide = gfxs_.proto != GfxProto::None;
+                const int lpad = (wide && m.wall_w > 0) ? 0 : 1;
                 const int fw = lyrics_w + (wide ? 1 : 0) - lpad;
                 const int acol = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + lpad;
                 std::vector<std::string> arows;
                 video_ov_ref_.clear();
+                trim_left_next_ = wide && m.wall_w > 0;
                 const bool ok = fw >= 8 && panel_h >= 3 && (area_viz == 5 ? milkdrop_field_rows(arows, fw, panel_h, acol, cover_pic_img || book_pic_img, wide)
                                                                           : video_field_rows(arows, fw, panel_h, acol, cover_pic_img, elapsed, std::vector<std::string>(), wide));
+                trim_left_next_ = false;
                 if (ok) {
                     for (int i = 0; i < panel_h && i < static_cast<int>(arows.size()); ++i) lyric_rows[static_cast<size_t>(i)] = std::string(static_cast<size_t>(lpad), ' ') + arows[static_cast<size_t>(i)];
                     lyrics_wide = wide;
@@ -929,7 +947,7 @@ void App::meta_panel_field(MetaPanel& m) const {
                         const float lvl = std::round(c.level / 255.0f * 7.0f) / 7.0f;
                         const float k = 0.30f + 0.70f * lvl;
                         std::string ansi;
-                        if (pal == 0) ansi = osci_dim_ansi(gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t), k);
+                        if (pal == 0) ansi = osci_dim_ansi(vivid_gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t, settings_.vivid_of(settings_.scope_vivid)), k);
                         else { int r = 255, g = 255, b = 255; osci_palette_rgb(settings_, pal, c.hue / 255.0f, r, g, b); ansi = osci_rgb_seq(r, g, b, k); }
                         if (ansi != last_ansi) { colored += ansi; last_ansi = ansi; }
                         const int cp = 0x2800 + c.braille;
@@ -1132,7 +1150,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
     const int pstyle = std::clamp(settings_.top_pane_style, 0, 5);
     const bool split = panestyle::split(pstyle);
     if (split && pstyle != 4 && show_viz && lyrics_w - 2 >= kVizMinW) { m.wall_w = 2; lyrics_w -= 2; }
-    // The ":  :" column can be switched off (Settings -> DISK -> Disk Border): the disk then sits in the middle of the space between
+    // The ":  :" column can be switched off (Settings -> Classic Disk Border): the disk then sits in the middle of the space between
     // the left border and the meta data, which start where they always did.
     m.disk_pad = (show_disk && split) ? std::max(0, (sep_w - 4) / 2)   // (three panes: the wall stands where the margins left and right of the disk are equal, with two blanks before the meta data)
                : (show_disk && !settings_.disk_border) ? std::max(0, (sep_w - 1) / 2) : 0;
@@ -1222,6 +1240,7 @@ std::vector<std::string> App::build_progress_panel(int total_width) const {
 
     std::string color_played = ansi_for(settings_.progress_played_color);
     std::string color_unplayed = ansi_for(settings_.progress_remaining_color);
+    const std::string wave_played = vivid_colour_ansi(settings_.progress_played_color, settings_.wave_vivid), wave_unplayed = vivid_colour_ansi(settings_.progress_remaining_color, settings_.wave_vivid);   // (Waveform Vividness: the waveform only; the volume bar and the plain bar use the colours as they are)
     std::string color_reset = "\x1b[0m";
 
     std::string top_wave, mid_wave, bot_wave;
@@ -1237,10 +1256,10 @@ std::vector<std::string> App::build_progress_panel(int total_width) const {
         int level = (revealed && i < static_cast<int>(waveform_levels.size())) ? waveform_levels[i] : 0;
         BrailleColumn col = WaveformQuantizer::get_column(level);
         if (i == 0) {
-            std::string c = (i < active_cols) ? color_played : color_unplayed;
+            const std::string& c = (i < active_cols) ? wave_played : wave_unplayed;
             top_wave += c; mid_wave += c; bot_wave += c;
         } else if (i == active_cols) {
-            top_wave += color_unplayed; mid_wave += color_unplayed; bot_wave += color_unplayed;
+            top_wave += wave_unplayed; mid_wave += wave_unplayed; bot_wave += wave_unplayed;
         }
         top_wave += col.top; mid_wave += col.mid; bot_wave += col.bot;
     }
@@ -1307,57 +1326,49 @@ std::vector<std::string> App::build_progress_panel(int total_width) const {
     }
 
     int vol = player_.volume();
-    int vol_hashes = (vol * 20) / 100;
+    int side_w = total_width - main_total_w;
+    // The volume line "VOLUME:[bar] 100%" (the braille looks have no brackets, their bar is two cells longer): its length is that of the line at 100 %,
+    // whatever the volume is -- the title and the bar stay where they are and only the number ends one column further right at 100 %. With the
+    // AutoSave indicator on, the first column of the side panel is left for its glyph.
+    const int lead = settings_.autosave_enabled ? 1 : 0;
+    const VolBarLook vlook = volume_bar_look(settings_.volume_indicator, std::min(38, std::max(side_w - lead, 20)));
+    const int vcells = vlook.cells;
+    int vol_hashes = (vol * vcells) / 100;
     // "#" (filled) matches the waveform's played color, "-" (empty)
     // matches its unplayed/remaining color -- color_played/color_unplayed
     // are already computed above from progress_played_color/
     // progress_remaining_color for the waveform itself, reused here so
     // the volume bar visually reads as the same kind of fill. The
-    // "VOLUME BAR:[...]" label and brackets use the border color, same
+    // "VOLUME:" label and brackets use the border color, same
     // as the buttons above.
     // The filled part is drawn with the Volume Indicator of the GENERAL tab ("#", "⠶", "⣿" or the "⡾⣽" row); every
     // position is one column wide whatever the look, so the width math below is the same for all of them.
     // angle_: the disk's angle, so "disk" follows it
     std::string vol_fill_colored;
     if (settings_.volume_gradient) {   // "gradient": every position takes its colour from the VIZ gradient, left to right, as the oscilloscope does
-        const auto cells = volume_bar_cells(settings_.volume_indicator, vol_hashes, angle_);
+        const auto cells = volume_bar_cells(settings_.volume_indicator, vol_hashes, angle_, vcells);
         for (size_t i = 0; i < cells.size(); ++i)
-            vol_fill_colored += gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, static_cast<float>(i) / (kVolBarCells - 1)) + cells[i];
+            vol_fill_colored += vivid_gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, static_cast<float>(i) / (vcells - 1), settings_.vivid_of(settings_.volume_vivid)) + cells[i];
     } else {
-        vol_fill_colored = color_played + volume_bar_fill(settings_.volume_indicator, vol_hashes, angle_);
+        vol_fill_colored = color_played + volume_bar_fill(settings_.volume_indicator, vol_hashes, angle_, vcells);
     }
     std::string vol_bar_colored = vol_fill_colored + "\x1b[0m"
-                                 + color_unplayed + std::string(20 - vol_hashes, '-') + "\x1b[0m";
-    std::string vol_bar_text = std::string(vol_hashes, '#') + std::string(20 - vol_hashes, '-'); // plain, for width math only
-    std::string vol_tail = border_ansi + "VOLUME BAR:[" + "\x1b[0m" + vol_bar_colored
-                          + border_ansi + "]" + "\x1b[0m" + " " + std::to_string(vol) + "%";
+                                 + color_unplayed + std::string(vcells - vol_hashes, '-') + "\x1b[0m";
+    const std::string vol_pct = " " + std::to_string(vol) + "%";
+    std::string vol_tail = border_ansi + "\x1b[1mVOLUME\x1b[22m" + (vlook.brackets ? ":[" : ":") + "\x1b[0m" + vol_bar_colored
+                          + (vlook.brackets ? border_ansi + "]" + "\x1b[0m" : std::string()) + vol_pct;
     if (!has_side) vol_tail.clear();
-    int side_w = total_width - main_total_w;
     // pad_left counts raw bytes, so it can't be used once vol_tail carries
-    // ANSI bytes -- pad by the *visible* width instead (the volume-bar
-    // color fix below is what introduced the mismatch).
-    int visible_w = display_width("VOLUME BAR:[" + vol_bar_text + "] " + std::to_string(vol) + "%");
-    int gap = std::max(0, side_w - visible_w);
-
-    if (!settings_.autosave_enabled) {
-        // AutoSave fully off: no indicator, and the blank gap moves to
-        // the *right* of the text instead of sitting between the
-        // border and it -- "│VOLUME BAR" touching the border directly,
-        // same total line width either way so nothing else has to
-        // change to stay aligned.
-        if (gap > 0) vol_tail = vol_tail + std::string(gap, ' ');
-    } else {
-        // AutoSave on: keep the existing gap (│  VOLUME BAR), but let
-        // the indicator glyph occupy the first character of it when
-        // enabled -- │• VOLUME BAR with room to spare, or │•VOLUME BAR
-        // once the gap is down to exactly one column.
-        std::string pad(gap, ' ');
-        if (gap >= 1) {
-            std::string glyph = autosave_indicator_glyph();
-            if (!glyph.empty()) pad = glyph + pad.substr(1);
-        }
-        vol_tail = pad + vol_tail;
+    // ANSI bytes -- pad by the *visible* width instead.
+    const int visible_w = 7 + (vlook.brackets ? 2 : 0) + vcells + display_width(vol_pct);
+    // the same room in front of the title at every volume; what the number does not use of its 4 columns (" 85%") is blank behind it
+    vol_tail = std::string(static_cast<size_t>(lead), ' ') + vol_tail;
+    if (lead == 1) {
+        const std::string glyph = autosave_indicator_glyph();
+        if (!glyph.empty()) vol_tail = glyph + vol_tail.substr(1);
     }
+    vol_tail += std::string(static_cast<size_t>(std::max(0, side_w - lead - visible_w)), ' ');
+    if (!has_side) vol_tail.clear();
 
     std::string time_plain = "[ " + fmt_mmss(elapsed) + " ]" + settings_.box_horizontal + "[ " + fmt_mmss(static_cast<double>(total_sec_)) + " ]";
     // Manual box-bottom construction (rather than the shared box_bottom()
@@ -1564,13 +1575,15 @@ std::vector<std::string> App::build_cli_list_panel(int total_width, int height) 
             lines.push_back({"type a command: help | status | play <words> | queue <words> | volume 40 | in 45m pause", 3});
             lines.push_back({"[ENTER] runs it, [UP]/[DOWN] earlier lines, [CTRL+RIGHT] completes, [ESC] leaves", 3});
         }
-        footer = "[t] console: the whole history";
+        footer = "[t] console: the whole history | SHIFT+UP/DOWN scroll";
     }
     std::vector<std::string> out;
     out.push_back(box_top(scripts ? "SCRIPTS" : "COMMAND HISTORY / OUTPUT", total_width, border_ansi));
     // the command history is bottom-aligned (the newest line is at the bottom); the scripts start at the top
     const int n = static_cast<int>(lines.size());
-    const int first = scripts ? 0 : std::max(0, n - height);
+    if (!scripts) cli_up_ = std::clamp(cli_up_, 0, std::max(0, n - height));   // (SHIFT+UP / DOWN: scrolled back from the newest line)
+    const int first = scripts ? 0 : std::max(0, n - height - cli_up_);
+    if (!scripts && cli_up_ > 0) footer = "scrolled up " + std::to_string(cli_up_) + " | SHIFT+DOWN newer | [t] console";
     for (int row = 0; row < height; ++row) {
         const int idx = first + row - (scripts || n >= height ? 0 : height - n);
         std::string content;

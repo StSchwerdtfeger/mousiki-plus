@@ -24,12 +24,18 @@ enum VMenuRow : int {
     kVmChroma,          // Chromatic Aberration
     kVmDither,          // Dither Pattern
     kVmGradSat,         // Video Gradient Saturation (0 .. 100 %)
+    kVmGradVivid,       // Video Gradient Vividness (0 .. 100 %)
     kVmResolution,
     kVmFrameRate,       // Frame Rate (25 | 60)
     kVmBuffer,
     kVmClap,            // Show Clap Loading
-    kVmOverride,        // Override Individual Settings (this session only: the settings of the tracks of their own are not used)
-    kVmLastSetting = kVmOverride,   // (rows up to here change a setting with the arrow keys; the rest are buttons)
+    kVmLastSetting = kVmClap,    // (rows up to here change a setting with the arrow keys; the rest are the INDIVIDUAL SETTINGS MANAGEMENT rows and buttons)
+    kVmIndSet,          // Set current values as individual settings (only when the settings were changed: that is a temporary layer)
+    kVmIndRevert,       // Reset to individual settings (drops the temporary changes)
+    kVmIndReset,        // Reset individual values to default settings (the track's individual values are removed)
+    kVmIndCopy,         // Set individual settings to general values
+    kVmUndo,            // Undo change
+    kVmIndOn,           // Use Individual Settings (the playing track: on / off, the values are kept)
     kVmFullScreen,      // [ Full Screen Video ]
     kVmCouple,          // [ Manually Couple Local Files ]
     kVmQuickSearch,     // [ Quick Search/Down. YT ]
@@ -39,26 +45,10 @@ enum VMenuRow : int {
     kVmRowCount
 };
 
-// The VIDEO OPTIONS panel of the big video (SHIFT+s): the track's own video look. kVoMp4Audio is only listed for a song paired with a video.
-enum VOptsRow : int {
-    kVoEffect,
-    kVoBase,
-    kVoFxContrast,
-    kVoContrast,
-    kVoBrightness,
-    kVoColors,
-    kVoChroma,
-    kVoDither,
-    kVoGradSat,
-    kVoResolution,
-    kVoRounded,
-    kVoOverride,
-    kVoMp4Audio,
-    kVoRowCount
-};
-inline int vopts_row_count(bool with_mp4_audio) { return with_mp4_audio ? kVoRowCount : kVoRowCount - 1; }
+// VIDEO OPTIONS (the Video key in the big video) lists the rows of VIDEO SETTINGS (except Full Screen Video) by the same ids; this one is only there:
+inline constexpr int kVmMp4AudioRow = kVmRowCount;   // Use mp4 audio for this song (a song paired with a video; listed after "Use individual settings for this track")
 
-// The STYLE OPTION overlay (meta editor / SHIFT+s of the main screen). Which rows are listed depends on the Video mode and on the track
+// The COVER STYLE OVERLAY (meta editor / SHIFT+s of the main screen). Which rows are listed depends on the Video mode and on the track
 // (style_rows() below); the selection is an index into that list, never a bare number.
 enum StyleRow : int {
     kStLook,            // Look of this track
@@ -66,6 +56,7 @@ enum StyleRow : int {
     kStCoverBrightness,
     kStCoverColors,
     kStCoverGradSat,    // Cover Gradient Saturation
+    kStCoverVivid,      // Cover Gradient Vividness
     kStCoverChroma,
     kStCoverOrThumb,    // Use Disk/Cover/Thumbnail                (Video mode)
     kStVideoOn,         // Video of this track                    (Video mode)
@@ -83,18 +74,20 @@ enum StyleRow : int {
     kStVideoResolution,
     kStVideoRounded,
     kStMp4Audio,        // Use mp4 audio for this song            (a song paired with a video)
-    kStMilkdropOn,      // MilkDrop for this track                (projectM installed)
-    kStMilkdropPreset,  // More Options: the MilkDrop preset overlay of this track (preset, keep it, effect)
+    kStResetCover,      // Reset cover to default settings: the track's own cover style is removed (a button)
+    kStSetCover,        // Set individual cover settings as default settings: the general cover values become the track's own (a button)
+    kStCoverUndo,       // Undo change: the last cover change (a value, a button, the album look) is taken back (a button)
+    kStMilkdropGo,      // Go to MilkDrop settings: the MilkDrop settings of this track (projectM installed)
     kStAlbum            // Look of the whole album (always the last row)
 };
 inline bool style_row_is_video(StyleRow r) { return r >= kStVideoOn && r <= kStMp4Audio; }   // the rows of the "Video" block
 inline std::vector<StyleRow> style_rows(bool video_mode, bool paired, bool milkdrop = false) {
-    std::vector<StyleRow> v = {kStLook, kStCoverContrast, kStCoverBrightness, kStCoverColors, kStCoverGradSat, kStCoverChroma};
-    if (video_mode) {
-        for (int r = kStCoverOrThumb; r <= kStVideoRounded; ++r) v.push_back(static_cast<StyleRow>(r));
-        if (paired) v.push_back(kStMp4Audio);
-    }
-    if (milkdrop) { v.push_back(kStMilkdropOn); v.push_back(kStMilkdropPreset); }
+    std::vector<StyleRow> v = {kStLook, kStCoverContrast, kStCoverBrightness, kStCoverColors, kStCoverGradSat, kStCoverVivid, kStCoverChroma};
+    (void)video_mode; (void)paired;   // (the overlay is only about the cover now: the video settings of a track are in VIDEO SETTINGS / VIDEO OPTIONS)
+    v.push_back(kStResetCover);
+    v.push_back(kStSetCover);
+    v.push_back(kStCoverUndo);
+    (void)milkdrop;   // (no MilkDrop row: the MilkDrop settings of a track are in the visuals menu [:] of the big video overlay)
     v.push_back(kStAlbum);
     return v;
 }

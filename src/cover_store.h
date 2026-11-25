@@ -62,7 +62,12 @@ void set_cover_track_video_mode(const std::string& track_path, int mode);   // 0
 // -1 and 0 -> -1 (as in Settings: 0 is what the "auto" of the first version of the setting wrote; there is no auto any more); anything else -> -1.
 inline int video_fxc_from_store(int field) { return field >= 1 && field <= kFxContrasts ? field - 1 : -1; }
 inline int video_fxc_to_store(int fxc) { return fxc >= 0 && fxc < kFxContrasts ? fxc + 1 : -1; }
-struct VideoTrackOpts { int on = -1, size = -1, fx = -1, contrast = -1, colors = -1, chroma = -1, res = -1, round = -1, lyrics = -1, brightness = -1, mp4audio = -1, dither = -1, gsat = -1, base = -1, fxc = -1; };   // (round: 0 / 1)   // contrast / colors 0..100 %, chroma 0..3, res 0..2 (standard / high / full); -1 = as in Settings; dither 0..6, base 0..5, fxc (Effect Contrast) 0..2 (video_fx.h)
+struct VideoTrackOpts { int on = -1, size = -1, fx = -1, contrast = -1, colors = -1, chroma = -1, res = -1, round = -1, lyrics = -1, brightness = -1, mp4audio = -1, dither = -1, gsat = -1, base = -1, fxc = -1, ioff = -1, gvivid = -1; };   // ioff 1: the individual settings are switched off (kept; the general settings apply)   // (round: 0 / 1)   // contrast / colors 0..100 %, chroma 0..3, res 0..2 (standard / high / full); -1 = as in Settings; dither 0..6, base 0..5, fxc (Effect Contrast) 0..2 (video_fx.h)
+inline bool operator==(const VideoTrackOpts& a, const VideoTrackOpts& b) {
+    return a.on == b.on && a.size == b.size && a.fx == b.fx && a.contrast == b.contrast && a.colors == b.colors && a.chroma == b.chroma && a.res == b.res && a.round == b.round &&
+           a.lyrics == b.lyrics && a.brightness == b.brightness && a.mp4audio == b.mp4audio && a.dither == b.dither && a.gsat == b.gsat && a.base == b.base && a.fxc == b.fxc && a.ioff == b.ioff && a.gvivid == b.gvivid;
+}
+inline bool operator!=(const VideoTrackOpts& a, const VideoTrackOpts& b) { return !(a == b); }
 VideoTrackOpts cover_track_video_opts(const std::string& track_path);
 // The MilkDrop visuals of one track (Style Option): on -1 = as it comes, 1 = the field shows them while this track plays, 0 = never;
 // preset "" = as it comes, else the preset (its file name without .milk) shown -- and kept -- while this track plays.
@@ -74,7 +79,13 @@ struct MilkdropTrackOpts {
     // More Options of the track (-1 = as in Settings): the preset duration in seconds (0 = off), shuffle presets / favourites (0 / 1), hard cuts (0 / 1),
     // the hard cut sensitivity in tenths, the transition in seconds, the effect on top (0 / 1), the preset's name shown (0 / 1)
     int dur = -1, shuf = -1, favs = -1, cuts = -1, hcs = -1, trans = -1, fxon = -1, name = -1;
+    int ioff = -1;   // 1: the individual settings of the track are switched off (kept, but the general settings apply); -1: on
 };
+inline bool operator==(const MilkdropTrackOpts& a, const MilkdropTrackOpts& b) {
+    return a.on == b.on && a.preset == b.preset && a.keep == b.keep && a.fx == b.fx && a.dur == b.dur && a.shuf == b.shuf && a.favs == b.favs && a.cuts == b.cuts &&
+           a.hcs == b.hcs && a.trans == b.trans && a.fxon == b.fxon && a.name == b.name && a.ioff == b.ioff;
+}
+inline bool operator!=(const MilkdropTrackOpts& a, const MilkdropTrackOpts& b) { return !(a == b); }
 MilkdropTrackOpts cover_track_milkdrop(const std::string& track_path);
 void set_cover_track_milkdrop(const std::string& track_path, const MilkdropTrackOpts& o);   // on -1 and no preset removes it
 void set_cover_track_video_opts(const std::string& track_path, const VideoTrackOpts& o);   // all -1 removes it
@@ -90,7 +101,7 @@ int cover_album_look(const std::string& album, const std::string& folder);
 void set_cover_album_look(const std::string& album, const std::string& folder, int look);   // -1 removes it
 // The style of one track (meta editor -> Style Option): its own look and its own Cover Contrast / Brightness / Colors. -1 = as in Settings
 // (look: then the album's look, then Settings). It wins over everything else for that track.
-struct CoverStyle { int look = -1, contrast = -1, brightness = -1, colors = -1, chroma = -1, gsat = -1; };   // chroma: chromatic aberration 0..3; gsat: the saturation of the disk's gradient 0..100
+struct CoverStyle { int look = -1, contrast = -1, brightness = -1, colors = -1, chroma = -1, gsat = -1, vivid = -1; };   // chroma: chromatic aberration 0..3; gsat: the saturation of the disk's gradient 0..100
 CoverStyle cover_track_style(const std::string& track_path);
 void set_cover_track_style(const std::string& track_path, const CoverStyle& st);   // all -1 removes it
 // A track that was renamed (the meta editor) or moved outside Mousiki (found again by its file name after a library scan, when exactly one

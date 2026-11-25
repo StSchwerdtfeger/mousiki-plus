@@ -119,6 +119,7 @@ void App::video_search_open(const std::string& query) {
 }
 
 void App::video_search_close() {
+    if (!vd_.active && has_track_) vfs_->replace.erase(path_utf8(current_.path));   // (a refetch that was not carried out: nothing is replaced later)
     text_disengage();
     mode_ = Mode::Browse;
     force_redraw_ = true;
@@ -190,6 +191,7 @@ void App::video_download_start(const OnlineResult& r) {
     if (ec) { vs_->msg = "cannot create " + path_utf8(dir) + ": " + ec.message(); vs_->warn = true; return; }
     std::string base = vs_->target.empty() ? safe_file_name(r.title) : safe_file_name(path_utf8(vs_->target.stem()));
     if (base.empty()) base = r.video_id;
+    if (!vs_->target.empty() && vfs_->replace.count(path_utf8(vs_->target))) base += " [" + r.video_id + "]";   // (a refetch: not the name of the old file, or yt-dlp would keep that one)
     {
         std::lock_guard<std::mutex> lk(vd_.m);
         vd_.progress = "starting ...";
@@ -339,9 +341,19 @@ void App::video_search_poll() {
                 ++video_rev_;
                 video_for_track_.clear();
             } else if (!vd_.track.empty()) {
-                VideoLinks::get().set(path_utf8(vd_.track), file);
+                const std::string tp = path_utf8(vd_.track);
+                const auto rit = vfs_->replace.find(tp);
+                const std::string old = rit != vfs_->replace.end() ? rit->second : std::string();
+                if (rit != vfs_->replace.end()) vfs_->replace.erase(rit);
+                VideoLinks::get().set(tp, file);
                 ++video_rev_;
                 video_for_track_.clear();
+                if (!old.empty() && old != file) {   // "Refetch this Video": the old downloaded file goes
+                    bool other_users = false;
+                    for (const std::string& t : VideoLinks::get().tracks_for(old)) if (t != tp) other_users = true;
+                    std::string dmsg;
+                    if (!other_users) video_delete_file(old, dmsg, false);
+                }
             }
             rescan_now();   // the new files are listed (also the mp3: it is a song of the library)
             msg = "downloaded to " + file + (!mp3.empty() ? "; the sound is saved as " + mp3 + " and connected to the video" : vd_.track.empty() ? "" : " -- connected to the song");

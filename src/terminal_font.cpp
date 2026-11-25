@@ -33,6 +33,14 @@ namespace muisc::terminal_font {
 
 namespace {
 
+#include "corner_font_data.inc"   // kCornerFontData: the font "Mousiki Corners" (see make_corner_font.py)
+
+std::atomic<bool> g_corner_wanted{false};   // some frame in view asks for the thick round corners
+std::atomic<bool> g_corner_ready{false};    // ... and the font file is in place
+std::mutex g_corner_mu;                     // guards the install and the two values below
+bool g_applied_once = false;                // apply() ran: its font and launcher are kept to run it again
+std::string g_last_font, g_last_launcher;
+
 std::string trim(const std::string& s) {
     size_t a = 0, b = s.size();
     while (a < b && std::isspace(static_cast<unsigned char>(s[a]))) ++a;
@@ -43,6 +51,21 @@ std::string trim(const std::string& s) {
 std::string getenv_str(const char* k) {
     const char* v = std::getenv(k);
     return v ? std::string(v) : std::string();
+}
+
+// Where the user's own fonts live (no administrator rights needed): "" when unknown.
+fs::path corner_font_dir() {
+#if defined(_WIN32)
+    const std::string base = getenv_str("LOCALAPPDATA");
+    return base.empty() ? fs::path() : path_from_utf8(base) / "Microsoft" / "Windows" / "Fonts";
+#elif defined(__APPLE__)
+    const std::string home = getenv_str("HOME");
+    return home.empty() ? fs::path() : path_from_utf8(home) / "Library" / "Fonts";
+#else
+    const std::string xdg = getenv_str("XDG_DATA_HOME"), home = getenv_str("HOME");
+    if (!xdg.empty()) return path_from_utf8(xdg) / "fonts";
+    return home.empty() ? fs::path() : path_from_utf8(home) / ".local" / "share" / "fonts";
+#endif
 }
 
 #if defined(_WIN32) || defined(__APPLE__)
@@ -392,7 +415,9 @@ static std::string apply_impl(const std::string& font_in, const std::string& lau
         if (!launcher.empty() && !getenv_str("LOCALAPPDATA").empty()) {
             std::error_code ec;
             const fs::path ico = path_from_utf8(launcher).parent_path() / "mousiki.ico";
-            const std::string json = wt_fragment_json(none ? std::string() : font, "\"" + launcher + "\"", fs::exists(ico, ec) ? path_utf8(ico) : std::string());
+            // (the thick round corners: the main font, then the small font that holds them; listed only when it is installed, else Windows Terminal complains)
+            const std::string face = (g_corner_wanted.load() && g_corner_ready.load() && !none) ? font + ", " + kCornerFontFamily : font;
+            const std::string json = wt_fragment_json(none ? std::string() : face, "\"" + launcher + "\"", fs::exists(ico, ec) ? path_utf8(ico) : std::string());
             if (wt_sync_file(wt_fragment_file(), json)) wt_profile_changed = true;   // (written only when it changed: Windows Terminal reloads on every change)
         }
     }
@@ -494,10 +519,68 @@ std::string g_note;
 } // namespace
 
 std::string apply(const std::string& font, const std::string& launcher) {
+    {
+        std::lock_guard<std::mutex> lk(g_corner_mu);
+        g_applied_once = true;
+        g_last_font = font;
+        g_last_launcher = launcher;
+    }
     const std::string note = apply_impl(font, launcher);
     std::lock_guard<std::mutex> lk(g_note_mu);
     g_note = note;
     return note;
+}
+
+std::string install_corner_font() {
+    std::lock_guard<std::mutex> lk(g_corner_mu);
+    if (g_corner_ready.load()) return "";
+    const fs::path dir = corner_font_dir();
+    if (dir.empty()) return "corner font: no folder for the user's fonts";
+    std::error_code ec;
+    fs::create_directories(dir, ec);
+    const fs::path file = dir / "MousikiCorners.ttf";
+    const bool there = fs::exists(file, ec) && fs::file_size(file, ec) == sizeof kCornerFontData;
+    if (!there) {
+        std::ofstream out(file, std::ios::binary | std::ios::trunc);
+        out.write(reinterpret_cast<const char*>(kCornerFontData), static_cast<std::streamsize>(sizeof kCornerFontData));
+        out.close();
+        if (!out) return "corner font: could not write " + path_utf8(file);
+    }
+#if defined(_WIN32)
+    {   // a font of this user: its file in the user's fonts folder and a value in the user's registry (Windows 10 1809 and later)
+        HKEY key = nullptr;
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows NT\\CurrentVersion\\Fonts", 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key, nullptr) == ERROR_SUCCESS) {
+            const std::wstring value = file.wstring();
+            RegSetValueExW(key, L"Mousiki Corners (TrueType)", 0, REG_SZ, reinterpret_cast<const BYTE*>(value.c_str()),
+                           static_cast<DWORD>((value.size() + 1) * sizeof(wchar_t)));
+            RegCloseKey(key);
+        }
+        AddFontResourceW(file.c_str());
+        DWORD_PTR result = 0;
+        SendMessageTimeoutW(HWND_BROADCAST, WM_FONTCHANGE, 0, 0, SMTO_ABORTIFHUNG, 1000, &result);
+    }
+#elif !defined(__APPLE__)
+    if (!there) run_capture({"fc-cache", "-f", path_utf8(dir)});   // (fontconfig finds the font by itself later anyway; this is quicker)
+#endif
+    g_corner_ready = true;
+    return "";
+}
+
+bool corner_font_ready() { return g_corner_ready.load(); }
+
+void use_corner_font(bool wanted) {
+    if (g_corner_wanted.load() == wanted) return;
+    if (wanted) install_corner_font();
+    g_corner_wanted = wanted;
+    std::string font, launcher;
+    bool again = false;
+    {
+        std::lock_guard<std::mutex> lk(g_corner_mu);
+        again = g_applied_once;
+        font = g_last_font;
+        launcher = g_last_launcher;
+    }
+    if (again) muisc::terminal_font::apply(font, launcher);   // (Windows Terminal's profile lists the small font now, or not any more)
 }
 
 std::string last_note() {

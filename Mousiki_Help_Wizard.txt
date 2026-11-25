@@ -328,7 +328,7 @@ menus of a mode that you have switched off are not there).
 │  │ ├ Fetch Video Overlay [ALT+V]          │
 │  │ └ File Conversion [SHIFT+c]            │
 │  └ Cover and Video Look                   │
-│    └ Style Options (cover look) [SHIFT+s] │
+│    └ Cover style overlay [SHIFT+s]        │
 └───────────────────────────────────────────┘
 ┌─ [Visualizations][[Header]] ────────┐ ┌─ [Lyrics][[Header]] ────────────────────────────┐
 │ Spectrum Bars [SHIFT+b] │ │ Refetch Lyrics [l]                  │
@@ -407,7 +407,7 @@ COVER LOOK:[[Header]] [CTRL+t] one look back, [CTRL+z] one forward: plain disk, 
 with Gradient, Cover behind Disk, v2, Full Anima, Cover ASCII, Cover ASCII with Gradient. In the
 audio book mode: default picture, cover with gradient wave, cover in its own colours. Only while
 Eliment Disk / Cover is on; saved at once. Changeable in Settings -> REFERENCE. An album with
-its own look (meta editor -> Style Option) changes that look instead.
+its own look (meta editor -> Cover Style) changes that look instead.
 
 MENUS INDEX:[[Header]] [<] (German keyboard) or [SHIFT+,] (English keyboard) draws all menus
 and overlays as an organigram (see MENU MAP); [ENTER] opens the selected one.
@@ -740,7 +740,7 @@ and artist of .sid). All other fields are saved in the folder "chip_tracker_meta
 
 COVER IN THE EDIT PANE AND COVER OPTIONS:[[Header]]
 The cover of the highlighted track is shown under the fields. Two buttons sit below it, [ Cover Options ]
-and [ Style Option ] (move there with [->], or [ENTER] on it).
+and [ Cover Style ] (move there with [->], or [ENTER] on it).
 
 COVER OPTIONS:[[Header]] move down to [ Cover Options ] and hit [ENTER]
 [Picture:][[Legend]]              Choose a picture for THIS track: inside the file, in its folder, in its
@@ -761,27 +761,28 @@ COVER OPTIONS:[[Header]] move down to [ Cover Options ] and hit [ENTER]
                       there is listed too, for a track with no picture near it).
 [Focus:][[Legend]]                [TAB] stops at the disk options, the pictures and the search field.
 
-STYLE OPTION:[[Header]] a small overlay with the look of THIS track
-[Looks:][[Legend]]                As in Settings: Disk, Just Cover, Cover with Gradient, the Cover behind Disk looks,
-                      the ASCII looks.
-[Values:][[Legend]]               Its own Cover Contrast, Cover Brightness, Cover Colors, Cover Gradient Saturation
-                      and Cover Chromatic Aberration.
+COVER STYLE OVERLAY:[[Header]] a small overlay with the cover look of THIS track ([ Cover Style ] button)
+[Looks:][[Legend]]                Category Look, one row: As in Settings: Disk, Just Cover, Cover with Gradient, the
+                      Cover behind Disk looks, the ASCII looks.
+[Values:][[Legend]]               Category Cover Behind Disk Settings (they only work on that
+                      cover): its own Cover Contrast (0 - 200 %), Cover Brightness,
+                      Cover Colors, Cover Gradient Saturation, Cover Gradient
+                      Vividness and Cover Chromatic Aberration.
+[Gradient Vividness:][[Legend]]   0 - 150 %: brighter, fuller gradient colours and dots of the disk (not the cover's own colours). The push away from
+                      grey is strongest around 50 % and fades towards 100 %, where only the brightness rises.
+[Management:][[Legend]]           INDIVIDUAL TRACK SETTINGS MANAGEMENT: "Reset cover to default settings" removes the
+                      track's own cover values; "Set individual cover settings as default settings" makes
+                      them the default values (config.txt); "Undo change" takes the last change back.
+                      [ENTER] is in the legend colours when there is nothing to do.
 [Album:][[Legend]]                The look of its whole ALBUM (no album tag: of that folder).
-[Video mode on:][[Legend]]        A row "Use Disk/Cover/Thumbnail" sets the cover / video thumbnail / disk of THIS
-                      track (the same choice as in Cover Options; the VIDEO SETTINGS overlay holds the
-                      default). More rows, for this track only: Video of this track on / off, Video Size,
-                      Video Effect, Video Base Layer, Video Effect Contrast, Video Contrast, Video
-                      Brightness, Video Colors, Video Chromatic Aberration, Video Dither Pattern, Video
-                      Gradient Saturation.
-[MilkDrop:][[Legend]]             With projectM installed two more rows: MilkDrop for this track as it comes / on /
-                      off, and More Options: [ENTER] opens the preset overlay of this track with its
-                      Preset, Keep and Effect.
+[Video, MilkDrop:][[Legend]]      Not here: the video settings of a track are in VIDEO SETTINGS / VIDEO OPTIONS, its
+                      MilkDrop settings in the visuals menu [:].
 [Keys:][[Legend]]                 [<-][->] change a row; [DEL] or [d] puts it back to "as in Settings"; [t] switches
                       between a real picture (Kitty / Sixel terminals, the default) and braille dots.
 [Preview:][[Legend]]              A wide terminal adds a preview of the cover with the chosen look on the right.
 [Priority:][[Legend]]             The track's own values win over the album's look and over Settings; while the track
                       plays, [CTRL+t] / [CTRL+z] change its look.
-[Main screen:][[Legend]]          [SHIFT+s] opens the Style Option overlay of the track that plays, on its own ([ESC]
+[Main screen:][[Legend]]          [SHIFT+s] opens the Cover style overlay of the track that plays, on its own ([ESC]
                       closes it); opened that way [m] leads on to the meta data of that very song.
 
 SORT LIBRARY AND ADD TRACK TO FETCH META DATA TAB:[[Header]]
@@ -1285,8 +1286,8 @@ Phosphor Amber, Thermal, Vector, Neon Edge, Neon Edge Gradient, Film, Silent Fil
 Halftone, Halftone CMYK, Halftone CMYK High-Res, Dither B/W, Dither Gradient, Pixel, Gradient, Game Boy
 High-Res (+ Gradient, B/W), Game Boy Low-Res (+ Gradient, B/W), EGA 16, CGA, ZX Spectrum, Amstrad CPC,
 C64, Amiga HAM, Teletext (+ High-Res), ASCII. A paused video shows a still effect. Pick one in the
-overlay, with [g] on the video view, or per track in Style Option [SHIFT+s]. [ENTER] on a Video Effect row
-(Settings, the VIDEO overlay, VIDEO OPTIONS, Style Option) opens the list of all effects as one panel in
+overlay, with [g] on the video view, or per track with individual video settings. [ENTER] on a Video Effect row
+(Settings, the VIDEO overlay, VIDEO OPTIONS) opens the list of all effects as one panel in
 the middle of the window; the menu it came from is not drawn while the list is open. Two columns of names
 and a large preview of the playing video (the cat of the Settings preview when the track has none) with
 the highlighted effect on it; the video behind the list stands still meanwhile and shows the highlighted
@@ -1313,7 +1314,7 @@ like Asteroids), Risograph (blue and pink ink, a little out of register), Halfto
 print: dots at 15, 75, 0, 45 degrees; High-Res: a much finer screen; Video Effect Contrast sets how strong
 the print is: full 100 %, reduced 70 % (default), low 50 % over the picture).
 
-[PICTURE TUNING (Settings, tab ANIMA/VIZ, and Style Option per track):][[Header]]
+[PICTURE TUNING (Settings, tab ANIMA/VIZ, per track in the Cover style overlay / individual video settings):][[Header]]
 SETTING[[Header]]                       [WHAT IT DOES][[Header]]
 [Video Contrast][[Legend]]                Contrast of the picture.
 [Video Brightness][[Legend]]              50 = as it is, lower darker, higher brighter.
@@ -1335,18 +1336,20 @@ SETTING[[Header]]                       [WHAT IT DOES][[Header]]
                               8x8, golden ratio.
 [Video Gradient Saturation][[Legend]]     0 - 100 %: how saturated the colours of the gradient looks (Gradient,
                               Dither Gradient, Neon Edge Gradient, Game Boy gradient) are. 100 = as they
-                              are, 0 = grey; default 80 %. Also in Style Option.
+                              are, 0 = grey; default 80 %. Also in VIDEO OPTIONS.
+[Video Gradient Vividness][[Legend]]     0 - 100 %: fuller, brighter gradient colours (strongest push around 50 %); default 0 %.
+                              Also in VIDEO OPTIONS and per track.
 [Video Resolution][[Legend]]              standard / high / full: sharper, on Kitty in true colour. Also in
-                              Style Option.
+                              VIDEO OPTIONS.
 [Video Frame Rate][[Legend]]              25 (default) / 60: 60 = the video's own rate, up to 60 (smoother,
                               more work for the processor and the terminal). Also in the VIDEO overlay.
 [Video Buffer][[Legend]]                  MB of frames kept ahead.
 [Show Clap Loading][[Legend]]             text note / clap / none while a video loads.
-These are also rows of the VIDEO SETTINGS overlay [&]; in the big video overlay [SHIFT+s] opens 
+These are also rows of the VIDEO SETTINGS overlay [&] (a track without a video only lists the "Videos for songs" rows there; ▲ ... / ▼ ... mark more rows); in the big video overlay the Video key [&] opens 
 them as a panel.
-For a song paired with a video, Style Option and that panel have one more row: Use mp4 audio for
+For a song paired with a video, VIDEO OPTIONS has one more row: Use mp4 audio for
 this song (false = the song's own audio, true = the audio of its video; changed while it plays,
-the audio is loaded again at the same time). On the video rows Style Option previews the video.
+the audio is loaded again at the same time).
 
 BUTTONS IN THE OVERLAY:[[Header]]
 BUTTON[[Legend]]                            WHAT IT DOES[[Legend]]
@@ -1357,19 +1360,20 @@ BUTTON[[Legend]]                            WHAT IT DOES[[Legend]]
                                   video_down (QUICK SEARCH below).
 [ General Fetch Videos Menu ]     Opens FETCH VIDEOS [ALT+v] (page 2.3.7).
 [ Delete Current Video ]          Two questions first.
-[ Refetch this Video ]            Searches again and takes the closest hit. The old file is
-                                  deleted only if Mousiki downloaded it.
+[ Refetch this Video ]            Opens the quick search list of the song: you choose the new
+                                  video. The old file is deleted afterwards, only if Mousiki
+                                  downloaded it.
 
 [NEXT VIDEO EFFECT [g]:][[Header]]
 With the video view in the field, steps to the next effect for this track (the same one as Video
-Effect in Style Option).
+Effect in the individual video settings).
 
 [BIG VIDEO OVERLAY [v]:][[Header]]
 The video over the whole screen, the lyric line as a small black box over it. Opens always (not in
 the audio book), independent of the Video mode. Seek and pause keys keep working.
 
 KEY[[Header]]                     ACTION[[Header]]
-[UP/DOWN]               effect of this track (as in its Style Option)
+[UP/DOWN]               effect of this track (as in its individual settings)
 [TAB]                   lyrics off / lyrics / with translation / translation only (through
                         every saved translation of READ LYRICS)
 [SHIFT+UP/DOWN]         layout: video / + oscilloscope / + spectrogram / + both, in a column right
@@ -1383,13 +1387,18 @@ KEY[[Header]]                     ACTION[[Header]]
 [:]                     the visuals overlay (preset and MilkDrop options) over the picture
 [SHIFT+o] / [SHIFT+i]   open the options of the oscilloscope / spectrogram
 [SHIFT+g]               grid and scales
-[SHIFT+s]               VIDEO OPTIONS over the whole screen: the options left, the video right
-                        (big, every change shows at once)
+[&]                     VIDEO OPTIONS over the whole screen: the options left, the video right
+                        (big, every change shows at once). The same rows as VIDEO SETTINGS [Y]:
+                        with individual settings a change is only temporary (until the track is
+                        loaded again). INDIVIDUAL TRACK SETTINGS MANAGEMENT: Set current values as individual
+                        settings, Reset to last track settings, Reset individual values to default
+                        settings, Set individual settings as default settings, Undo change, Use
+                        individual settings for this track. Resets ask "Keep changes?" ([y] keeps, [n] / ESC undoes)
 [SHIFT+k/l/f]           the big queue / list / folder overlay
 [ESC] or [v] or [>]     close
  A track without a video shows a little film clapperboard (its arm slowly closes and opens while
 it sways) and the note to fetch a video with [ALT+v] or pair a local one in the video options of
-[SHIFT+m]. A track can have its own video on / off, size and effect: Style Option [SHIFT+s].
+[SHIFT+m]. A track can have its own video size and effect: individual video settings [&].
 
 [VIDEO OPTION [SHIFT+m]:][[Header]]
 Connects a song and a video by hand. Lists audio files only ([CTRL+f]: all / no video yet, songs
@@ -1580,9 +1589,14 @@ through five layouts: the visuals alone, + oscilloscope, + oscilloscope and spec
 overlay over the picture. In the menu map ([<]) the MilkDrop group has "Overlay" [v] as well.
 
 PER TRACK AND AUTOMATIC: [[Header]]
-Auto MilkDrop shows the visuals for every track (Auto Video is off meanwhile). Style Option [SHIFT+s]
-switches them on / off for one track and pins a preset to it; More Options: the preset overlay for one
-track (its preset, keep it, its own effect).
+Auto MilkDrop shows the visuals for every track (Auto Video is off meanwhile). The MilkDrop settings [:]
+fill the screen (rows left, the visuals right). Inside the big video overlay [v] they are for the playing
+same menu everywhere (Settings, [:], big video overlay): no individual settings for the track = a
+change is general. With individual settings the rows mark default values "(default)" and a change is only temporary
+(gone when the track is loaded again). INDIVIDUAL TRACK SETTINGS MANAGEMENT: Set current values as individual
+settings / Reset to last track settings (active after a change), Reset individual values to default
+settings, Set individual settings as default settings, Undo change, Use individual settings for this track (on / off; without any it gives the track a copy of the defaults to start from). "Set individual settings as default settings" writes the track's values into the default settings.
+The MilkDrop settings of a track are in this menu ([:] in the main screen or in the big video overlay).
 
 AS THE START VIEW: [[Header]]
 Settings -> ANIMA/VIZ -> LYRICS/VIZ FIELD: Lyrics/Viz Default = milkdrop starts the field with the
@@ -1910,6 +1924,20 @@ marquee.
                                                   screen, sharp by itself, gets round ones then); default
                                                   false. Each mode keeps its own value.
 
+[Thick Borders:][[Legend]]                                    off (default), thick = thick frame lines everywhere,
+                                                  with thick round corners (Sharp Corners: thick sharp
+                                                  ones), and the title of every pane in bold (what
+                                                  follows the title, like (...), [...] or a song title,
+                                                  and the bottom border stay as they are). The whole
+                                                  frame is drawn with the tiny font Mousiki Corners
+                                                  that Mousiki installs for you (your fonts folder).
+                                                  Windows Terminal: the profile "Mousiki" lists it; in
+                                                  your own profile add it to the font list, e.g.
+                                                  "CaskaydiaMono Nerd Font Mono, Mousiki Corners", and
+                                                  restart Windows Terminal. Without the font the lines
+                                                  are heavy but the round corners stay thin. Each mode
+                                                  keeps its own value.
+
 [AUDIO:][[Header]]
 [Choose Audio Device:][[Legend]]                              shows the sound output in use (System Default unless
                                                   you picked one); [ENTER] opens the CHOOSE AUDIO DEVICE
@@ -2173,8 +2201,10 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   blue noise / bayer 2x2 / 4x4 / 8x8 / golden ratio.
 [Gradient Saturation][[Legend]]                               How saturated the gradient looks' colours are (100 = as
                                                   they are, 0 = grey; default 85 %).
+[Gradient Vividness][[Legend]]                               Fuller, brighter gradient colours (0 = as before; per track
+                                                  in the individual settings).
 [Video Rounded Corners][[Legend]]                             Cut the picture's corners round, like the UI: off / on
-                                                  (per track in Style Option).
+                                                  (per track in the individual settings).
 [Video Resolution][[Legend]]                                  standard / high / full: how sharp the picture is.
 [Video Frame Rate][[Legend]]                                  25 / 60: 60 = the video's own rate, up to 60 pictures a
                                                   second.
@@ -2197,7 +2227,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 
 [Disk Speed:][[Legend]]                                       with range between 0.01 - 1.00.
 
-[Disk Border:][[Legend]]                                      shows or hides the ":  :" column between the disk and
+[Classic Disk Border:][[Legend]]                              shows or hides the ":  :" column between the disk and
                                                   the meta data (off by default). Off: the disk sits in
                                                   the middle of the space before the meta data.
 
@@ -2257,8 +2287,17 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   back (0% = the plain blend, 100% = as saturated as a
                                                   straight line between the two colours). Only the colour
                                                   of the dots changes, the picture stays as it is. Also in
-                                                  the VIDEO SETTINGS overlay and, for one track, in Style
-                                                  Option.
+                                                  the VIDEO SETTINGS overlay and, for one track, in the
+                                                  Cover style overlay.
+[Cover Gradient Vividness:][[Legend]]                          0% .. 150% in steps of 5% (default 0%). Fuller, brighter
+                                                  gradient colours and dots of the disk behind the cover
+                                                  (not the cover's own colours). Also per track.
+[Disk Gradient Vividness:][[Legend]]                           The same for the plain disk (no cover), 0 .. 150%.
+[Oscilloscope/Spectrogram/Bars/Volume Gradient Vividness:][[Legend]]
+                                                  as disk (default) or 0 .. 150%: the same for the braille
+                                                  scope and spectrogram, the bars and the volume bar. The
+                                                  radio has it for the ON / OFF AIR sign (Sign gradient
+                                                  vividness).
 [Cover Search:][[Legend]]                                     says where the cover is looked for:
                                                   Default: first the picture inside the file (mp3 and the
                                                   other formats that can carry one). If it has none, the
@@ -3102,7 +3141,8 @@ WHERE TO TYPE IT: [[Header]]
  /c:          [/] then type  c:               The search bar becomes COMMAND LINE. [ENTER] runs the
                                               line, the reply runs along the top border (a long one
                                               scrolls), [ESC] leaves like any search. The library
-                                              pane shows COMMAND HISTORY / OUTPUT meanwhile.
+                                              pane shows COMMAND HISTORY / OUTPUT meanwhile;
+                                              [SHIFT+UP]/[SHIFT+DOWN] scroll it.
  Console      [t], then [TAB] to the 3rd       Full history of lines and replies. The log pane shows
               pane (COMMAND LINE)             what commands logged and the errors of scripts.
  Scripts      type  edit  or  /cs:             The script overlay (5.1.6): library and editor. /cs:words
@@ -3112,6 +3152,7 @@ WHERE TO TYPE IT: [[Header]]
 
 KEYS IN A COMMAND LINE: [[Header]]
  [ENTER] run     [UP]/[DOWN] earlier lines     [ESC] clear / leave     [CTRL+u] clear the line
+ [SHIFT+UP]/[SHIFT+DOWN] scroll the output (library pane and the console's COMMAND LINE pane, 4 reply rows)
  [CTRL+RIGHT] completes: a command (several candidates: up to what they share, the candidates are
  listed), a title after play / queue / search, a script after run / edit, a setting after set / get.
  ([TAB] is not used for that: it moves between the panes of the console.)
@@ -3401,6 +3442,7 @@ Switches, numbers and texts of the GENERAL tab and the files they belong to.
 ElimentDisk                        true
 ElimentDiskBorder                  false
 SharpCorners                       false
+ThickBorders                       0
 TopPaneStyle                       0
 LatinLetters                       false
 LyricsNameVariants                 true
@@ -3414,6 +3456,8 @@ CoverContrast                      0
 CoverBrightness                    50
 CoverColors                        0
 CoverGradientSaturation            30
+DiskVividness                      0
+CoverVividness                     0
 BulkAddSave                        true
 BulkAddVideo                       false
 CoverChroma                        off
@@ -3437,6 +3481,7 @@ VideoContrast                      0
 VideoBrightness                    50
 VideoColors                        100
 VideoGradientSaturation            85
+VideoGradientVividness             0
 VideoRound                         true
 VideoClap                          none
 VideoChroma                        subtle

@@ -133,17 +133,13 @@ bool App::browse_open_key(const std::string& action, int key, int lookup_key, si
         norm_menu_row_ = 0;
         mode_ = Mode::NormMenu;
     } else if (action == "HKeyVisualsMenu") { // ":" (SHIFT+. on a German keyboard): the visuals overlay (MilkDrop)
-        // from the big video overlay the visuals overlay changes the track that plays (its own values, kept in its record); from the main
-        // screen it changes Settings
-        if (video_full_ && !audiobook_ && has_track_ && current_.is_local && !current_.path.empty())
-            milkdrop_menu_open(path_utf8(current_.path), metadata_.name, Mode::Browse);
-        else {
-            md_scope_track_.clear();
-            md_scope_title_.clear();
-            md_return_mode_ = Mode::Browse;
-            md_menu_row_ = 0;
-            mode_ = Mode::MilkdropMenu;
-        }
+        // the same menu in the main screen and in the big video overlay: the general settings -- or, while the playing track has individual
+        // settings, those (a change is then only temporary: see "Set current values as individual settings")
+        md_scope_track_.clear();
+        md_scope_title_.clear();
+        md_return_mode_ = Mode::Browse;
+        md_menu_row_ = 0;
+        mode_ = Mode::MilkdropMenu;
     } else if (action == "HKeySleepTimer") { // SHIFT+z: sleep timer overlay
         sleep_->menu_row = sleep_->stop_after_track ? 5
                         : sleep_->timer_active ? (sleep_->timer_minutes == 15 ? 0 : sleep_->timer_minutes == 30 ? 1

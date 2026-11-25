@@ -123,6 +123,45 @@ TEST(milkdrop_preset_folders_make_add_remove) {
     fs::remove_all(dir);
 }
 
+TEST(thick_borders_use_the_heavy_glyphs_and_keep_the_length) {
+    std::string s = "\xE2\x95\xAD\xE2\x94\x80\xE2\x95\xAE\xE2\x94\x82 \xE2\x94\x8C\xE2\x94\x90\xE2\x94\x94\xE2\x94\x98\xE2\x95\xB0\xE2\x95\xAF\xE2\x94\x9C\xE2\x94\xA4\xE2\x94\xAC\xE2\x94\xB4\xE2\x94\xBC\xE2\x95\xB7\xE2\x95\xB5 a|b";
+    const size_t n = s.size();
+    muisc::thicken_borders(s);
+    CHECK_EQ(s.size(), n);
+    // ╭━╮┃ ┏┓┗┛╰╯┣┫┳┻╋╻╹ a|b (the round corners stay round; plain text is untouched)
+    CHECK_EQ(s, std::string("\xE2\x95\xAD\xE2\x94\x81\xE2\x95\xAE\xE2\x94\x83 \xE2\x94\x8F\xE2\x94\x93\xE2\x94\x97\xE2\x94\x9B\xE2\x95\xB0\xE2\x95\xAF\xE2\x94\xA3\xE2\x94\xAB\xE2\x94\xB3\xE2\x94\xBB\xE2\x95\x8B\xE2\x95\xBB\xE2\x95\xB9 a|b"));
+    std::string r = "\xE2\x95\xAD\xE2\x95\xAE\xE2\x95\xB0\xE2\x95\xAF\xE2\x94\x80\xE2\x94\x82\xE2\x94\x8C\xE2\x94\xBC";   // mode 2: ╭ ╮ ╰ ╯ ─ │ ┌ ┼ become U+E1C0 ... of the font Mousiki Corners
+    muisc::thicken_borders(r, 2);
+    CHECK_EQ(r, std::string("\xEE\x87\x80\xEE\x87\x81\xEE\x87\x82\xEE\x87\x83\xEE\x87\x88\xEE\x87\x89\xEE\x87\x84\xEE\x87\x8E"));
+    std::string braille = "\xE2\xA0\x80\xE2\xA3\xBF\xE2\x96\x88";   // braille and a block stay as they are
+    const std::string keep = braille;
+    muisc::thicken_borders(braille);
+    CHECK_EQ(braille, keep);
+}
+
+TEST(thick_borders_set_only_the_title_of_a_pane_in_bold) {
+    const std::string b = "\x1b[1m", off = "\x1b[22m";
+    CHECK_EQ(muisc::bold_title("LIBRARY"), b + "LIBRARY" + off);
+    CHECK_EQ(muisc::bold_title("LOCAL AUDIO FILES (500 tracks)"), b + "LOCAL AUDIO FILES" + off + " (500 tracks)");
+    CHECK_EQ(muisc::bold_title("LIBRARY [Audio] (sorted)"), b + "LIBRARY" + off + " [Audio] (sorted)");
+    CHECK_EQ(muisc::bold_title("STYLE OPTION  song.mp3"), b + "STYLE OPTION" + off + "  song.mp3");
+    CHECK_EQ(muisc::bold_title("OSCILLOSCOPE - Artist - Song"), b + "OSCILLOSCOPE" + off + " - Artist - Song");
+    CHECK_EQ(muisc::bold_title("MILKDROP FOR THIS TRACK: Some Song"), b + "MILKDROP FOR THIS TRACK:" + off + " Some Song");
+    CHECK_EQ(muisc::bold_title("LOCKED IN: TRACK"), b + "LOCKED IN: TRACK" + off);   // (a second title word, not information)
+    CHECK_EQ(muisc::bold_title("SEARCH LIBRARY \x1b[1;33m\xE2\x97\x80"), b + "SEARCH LIBRARY" + off + " \x1b[1;33m\xE2\x97\x80");   // (the focus triangle keeps its own colour)
+    CHECK_EQ(muisc::bold_title("\x1b[1mCOLOURED\x1b[0m"), std::string("\x1b[1mCOLOURED\x1b[0m"));   // (already styled: untouched)
+}
+
+TEST(a_marked_corner_is_left_alone_by_the_sharp_and_round_passes) {
+    const std::string mark = muisc::kKeepCornerMark;
+    std::string s = "\xE2\x95\xAD " + mark + "\xE2\x95\xAD";   // ╭ (changes), marked ╭ (stays)
+    muisc::sharpen_corners(s);
+    CHECK_EQ(s, std::string("\xE2\x94\x8C ") + mark + "\xE2\x95\xAD");
+    std::string r = "\xE2\x94\x8C " + mark + "\xE2\x94\x8C";
+    muisc::roundify_corners(r);
+    CHECK_EQ(r, std::string("\xE2\x95\xAD ") + mark + "\xE2\x94\x8C");
+}
+
 TEST(sharp_corners_swap_the_round_glyphs_and_keep_the_length) {
     std::string s = "\xE2\x95\xAD\xE2\x94\x80\xE2\x95\xAE x \xE2\x95\xB0\xE2\x94\x80\xE2\x95\xAF";   // ╭─╮ x ╰─╯
     const size_t n = s.size();

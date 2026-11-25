@@ -56,10 +56,10 @@ namespace muisc {
 void App::build_console_screen(std::ostringstream& frame, int W, int target_height) const {
     std::string border = ansi_for(settings_.border_color, false);
     // Three panes: the log (what the app ran) on top, the status messages (with their times) in the middle and the command line (CLI)
-    // at the very bottom: 2 reply rows and the line being typed. Together exactly as tall as the player view (target_height). The log
+    // at the very bottom: 4 reply rows and the line being typed. Together exactly as tall as the player view (target_height). The log
     // gives up rows first (3 stay); the status pane has 8 rows, down to 2 on a small terminal; below that it is left out, and
     // after it the log is shortened for the command pane only.
-    constexpr int kCliRows = 3;
+    constexpr int kCliRows = 5;
     int log_rows = 3, status_rows = 0, cli_rows = 0;
     {
         const int avail3 = target_height - 6;                  // minus the borders of the three boxes
@@ -130,8 +130,9 @@ void App::build_console_screen(std::ostringstream& frame, int W, int target_heig
         const int inner = std::max(10, W - 4);
         for (const std::string& l : cli_out_) out.push_back(truncate_str(l, inner));
         const int total = static_cast<int>(out.size());
+        console_cli_up_ = std::clamp(console_cli_up_, 0, std::max(0, total - reply_rows));   // SHIFT+UP / DOWN scrolls back from the newest
         for (int r = 0; r < reply_rows; ++r) {
-            const int idx = total - reply_rows + r;
+            const int idx = total - reply_rows - console_cli_up_ + r;
             frame << box_line(idx >= 0 && idx < total ? out[static_cast<size_t>(idx)] : std::string(), W, border) << "\n";
         }
         if (focus) {
@@ -140,8 +141,8 @@ void App::build_console_screen(std::ostringstream& frame, int W, int target_heig
         } else {
             frame << box_line("> " + truncate_str(cli_buf_, inner - 2), W, border) << "\n";
         }
-        frame << box_bottom(W, legend(focus ? std::vector<std::string>{"[ENTER] run | UP/DOWN history | [TAB] pane | [ESC] clear / close | try: help",
-                                                                         "[ENTER] run | UP/DOWN history | [TAB] pane | [ESC] close | help",
+        frame << box_bottom(W, legend(focus ? std::vector<std::string>{"[ENTER] run | UP/DOWN history | SHIFT+UP/DOWN scroll | [TAB] pane | [ESC] clear / close | try: help",
+                                                                         "[ENTER] run | UP/DOWN history | SHIFT+UP/DOWN scroll | [TAB] pane | [ESC] close",
                                                                          "[ENTER] run | [TAB] pane | [ESC] close"}
                                                : tab_legend), border) << "\n";
     }

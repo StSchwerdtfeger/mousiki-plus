@@ -6,7 +6,9 @@
 // and sphere are fed with the signal of the radio's "TEST Stereo Chords" station, made here in the program; the spectrogram
 // with a spectrogram the Creator makes from the text "Mousiki Plus". No file, no network and no ffmpeg are needed.
 #include <cstring>
+#include "terminal_font.h"
 #include "pane_style.h"
+#include "corners.h"
 #include "preview_shared.h"
 #include "app.h"
 #include "coverfetch_state.h"
@@ -223,20 +225,20 @@ std::string pv_desc(int id, const Settings& s) {
 PvKind kind_of(int id, const Settings& s) {
     switch (id) {
         case kSidLyrAlign: case kSidLyrAnim: case kSidUseLyrics: return kPvLyrics;
-        case kSidUseVideo: case kSidVideoLyrics: case kSidVideoSize: case kSidVideoFx: case kSidVideoRes: case kSidVideoFps: case kSidVideoBuffer: case kSidVideoContrast: case kSidVideoBrightness: case kSidVideoColors: case kSidVideoChroma: case kSidVideoDither: case kSidVideoBase: case kSidVideoFxContrast: case kSidVideoGradSat: case kSidVideoRound: return kPvVideo;   // (a sample video; the lyrics preview when it is not there)
+        case kSidUseVideo: case kSidVideoLyrics: case kSidVideoSize: case kSidVideoFx: case kSidVideoRes: case kSidVideoFps: case kSidVideoBuffer: case kSidVideoContrast: case kSidVideoBrightness: case kSidVideoColors: case kSidVideoChroma: case kSidVideoDither: case kSidVideoBase: case kSidVideoFxContrast: case kSidVideoGradSat: case kSidVideoGradVivid: case kSidVideoRound: return kPvVideo;   // (a sample video; the lyrics preview when it is not there)
         case kSidVideoCover: return kPvNone;
         case kSidVideoClap: return kPvClap;
         case kSidMdPreset: return s.milkdrop_default_preset.empty() ? kPvDesc : kPvMilk;   // (Default Preset: its own preset live once one is chosen; before, the description)
         case kSidMdUseFx: case kSidMdFx: case kSidMdColors: case kSidMdShowName: case kSidMdBright: case kSidMdSat: case kSidMdContrast: return kPvMilk;   // (a live preset: with the effect, the name box and the Sixel colours as set)
-        case kSidDisk: case kSidDiskSpeed: case kSidDiskBorder: return kPvDisk;
-        case kSidSharpCorners: return kPvPane;
-        case kSidAlbumCover: case kSidCoverMode: case kSidCoverContrast: case kSidCoverBrightness: case kSidCoverColors: case kSidCoverGradSat: case kSidCoverChroma:
+        case kSidDisk: case kSidDiskSpeed: case kSidDiskBorder: case kSidDiskVivid: return kPvDisk;
+        case kSidSharpCorners: case kSidThickBorders: return kPvPane;
+        case kSidAlbumCover: case kSidCoverMode: case kSidCoverContrast: case kSidCoverBrightness: case kSidCoverColors: case kSidCoverGradSat: case kSidCoverVivid: case kSidCoverChroma:
         case kSidCoverSearch: return kPvCover;
-        case kSidVolIndicator: case kSidDummy: return kPvVolume;
-        case kSidVisualizer: case kSidVisFluidity: case kSidVisDegr: case kSidVisVisc: case kSidBarStyle: case kSidHifiRes: case kSidHifiChan: case kSidHifiColor: case kSidHifiScale: case kSidHifiAdapt: case kSidHifiSplit: case kSidHifiFScale: case kSidHifiGain: case kSidHifiRange: case kSidBarBehavior: return kPvBars;
-        case kSidWave: case kSidWaveStyle: return kPvWave;
-        case kSidUseOsci: return kPvScope;   // (Modes Share Settings: no preview)
-        case kSidUseSpectro: return kPvSpectro;
+        case kSidVolIndicator: case kSidDummy: case kSidVolVivid: return kPvVolume;
+        case kSidVisualizer: case kSidVisFluidity: case kSidVisDegr: case kSidVisVisc: case kSidBarStyle: case kSidHifiRes: case kSidHifiChan: case kSidHifiColor: case kSidHifiScale: case kSidHifiAdapt: case kSidHifiSplit: case kSidHifiFScale: case kSidHifiGain: case kSidHifiRange: case kSidBarBehavior: case kSidBarsVivid: return kPvBars;
+        case kSidWave: case kSidWaveStyle: case kSidWaveVivid: return kPvWave;
+        case kSidUseOsci: case kSidScopeVivid: return kPvScope;   // (Modes Share Settings: no preview)
+        case kSidUseSpectro: case kSidSpectroVivid: return kPvSpectro;
         case kSidUseSphere: case kSidPauseSphere: return kPvSphere;
         case kSidLyricViz: case kSidNoLyricsViz: case kSidNoVideoViz: {
             // Lyrics/Viz Defaults is edited in viz_default (0 sphere, 1 osci, 2 spectro, 3 lyrics, 4 last used: the view in use, lyric_viz);
@@ -454,7 +456,10 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             out.caption = "Disk / Cover field removed";
             break;
         }
-        const int dc = std::min(30, cw), dr = std::min(15, body_h);
+        const bool border_row = kind == kPvDisk && id == kSidDiskBorder;   // (Classic Disk Border: the disk with its ":  :" column, or centred without it, as on the main screen)
+        const std::string sep_text = "  " + settings_.meta_separator + "  ";
+        const int sep_cols = border_row ? display_width(sep_text) : 0;
+        const int dc = std::min(30, cw - sep_cols), dr = std::min(15, body_h);
         std::vector<std::string> rows;
         P.angle = std::fmod(P.angle + kAngularVelocity * settings_.disk_rotation_speed * P.dt, kTwoPi);
         const bool cover_look = kind == kPvCover;
@@ -467,7 +472,7 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
                 out.caption = settings_.album_cover ? "sample cover (image)" : "sample cover (image; Album Cover is off)";
             } else {
                 rows = album_cover_lines_for(P.cover, settings_.cover_mode, settings_.cover_contrast, settings_.cover_brightness,
-                                             settings_.cover_colors, P.angle, dc, dr, settings_.cover_chroma, settings_.cover_grad_sat);
+                                             settings_.cover_colors, P.angle, dc, dr, settings_.cover_chroma, settings_.cover_grad_sat, settings_.cover_vivid_eff());
                 out.caption = std::string(gfxs_.proto != GfxProto::None && cf_->full_res ? "sample cover (braille)" : "sample cover")
                               + (settings_.album_cover ? "" : " (Album Cover is off)");
             }
@@ -477,31 +482,40 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             if (static_cast<int>(rows.size()) > dr) rows.resize(static_cast<size_t>(dr));
             for (size_t i = 0; i < rows.size(); ++i) {
                 const float t = rows.size() > 1 ? static_cast<float>(i) / static_cast<float>(rows.size() - 1) : 0.0f;
-                rows[i] = gradient_ansi(settings_.disk_color, settings_.disk_color_end, t) + rows[i] + R;
+                rows[i] = disk_gradient_ansi(settings_.disk_color, settings_.disk_color_end, t, settings_.disk_vivid) + rows[i] + R;
             }
-            out.caption = "disk speed " + std::to_string(settings_.disk_rotation_speed).substr(0, 4);
+            out.caption = id == kSidDiskVivid ? "plain disk, gradient vividness " + std::to_string(settings_.disk_vivid) + "%" : "disk speed " + std::to_string(settings_.disk_rotation_speed).substr(0, 4);
+        }
+        if (border_row && !rows.empty() && !cover_look) {
+            const std::string bsep = ansi_for(settings_.border_color, false) + sep_text + R;
+            const int lead = std::max(0, (sep_cols - 1) / 2);   // (without the column the disk sits in the middle of that space, as on the main screen)
+            for (std::string& r : rows) r = settings_.disk_border ? r + bsep : std::string(static_cast<size_t>(lead), ' ') + r + std::string(static_cast<size_t>(std::max(0, sep_cols - lead)), ' ');
+            out.caption = settings_.disk_border ? "Classic Disk Border: on" : "Classic Disk Border: off";
         }
         out.rows = rows;
-        out.w = dc;
+        out.w = dc + sep_cols;
         break;
     }
     case kPvVolume: {
         const int vol = 85;
-        const int hashes = (vol * 20) / 100;
+        const VolBarLook vlook = volume_bar_look(settings_.volume_indicator, 38);   // (as on the main screen)
+        const int vcells = vlook.cells;
+        const int hashes = (vol * vcells) / 100;
         const std::string played = ansi_for(settings_.progress_played_color), unplayed = ansi_for(settings_.progress_remaining_color);
         const std::string border = ansi_for(settings_.border_color, false);
         std::string fill;
         const double ang = volume_clock_angle();
         if (settings_.volume_gradient) {
-            const auto cells = volume_bar_cells(settings_.volume_indicator, hashes, ang);
+            const auto cells = volume_bar_cells(settings_.volume_indicator, hashes, ang, vcells);
             for (size_t i = 0; i < cells.size(); ++i)
-                fill += gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, static_cast<float>(i) / (kVolBarCells - 1)) + cells[i];
+                fill += vivid_gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, static_cast<float>(i) / (vcells - 1), settings_.vivid_of(settings_.volume_vivid)) + cells[i];
         } else {
-            fill = played + volume_bar_fill(settings_.volume_indicator, hashes, ang);
+            fill = played + volume_bar_fill(settings_.volume_indicator, hashes, ang, vcells);
         }
-        const std::string bar = border + "VOLUME BAR:[" + R + fill + R + unplayed + std::string(static_cast<size_t>(20 - hashes), '-') + R + border + "]" + R + " 85%";
-        const std::string bar_short = border + "[" + R + fill + R + unplayed + std::string(static_cast<size_t>(20 - hashes), '-') + R + border + "]" + R + " 85%";
-        const int vw = 12 + 20 + 1 + 1 + 3;
+        const std::string open = vlook.brackets ? "[" : "", close = vlook.brackets ? "]" : "";
+        const std::string bar_short = border + open + R + fill + R + unplayed + std::string(static_cast<size_t>(vcells - hashes), '-') + R + border + close + R + " 85%";
+        const std::string bar = border + "\x1b[1mVOLUME\x1b[22m:" + bar_short;
+        const int vw = 7 + (vlook.brackets ? 2 : 0) + vcells + 4;
         std::vector<std::string> rows;
         int w = vw;
         if (id == kSidDummy) {
@@ -538,8 +552,8 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             } else { rows = {"(Dummy Buttons are off)"}; w = 23; }
             out.caption = settings_.element_dummy_buttons ? "Dummy Buttons: on" : "Dummy Buttons: off";
         } else {
-            rows = {cw < vw ? bar_short : bar};   // (a narrow box: without the "VOLUME BAR:" label)
-            if (cw < vw) w = vw - 12;
+            rows = {cw < vw ? bar_short : bar};   // (a narrow box: without the "VOLUME:" label)
+            if (cw < vw) w = vw - 7;
             out.caption = std::string("Volume Indicator: ") + (settings_.volume_gradient ? "gradient" : "no gradient");
         }
         out.rows = rows;
@@ -554,8 +568,8 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
         for (int i = 0; i < n; ++i) {
             const float t = n > 1 ? static_cast<float>(i) / static_cast<float>(n - 1) : 0.0f;
             const std::string a = !settings_.viz_center_color.empty()
-                ? multi_stop_gradient_ansi(settings_.viz_left_color, settings_.viz_center_color, settings_.viz_right_color, t)
-                : gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t);
+                ? vivid_multi_stop_gradient_ansi(settings_.viz_left_color, settings_.viz_center_color, settings_.viz_right_color, t, settings_.vivid_of(settings_.bars_vivid))
+                : vivid_gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t, settings_.vivid_of(settings_.bars_vivid));
             top += a + fft_glyph(std::max(0, bars[static_cast<size_t>(i)] - 4));
             bot += a + fft_glyph(std::min(bars[static_cast<size_t>(i)], 4));
         }
@@ -568,8 +582,8 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             const auto& pal = spectro_palette(settings_.spectro.scheme);
             const std::vector<std::string> hr = hifi_rows(P.hifi, hv,
                 [&](float t) {
-                    return !settings_.viz_center_color.empty() ? multi_stop_gradient_ansi(settings_.viz_left_color, settings_.viz_center_color, settings_.viz_right_color, t)
-                                                              : gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t);
+                    return !settings_.viz_center_color.empty() ? vivid_multi_stop_gradient_ansi(settings_.viz_left_color, settings_.viz_center_color, settings_.viz_right_color, t, settings_.vivid_of(settings_.bars_vivid))
+                                                              : vivid_gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t, settings_.vivid_of(settings_.bars_vivid));
                 },
                 [&](float f) {
                     const auto& c = pal[static_cast<size_t>(std::clamp(48 + static_cast<int>(f * 207.0f), 0, 255))];
@@ -604,7 +618,7 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
         const int n = cw;
         const double frac = std::fmod(P.t / 20.0, 1.0);
         const int active = static_cast<int>(frac * n);
-        const std::string cp = ansi_for(settings_.progress_played_color), cu = ansi_for(settings_.progress_remaining_color);
+        const std::string cp = vivid_colour_ansi(settings_.progress_played_color, settings_.wave_vivid), cu = vivid_colour_ansi(settings_.progress_remaining_color, settings_.wave_vivid);
         if (settings_.element_waveform) {
             const auto levels = WaveformQuantizer::resample_for_ui(settings_.waveform_smooth ? P.env_smooth : P.env_raw, n);
             std::string top, mid, bot;
@@ -638,7 +652,7 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
                 const float lvl = std::round(c.level / 255.0f * 7.0f) / 7.0f;
                 const float k = 0.30f + 0.70f * lvl;
                 std::string ansi;
-                if (os.palette == 0) ansi = osci_dim_ansi(gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t), k);
+                if (os.palette == 0) ansi = osci_dim_ansi(vivid_gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t, settings_.vivid_of(settings_.scope_vivid)), k);
                 else { int r = 255, g = 255, b = 255; osci_palette_rgb(settings_, os.palette, c.hue / 255.0f, r, g, b); ansi = osci_rgb_seq(r, g, b, k); }
                 if (ansi != last) { line += ansi; last = ansi; }
                 line += braille_utf8(c.braille);
@@ -786,7 +800,7 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
                     if (cell.mask == 0 || (settings_.video_round && vrows >= 3 && vcols >= 4 && (r == 0 || r == vrows - 1) && (c == 0 || c == vcols - 1))) { line += ' '; continue; }   // (rounded: the four corner cells stay empty)
                     const float tt = vcols > 1 ? static_cast<float>(c) / static_cast<float>(vcols - 1) : 0.0f;
                     const float lvl = std::round(cell.level / 255.0f * 7.0f) / 7.0f;
-                    const std::string ansi = osci_dim_ansi(gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, tt), 0.30f + 0.70f * lvl);
+                    const std::string ansi = osci_dim_ansi(vivid_gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, tt, settings_.vivid_of(settings_.scope_vivid)), 0.30f + 0.70f * lvl);
                     if (ansi != last_ansi) { line += ansi; last_ansi = ansi; }
                     const int cp = 0x2800 + cell.mask;
                     line += static_cast<char>(0xE0 | (cp >> 12));
@@ -856,7 +870,13 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
     }
     case kPvPane: {   // the frame of the upper pane, as it is drawn (the same helpers): disk | meta data | lyrics / viz field
         const int w = std::clamp(cw, 24, 44);
-        PanePreview pp = pane_preview(settings_.top_pane_style, w, "disk", "meta data", "lyrics / viz", panestyle::glyphs(settings_),
+        // The corners as the option gives them (the Settings screen itself is the other way round): marked, so the corner pass leaves them alone.
+        panestyle::Glyphs pg = panestyle::glyphs(settings_);
+        for (std::string* g : {&pg.ul, &pg.ur, &pg.ll, &pg.lr}) {
+            if (settings_.sharp_corners) sharpen_corners(*g);
+            *g = std::string(kKeepCornerMark) + *g;
+        }
+        PanePreview pp = pane_preview(settings_.top_pane_style, w, "disk", "meta", "viz", pg,
                                       ansi_for(settings_.border_color, false), ansi_for(settings_.border_color_bottom, false),
                                       ansi_for(settings_.legend_color, false), "\x1b[0m");
         out.rows = std::move(pp.rows);
@@ -957,7 +977,7 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
     if (out.cover_mode >= 0 && nrows > 0) {   // the sample cover as a picture (it uses the picture slot gfx_)
         pv_cover_pic_ = true;
         meta_sty_gfx(pv_->cover, out.cover_mode, settings_.cover_contrast, settings_.cover_brightness, settings_.cover_colors, settings_.cover_chroma,
-                     pv_->angle, inner_x + xo - 2, top + vtop, out.w, nrows, settings_.cover_grad_sat);
+                     pv_->angle, inner_x + xo - 2, top + vtop, out.w, nrows, settings_.cover_grad_sat, settings_.cover_vivid_eff());
     }
     if (out.video && nrows > 0 && out.vframe) {   // the sample video as a picture (it uses the picture slot gfx_, like the sample cover)
         pv_cover_pic_ = true;

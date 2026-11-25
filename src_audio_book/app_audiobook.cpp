@@ -629,9 +629,9 @@ std::array<unsigned char, 256> book_brightness_curve(int brightness) {
 
 const BookCoverScaled& scaled_cover(const CoverData& c, int max_w, int max_h, bool colour, int contrast) {
     static SizeCache<BookCoverScaled, 4> cache;   // (the terminal's and the phone's picture are different sizes: both stay)
-    contrast = std::clamp(contrast, 0, 150);
+    contrast = std::clamp(contrast, 0, 200);
     const std::string key = c.dir + "|" + std::to_string(max_w) + "x" + std::to_string(max_h) + (colour ? "c" : "g") + std::to_string(contrast);
-    // more contrast: values move away from the middle (0 % = unchanged, 100 % = 2.5 times the distance from the middle grey, 150 % = 3.25 times)
+    // more contrast: values move away from the middle (0 % = unchanged, 100 % = 2.5 times the distance from the middle grey, 200 % = 4 times)
     const double factor = 1.0 + contrast / 100.0 * 1.5;
     auto punch = [&](unsigned char v) { return static_cast<unsigned char>(std::clamp(static_cast<int>(std::lround((v - 127.5) * factor + 127.5)), 0, 255)); };
     if (const BookCoverScaled* hit = cache.find(key)) return *hit;

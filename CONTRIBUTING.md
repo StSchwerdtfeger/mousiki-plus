@@ -27,7 +27,7 @@ Never start a build while you edit a header: the precompiled header (`app.h`) go
 | `src_audio_book/` | Audio book additions (chapters, notes, `.cue` files). The audio book player is the **same class `App`** as the music player with `audiobook_ == true`. |
 | `scripts/` | Python helpers the program starts (lyrics, covers, meta data, kanji reader, name lookup). They are optional and checked by pinned hashes (`pins.json`, `kanji_pins.json`). |
 | `tests/` | `test_*.cpp` unit tests (picked up by a glob, `TEST(name) { CHECK(...); }`) and `ui_smoke.py` (the real program in a pseudo terminal, read through `pyte`). |
-| `tools/` | Developer scripts: `wizard_to_inc.py`, `make_manual_pdf.py`, generators for tables. |
+| `tools/` | Developer scripts: `wizard_to_inc.py`, `make_manual_pdf.py`, `make_corner_font.py` (the tiny font "Mousiki Corners" for Thick Borders = thick round; writes `packaging/fonts/MousikiCorners.ttf` and `src/corner_font_data.inc`), generators for tables. |
 | `packaging/` | Installers, the release toolkit (`release.py`), signing, AUR. |
 | `Mousiki_User_Manual/`, `Mousiki_Help_Wizard.txt`, `config.txt` | The manual, the in-program help text and the example config (all three are tested or generated, see below). |
 

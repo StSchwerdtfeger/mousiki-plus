@@ -95,13 +95,21 @@ static void chroma_planes(std::vector<unsigned char>& red, std::vector<unsigned 
         }
 }
 
+// Contrast: the values move away from the middle grey by `factor`, but near black and white they roll off softly (a knee at 70 % of the
+// way out) instead of clipping at once: a strong contrast no longer turns every darkish pixel to black, or washes the lights out to white.
+static unsigned char contrast_curve(int v, double factor) {
+    const double x = (v - 127.5) / 127.5 * factor, a = std::fabs(x), knee = 0.7;
+    const double y = a <= knee ? a : knee + (1.0 - knee) * std::tanh((a - knee) / (1.0 - knee));
+    return static_cast<unsigned char>(std::clamp(static_cast<int>(std::lround(127.5 + (x < 0 ? -y : y) * 127.5)), 0, 255));
+}
+
 const CoverScaled& cover_scaled(const CoverImage& c, int max_w, int max_h, bool colour, int contrast, int chroma) {
     static SizeCache<CoverScaled, 4> cache;
-    contrast = std::clamp(contrast, 0, 150);
+    contrast = std::clamp(contrast, 0, 200);
     const std::string key = c.id() + "|" + std::to_string(max_w) + "x" + std::to_string(max_h) + (colour ? "c" : "g") + std::to_string(contrast) + (colour && chroma > 0 ? "x" + std::to_string(chroma) : std::string());
-    // more contrast: values move away from the middle (0 % = unchanged, 100 % = 2.5 times the distance from the middle grey, 150 % = 3.25 times)
+    // more contrast: values move away from the middle (0 % = unchanged, 100 % = 2.5 times the distance from the middle grey, 200 % = 4 times)
     const double factor = 1.0 + contrast / 100.0 * 1.5;
-    auto punch = [&](unsigned char v) { return static_cast<unsigned char>(std::clamp(static_cast<int>(std::lround((v - 127.5) * factor + 127.5)), 0, 255)); };
+    auto punch = [&](unsigned char v) { return contrast_curve(v, factor); };
     if (const CoverScaled* hit = cache.find(key)) return *hit;
     CoverScaled& cs = cache.fresh();
     cs.key = key;
@@ -133,7 +141,7 @@ const CoverScaled& cover_scaled(const CoverImage& c, int max_w, int max_h, bool 
 
 const CoverRgb& cover_scaled_rgb(const CoverImage& c, int max_w, int max_h, int contrast, int chroma) {
     static SizeCache<CoverRgb, 3> cache;
-    contrast = std::clamp(contrast, 0, 150);
+    contrast = std::clamp(contrast, 0, 200);
     const std::string key = c.id() + "|" + std::to_string(max_w) + "x" + std::to_string(max_h) + "|" + std::to_string(contrast) + (chroma > 0 ? "x" + std::to_string(chroma) : std::string());
     if (const CoverRgb* hit = cache.find(key)) return *hit;
     const double factor = 1.0 + contrast / 100.0 * 1.5;
@@ -155,8 +163,7 @@ const CoverRgb& cover_scaled_rgb(const CoverImage& c, int max_w, int max_h, int 
     for (size_t i = 0; i < m; ++i)
         for (int k = 0; k < 3; ++k) {
             const int v = chn[k][i];
-            cs.rgb[i * 3 + static_cast<size_t>(k)] = contrast > 0 ? static_cast<unsigned char>(std::clamp(static_cast<int>(std::lround((v - 127.5) * factor + 127.5)), 0, 255))
-                                                                   : static_cast<unsigned char>(v);
+            cs.rgb[i * 3 + static_cast<size_t>(k)] = contrast > 0 ? contrast_curve(v, factor) : static_cast<unsigned char>(v);
         }
     return cs;
 }

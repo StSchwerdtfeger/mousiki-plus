@@ -3,6 +3,7 @@
 // the oscilloscope / sphere / spectrogram, MilkDrop, the Latin letters, the marquee, the frame of the upper pane, the play mode -- or, for a
 // row that has no picture, a few lines of text that say what it does. The signals are made here (the radio's "TEST Stereo Chords" sound,
 // and a spectrogram that reads "Mousiki Plus"): no stream, no file and no network are needed, and what plays is not touched.
+#include "terminal_font.h"
 #include "translit_preview.h"
 #include "radio_ui_internal.h"
 #include "bars_presets.h"
@@ -13,6 +14,7 @@
 #include "milkdrop.h"
 #include "oscilloscope_visualizer.h"
 #include "pane_style.h"
+#include "../src/corners.h"
 #include "preview_shared.h"
 #include "sphere_visualizer.h"
 #include "spectrogram.h"
@@ -93,12 +95,18 @@ std::string desc_of(int id) {
             return "The ON AIR sign left of the station info. false: the station info moves to the left edge (the pulse wave goes with the sign).";
         case kRsSharpCorners:
             return "true: every frame has sharp corners (┌ ┐ └ ┘) -- except this Settings screen, which then gets round ones (╭ ╮ ╰ ╯).\nfalse: the frames are round; the Settings screen is sharp.";
+        case kRsThickBorders:
+            return "off: thin lines.\nthick: the lines of every frame are thicker, with thick round corners (Sharp Corners: thick sharp ones), and the pane titles are bold. The whole frame is drawn with the small font Mousiki Corners, which Mousiki installs and your terminal font list needs after the main font (else the lines are heavy but the round corners stay thin).";
         case kRsSignBorder:
             return "true: the sign sits between two columns of colons.\nfalse: no frame around it.";
         case kRsPulse:
             return "true: a circle of light bursts out from behind the sign, in step with the colour wave. Needs the sign.";
         case kRsGradSpeed:
             return "How fast the colours of the ON AIR sign run (cycles per second).";
+        case kRsBarsVivid:
+            return "How vivid the colours of the spectrum bars are (0 = as before; more makes them fuller and brighter, so they look less grey next to the rest).";
+        case kRsSignVivid:
+            return "How vivid the colours of the ON / OFF AIR sign are (0 = as before; more makes them fuller and brighter, the way the neon edge looks of the video are).";
         case kRsPulseSpeed:
             return "How fast the circle of light behind the sign repeats (loops per second).";
         case kRsStereo:
@@ -176,7 +184,7 @@ std::string desc_of(int id) {
 
 PvKind kind_of(int id, const RadioSettings& c) {
     switch (id) {
-        case kRsPaneStyle: case kRsSharpCorners: return kPvPane;
+        case kRsPaneStyle: case kRsSharpCorners: case kRsThickBorders: return kPvPane;
         case kRsDummy: return kPvDummy;
         case kRsVolIndicator: return kPvVolume;
         case kRsVisualizer: case kRsBarStyle: case kRsHifiRes: case kRsHifiChan: case kRsHifiColor: case kRsHifiScale: case kRsHifiAdapt: case kRsHifiSplit:
@@ -310,14 +318,16 @@ void build_settings_preview(const Style& s, const UiModel& m, const RadioSetting
     const int cw = compact ? iw - 4 : iw - 2;   // content width (one blank column each side; the compact previews have two, like the DESCRIPTION box)
     switch (shown) {
     case kPvVolume: {
-        const int hashes = (85 * kVolBar) / 100;
-        std::vector<Seg> segs = {{s.border, "VOLUME BAR:["}};
-        for (const Seg& g : volume_fill_segs(s, hashes)) segs.push_back(g);
-        segs.push_back({s.vol_possible, std::string(static_cast<size_t>(kVolBar - hashes), '-')});
-        segs.push_back({s.border, "]"});
+        const muisc::VolBarLook vlook = muisc::volume_bar_look(c.volume_indicator, kSideW);
+        const int hashes = (85 * vlook.cells) / 100;
+        std::vector<Seg> segs = {{s.border + "\x1b[1m", "VOLUME"}, {std::string("\x1b[22m") + s.border, vlook.brackets ? ":[" : ":"}};
+        for (const Seg& g : volume_fill_segs(s, hashes, vlook.cells)) segs.push_back(g);
+        segs.push_back({s.vol_possible, std::string(static_cast<size_t>(vlook.cells - hashes), '-')});
+        if (vlook.brackets) segs.push_back({s.border, "]"});
         segs.push_back({"", " 85%"});
-        o.rows = {seg_line(segs, 12 + kVolBar + 1 + 4)};
-        o.w = 12 + kVolBar + 1 + 4;
+        const int vw = 7 + (vlook.brackets ? 2 : 0) + vlook.cells + 4;
+        o.rows = {seg_line(segs, vw)};
+        o.w = vw;
         o.caption = std::string("Volume Indicator: ") + (c.volume_gradient ? "gradient" : "no gradient");
         break;
     }
@@ -475,7 +485,11 @@ void build_settings_preview(const Style& s, const UiModel& m, const RadioSetting
     }
     case kPvPane: {   // the frame of the upper pane, as it is drawn (the same helpers): sign | station info | scope block
         const int w = std::clamp(cw, 24, 44);
-        const panestyle::Glyphs g{c.box_upper_left, c.box_upper_right, c.box_lower_left, c.box_lower_right, c.box_horizontal, c.box_vertical};
+        panestyle::Glyphs g{c.box_upper_left, c.box_upper_right, c.box_lower_left, c.box_lower_right, c.box_horizontal, c.box_vertical};
+        for (std::string* e : {&g.ul, &g.ur, &g.ll, &g.lr}) {   // (the corners as the option gives them; marked, so the corner pass leaves them alone)
+            if (c.sharp_corners) muisc::sharpen_corners(*e);
+            *e = std::string(muisc::kKeepCornerMark) + *e;
+        }
         PanePreview pp = pane_preview(c.top_pane_style, w, "sign", "station info", "scope / viz", g, s.border, s.border_bottom, s.legend, R);
         o.rows = std::move(pp.rows);
         o.w = w;

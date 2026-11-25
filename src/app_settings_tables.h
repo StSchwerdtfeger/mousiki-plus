@@ -14,18 +14,19 @@ namespace muisc {
 enum SetId {
     kSidVizField, kSidDisk, kSidDummy, kSidQueue, kSidWave, kSidLyricsEngine, kSidLyricViz, kSidVisualizer, kSidNoLyricsViz,
     kSidStereo, kSidNormalize, kSidMetaOnly, kSidEmoji, kSidMarquee, kSidUseLyrics, kSidUseOsci, kSidUseSpectro, kSidUseSphere,
-    kSidOrder1, kSidOrder2, kSidOrder3, kSidOrder4, kSidOrder5, kSidOrder6, kSidUseVideo, kSidNoVideoViz, kSidVideoSize, kSidVideoFx, kSidVideoContrast, kSidVideoBrightness, kSidVideoColors, kSidVideoChroma, kSidVideoDither, kSidVideoBase, kSidVideoFxContrast, kSidVideoGradSat, kSidVideoRound, kSidVideoClap, kSidVideoCover, kSidVideoRes, kSidVideoFps, kSidVideoBuffer, kSidVideoMp3, kSidCoverChroma,
+    kSidOrder1, kSidOrder2, kSidOrder3, kSidOrder4, kSidOrder5, kSidOrder6, kSidUseVideo, kSidNoVideoViz, kSidVideoSize, kSidVideoFx, kSidVideoContrast, kSidVideoBrightness, kSidVideoColors, kSidVideoChroma, kSidVideoDither, kSidVideoBase, kSidVideoFxContrast, kSidVideoGradSat, kSidVideoGradVivid, kSidVideoRound, kSidVideoClap, kSidVideoCover, kSidVideoRes, kSidVideoFps, kSidVideoBuffer, kSidVideoMp3, kSidCoverChroma,
     kSidPlayback, kSidStartMode, kSidBlackBg, kSidShareProfiles, kSidRemoteApp, kSidUpdateCheck, kSidMediaKeys, kSidUseTermSettings, kSidTermSize, kSidFullScreen, kSidLatinLookup, kSidLatinMacrons, kSidLatinWo, kSidLatinHanzi, kSidLyricsVariants, kSidRateCap, kSidTrackBuffer,
     kSidVisFluidity, kSidWaveStyle, kSidDiskSpeed, kSidVisDegr, kSidVisVisc, kSidLyrAlign, kSidLyrAnim,
     kSidVolIndicator,
     kSidUseModePlayer, kSidUseModeRadio, kSidUseModeBook, kSidModeOrder1, kSidModeOrder2, kSidModeOrder3, kSidBookAsk, kSidBookCover, kSidBookCoverWave,
-    kSidAlbumCover, kSidCoverMode, kSidCoverContrast, kSidCoverSearch, kSidCoverBrightness, kSidCoverColors, kSidCoverGradSat,
+    kSidAlbumCover, kSidCoverMode, kSidCoverContrast, kSidCoverSearch, kSidCoverBrightness, kSidCoverColors, kSidCoverGradSat, kSidCoverVivid, kSidDiskVivid, kSidWaveVivid, kSidScopeVivid, kSidSpectroVivid, kSidBarsVivid, kSidVolVivid,
     kSidTermDefaultFont, // TEXT AND TRANSLITERATION: leave the terminal's own font alone (terminal_font.h)
     kSidVideoLyrics,   // Include Lyrics (the lines under the video: none / lyrics / lyrics + translation / translation)
     kSidCheckUpdate,   // [ENTER] checks for a newer release now (an action row, no value to switch)
     kSidBookSpeed,     // audio book player: the playback speed (0.5x - 3.0x, the pitch stays)
     kSidBarStyle, kSidHifiRes, kSidHifiChan, kSidHifiColor, kSidHifiScale, kSidHifiAdapt, kSidHifiSplit, kSidHifiFScale, kSidHifiGain, kSidHifiRange, kSidBarBehavior,   // SPECTRUM BARS: classic / Hi-Fi and the three rows only Hi-Fi shows
     kSidReduceMotion,  // TERMINAL: a low frame rate while paused and untouched
+    kSidThickBorders,  // MAIN UI PANE STYLE: heavy line glyphs for all frames
     kSidSharpCorners,  // MAIN UI PANE STYLE: sharp corners for all frames (not in the Settings screen)
     kSidDiskBorder,    // DISK: the ":  :" column between the disk and the meta data on / off
     kSidPauseFade,     // AUDIO: pause / resume fade over about 8 ms (no click)

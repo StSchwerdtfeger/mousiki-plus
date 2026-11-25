@@ -7,9 +7,11 @@
 // VIDEO OPTION (Mode::VideoLink): two searchable lists (tracks / video files of the library), the track is locked in with ENTER, the video
 // with ENTER; the pair is stored in video_links.txt (video_links.h) and follows the files when they are renamed or moved.
 #include "app.h"
+#include <functional>
 #include "milkdrop.h"
 #include "app_state_vf.h"
 #include "app_state_vl.h"
+#include "app_state_vs.h"
 #include "overlay_rows.h"
 #include "app_internal.h"
 #include "console_log.h"
@@ -31,9 +33,31 @@ namespace muisc {
 // VIDEO (the & overlay)
 // ======================================================================================================================
 
+// A panel taller than the room: shows `avail` lines (the first `keep_top` and the last `keep_bottom` lines stay, e.g. the borders) around the
+// highlighted line (the one with reverse video), keeping `top` (the first shown content line) steady so the list scrolls instead of jumping.
+static void window_lines(std::vector<std::string>& v, int avail, int keep_top, int keep_bottom, int& top, const std::function<std::string(const std::string&)>& mark = nullptr) {
+    const int n = static_cast<int>(v.size());
+    const int body = n - keep_top - keep_bottom, show = avail - keep_top - keep_bottom;
+    if (avail <= 0 || n <= avail || show < 3) { top = 0; return; }
+    int sel = -1;
+    for (int i = keep_top; i < n - keep_bottom; ++i) if (v[static_cast<size_t>(i)].find("\x1b[7m") != std::string::npos) { sel = i - keep_top; break; }
+    top = std::clamp(top, 0, body - show);
+    if (sel >= 0) { if (sel < top + 1) top = std::max(0, sel - 1); else if (sel > top + show - 2) top = std::min(body - show, sel - show + 2); }
+    std::vector<std::string> o(v.begin(), v.begin() + keep_top);
+    for (int i = 0; i < show; ++i) o.push_back(v[static_cast<size_t>(keep_top + top + i)]);
+    if (mark) {   // (a row at each end says there is more: the selection is never on it)
+        if (top > 0) o[static_cast<size_t>(keep_top)] = mark("  \u25b2 ...");
+        if (top + show < body) o.back() = mark("  \u25bc ...");
+    }
+    o.insert(o.end(), v.end() - keep_bottom, v.end());
+    v.swap(o);
+}
+
+static int video_row_step(const std::vector<int>& rows, int sel, int by, bool wrap);
+
 void App::video_menu_open() {
     if (audiobook_) { status_line_ = "video: not available in the audio book player"; return; }
-    vmenu_sel_ = std::clamp(vmenu_sel_, 0, static_cast<int>(kVmRowCount) - 1);
+    vmenu_sel_ = video_row_step(video_menu_rows(false), std::clamp(vmenu_sel_, 0, static_cast<int>(kVmRowCount) - 1), 0, false);
     vdel_stage_ = 0;
     mode_ = Mode::VideoMenu;
     force_redraw_ = true;
@@ -144,6 +168,12 @@ void App::video_menu_change(int row, int dir) {
             status_line_ = "video gradient saturation: " + std::to_string(settings_.video_grad_sat) + " % (the gradient looks' colours: 100 = as they are, 0 = grey)";
             video_pic_key_.clear();
             break;
+        case kVmGradVivid:   // 0 .. 100 % in steps of 5, round and round
+            settings_.video_grad_vivid = (((std::clamp(settings_.video_grad_vivid, 0, 100) / 5) + (dir < 0 ? 20 : 1)) % 21) * 5;
+            set_config_value("VideoGradientVividness", std::to_string(settings_.video_grad_vivid));
+            status_line_ = "video gradient vividness: " + std::to_string(settings_.video_grad_vivid) + " % (the gradient looks' colours fuller and brighter; 0 = as before)";
+            video_pic_key_.clear();
+            break;
         case kVmResolution:
             settings_.video_res = (std::clamp(settings_.video_res, 0, 2) + (dir < 0 ? 2 : 1)) % 3;
             set_config_value("VideoResolution", video_res_name(settings_.video_res));
@@ -174,13 +204,6 @@ void App::video_menu_change(int row, int dir) {
             status_line_ = settings_.video_clap == 1 ? "show clap loading: clap -- a small clapperboard shows while a video loads" : settings_.video_clap == 0 ? "show clap loading: text note -- the text \"video: starting ...\" shows while a video loads" : "show clap loading: none -- nothing shows while a video loads";
             video_pic_key_.clear();
             break;
-        case kVmOverride:
-            video_override_ = !video_override_;
-            video_for_track_.clear(); ++video_rev_;
-            video_pic_key_.clear();
-            status_line_ = video_override_ ? "video: the general settings are used for every track (the individual ones are kept; until you turn this off or quit)" : "video: individual track settings are in force again";
-            force_redraw_ = true;
-            break;
         default: break;
     }
 }
@@ -205,11 +228,306 @@ void App::video_set_fx(int fx) {
 }
 
 VideoTrackOpts App::video_own(const std::string& track) const {
-    return video_override_ ? VideoTrackOpts() : cover_track_video_opts(track);   // (Override Individual Settings: the tracks' own values stay stored, but are not used)
+    const VideoTrackOpts o = cover_track_video_opts(track);
+    if (vtmp_on_ && track == vtmp_track_) {   // the temporary layer of the VIDEO SETTINGS / VIDEO OPTIONS menus (individual settings in force)
+        if (o == vtmp_base_) { VideoTrackOpts t = vtmp_; t.mp4audio = o.mp4audio; return t; }
+        vtmp_on_ = false;   // (the stored settings were changed meanwhile: the layer is dropped)
+    }
+    if (o.ioff != 1) return o;
+    VideoTrackOpts g;   // (Use Individual Settings off: the general settings; only the audio choice of the song stays)
+    g.mp4audio = o.mp4audio;
+    return g;
+}
+
+bool App::video_individual_off() const {
+    if (audiobook_ || !has_track_ || !current_.is_local || current_.path.empty()) return false;
+    return cover_track_video_opts(path_utf8(current_.path)).ioff == 1;
+}
+
+static bool video_track_any(const VideoTrackOpts& o) {   // the track has a look of its own (the audio choice and the switch itself do not count)
+    return o.on >= 0 || o.size >= 0 || o.fx >= 0 || o.contrast >= 0 || o.colors >= 0 || o.chroma >= 0 || o.res >= 0 || o.round >= 0 || o.lyrics >= 0 ||
+           o.brightness >= 0 || o.dither >= 0 || o.gsat >= 0 || o.gvivid >= 0 || o.base >= 0 || o.fxc >= 0;
+}
+
+bool App::video_ind_active() const {
+    if (audiobook_ || !has_track_ || !current_.is_local || current_.path.empty()) return false;
+    const VideoTrackOpts o = cover_track_video_opts(path_utf8(current_.path));
+    return o.ioff != 1 && video_track_any(o);
+}
+
+bool App::video_changed() const {
+    if (!video_ind_active() || !vtmp_on_ || vtmp_track_ != path_utf8(current_.path)) return false;
+    VideoTrackOpts a = vtmp_, b = vtmp_base_;
+    a.mp4audio = b.mp4audio = -1;
+    return a != b;
+}
+
+void App::video_temp_begin() const {   // the temporary layer starts as the track's stored settings
+    const std::string trk = path_utf8(current_.path);
+    if (vtmp_on_ && vtmp_track_ == trk) return;
+    vtmp_base_ = vtmp_ = cover_track_video_opts(trk);
+    vtmp_track_ = trk;
+    vtmp_on_ = true;
+}
+
+App::VmSnap App::vm_snap() const {
+    VmSnap s;
+    s.tmp = vtmp_; s.base = vtmp_base_; s.tmp_on = vtmp_on_ && vtmp_track_ == path_utf8(current_.path);
+    s.lyrics = settings_.video_lyrics; s.size = settings_.video_size; s.round = settings_.video_round; s.fx = settings_.video_fx; s.base_l = settings_.video_base;
+    s.fxc = settings_.video_fxc; s.contrast = settings_.video_contrast; s.brightness = settings_.video_brightness; s.colors = settings_.video_colors;
+    s.chroma = settings_.video_chroma; s.dither = settings_.video_dither; s.gsat = settings_.video_grad_sat; s.gvivid = settings_.video_grad_vivid; s.res = settings_.video_res; s.fps = settings_.video_fps;
+    s.buffer = settings_.video_buffer; s.clap = settings_.video_clap; s.cover_sat = settings_.cover_grad_sat;
+    return s;
+}
+
+bool App::vm_snap_same(const VmSnap& a, const VmSnap& b) {
+    return a.tmp == b.tmp && a.base == b.base && a.tmp_on == b.tmp_on && a.lyrics == b.lyrics && a.size == b.size && a.round == b.round && a.fx == b.fx && a.base_l == b.base_l &&
+           a.fxc == b.fxc && a.contrast == b.contrast && a.brightness == b.brightness && a.colors == b.colors && a.chroma == b.chroma && a.dither == b.dither && a.gsat == b.gsat && a.gvivid == b.gvivid &&
+           a.res == b.res && a.fps == b.fps && a.buffer == b.buffer && a.clap == b.clap && a.cover_sat == b.cover_sat;
+}
+
+void App::vm_restore(const VmSnap& s) {
+    settings_.video_lyrics = s.lyrics; settings_.video_size = s.size; settings_.video_round = s.round; settings_.video_fx = s.fx; settings_.video_base = s.base_l;
+    settings_.video_fxc = s.fxc; settings_.video_contrast = s.contrast; settings_.video_brightness = s.brightness; settings_.video_colors = s.colors;
+    settings_.video_chroma = s.chroma; settings_.video_dither = s.dither; settings_.video_grad_sat = s.gsat; settings_.video_grad_vivid = s.gvivid; settings_.video_res = s.res; settings_.video_fps = s.fps;
+    settings_.video_buffer = s.buffer; settings_.video_clap = s.clap; settings_.cover_grad_sat = s.cover_sat;
+    vtmp_ = s.tmp; vtmp_base_ = s.base; vtmp_on_ = s.tmp_on; vtmp_track_ = path_utf8(current_.path);
+    save_settings(settings_);
+    video_for_track_.clear(); ++video_rev_;
+    video_pic_key_.clear();
+    force_redraw_ = true;
+}
+
+// A row of the VIDEO SETTINGS overlay changed in the temporary layer of the playing track (its individual settings stay as they are, stored).
+void App::video_menu_temp(int row, int dir, bool reset) {
+    video_temp_begin();
+    VideoTrackOpts& o = vtmp_;
+    auto pct = [&](int cur, int gen) { return (((std::clamp(cur >= 0 ? cur : gen, 0, 100) / 5) + (dir < 0 ? 20 : 1)) % 21) * 5; };
+    auto cyc = [&](int cur, int gen, int n) { return (std::clamp(cur >= 0 ? cur : gen, 0, n - 1) + (dir < 0 ? n - 1 : 1)) % n; };
+    switch (row) {
+        case kVmLyrics: o.lyrics = reset ? -1 : cyc(o.lyrics, settings_.video_lyrics, 4); break;
+        case kVmSize: o.size = reset ? -1 : cyc(o.size, settings_.video_size, 4); break;
+        case kVmRounded: o.round = reset ? -1 : ((o.round >= 0 ? o.round == 1 : settings_.video_round) ? 0 : 1); break;
+        case kVmEffect: o.fx = reset ? -1 : video_fx_canon(video_fx_step(o.fx >= 0 ? o.fx : settings_.video_fx, dir)); break;
+        case kVmBase: o.base = reset ? -1 : cyc(o.base, settings_.video_base, kBaseLayers); break;
+        case kVmFxContrast: o.fxc = reset ? -1 : cyc(o.fxc, settings_.video_fxc, kFxContrasts); break;
+        case kVmContrast: o.contrast = reset ? -1 : pct(o.contrast, settings_.video_contrast); break;
+        case kVmBrightness: o.brightness = reset ? -1 : pct(o.brightness, settings_.video_brightness); break;
+        case kVmColors: o.colors = reset ? -1 : pct(o.colors, settings_.video_colors); break;
+        case kVmChroma: o.chroma = reset ? -1 : cyc(o.chroma, settings_.video_chroma, kChromaLevels); break;
+        case kVmDither: o.dither = reset ? -1 : cyc(o.dither, settings_.video_dither, kDitherPatterns); break;
+        case kVmGradSat: o.gsat = reset ? -1 : pct(o.gsat, settings_.video_grad_sat); break;
+        case kVmGradVivid: o.gvivid = reset ? -1 : pct(o.gvivid, settings_.video_grad_vivid); break;
+        case kVmResolution: o.res = reset ? -1 : cyc(o.res, settings_.video_res, 3); break;
+        default: return;
+    }
+    video_pic_key_.clear();
+    if (row == kVmResolution || row == kVmSize) { video_for_track_.clear(); ++video_rev_; }   // (the video is read again at the new resolution)
+    force_redraw_ = true;
+    status_line_ = "video: " + std::string(row == kVmLyrics ? "include lyrics" : row == kVmSize ? "size" : row == kVmRounded ? "rounded corners" : row == kVmEffect ? "effect" : row == kVmBase ? "base layer" :
+                   row == kVmFxContrast ? "effect contrast" : row == kVmContrast ? "contrast" : row == kVmBrightness ? "brightness" : row == kVmColors ? "colors" : row == kVmChroma ? "chromatic aberration" :
+                   row == kVmDither ? "dither pattern" : row == kVmGradSat ? "gradient saturation" : row == kVmGradVivid ? "gradient vividness" : "resolution") + ": " + video_vm_text(row) + " (only until this track is loaded again)";
+}
+
+// A row changed from either menu (VIDEO SETTINGS, or VIDEO OPTIONS in the big video): the temporary layer while the track has individual settings,
+// else the general setting; one step for Undo change.
+void App::video_menu_step(int row, int dir, bool reset) {
+    const bool per_track = row == kVmLyrics || row == kVmSize || row == kVmRounded || row == kVmEffect || row == kVmBase || row == kVmFxContrast || row == kVmContrast ||
+                           row == kVmBrightness || row == kVmColors || row == kVmChroma || row == kVmDither || row == kVmGradSat || row == kVmGradVivid || row == kVmResolution;
+    const VmSnap before = vm_snap();
+    if (per_track && video_ind_active()) video_menu_temp(row, dir, reset);
+    else if (reset) { status_line_ = "video: this row has no individual value (the general setting is shown)"; return; }
+    else video_menu_change(row, dir);
+    if (!vm_snap_same(before, vm_snap())) { vm_undo_.push_back(before); if (vm_undo_.size() > 60) vm_undo_.erase(vm_undo_.begin()); }
+}
+
+void App::video_menu_fx(int fx) {   // an effect chosen in the effect list (VIDEO SETTINGS / VIDEO OPTIONS)
+    const VmSnap before = vm_snap();
+    if (video_ind_active()) {
+        video_temp_begin();
+        vtmp_.fx = video_fx_canon(fx);
+        video_pic_key_.clear();
+        status_line_ = std::string("video effect: ") + video_fx_name(vtmp_.fx) + " (only until this track is loaded again)";
+    } else video_set_fx(fx);
+    if (!vm_snap_same(before, vm_snap())) { vm_undo_.push_back(before); if (vm_undo_.size() > 60) vm_undo_.erase(vm_undo_.begin()); }
+}
+
+// The value of a row of the VIDEO SETTINGS overlay (also of VIDEO OPTIONS): the one in force; with the individual settings of the playing track in force
+// "(default)" marks a value that is the default one (what Settings has).
+std::string App::video_vm_text(int row) const {
+    const bool act = video_ind_active();
+    const VideoTrackOpts L = act ? video_own(path_utf8(current_.path)) : VideoTrackOpts();
+    auto pick = [&](int own, int gen) { return own >= 0 ? own : gen; };
+    auto tag = [&](int own, int gen) { return act && (own < 0 || own == gen) ? std::string("  (default)") : std::string(); };
+    auto pct = [&](int own, int gen) { return std::to_string(std::clamp(pick(own, gen), 0, 100)) + " %" + tag(own, gen); };
+    switch (row) {
+        case kVmLyrics: return std::string(lyr_mode_name(std::clamp(pick(L.lyrics, settings_.video_lyrics), 0, 3))) + tag(L.lyrics, settings_.video_lyrics);
+        case kVmSize: { const int v = pick(L.size, settings_.video_size); return std::string(v == 1 ? "cropped" : v == 2 ? "full" : v == 3 ? "framed" : "regular") + tag(L.size, settings_.video_size); }
+        case kVmRounded: return std::string((L.round >= 0 ? L.round == 1 : settings_.video_round) ? "on" : "off") + tag(L.round, settings_.video_round ? 1 : 0);
+        case kVmEffect: return std::string(video_fx_name(video_fx_canon(pick(L.fx, settings_.video_fx)))) + tag(L.fx >= 0 ? video_fx_canon(L.fx) : -1, video_fx_canon(settings_.video_fx));
+        case kVmBase: return std::string(base_name(std::clamp(pick(L.base, settings_.video_base), 0, kBaseLayers - 1))) + tag(L.base, settings_.video_base);
+        case kVmFxContrast: return std::string(fxc_name(std::clamp(pick(L.fxc, settings_.video_fxc), 0, kFxContrasts - 1))) + tag(L.fxc, settings_.video_fxc);
+        case kVmContrast: return pct(L.contrast, settings_.video_contrast);
+        case kVmBrightness: return pct(L.brightness, settings_.video_brightness);
+        case kVmColors: return pct(L.colors, settings_.video_colors);
+        case kVmChroma: return std::string(chroma_name(std::clamp(pick(L.chroma, settings_.video_chroma), 0, kChromaLevels - 1))) + tag(L.chroma, settings_.video_chroma);
+        case kVmDither: return std::string(dither_name(std::clamp(pick(L.dither, settings_.video_dither), 0, kDitherPatterns - 1))) + tag(L.dither, settings_.video_dither);
+        case kVmGradSat: return pct(L.gsat, settings_.video_grad_sat);
+        case kVmGradVivid: return pct(L.gvivid, settings_.video_grad_vivid);
+        case kVmResolution: return video_res_label(std::clamp(pick(L.res, settings_.video_res), 0, 2), gfxs_.proto == GfxProto::Sixel) + tag(L.res, settings_.video_res);
+        case kVmVideoMode: return settings_.video_mode ? "true" : "false";
+        case kVmAutoVideo: return settings_.video_auto ? "true" : "false";
+        case kVmCover: return settings_.video_cover == 1 ? "thumbnail" : settings_.video_cover == 2 ? "disk" : settings_.video_cover == 3 ? "thumbnail fallback" : "cover";
+        case kVmCoverSat: return std::to_string(std::clamp(settings_.cover_grad_sat, 0, 100)) + " %";
+        case kVmFrameRate: return settings_.video_fps >= 60 ? "60" : "25";
+        case kVmBuffer: return std::to_string(settings_.video_buffer) + " MB";
+        case kVmClap: return settings_.video_clap == 2 ? "none" : settings_.video_clap == 0 ? "text note" : "clap";
+        default: return std::string();
+    }
+}
+
+bool App::video_values_default() const {   // every value of the playing track is the default one (as in Settings): the individual settings change nothing
+    if (audiobook_ || !has_track_ || !current_.is_local || current_.path.empty()) return true;
+    const VideoTrackOpts L = video_own(path_utf8(current_.path));
+    auto d = [](int own, int gen) { return own < 0 || own == gen; };
+    return d(L.lyrics, settings_.video_lyrics) && d(L.size, settings_.video_size) && d(L.round, settings_.video_round ? 1 : 0) &&
+           (L.fx < 0 || video_fx_canon(L.fx) == video_fx_canon(settings_.video_fx)) && d(L.base, settings_.video_base) && d(L.fxc, settings_.video_fxc) &&
+           d(L.contrast, settings_.video_contrast) && d(L.brightness, settings_.video_brightness) && d(L.colors, settings_.video_colors) &&
+           d(L.chroma, settings_.video_chroma) && d(L.dither, settings_.video_dither) && d(L.gsat, settings_.video_grad_sat) && d(L.gvivid, settings_.video_grad_vivid) && d(L.res, settings_.video_res);
+}
+
+bool App::video_button_on(int what) const {
+    if (audiobook_ || !has_track_ || current_.path.empty() || !current_.is_local) return false;
+    const VideoTrackOpts o = cover_track_video_opts(path_utf8(current_.path));
+    switch (what) {
+        case 3: case 4: return video_changed();
+        case 2: return o.ioff == 1 || (video_track_any(o) && !video_values_default());
+        case 1: return video_ind_active() && !video_values_default();
+        case 5: return !vm_undo_.empty();
+        default: return true;
+    }
+}
+
+void App::video_ind_action(int what) {
+    if (audiobook_ || !has_track_ || current_.path.empty() || !current_.is_local) { status_line_ = "video: play a track from your library first"; return; }
+    const std::string trk = path_utf8(current_.path);
+    VideoTrackOpts o = cover_track_video_opts(trk);
+    switch (what) {
+        case 0: {
+            const bool none = o.ioff != 1 && !video_track_any(o);
+            o.ioff = o.ioff == 1 ? -1 : none ? -1 : 1;
+            vtmp_on_ = false;
+            if (o.ioff == -1 && !video_track_any(o)) {   // (a track without individual settings gets them: a copy of the default values, to change from there)
+                o.fx = video_fx_canon(settings_.video_fx); o.base = settings_.video_base; o.fxc = settings_.video_fxc;
+                o.contrast = settings_.video_contrast; o.brightness = settings_.video_brightness; o.colors = settings_.video_colors;
+                o.chroma = settings_.video_chroma; o.dither = settings_.video_dither; o.gsat = settings_.video_grad_sat; o.gvivid = settings_.video_grad_vivid;
+                o.res = settings_.video_res; o.round = settings_.video_round ? 1 : 0; o.size = settings_.video_size; o.lyrics = settings_.video_lyrics;
+                vm_undo_.clear();
+                status_line_ = "video: this track has individual settings now (a copy of the default values: change them from here)";
+            } else status_line_ = o.ioff == 1 ? "video: the individual settings of this track are off (kept; the default settings apply)" : "video: the individual settings of this track are on again";
+            break;
+        }
+        case 1: {   // the individual values of the track become the default (general) settings
+            VideoTrackOpts L = o.ioff == 1 ? o : video_own(trk);
+            if (!video_track_any(L) || video_values_default()) { status_line_ = "video: this track has no individual values that differ from the default settings"; return; }
+            const VmSnap before = vm_snap();
+            if (L.fx >= 0) settings_.video_fx = video_fx_canon(L.fx);
+            if (L.base >= 0) settings_.video_base = L.base;
+            if (L.fxc >= 0) settings_.video_fxc = L.fxc;
+            if (L.contrast >= 0) settings_.video_contrast = L.contrast;
+            if (L.brightness >= 0) settings_.video_brightness = L.brightness;
+            if (L.colors >= 0) settings_.video_colors = L.colors;
+            if (L.chroma >= 0) settings_.video_chroma = L.chroma;
+            if (L.dither >= 0) settings_.video_dither = L.dither;
+            if (L.gsat >= 0) settings_.video_grad_sat = L.gsat;
+            if (L.gvivid >= 0) settings_.video_grad_vivid = L.gvivid;
+            if (L.res >= 0) settings_.video_res = L.res;
+            if (L.round >= 0) settings_.video_round = L.round == 1;
+            if (L.size >= 0) settings_.video_size = L.size;
+            if (L.lyrics >= 0) settings_.video_lyrics = L.lyrics;
+            vm_undo_.push_back(before); if (vm_undo_.size() > 60) vm_undo_.erase(vm_undo_.begin());
+            save_settings(settings_);
+            status_line_ = "video: the individual values of this track are now the default settings (Undo change takes them back)";
+            video_for_track_.clear(); ++video_rev_; video_pic_key_.clear(); force_redraw_ = true;
+            return;
+        }
+        case 2: {   // the individual values are removed: the general settings are in force
+            if (!video_track_any(o) && o.ioff != 1) { status_line_ = "video: this track has no individual settings"; return; }
+            ind_confirm_ = IndConfirm();
+            ind_confirm_.active = true; ind_confirm_.md = false; ind_confirm_.kind = 0; ind_confirm_.track = trk; ind_confirm_.ovo = o;
+            const int keep_audio = o.mp4audio;
+            o = VideoTrackOpts();
+            o.mp4audio = keep_audio;   // (the audio choice of a song is no look)
+            vtmp_on_ = false; vm_undo_.clear();
+            status_line_ = "video: the individual settings of this track are removed -- keep changes? [Y] / [N]";
+            break;
+        }
+        case 3: {   // the temporary values become the track's individual settings
+            if (!video_changed()) { status_line_ = "video: nothing has been changed yet"; return; }
+            const int keep_audio = o.mp4audio;
+            o = vtmp_;
+            o.mp4audio = keep_audio; o.ioff = -1;
+            vtmp_on_ = false; vm_undo_.clear();
+            status_line_ = "video: the current values are now the individual settings of this track";
+            break;
+        }
+        case 4: {   // the temporary changes are dropped
+            if (!video_changed()) { status_line_ = "video: nothing has been changed yet"; return; }
+            ind_confirm_ = IndConfirm();
+            ind_confirm_.active = true; ind_confirm_.md = false; ind_confirm_.kind = 1; ind_confirm_.track = trk; ind_confirm_.tvo = vtmp_; ind_confirm_.tvo_on = vtmp_on_;
+            vtmp_on_ = false; vm_undo_.clear();
+            video_for_track_.clear(); ++video_rev_; video_pic_key_.clear(); force_redraw_ = true;
+            status_line_ = "video: back to the individual settings of this track -- keep changes? [Y] / [N]";
+            return;
+        }
+        case 5:
+            if (vm_undo_.empty()) { status_line_ = "video: nothing to undo"; return; }
+            vm_restore(vm_undo_.back());
+            vm_undo_.pop_back();
+            status_line_ = "video: the last change is undone";
+            return;
+        default: return;
+    }
+    set_cover_track_video_opts(trk, o);
+    video_for_track_.clear(); ++video_rev_;
+    video_pic_key_.clear(); force_redraw_ = true;
+}
+
+bool App::ind_confirm_key(int key) {   // "Keep changes?" after a Reset: Y keeps, N / ESC (or anything that closes) gives the old values back
+    if (!ind_confirm_.active) return false;
+    const bool arrow = last_key_was_arrow();
+    if (arrow) return true;
+    if (key == 'y' || key == 'Y') {
+        ind_confirm_.active = false;
+        status_line_ = "individual settings reset: kept";
+        return true;
+    }
+    if (key == 'n' || key == 'N' || key == 27) {
+        const IndConfirm c = ind_confirm_;
+        ind_confirm_ = IndConfirm();
+        if (c.md && c.kind == 1) md_restore(c.tsnap);   // (the temporary layer of the visuals menu comes back)
+        else if (c.md) {
+            set_cover_track_milkdrop(c.track, c.omd);
+            if (has_track_ && !audiobook_ && path_utf8(current_.path) == c.track) milkdrop_track_apply();
+            milkdrop_pic_key_.clear();
+        } else if (c.kind == 1) {   // (the temporary layer of the video menus comes back)
+            vtmp_track_ = c.track; vtmp_ = c.tvo; vtmp_base_ = cover_track_video_opts(c.track); vtmp_on_ = c.tvo_on;
+            video_for_track_.clear(); ++video_rev_;
+            video_pic_key_.clear();
+        } else {
+            set_cover_track_video_opts(c.track, c.ovo);
+            video_for_track_.clear(); ++video_rev_;
+            video_pic_key_.clear();
+        }
+        status_line_ = "individual settings: the old values are back";
+        force_redraw_ = true;
+        return true;
+    }
+    return true;   // (nothing else works while the question is open)
 }
 
 void App::video_track_fx_step(int dir) {
-    if (video_override_) { video_set_fx(video_fx_step(settings_.video_fx, dir)); return; }   // (the general effect: the track's own is not in force)
+    if (video_individual_off()) { video_set_fx(video_fx_step(settings_.video_fx, dir)); return; }   // (the general effect: the track's own is not in force)
     const int nx = video_fx_step(video_fx_for(current_.path), dir);
     VideoTrackOpts o = cover_track_video_opts(path_utf8(current_.path));
     o.fx = nx;   // always the effect of this track (the same one as in the Style Option overlay), never the general setting
@@ -253,81 +571,194 @@ void App::video_full_toggle() {
     force_redraw_ = true;
 }
 
-// The keys of the full screen video. true: handled. LEFT / RIGHT (seek), SPACE/p (pause), + / - ... stay what they are.
-namespace {
-int vopts_step(int cur, int dir, int max_value, int step) {   // -1 ("as in Settings") and the values 0 .. max_value
-    const int count = max_value / step + 2;
-    int idx = cur < 0 ? 0 : cur / step + 1;
-    idx = ((idx + dir) % count + count) % count;
-    return idx == 0 ? -1 : (idx - 1) * step;
+// What the playing track has to do with a video decides which rows the video menus list: a track without a video only has the rows that get it one
+// ("Videos for songs"); a track with one has everything else.
+bool App::video_menu_has_video() const {
+    if (audiobook_ || !has_track_ || current_.path.empty() || !current_.is_local) return false;
+    return LocalSource::is_video_file(current_.path) || !video_source_for(current_.path).empty();
 }
-}  // namespace
 
+bool App::video_menu_restricted() const {   // the Video mode is on and the playing track has no video
+    return settings_.video_mode && has_track_ && !audiobook_ && !current_.path.empty() && current_.is_local && !video_menu_has_video();
+}
+
+bool App::video_row_visible(int id, bool big) const {
+    const bool has = video_menu_has_video();
+    switch (id) {
+        case kVmCouple: case kVmQuickSearch: case kVmFetchMenu: return true;   // (Videos for songs: always -- with a video only the other groups are there too)
+        case kVmDeleteVideo: case kVmRefetchVideo: return has;                  // (This track's video)
+        case kVmFullScreen: return !big && !video_menu_restricted();
+        case kVmMp4AudioRow: return big && has && video_opts_pair_;
+        default: return !video_menu_restricted();
+    }
+}
+
+std::vector<int> App::video_menu_rows(bool big) const {   // the ids of the rows on screen, in order
+    std::vector<int> v;
+    for (int id = 0; id < kVmRowCount; ++id) {
+        if (video_row_visible(id, big)) v.push_back(id);
+        if (id == kVmIndOn && video_row_visible(kVmMp4AudioRow, big)) v.push_back(kVmMp4AudioRow);
+    }
+    return v;
+}
+
+static int video_row_step(const std::vector<int>& rows, int sel, int by, bool wrap) {   // the row `by` places on from `sel` (a row not listed counts as the first)
+    if (rows.empty()) return sel;
+    const int n = static_cast<int>(rows.size());
+    int i = static_cast<int>(std::find(rows.begin(), rows.end(), sel) - rows.begin());
+    if (i >= n) return rows[static_cast<size_t>(by < 0 ? n - 1 : 0)];
+    i = wrap ? ((i + by) % n + n) % n : std::clamp(i + by, 0, n - 1);
+    return rows[static_cast<size_t>(i)];
+}
+
+static const char* video_row_label(int id) {
+    switch (id) {
+        case kVmVideoMode: return "Use Video in Lyrics Field";
+        case kVmLyrics: return "Include Lyrics";
+        case kVmAutoVideo: return "Auto Video";
+        case kVmCover: return "Disk/Cover/Thumbnail";
+        case kVmCoverSat: return "Cover Gradient Saturation";
+        case kVmSize: return "Video Size";
+        case kVmRounded: return "Rounded Corners";
+        case kVmEffect: return "Effect";
+        case kVmBase: return "Base Layer";
+        case kVmFxContrast: return "Effect Contrast";
+        case kVmContrast: return "Contrast";
+        case kVmBrightness: return "Brightness";
+        case kVmColors: return "Colors";
+        case kVmChroma: return "Chromatic Aberration";
+        case kVmDither: return "Dither Pattern";
+        case kVmGradSat: return "Gradient Saturation";
+        case kVmGradVivid: return "Gradient Vividness";
+        case kVmResolution: return "Resolution";
+        case kVmFrameRate: return "Frame Rate";
+        case kVmBuffer: return "Buffer";
+        case kVmClap: return "Show Clap Loading";
+        case kVmIndSet: return "Set current values as individual settings";
+        case kVmIndRevert: return "Reset to last track settings";
+        case kVmIndReset: return "Reset individual values to default settings";
+        case kVmIndCopy: return "Set individual settings as default settings";
+        case kVmUndo: return "Undo change";
+        case kVmIndOn: return "Use individual settings for this track";
+        case kVmMp4AudioRow: return "Use mp4 audio for this song";
+        case kVmFullScreen: return "Full Screen Video";
+        case kVmCouple: return "Manually Couple Local Files";
+        case kVmQuickSearch: return "Quick Search/Down. YT";
+        case kVmFetchMenu: return "General Fetch Videos Menu";
+        case kVmDeleteVideo: return "Delete Current Video";
+        case kVmRefetchVideo: return "Refetch this Video";
+        default: return "";
+    }
+}
+
+void App::video_delete_ask(bool refetch) {   // Delete Current Video / Refetch this Video: a question first
+    if (!has_track_ || current_.path.empty() || !current_.is_local) { status_line_ = "video: play a track from your library first"; return; }
+    if (LocalSource::is_video_file(current_.path)) { status_line_ = "this track is a video file itself -- delete it in FETCH VIDEOS -> VIDEO FILES"; return; }
+    const std::string v = video_source_for(current_.path);
+    if (v.empty()) { status_line_ = "this track has no video"; return; }
+    vdel_video_ = v;
+    vdel_stage_ = refetch ? 3 : 1;
+    vdel_sel_ = 0;
+}
+
+bool App::video_vdel_key(int key) {   // the question of Delete Current Video / Refetch this Video, over VIDEO SETTINGS or VIDEO OPTIONS
+    const bool arrow = last_key_was_arrow();
+    const bool tab = !arrow && key == '\t';
+    if ((arrow && (key == 'C' || key == 'D')) || tab) { vdel_sel_ = 1 - vdel_sel_; return true; }
+    if (!arrow && (key == 'y' || key == 'Y')) { vdel_sel_ = 1; return true; }
+    if (!arrow && (key == 'n' || key == 'N')) { vdel_sel_ = 0; return true; }
+    if (!arrow && key == 27) { vdel_stage_ = 0; vdel_video_.clear(); status_line_ = "nothing deleted"; return true; }
+    if (!arrow && (key == '\r' || key == '\n')) {
+        if (vdel_sel_ == 0) { status_line_ = vdel_stage_ == 3 ? "refetch cancelled" : "nothing deleted"; vdel_stage_ = 0; vdel_video_.clear(); return true; }
+        if (vdel_stage_ == 1) { vdel_stage_ = 2; vdel_sel_ = 0; return true; }   // the second question
+        if (vdel_stage_ == 2) {
+            std::string msg;
+            video_delete_file(vdel_video_, msg);
+            status_line_ = msg;
+            vdel_stage_ = 0;
+            vdel_video_.clear();
+            if (mode_ == Mode::VideoMenu) video_menu_close();
+            else { video_opts_open_ = false; video_pic_key_.clear(); force_redraw_ = true; }
+            return true;
+        }
+        vdel_stage_ = 0;   // 3: refetch
+        video_refetch_start();
+        return true;
+    }
+    return true;   // (nothing else works while the question is open)
+}
+
+// The keys of VIDEO OPTIONS (the big video) for the row `row` (a row id of VIDEO SETTINGS, or kVmMp4AudioRow).
 void App::video_opts_change(int row, int dir, bool reset) {
-    VideoTrackOpts o = cover_track_video_opts(path_utf8(current_.path));
+    if (row <= kVmLastSetting) { video_menu_step(row, dir, reset); return; }   // (the same as in VIDEO SETTINGS)
+    auto leave_big = [&] { video_only_ = false; video_full_ = false; video_opts_open_ = false; video_pic_key_.clear(); milkdrop_pic_key_.clear(); force_redraw_ = true; };
     switch (row) {
-        case kVoEffect: o.fx = reset ? -1 : video_fx_step(o.fx, dir, true); break;
-        case kVoContrast: o.contrast = reset ? -1 : vopts_step(o.contrast, dir, 100, 5); break;
-        case kVoBrightness: o.brightness = reset ? -1 : vopts_step(o.brightness, dir, 100, 5); break;
-        case kVoColors: o.colors = reset ? -1 : vopts_step(o.colors, dir, 100, 5); break;
-        case kVoChroma: o.chroma = reset ? -1 : vopts_step(o.chroma, dir, kChromaLevels - 1, 1); break;
-        case kVoDither: o.dither = reset ? -1 : vopts_step(o.dither, dir, kDitherPatterns - 1, 1); break;
-        case kVoBase: o.base = reset ? -1 : vopts_step(o.base, dir, kBaseLayers - 1, 1); break;
-        case kVoFxContrast: o.fxc = reset ? -1 : vopts_step(o.fxc, dir, kFxContrasts - 1, 1); break;
-        case kVoGradSat: o.gsat = reset ? -1 : vopts_step(o.gsat, dir, 100, 5); break;
-        case kVoResolution: o.res = reset ? -1 : vopts_step(o.res, dir, 2, 1); break;
-        case kVoRounded: o.round = reset ? -1 : vopts_step(o.round, dir, 1, 1); break;
-        case kVoOverride:   // for this session only; nothing is saved
-            video_override_ = !video_override_;
-            video_for_track_.clear(); ++video_rev_;
-            status_line_ = video_override_ ? "video: the general settings are used for every track (the individual ones are kept; until you turn this off or quit)" : "video: individual track settings are in force again";
-            video_pic_key_.clear(); force_redraw_ = true;
-            return;
-        case kVoMp4Audio: {   // Use mp4 audio for this song (a song paired with a video): the audio is loaded again at the same time
+        case kVmIndSet: if (!reset && dir > 0) video_ind_action(3); return;
+        case kVmIndRevert: if (!reset && dir > 0) video_ind_action(4); return;
+        case kVmIndReset: if (!reset && dir > 0) video_ind_action(2); return;
+        case kVmIndCopy: if (!reset && dir > 0) video_ind_action(1); return;
+        case kVmUndo: if (!reset && dir > 0) video_ind_action(5); return;
+        case kVmIndOn: if (!reset) video_ind_action(0); return;
+        case kVmCouple: if (!reset && dir > 0) { leave_big(); video_link_open(has_track_ ? current_.path : fs::path(), Mode::Browse); } return;
+        case kVmQuickSearch: if (!reset && dir > 0) { leave_big(); video_search_open(); } return;
+        case kVmFetchMenu: if (!reset && dir > 0) { leave_big(); video_fetch_open(); } return;
+        case kVmDeleteVideo: case kVmRefetchVideo: if (!reset && dir > 0) video_delete_ask(row == kVmRefetchVideo); return;
+        case kVmMp4AudioRow: {   // Use mp4 audio for this song (a song paired with a video): the audio is loaded again at the same time
+            VideoTrackOpts o = cover_track_video_opts(path_utf8(current_.path));
             const int before = o.mp4audio;
             o.mp4audio = reset ? -1 : (o.mp4audio == 1 ? -1 : 1);
             set_cover_track_video_opts(path_utf8(current_.path), o);
             if (o.mp4audio != before) { reload_current_audio(); status_line_ = o.mp4audio == 1 ? "mp4 audio for this song: true -- the audio is loaded again, at the same time" : "mp4 audio for this song: false -- the audio is loaded again, at the same time"; }
-            break;
+            return;
         }
         default: return;
     }
-    set_cover_track_video_opts(path_utf8(current_.path), o);
-    video_pic_key_.clear();
-    if (row == kVoResolution) { video_for_track_.clear(); ++video_rev_; force_redraw_ = true; }   // (the resolution: the video is read again; the other rows only change the picture)
 }
 
-// The rows of VIDEO OPTIONS (SHIFT+s in the big video), `inner` columns each: the note, a free row, the options (the one selected lit), a free row.
+// The rows of VIDEO OPTIONS (the Video key in the big video), `inner` columns each: every row of VIDEO SETTINGS (except Full Screen Video) that applies to
+// the track -- a track without a video only has the Videos for songs; the selected row lit.
 std::vector<std::string> App::video_opts_rows(int inner) const {
+    const bool trk = has_track_ && !audiobook_ && !current_.path.empty() && current_.is_local;
     const VideoTrackOpts o = cover_track_video_opts(path_utf8(current_.path));
-    auto pct = [&](int own, int global) { return own >= 0 ? std::to_string(own) + " %" : std::string("as in Settings (") + std::to_string(global) + " %)"; };
-    struct Row { const char* label; std::string value; };
-    std::vector<Row> rows = {
-        {"Video Effect", o.fx >= 0 ? std::string(video_fx_name(o.fx)) : std::string("VIDEO SETTINGS (") + video_fx_name(settings_.video_fx) + ")"},
-        {"Video Base Layer", o.base >= 0 ? std::string(base_name(o.base)) : std::string("as in Settings (") + base_name(settings_.video_base) + ")"},
-        {"Video Effect Contrast", o.fxc >= 0 ? std::string(fxc_name(o.fxc)) : std::string("as in Settings (") + fxc_name(settings_.video_fxc) + ")"},
-        {"Video Contrast", pct(o.contrast, settings_.video_contrast)},
-        {"Video Brightness", pct(o.brightness, settings_.video_brightness)},
-        {"Video Colors", pct(o.colors, settings_.video_colors)},
-        {"Video Chromatic Aberration", o.chroma >= 0 ? std::string(chroma_name(o.chroma)) : std::string("as in Settings (") + chroma_name(settings_.video_chroma) + ")"},
-        {"Video Dither Pattern", o.dither >= 0 ? std::string(dither_name(o.dither)) : std::string("as in Settings (") + dither_name(settings_.video_dither) + ")"},
-        {"Video Gradient Saturation", pct(o.gsat, settings_.video_grad_sat)},
-        {"Video Resolution", o.res >= 0 ? std::string(video_res_name(o.res)) : std::string("as in Settings (") + video_res_name(settings_.video_res) + ")"},
-        {"Video Rounded Corners", o.round >= 0 ? std::string(o.round ? "on" : "off") : std::string("as in Settings (") + (settings_.video_round ? "on" : "off") + ")"},
-    };
-    rows.push_back({"Override Individual Settings", video_override_ ? std::string("on (this session)") : std::string("off")});
-    if (video_opts_pair_) rows.push_back({"Use mp4 audio for this song", o.mp4audio == 1 ? std::string("true") : std::string("false")});
-    std::vector<std::string> out;
+    const std::string hc = ansi_for(settings_.header_color, false);
+    const std::string legend_col = legend_sgr(settings_).empty() ? std::string("\x1b[2m") : legend_sgr(settings_);
+    const std::vector<int> ids = video_menu_rows(true);
     auto plain = [&](const std::string& t) { return pad_right(truncate_str(t, inner), inner); };
-    {   // the note in the header colour, as in Style Option
-        const std::string hc = ansi_for(settings_.header_color, false);
-        out.push_back(hc + plain(video_override_ ? " Only for this track (override on: not used)." : " Only for this track.") + (hc.empty() ? "" : "\x1b[0m"));
-    }
+    auto head = [&](const char* title) { return hc + plain(std::string(" ") + title) + (hc.empty() ? "" : "\x1b[0m"); };
+    const int lw = 27;
+    std::vector<std::string> out;
     out.push_back(plain(""));
-    for (int i = 0; i < static_cast<int>(rows.size()); ++i) {
-        std::string t = " " + pad_right(rows[static_cast<size_t>(i)].label, 27) + " \u25c0 " + rows[static_cast<size_t>(i)].value + " \u25b6";
+    int last_group = -1;
+    for (const int id : ids) {
+        const int group = id <= kVmLastSetting ? 0 : id <= kVmIndOn || id == kVmMp4AudioRow ? 1 : id == kVmCouple || id == kVmQuickSearch || id == kVmFetchMenu ? 2 : 3;
+        if (group != last_group) {
+            if (last_group >= 0) out.push_back(plain(""));
+            if (group == 1) out.push_back(head("INDIVIDUAL TRACK SETTINGS MANAGEMENT"));
+            else if (group == 2) out.push_back(head("Videos for songs"));
+            else if (group == 3) out.push_back(head("This track's video"));
+            last_group = group;
+        }
+        const bool sel = id == video_opts_sel_;
+        const std::string label = video_row_label(id);
+        if (id >= kVmIndSet && id <= kVmUndo) {   // (a button: [ENTER] on the right, in the legend colours while there is nothing to do)
+            const bool on = trk && video_button_on(id == kVmIndSet ? 3 : id == kVmIndRevert ? 4 : id == kVmIndReset ? 2 : id == kVmIndCopy ? 1 : 5);
+            const std::string left = pad_right(truncate_str(" " + label, inner - 10), inner - 10);
+            if (sel) out.push_back("\x1b[7m" + left + " [ENTER]  \x1b[0m");
+            else out.push_back(left + " " + (on ? std::string() : legend_col) + "[ENTER]" + (on ? std::string() : "\x1b[0m") + "  ");
+            continue;
+        }
+        if (id == kVmCouple || id == kVmQuickSearch || id == kVmFetchMenu || id == kVmDeleteVideo || id == kVmRefetchVideo) {   // (a button that opens something)
+            const std::string t = plain(" [ " + label + " ]");
+            out.push_back(sel ? "\x1b[7m" + t + "\x1b[0m" : t);
+            continue;
+        }
+        std::string value;
+        if (id == kVmIndOn) value = o.ioff == 1 ? "off (kept)" : video_track_any(o) ? "on" : "off (none set)";
+        else if (id == kVmMp4AudioRow) value = o.mp4audio == 1 ? "true" : "false";
+        else value = video_vm_text(id);
+        std::string t = " " + pad_right(label, lw) + " ◀ " + value + " ▶";
         t = pad_right(truncate_str(t, inner - 1), inner - 1) + " ";
-        out.push_back(i == video_opts_sel_ ? "\x1b[7m" + t + "\x1b[0m" : t);
+        out.push_back(sel ? "\x1b[7m" + t + "\x1b[0m" : t);
     }
     out.push_back(plain(""));
     return out;
@@ -335,12 +766,14 @@ std::vector<std::string> App::video_opts_rows(int inner) const {
 
 std::vector<std::string> App::build_video_opts_panel() const {   // (a narrow window: the panel over the picture)
     const int W = kVideoOptsPanelWidth, inner = W - 2;
+    const std::string vkey = hotkey_text("HKeyVideo", "&");
     const std::string border = ansi_for(settings_.border_color, false);
     const std::string bar = border.empty() ? settings_.box_vertical : (border + settings_.box_vertical + "\x1b[0m");
     std::vector<std::string> lines;
     lines.push_back(box_top("VIDEO OPTIONS  " + truncate_str(path_utf8(current_.path.filename()), 36), W, border));
     for (const std::string& r : video_opts_rows(inner)) lines.push_back(bar + r + bar);
-    lines.push_back(box_bottom(W, "[\u2191\u2193] select  [\u2190\u2192] change  [DEL/d] reset  [S / ESC] close", settings_.border_color_bottom.empty() ? border : ansi_for(settings_.border_color_bottom, false)));
+    lines.push_back(box_bottom(W, ind_confirm_.active ? "Keep changes?   [Y] keep   [N / ESC] undo" : "[\u2191\u2193] select  [\u2190\u2192] change  [DEL/d] reset  [" + vkey + " / ESC] close", settings_.border_color_bottom.empty() ? border : ansi_for(settings_.border_color_bottom, false)));
+    window_lines(lines, term_rows_ - 2, 1, 1, vopts_top_, [&](const std::string& t) { return bar + (legend_sgr(settings_).empty() ? std::string("\x1b[2m") : legend_sgr(settings_)) + pad_right(truncate_str(t, inner), inner) + "\x1b[0m" + bar; });
     return lines;
 }
 
@@ -348,6 +781,7 @@ std::vector<std::string> App::build_video_opts_panel() const {   // (a narrow wi
 // the window allows, at the resolution the video has everywhere (the same drawing as the big video: every change shows at once). "" when the
 // window is too narrow for both (the panel over the picture then).
 std::string App::build_video_opts_screen(int W, const char* clear_prefix) const {
+    const std::string vkey = hotkey_text("HKeyVideo", "&");
     const int H = std::max(6, term_rows_ - 1);   // (as the big video: the last row of the terminal stays free, nothing scrolls)
     const int left_w = kVideoOptsPanelWidth - 2;
     const int mg = 1;
@@ -364,7 +798,8 @@ std::string App::build_video_opts_screen(int W, const char* clear_prefix) const 
         const int pad = std::max(0, (pw - display_width(msg)) / 2);
         pic[static_cast<size_t>(ph / 2)] = std::string(static_cast<size_t>(pad), ' ') + msg + std::string(static_cast<size_t>(std::max(0, pw - pad - display_width(msg))), ' ');
     }
-    const std::vector<std::string> left = video_opts_rows(left_w);
+    std::vector<std::string> left = video_opts_rows(left_w);
+    window_lines(left, ph, 0, 0, vopts_top_, [&](const std::string& t) { return (legend_sgr(settings_).empty() ? std::string("\x1b[2m") : legend_sgr(settings_)) + pad_right(truncate_str(t, left_w), left_w) + "\x1b[0m"; });
     const int ltop = std::max(0, (ph - static_cast<int>(left.size())) / 2);
     std::ostringstream f;
     f << clear_prefix << "\x1b[?25l";
@@ -375,23 +810,26 @@ std::string App::build_video_opts_screen(int W, const char* clear_prefix) const 
         const std::string p = r < static_cast<int>(pic.size()) ? pic[static_cast<size_t>(r)] : std::string(static_cast<size_t>(pw), ' ');
         f << bar << l << bar << std::string(static_cast<size_t>(mg), ' ') << p << "\x1b[0m" << std::string(static_cast<size_t>(mg), ' ') << bar << "\n";
     }
-    f << box_bottom(W, "[\u2191\u2193] select  [\u2190\u2192] change  [ENTER] effect list  [DEL/d] reset  [S / ESC] back to the video", border_bottom.empty() ? border : border_bottom);
+    f << box_bottom(W, ind_confirm_.active ? "Keep changes?   [Y] keep   [N / ESC] undo" : "[\u2191\u2193] select  [\u2190\u2192] change  [ENTER] effect list  [DEL/d] reset  [" + vkey + " / ESC] back to the video", border_bottom.empty() ? border : border_bottom);
     return clamp_output_rows(f.str(), term_rows_);
 }
 
 bool App::video_full_key(int key) {
     const bool arrow = last_key_was_arrow();
     if (video_opts_open_) {   // the options panel over the picture
-        if (!arrow && (key == 27 || key == 's' || key == 'S')) { video_opts_open_ = false; video_pic_key_.clear(); force_redraw_ = true; return true; }   // (clearing the key sends the whole picture again: a paused video has no new frame, and the old pixels still have the panel's hole in them)
-        if (arrow && key == 'A') { { const int n = vopts_row_count(video_opts_pair_); video_opts_sel_ = (video_opts_sel_ + n - 1) % n; } return true; }
-        if (arrow && key == 'B') { video_opts_sel_ = (video_opts_sel_ + 1) % vopts_row_count(video_opts_pair_); return true; }
+        if (ind_confirm_key(key)) return true;
+        if (vdel_stage_ > 0) return video_vdel_key(key);   // (the question of Delete Current Video / Refetch this Video)
+        { const std::vector<int> rows = video_menu_rows(true); video_opts_sel_ = video_row_step(rows, video_opts_sel_, 0, false); }   // (the rows follow the track)
+        if (!arrow && (key == 27 || key_is("HKeyVideo", key))) { video_opts_open_ = false; video_pic_key_.clear(); force_redraw_ = true; return true; }   // (clearing the key sends the whole picture again: a paused video has no new frame, and the old pixels still have the panel's hole in them)
+        if (arrow && key == 'A') { video_opts_sel_ = video_row_step(video_menu_rows(true), video_opts_sel_, last_key_was_shifted() ? -std::max(3, term_rows_ - 10) : -1, !last_key_was_shifted()); return true; }
+        if (arrow && key == 'B') { video_opts_sel_ = video_row_step(video_menu_rows(true), video_opts_sel_, last_key_was_shifted() ? std::max(3, term_rows_ - 10) : 1, !last_key_was_shifted()); return true; }
         if (arrow && (key == 'C' || key == 'D')) { video_opts_change(video_opts_sel_, key == 'C' ? 1 : -1, false); return true; }
-        if (!arrow && (key == '\r' || key == '\n') && video_opts_sel_ == kVoEffect) { fxpick_open(2); return true; }
+        if (!arrow && (key == '\r' || key == '\n') && video_opts_sel_ == kVmEffect) { fxpick_open(2); return true; }
         if (!arrow && (key == '\r' || key == '\n' || key == ' ')) { video_opts_change(video_opts_sel_, 1, false); return true; }
         if (!arrow && (key == 'd' || key == 'r' || key == kKeyDelete || key == 127)) { video_opts_change(video_opts_sel_, 0, true); return true; }
         return true;   // (nothing else works under the panel)
     }
-    if (!arrow && (key == 's' || key == 'S')) { video_opts_open_ = true; video_opts_sel_ = 0; video_opts_pair_ = song_paired_with_video(current_.path); force_redraw_ = true; return true; }
+    if (!arrow && key_is("HKeyVideo", key)) { video_opts_pair_ = song_paired_with_video(current_.path); video_opts_open_ = true; video_opts_sel_ = video_row_step(video_menu_rows(true), 0, 0, false); vopts_top_ = 0; force_redraw_ = true; return true; }
     if (!arrow && key == 'f') { video_only_ = !video_only_; video_pic_key_.clear(); milkdrop_pic_key_.clear(); force_redraw_ = true; return true; }   // the picture alone, over the whole window
     if (!arrow && key == 27 && video_only_) { video_only_ = false; video_pic_key_.clear(); milkdrop_pic_key_.clear(); force_redraw_ = true; return true; }   // (ESC first brings the box back)
     if (!arrow && (key == 27 || key_is("HKeyVideoFull", key))) { video_only_ = false; video_full_ = false; video_opts_open_ = false; video_pic_key_.clear(); force_redraw_ = true; return true; }
@@ -450,7 +888,7 @@ bool App::video_full_key(int key) {
         return true;
     }
     if (arrow && (key == 'A' || key == 'B') && vfull_layout().source_md) {   // the MilkDrop visuals are shown: UP / DOWN change THEIR effect (this track's own, as the video's)
-        if (md_override_) { milkdrop_effect_step(key == 'B' ? 1 : -1, true); return true; }   // (Override Individual Settings: the general effect)
+        if (md_individual_off()) { milkdrop_effect_step(key == 'B' ? 1 : -1, true); return true; }   // (the individual settings are off: the general effect)
         MilkdropTrackOpts mo = cover_track_milkdrop(path_utf8(current_.path));
         const MdEff e = milkdrop_eff();
         const int start = mo.fx >= 0 ? mo.fx : settings_.milkdrop_fx;
@@ -511,51 +949,36 @@ bool App::video_full_key(int key) {
 
 void App::video_menu_key(int key) {
     const bool arrow = last_key_was_arrow();
-    constexpr int kRows = kVmRowCount;
-    if (vdel_stage_ > 0) {   // a question is open over the overlay
-        const bool tab = !arrow && key == '\t';
-        if ((arrow && (key == 'C' || key == 'D')) || tab) { vdel_sel_ = 1 - vdel_sel_; return; }
-        if (!arrow && (key == 'y' || key == 'Y')) { vdel_sel_ = 1; return; }
-        if (!arrow && (key == 'n' || key == 'N')) { vdel_sel_ = 0; return; }
-        if (!arrow && key == 27) { vdel_stage_ = 0; vdel_video_.clear(); status_line_ = "nothing deleted"; return; }
-        if (!arrow && (key == '\r' || key == '\n')) {
-            if (vdel_sel_ == 0) { status_line_ = vdel_stage_ == 3 ? "refetch cancelled" : "nothing deleted"; vdel_stage_ = 0; vdel_video_.clear(); return; }
-            if (vdel_stage_ == 1) { vdel_stage_ = 2; vdel_sel_ = 0; return; }   // the second question
-            if (vdel_stage_ == 2) {
-                std::string msg;
-                video_delete_file(vdel_video_, msg);
-                status_line_ = msg;
-                vdel_stage_ = 0;
-                vdel_video_.clear();
-                video_menu_close();
-                return;
-            }
-            vdel_stage_ = 0;   // 3: refetch
-            video_refetch_start();
-            return;
-        }
+    if (ind_confirm_key(key)) return;
+    if (vdel_stage_ > 0) { video_vdel_key(key); return; }   // a question is open over the overlay
+    vmenu_sel_ = video_row_step(video_menu_rows(false), vmenu_sel_, 0, false);   // (the rows follow the track: a row that is not listed any more is left)
+    if (arrow && (key == 'A' || key == 'B') && last_key_was_shifted()) {   // SHIFT+UP / DOWN: a page at a time (stops at the ends)
+        const int page = std::max(3, term_rows_ - 10);
+        vmenu_sel_ = video_row_step(video_menu_rows(false), vmenu_sel_, key == 'A' ? -page : page, false);
         return;
     }
-    if (arrow && key == 'A') { vmenu_sel_ = (vmenu_sel_ + kRows - 1) % kRows; return; }
-    if (arrow && key == 'B') { vmenu_sel_ = (vmenu_sel_ + 1) % kRows; return; }
-    if (arrow && (key == 'C' || key == 'D')) { if (vmenu_sel_ <= kVmLastSetting) video_menu_change(vmenu_sel_, key == 'C' ? 1 : -1); return; }
+    if (arrow && key == 'A') { vmenu_sel_ = video_row_step(video_menu_rows(false), vmenu_sel_, -1, true); return; }
+    if (arrow && key == 'B') { vmenu_sel_ = video_row_step(video_menu_rows(false), vmenu_sel_, 1, true); return; }
+    if (arrow && (key == 'C' || key == 'D')) {
+        if (vmenu_sel_ <= kVmLastSetting) video_menu_step(vmenu_sel_, key == 'C' ? 1 : -1, false);
+        else if (vmenu_sel_ == kVmIndOn) video_ind_action(0);
+        return;
+    }
+    if (!arrow && (key == 'd' || key == 'r' || key == kKeyDelete || key == 127) && vmenu_sel_ <= kVmLastSetting) { video_menu_step(vmenu_sel_, 0, true); return; }
     if (!arrow && (key == '\r' || key == '\n' || key == ' ')) {
         if (vmenu_sel_ == kVmEffect) { fxpick_open(1); return; }
-        if (vmenu_sel_ <= kVmLastSetting) { video_menu_change(vmenu_sel_, 1); return; }
+        if (vmenu_sel_ <= kVmLastSetting) { video_menu_step(vmenu_sel_, 1, false); return; }
+        if (vmenu_sel_ == kVmIndSet) { video_ind_action(3); return; }
+        if (vmenu_sel_ == kVmIndRevert) { video_ind_action(4); return; }
+        if (vmenu_sel_ == kVmIndReset) { video_ind_action(2); return; }
+        if (vmenu_sel_ == kVmIndCopy) { video_ind_action(1); return; }
+        if (vmenu_sel_ == kVmUndo) { video_ind_action(5); return; }
+        if (vmenu_sel_ == kVmIndOn) { video_ind_action(0); return; }
         if (vmenu_sel_ == kVmFullScreen) { video_menu_close(); video_full_toggle(); return; }
         if (vmenu_sel_ == kVmCouple) { video_menu_close(); video_link_open(has_track_ ? current_.path : fs::path(), Mode::Browse); return; }
         if (vmenu_sel_ == kVmQuickSearch) { video_menu_close(); video_search_open(); return; }
         if (vmenu_sel_ == kVmFetchMenu) { video_menu_close(); video_fetch_open(); return; }
-        if (vmenu_sel_ == kVmDeleteVideo || vmenu_sel_ == kVmRefetchVideo) {   // Delete Current Video / Refetch this Video: a question first
-            if (!has_track_ || current_.path.empty() || !current_.is_local) { status_line_ = "video: play a track from your library first"; return; }
-            if (LocalSource::is_video_file(current_.path)) { status_line_ = "this track is a video file itself -- delete it in FETCH VIDEOS -> VIDEO FILES"; return; }
-            const std::string v = video_source_for(current_.path);
-            if (v.empty()) { status_line_ = "this track has no video"; return; }
-            vdel_video_ = v;
-            vdel_stage_ = vmenu_sel_ == kVmDeleteVideo ? 1 : 3;
-            vdel_sel_ = 0;
-            return;
-        }
+        if (vmenu_sel_ == kVmDeleteVideo || vmenu_sel_ == kVmRefetchVideo) { video_delete_ask(vmenu_sel_ == kVmRefetchVideo); return; }   // a question first
     }
     const std::string act = resolve_hotkey_action(key);
     if (!arrow && (key == 27 || act == "HKeyVideo")) video_menu_close();
@@ -591,41 +1014,53 @@ std::vector<std::string> App::build_video_menu_panel() const {
     };
     std::vector<std::string> lines;
     lines.push_back(box_top("VIDEO SETTINGS", W, border));
-    lines.push_back(section("Switches"));
-    lines.push_back(row(entry(vmenu_sel_ == kVmVideoMode, "Use Video in Lyrics Field", toggle(settings_.video_mode)), vmenu_sel_ == kVmVideoMode));
-    lines.push_back(row(entry(vmenu_sel_ == kVmLyrics, "Include Lyrics", std::string("< ") + lyr_mode_name(settings_.video_lyrics) + " >"), vmenu_sel_ == kVmLyrics));
-    lines.push_back(row(entry(vmenu_sel_ == kVmAutoVideo, "Auto Video (else Lyrics/Viz Default)", toggle(settings_.video_auto)), vmenu_sel_ == kVmAutoVideo));
-    lines.push_back(row(entry(vmenu_sel_ == kVmCover, "Disk/Cover/Thumbnail", std::string("< ") + (settings_.video_cover == 1 ? "thumbnail" : settings_.video_cover == 2 ? "disk" : settings_.video_cover == 3 ? "thumbnail fallback" : "cover") + " >"), vmenu_sel_ == kVmCover));
-    lines.push_back(row(entry(vmenu_sel_ == kVmCoverSat, "Cover Gradient Saturation", "< " + std::to_string(std::clamp(settings_.cover_grad_sat, 0, 100)) + " % >"), vmenu_sel_ == kVmCoverSat));
-    lines.push_back(section("Video"));
-    lines.push_back(row(entry(vmenu_sel_ == kVmSize, "Video Size", std::string("< ") + (settings_.video_size == 1 ? "cropped" : settings_.video_size == 2 ? "full" : settings_.video_size == 3 ? "framed" : "regular") + " >"), vmenu_sel_ == kVmSize));
-    lines.push_back(row(entry(vmenu_sel_ == kVmRounded, "Rounded Corners", toggle(settings_.video_round)), vmenu_sel_ == kVmRounded));
-    lines.push_back(row(entry(vmenu_sel_ == kVmEffect, "Effect", std::string("< ") + video_fx_name(settings_.video_fx) + " >"), vmenu_sel_ == kVmEffect));
-    lines.push_back(row(entry(vmenu_sel_ == kVmBase, "Base Layer", std::string("< ") + base_name(settings_.video_base) + " >"), vmenu_sel_ == kVmBase));
-    lines.push_back(row(entry(vmenu_sel_ == kVmFxContrast, "Effect Contrast", std::string("< ") + fxc_name(settings_.video_fxc) + " >"), vmenu_sel_ == kVmFxContrast));
-    {
-        auto pct = [&](int v) { return std::string("< ") + std::to_string(std::clamp(v, 0, 100)) + " % >"; };
-        lines.push_back(row(entry(vmenu_sel_ == kVmContrast, "Contrast", pct(settings_.video_contrast)), vmenu_sel_ == kVmContrast));
-        lines.push_back(row(entry(vmenu_sel_ == kVmBrightness, "Brightness", pct(settings_.video_brightness)), vmenu_sel_ == kVmBrightness));
-        lines.push_back(row(entry(vmenu_sel_ == kVmColors, "Colors", pct(settings_.video_colors)), vmenu_sel_ == kVmColors));
-        lines.push_back(row(entry(vmenu_sel_ == kVmChroma, "Chromatic Aberration", std::string("< ") + chroma_name(settings_.video_chroma) + " >"), vmenu_sel_ == kVmChroma));
-        lines.push_back(row(entry(vmenu_sel_ == kVmDither, "Dither Pattern", std::string("< ") + dither_name(settings_.video_dither) + " >"), vmenu_sel_ == kVmDither));
-        lines.push_back(row(entry(vmenu_sel_ == kVmGradSat, "Gradient Saturation", pct(settings_.video_grad_sat)), vmenu_sel_ == kVmGradSat));
-        lines.push_back(row(entry(vmenu_sel_ == kVmResolution, "Resolution", std::string("< ") + video_res_label(settings_.video_res, gfxs_.proto == GfxProto::Sixel) + " >"), vmenu_sel_ == kVmResolution));
-        lines.push_back(row(entry(vmenu_sel_ == kVmFrameRate, "Frame Rate", std::string("< ") + (settings_.video_fps >= 60 ? "60" : "25") + " >"), vmenu_sel_ == kVmFrameRate));
-        lines.push_back(row(entry(vmenu_sel_ == kVmBuffer, "Buffer", "< " + std::to_string(settings_.video_buffer) + " MB >"), vmenu_sel_ == kVmBuffer));
+    const std::vector<int> ids = video_menu_rows(false);
+    const bool trk = has_track_ && !audiobook_ && !current_.path.empty() && current_.is_local;
+    const VideoTrackOpts vo = trk ? cover_track_video_opts(path_utf8(current_.path)) : VideoTrackOpts();
+    const std::string legend_col = legend_sgr(settings_).empty() ? std::string("\x1b[2m") : legend_sgr(settings_);
+    auto act = [&](int idx, const std::string& label, bool on) {   // a button of the management: [ENTER] on the right, in the legend colours while there is nothing to do
+        const bool sel = vmenu_sel_ == idx;
+        const std::string left = pad_right(truncate_str(std::string(sel ? "> " : "  ") + label, inner - 8), inner - 8);
+        if (sel) return bar + " " + HI + left + "[ENTER] " + R + " " + bar;
+        return bar + " " + left + (on ? std::string() : legend_col) + "[ENTER]" + (on ? std::string() : R) + " " + " " + bar;
+    };
+    auto line_for = [&](int id) -> std::string {
+        const bool sel = vmenu_sel_ == id;
+        const std::string label = video_row_label(id);
+        auto sel_row = [&](const std::string& name, const std::string& value) { return row(entry(sel, name, value), sel); };
+        switch (id) {
+            case kVmVideoMode: return sel_row(label, toggle(settings_.video_mode));
+            case kVmAutoVideo: return sel_row("Auto Video (else Lyrics/Viz Default)", toggle(settings_.video_auto));
+            case kVmCover: return sel_row(label, std::string("< ") + (settings_.video_cover == 1 ? "thumbnail" : settings_.video_cover == 2 ? "disk" : settings_.video_cover == 3 ? "thumbnail fallback" : "cover") + " >");
+            case kVmCoverSat: return sel_row(label, "< " + std::to_string(std::clamp(settings_.cover_grad_sat, 0, 100)) + " % >");
+            case kVmFrameRate: return sel_row(label, std::string("< ") + (settings_.video_fps >= 60 ? "60" : "25") + " >");
+            case kVmBuffer: return sel_row(label, "< " + std::to_string(settings_.video_buffer) + " MB >");
+            case kVmClap: return sel_row(label, std::string("< ") + (settings_.video_clap == 2 ? "none" : settings_.video_clap == 0 ? "text note" : "clap") + " >");
+            case kVmIndSet: return act(id, label, video_button_on(3));
+            case kVmIndRevert: return act(id, label, video_button_on(4));
+            case kVmIndReset: return act(id, label, video_button_on(2));
+            case kVmIndCopy: return act(id, label, video_button_on(1));
+            case kVmUndo: return act(id, label, video_button_on(5));
+            case kVmIndOn: return sel_row(label, vo.ioff == 1 ? std::string("[ ] off (kept)") : video_track_any(vo) ? std::string("[x] on") : std::string("[ ] off (none set)"));
+            case kVmFullScreen: case kVmCouple: case kVmQuickSearch: case kVmFetchMenu: case kVmDeleteVideo: case kVmRefetchVideo: return button(id, label);
+            default: return sel_row(label, "< " + video_vm_text(id) + " >");   // (the rows of the picture: Size ... Resolution, Include Lyrics)
+        }
+    };
+    struct Group { const char* title; int first, last; };
+    static const Group kGroups[] = {{"Switches", kVmVideoMode, kVmCoverSat}, {"Video", kVmSize, kVmClap}, {"INDIVIDUAL TRACK SETTINGS MANAGEMENT", kVmIndSet, kVmIndOn},
+                                    {"Full screen", kVmFullScreen, kVmFullScreen}, {"Videos for songs", kVmCouple, kVmFetchMenu}, {"This track's video", kVmDeleteVideo, kVmRefetchVideo}};
+    for (const Group& g : kGroups) {
+        bool head_done = false;
+        for (const int id : ids) {
+            const bool in = (id >= g.first && id <= g.last) || (g.first == kVmIndSet && id == kVmMp4AudioRow);
+            if (!in) continue;
+            if (!head_done) { lines.push_back(section(g.title)); head_done = true; }
+            lines.push_back(line_for(id));
+        }
     }
-    lines.push_back(row(entry(vmenu_sel_ == kVmClap, "Show Clap Loading", std::string("< ") + (settings_.video_clap == 2 ? "none" : settings_.video_clap == 0 ? "text note" : "clap") + " >"), vmenu_sel_ == kVmClap));
-    lines.push_back(row(entry(vmenu_sel_ == kVmOverride, "Override Individual Settings", toggle(video_override_)), vmenu_sel_ == kVmOverride));
-    lines.push_back(button(kVmFullScreen, "Full Screen Video"));
-    lines.push_back(section("Videos for songs"));
-    lines.push_back(button(kVmCouple, "Manually Couple Local Files"));
-    lines.push_back(button(kVmQuickSearch, "Quick Search/Down. YT"));
-    lines.push_back(button(kVmFetchMenu, "General Fetch Videos Menu"));
-    lines.push_back(section("This track's video"));
-    lines.push_back(button(kVmDeleteVideo, "Delete Current Video"));
-    lines.push_back(button(kVmRefetchVideo, "Refetch this Video"));
-    lines.push_back(centred_bottom(settings_, W, "[UP/DOWN] [ENTER] [←→] change  [ESC] close", border_bottom));
+    const bool more = static_cast<int>(lines.size()) + 1 > term_rows_ - 2;   // (taller than the terminal: it scrolls with the selection)
+    lines.push_back(centred_bottom(settings_, W, ind_confirm_.active ? "Keep changes?  [Y] keep  [N / ESC] undo" : more ? "[UP/DOWN] [SHIFT+↑↓] page [←→] change [ESC]" : "[UP/DOWN] [ENTER] [←→] change  [ESC] close", border_bottom));
+    window_lines(lines, term_rows_ - 2, 1, 1, vmenu_top_, [&](const std::string& t) { return bar + " " + legend_col + pad_right(truncate_str(t, inner), inner) + R + " " + bar; });
     return lines;
 }
 
@@ -1153,23 +1588,18 @@ std::vector<std::string> App::build_video_delete_panel() const {
 // further questions. The old video stays connected until the new one has arrived (the new connection replaces it); a failed download leaves
 // everything as it was. A downloaded old file (video_down folder / the download list) is deleted afterwards, a file from the user's own
 // folders never.
-void App::video_refetch_start() {
+void App::video_refetch_start() {   // Refetch this Video: the quick search list of the song (a choice, as in "Quick Search/Down. YT"); the old downloaded file goes once the new one is connected
     const fs::path song = current_.path;
     const std::string p = path_utf8(song);
     const std::string old = video_source_for(song);
+    video_only_ = false; video_full_ = false; video_opts_open_ = false; video_pic_key_.clear(); milkdrop_pic_key_.clear();
     video_menu_close();
-    video_fetch_open(song);
+    vs_->query.clear();   // (the search text is made again from the song)
+    video_search_open();
     if (!old.empty() && video_is_download(old)) vfs_->replace[p] = old;
     else vfs_->replace.erase(p);
-    for (VFEntry& e : vfs_->all) {
-        if (path_utf8(e.path) != p) continue;
-        e.refetch = true;
-        e.searched = false; e.searching = false; e.queued = false; e.cands.clear(); e.choice = -1;
-    }
-    vfs_->v_auto = p;
-    vfs_->video_fetch_enqueue(p, true);
-    vfs_->msg = "refetch: searching the video again, the closest hit is downloaded by itself ...";
-    vfs_->warn = false;
+    vs_->msg = "refetch: choose the new video (ENTER downloads it, the old one is deleted afterwards)";
+    vs_->warn = false;
     force_redraw_ = true;
 }
 

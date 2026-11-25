@@ -507,6 +507,7 @@ void App::poll_pending_load() {
     video_auto_apply();   // (Video overlay: Auto Video) before the lyrics are fetched, they depend on the view
     milkdrop_auto_apply();   // (the visuals overlay: Auto MilkDrop -- Auto Video is off meanwhile)
     milkdrop_track_apply();   // (Style Option: MilkDrop for this track / its preset) after it: the track's own choice wins
+    vtmp_on_ = false; vm_undo_.clear();   // (the temporary layer of the video menus: the individual settings reappear when a track is loaded)
     // "Lyrics Engine" (settings_.element_lyrics) off means no lyrics work at all: nothing is
     // fetched, no Python is started and there is no network access.
     // The video view of a track WITHOUT a video that shows a visual ("When No Video Shows" is not the lyrics) needs no lyrics: nothing is fetched

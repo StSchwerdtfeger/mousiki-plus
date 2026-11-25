@@ -42,7 +42,7 @@ void video_make_picture(const VideoFrame& src0, const VideoFrame* prev, const Vi
             for (int x = 0; x < rp; ++x) {
                 const float dx = rf - static_cast<float>(x) - 0.5f, dy = rf - static_cast<float>(y) - 0.5f;
                 if (dx * dx + dy * dy <= rf * rf) continue;
-                const int xs[2] = {x, w - p.trim - 1 - x}, ys[2] = {y, h - 1 - y};
+                const int xs[2] = {x + p.trim_left, w - p.trim - 1 - x}, ys[2] = {y, h - 1 - y};
                 for (int a = 0; a < 2; ++a)
                     for (int b = 0; b < 2; ++b) {
                         if (xs[a] < 0 || xs[a] >= w || ys[b] < 0 || ys[b] >= h) continue;
@@ -50,6 +50,9 @@ void video_make_picture(const VideoFrame& src0, const VideoFrame* prev, const Vi
                     }
             }
     }
+    if (p.trim_left > 0)
+        for (int y = 0; y < h; ++y)
+            for (int x = 0; x < p.trim_left && x < w; ++x) out.level[static_cast<size_t>(y) * w + x] = 0;
     if (p.trim > 0)
         for (int y = 0; y < h; ++y)
             for (int x = std::max(0, w - p.trim); x < w; ++x) out.level[static_cast<size_t>(y) * w + x] = 0;

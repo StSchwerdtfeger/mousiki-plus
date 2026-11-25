@@ -120,6 +120,7 @@ inline int dither_from(const std::string& s) {
 
 struct VideoFxGradient {
     unsigned char c[3][3] = {{0, 200, 255}, {160, 90, 255}, {255, 60, 160}};
+    int vivid = 0;   // Video Gradient Vividness 0 .. 100 (%): fuller and brighter colours (vivid.h); 0 = as they are
     int sat = 100;   // Video Gradient Saturation 0 .. 100 (%): the gradient's colours as they are at 100, paler towards 0 (0 = the same brightness in grey)
 };
 
@@ -139,7 +140,7 @@ struct VideoLook {
     bool active() const { return fx > 0 || contrast > 0 || colors < 100 || chroma > 0 || brightness != 50; }
     std::string sig() const {
         return std::to_string(fx) + "," + std::to_string(contrast) + "," + std::to_string(colors) + "," + std::to_string(chroma) + "," + std::to_string(brightness) + "," + std::to_string(dither) + "," + (video_fx_uses_base(fx) ? std::to_string(base) : std::string()) + "," + (video_fx_softens(fx) || video_fx_print(fx) ? std::to_string(fxc) : std::string()) + "," +
-               (video_fx_uses_gradient(fx) ? std::to_string(grad.c[0][0]) + "." + std::to_string(grad.c[0][1]) + "." + std::to_string(grad.c[0][2]) + "." + std::to_string(grad.c[2][0]) + "." + std::to_string(grad.c[2][1]) + "." + std::to_string(grad.c[2][2]) + "." + std::to_string(grad.sat) : std::string());
+               (video_fx_uses_gradient(fx) ? std::to_string(grad.c[0][0]) + "." + std::to_string(grad.c[0][1]) + "." + std::to_string(grad.c[0][2]) + "." + std::to_string(grad.c[2][0]) + "." + std::to_string(grad.c[2][1]) + "." + std::to_string(grad.c[2][2]) + "." + std::to_string(grad.sat) + "." + std::to_string(grad.vivid) : std::string());
     }
 };
 

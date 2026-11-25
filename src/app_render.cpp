@@ -727,6 +727,15 @@ std::string App::render_frame(TerminalIO& term) {
         return out;
     }
 
+    // the MilkDrop visuals overlay (":"): over the whole screen, its options on the left and the visuals on the right (a narrow window: the panel, below)
+    if (mode_ == Mode::MilkdropMenu && !mdb_open_) {
+        std::string out = build_milkdrop_menu_screen(W, clear_prefix);
+        if (!out.empty()) {
+            frame_main_len_ = out.size();
+            gfxs_.ok = gfx_.active;
+            return out;
+        }
+    }
     // the MilkDrop preset overlay (from the visuals overlay): the preset folder and the visuals beside it, over the whole screen
     if (mode_ == Mode::MilkdropMenu && mdb_open_) {   // (also from Style Option -> More Options, and the big video overlay)
         std::string out = build_mdb_screen(W, clear_prefix);
@@ -737,10 +746,11 @@ std::string App::render_frame(TerminalIO& term) {
         return out;
     }
     // HKeyVideoFull: the video over the whole screen
-    if (video_full_ && video_opts_open_ && mode_ == Mode::Browse && !fxpick_.open) {   // SHIFT+s: VIDEO OPTIONS over the whole screen, the video beside the options
+    if (video_full_ && video_opts_open_ && mode_ == Mode::Browse && !fxpick_.open) {   // the Video key: VIDEO OPTIONS over the whole screen, the video beside the options
         // (with the effect list open the menu it came from is not drawn: the big video stands behind the list, still, with the highlighted effect -- below)
         std::string out = build_video_opts_screen(W, clear_prefix);
         if (!out.empty()) {
+            if (vdel_stage_ > 0) { std::ostringstream q; draw_floating_panel(q, build_video_delete_panel(), 64, W, 0, true); out += q.str(); }   // (the question of Delete Current Video / Refetch this Video)
             frame_main_len_ = out.size();
             gfxs_.ok = gfx_.active;
             return out;
@@ -759,10 +769,11 @@ std::string App::render_frame(TerminalIO& term) {
             cut_gfx_holes();
             return out;
         }
-        if (video_opts_open_) {   // SHIFT+s: the options panel over the picture
+        if (video_opts_open_) {   // the Video key: the options panel over the picture
             std::ostringstream floating;
             // (while the effect list is open it is the only panel, exactly in the middle: the picture is cut for it alone)
             if (fxpick_.open) draw_fxpick(floating, W);
+            else if (vdel_stage_ > 0) draw_floating_panel(floating, build_video_delete_panel(), 64, W, 0, true);
             else draw_floating_panel(floating, build_video_opts_panel(), kVideoOptsPanelWidth, W);
             out += floating.str();
             cut_gfx_holes();

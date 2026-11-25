@@ -3,6 +3,7 @@
 #include "app_dirs.h"
 #include "milkdrop.h"
 #include "settings.h"
+#include "vivid.h"
 #include "process_util.h"   // physical_memory_mb(): the cap of TrackBufferMB
 #include "utf8_util.h"
 #include "string_util.h"
@@ -168,6 +169,33 @@ std::string gradient_ansi(const std::string& start, const std::string& end, floa
     int g = static_cast<int>(g0 + (g1 - g0) * t);
     int b = static_cast<int>(b0 + (b1 - b0) * t);
     return "\x1b[38;2;" + std::to_string(r) + ";" + std::to_string(g) + ";" + std::to_string(b) + "m";
+}
+
+std::string disk_gradient_ansi(const std::string& start, const std::string& end, float t, int vivid) {
+    if (vivid <= 0) return gradient_ansi(start, end, t);
+    int r0, g0, b0, r1 = 0, g1 = 0, b1 = 0;
+    if (!try_parse_rgb(start, r0, g0, b0)) return gradient_ansi(start, end, t);
+    if (end.empty() || !try_parse_rgb(end, r1, g1, b1)) { r1 = r0; g1 = g0; b1 = b0; }
+    t = std::clamp(t, 0.0f, 1.0f);
+    float c[3] = {r0 + (r1 - r0) * t, g0 + (g1 - g0) * t, b0 + (b1 - b0) * t};
+    vivid_boost(c, static_cast<float>(std::clamp(vivid, 0, 150)) / 100.0f);
+    return "\x1b[38;2;" + std::to_string(static_cast<int>(c[0] + 0.5f)) + ";" + std::to_string(static_cast<int>(c[1] + 0.5f)) + ";" + std::to_string(static_cast<int>(c[2] + 0.5f)) + "m";
+}
+
+std::string vivid_colour_ansi(const std::string& color, int vivid, bool bold) {
+    int r, g, b;
+    if (vivid <= 0 || !try_parse_rgb(color, r, g, b)) return ansi_for(color, bold);
+    float c[3] = {static_cast<float>(r), static_cast<float>(g), static_cast<float>(b)};
+    vivid_boost(c, static_cast<float>(std::clamp(vivid, 0, 150)) / 100.0f);
+    return "\x1b[38;2;" + std::to_string(static_cast<int>(c[0] + 0.5f)) + ";" + std::to_string(static_cast<int>(c[1] + 0.5f)) + ";" + std::to_string(static_cast<int>(c[2] + 0.5f)) + "m";
+}
+
+std::string vivid_gradient_ansi(const std::string& start, const std::string& end, float t, int vivid) {
+    return vivid_sgr(gradient_ansi(start, end, t), vivid);
+}
+
+std::string vivid_multi_stop_gradient_ansi(const std::string& left, const std::string& center, const std::string& right, float t, int vivid) {
+    return vivid_sgr(multi_stop_gradient_ansi(left, center, right, t), vivid);
 }
 
 std::string multi_stop_gradient_ansi(const std::string& left, const std::string& center,
@@ -491,7 +519,7 @@ void apply_default_hotkeys(Settings& s) {
 #else
             {"HKeyVideoFetch",                  "ALT+V"},         // fetch videos overlay (yt-dlp)
 #endif
-            {"HKeyStyleOptions",                "S"},             // SHIFT+s: the Style Option overlay (cover look, contrast, brightness, colors) of the playing track
+            {"HKeyStyleOptions",                "S"},             // SHIFT+s: the Cover Style overlay (cover look, contrast, brightness, colors) of the playing track
             {"HKeyReadLyrics",                  "CTRL+L"},        // READ LYRICS overlay
             {"HKeyQueueUndoClear",              "CTRL+SHIFT+Z"},  // bring back the queue that was just cleared
             {"HKeyQueueToPlaylist",             "CTRL+SHIFT+U"},  // save the queue as a playlist
@@ -840,6 +868,7 @@ static void skip_about_app_block(std::ifstream& in) {
 // needs one entry here and one write_simple_setting() call. Settings with their own spelling, aliases of older versions or a rule
 // (the colours, the looks, the lists) are read and written by hand as before. (tests: settings_every_simple_key_round_trips_with_a_changed_value)
 namespace {
+static std::string lower_copy(std::string v) { for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c))); return v; }
 struct SimpleSetting {
     const char* key;
     const char* legacy;         // the key of older versions (also read), or nullptr
@@ -860,6 +889,7 @@ struct SimpleSetting {
 #define SIMPLE_COLOUR(key, legacy, member) {key, legacy, nullptr, nullptr, [](Settings& s) -> std::string& { return s.member; }, 0, 0, true, 0, false, false, "\n"}
 #define SIMPLE_TEXT(key, legacy, member, after) {key, legacy, nullptr, nullptr, [](Settings& s) -> std::string& { return s.member; }, 0, 0, false, 0, false, false, after}
 #define SIMPLE_QUOTED(key, legacy, member, after) {key, legacy, nullptr, nullptr, [](Settings& s) -> std::string& { return s.member; }, 0, 0, false, 0, false, true, after}
+#define SIMPLE_VIVID(key, member, after) {key, nullptr, nullptr, [](Settings& s) -> int& { return s.member; }, nullptr, -1, 150, false, 0, false, false, after}   // -1 = "as disk"
 #define SIMPLE_PERCENT_MAX(key, legacy, member, digit_first, hi, after) {key, legacy, nullptr, [](Settings& s) -> int& { return s.member; }, nullptr, 0, hi, false, 5, digit_first, false, after}
 #define SIMPLE_PERCENT(key, legacy, member, digit_first, after) {key, legacy, nullptr, [](Settings& s) -> int& { return s.member; }, nullptr, 0, 100, false, 5, digit_first, false, after}
 const SimpleSetting kSimpleSettings[] = {
@@ -883,7 +913,7 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_NUM("MilkDropWindowResolution", nullptr, milkdrop_win_res, 320, 1920, "\n## 640 , 960 , 1280 , 1920 (default 1280) -- the pixels across of the pictures the extra MilkDrop window shows (16:9; the engine draws them at this size, the window scales them to its own)\n"),
     SIMPLE_NUM("MilkDropPresetDuration", nullptr, milkdrop_preset_secs, 0, 600, "\n## 0 - 600 (default 25) -- seconds until the next MilkDrop preset (0 = it stays until you change it)\n"),
     SIMPLE_FLAG("MilkDropShuffle", nullptr, milkdrop_shuffle, "\n## true , false (default true) -- the next preset at random (false: in the order of the files)\n"),
-    SIMPLE_FLAG("MilkDropAuto", nullptr, milkdrop_auto, "\n## true , false (default false) -- Auto MilkDrop: the field shows the MilkDrop visuals for every track (a track's Style Option can say no); it switches Auto Video off meanwhile and back on after\n"),
+    SIMPLE_FLAG("MilkDropAuto", nullptr, milkdrop_auto, "\n## true , false (default false) -- Auto MilkDrop: the field shows the MilkDrop visuals for every track (a track's MilkDrop settings can say no); it switches Auto Video off meanwhile and back on after\n"),
     SIMPLE_FLAG("MilkDropAutoVideoWas", nullptr, milkdrop_auto_video_was, "\n## (set by Mousiki) Auto Video was on when Auto MilkDrop switched it off: it comes back on with Auto MilkDrop off\n"),
     SIMPLE_FLAG("MilkDropShuffleFavourites", nullptr, milkdrop_fav_shuffle, "\n## true , false (default false) -- only the favourite presets are played (milkdrop_favourites.txt; the preset overlay's [a]); without favourites all of them\n"),
     SIMPLE_NUM("MilkDropHardCutSensitivity", nullptr, milkdrop_cut_sens, 5, 60, "\n## 5 - 60 (default 20 = 2.0) -- how big a jump in volume must be to change the preset at once (Hard Cuts); less = more cuts\n"),
@@ -963,14 +993,22 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_TEXT("RemoteAppPin", nullptr, remote_pin, "\n## 4 - 8 digits -- the PIN the app needs; made when the remote app is switched on (mousiki --remote-info shows it)\n"),
     SIMPLE_NUM("HifiGain", "hifi_gain", hifi_gain, -20, 20, "\n## -20 to 20 dB -- Hi-Fi: moves the levels up or down\n"),
     SIMPLE_NUM("HifiRange", "hifi_range", hifi_range, 40, 100, "\n## 40 to 100 dB -- Hi-Fi: the range from the bottom to the top of the bars (smaller = steeper)\n"),
-    SIMPLE_PERCENT_MAX("CoverContrast", nullptr, cover_contrast, false, 150, "\n## 0 .. 150 (percent, steps of 5) -- more contrast for the album cover (0 = the cover as it is)\n"),
+    SIMPLE_PERCENT_MAX("CoverContrast", nullptr, cover_contrast, false, 200, "\n## 0 .. 200 (percent, steps of 5) -- more contrast for the album cover (0 = the cover as it is)\n"),
     SIMPLE_PERCENT("CoverBrightness", nullptr, cover_brightness, false, "\n## 0 .. 100 (percent, steps of 5) -- the cover behind the disk: how bright its dots are lifted (0 = the picture's own range; more = brighter, like the plain disk)\n"),
     SIMPLE_PERCENT("CoverColors", nullptr, cover_colors, false, "\n## 0 .. 100 (percent, steps of 5) -- the cover behind the disk: its own colours mixed into the disk's gradient (0 = gradient only, 100 = the cover's own colours)\n"),
+    SIMPLE_PERCENT_MAX("DiskVividness", nullptr, disk_vivid, false, 150, "\n## 0 .. 150 (percent, steps of 5, default 0) -- the plain disk (no cover): how vivid its gradient colours are. 0 = as before; more makes the colours fuller and brighter, the way the neon edge effects of the video and MilkDrop look\n"),
+    SIMPLE_PERCENT_MAX("WaveformVividness", nullptr, wave_vivid, false, 150, "\n## 0 .. 150 (percent, steps of 5, default 0) -- the progress waveform: how vivid its played and remaining colours are (its own value: the other vividness settings do not change it). 0 = as before\n"),
+    SIMPLE_VIVID("ScopeVividness", scope_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the braille oscilloscope: how vivid its gradient colours are (0 = as before)\n"),
+    SIMPLE_VIVID("SpectrogramVividness", spectro_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the braille spectrogram: how vivid its gradient colours are (0 = as before)\n"),
+    SIMPLE_VIVID("BarsVividness", bars_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the spectrum bars: how vivid its gradient colours are (0 = as before)\n"),
+    SIMPLE_VIVID("VolumeBarVividness", volume_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the volume bar: how vivid its gradient colours are (0 = as before)\n"),
+    SIMPLE_VIVID("CoverVividness", cover_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the disk and the cover behind it: how vivid the dots are. 0 = as before; more lifts the dots towards the full colours of the disk gradient and pushes the colours away from grey, the way the neon edge effects of the video and MilkDrop look (the effect itself is not applied to the cover)\n"),
     SIMPLE_PERCENT("CoverGradientSaturation", nullptr, cover_grad_sat, false, "\n## 0 .. 100 (percent, steps of 5) -- the cover looks: how vivid the disk's gradient is between its two colours (0 = the plain blend, which fades to grey in the middle; 30 = default; 100 = as saturated as a straight line between the two colours)\n"),
     SIMPLE_PERCENT("VideoContrast", "video_contrast", video_contrast, false, "\n## 0 .. 100 (percent, steps of 5) -- more contrast for the video's picture (0 = as it is)\n"),
-    SIMPLE_PERCENT("VideoBrightness", "video_brightness", video_brightness, true, "\n## 0 .. 100 (percent, steps of 5) -- the brightness of the video's picture (50 = as it is, lower = darker, higher = brighter; a track can have its own: Style Option)\n"),
+    SIMPLE_PERCENT("VideoBrightness", "video_brightness", video_brightness, true, "\n## 0 .. 100 (percent, steps of 5) -- the brightness of the video's picture (50 = as it is, lower = darker, higher = brighter; a track can have its own: individual video settings)\n"),
     SIMPLE_PERCENT("VideoColors", "video_colors", video_colors, false, "\n## 0 .. 100 (percent, steps of 5) -- the video's colours (0 = greyscale, 100 = as they are)\n"),
-    SIMPLE_PERCENT("VideoGradientSaturation", nullptr, video_grad_sat, false, "\n## 0 .. 100 (percent, steps of 5) -- the video looks that use the gradient colours (Gradient, Dither Gradient, Neon Edge Gradient, the Game Boy gradient looks): how saturated those colours are (100 = the colours as they are, lower = paler, 0 = grey of the same brightness; 85 = default); a track can have its own: Style Option\n"),
+    SIMPLE_PERCENT("VideoGradientVividness", nullptr, video_grad_vivid, false, "\n## 0 .. 100 (percent, steps of 5, default 0) -- the video looks that use the gradient colours (Gradient, Dither Gradient, Neon Edge Gradient, the Game Boy gradient looks): how vivid those colours are. 0 = as before; more makes them fuller and brighter (pushed away from grey most around 50 %, brighter up to 100 %); a track can have its own: individual video settings\n"),
+    SIMPLE_PERCENT("VideoGradientSaturation", nullptr, video_grad_sat, false, "\n## 0 .. 100 (percent, steps of 5) -- the video looks that use the gradient colours (Gradient, Dither Gradient, Neon Edge Gradient, the Game Boy gradient looks): how saturated those colours are (100 = the colours as they are, lower = paler, 0 = grey of the same brightness; 85 = default); a track can have its own: individual video settings\n"),
     SIMPLE_QUOTED("UpperLeftCorner", "upper_left_corner", box_upper_left, ";\n"),
     SIMPLE_QUOTED("UpperRightCorner", "upper_right_corner", box_upper_right, ";\n"),
     SIMPLE_QUOTED("BottomLeftCorner", "bottom_left_corner", box_lower_left, ";\n"),
@@ -981,6 +1019,7 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_COLOUR("ColorLegendCommand", "legend_cmd_color", legend_cmd_color),
     SIMPLE_FLAG("AutoPlay", nullptr, auto_play, "\n## true , false (default false) -- false: when the music player starts, the track it opens with (the restored session or the first track of the library) is loaded and stands paused; the play / pause key (p) starts it. true: it starts playing at once\n"),
     SIMPLE_FLAG("PauseSphere", nullptr, pause_sphere, "\n## true , false (default false) -- true: the sphere stops turning while the track is paused; false: it goes on turning (at the full frame rate, also with ReduceMotionWhenPaused)\n"),
+    SIMPLE_NUM("ThickBorders", nullptr, thick_borders, 0, 1, "\n## 0 , 1 (default 0) -- 0 = thin frame lines, 1 = thick frame lines with thick round corners and bold pane titles (the whole frame is drawn with the small font \"Mousiki Corners\", which Mousiki installs; the terminal font list needs it after the main font, else the lines are heavy but the round corners stay thin). An older value 2 counts as 1\n"),
     SIMPLE_FLAG("SharpCorners", "sharp_corners", sharp_corners, "\n## true , false -- the frames have sharp corners instead of round ones everywhere; the Settings screen (sharp by itself) gets round corners then\n"),
     SIMPLE_FLAG("ElimentDiskBorder", "eliment_disk_border", disk_border, "\n## true , false -- the \":  :\" column between the disk (or cover) and the meta data; false: it is left out and the disk sits in the middle of the space between the left border and the meta data\n"),
     SIMPLE_NUM("TopPaneStyle", nullptr, top_pane_style, 0, 5, "\n## 0 , 1 , 2 , 3 , 4 , 5 (default 0) -- the frame of the upper pane (disk | meta data | lyrics / viz field): 0 = one box round all three; 1, 2, 3 = three panes I, II, III that share their walls; 4 = two panes (the disk, and meta data + lyrics / viz field in one); 5 = gap (one box with four gaps in its lines); see the preview in Settings\n"),
@@ -1044,7 +1083,7 @@ std::string cli_setting_get(const Settings& cs, const std::string& key, bool* fo
     if (found) *found = e != nullptr;
     if (!e) return "";
     Settings& s = const_cast<Settings&>(cs);   // (the accessors give a reference; the value is only read)
-    return e->flag ? (e->flag(s) ? "true" : "false") : std::to_string(e->num(s));
+    return e->flag ? (e->flag(s) ? "true" : "false") : (e->lo == -1 && e->num(s) < 0) ? std::string("as disk") : std::to_string(e->num(s));
 }
 
 std::string cli_setting_set(Settings& s, const std::string& key, const std::string& value, std::string* canonical_key) {
@@ -1060,6 +1099,7 @@ std::string cli_setting_set(Settings& s, const std::string& key, const std::stri
         if (l == "false" || l == "off" || l == "no" || l == "0") { e->flag(s) = false; return ""; }
         return std::string(e->key) + " is on / off (or toggle)";
     }
+    if (e->lo == -1 && lower_copy(v).rfind("as", 0) == 0) { e->num(s) = -1; return ""; }   // "as disk"
     char* end = nullptr;
     const long n = std::strtol(v.c_str(), &end, 10);
     if (v.empty() || end == v.c_str() || *end) return std::string(e->key) + " needs a number from " + std::to_string(e->lo) + " to " + std::to_string(e->hi);
@@ -1079,6 +1119,7 @@ static bool apply_simple_setting(Settings& s, const std::string& key, const std:
         const std::string v = trim_ws(unquote(value));
         if (!(e->digit_first && (v.empty() || !std::isdigit(static_cast<unsigned char>(v[0]))))) e->num(s) = std::clamp((muisc::atoi_safe(v.c_str()) + e->step / 2) / e->step * e->step, e->lo, e->hi);
     }
+    else if (e->num && e->lo == -1 && lower_copy(trim_ws(unquote(value))).rfind("as", 0) == 0) e->num(s) = -1;   // "as disk"
     else if (e->num) { if (const auto n_ = muisc::parse_int(trim_ws(unquote(value)))) { e->num(s) = std::clamp(*n_, e->lo, e->hi); } }
     else if (e->colour) { if (!value.empty()) e->str(s) = normalize_color_value(value); }
     else if (e->quoted) e->str(s) = unquote(value);
@@ -1096,7 +1137,7 @@ static void write_simple_setting(std::ostream& out, const Settings& cs, const ch
     if (g_simple_written) g_simple_written->insert(e);
     out << e->key << "=";
     if (e->quoted) out << "\"";
-    if (e->flag) out << (e->flag(s) ? "true" : "false"); else if (e->num) out << e->num(s); else out << e->str(s);
+    if (e->flag) out << (e->flag(s) ? "true" : "false"); else if (e->num && e->lo == -1 && e->num(s) < 0) out << "as disk"; else if (e->num) out << e->num(s); else out << e->str(s);
     if (e->quoted) out << "\"";
     out << e->after;
 }
@@ -2235,6 +2276,7 @@ static void write_settings_body(std::ostream& out, const Settings& s) {
     write_simple_setting(out, s, "ElimentDisk");
     write_simple_setting(out, s, "ElimentDiskBorder");
     write_simple_setting(out, s, "SharpCorners");
+    write_simple_setting(out, s, "ThickBorders");
     write_simple_setting(out, s, "TopPaneStyle");
     out << "LatinLetters=" << tf(s.latin_letters) << "\n## true , false -- Japanese, Korean and Chinese titles, tags and lyrics are shown in Latin letters (switch with SHIFT+' on a US keyboard, see HKeyTranslit)\n";
     out << "LyricsNameVariants=" << tf(s.lyrics_name_variants) << "\n## true , false -- a lyrics search (also the refetch) that finds nothing tries other spellings: the Latin-letters spelling, the title / artist without their Latin or without their Japanese part, the title alone\n";
@@ -2248,6 +2290,13 @@ static void write_settings_body(std::ostream& out, const Settings& s) {
     write_simple_setting(out, s, "CoverBrightness");
     write_simple_setting(out, s, "CoverColors");
     write_simple_setting(out, s, "CoverGradientSaturation");
+    write_simple_setting(out, s, "DiskVividness");
+    write_simple_setting(out, s, "WaveformVividness");
+    write_simple_setting(out, s, "ScopeVividness");
+    write_simple_setting(out, s, "SpectrogramVividness");
+    write_simple_setting(out, s, "BarsVividness");
+    write_simple_setting(out, s, "VolumeBarVividness");
+    write_simple_setting(out, s, "CoverVividness");
     write_simple_setting(out, s, "BulkAddSave");
     write_simple_setting(out, s, "BulkAddVideo");
     out << "CoverChroma=" << chroma_name(s.cover_chroma) << "\n## chromatic aberration of a cover that shows its own colours (Just Cover, Cover Colors above 0, the ASCII looks): off | subtle | medium | strong\n";
@@ -2283,13 +2332,14 @@ static void write_settings_body(std::ostream& out, const Settings& s) {
     write_simple_setting(out, s, "VideoBrightness");
     write_simple_setting(out, s, "VideoColors");
     write_simple_setting(out, s, "VideoGradientSaturation");
-    out << "VideoRound=" << tf(s.video_round) << "\n## Rounded Corners: the corners of the video's picture are cut round like the corners of the UI (a track can have its own: Style Option): true | false\n";
+    write_simple_setting(out, s, "VideoGradientVividness");
+    out << "VideoRound=" << tf(s.video_round) << "\n## Rounded Corners: the corners of the video's picture are cut round like the corners of the UI (a track can have its own: individual video settings): true | false\n";
     out << "VideoClap=" << (s.video_clap == 2 ? "none" : s.video_clap == 0 ? "text note" : "clap") << "\n## Show Clap Loading: what shows while a video loads, in the small field and in the big video overlay: text note (\"video: starting ...\") | clap (a small clapperboard in the border colours) | none\n";
     out << "VideoChroma=" << chroma_name(s.video_chroma) << "\n## chromatic aberration of the video's picture (red and blue pushed apart, more towards the corners; works with every effect): off | subtle | medium | strong\n";
-    out << "VideoBase=" << base_name(s.video_base) << "\n## the structure of the screen under the tube looks (CRT, VHS, Glitch, Quiet Glitch, Phosphor Green / Amber / Green Glow): scanlines | aperture grille | shadow mask | slot mask | clean (default) (a track can have its own: Style Option)\n";
+    out << "VideoBase=" << base_name(s.video_base) << "\n## the structure of the screen under the tube looks (CRT, VHS, Glitch, Quiet Glitch, Phosphor Green / Amber / Green Glow): scanlines | aperture grille | shadow mask | slot mask | clean (default) (a track can have its own: individual video settings)\n";
     out << "VideoBaseDefault=clean\n## set by Mousiki, leave it as it is: it tells a newer version that this file knows clean as the default Base Layer (a file without this line, from before that, has its VideoBase read as clean once)\n";
-    out << "VideoEffectContrast=" << fxc_name(s.video_fxc) << "\n## how hard the blacks and whites of the photographic video looks are (Scanlines, CRT, VHS, Glitch, Quiet Glitch, Pixel, Gradient, Film, Silent Film, Interlace, Technicolor, LaserDisc): full (no softening: the deepest blacks) | reduced (default: the blacks lifted a little, the whites lowered a little) | low (blacks lifted more, whites lowered more: the shadows keep their detail). The palette and mask looks (Game Boy, Dither, CGA, ASCII, Neon Edge ...) need their hard blacks and are never touched; for Halftone CMYK and its High-Res version it is the strength of the print: full 100 %, reduced 70 %, low 50 % over the picture (a track can have its own: Style Option)\n";
-    out << "VideoDither=" << dither_name(s.video_dither) << "\n## the pattern of the dots where a look dithers (Game Boy, EGA 16, Dither B/W and Gradient) and where the picture is reduced to the 256 colours of a terminal's picture protocol (e.g. sixel): auto (each look's own) | blue noise | bayer 2x2 | bayer 4x4 | bayer 8x8 | interleaved noise (default) | golden ratio (a track can have its own: Style Option)\n";
+    out << "VideoEffectContrast=" << fxc_name(s.video_fxc) << "\n## how hard the blacks and whites of the photographic video looks are (Scanlines, CRT, VHS, Glitch, Quiet Glitch, Pixel, Gradient, Film, Silent Film, Interlace, Technicolor, LaserDisc): full (no softening: the deepest blacks) | reduced (default: the blacks lifted a little, the whites lowered a little) | low (blacks lifted more, whites lowered more: the shadows keep their detail). The palette and mask looks (Game Boy, Dither, CGA, ASCII, Neon Edge ...) need their hard blacks and are never touched; for Halftone CMYK and its High-Res version it is the strength of the print: full 100 %, reduced 70 %, low 50 % over the picture (a track can have its own: individual video settings)\n";
+    out << "VideoDither=" << dither_name(s.video_dither) << "\n## the pattern of the dots where a look dithers (Game Boy, EGA 16, Dither B/W and Gradient) and where the picture is reduced to the 256 colours of a terminal's picture protocol (e.g. sixel): auto (each look's own) | blue noise | bayer 2x2 | bayer 4x4 | bayer 8x8 | interleaved noise (default) | golden ratio (a track can have its own: individual video settings)\n";
     out << "VideoResolution=" << video_res_name(s.video_res) << "\n";
     out << "## the sharpness of the video's picture: standard (up to 640 px wide, Sixel 480; the soft look) | high (1280 px, Sixel 720; Kitty in true colour) | full (1920 px, Sixel 960; Kitty in true colour). Wider pictures need more of the terminal and the processor\n";
     out << "VideoFrameRate=" << (s.video_fps >= 60 ? 60 : 25) << "\n";
@@ -2685,7 +2735,7 @@ void copy_look(const Settings& src, Settings& dst) {
     MOUSIKI_LOOK(viz_left_color); MOUSIKI_LOOK(viz_center_color); MOUSIKI_LOOK(viz_right_color);
     MOUSIKI_LOOK(lyr_inactive_color); MOUSIKI_LOOK(lyr_active_line_color); MOUSIKI_LOOK(lyr_active_word_color);
     // elements and visualizations
-    MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(disk_border); MOUSIKI_LOOK(top_pane_style); MOUSIKI_LOOK(sharp_corners); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
+    MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(disk_border); MOUSIKI_LOOK(top_pane_style); MOUSIKI_LOOK(sharp_corners); MOUSIKI_LOOK(thick_borders); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
     MOUSIKI_LOOK(volume_indicator); MOUSIKI_LOOK(volume_gradient); MOUSIKI_LOOK(element_vizfield); MOUSIKI_LOOK(element_lyrics);
     MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(book_force_note); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
     MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_extra_paths); MOUSIKI_LOOK(milkdrop_gpu); MOUSIKI_LOOK(milkdrop_lock); MOUSIKI_LOOK(milkdrop_hcd); MOUSIKI_LOOK(milkdrop_aspect); MOUSIKI_LOOK(milkdrop_ratio); MOUSIKI_LOOK(milkdrop_mesh); MOUSIKI_LOOK(milkdrop_var); MOUSIKI_LOOK(milkdrop_clean); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res); MOUSIKI_LOOK(milkdrop_win_res);
@@ -2767,7 +2817,7 @@ Settings load_book_settings(const Settings& player, bool* wants_default_theme) {
 static bool is_look_key(const std::string& key) {
     static const char* const prefixes[] = {"Color", "BorderGradient", "Eliment", "Volume", "VizLyricsField", "LyricViz", "VizDefault", "NoLyricsViz",
                                            "UseLyrics", "BookForceNote", "UseOscilloscope", "UseSpectrogram", "UseSphere", "UseMilkDrop", "MilkDrop", "VizOrder", "Osci", "Scope", "Spectro",
-                                           "Visualizer", "Hifi", "TopPane", "SharpCorners", "WaveformStyle", "DiskRotationSpeed", "MetaDataOnly", "PlaybackMode", "UpperLeftCorner",
+                                           "Visualizer", "Hifi", "TopPane", "SharpCorners", "ThickBorders", "WaveformStyle", "DiskRotationSpeed", "MetaDataOnly", "PlaybackMode", "UpperLeftCorner",
                                            "UpperRightCorner", "BottomLeftCorner", "LowerRightCorner", "Vertical", "Horizontal", "Seprator", "ListSeparator",
                                            "Normalize", "EqualizerEnabled", "EqualizerBands", "StereoPlayback"};
     for (const char* p : prefixes) if (key.compare(0, std::strlen(p), p) == 0) return true;

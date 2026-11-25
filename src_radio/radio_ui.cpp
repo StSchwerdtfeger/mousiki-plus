@@ -1,6 +1,7 @@
 // The radio's screen: draws the station list, the player and the overlays, and handles the radio's
 // keys. It is the largest file of the radio mode.
 #include "../src/corners.h"
+#include "../src/terminal_font.h"
 #include "radio_ui.h"
 #include "overlay_common.h"
 #include "about_text.h"
@@ -326,7 +327,7 @@ std::vector<std::string> build_spectro_full(const Style& s, const UiModel& m, co
     title = spectro_row_value(sp, kSrScale) + " " + std::to_string(sp.min_freq) + "-" + std::to_string(std::min(sp.max_freq, a.rate() / 2)) + " Hz  |  " + title;
     const std::string bar = s.border + c.box_vertical + kReset;
     std::vector<std::string> out;
-    out.push_back(box_top(s, W, truncate_str(title, W - 6), s.border));
+    out.push_back(box_top(s, W, truncate_str(title, W - 6), s.border, false));
     if (wf) {   // the waterfall has no time axis: the frequencies of the front graph take the ruler's row
         std::string ruler(static_cast<size_t>(cols), ' ');
         int cwp = 10;
@@ -794,6 +795,11 @@ std::vector<std::string> render_radio_frame(const UiModel& m, const RadioStatus&
     std::vector<std::string> v = render_radio_frame_core(m, st, engine, cfg_in);
     if (cfg_in.sharp_corners)   // (sharp corners everywhere; the Settings screen is drawn sharp, so with the option on it gets the round ones)
         for (std::string& row : v) { if (m.settings.open) muisc::roundify_corners(row); else muisc::sharpen_corners(row); }
+    muisc::terminal_font::use_corner_font(cfg_in.thick_borders > 0);
+    if (cfg_in.thick_borders > 0) {   // (thick round only when its small font could be put in place, else thick)
+        const int tb = muisc::terminal_font::corner_font_ready() ? 2 : 1;
+        for (std::string& row : v) muisc::thicken_borders(row, tb);
+    }
     return v;
 }
 

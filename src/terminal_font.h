@@ -31,6 +31,17 @@ std::vector<std::string> list_monospace_fonts();
 // answer is one line for the status bar: what was done, or why nothing could be done. `launcher` is the command the Windows
 // Terminal profile starts ("" = this program).
 std::string apply(const std::string& font, const std::string& launcher = "");
+// Thick round frame corners (Settings -> Thick Borders = thick round): Unicode has none, so the frames use four private-use code points
+// (U+E1C0 ... U+E1C3) that the small font "Mousiki Corners" draws (packaging/fonts, tools/make_corner_font.py). The program carries that
+// 1.5 KB font and installs it for the user (no administrator rights): Windows the user's fonts folder and registry, Linux ~/.local/share/fonts
+// (fc-cache), macOS ~/Library/Fonts. Windows Terminal's profile "Mousiki" lists it after the main font; other terminals take the glyphs from it
+// by themselves (font fallback). Idempotent and cheap when nothing changed: the frame drawing calls it with the mode in force.
+inline constexpr const char* kCornerFontFamily = "Mousiki Corners";
+void use_corner_font(bool wanted);
+// The font file is in place (the frames may use mode 2 of thicken_borders(); else they fall back to mode 1).
+bool corner_font_ready();
+// Puts the font file in place (once per run); "" when it is there, else why not. Exposed for the tests.
+std::string install_corner_font();
 // The terminal's own font again (at exit). Safe to call when apply() did nothing.
 void restore();
 // The answer of the last apply() ("" before the first): shown in the FONT overlay.

@@ -39,7 +39,7 @@ template <size_t N> int md_step(const int (&a)[N], int cur, int dir) {
     return a[static_cast<size_t>(n)];
 }
 // (in the order of the overlay: general / shuffle and transition / graphics and performance)
-enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdName, kMdUseFx, kMdFx, kMdView, kMdOverride,
+enum MdRow { kMdPreset, kMdBrowse, kMdRandom, kMdLock, kMdName, kMdUseFx, kMdFx, kMdView, kMdIndSet, kMdIndRevert, kMdIndReset, kMdIndCopy, kMdUndo, kMdIndOn,
              kMdBright, kMdSat, kMdContrast,
              kMdDuration, kMdShuffle, kMdFolder, kMdFavShuffle, kMdHardCuts, kMdCutSens, kMdTransition, kMdHcd, kMdVar,
              kMdFps, kMdRes, kMdGpu, kMdColors, kMdMesh, kMdAspect, kMdRatio, kMdClean, kMdRows };
@@ -47,7 +47,10 @@ const char* md_label(int row, bool ts) {
     switch (row) {
         case kMdPreset: return "Preset"; case kMdBrowse: return "Preset Overlay"; case kMdRandom: return "Random Preset"; case kMdLock: return "Lock Preset";
         case kMdName: return "Show Preset Name"; case kMdUseFx: return "Use Effect"; case kMdFx: return "Effect";
-        case kMdView: return ts ? "MilkDrop (this track)" : "Auto MilkDrop"; case kMdOverride: return "Override Individual Settings";
+        case kMdView: return ts ? "MilkDrop (this track)" : "Auto MilkDrop";
+        case kMdIndSet: return "Set current values as individual settings"; case kMdIndRevert: return "Reset to last track settings";
+        case kMdIndReset: return "Reset individual values to default settings"; case kMdIndCopy: return "Set individual settings as default settings";
+        case kMdUndo: return "Undo change"; case kMdIndOn: return "Use individual settings for this track";
         case kMdBright: return "Brightness"; case kMdSat: return "Saturation"; case kMdContrast: return "Contrast";
         case kMdDuration: return "Preset Duration"; case kMdShuffle: return "Shuffle All Presets"; case kMdFolder: return "Shuffle Folder"; case kMdFavShuffle: return "Shuffle Favourites";
         case kMdHardCuts: return "Hard Cuts"; case kMdCutSens: return "Hard Cut Sensitivity"; case kMdTransition: return "Preset Transition";
@@ -57,8 +60,13 @@ const char* md_label(int row, bool ts) {
         default: return "";
     }
 }
-const char* md_category(int row) {   // the heading that stands above this row ("" = none)
-    return row == kMdPreset ? "GENERAL" : row == kMdBright ? "PICTURE" : row == kMdDuration ? "SHUFFLE / TRANSITION" : row == kMdFps ? "GRAPHICS / PERFORMANCE" : "";
+const char* md_category(int row) {   // the heading of the group this row belongs to
+    return row < kMdIndSet ? "GENERAL" : row < kMdBright ? "INDIVIDUAL TRACK SETTINGS MANAGEMENT" : row < kMdDuration ? "PICTURE" : row < kMdFps ? "SHUFFLE / TRANSITION" : "GRAPHICS / PERFORMANCE";
+}
+bool md_action_row(int row) { return row >= kMdIndSet && row <= kMdUndo; }   // (a row that does something: ENTER runs it)
+bool md_rec_row(int row) {   // a row a track can have its own value for (the others are the same for every track)
+    return row == kMdPreset || row == kMdLock || row == kMdName || row == kMdUseFx || row == kMdFx || row == kMdDuration || row == kMdShuffle || row == kMdFavShuffle ||
+           row == kMdHardCuts || row == kMdCutSens || row == kMdTransition;
 }
 const int kMdCutSensSteps[] = {5, 10, 15, 20, 25, 30, 40, 50, 60};
 } // namespace
@@ -139,7 +147,7 @@ bool md_track_wants_lock(const MilkdropTrackOpts& mo) { return (!mo.preset.empty
 }
 
 void App::milkdrop_track_live(const MilkdropTrackOpts& mo_in) {
-    const MilkdropTrackOpts mo = md_override_ ? MilkdropTrackOpts{} : mo_in;
+    const MilkdropTrackOpts mo = mo_in.ioff == 1 ? MilkdropTrackOpts{} : mo_in;   // (switched off: the general settings are in force)
     md_trk_ = mo;
     md_track_fx_ = mo.fx >= 0 && mo.fx < kVideoFxCount ? mo.fx : -1;
     Milkdrop& m = Milkdrop::instance();
@@ -155,7 +163,7 @@ bool App::milkdrop_shown_in_field() const {
 }
 
 void App::milkdrop_effect_step(int dir, bool global) {
-    const bool own = !global && !md_override_ && !audiobook_ && has_track_ && current_.is_local && !current_.path.empty();
+    const bool own = !global && !md_individual_off() && !audiobook_ && has_track_ && current_.is_local && !current_.path.empty();
     int nx = 0;
     if (own) {
         const std::string trk = path_utf8(current_.path);
@@ -176,7 +184,7 @@ void App::milkdrop_effect_step(int dir, bool global) {
 }
 
 void App::milkdrop_effect_toggle(bool global) {
-    const bool own = !global && !md_override_ && !audiobook_ && has_track_ && current_.is_local && !current_.path.empty();
+    const bool own = !global && !md_individual_off() && !audiobook_ && has_track_ && current_.is_local && !current_.path.empty();
     bool now_on = false;
     if (own) {
         const std::string trk = path_utf8(current_.path);
@@ -196,8 +204,11 @@ void App::milkdrop_effect_toggle(bool global) {
 
 void App::milkdrop_track_apply() {
     MilkdropTrackOpts mo;
-    if (!md_override_ && !audiobook_ && has_track_ && current_.is_local && !current_.path.empty()) mo = cover_track_milkdrop(path_utf8(current_.path));
-    md_trk_ = mo;
+    if (!audiobook_ && has_track_ && current_.is_local && !current_.path.empty()) mo = cover_track_milkdrop(path_utf8(current_.path));
+    if (mo.ioff == 1) mo = MilkdropTrackOpts();   // (the individual settings are switched off: kept in the record, the general ones are in force)
+    md_trk_ = mo;   // (the temporary layer of the visuals menu starts as the stored settings: what was changed there is gone when the track is loaded again)
+    md_preset_changed_ = false;
+    md_undo_.clear();
     const bool want_lock = md_track_wants_lock(mo);
     // first give back what was done for the track before (unless the view was changed by hand meanwhile)
     // (the lock as it was before the track before locked its preset: what was set by hand comes back, not "unlocked")
@@ -284,8 +295,23 @@ void App::milkdrop_auto_apply() {
 // ---- the overlay ----
 
 bool App::md_row_shown(int row) const {
-    if (row == kMdOverride && audiobook_) return false;   // (the audio book has no individual MilkDrop settings per track: nothing to override)
-    return !(row == kMdOverride && !md_scope_track_.empty());   // (every row is shown in the track menu too: the drawing rows are global and say so; the override is only in the general overlay)
+    if (row == kMdIndSet || row == kMdIndRevert) return md_scope_track_.empty() && !md_target_track().empty();   // (the temporary layer: only in the menu of the playing track)
+    if (row == kMdUndo) return md_scope_track_.empty();
+    if (row == kMdIndOn || row == kMdIndCopy || row == kMdIndReset) return !md_target_track().empty();   // (these act on one track: the one the menu is for, or the one that plays)
+    return true;
+}
+
+// The track the individual settings rows act on: the track of the track menu, else the local track that plays ("" = none).
+std::string App::md_target_track() const {
+    if (!md_scope_track_.empty()) return md_scope_track_;
+    if (!audiobook_ && has_track_ && current_.is_local && !current_.path.empty()) return path_utf8(current_.path);
+    return std::string();
+}
+
+// The individual settings of the playing track are switched off (kept, but the general ones are in force).
+bool App::md_individual_off() const {
+    if (audiobook_ || !has_track_ || !current_.is_local || current_.path.empty()) return false;
+    return cover_track_milkdrop(path_utf8(current_.path)).ioff == 1;
 }
 
 static bool md_track_has(int i, const MilkdropTrackOpts& t) {   // the playing track has a value of its own for this row
@@ -294,8 +320,99 @@ static bool md_track_has(int i, const MilkdropTrackOpts& t) {   // the playing t
            (i == kMdName && t.name >= 0) || (i == kMdPreset && !t.preset.empty()) || (i == kMdLock && t.keep >= 0);
 }
 
+static bool md_track_any(const MilkdropTrackOpts& t) {   // the track has individual settings of any kind
+    for (int i = 0; i < kMdRows; ++i) if (md_track_has(i, t)) return true;
+    return t.on >= 0;
+}
+
 static bool md_global_row(int row) {   // (how the pictures are drawn: not a matter of one track)
     return row == kMdFolder || row == kMdBright || row == kMdSat || row == kMdContrast || row == kMdFps || row == kMdRes || row == kMdGpu || row == kMdColors || row == kMdHcd || row == kMdVar || row == kMdMesh || row == kMdAspect || row == kMdRatio || row == kMdClean;
+}
+
+// The playing track has individual MilkDrop settings in force: the visuals menu then shows them (and "(this track)") and what is changed there only
+// changes a temporary layer (md_trk_), which is read from the track's record again when the track is loaded.
+bool App::md_ind_active() const {
+    if (audiobook_ || !has_track_ || !current_.is_local || current_.path.empty()) return false;
+    const MilkdropTrackOpts r = cover_track_milkdrop(path_utf8(current_.path));
+    return r.ioff != 1 && md_track_any(r);
+}
+
+bool App::md_changed() const {   // the temporary layer differs from what the track has stored (Set current values / Reset to individual settings are for that case)
+    if (!md_ind_active()) return false;
+    return md_trk_ != cover_track_milkdrop(path_utf8(current_.path)) || md_preset_changed_;
+}
+
+bool App::md_values_default(const MilkdropTrackOpts& r) const {
+    const MdEff e = milkdrop_eff(r), g = milkdrop_eff(MilkdropTrackOpts{});
+    return e.dur == g.dur && e.shuffle == g.shuffle && e.favs == g.favs && e.cuts == g.cuts && e.fx_on == g.fx_on && e.name == g.name && e.cut_sens == g.cut_sens &&
+           e.trans == g.trans && (r.fx < 0 || video_fx_canon(r.fx) == video_fx_canon(settings_.milkdrop_fx)) && (r.keep < 0 || (r.keep == 1) == settings_.milkdrop_lock) && r.preset.empty();
+}
+
+App::MdSnap App::md_snap() const {
+    MdSnap s;
+    s.trk = md_trk_; s.preset_changed = md_preset_changed_;
+    s.preset = Milkdrop::instance().preset_path(); s.locked = Milkdrop::instance().locked();
+    s.secs = settings_.milkdrop_preset_secs; s.cut_sens = settings_.milkdrop_cut_sens; s.trans = settings_.milkdrop_transition; s.fps = settings_.milkdrop_fps;
+    s.res = settings_.milkdrop_res; s.bright = settings_.milkdrop_bright; s.sat = settings_.milkdrop_sat; s.contrast = settings_.milkdrop_contrast;
+    s.hcd = settings_.milkdrop_hcd; s.var = settings_.milkdrop_var; s.mesh = settings_.milkdrop_mesh; s.ratio = settings_.milkdrop_ratio; s.fx = settings_.milkdrop_fx;
+    s.shuffle = settings_.milkdrop_shuffle; s.fav = settings_.milkdrop_fav_shuffle; s.cuts = settings_.milkdrop_hard_cuts; s.aspect = settings_.milkdrop_aspect;
+    s.clean = settings_.milkdrop_clean; s.fx_on = settings_.milkdrop_fx_on; s.fixed = settings_.milkdrop_fixed_colors; s.name = settings_.milkdrop_show_name;
+    s.autom = settings_.milkdrop_auto; s.lock_setting = settings_.milkdrop_lock;
+    s.folder = settings_.milkdrop_shuffle_folder; s.gpu = settings_.milkdrop_gpu; s.defpreset = settings_.milkdrop_default_preset;
+    return s;
+}
+
+bool App::md_snap_same(const MdSnap& a, const MdSnap& b) {
+    return a.trk == b.trk && a.preset_changed == b.preset_changed && a.preset == b.preset && a.locked == b.locked && a.secs == b.secs && a.cut_sens == b.cut_sens &&
+           a.trans == b.trans && a.fps == b.fps && a.res == b.res && a.bright == b.bright && a.sat == b.sat && a.contrast == b.contrast && a.hcd == b.hcd && a.var == b.var &&
+           a.mesh == b.mesh && a.ratio == b.ratio && a.fx == b.fx && a.shuffle == b.shuffle && a.fav == b.fav && a.cuts == b.cuts && a.aspect == b.aspect && a.clean == b.clean &&
+           a.fx_on == b.fx_on && a.fixed == b.fixed && a.name == b.name && a.autom == b.autom && a.lock_setting == b.lock_setting && a.folder == b.folder && a.gpu == b.gpu && a.defpreset == b.defpreset;
+}
+
+void App::md_restore(const MdSnap& s) {
+    settings_.milkdrop_preset_secs = s.secs; settings_.milkdrop_cut_sens = s.cut_sens; settings_.milkdrop_transition = s.trans; settings_.milkdrop_fps = s.fps;
+    settings_.milkdrop_res = s.res; settings_.milkdrop_bright = s.bright; settings_.milkdrop_sat = s.sat; settings_.milkdrop_contrast = s.contrast;
+    settings_.milkdrop_hcd = s.hcd; settings_.milkdrop_var = s.var; settings_.milkdrop_mesh = s.mesh; settings_.milkdrop_ratio = s.ratio; settings_.milkdrop_fx = s.fx;
+    settings_.milkdrop_shuffle = s.shuffle; settings_.milkdrop_fav_shuffle = s.fav; settings_.milkdrop_hard_cuts = s.cuts; settings_.milkdrop_aspect = s.aspect;
+    settings_.milkdrop_clean = s.clean; settings_.milkdrop_fx_on = s.fx_on; settings_.milkdrop_fixed_colors = s.fixed; settings_.milkdrop_show_name = s.name;
+    settings_.milkdrop_lock = s.lock_setting; settings_.milkdrop_shuffle_folder = s.folder; settings_.milkdrop_gpu = s.gpu; settings_.milkdrop_default_preset = s.defpreset;
+    if (settings_.milkdrop_auto != s.autom) milkdrop_auto_set(s.autom);
+    Milkdrop& m = Milkdrop::instance();
+    if (m.locked() != s.locked) m.set_locked(s.locked);
+    if (!s.preset.empty() && s.preset != m.preset_path()) m.play_path(s.preset);
+    md_trk_ = s.trk;
+    md_preset_changed_ = s.preset_changed;
+    md_track_fx_ = md_trk_.fx >= 0 && md_trk_.fx < kVideoFxCount ? md_trk_.fx : -1;
+    milkdrop_apply_settings();
+    milkdrop_pic_key_.clear();
+    save_settings(settings_);
+}
+
+void App::md_undo_push() {   // before a change in the visuals menu (Undo change)
+    md_undo_.push_back(md_snap());
+    if (md_undo_.size() > 60) md_undo_.erase(md_undo_.begin());
+}
+
+// One row of a track's record (the stored one, or the temporary layer): the value steps, [d] puts it back to "as in Settings". false = not a row of the record.
+bool App::md_edit_rec(MilkdropTrackOpts& mo, int row, int dir, bool reset) {
+    const MdEff e = milkdrop_eff(mo);
+    auto flag = [&](int& f, bool eff_now) { f = reset ? -1 : eff_now ? 0 : 1; };
+    switch (row) {
+        case kMdLock: mo.keep = reset ? -1 : md_track_wants_lock(mo) ? 0 : 1; return true;
+        case kMdDuration: mo.dur = reset ? -1 : md_step(kMdDurSteps, e.dur, dir); return true;
+        case kMdShuffle: flag(mo.shuf, e.shuffle); return true;
+        case kMdFavShuffle: flag(mo.favs, e.favs); return true;
+        case kMdCutSens: mo.hcs = reset ? -1 : md_step(kMdCutSensSteps, e.cut_sens, dir); return true;
+        case kMdHardCuts: flag(mo.cuts, e.cuts); return true;
+        case kMdTransition: mo.trans = reset ? -1 : std::clamp(e.trans + dir, 0, 10); return true;
+        case kMdUseFx: flag(mo.fxon, e.fx_on); return true;
+        case kMdFx:
+            if (reset) mo.fx = -1;
+            else mo.fx = video_fx_step(mo.fx >= 0 ? mo.fx : video_fx_canon(settings_.milkdrop_fx), dir);
+            return true;
+        case kMdName: flag(mo.name, e.name); return true;
+        default: return false;
+    }
 }
 
 std::string App::milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const {
@@ -309,7 +426,7 @@ std::string App::milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const
     const int sd = std::max(0, settings_.milkdrop_preset_secs);
     switch (row) {
         case kMdPreset: {
-            if (ts && !rec->preset.empty()) return truncate_str(path_utf8(path_from_utf8(rec->preset).stem()), 40) + " (this track)";
+            if (ts && !rec->preset.empty()) return truncate_str(path_utf8(path_from_utf8(rec->preset).stem()), 40);
             std::string preset = m.preset_name();
             if (preset.empty()) preset = m.running() ? "(starting ...)" : "(shows when the visuals run)";
             return preset;
@@ -341,7 +458,6 @@ std::string App::milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const
             if (settings_.milkdrop_gpu.empty() && !r.empty()) g += " (" + r + ")";   // (what draws now, next to "automatic")
             return g;
         }
-        case kMdOverride: return md_override_ ? "on (this session)" : "off";
         case kMdUseFx: return own(ts ? rec->fxon : 0, onoff(ts ? rec->fxon == 1 : settings_.milkdrop_fx_on), onoff(settings_.milkdrop_fx_on));
         case kMdFx: {
             const std::string dflt = video_fx_name(video_fx_canon(settings_.milkdrop_fx));
@@ -365,7 +481,7 @@ std::string App::milkdrop_row_value(int row, const MilkdropTrackOpts* rec) const
     }
 }
 
-std::vector<std::string> App::build_milkdrop_menu_panel() const {
+std::vector<std::string> App::build_milkdrop_menu_panel(bool fill) const {
     const int W = kMdMenuPanelWidth;
     const int inner = W - 4;
     const std::string border = ansi_for(settings_.border_color, false);
@@ -391,24 +507,59 @@ std::vector<std::string> App::build_milkdrop_menu_panel() const {
     }
     std::vector<std::string> body;
     int sel_line = 0;
-    const bool track_wins = !ts && has_track_ && !audiobook_ && !md_override_;   // (what the playing track has of its own is what shows, and what is in force)
+    if (md_browse_pending_ && !mdb_open_) {   // (back from the Preset Overlay: a preset chosen there is a change of the temporary layer)
+        md_browse_pending_ = false;
+        if (m.preset_path() != md_browse_from_) { if (!ts && md_ind_active()) md_preset_changed_ = true; }
+        else if (!md_undo_.empty()) md_undo_.pop_back();   // (nothing was chosen in the Preset Overlay: the snapshot taken when it was opened is not a change)
+    }
+    const bool act = !ts && md_ind_active();   // (the playing track has individual settings: the menu shows them, and what is changed is only temporary)
+    const std::string target = md_target_track();
+    const MilkdropTrackOpts target_rec = target.empty() ? MilkdropTrackOpts() : cover_track_milkdrop(target);
+    const bool changed = act && (md_trk_ != target_rec || md_preset_changed_);
+    auto enabled = [&](int i) {   // an action row that has nothing to do is drawn in the legend colours
+        switch (i) {
+            case kMdIndSet: case kMdIndRevert: return changed;
+            case kMdIndReset: return target_rec.ioff == 1 || (md_track_any(target_rec) && !(act ? md_values_default(md_trk_) && !md_preset_changed_ : md_values_default(target_rec)));
+            case kMdIndCopy: return target_rec.ioff != 1 && md_track_any(target_rec) && (act ? !md_values_default(md_trk_) || md_preset_changed_ : !md_values_default(target_rec));
+            case kMdUndo: return !md_undo_.empty();
+            default: return true;
+        }
+    };
+    const std::string legend_col = legend_sgr(settings_).empty() ? DIM : legend_sgr(settings_);
+    std::string last_cat;
     for (int i = 0; i < kMdRows; ++i) {
         if (!md_row_shown(i)) continue;
-        if (md_category(i)[0]) {   // (a heading above each group, in the header colour)
-            if (i != kMdPreset) body.push_back(row("", false));
+        if (last_cat != md_category(i)) {   // (a heading above each group, in the header colour)
+            if (!last_cat.empty()) body.push_back(row("", false));
             const std::string hc = ansi_for(settings_.header_color, false);
             body.push_back(bar + " " + hc + pad_right(std::string(md_category(i)), inner) + R + " " + bar);
+            last_cat = md_category(i);
         }
         const bool sel = i == md_menu_row_;
         if (sel) sel_line = static_cast<int>(body.size());
+        if (md_action_row(i)) {   // (a row that does something: the label, and [ENTER] on the right -- in the legend colours while there is nothing to do)
+            const std::string lab = truncate_str(std::string(sel ? "> " : "  ") + md_label(i, ts), inner - 9);
+            const std::string left = pad_right(lab, inner - 8);
+            const bool on = enabled(i);
+            if (sel) body.push_back(bar + " " + HI + left + "[ENTER] " + R + " " + bar);
+            else body.push_back(bar + " " + left + (on ? std::string() : legend_col) + "[ENTER]" + (on ? std::string() : R) + " " + " " + bar);
+            continue;
+        }
         std::string val;
-        if (track_wins) {   // (the value in force: the track's own when it has one, else Settings)
-            const MilkdropTrackOpts& t = md_trk_;
-            const bool mine = md_track_has(i, t);
-            val = mine ? milkdrop_row_value(i, &t) + "  (this track)" : milkdrop_row_value(i, nullptr);
+        if (i == kMdIndOn) {   // (the individual settings of the track: kept when off, the general ones are in force then)
+            val = target_rec.ioff == 1 ? "off" : md_track_any(target_rec) ? "on" : "off (none set)";
+        } else if (act && md_rec_row(i)) {   // (the value in force: the track's own when it has one, else Settings)
+            const bool mine = md_track_has(i, md_trk_);
+            const std::string dv = milkdrop_row_value(i, nullptr);
+            val = mine ? milkdrop_row_value(i, &md_trk_) : dv;
+            if (i == kMdLock) {   // (the lock is what the visuals do right now; the default is the setting)
+                const bool locked = Milkdrop::instance().locked();
+                val = locked ? "on" : "off";
+                if (locked == settings_.milkdrop_lock) val += "  (default)";
+            } else if (i != kMdPreset && (!mine || val == dv)) val += "  (default)";   // (a default value is marked, whether the track has it set or not)
         } else {
             val = milkdrop_row_value(i, ts ? &rec : nullptr);
-            if (ts && md_global_row(i)) val += "  (all tracks)";
+            if ((ts || act) && md_global_row(i)) val += "  (all tracks)";
         }
         const std::string lab_text = i == kMdFavShuffle ? "Shuffle " + md_shuffle_label() : std::string(md_label(i, ts));
         std::string plain;
@@ -416,9 +567,10 @@ std::vector<std::string> App::build_milkdrop_menu_panel() const {
             const std::string lab = std::string(sel ? "> " : "  ") + pad_right(lab_text, 10);
             plain = lab + "< " + truncate_str(val, std::max(4, inner - display_width(lab) - 4)) + " >";
         } else {
-            const int vw = std::max(1, inner - 32);
+            const int lw = std::clamp(display_width(lab_text) + 1, 30, std::max(30, inner - 12));   // (a long label gets the room it needs)
+            const int vw = std::max(1, inner - 2 - lw);
             const std::string tv = display_width(val) > vw ? truncate_str(val, vw) : val;
-            plain = std::string(sel ? "> " : "  ") + pad_right(lab_text, 30) + pad_left(tv, vw);
+            plain = std::string(sel ? "> " : "  ") + pad_right(lab_text, lw) + pad_left(tv, vw);
         }
         body.push_back(row(plain, sel, !ok));
     }
@@ -435,10 +587,12 @@ std::vector<std::string> App::build_milkdrop_menu_panel() const {
     auto leg_bot = [&](const std::string& tx) { return centred_bottom(settings_, W, tx, border_bottom); };
     const std::string close_keys = (hotkey_text("HKeyVisualsMenu", ":") == "-" ? std::string() : hotkey_text("HKeyVisualsMenu", ":") + " / ") + "ESC";
     std::vector<std::string> leg;
-    if (ts) push_legend_block(leg, W, border_bottom, {"[UP/DOWN] select   [LEFT/RIGHT] change   [ENTER] pin / change", "[d] as in Settings   [N] / [B] next / previous   [" + close_keys + "] back"}, leg_in, leg_bot);
-    else push_legend_block(leg, W, border_bottom, {"[UP/DOWN] select   [LEFT/RIGHT] change   [ENTER] random", "[N] / [B] next / previous   [L] lock   [" + close_keys + "] close"}, leg_in, leg_bot);
+    if (ind_confirm_.active) push_legend_block(leg, W, border_bottom, {"Keep changes?", "[Y] keep   [N / ESC] undo"}, leg_in, leg_bot);
+    else if (ts) push_legend_block(leg, W, border_bottom, {"[UP/DOWN] select   [LEFT/RIGHT] change   [ENTER] pin / change", "[d] as in Settings   [N] / [B] next / previous   [" + close_keys + "] back"}, leg_in, leg_bot);
+    else push_legend_block(leg, W, border_bottom, {"[UP/DOWN] select   [LEFT/RIGHT] change   [ENTER] random / run", act ? "[N] / [B] preset   [L] lock   [d] as in Settings   [" + close_keys + "] close" : "[N] / [B] next / previous   [L] lock   [" + close_keys + "] close"}, leg_in, leg_bot);
     // the rows scroll with the cursor when the window is not tall enough (the headings and rows are about 35 lines)
     const int avail = std::max(6, term_rows_ - 1 - static_cast<int>(lines.size()) - static_cast<int>(leg.size()));
+    if (fill) while (static_cast<int>(body.size()) < avail) body.push_back(row("", false));   // (the full screen version: the commands sit at the bottom of the screen)
     const int total = static_cast<int>(body.size());
     if (total <= avail) { for (const std::string& l : body) lines.push_back(l); }
     else {
@@ -472,9 +626,7 @@ void App::milkdrop_menu_track_adjust(int row, int dir, bool reset) {
     }
     Milkdrop& m = Milkdrop::instance();
     MilkdropTrackOpts mo = cover_track_milkdrop(md_scope_track_);
-    const MdEff e = milkdrop_eff(mo);
     const bool playing = has_track_ && path_utf8(current_.path) == md_scope_track_;
-    auto flag = [&](int& f, bool eff_now) { f = reset ? -1 : eff_now ? 0 : 1; };
     switch (row) {
         case kMdPreset:
             if (reset) mo.preset.clear();
@@ -486,27 +638,14 @@ void App::milkdrop_menu_track_adjust(int row, int dir, bool reset) {
             break;
         case kMdRandom: m.random_preset(); return;
         case kMdBrowse: return;
-        case kMdLock: mo.keep = reset ? -1 : md_track_wants_lock(mo) ? 0 : 1; break;
-        case kMdDuration: mo.dur = reset ? -1 : md_step(kMdDurSteps, e.dur, dir); break;
-        case kMdShuffle: flag(mo.shuf, e.shuffle); break;
-        case kMdFavShuffle: flag(mo.favs, e.favs); break;
-        case kMdCutSens: mo.hcs = reset ? -1 : md_step(kMdCutSensSteps, e.cut_sens, dir); break;
-        case kMdHardCuts: flag(mo.cuts, e.cuts); break;
-        case kMdTransition: mo.trans = reset ? -1 : std::clamp(e.trans + dir, 0, 10); break;
-        case kMdUseFx: flag(mo.fxon, e.fx_on); break;
-        case kMdFx:
-            if (reset) mo.fx = -1;
-            else mo.fx = video_fx_step(mo.fx >= 0 ? mo.fx : video_fx_canon(settings_.milkdrop_fx), dir);
-            break;
-        case kMdName: flag(mo.name, e.name); break;
         case kMdView: mo.on = reset ? -1 : mo.on < 0 ? (dir > 0 ? 1 : 0) : mo.on == 1 ? (dir > 0 ? 0 : -1) : (dir > 0 ? -1 : 1); break;   // as in Settings -> on -> off
-        default: return;
+        default: if (!md_edit_rec(mo, row, dir, reset)) return; break;
     }
     set_cover_track_milkdrop(md_scope_track_, mo);
     std::string lab = row == kMdFavShuffle ? "Shuffle " + md_shuffle_label() : std::string(md_label(row, true));
     for (char& ch : lab) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
     const std::string msg = "this track: " + lab + " " + milkdrop_row_value(row, &mo);
-    status_line_ = "milkdrop: " + msg;
+    status_line_ = "milkdrop: " + msg + (mo.ioff == 1 ? "  (the individual settings are off for this track: switch them on to use it)" : "");
     if (meta_) meta_->sty_msg = "saved: " + msg;
     if (playing) {
         if (row == kMdView || (row == kMdPreset && !mo.preset.empty())) milkdrop_track_apply();   // (the view / the preset itself changed)
@@ -515,14 +654,149 @@ void App::milkdrop_menu_track_adjust(int row, int dir, bool reset) {
     milkdrop_pic_key_.clear();
 }
 
+// A row of the visuals menu while the playing track has individual settings: the change is only a temporary layer (md_trk_) -- the track's stored
+// settings come back when the track is loaded again, or with "Reset to last track settings"; "Set current values as individual settings" keeps it.
+void App::milkdrop_menu_temp(int row, int dir, bool reset) {
+    Milkdrop& m = Milkdrop::instance();
+    std::string what;
+    switch (row) {
+        case kMdPreset:
+            if (reset) return;
+            if (dir > 0) m.next_preset(); else m.prev_preset();
+            md_preset_changed_ = true;
+            status_line_ = std::string("milkdrop: ") + (dir > 0 ? "the next" : "the previous") + " preset (only until this track is loaded again, unless you set the current values as its individual settings)";
+            return;
+        case kMdLock:
+            if (reset) { md_trk_.keep = -1; milkdrop_track_live(md_trk_); }
+            else {
+                const bool nl = !m.locked();
+                if (!md_track_locked_) { md_user_locked_ = m.locked(); md_track_locked_ = true; }   // (given back when the next track is loaded)
+                m.set_locked(nl);
+                md_trk_.keep = nl ? 1 : 0;
+            }
+            break;
+        default: {
+            MilkdropTrackOpts mo = md_trk_;
+            if (!md_edit_rec(mo, row, dir, reset)) return;
+            milkdrop_track_live(mo);
+            break;
+        }
+    }
+    milkdrop_pic_key_.clear();
+    std::string lab = row == kMdFavShuffle ? "Shuffle " + md_shuffle_label() : std::string(md_label(row, false));
+    for (char& ch : lab) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    status_line_ = "milkdrop: " + lab + " " + milkdrop_row_value(row, &md_trk_) + " (only until this track is loaded again)";
+}
+
+// The rows of INDIVIDUAL TRACK SETTINGS MANAGEMENT: they act on the track the menu is for, else on the track that plays.
+void App::milkdrop_ind_action(int row) {
+    const std::string trk = md_target_track();
+    if (trk.empty()) return;
+    const bool ts = !md_scope_track_.empty();
+    const bool playing = has_track_ && !audiobook_ && path_utf8(current_.path) == trk;
+    MilkdropTrackOpts mo = cover_track_milkdrop(trk);
+    Milkdrop& m = Milkdrop::instance();
+    bool had_preset = false;
+    switch (row) {
+        case kMdIndSet: {   // the temporary values become the track's individual settings
+            if (ts || !md_changed()) { status_line_ = "milkdrop: nothing has been changed yet"; return; }
+            mo = md_trk_;
+            if (md_preset_changed_ && !m.preset_path().empty()) mo.preset = m.preset_path();   // (the preset that is shown now is the track's own)
+            mo.ioff = -1;
+            md_undo_.clear();
+            status_line_ = "milkdrop: the current values are now the individual settings of this track";
+            break;
+        }
+        case kMdIndRevert: {   // the temporary changes are dropped: the track's stored settings are in force again
+            if (ts || !md_changed()) { status_line_ = "milkdrop: nothing has been changed yet"; return; }
+            ind_confirm_ = IndConfirm();
+            ind_confirm_.active = true; ind_confirm_.md = true; ind_confirm_.kind = 1; ind_confirm_.track = trk; ind_confirm_.tsnap = md_snap();
+            md_undo_.clear();
+            md_trk_ = mo;
+            md_preset_changed_ = false;
+            if (!mo.preset.empty()) { if (mo.preset.find('/') != std::string::npos || mo.preset.find('\\') != std::string::npos) m.play_path(mo.preset); else m.play_named(mo.preset); }
+            milkdrop_track_apply();
+            milkdrop_pic_key_.clear();
+            status_line_ = "milkdrop: back to the individual settings of this track -- keep changes? [Y] / [N]";
+            force_redraw_ = true;
+            return;
+        }
+        case kMdUndo:
+            if (ts || md_undo_.empty()) { status_line_ = "milkdrop: nothing to undo"; return; }
+            md_restore(md_undo_.back());
+            md_undo_.pop_back();
+            status_line_ = "milkdrop: the last change is undone";
+            force_redraw_ = true;
+            return;
+        case kMdIndOn: {
+            const bool none = mo.ioff != 1 && !md_track_any(mo);
+            mo.ioff = mo.ioff == 1 ? -1 : none ? -1 : 1;
+            if (mo.ioff == -1 && !md_track_any(mo)) {   // (a track without individual settings gets them: a copy of the default values, to change from there)
+                const MdEff e = milkdrop_eff(MilkdropTrackOpts{});
+                mo.dur = e.dur; mo.shuf = e.shuffle ? 1 : 0; mo.favs = e.favs ? 1 : 0; mo.cuts = e.cuts ? 1 : 0; mo.hcs = e.cut_sens; mo.trans = e.trans;
+                mo.fxon = e.fx_on ? 1 : 0; mo.name = e.name ? 1 : 0; mo.fx = video_fx_canon(settings_.milkdrop_fx);
+                md_undo_.clear();
+                status_line_ = "milkdrop: this track has individual settings now (a copy of the default values: change them from here)";
+            } else status_line_ = mo.ioff == 1 ? "milkdrop: the individual settings of this track are off (kept; the default settings apply)"
+                                               : "milkdrop: the individual settings of this track are on again";
+            break;
+        }
+        case kMdIndReset:   // the track's individual values are removed: the general settings (as in Settings) are in force
+            if (!md_track_any(mo) && mo.ioff != 1) { status_line_ = "milkdrop: this track has no individual settings"; return; }
+            had_preset = !mo.preset.empty();
+            ind_confirm_ = IndConfirm();
+            ind_confirm_.active = true; ind_confirm_.md = true; ind_confirm_.kind = 0; ind_confirm_.track = trk; ind_confirm_.omd = mo;
+            mo = MilkdropTrackOpts();
+            md_undo_.clear();
+            status_line_ = "milkdrop: the individual settings of this track are removed -- keep changes? [Y] / [N]";
+            break;
+        case kMdIndCopy: {   // the individual values of the track become the default (general) settings
+            const bool live = !ts && md_ind_active();
+            const MilkdropTrackOpts src = live ? md_trk_ : mo;
+            if (md_values_default(src) && !(live && md_preset_changed_)) { status_line_ = "milkdrop: this track has no individual values that differ from the default settings"; return; }
+            md_undo_push();
+            if (src.dur >= 0) settings_.milkdrop_preset_secs = src.dur;
+            if (src.shuf >= 0) settings_.milkdrop_shuffle = src.shuf == 1;
+            if (src.favs >= 0) settings_.milkdrop_fav_shuffle = src.favs == 1;
+            if (src.cuts >= 0) settings_.milkdrop_hard_cuts = src.cuts == 1;
+            if (src.hcs >= 0) settings_.milkdrop_cut_sens = src.hcs;
+            if (src.trans >= 0) settings_.milkdrop_transition = src.trans;
+            if (src.fxon >= 0) settings_.milkdrop_fx_on = src.fxon == 1;
+            if (src.name >= 0) settings_.milkdrop_show_name = src.name == 1;
+            if (src.fx >= 0) settings_.milkdrop_fx = video_fx_canon(src.fx);
+            if (src.keep >= 0) settings_.milkdrop_lock = src.keep == 1;
+            if (live && md_preset_changed_ && !m.preset_path().empty()) settings_.milkdrop_default_preset = m.preset_path();
+            else if (!src.preset.empty()) settings_.milkdrop_default_preset = src.preset;
+            save_settings(settings_);
+            milkdrop_apply_settings();
+            milkdrop_pic_key_.clear();
+            status_line_ = "milkdrop: the individual values of this track are now the default settings (Undo change takes them back)";
+            force_redraw_ = true;
+            return;
+        }
+        default: return;
+    }
+    set_cover_track_milkdrop(trk, mo);
+    if (playing) milkdrop_track_apply();
+    if (playing && had_preset && row == kMdIndReset) {   // the track's own preset goes with its individual values: the general default preset (or one from the list) is shown
+        const std::string& d = settings_.milkdrop_default_preset;
+        if (d.find('/') != std::string::npos || d.find('\\') != std::string::npos) m.play_path(d);
+        else if (!d.empty()) m.play_named(d);
+        else m.random_preset();
+    }
+    milkdrop_pic_key_.clear();
+    force_redraw_ = true;
+}
+
 void App::milkdrop_menu_adjust(int row, int dir) {
     Milkdrop& m = Milkdrop::instance();
+    if (md_ind_active() && md_rec_row(row)) { milkdrop_menu_temp(row, dir, false); return; }   // (the playing track has individual settings: only a temporary change)
     switch (row) {
         case kMdPreset: if (dir > 0) m.next_preset(); else m.prev_preset(); break;
         case kMdRandom: m.random_preset(); break;
         case kMdLock: m.set_locked(!m.locked()); settings_.milkdrop_lock = m.locked(); save_settings(settings_); status_line_ = m.locked() ? "milkdrop: the preset stays" : "milkdrop: the presets change again"; break;
         case kMdDuration: settings_.milkdrop_preset_secs = md_step(kMdDurSteps, settings_.milkdrop_preset_secs, dir); break;
-        case kMdBrowse: if (dir > 0) mdb_open(); return;
+        case kMdBrowse: if (dir > 0) { md_browse_pending_ = true; md_browse_from_ = m.preset_path(); mdb_open(); } return;
         case kMdShuffle: settings_.milkdrop_shuffle = !settings_.milkdrop_shuffle; break;
         case kMdFolder: {   // the folder that is shuffled: Favourites, Recommended, the folders made in the preset overlay
             const std::vector<std::string> ch = md_folder_choices();
@@ -581,29 +855,38 @@ void App::milkdrop_menu_adjust(int row, int dir) {
             break;
         case kMdName: settings_.milkdrop_show_name = !settings_.milkdrop_show_name; break;
         case kMdView: milkdrop_auto_set(!settings_.milkdrop_auto); break;
-        case kMdOverride:   // for this session only: the general settings are used, the track's own ones stay as they are
-            md_override_ = !md_override_;
-            milkdrop_track_apply();
-            milkdrop_pic_key_.clear();
-            status_line_ = md_override_ ? "milkdrop: the general settings are used for every track (the individual ones are kept; until you turn this off or quit)"
-                                        : "milkdrop: individual track settings are in force again";
-            return;   // (nothing to save: not kept)
         default: break;
     }
-    if (!md_override_ && has_track_ && !audiobook_ && md_track_has(row, md_trk_) && row != kMdPreset && row != kMdLock)
-        status_line_ = "milkdrop: the general setting changed, but this track has its own value for it, which stays in force (Override Individual Settings uses the general ones)";
     milkdrop_apply_settings();
     if (row != kMdPreset && row != kMdRandom && row != kMdLock && row != kMdBrowse) save_settings(settings_);   // (saved with every change: not only when the menu is closed by ESC)
 }
 
 void App::handle_milkdrop_menu_key(int key) {
+    if (ind_confirm_key(key)) return;
     if (mdb_open_) { handle_mdb_key(key); return; }
     const bool ts = !md_scope_track_.empty();
     const bool arrow = last_key_was_arrow();
     auto move = [&](int d) {
         for (int i = 0; i < kMdRows; ++i) { md_menu_row_ = (md_menu_row_ + d + kMdRows) % kMdRows; if (md_row_shown(md_menu_row_)) break; }
     };
-    auto change = [&](int row, int dir) { if (ts) milkdrop_menu_track_adjust(row, dir, false); else milkdrop_menu_adjust(row, dir); };
+    auto preset_op = [&](int d) {   // 1 next, -1 previous, 0 random: a change of the visuals (the temporary layer when the track has individual settings)
+        md_undo_push();
+        Milkdrop& m = Milkdrop::instance();
+        if (d > 0) m.next_preset(); else if (d < 0) m.prev_preset(); else m.random_preset();
+        if (md_ind_active()) md_preset_changed_ = true;
+        force_redraw_ = true;
+    };
+    auto change = [&](int row, int dir) {
+        if (row >= kMdIndSet && row <= kMdIndOn) { if (dir > 0 || row == kMdIndOn) milkdrop_ind_action(row); return; }   // (the individual settings rows: an action row only by ENTER / SPACE / RIGHT)
+        if (ts) { milkdrop_menu_track_adjust(row, dir, false); return; }
+        if (row == kMdPreset) { preset_op(dir > 0 ? 1 : -1); return; }
+        if (row == kMdRandom) { preset_op(0); return; }
+        if (row == kMdBrowse) { if (dir > 0) { md_undo_push(); milkdrop_menu_adjust(row, dir); } return; }
+        const MdSnap before = md_snap();
+        milkdrop_menu_adjust(row, dir);
+        if (!md_snap_same(before, md_snap())) { md_undo_.push_back(before); if (md_undo_.size() > 60) md_undo_.erase(md_undo_.begin()); }
+        force_redraw_ = true;
+    };
     if (!md_row_shown(md_menu_row_)) move(1);
     if (arrow && (key == 'A' || key == 'B') && (last_key_was_shifted() || last_key_was_page())) {   // SHIFT+UP / DOWN, PgUp / PgDn: a page of rows (not around the ends)
         const int d = key == 'A' ? -1 : 1;
@@ -621,26 +904,77 @@ void App::handle_milkdrop_menu_key(int key) {
     if (arrow && (key == 'C' || key == 'D')) { change(md_menu_row_, key == 'C' ? 1 : -1); return; }
     if (arrow) return;
     if (key == '\r' || key == '\n') {
-        if (md_menu_row_ == kMdBrowse) { if (ts) mdb_open_track(md_scope_track_, md_scope_title_); else mdb_open(); return; }
-        if (md_menu_row_ == kMdRandom) { Milkdrop::instance().random_preset(); return; }
-        if (md_menu_row_ == kMdPreset) { if (ts) milkdrop_menu_track_adjust(kMdPreset, 2, false); else Milkdrop::instance().random_preset(); return; }
+        if (md_menu_row_ == kMdBrowse) { if (ts) mdb_open_track(md_scope_track_, md_scope_title_); else change(kMdBrowse, 1); return; }
+        if (md_menu_row_ == kMdRandom) { if (ts) Milkdrop::instance().random_preset(); else preset_op(0); return; }
+        if (md_menu_row_ == kMdPreset) { if (ts) milkdrop_menu_track_adjust(kMdPreset, 2, false); else preset_op(0); return; }
         change(md_menu_row_, 1);
         return;
     }
     if (key == ' ') { change(md_menu_row_, 1); return; }
-    if (ts && (key == 'd' || key == 'D' || key == kKeyDelete || key == 127 || key == 8)) { milkdrop_menu_track_adjust(md_menu_row_, 0, true); return; }
-    if (key == 'n' || key == 'N') { Milkdrop::instance().next_preset(); return; }
-    if (key == 'b' || key == 'B') { Milkdrop::instance().prev_preset(); return; }
+    if (key == 'd' || key == 'D' || key == kKeyDelete || key == 127 || key == 8) {   // [d]: the row goes back to "as in Settings"
+        if (md_menu_row_ >= kMdIndSet && md_menu_row_ <= kMdIndOn) return;
+        if (ts) { milkdrop_menu_track_adjust(md_menu_row_, 0, true); return; }
+        if (md_ind_active() && md_rec_row(md_menu_row_) && md_menu_row_ != kMdPreset) {
+            const MdSnap before = md_snap();
+            milkdrop_menu_temp(md_menu_row_, 0, true);
+            if (!md_snap_same(before, md_snap())) md_undo_.push_back(before);
+            force_redraw_ = true;
+        }
+        return;
+    }
+    if (key == 'n' || key == 'N') { if (ts) Milkdrop::instance().next_preset(); else preset_op(1); return; }
+    if (key == 'b' || key == 'B') { if (ts) Milkdrop::instance().prev_preset(); else preset_op(-1); return; }
     if (key == 'l' || key == 'L') { change(kMdLock, 1); return; }
     if (key == 27 || key_is("HKeyVisualsMenu", key)) {
         mode_ = md_return_mode_;
         md_return_mode_ = Mode::Browse;
         const bool was_track = ts;
+        md_undo_.clear();
         md_scope_track_.clear();
         md_scope_title_.clear();
         if (!was_track) save_settings(settings_);
         force_redraw_ = true;
     }
+}
+
+// The visuals overlay over the whole screen: its options on the left, the visuals (the picture the settings change) on the right.
+// "" = too narrow for the picture (the options then come as the panel over the screen, as before).
+std::string App::build_milkdrop_menu_screen(int W, const char* clear_prefix) const {
+    const int Wp = kMdMenuPanelWidth, mg = 1;
+    const int H = std::max(6, term_rows_ - 1);
+    const int pw = W - Wp - 2 - 2 * mg, ph = H - 2;
+    if (pw < 20) return std::string();
+    const std::string border = ansi_for(settings_.border_color, false);
+    const std::string border_bottom = ansi_for(settings_.border_color_bottom, false);
+    const std::string bar = border.empty() ? settings_.box_vertical : (border + settings_.box_vertical + "\x1b[0m");
+    const std::vector<std::string> left = build_milkdrop_menu_panel(true);
+    std::vector<std::string> pic;
+    const std::vector<std::string> nb = milkdrop_name_box(pw - 2);
+    std::string why;
+    const bool avail = Milkdrop::instance().available(&why);
+    if (!avail || !milkdrop_draw(pic, pw, ph, Wp + 1 + mg, 1, false, 0, nb, nb.empty() ? 0 : pw)) {
+        pic.assign(static_cast<size_t>(ph), std::string(static_cast<size_t>(pw), ' '));
+        const std::string full = !avail ? "Not available: " + why : Milkdrop::instance().status().empty() ? "starting ..." : Milkdrop::instance().status();
+        const std::vector<std::string> ml = wrap_lines(full, std::max(10, pw - 2), 8);
+        int r0 = std::max(0, (ph - static_cast<int>(ml.size())) / 2);
+        for (size_t k = 0; k < ml.size() && r0 + static_cast<int>(k) < ph; ++k) {
+            const int pad = std::max(0, (pw - display_width(ml[k])) / 2);
+            pic[static_cast<size_t>(r0) + k] = std::string(static_cast<size_t>(pad), ' ') + ml[k] + std::string(static_cast<size_t>(std::max(0, pw - pad - display_width(ml[k]))), ' ');
+        }
+    }
+    std::ostringstream f;
+    f << clear_prefix << "\x1b[?25l";
+    for (int r = 0; r < H; ++r) {
+        f << (r < static_cast<int>(left.size()) ? left[static_cast<size_t>(r)] : std::string(static_cast<size_t>(Wp), ' '));
+        if (r == 0) f << box_top("VISUALS", W - Wp, border);
+        else if (r == H - 1) f << box_bottom(W - Wp, "", border_bottom);
+        else {
+            const std::string p = r - 1 < static_cast<int>(pic.size()) ? pic[static_cast<size_t>(r - 1)] : std::string(static_cast<size_t>(pw), ' ');
+            f << bar << std::string(static_cast<size_t>(mg), ' ') << p << "\x1b[0m" << std::string(static_cast<size_t>(mg), ' ') << bar;
+        }
+        if (r + 1 < H) f << "\n";
+    }
+    return clamp_output_rows(f.str(), term_rows_);
 }
 
 // ---- the preset overlay ----

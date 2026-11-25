@@ -217,7 +217,9 @@ private:
     mutable unsigned snap_rev_ = 0;
     unsigned video_rev_ = 1;   // bumped when the pairing of tracks and videos changed (a link made / removed / mended)
     // --- VIDEO (HKeyVideo) and VIDEO OPTION / SEARCH YT (src/app_videomenu.cpp, src/app_videosearch.cpp) ---
+    mutable bool trim_left_next_ = false;         // (set around the drawing of a field picture that stands beside a wall: see video_draw_src)
     int vmenu_sel_ = 0;
+    mutable int vmenu_top_ = 0, vopts_top_ = 0;   // the first content line shown when the video settings / video options are taller than the terminal
     // The two questions of "Delete Current Video" (stage 1, then 2) and the one of "Refetch this Video" (stage 3), drawn over the VIDEO overlay.
     int vdel_stage_ = 0, vdel_sel_ = 0;                    // vdel_sel_: 0 No, 1 Yes (always starts on No)
     std::string vdel_video_;                               // the video file in question
@@ -232,7 +234,7 @@ private:
     void video_menu_change(int row, int dir);
     void video_menu_key(int key);
     std::vector<std::string> build_video_menu_panel() const;
-    static constexpr int kVideoMenuPanelWidth = 52;   // (narrow: most of the picture stays visible at the right while the options are changed)
+    static constexpr int kVideoMenuPanelWidth = 60;   // (narrow: most of the picture stays visible at the right while the options are changed)
     struct VLEntry { fs::path path; std::string label, folder, hay; bool video = false, has_video = false; };   // (has_video: a song with a connected / same-name video)
     struct VlState;   // defined in app_state_vl.h (only the files that use it include that)
     std::unique_ptr<VlState> vl_;   // allocated in the constructor
@@ -303,6 +305,40 @@ private:
     bool video_lyrics_for(const fs::path& track) const;   // Use Lyrics on Video (the lyric line in the video view): the track's own, else the VIDEO overlay
     bool video_round_for(const fs::path& track) const;   // Rounded Corners of the picture: the track's own, else Settings
     int video_fx_for(const fs::path& track) const;
+    bool video_individual_off() const;     // the individual video settings of the playing track are switched off
+    void video_ind_action(int what);       // 0 Use on / off, 1 Set to general values, 2 Reset (remove), 3 Set current values, 4 Reset to individual settings, 5 Undo change
+    // The VIDEO SETTINGS overlay and VIDEO OPTIONS (SHIFT+s) are two doors to the same settings. While the playing track has individual video
+    // settings, a change of a row the track can have its own value for only changes a temporary layer (vtmp_, a copy of the track's record that
+    // is dropped when the track is loaded again); "Set current values as individual settings" stores it. Otherwise the general settings change.
+    mutable bool vtmp_on_ = false;
+    mutable std::string vtmp_track_;
+    mutable VideoTrackOpts vtmp_, vtmp_base_;   // (vtmp_base_: the stored record the layer was copied from; when that changes, the layer is dropped)
+    struct VmSnap { VideoTrackOpts tmp, base; bool tmp_on = false; int lyrics = 0, size = 0, fx = 0, base_l = 0, fxc = 0, contrast = 0, brightness = 0, colors = 0, chroma = 0, dither = 0, gsat = 0, gvivid = 0, res = 0, fps = 0, buffer = 0, clap = 0, cover_sat = 0; bool round = false; };
+    std::vector<VmSnap> vm_undo_;
+    VmSnap vm_snap() const;
+    void vm_restore(const VmSnap& s);
+    bool video_ind_active() const;     // the playing track has individual video settings in force
+    bool video_changed() const;        // the temporary layer differs from the track's stored settings
+    bool video_values_default() const; // every value of the playing track is the default one
+    bool video_button_on(int what) const;   // a button of the management has something to do (what: as video_ind_action)
+    void video_temp_begin() const;
+    void video_menu_temp(int vm_row, int dir, bool reset);   // a row of the VIDEO SETTINGS overlay, changed in the temporary layer
+    static bool vm_snap_same(const VmSnap& a, const VmSnap& b);
+    void video_menu_fx(int fx);
+    void video_menu_step(int vm_row, int dir, bool reset);   // a row changed by either menu: the temporary layer or the general settings; with Undo change
+    std::string video_vm_text(int vm_row) const;             // the value of a row (the effective one) with "(this track)" when the track's individual value is in force
+    // Reset Individual Settings (MilkDrop and video): done at once (the picture shows it), then "Keep changes?": Y keeps, N / ESC gives the old values back.
+    struct MdSnap {   // everything a change in the visuals menu can touch (for Undo change)
+        MilkdropTrackOpts trk; bool preset_changed = false; std::string preset; bool locked = false;
+        int secs = 0, cut_sens = 0, trans = 0, fps = 0, res = 0, bright = 0, sat = 0, contrast = 0, hcd = 0, var = 0, mesh = 0, ratio = 0, fx = 0;
+        bool shuffle = false, fav = false, cuts = false, aspect = false, clean = false, fx_on = false, fixed = false, name = false, autom = false, lock_setting = false;
+        std::string folder, gpu, defpreset;
+    };
+    static bool md_snap_same(const MdSnap& a, const MdSnap& b);
+    // (kind 0: the stored record was changed -- omd / ovo come back; 1: only the temporary layer was reset -- tsnap (MilkDrop) / tvo (video) come back)
+    struct IndConfirm { bool active = false, md = false; int kind = 0; std::string track; MilkdropTrackOpts omd; VideoTrackOpts ovo; MdSnap tsnap; VideoTrackOpts tvo; bool tvo_on = false; };
+    IndConfirm ind_confirm_;
+    bool ind_confirm_key(int key);
     VideoTrackOpts video_own(const std::string& track) const;   // the track's own video options (none while Override Individual Settings is on)
     VideoLook video_look_for(const fs::path& track) const;   // the effect, contrast, colours and chromatic aberration of the track's video (its own choices, else Settings)
     int video_pic_width() const;
@@ -339,8 +375,19 @@ private:
     bool md_track_view_ = false, md_track_off_ = false, md_track_locked_ = false;
     bool md_user_locked_ = false;   // the lock as it was before a track's preset locked it (given back after that track)
     int md_track_fx_ = -1;          // the effect of the track that plays (Style Option -> More Options), -1 = MilkDropEffect=
-    bool md_override_ = false;      // Override Individual Settings (MilkDrop): for this session, the general settings are used for every track
-    bool video_override_ = false;   // the same for the video options
+    // The visuals menu while the playing track has individual settings: what is changed there is only a temporary layer (md_trk_, a copy of the
+    // track's record that is read again when the track is loaded); "Set current values as individual settings" stores it.
+    mutable bool md_preset_changed_ = false;   // the preset was changed by hand in the menu (next / previous / random / Preset Overlay): part of "changed"
+    mutable bool md_browse_pending_ = false;   // the Preset Overlay was opened from the menu: a preset chosen there counts as a change
+    mutable std::string md_browse_from_;
+    mutable std::vector<MdSnap> md_undo_;
+    MdSnap md_snap() const;
+    void md_restore(const MdSnap& s);
+    void md_undo_push();
+    bool md_ind_active() const;        // the playing track has individual MilkDrop settings in force (the menu then shows them and changes only a temporary layer)
+    bool md_changed() const;           // the temporary layer differs from the track's stored settings
+    bool md_values_default(const MilkdropTrackOpts& r) const;   // every value of the record is the default one (as in Settings), no preset of its own
+    bool md_edit_rec(MilkdropTrackOpts& mo, int row, int dir, bool reset);   // one row of a track record (stored or temporary); false = not a row of the record
     MilkdropTrackOpts md_trk_;      // everything the track that plays has of its own (More Options): the values laid over Settings, -1 = as in Settings
     // The values in force: Settings, with the playing track's own over them (the visuals overlay of the big video, and Style Option ->
     // More Options, change the track's; Settings and the visuals overlay of the main screen change Settings).
@@ -362,6 +409,7 @@ private:
     void milkdrop_menu_open(const std::string& track, const std::string& title, Mode back);
     bool md_row_shown(int row) const;
     void milkdrop_menu_track_adjust(int row, int dir, bool reset);
+    void milkdrop_menu_temp(int row, int dir, bool reset);   // a change of the visuals menu while the playing track has individual settings: only a temporary layer
     void mdb_open_default();
     bool md_prev_lyrics_ = false, md_prev_video_ = false;
     int md_prev_viz_ = 0;
@@ -378,7 +426,11 @@ private:
     // The visuals overlay (":", HKeyVisualsMenu): the MilkDrop preset and options.
     int md_menu_row_ = 0;
     static constexpr int kMdMenuPanelWidth = 64;
-    std::vector<std::string> build_milkdrop_menu_panel() const;
+    std::vector<std::string> build_milkdrop_menu_panel(bool fill = false) const;   // (fill: as tall as the screen, for the full screen version)
+    std::string build_milkdrop_menu_screen(int W, const char* clear_prefix) const;   // the visuals overlay over the whole screen: the options left, the visuals right ("" = too narrow)
+    std::string md_target_track() const;   // the track the individual settings rows act on ("" = none)
+    bool md_individual_off() const;        // the individual MilkDrop settings of the playing track are switched off
+    void milkdrop_ind_action(int row);     // Set current values / Reset to individual / Reset individual values / Set to general values / Undo / Use
     void handle_milkdrop_menu_key(int key);
     void milkdrop_menu_adjust(int row, int dir);
     // The preset overlay (the visuals overlay's "Preset Overlay" row): the preset folder like the folder overlay, the live visuals on the
@@ -463,6 +515,12 @@ private:
     std::string build_video_full(int W, const char* clear_prefix) const;
     std::string build_video_opts_screen(int W, const char* clear_prefix) const;   // VIDEO OPTIONS over the whole screen with the video beside it ("" = too narrow)
     std::vector<std::string> video_opts_rows(int inner) const;
+    bool video_menu_has_video() const;     // the playing track has a video (its own file, or one coupled / fetched)
+    bool video_menu_restricted() const;    // the Video mode is on and the playing track has no video: only the Videos for songs rows apply
+    bool video_row_visible(int id, bool big) const;
+    std::vector<int> video_menu_rows(bool big) const;   // the row ids of VIDEO SETTINGS (big = false) / VIDEO OPTIONS (true) that are listed now
+    void video_delete_ask(bool refetch);
+    bool video_vdel_key(int key);
     bool video_full_key(int key);
     // The layout of the full screen video (SHIFT+UP / DOWN): video, video + oscilloscope, video + oscilloscope + spectrogram. The
     // oscilloscope / spectrogram options opened from there show (and change) the layout's own style / mode / view (Settings::vl_*);
@@ -928,6 +986,8 @@ private:
     int eff_cover_contrast() const;
     int eff_cover_brightness() const;
     int eff_cover_colors() const;
+    bool cover_style_differs(const CoverStyle& st) const;   // a cover value of the track is set and is not the default one
+    int eff_cover_vivid() const;   // Cover Gradient Vividness of the playing track (its Style Option, else Settings)
     int eff_cover_gsat() const;   // Cover Gradient Saturation of the playing track (its Style Option, else Settings)
     int eff_cover_chroma() const;
     const CoverStyle& track_style() const;
@@ -940,7 +1000,7 @@ private:
     void cycle_cover_look(int dir);              // CTRL+t / CTRL+z: the plain disk and the cover looks (audio books: default picture, cover with wave, cover)
     std::vector<std::string> cover_preview_lines_img(const CoverImage& img, int cols, int rows) const;   // a picture already in memory as braille dots
     std::vector<std::string> cover_preview_lines(const std::string& file, bool embedded, int cols, int rows, const std::string& msg = "") const;
-    std::vector<std::string> album_cover_lines_for(const CoverImage& cover, int mode, int contrast, int brightness, int colors, double angle, int cols, int rows, int chroma = 0, int gsat = -1) const;   // any cover, any style (previews); gsat -1 = the playing track's
+    std::vector<std::string> album_cover_lines_for(const CoverImage& cover, int mode, int contrast, int brightness, int colors, double angle, int cols, int rows, int chroma = 0, int gsat = -1, int vivid = -1) const;   // any cover, any style (previews); gsat -1 = the playing track's
 
     // --- meta/tag editor overlay (Mode::MetaEdit, HKeyMetaEditor = Shift+M) ---
     // Deliberately shaped like the playlist editor above: same tab strip,
@@ -1010,12 +1070,18 @@ private:
     void meta_sty_open();
     void meta_open_style_playing();     // HKeyStyleOptions: the Style Option overlay of the playing track
     bool handle_meta_sty_key(int key);
+    bool handle_meta_sty_key_inner(int key);
+    struct CoverUndo { std::string track, album, folder; CoverStyle st; int album_look = -1, mode = 0, contrast = 0, brightness = 0, colors = 0, chroma = 0, gsat = 0, vivid = 0; };
+    CoverUndo cover_snap() const;
+    static bool cover_snap_same(const CoverUndo& a, const CoverUndo& b);
+    std::vector<CoverUndo> cov_undo_;   // Undo change of the Cover style overlay
+    bool cov_undoing_ = false;
     std::vector<std::string> build_meta_sty_panel(int screen_w) const;
     int meta_sty_panel_width(int screen_w) const;
     std::vector<std::string> meta_sty_preview(int prev_w, int rows, const CoverStyle& st, int album_look, int screen_w) const;
-    bool meta_sty_gfx(const CoverImage& cover, int mode, int contrast, int brightness, int colors, int chroma, double angle, int col, int row, int cols, int rows, int gsat = -1) const;   // the Style preview as a picture (gfx_)
+    bool meta_sty_gfx(const CoverImage& cover, int mode, int contrast, int brightness, int colors, int chroma, double angle, int col, int row, int cols, int rows, int gsat = -1, int vivid = -1) const;   // the Style preview as a picture (gfx_)
     // While the Style overlay builds its picture, these replace the playing track's own cover style (eff_cover_*)
-    mutable struct CoverOvr { bool on = false; int contrast = 0, brightness = 0, colors = 0, chroma = 0, gsat = 30; } cover_ovr_;
+    mutable struct CoverOvr { bool on = false; int contrast = 0, brightness = 0, colors = 0, chroma = 0, gsat = 30, vivid = 0; } cover_ovr_;
     static constexpr int kMetaStyPanelWidth = 64;
     // The choice overlay (ENTER on a field with several fetched candidates).
     void meta_toggle_fetch_opt(int i);                 // tick / untick one FETCH option (the exclusivity rules apply)
@@ -1351,6 +1417,8 @@ private:
     std::vector<std::string> cli_hist_;            // lines run so far (UP / DOWN recall them), oldest first
     int cli_hist_pos_ = -1;                        // -1: not browsing the history
     std::vector<std::string> cli_out_;             // "> line" and its reply, newest last (the last 200)
+    mutable int cli_up_ = 0;                       // SHIFT+UP / DOWN: lines the output of /c: (library pane) is scrolled up from the newest (clamped while drawing)
+    mutable int console_cli_up_ = 0;               // the same for the command pane of the console [t]
     std::string cli_reply_;                        // the last reply: shown in the search bar's border while /c: is open
     std::vector<cli::Job> cli_jobs_;               // running scripts / chains (one that waits stays here)
     std::vector<cli::Timer> cli_timers_;           // `in 10m pause`
@@ -2283,7 +2351,7 @@ private:
     std::optional<std::string> render_takeover_screen(int term_cols, int W, bool hard_clear);   // the full-screen modes of render_frame() (app_render.cpp)
 
     // --- box drawing helpers (use configured border chars) ---
-    std::string box_top(const std::string& label, int total_width, const std::string& border_ansi = "") const;
+    std::string box_top(const std::string& label, int total_width, const std::string& border_ansi = "", bool bold_ok = true) const;   // (bold_ok: Thick Borders sets the title in bold; false for a label that is a song title)
     std::string local_pane_label(int total_width) const; // LOCAL AUDIO FILES title, folder name shortened to fit
     std::string box_bottom(int total_width, const std::string& footer = "", const std::string& border_ansi = "") const;
     std::string box_line(const std::string& content, int total_width, const std::string& border_ansi = "") const;

@@ -347,7 +347,7 @@ std::string App::build_spectro_full(int W, const char* clear_prefix) const {
     title = scale_txt + "  |  " + title;
     std::ostringstream f;
     f << clear_prefix << "\x1b[?25l";
-    f << box_top(truncate_str(title, W - 6), W, border) << "\n";
+    f << box_top(truncate_str(title, W - 6), W, border, false) << "\n";
     if (wf) {   // the waterfall has no time axis: the frequencies of the front graph (in Hz, "k" = thousand) take the ruler's row
         std::string ruler(static_cast<size_t>(cols), ' ');
         if (sp.labels)
@@ -467,7 +467,7 @@ std::string App::build_scope_big(int W, const char* clear_prefix) const {
     auto color_of = [&](int tx, int cols, uint8_t hue, float k) {
         if (pal == 0) {
             const float t = cols > 1 ? static_cast<float>(tx) / static_cast<float>(cols - 1) : 0.0f;
-            return osci_dim_ansi(gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t), k);
+            return osci_dim_ansi(vivid_gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t, settings_.vivid_of(settings_.scope_vivid)), k);
         }
         int r = 255, gg = 255, b = 255;
         osci_palette_rgb(settings_, pal, hue / 255.0f, r, gg, b);

@@ -1149,7 +1149,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
             if (is(&RadioSettings::freq_line))
                 return {{ansi_fg(v1), "──╦──┬──╦── "}, {ansi_fg(v2), "92  ·  96"}};
             if (is(&RadioSettings::volume_current))
-                return {{"", "VOLUME BAR:["}, {ansi_fg(v1), muisc::volume_bar_fill(c.volume_indicator, 9, muisc::volume_clock_angle())}, {ansi_fg(v2), "-----------"}, {"", "]"}};
+                return {{"", "VOLUME:["}, {ansi_fg(v1), muisc::volume_bar_fill(c.volume_indicator, 9, muisc::volume_clock_angle())}, {ansi_fg(v2), "-----------"}, {"", "]"}};
             auto styled = [&](const std::string& fg, const std::string& bg, bool cursor) {
                 std::string a = ansi_fg(fg) + ansi_bg(bg);
                 if (cursor && a.empty()) a = "\x1b[7m";

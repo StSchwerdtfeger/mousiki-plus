@@ -44,8 +44,15 @@ TEST(settings_save_load_is_stable) {
     s.image_detail = 1;
     s.share_profiles = true;
     s.spectro_history = false;
+    s.disk_vivid = 140; s.cover_vivid = 150; s.scope_vivid = 130; s.bars_vivid = -1; s.volume_vivid = 0;
     save_settings(s);
     const Settings back = load_settings();
+    CHECK_EQ(back.disk_vivid, 140);
+    CHECK_EQ(back.cover_vivid, 150);
+    CHECK_EQ(back.scope_vivid, 130);
+    CHECK_EQ(back.bars_vivid, -1);
+    CHECK_EQ(back.volume_vivid, 0);
+    CHECK_EQ(back.spectro_vivid, -1);
     CHECK(!back.spectro_history);
     CHECK_NEAR(back.osci_set[1].decay, 0.10, 0.001);
     CHECK_EQ(back.osci_set[1].trace, 8192);
@@ -867,9 +874,9 @@ TEST(settings_table_reads_old_names_clamps_numbers_and_takes_flag_spellings) {
     CHECK_EQ(read("CoverBrightness=47%\n").cover_brightness, 45);
     CHECK_EQ(read("CoverBrightness=48\n").cover_brightness, 50);
     CHECK_EQ(read("CoverContrast=\"33\"\n").cover_contrast, 35);
-    CHECK_EQ(read("CoverContrast=150\n").cover_contrast, 150);   // up to 150 %, the other cover percents stop at 100
-    CHECK_EQ(read("CoverContrast=400\n").cover_contrast, 150);
-    CHECK_EQ(read("CoverContrast=148%\n").cover_contrast, 150);
+    CHECK_EQ(read("CoverContrast=200\n").cover_contrast, 200);   // up to 200 %, the other cover percents stop at 100 (the vividness at 150)
+    CHECK_EQ(read("CoverContrast=400\n").cover_contrast, 200);
+    CHECK_EQ(read("CoverContrast=198%\n").cover_contrast, 200);
     CHECK_EQ(read("CoverColors=250\n").cover_colors, 100);
     CHECK_EQ(Settings().cover_grad_sat, 30);   // the default: a mild gradient on the cover looks
     CHECK_EQ(read("CoverGradientSaturation=0\n").cover_grad_sat, 0);

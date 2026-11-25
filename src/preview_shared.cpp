@@ -41,7 +41,7 @@ PanePreview pane_preview(int style, int w, const char* name1, const char* name2,
     if (c1 >= 0) walls.push_back(c1);
     if (c2 >= 0) walls.push_back(c2);
     const std::string bar = panestyle::wall(g, border), mid = panestyle::wall(g, style, border);
-    const int b1 = split ? c1 : w / 4, b2 = split ? c2 : w * 5 / 8;   // (where the names are centred: between the walls)
+    const int b1 = split ? c1 : w / 4, b2 = c2 >= 0 ? c2 : (c1 >= 0 ? c1 + (w - 1 - c1) / 2 : w * 5 / 8);   // (where the names are centred: between the walls; two panes: meta data and lyrics / viz share the second box)
     const struct { int from, to; const char* text; } names[] = {{1, b1, name1}, {b1 + 1, b2, name2}, {b2 + 1, w - 1, name3}};
     out.rows.push_back(panestyle::row(g, style, true, w, walls, border));
     for (int r = 0; r < 3; ++r) {

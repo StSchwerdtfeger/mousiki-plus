@@ -169,6 +169,17 @@ TEST(cli_settings_bridge_only_reaches_flags_and_numbers) {
     CHECK_EQ(cli_setting_set(s, "VolumeGradient", "toggle"), std::string(""));
     CHECK(s.volume_gradient);
     CHECK(!cli_setting_set(s, "VolumeGradient", "maybe").empty());
+    // the vividness of the braille elements: "as disk" (-1) or 0 .. 150
+    CHECK_EQ(cli_setting_get(s, "BarsVividness", &found), std::string("as disk"));
+    CHECK_EQ(cli_setting_set(s, "BarsVividness", "150"), std::string(""));
+    CHECK_EQ(s.bars_vivid, 150);
+    CHECK(!cli_setting_set(s, "BarsVividness", "155").empty());
+    CHECK_EQ(cli_setting_set(s, "BarsVividness", "as disk"), std::string(""));
+    CHECK_EQ(s.bars_vivid, -1);
+    s.disk_vivid = 70;
+    CHECK_EQ(s.vivid_of(s.bars_vivid), 70);
+    s.volume_vivid = 120;
+    CHECK_EQ(s.vivid_of(s.volume_vivid), 120);
 }
 
 TEST(cli_text_commands_reach_the_program_with_an_id) {

@@ -34,6 +34,7 @@ struct VideoPicParams {
     bool round_corners = false;  // the four corners cut round
     int vcols = 1, vrows = 1;    // the picture's size in cells (the radius of the corners follows the cell size)
     int trim = 0;                // columns of pixels cut off at the right
+    int trim_left = 0;           // ... and at the left (the picture beside a wall of the three panes: the gap is as small as at the right)
     int cut_c = 0, cut_r = 0, cut_w = 0, cut_h = 0;   // the lyric box: cells (relative to the picture) that are cut out; cut_w = 0: none
     bool adaptive = false;       // (palette pictures) the colours come from the picture itself (VideoPlayer::quantize_adaptive): the MilkDrop visuals
 };

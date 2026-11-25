@@ -237,7 +237,7 @@ void App::build_readlyrics_screen(std::ostringstream& frame, int W, int target_h
     else if (rd_->same && rd_->tlist.empty()) info += sep2 + "already " + language_name(settings_.translate_to);
     else if (!rd_->tlist.empty()) info += sep2 + "translation hidden -- [SHIFT+t] shows it";
 
-    frame << box_top(truncate_str(rd_->title, std::max(10, W - 8)), W, border) << "\n";
+    frame << box_top(truncate_str(rd_->title, std::max(10, W - 8)), W, border, false) << "\n";
     const std::string orig_sgr = ansi_for(settings_.active_line_color, false);
     const std::string trans_sgr = ansi_for(settings_.inactive_line_color, false);
     for (int k = 0; k < body; ++k) {

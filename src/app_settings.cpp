@@ -802,6 +802,8 @@ int App::settings_max_row() const {
     }
 }
 
+static std::string vivid_text(int v) { return v < 0 ? std::string("as disk") : std::to_string(std::clamp(v, 0, 150)) + "%"; }   // (an element's vividness: -1 = as the disk)
+
 std::string App::settings_get_value(int row, int col) const {
     // Matches getVal(k): config value if set, else the hardcoded default
     // for the 7 keys that have one, else "___" (unset). Colors format
@@ -838,6 +840,13 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidVideoBase: return base_name(settings_.video_base);
             case kSidVideoFxContrast: return fxc_name(settings_.video_fxc);
             case kSidVideoGradSat: return std::to_string(std::clamp(settings_.video_grad_sat, 0, 100)) + "%";
+            case kSidVideoGradVivid: return std::to_string(std::clamp(settings_.video_grad_vivid, 0, 100)) + "%";
+            case kSidWaveVivid: return std::to_string(std::clamp(settings_.wave_vivid, 0, 150)) + "%";
+            case kSidDiskVivid: return std::to_string(std::clamp(settings_.disk_vivid, 0, 150)) + "%";
+            case kSidScopeVivid: return vivid_text(settings_.scope_vivid);
+            case kSidSpectroVivid: return vivid_text(settings_.spectro_vivid);
+            case kSidBarsVivid: return vivid_text(settings_.bars_vivid);
+            case kSidVolVivid: return vivid_text(settings_.volume_vivid);
             case kSidVideoRound: return settings_.video_round ? "on" : "off";
             case kSidMdFps: return std::to_string(settings_.milkdrop_fps);
             case kSidMdRes: return std::to_string(settings_.milkdrop_res);
@@ -888,10 +897,11 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidBookAsk: v = settings_.book_ask_bookmark; break;
             case kSidAlbumCover: v = settings_.album_cover; break;
             case kSidCoverMode: return settings_.cover_mode == 0 ? "Just Cover" : settings_.cover_mode == 1 ? "Cover with Gradient" : settings_.cover_mode == 4 ? "Cover behind Disk (Full Anima)" : settings_.cover_mode == 5 ? "Cover ASCII" : settings_.cover_mode == 6 ? "Cover ASCII with Gradient" : settings_.cover_mode == 3 ? "Cover behind Disk v2" : "Cover behind Disk";
-            case kSidCoverContrast: return std::to_string(std::clamp(settings_.cover_contrast, 0, 150)) + "%";
+            case kSidCoverContrast: return std::to_string(std::clamp(settings_.cover_contrast, 0, 200)) + "%";
             case kSidCoverBrightness: return std::to_string(std::clamp(settings_.cover_brightness, 0, 100)) + "%";
             case kSidCoverColors: return std::to_string(std::clamp(settings_.cover_colors, 0, 100)) + "%";
             case kSidCoverGradSat: return std::to_string(std::clamp(settings_.cover_grad_sat, 0, 100)) + "%";
+            case kSidCoverVivid: return vivid_text(settings_.cover_vivid);
             case kSidCoverSearch: {
                 static const char* names[] = {"Default", "Folder First", "Within File First", "Image in Folder Only", "Within File Only"};
                 return names[std::clamp(settings_.cover_search, 0, 4)];
@@ -961,6 +971,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidHifiRange: return std::to_string(settings_.hifi_range);
             case kSidWaveStyle: return settings_.waveform_smooth ? "smooth" : "raw";
             case kSidPaneStyle: { static const char* n[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"}; return n[std::clamp(settings_.top_pane_style, 0, 5)]; }
+            case kSidThickBorders: return settings_.thick_borders > 0 ? "thick" : "off";
             case kSidDiskSpeed: return std::to_string(settings_.disk_rotation_speed).substr(0, 4);
             case kSidTrackBuffer: return std::to_string(settings_.track_buffer_mb);
             case kSidVisDegr: return std::to_string(settings_.bar_degradation());
@@ -1053,7 +1064,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidVideoLyrics: return {"none", "lyrics", "lyrics+transl.", "transl."};
             case kSidVideoSize: return {"regular", "cropped", "full", "framed"};
             case kSidVideoFx: { std::vector<std::string> o; for (int i = 0; i < kVideoFxShown; ++i) o.push_back(video_fx_name(kVideoFxOrder[i])); return o; }
-            case kSidMdBright: case kSidMdSat: case kSidMdContrast: case kSidVideoContrast: case kSidVideoBrightness: case kSidVideoColors: case kSidVideoGradSat: { std::vector<std::string> o; for (int i = 0; i <= 100; i += 5) o.push_back(std::to_string(i) + "%"); return o; }
+            case kSidMdBright: case kSidMdSat: case kSidMdContrast: case kSidVideoContrast: case kSidVideoBrightness: case kSidVideoColors: case kSidVideoGradSat: case kSidVideoGradVivid: { std::vector<std::string> o; for (int i = 0; i <= 100; i += 5) o.push_back(std::to_string(i) + "%"); return o; }
             case kSidVideoChroma: case kSidCoverChroma: return {"off", "subtle", "medium", "strong"};
             case kSidVideoDither: { std::vector<std::string> o; for (int i = 0; i < kDitherPatterns; ++i) o.push_back(dither_name(i)); return o; }
             case kSidVideoBase: { std::vector<std::string> o; for (int i = 0; i < kBaseLayers; ++i) o.push_back(base_name(i)); return o; }
@@ -1095,8 +1106,10 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             }
             case kSidVolIndicator: return {kVolIndicatorNames[0], kVolIndicatorNames[1], kVolIndicatorNames[2], kVolIndicatorNames[3], kVolIndicatorNames[4]};
             case kSidCoverMode: return {"Just Cover", "Cover with Gradient", "Cover behind Disk", "Cover behind Disk v2", "Cover behind Disk (Full Anima)", "Cover ASCII", "Cover ASCII with Gradient"};
+            case kSidWaveVivid: case kSidDiskVivid: { std::vector<std::string> o; for (int i = 0; i <= 150; i += 5) o.push_back(std::to_string(i) + "%"); return o; }
+            case kSidScopeVivid: case kSidSpectroVivid: case kSidBarsVivid: case kSidVolVivid: case kSidCoverVivid: { std::vector<std::string> o{"as disk"}; for (int i = 0; i <= 150; i += 5) o.push_back(std::to_string(i) + "%"); return o; }
             case kSidCoverBrightness: case kSidCoverColors: case kSidCoverGradSat: { std::vector<std::string> o; for (int i = 0; i <= 100; i += 5) o.push_back(std::to_string(i) + "%"); return o; }
-            case kSidCoverContrast: { std::vector<std::string> o; for (int i = 0; i <= 150; i += 5) o.push_back(std::to_string(i) + "%"); return o; }
+            case kSidCoverContrast: { std::vector<std::string> o; for (int i = 0; i <= 200; i += 5) o.push_back(std::to_string(i) + "%"); return o; }
             case kSidCoverSearch: return {"Default", "Folder First", "Within File First", "Image in Folder Only", "Within File Only"};
             case kSidTrackBuffer: return {};   // a number (ENTER types it) and a "Set back to default" button (RIGHT, then ENTER)
             case kSidCliScripts: return {};   // an action: ENTER opens the script overlay
@@ -1115,6 +1128,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidTermSize: return {};   // two typed numbers (ENTER types the one that is lit)
             case kSidWaveStyle: return {"raw", "smooth"};
             case kSidPaneStyle: return {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"};
+            case kSidThickBorders: return {"off", "thick"};
             case kSidBarStyle: return {"classic", "hi-fi"};
             case kSidHifiRes: return {"fine", "rough"};
             case kSidHifiChan: return {"stereo", "mono"};
@@ -1195,10 +1209,17 @@ void App::settings_commit_edit_impl() {
             milkdrop_pic_key_.clear();
             return;
         }
-        if (id == kSidVideoContrast || id == kSidVideoBrightness || id == kSidVideoColors || id == kSidVideoGradSat) {
+        if (id == kSidScopeVivid || id == kSidSpectroVivid || id == kSidBarsVivid || id == kSidVolVivid || id == kSidCoverVivid) {   // "as disk" (-1) or a percent
             std::string d = v;
             if (!d.empty() && d.back() == '%') d.pop_back();
-            (id == kSidVideoContrast ? settings_.video_contrast : id == kSidVideoBrightness ? settings_.video_brightness : id == kSidVideoGradSat ? settings_.video_grad_sat : settings_.video_colors) = std::clamp((muisc::atoi_safe(d.c_str()) + 2) / 5 * 5, 0, 100);
+            const int n = v.rfind("as", 0) == 0 ? -1 : std::clamp((muisc::atoi_safe(d.c_str()) + 2) / 5 * 5, 0, 150);
+            (id == kSidScopeVivid ? settings_.scope_vivid : id == kSidSpectroVivid ? settings_.spectro_vivid : id == kSidBarsVivid ? settings_.bars_vivid : id == kSidCoverVivid ? settings_.cover_vivid : settings_.volume_vivid) = n;
+            return;
+        }
+        if (id == kSidVideoContrast || id == kSidVideoBrightness || id == kSidVideoColors || id == kSidVideoGradSat || id == kSidVideoGradVivid || id == kSidDiskVivid || id == kSidWaveVivid) {
+            std::string d = v;
+            if (!d.empty() && d.back() == '%') d.pop_back();
+            (id == kSidVideoContrast ? settings_.video_contrast : id == kSidVideoBrightness ? settings_.video_brightness : id == kSidVideoGradSat ? settings_.video_grad_sat : id == kSidVideoGradVivid ? settings_.video_grad_vivid : id == kSidDiskVivid ? settings_.disk_vivid : id == kSidWaveVivid ? settings_.wave_vivid : settings_.video_colors) = std::clamp((muisc::atoi_safe(d.c_str()) + 2) / 5 * 5, 0, (id == kSidDiskVivid || id == kSidWaveVivid) ? 150 : 100);
             video_pic_key_.clear();
             return;
         }
@@ -1314,13 +1335,13 @@ void App::settings_commit_edit_impl() {
             case kSidCoverContrast: {
                 std::string d = v;
                 if (!d.empty() && d.back() == '%') d.pop_back();
-                settings_.cover_contrast = std::clamp((muisc::atoi_safe(d.c_str()) + 2) / 5 * 5, 0, 150);
+                settings_.cover_contrast = std::clamp((muisc::atoi_safe(d.c_str()) + 2) / 5 * 5, 0, 200);
                 return;
             }
             case kSidCoverBrightness: case kSidCoverColors: case kSidCoverGradSat: {   // behind the disk: brightness floor / the cover's own colours / the gradient's saturation
                 std::string d = v;
                 if (!d.empty() && d.back() == '%') d.pop_back();
-                (id == kSidCoverBrightness ? settings_.cover_brightness : id == kSidCoverColors ? settings_.cover_colors : settings_.cover_grad_sat) = std::clamp((muisc::atoi_safe(d.c_str()) + 2) / 5 * 5, 0, 100);
+                (id == kSidCoverBrightness ? settings_.cover_brightness : id == kSidCoverColors ? settings_.cover_colors : settings_.cover_grad_sat) = std::clamp((muisc::atoi_safe(d.c_str()) + 2) / 5 * 5, 0, id == kSidCoverVivid ? 150 : 100);
                 return;
             }
             case kSidCoverSearch:
@@ -1372,6 +1393,7 @@ void App::settings_commit_edit_impl() {
                 return;
             case kSidWaveStyle: settings_.waveform_smooth = (v == "smooth"); return;
             case kSidPaneStyle: { static const char* n[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"}; for (int i = 0; i < 6; ++i) if (v == to_lower(n[i])) settings_.top_pane_style = i; return; }   // (v is lower case) }
+            case kSidThickBorders: { if (v == "off") settings_.thick_borders = 0; else if (v == "thick") settings_.thick_borders = 1; force_redraw_ = true; return; }
             case kSidBarStyle: settings_.bars_style = (v == "hi-fi") ? 1 : 0; g_settings_hifi_rows = settings_.bars_style == 1; return;
             case kSidHifiRes: settings_.hifi_resolution = (v == "rough") ? 1 : 0; return;
             case kSidHifiChan: settings_.hifi_channels = (v == "mono") ? 1 : 0; return;
@@ -1712,6 +1734,15 @@ void App::settings_cycle(int dir) {
     if (id == kSidVideoFxContrast) status_line_ = std::string("video effect contrast: ") + fxc_name(settings_.video_fxc) + " -- how hard the blacks and whites of Scanlines, CRT, VHS, Glitch, Pixel, Gradient, Film, Silent Film, Interlace, Technicolor and LaserDisc are: full (no softening: the deepest blacks), reduced (the default), low (the shadows keep their detail); the palette looks (Game Boy, Dither, CGA ...) are never touched" + note;
     if (id == kSidVideoBase) status_line_ = std::string("video base layer: ") + base_name(settings_.video_base) + " -- the structure under CRT, VHS, Glitch and the Phosphor looks: scanlines, aperture grille, shadow mask, slot mask, or clean (none, the default)" + note;
     if (id == kSidVideoDither) status_line_ = std::string("video dither pattern: ") + dither_name(settings_.video_dither) + " -- the dots of the looks that dither (Game Boy, EGA 16, Dither B/W / Gradient) and of the 256-colour picture (sixel); auto = each look's own" + note;
+    if (id == kSidVideoGradVivid) status_line_ = "video gradient vividness: " + std::to_string(settings_.video_grad_vivid) + "% -- makes the colours of the gradient looks (Gradient, Dither Gradient, Neon Edge Gradient, Game Boy gradient) fuller and brighter (0 = as before)" + note;
+    if (id == kSidScopeVivid || id == kSidSpectroVivid || id == kSidBarsVivid || id == kSidVolVivid) {
+        const int own = id == kSidScopeVivid ? settings_.scope_vivid : id == kSidSpectroVivid ? settings_.spectro_vivid : id == kSidBarsVivid ? settings_.bars_vivid : settings_.volume_vivid;
+        status_line_ = std::string("gradient vividness of the ") + (id == kSidScopeVivid ? "braille oscilloscope" : id == kSidSpectroVivid ? "braille spectrogram" : id == kSidBarsVivid ? "spectrum bars" : "volume bar") + ": "
+                       + (own < 0 ? "as disk (" + std::to_string(settings_.disk_vivid) + "%, Disk Gradient Vividness)" : std::to_string(own) + "%") + " -- fuller and brighter gradient colours (0 = as before)" + note;
+    }
+    if (id == kSidWaveVivid) status_line_ = "progress waveform vividness: " + std::to_string(settings_.wave_vivid) + "% -- fuller, brighter played / remaining colours of the waveform (its own value, separate from the others; 0 = as before)" + note;
+    if (id == kSidDiskVivid) status_line_ = "disk gradient vividness: " + std::to_string(settings_.disk_vivid) + "% -- makes the gradient colours of the plain disk fuller and brighter, like the neon edge looks of the video (0 = as before)" + note;
+    if (id == kSidCoverVivid) status_line_ = "cover gradient vividness: " + (settings_.cover_vivid < 0 ? "as disk (" + std::to_string(settings_.disk_vivid) + "%)" : std::to_string(settings_.cover_vivid) + "%") + " -- lifts the dots of the disk and the cover behind it towards the full colours of the disk gradient and away from grey, like the neon edge looks of the video and MilkDrop (0 = as before); the effect itself is not applied to the cover" + note;
     if (id == kSidCoverGradSat) status_line_ = "cover gradient saturation: " + std::to_string(settings_.cover_grad_sat) + "% -- how vivid the disk's gradient is between its two colours (0 = the plain blend, which fades to grey in the middle); the picture itself stays as it is" + note;
     if (id == kSidCoverChroma) status_line_ = std::string("cover chromatic aberration: ") + chroma_name(settings_.cover_chroma) + " -- for a cover that shows its own colours (Just Cover, Cover Colors above 0, the ASCII looks)" + note;
     if (id == kSidVideoRes) status_line_ = std::string("video resolution: ") + video_res_label(settings_.video_res, gfxs_.proto == GfxProto::Sixel) + (settings_.video_res == 0 ? " -- the soft look, light on the terminal" : gfxs_.proto == GfxProto::Kitty ? " -- a sharper picture in true colour; needs more of the terminal and the processor" : " -- a wider picture (Sixel has at most 256 colours)") + note;

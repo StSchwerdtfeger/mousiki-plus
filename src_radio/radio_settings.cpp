@@ -151,11 +151,11 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
     };
     static const std::vector<SettingsLine> anima = {
         {true, -1, "TOP PANE"},
-        {false, kRsPaneStyle, "Main UI Pane Style"}, {false, kRsSharpCorners, "Sharp Corners"},
+        {false, kRsPaneStyle, "Main UI Pane Style"}, {false, kRsSharpCorners, "Sharp Corners"}, {false, kRsThickBorders, "Thick Borders"},
         {true, -1, ""},
         {true, -1, "ON AIR SIGN"},
         {false, kRsOnAir, "On air ascii"}, {false, kRsSignBorder, "Sign border"}, {false, kRsPulse, "Pulse wave"},
-        {false, kRsGradSpeed, "Gradient wave speed"}, {false, kRsPulseSpeed, "Pulse wave speed"},
+        {false, kRsGradSpeed, "Gradient wave speed"}, {false, kRsPulseSpeed, "Pulse wave speed"}, {false, kRsSignVivid, "Sign gradient vividness"},
         {true, -1, ""},
         {true, -1, "SEEK AND VOLUME"},
         {false, kRsDummy, "Dummy buttons"}, {false, kRsVolIndicator, "Volume indicator"},
@@ -163,11 +163,17 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {true, -1, "SPECTRUM BARS"},   // the spectrum bars under the station info
         {false, kRsVisualizer, "On/Off"},
         {false, kRsBarStyle, "Bars Style"}, {false, kRsHifiRes, "Hi-Fi Resolution"}, {false, kRsHifiChan, "Hi-Fi Channels"}, {false, kRsHifiColor, "Hi-Fi Color"}, {false, kRsHifiScale, "Hi-Fi Height"}, {false, kRsHifiAdapt, "Hi-Fi Adapt Height"}, {false, kRsHifiSplit, "Hi-Fi Channel Gap"}, {false, kRsHifiFScale, "Hi-Fi Frequency Scale"}, {false, kRsHifiGain, "Hi-Fi Gain (dB)"}, {false, kRsHifiRange, "Hi-Fi Range (dB)"},
-        {false, kRsBehavior, "Bars Behavior"}, {false, kRsFluidity, "Bars Fluidity"}, {false, kRsDegr, "Bars Degradation"}, {false, kRsVisc, "Bars Viscosity"},
+        {false, kRsBarsVivid, "Bars Gradient Vividness"}, {false, kRsBehavior, "Bars Behavior"}, {false, kRsFluidity, "Bars Fluidity"}, {false, kRsDegr, "Bars Degradation"}, {false, kRsVisc, "Bars Viscosity"},
         {true, -1, ""},
         {true, -1, "OSCI/SPECTRO SETTINGS"},
         {false, kRsShareProfiles, "Modes Share Settings"},
         {false, kRsOsciStyle, "Osci style"},
+        {true, -1, ""},
+        {true, -1, "VIZ ORDER"},   // the order of the "." cycle
+        {false, kRsOrder1, "Viz Order 1"}, {false, kRsOrder2, "Viz Order 2"}, {false, kRsOrder3, "Viz Order 3"}, {false, kRsOrder4, "Viz Order 4"},
+        {true, -1, ""},
+        {true, -1, "VIZ TOGGLE"},   // the field right of the station info
+        {false, kRsScope, "Viz Field"}, {false, kRsUseOsci, "Use Oscilloscope"}, {false, kRsUseSpectro, "Use Spectrogram"}, {false, kRsUseSphere, "Use Sphere"}, {false, kRsUseMilkdrop, "Use MilkDrop"},
         {true, -1, ""},
         {true, -1, "MILKDROP"},   // the MilkDrop visuals in the scope block (projectM, when installed)
         {false, kRsMdFps, "MilkDrop Frame Rate"}, {false, kRsMdRes, "MilkDrop Resolution"}, {false, kRsMdGpu, "MilkDrop GPU"},
@@ -177,12 +183,6 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {false, kRsMdFolder, "Shuffle Folder"}, {false, kRsMdFavShuffle, "Shuffle Favourites"}, {false, kRsMdHcd, "Hard Cut Interval"}, {false, kRsMdVar, "Duration Variance"},
         {false, kRsMdMesh, "Mesh Detail"}, {false, kRsMdAspect, "Aspect Correction"}, {false, kRsMdRatio, "Aspect Ratio"}, {false, kRsMdClean, "Clean Start"},
         {false, kRsMdUseFx, "Use Effect"}, {false, kRsMdFx, "MilkDrop Effect"}, {false, kRsMdBright, "MilkDrop Brightness"}, {false, kRsMdSat, "MilkDrop Saturation"}, {false, kRsMdContrast, "MilkDrop Contrast"}, {false, kRsMdColors, "Sixel Colours"},
-        {true, -1, ""},
-        {true, -1, "VIZ ORDER"},   // the order of the "." cycle
-        {false, kRsOrder1, "Viz Order 1"}, {false, kRsOrder2, "Viz Order 2"}, {false, kRsOrder3, "Viz Order 3"}, {false, kRsOrder4, "Viz Order 4"},
-        {true, -1, ""},
-        {true, -1, "VIZ TOGGLE"},   // the field right of the station info
-        {false, kRsScope, "Viz Field"}, {false, kRsUseOsci, "Use Oscilloscope"}, {false, kRsUseSpectro, "Use Spectrogram"}, {false, kRsUseSphere, "Use Sphere"}, {false, kRsUseMilkdrop, "Use MilkDrop"},
     };
     if (tab == 1) return on_off;
     if (g_rs_hifi) return anima;
@@ -324,11 +324,14 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsModeOrder3: return muisc::kModeNames[std::clamp(s.mode_order[2], 0, 2)];
         case kRsVolIndicator: return muisc::kVolIndicatorNames[std::clamp(s.volume_indicator, 0, muisc::kVolStyleCount - 1)];
         case kRsTimeshift: return std::to_string(timeshift_minutes(s)) + " min";
+        case kRsBarsVivid: return std::to_string(std::clamp(s.bars_vivid, 0, 150)) + "%";
+        case kRsSignVivid: return std::to_string(std::clamp(s.on_air_vivid, 0, 150)) + "%";
         case kRsGradSpeed: return fmt_speed(kSpeedSteps[nearest_step(s.gradient_wave_speed)]);
         case kRsPulseSpeed: return fmt_speed(kSpeedSteps[nearest_step(s.pulse_wave_speed)]);
         case kRsFluidity: return std::to_string(s.bar_fluidity());
         case kRsBehavior: return bars_preset_name(bars_preset_of(s.bar_fluidity(), s.bar_degradation(), s.bar_viscosity()));
         case kRsPaneStyle: { static const char* n[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"}; return n[std::clamp(s.top_pane_style, 0, 5)]; }
+        case kRsThickBorders: return s.thick_borders > 0 ? "thick" : "off";
         case kRsTermSize: return std::to_string(s.term_cols) + " x " + std::to_string(s.term_rows);   // (two typed fields: the settings screen draws and edits them)
         case kRsLatinHanzi: return s.latin_hanzi == 1 ? "Chin." : s.latin_hanzi == 2 ? "Jap." : "Leave";
         case kRsBarStyle: return s.bars_style == 1 ? "hi-fi" : "classic";
@@ -411,6 +414,8 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
         }
         case kRsVolIndicator: step(s.volume_indicator, muisc::kVolStyleCount); break;
         case kRsTimeshift: step(s.timeshift_idx, 5); break;
+        case kRsBarsVivid: { int v = std::clamp(s.bars_vivid, 0, 150) / 5; cycle_int(v, 0, 30, dir); s.bars_vivid = v * 5; break; }
+        case kRsSignVivid: { int v = std::clamp(s.on_air_vivid, 0, 150) / 5; cycle_int(v, 0, 30, dir); s.on_air_vivid = v * 5; break; }
         case kRsGradSpeed: cycle_speed(s.gradient_wave_speed, dir); break;
         case kRsPulseSpeed: cycle_speed(s.pulse_wave_speed, dir); break;
         case kRsFluidity: cycle_int(s.bar_fluidity(), 1, 10, dir); break;
@@ -421,6 +426,7 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
             break;
         }
         case kRsPaneStyle: step(s.top_pane_style, 6); break;
+        case kRsThickBorders: step(s.thick_borders, 2); break;
         case kRsLatinHanzi: step(s.latin_hanzi, 3); break;
         case kRsBarStyle: step(s.bars_style, 2); g_rs_hifi = s.bars_style == 1; break;
         case kRsHifiRes: step(s.hifi_resolution, 2); break;
@@ -1138,6 +1144,11 @@ RadioSettings load_radio_settings(std::string* source_out) {
     }
     if (auto v = get("SignBorder")) s.sign_border = as_bool(*v, s.sign_border);
     if (auto v = get("SharpCorners")) s.sharp_corners = as_bool(*v, s.sharp_corners);
+    if (auto v = get("ThickBorders")) {
+        const std::string t = ascii_lower_str(*v);
+        if (t == "off" || t == "0") s.thick_borders = 0;
+        else if (t == "thick" || t == "thick round" || t == "1" || t == "2") s.thick_borders = 1;   // (2 and "thick round" were the second thick look of an older version)
+    }
     if (auto v = get("UseOscilloscope")) s.use_osci = as_bool(*v, s.use_osci);
     if (auto v = get("UseSpectrogram")) s.use_spectro = as_bool(*v, s.use_spectro);
     if (auto v = get("UseSphere")) s.use_sphere = as_bool(*v, s.use_sphere);
@@ -1230,6 +1241,8 @@ RadioSettings load_radio_settings(std::string* source_out) {
         s.eq_custom_presets.push_back(std::move(cp));
     }
     if (auto v = get("GradientWaveSpeed")) if (const auto n_ = muisc::parse_double(*v)) { s.gradient_wave_speed = std::clamp(*n_, 0.01, 1.0); }
+    if (auto v = get("BarsVividness")) if (const auto n_ = muisc::parse_int(*v)) { s.bars_vivid = std::clamp((*n_ + 2) / 5 * 5, 0, 150); }
+    if (auto v = get("SignVividness")) if (const auto n_ = muisc::parse_int(*v)) { s.on_air_vivid = std::clamp((*n_ + 2) / 5 * 5, 0, 150); }
     if (auto v = get("PulseWaveSpeed")) if (const auto n_ = muisc::parse_double(*v)) { s.pulse_wave_speed = std::clamp(*n_, 0.01, 1.0); }
     if (auto v = get("PlaybackMode")) s.playback_shuffle = ascii_lower_str(*v) != "list";
     s.start_mode = player_start_mode();
@@ -1355,6 +1368,8 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "TopPaneStyle=" << std::clamp(s.top_pane_style, 0, 5) << "\n"
          "# true: sharp corners for all frames (the Settings screen, sharp by itself, gets round ones)\n"
          "SharpCorners=" << (s.sharp_corners ? "true" : "false") << "\n"
+         "# 0 thin, 1 thick lines with thick round corners and bold pane titles (the whole frame is drawn with the font Mousiki Corners, which Mousiki installs); an older value 2 counts as 1\n"
+         "ThickBorders=" << std::clamp(s.thick_borders, 0, 1) << "\n"
          "SignBorder=" << (s.sign_border ? "true" : "false") << "\n"
          "PulseWave=" << (s.pulse_wave ? "true" : "false") << "\n"
          "DummyButtons=" << (s.dummy_buttons ? "true" : "false") << "\n"
@@ -1432,6 +1447,10 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "# speeds: 0.01 - 1.00 (colour wave of the ON AIR sign in cycles per second | pulse wave behind it in loops per second)\n"
          "GradientWaveSpeed=" << fmt_speed(s.gradient_wave_speed) << "\n"
          "PulseWaveSpeed=" << fmt_speed(s.pulse_wave_speed) << "\n"
+         "# gradient vividness of the ON / OFF AIR sign: 0 - 150 (percent, steps of 5; 0 = as before, more = fuller and brighter colours)\n"
+         "SignVividness=" << s.on_air_vivid << "\n"
+         "# gradient vividness of the spectrum bars: 0 - 150 (percent, steps of 5; 0 = as before, more = fuller and brighter colours)\n"
+         "BarsVividness=" << s.bars_vivid << "\n"
          "# station surf mode (key m): list | shuffle\n"
          "PlaybackMode=" << (s.playback_shuffle ? "shuffle" : "list") << "\n\n"
          "##-------------------------------------------\n"

@@ -63,3 +63,33 @@ TEST(terminal_font_settings_default_to_cascadia_and_round_trip) {
     save_settings(s);
     CHECK_EQ(load_settings().terminal_font, std::string("Menlo"));
 }
+
+#if !defined(_WIN32)
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <unistd.h>
+TEST(corner_font_is_installed_for_the_user_and_the_frames_ask_for_it) {
+    // the small font "Mousiki Corners" (thick round frame corners) lands in the user's own font folder, once, with a TrueType header
+    char tmpl[] = "/tmp/mousiki_cf_XXXXXX";
+    const char* dir = mkdtemp(tmpl);
+    CHECK(dir != nullptr);
+    if (!dir) return;
+    setenv("XDG_DATA_HOME", dir, 1);
+    setenv("HOME", dir, 1);
+    CHECK_EQ(terminal_font::install_corner_font(), std::string());
+#if defined(__APPLE__)
+    const std::filesystem::path f = std::filesystem::path(dir) / "Library" / "Fonts" / "MousikiCorners.ttf";
+#else
+    const std::filesystem::path f = std::filesystem::path(dir) / "fonts" / "MousikiCorners.ttf";
+#endif
+    std::error_code ec;
+    CHECK(std::filesystem::exists(f, ec));
+    std::ifstream in(f, std::ios::binary);
+    char head[4] = {1, 1, 1, 1};
+    in.read(head, 4);
+    CHECK(head[0] == 0 && head[1] == 1 && head[2] == 0 && head[3] == 0);   // 00 01 00 00: a TrueType font
+    CHECK(std::filesystem::file_size(f, ec) > 1000);
+    std::filesystem::remove_all(dir, ec);
+}
+#endif

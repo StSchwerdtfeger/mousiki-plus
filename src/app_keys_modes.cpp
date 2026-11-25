@@ -86,6 +86,8 @@ void App::handle_console_key(int key) {
         } else if (!arrow && (key == '\r' || key == '\n')) {
             cli_run(cli_buf_);
             cli_buf_.clear(); cli_caret_ = cli_anchor_ = 0;
+        } else if (arrow && (key == 'A' || key == 'B') && last_key_was_shifted()) {   // SHIFT+UP / DOWN: scroll the replies
+            console_cli_up_ = std::max(0, console_cli_up_ + (key == 'A' ? 3 : -3));
         } else if (arrow && (key == 'A' || key == 'B')) {
             if (!cli_hist_.empty()) {
                 const int n = static_cast<int>(cli_hist_.size());
@@ -722,6 +724,11 @@ void App::handle_search_key(int key) {
             cli_run(b.substr(c + 1));
             search_.buffer = "c:";
             edit_caret_ = edit_anchor_ = search_.buffer.size();
+            return;
+        }
+        if (last_key_was_arrow() && (key == 'A' || key == 'B') && last_key_was_shifted()) {   // SHIFT+UP / DOWN: scroll the output
+            cli_up_ = std::max(0, cli_up_ + (key == 'A' ? 3 : -3));
+            force_redraw_ = true;
             return;
         }
         if (last_key_was_arrow() && (key == 'A' || key == 'B')) {

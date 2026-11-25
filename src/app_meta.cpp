@@ -683,7 +683,7 @@ std::vector<std::string> App::build_meta_fields_panel(int total_width, int heigh
             const int pic_rows = height - pic_first;
             if (row == btn_row) {
                 const bool hov = (meta_->focus == 2) && meta_->field >= kMetaFieldCount;
-                std::string b1 = "[ Cover Options ]", b2 = "[ Style Option ]", b3 = "[ Video Option ]";
+                std::string b1 = "[ Cover Options ]", b2 = "[ Cover Style ]", b3 = "[ Video Option ]";
                 if (display_width(b1) + display_width(b2) + display_width(b3) + 4 > inner) { b1 = "[ Cover ]"; b2 = "[ Style ]"; b3 = "[ Video ]"; }   // a narrow pane: short labels, still one line
                 const int total = display_width(b1) + 2 + display_width(b2) + 2 + display_width(b3);
                 const int left = std::max(0, (inner - total) / 2);
@@ -928,7 +928,7 @@ void App::build_meta_screen(std::ostringstream& frame, int W, int target_height)
     if (meta_->tab == 0 && meta_->focus == 2) {
         const MetaEditEntry* he = meta_entry(meta_hovering_path());
         if (meta_->field == kMetaFieldCount) enter_hint = "[ENTER] Cover Options\001Cover";
-        else if (meta_->field == kMetaFieldCount + 1) enter_hint = "[ENTER] Style Option\001Style";
+        else if (meta_->field == kMetaFieldCount + 1) enter_hint = "[ENTER] Cover Style Overlay\001Style";
         else if (meta_->field == kMetaFieldCount + 2) enter_hint = "[ENTER] Video Option\001Video";
         else if (he && meta_->field >= 0 && he->needs_choice(meta_->field)) enter_hint = "[ENTER] Choose";
     }

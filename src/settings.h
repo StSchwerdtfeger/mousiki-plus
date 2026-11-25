@@ -48,13 +48,22 @@ struct Settings : VizPrefs {
     bool latin_letters = false;          // Japanese / Korean / Chinese text is shown in Latin letters (HKeyTranslit, SHIFT+')
     bool album_cover = false;            // the cover of the playing track is shown in the disk's place (the disk where there is none)
     int cover_mode = 2;                  // 0 = just the cover, 1 = cover with the disk's gradient, 2 = cover behind the disk (the disk's dots are pinholes; the dot grid stays, the pattern turns), 3 = v2 (the dots themselves turn), 4 = full animation (dots that come and go), 5 = Cover ASCII (braille dots in the cover's colours), 6 = Cover ASCII with Gradient
-    int cover_contrast = 0;              // 0..150 in steps of 5 (%): more contrast for the cover
+    int cover_contrast = 0;              // 0..200 in steps of 5 (%): more contrast for the cover
     // The cover behind the disk (Cover Modes 2-4, and their braille looks): Cover Brightness 0..100 % (steps of 5) -- how far the cover's
     // brightness is stretched up, so the disk's dots shine like the plain disk's (0 = only the full range of the picture, more = a
     // brighter floor for every dot); Cover Colors 0..100 % -- the cover's own colours mixed into the disk's gradient (0 = the
     // gradient only, 100 = the cover's own colours). config.txt: CoverBrightness= / CoverColors=
     int cover_brightness = 50;
     int cover_colors = 0;
+    int disk_vivid = 0;                  // Disk Gradient Vividness (DiskVividness=): 0..100 in steps of 5 (%): the plain disk's gradient colours made fuller and brighter, like the neon edge looks; 0 = as before
+    int wave_vivid = 0;                  // Progress Waveform Vividness (WaveformVividness=): 0..150 %: its played / remaining colours made fuller and brighter (its own value: the other vividness settings do not touch it)
+    int scope_vivid = -1;                // Oscilloscope Gradient Vividness (braille): -1 = as the disk (disk_vivid), else 0..150 (%)
+    int spectro_vivid = -1;              // Spectrogram Gradient Vividness (braille): -1 = as the disk, else 0..150
+    int bars_vivid = -1;                 // Spectrum Bars Gradient Vividness: -1 = as the disk, else 0..150
+    int volume_vivid = -1;               // Volume Bar Gradient Vividness: -1 = as the disk, else 0..150
+    int vivid_of(int own) const { return own >= 0 ? own : disk_vivid; }   // the vividness an element uses
+    int cover_vivid_eff() const { return vivid_of(cover_vivid); }          // Cover Gradient Vividness in force (-1 = as the disk)
+    int cover_vivid = -1;                 // 0..100 in steps of 5 (%): the disk and cover dots lifted towards the full gradient colours (like the neon edge looks of the video); 0 = as before; config.txt: CoverVividness=
     int cover_grad_sat = 30;             // 0..100 in steps of 5 (%): the saturation of the disk's gradient on the cover looks (0 = the plain blend of the two disk colours, 30 = the default, 100 = full); config.txt: CoverGradientSaturation=
     int cover_search = 0;                // 0 default (file, then folder), 1 folder first, 2 within file first, 3 image in folder only, 4 within file only
     bool element_dummy_buttons = true;
@@ -158,6 +167,7 @@ struct Settings : VizPrefs {
     int video_clap = 2;               // Show Clap Loading (VideoClap=; default none): what shows while a video loads: 0 text note ("video: starting ..."), 1 clap (a small clapperboard), 2 none
     bool video_round = true;          // Rounded Corners of the video picture (VideoRound=): the picture's corners are cut round, like the corners of the UI
     int video_chroma = 1;             // Video Chromatic Aberration (VideoChroma=; default subtle): 0 off, 1 subtle, 2 medium, 3 strong
+    int video_grad_vivid = 0;         // Video Gradient Vividness (VideoGradientVividness=): 0 .. 100 (%): the gradient colours of the video looks made fuller and brighter; 0 = as before
     int video_grad_sat = 85;          // Video Gradient Saturation (VideoGradientSaturation=): 0 .. 100 in steps of 5 (%): the gradient colours of the video looks as they are at 100, paler towards 0 (grey); 85 = default
     int video_dither = 5;             // Video Dither Pattern (VideoDither=): 0 auto (each look's own), 1 blue noise, 2 bayer 2x2, 3 bayer 4x4, 4 bayer 8x8, 5 interleaved noise (default), 6 golden ratio
     int video_fxc = kFxContrastDefault;   // Video Effect Contrast (VideoEffectContrast=): how hard the blacks and whites of the photographic looks are: 0 full, 1 reduced (default), 2 low (video_fx.h)
@@ -264,6 +274,7 @@ struct Settings : VizPrefs {
     std::string box_vertical = "\u2502";     // │
     std::string box_horizontal = "\u2500";   // ─
     int top_pane_style = 0;                  // MAIN UI PANE STYLE: 0 one box round disk | meta data | lyrics / viz field, 1-3 three panes that share their walls (pane_style.h)
+    int thick_borders = 0;                   // ThickBorders=: 0 thin, 1 thick lines with thick round corners (the font "Mousiki Corners"; without it heavy ━ ┃ with thin round corners) and bold pane titles
     bool sharp_corners = false;              // SharpCorners=: the frames have sharp corners (┌ ┐ └ ┘) instead of round ones; the Settings screen, which is sharp by itself, gets the round ones then
     bool disk_border = false;                // the ":  :" column between the disk and the meta data (false: the disk is centred in the space instead)
     std::string meta_separator = ":  :";     // separator between disk|meta|lyrics columns
@@ -666,6 +677,12 @@ bool try_parse_rgb(const std::string& color_value, int& r, int& g, int& b);
 
 // Linearly interpolates between `start` and `end` at t in [0,1].
 std::string gradient_ansi(const std::string& start, const std::string& end, float t, bool bold = true);
+// The same for the plain disk, with its Disk Gradient Vividness (0 .. 100 %, see vivid.h).
+std::string disk_gradient_ansi(const std::string& start, const std::string& end, float t, int vivid);
+// the same gradients with a Gradient Vividness (0 = as they are): the braille scope / spectrogram, the bars, the volume bar
+std::string vivid_colour_ansi(const std::string& color, int vivid, bool bold = true);   // ansi_for() of a palette colour made vivid (0 = as it is)
+std::string vivid_gradient_ansi(const std::string& start, const std::string& end, float t, int vivid);
+std::string vivid_multi_stop_gradient_ansi(const std::string& left, const std::string& center, const std::string& right, float t, int vivid);
 
 // Multi-stop gradient: interpolates across left → center → right using
 // position t in [0,1]. Falls back to gradient_ansi(start, end, t) if

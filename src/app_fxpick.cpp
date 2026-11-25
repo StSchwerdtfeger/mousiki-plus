@@ -38,9 +38,9 @@ std::vector<int> App::fxpick_entries() const {
 void App::fxpick_open(int target) {
     fxpick_ = FxPick{};
     fxpick_.target = target;
-    fxpick_.with_default = target == 2 || target == 3;
+    fxpick_.with_default = target == 3;
     int cur = settings_.video_fx;
-    if (target == 2) cur = cover_track_video_opts(path_utf8(current_.path)).fx;
+    if (target == 2 && video_ind_active()) { const int own = video_own(path_utf8(current_.path)).fx; if (own >= 0) cur = own; }   // (the same list as VIDEO SETTINGS: the look in force)
     else if (target == 3 && meta_) cur = cover_track_video_opts(meta_->sty_track).fx;
     fxpick_.current = cur < 0 ? -1 : video_fx_canon(cur);
     const std::vector<int> e = fxpick_entries();
@@ -74,6 +74,7 @@ VideoLook App::fxpick_bg_look(const fs::path& track, const VideoLook& own) const
         l.grad = video_fx_gradient(settings_);
         const int gs = video_own(tp).gsat;
         if (gs >= 0) l.grad.sat = gs;
+        { const int gv = video_own(tp).gvivid; if (gv >= 0) l.grad.vivid = gv; }
     }
     return l;
 }
@@ -124,14 +125,8 @@ void App::fxpick_apply(int fx) {
         edit_caret_ = edit_anchor_ = color_edit_buffer_.size();
         settings_commit_edit();
         status_line_ = std::string("video effect: ") + video_fx_name(settings_.video_fx);
-    } else if (target == 1) {
-        video_set_fx(fx);
-    } else if (target == 2) {
-        VideoTrackOpts o = cover_track_video_opts(path_utf8(current_.path));
-        o.fx = fx;
-        set_cover_track_video_opts(path_utf8(current_.path), o);
-        video_pic_key_.clear();
-        status_line_ = fx < 0 ? "video effect of this track: as in Settings" : std::string("video effect of this track: ") + video_fx_name(fx);
+    } else if (target == 1 || target == 2) {   // the effect row of VIDEO SETTINGS / VIDEO OPTIONS: the temporary layer with individual settings, else the general effect
+        video_menu_fx(fx);
     } else if (target == 3 && meta_) {
         VideoTrackOpts o = cover_track_video_opts(meta_->sty_track);
         o.fx = fx;
@@ -189,6 +184,7 @@ VideoLook App::fxpick_look(int fx) const {
         l.grad = video_fx_gradient(settings_);
         const int own = track.empty() ? -1 : video_own(path_utf8(track)).gsat;
         if (own >= 0) l.grad.sat = own;
+        { const int gv = track.empty() ? -1 : video_own(path_utf8(track)).gvivid; if (gv >= 0) l.grad.vivid = gv; }
     }
     return l;
 }

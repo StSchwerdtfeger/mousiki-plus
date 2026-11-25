@@ -196,7 +196,7 @@ std::string App::format_text() const {
 // Auto Video: at every new track, a track with a video switches the field to the video view; one without it to the Lyrics/Viz Default.
 void App::video_auto_apply() {
     auto why_no_video = [&]() {   // for the log: why this track has no video view
-        if (video_own(path_utf8(current_.path)).on == 0) return std::string("\"Video of this track\" is off (Style Option)");
+        if (video_own(path_utf8(current_.path)).on == 0) return std::string("\"Video of this track\" is off (individual video settings)");
         if (VideoLinks::get().is_none(path_utf8(current_.path))) return std::string("the connection to its video was removed (Manually Couple Local Files)");
         return std::string("no video file found for it");
     };
@@ -344,7 +344,7 @@ VideoLook App::video_look_for(const fs::path& track) const {
     l.dither = o.dither >= 0 ? o.dither : settings_.video_dither;
     l.base = o.base >= 0 ? o.base : settings_.video_base;
     l.fxc = o.fxc >= 0 ? o.fxc : settings_.video_fxc;
-    if (video_fx_uses_gradient(l.fx)) { l.grad = video_fx_gradient(settings_); if (o.gsat >= 0) l.grad.sat = o.gsat; }
+    if (video_fx_uses_gradient(l.fx)) { l.grad = video_fx_gradient(settings_); if (o.gsat >= 0) l.grad.sat = o.gsat; if (o.gvivid >= 0) l.grad.vivid = o.gvivid; }
     return l;
 }
 
@@ -839,11 +839,12 @@ bool App::video_draw_src(Src& V, bool playing_one, bool is_video, std::string& p
             const int r0 = std::max(orect_r, top), r1 = std::min(orect_r + oh, top + vrows);
             if (c0 < c1 && r0 < r1) { cut_c = c0 - lead; cut_r = r0 - top; cut_w = c1 - c0; cut_h = r1 - r0; }
         }
-        const int trim = trim_right ? std::max(1, outw / std::max(1, vcols) / 2) : 0;   // (half a cell of the picture is left out at the right: see video_field_rows)
+        const int trim = trim_right ? std::max(1, outw / std::max(1, vcols) / 2) : 0;
+        const int trim_l = trim_right && trim_left_next_ ? trim : 0;   // (beside a wall of the three panes: half a cell is left out at the left as well)   // (half a cell of the picture is left out at the right: see video_field_rows)
         const bool tc = gfxs_.proto == GfxProto::Kitty && video_res_for() > 0;   // true colour (high / full resolution on Kitty)
         const bool adaptive = !is_video && !tc && !settings_.milkdrop_fixed_colors;   // the MilkDrop pictures: their colours from the picture itself
         const std::string key = std::to_string(dw) + "x" + std::to_string(dh) + "|" + std::to_string(outw) + "x" + std::to_string(outh) + "|" + std::to_string(vcols) + "x" + std::to_string(vrows) + "|" +
-                                std::to_string(abs_col + lead) + "|" + std::to_string(cx0) + "," + std::to_string(cy0) + "|" + std::to_string(cut_c) + "," + std::to_string(cut_r) + "," + std::to_string(cut_w) + "," + std::to_string(cut_h) + "|" + look.sig() + "|" + std::to_string(settings_.video_res) + "|" + (round_corners ? "r" : "-") + std::to_string(trim) + (tc ? "|t" : adaptive ? "|a" : "|p");
+                                std::to_string(abs_col + lead) + "|" + std::to_string(trim_l) + "|" + std::to_string(cx0) + "," + std::to_string(cy0) + "|" + std::to_string(cut_c) + "," + std::to_string(cut_r) + "," + std::to_string(cut_w) + "," + std::to_string(cut_h) + "|" + look.sig() + "|" + std::to_string(settings_.video_res) + "|" + (round_corners ? "r" : "-") + std::to_string(trim) + (tc ? "|t" : adaptive ? "|a" : "|p");
         const bool resized = key != pic_key || g.w != outw || g.h != outh || g.level.size() != static_cast<size_t>(outw) * outh;
         g.plain = true; g.direct = true; g.scale = 1; g.truecolor = tc;
         g.out_cw = cw0; g.out_ch = ch0;
@@ -856,7 +857,7 @@ bool App::video_draw_src(Src& V, bool playing_one, bool is_video, std::string& p
         g.active = true;
         VideoPicParams pp;
         pp.look = look; pp.t = t; pp.truecolor = tc; pp.round_corners = round_corners;
-        pp.vcols = vcols; pp.vrows = vrows; pp.trim = trim;
+        pp.vcols = vcols; pp.vrows = vrows; pp.trim = trim; pp.trim_left = trim_l;
         pp.cut_c = cut_c; pp.cut_r = cut_r; pp.cut_w = cut_w; pp.cut_h = cut_h;
         pp.adaptive = adaptive;
         // A heavy look (20-40 ms of a frame) is made by a worker (video_pipe.h) so the screen and the keys do not wait for it: the picture is taken at
@@ -923,7 +924,7 @@ bool App::video_draw_src(Src& V, bool playing_one, bool is_video, std::string& p
                 if (cell.mask == 0 || (round_corners && vrows >= 3 && vcols >= 4 && (r - top == 0 || r - top == vrows - 1) && (pc == 0 || pc == vcols - 1))) { line += ' '; continue; }   // (rounded: the four corner cells stay empty)
                 const float tt = vcols > 1 ? static_cast<float>(pc) / static_cast<float>(vcols - 1) : 0.0f;
                 const float lvl = std::round(cell.level / 255.0f * 7.0f) / 7.0f;
-                const std::string ansi = osci_dim_ansi(gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, tt), 0.30f + 0.70f * lvl);
+                const std::string ansi = osci_dim_ansi(vivid_gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, tt, settings_.vivid_of(settings_.scope_vivid)), 0.30f + 0.70f * lvl);
                 if (ansi != last_ansi) { line += ansi; last_ansi = ansi; }
                 const int cp = 0x2800 + cell.mask;
                 line += static_cast<char>(0xE0 | (cp >> 12));
@@ -1211,7 +1212,7 @@ std::vector<std::string> clapper_frame(int cols, int rows, double t) {
 bool App::vfull_wants_md() const {
     if (settings_.vfull_md_novideo && !audiobook_ && has_track_ && current_.is_local && !current_.path.empty()) {
         const std::string trk = path_utf8(current_.path);
-        if (vfull_user_path_ != trk && video_shown_for(current_.path).empty() && cover_track_milkdrop(trk).on != 0) return true;   // (a song's own "never" wins)
+        if (vfull_user_path_ != trk && video_shown_for(current_.path).empty() && (md_individual_off() || cover_track_milkdrop(trk).on != 0)) return true;   // (a song's own "never" wins)
     }
     return settings_.vfull_milkdrop;
 }
@@ -1432,7 +1433,7 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
             auto color_of = [&](int tx, int cc, uint8_t hue, float k) {
                 if (pal == 0) {
                     const float t = cc > 1 ? static_cast<float>(tx) / static_cast<float>(cc - 1) : 0.0f;
-                    return osci_dim_ansi(gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t), k);
+                    return osci_dim_ansi(vivid_gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, t, settings_.vivid_of(settings_.scope_vivid)), k);
                 }
                 int r = 255, gg = 255, b = 255;
                 osci_palette_rgb(settings_, pal, hue / 255.0f, r, gg, b);
@@ -1552,7 +1553,7 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
     const std::string lay = std::string("[SHIFT+UP/DOWN] Layout: ") + (VL.source_md ? kMdLayoutName[std::clamp(settings_.milkdrop_layout, 0, 4)] : kLayoutName[VL.video_l]);
     const std::string grid = "[SHIFT+g] Grid/Scale";
     const bool md_here = VL.md_ok;   // (projectM installed: the m key switches)
-    const std::string opts = std::string("[S] Options  [f] " + std::string(VL.source_md ? "Viz. only" : "Video only")) + (VL.has_o ? "  [" + hotkey_text("HKeyOscMenu", "O") + "] Osci" : "") +
+    const std::string opts = std::string("[" + hotkey_text("HKeyVideo", "&") + "] Options  [f] " + std::string(VL.source_md ? "Viz. only" : "Video only")) + (VL.has_o ? "  [" + hotkey_text("HKeyOscMenu", "O") + "] Osci" : "") +
                              (VL.has_s ? "  [" + hotkey_text("HKeySpectroMenu", "I") + "] Spectro" : "") +
                              (md_here ? std::string(VL.source_md ? "  [m] Video" : "  [m] MilkDrop") : std::string()) +
                              (md_here ? "  [" + visuals_key_text() + "] Visuals" : "");
@@ -1581,7 +1582,7 @@ std::string App::build_video_full(int W, const char* clear_prefix) const {
     const bool md_vis = VL.source_md || VL.kind == 1;   // (the visuals are on the screen: their preset keys)
     const std::string pre = md_vis ? "  [" + hotkey_text("HKeyToggleLyricsBack", ",") + "/" + hotkey_text("HKeyToggleLyrics", ".") + "] Preset" : std::string();
     const std::string l2 = pick({opts + pre + "   " + ovl_short + "   " + keys, opts + "   " + ovl_short + "   " + keys, opts + "   " + keys,
-                                 "[S] Options  [f] " + std::string(VL.source_md ? "Viz. only" : "Video only") + pre + "   " + ovl_short + "   " + keys, "[S] Options   " + ovl_short + "   " + keys, "[S] Options   " + keys, keys}, W - 2);
+                                 "[" + hotkey_text("HKeyVideo", "&") + "] Options  [f] " + std::string(VL.source_md ? "Viz. only" : "Video only") + pre + "   " + ovl_short + "   " + keys, "[" + hotkey_text("HKeyVideo", "&") + "] Options   " + ovl_short + "   " + keys, "[" + hotkey_text("HKeyVideo", "&") + "] Options   " + keys, keys}, W - 2);
     f << centred_bottom(settings_, W, l1, border_bottom) << "\n";
     const int w2 = display_width(l2);
     const int lp = std::max(0, (W - w2) / 2);

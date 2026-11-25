@@ -348,16 +348,17 @@ CoverStyle cover_track_style(const std::string& track_path) {
     load_locked(c);
     const auto it = c.style.find(track_path);
     if (it == c.style.end()) return st;
-    int v[6] = {-1, -1, -1, -1, -1, -1};   // (older files have five numbers: no gradient saturation of its own)
+    int v[7] = {-1, -1, -1, -1, -1, -1, -1};   // (older files have five or six numbers: no gradient saturation / vividness of its own)
     std::istringstream in(it->second);
     std::string part;
-    for (int i = 0; i < 6 && std::getline(in, part, ','); ++i) v[i] = muisc::atoi_safe(part.c_str());
+    for (int i = 0; i < 7 && std::getline(in, part, ','); ++i) v[i] = muisc::atoi_safe(part.c_str());
     st.look = v[0] >= 0 && v[0] < kCoverLookCount ? v[0] : -1;
-    st.contrast = v[1] >= 0 && v[1] <= 150 ? v[1] : -1;   // (a contrast of 0 .. 150 %; the colours and the brightness go up to 100)
+    st.contrast = v[1] >= 0 && v[1] <= 200 ? v[1] : -1;   // (a contrast of 0 .. 200 %; the colours and the brightness go up to 100)
     st.brightness = v[2] >= 0 && v[2] <= 100 ? v[2] : -1;
     st.colors = v[3] >= 0 && v[3] <= 100 ? v[3] : -1;
     st.chroma = v[4] >= 0 && v[4] < kChromaLevels ? v[4] : -1;
     st.gsat = v[5] >= 0 && v[5] <= 100 ? v[5] : -1;
+    st.vivid = v[6] >= 0 && v[6] <= 150 ? v[6] : -1;
     return st;
 }
 
@@ -367,8 +368,8 @@ void set_cover_track_style(const std::string& track_path, const CoverStyle& st) 
     {
         std::lock_guard<std::mutex> lk(c.mu);
         load_locked(c);
-        if (st.look < 0 && st.contrast < 0 && st.brightness < 0 && st.colors < 0 && st.chroma < 0 && st.gsat < 0) c.style.erase(track_path);
-        else c.style[track_path] = std::to_string(st.look) + "," + std::to_string(st.contrast) + "," + std::to_string(st.brightness) + "," + std::to_string(st.colors) + "," + std::to_string(st.chroma) + "," + std::to_string(st.gsat);
+        if (st.look < 0 && st.contrast < 0 && st.brightness < 0 && st.colors < 0 && st.chroma < 0 && st.gsat < 0 && st.vivid < 0) c.style.erase(track_path);
+        else c.style[track_path] = std::to_string(st.look) + "," + std::to_string(st.contrast) + "," + std::to_string(st.brightness) + "," + std::to_string(st.colors) + "," + std::to_string(st.chroma) + "," + std::to_string(st.gsat) + "," + std::to_string(st.vivid);
         save_locked(c);
     }
     choices().style_revision.fetch_add(1);   // (not cover_store_touch(): the picture itself is the same, reading it again made it blink away)
@@ -452,10 +453,10 @@ VideoTrackOpts cover_track_video_opts(const std::string& track_path) {
     load_locked(c);
     const auto it = c.vopts.find(track_path);
     if (it == c.vopts.end()) return o;
-    int v[15] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+    int v[17] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
     std::istringstream in(it->second);
     std::string part;
-    for (int i = 0; i < 15 && std::getline(in, part, ','); ++i) v[i] = muisc::atoi_safe(part.c_str());
+    for (int i = 0; i < 17 && std::getline(in, part, ','); ++i) v[i] = muisc::atoi_safe(part.c_str());
     o.on = v[0] == 0 ? 0 : -1;
     o.size = v[1] >= 0 && v[1] <= 3 ? v[1] : -1;
     o.fx = v[2] >= 0 && v[2] < kVideoFxCount ? video_fx_canon(v[2]) : -1;
@@ -473,6 +474,8 @@ VideoTrackOpts cover_track_video_opts(const std::string& track_path) {
     // (an older entry has no 15th field: as in Settings. The field counts from 1: 1 full, 2 reduced, 3 low; 0 is what the "auto" of the first
     // version of this setting wrote -- that is "as in Settings" now, as there is no auto any more)
     o.fxc = video_fxc_from_store(v[14]);
+    o.ioff = v[15] == 1 ? 1 : -1;   // (an older entry has no 16th field: on)
+    o.gvivid = v[16] >= 0 && v[16] <= 100 ? v[16] : -1;   // (an older entry has no 17th field: as in Settings)
     return o;
 }
 
@@ -483,8 +486,8 @@ void set_cover_track_video_opts(const std::string& track_path, const VideoTrackO
     {
         std::lock_guard<std::mutex> lk(c.mu);
         load_locked(c);
-        if (o.on != 0 && o.size < 0 && o.fx < 0 && o.contrast < 0 && o.colors < 0 && o.chroma < 0 && o.res < 0 && o.round < 0 && o.lyrics < 0 && o.brightness < 0 && o.mp4audio < 0 && o.dither < 0 && o.gsat < 0 && o.base < 0 && o.fxc < 0) c.vopts.erase(track_path);
-        else c.vopts[track_path] = std::to_string(o.on == 0 ? 0 : -1) + "," + std::to_string(o.size) + "," + std::to_string(o.fx) + "," + std::to_string(o.contrast) + "," + std::to_string(o.colors) + "," + std::to_string(o.chroma) + "," + std::to_string(o.res) + "," + std::to_string(o.round) + "," + std::to_string(o.lyrics) + "," + std::to_string(o.brightness) + "," + std::to_string(o.mp4audio) + "," + std::to_string(o.dither) + "," + std::to_string(o.gsat) + "," + std::to_string(o.base) + "," + std::to_string(video_fxc_to_store(o.fxc));
+        if (o.on != 0 && o.size < 0 && o.fx < 0 && o.contrast < 0 && o.colors < 0 && o.chroma < 0 && o.res < 0 && o.round < 0 && o.lyrics < 0 && o.brightness < 0 && o.mp4audio < 0 && o.dither < 0 && o.gsat < 0 && o.base < 0 && o.fxc < 0 && o.ioff < 0 && o.gvivid < 0) c.vopts.erase(track_path);
+        else c.vopts[track_path] = std::to_string(o.on == 0 ? 0 : -1) + "," + std::to_string(o.size) + "," + std::to_string(o.fx) + "," + std::to_string(o.contrast) + "," + std::to_string(o.colors) + "," + std::to_string(o.chroma) + "," + std::to_string(o.res) + "," + std::to_string(o.round) + "," + std::to_string(o.lyrics) + "," + std::to_string(o.brightness) + "," + std::to_string(o.mp4audio) + "," + std::to_string(o.dither) + "," + std::to_string(o.gsat) + "," + std::to_string(o.base) + "," + std::to_string(video_fxc_to_store(o.fxc)) + "," + std::to_string(o.ioff == 1 ? 1 : -1) + "," + std::to_string(o.gvivid);
         save_locked(c);
     }
     if (old_on != o.on) cover_store_touch();   // (only "video of this track" can change what the disk shows; a look change must not make the cover load again: it blinked away)
@@ -501,12 +504,12 @@ MilkdropTrackOpts cover_track_milkdrop(const std::string& track_path) {
     const int on = muisc::atoi_safe(it->second.substr(0, bar).c_str());
     o.on = on == 0 || on == 1 ? on : -1;
     if (bar != std::string::npos) o.preset = it->second.substr(bar + 1);
-    // "<on>|<preset>[\t<keep>\t<fx>[\t<dur>\t<shuf>\t<favs>\t<cuts>\t<hcs>\t<trans>\t<fxon>\t<name>]]" (what follows a tab came later; a preset never has a tab)
+    // "<on>|<preset>[\t<keep>\t<fx>[\t<dur>\t<shuf>\t<favs>\t<cuts>\t<hcs>\t<trans>\t<fxon>\t<name>\t<ioff>]]" (what follows a tab came later; a preset never has a tab)
     const size_t tab = o.preset.find('\t');
     if (tab != std::string::npos) {
         std::string rest = o.preset.substr(tab + 1);
         o.preset.resize(tab);
-        int* f[] = {&o.keep, &o.fx, &o.dur, &o.shuf, &o.favs, &o.cuts, &o.hcs, &o.trans, &o.fxon, &o.name};
+        int* f[] = {&o.keep, &o.fx, &o.dur, &o.shuf, &o.favs, &o.cuts, &o.hcs, &o.trans, &o.fxon, &o.name, &o.ioff};
         size_t k = 0;
         while (k < sizeof f / sizeof f[0]) {
             const size_t t = rest.find('\t');
@@ -516,7 +519,7 @@ MilkdropTrackOpts cover_track_milkdrop(const std::string& track_path) {
             rest = rest.substr(t + 1);
         }
         if (o.keep > 1) o.keep = -1;
-        for (int* q : {&o.shuf, &o.favs, &o.cuts, &o.fxon, &o.name}) if (*q > 1) *q = -1;
+        for (int* q : {&o.shuf, &o.favs, &o.cuts, &o.fxon, &o.name, &o.ioff}) if (*q > 1) *q = -1;
     }
     return o;
 }
@@ -531,10 +534,10 @@ void set_cover_track_milkdrop(const std::string& track_path, const MilkdropTrack
     MilkdropTrackOpts q = o;
     q.keep = o.keep == 0 || o.keep == 1 ? o.keep : -1;
     for (int* v : {&q.fx, &q.dur, &q.hcs, &q.trans}) *v = std::max(-1, *v);
-    for (int* v : {&q.shuf, &q.favs, &q.cuts, &q.fxon, &q.name}) *v = *v == 0 || *v == 1 ? *v : -1;
-    const int* all[] = {&q.keep, &q.fx, &q.dur, &q.shuf, &q.favs, &q.cuts, &q.hcs, &q.trans, &q.fxon, &q.name};
+    for (int* v : {&q.shuf, &q.favs, &q.cuts, &q.fxon, &q.name, &q.ioff}) *v = *v == 0 || *v == 1 ? *v : -1;
+    const int* all[] = {&q.keep, &q.fx, &q.dur, &q.shuf, &q.favs, &q.cuts, &q.hcs, &q.trans, &q.fxon, &q.name, &q.ioff};
     int last = -1;   // (the fields are written up to the last one that is set: older versions read the first two)
-    for (int i = 0; i < 10; ++i) if (*all[i] >= 0) last = i;
+    for (int i = 0; i < 11; ++i) if (*all[i] >= 0) last = i;
     if (o.on < 0 && p.empty() && last < 0) c.mdopts.erase(track_path);
     else {
         std::string v = std::to_string(o.on == 0 || o.on == 1 ? o.on : -1) + "|" + p;

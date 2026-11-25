@@ -1,4 +1,5 @@
 // Radio mode screen (part of radio_ui.cpp, split for the build time; the helpers are declared in radio_ui_internal.h).
+#include "terminal_font.h"
 #include "radio_ui_internal.h"
 
 namespace muisc::radio {
@@ -53,13 +54,13 @@ std::string repeat(const std::string& s, int n) {
 
 // The filled part of the VOLUME BAR as segments: one segment in the VOLUME CURRENT colour, or (Volume indicator -> gradient) one
 // per position in the colours of the oscilloscope gradient from left to right.
-std::vector<Seg> volume_fill_segs(const Style& s, int hashes) {
+std::vector<Seg> volume_fill_segs(const Style& s, int hashes, int total) {
     const double angle = muisc::volume_clock_angle();
-    if (!s.c.volume_gradient) return {{s.vol_current, muisc::volume_bar_fill(s.c.volume_indicator, hashes, angle)}};
+    if (!s.c.volume_gradient) return {{s.vol_current, muisc::volume_bar_fill(s.c.volume_indicator, hashes, angle, total)}};
     std::vector<Seg> out;
-    const auto cells = muisc::volume_bar_cells(s.c.volume_indicator, hashes, angle);
+    const auto cells = muisc::volume_bar_cells(s.c.volume_indicator, hashes, angle, total);
     for (size_t i = 0; i < cells.size(); ++i)
-        out.push_back({s.osci_at(static_cast<float>(i) / (muisc::kVolBarCells - 1)), cells[i]});
+        out.push_back({s.osci_at(static_cast<float>(i) / (total - 1)), cells[i]});
     return out;
 }
 
@@ -110,9 +111,9 @@ std::string box_edge(const Style& s, bool top, int w, const std::vector<Seg>& la
     o += repeat(s.c.box_horizontal, dashes) + r + kReset;
     return o;
 }
-std::string box_top(const Style& s, int w, const std::string& label, const std::string& ansi) {
+std::string box_top(const Style& s, int w, const std::string& label, const std::string& ansi, bool bold_ok) {
     std::vector<Seg> lab;
-    if (!label.empty()) lab.push_back({"", label});
+    if (!label.empty()) lab.push_back({"", s.c.thick_borders > 0 && bold_ok ? muisc::bold_title(label) : label});
     return box_edge(s, true, w, lab, ansi);
 }
 std::string box_bottom(const Style& s, int w, const std::string& label, const std::string& ansi) {
@@ -729,11 +730,12 @@ std::vector<std::string> build_side(const Style& s, const RadioStatus& st) {
     } else {
         out[0] = out[1] = out[2] = spaces(kSideW);
     }
-    const int hashes = (st.volume * kVolBar) / 100;
-    std::vector<Seg> vol_segs = {{s.border, "VOLUME BAR:["}};
-    for (const Seg& g : volume_fill_segs(s, hashes)) vol_segs.push_back(g);   // the look and the gradient of the Volume indicator
-    vol_segs.push_back({s.vol_possible, std::string(static_cast<size_t>(kVolBar - hashes), '-')});
-    vol_segs.push_back({s.border, "]"});
+    const muisc::VolBarLook vlook = muisc::volume_bar_look(s.c.volume_indicator, kSideW);   // ("VOLUME:[bar] 100%"; the braille looks have no brackets and a longer bar)
+    const int hashes = (st.volume * vlook.cells) / 100;
+    std::vector<Seg> vol_segs = {{s.border + "\x1b[1m", "VOLUME"}, {std::string("\x1b[22m") + s.border, vlook.brackets ? ":[" : ":"}};
+    for (const Seg& g : volume_fill_segs(s, hashes, vlook.cells)) vol_segs.push_back(g);   // the look and the gradient of the Volume indicator
+    vol_segs.push_back({s.vol_possible, std::string(static_cast<size_t>(vlook.cells - hashes), '-')});
+    if (vlook.brackets) vol_segs.push_back({s.border, "]"});
     vol_segs.push_back({"", " " + std::to_string(st.volume) + "%"});
     out[3] = seg_line(vol_segs, kSideW);
     out[4] = spaces(kSideW);

@@ -246,6 +246,7 @@ void App::meta_sty_open() {
     if (path.empty()) { meta_->status = "no title selected"; return; }
     meta_->sty_track = path;
     meta_->sty_open = true;
+    cov_undo_.clear();
     meta_->sty_sel = 0;
     meta_->sty_pair = song_paired_with_video(path_from_utf8(path));
     meta_->sty_msg.clear();
@@ -268,8 +269,34 @@ void App::meta_open_style_playing() {
     else mode_ = Mode::Browse;
 }
 
-bool App::handle_meta_sty_key(int key) {
+App::CoverUndo App::cover_snap() const {
+    CoverUndo u;
+    u.track = meta_->sty_track;
+    u.album = meta_->hover_values[static_cast<size_t>(MetaField::Album)];
+    u.folder = path_utf8(path_from_utf8(u.track).parent_path());
+    u.st = cover_track_style(u.track);
+    u.album_look = cover_album_look(u.album, u.folder);
+    u.mode = settings_.cover_mode; u.contrast = settings_.cover_contrast; u.brightness = settings_.cover_brightness; u.colors = settings_.cover_colors;
+    u.chroma = settings_.cover_chroma; u.gsat = settings_.cover_grad_sat; u.vivid = settings_.cover_vivid;
+    return u;
+}
+
+bool App::cover_snap_same(const CoverUndo& a, const CoverUndo& b) {
+    return a.st.look == b.st.look && a.st.contrast == b.st.contrast && a.st.brightness == b.st.brightness && a.st.colors == b.st.colors && a.st.chroma == b.st.chroma &&
+           a.st.gsat == b.st.gsat && a.st.vivid == b.st.vivid && a.album_look == b.album_look && a.mode == b.mode && a.contrast == b.contrast && a.brightness == b.brightness &&
+           a.colors == b.colors && a.chroma == b.chroma && a.gsat == b.gsat && a.vivid == b.vivid;
+}
+
+bool App::handle_meta_sty_key(int key) {   // (every change is one step for Undo change)
     if (!meta_->sty_open) return false;
+    const CoverUndo before = cover_snap();
+    cov_undoing_ = false;
+    const bool r = handle_meta_sty_key_inner(key);
+    if (!cov_undoing_ && !cover_snap_same(before, cover_snap())) { cov_undo_.push_back(before); if (cov_undo_.size() > 60) cov_undo_.erase(cov_undo_.begin()); }
+    return r;
+}
+
+bool App::handle_meta_sty_key_inner(int key) {
     const bool arrow = last_key_was_arrow();
     if (key == 27) {
         meta_->sty_open = false;
@@ -302,30 +329,61 @@ bool App::handle_meta_sty_key(int key) {
     const std::vector<StyleRow> list = style_rows(settings_.video_mode, meta_->sty_pair, milkdrop_usable());
     const StyleRow sel = list[static_cast<size_t>(std::clamp(meta_->sty_sel, 0, static_cast<int>(list.size()) - 1))];
     if (!arrow && (key == '\r' || key == '\n') && sel == kStVideoEffect) { fxpick_open(3); return true; }   // ENTER on Video Effect: the list of all effects
-    if (sel == kStMilkdropOn || sel == kStMilkdropPreset) {   // the MilkDrop visuals of this track
-        MilkdropTrackOpts mo = cover_track_milkdrop(meta_->sty_track);
-        if (sel == kStMilkdropOn) {
-            mo.on = reset ? -1 : mo.on < 0 ? (dir > 0 ? 1 : 0) : mo.on == 1 ? (dir > 0 ? 0 : -1) : (dir > 0 ? -1 : 1);   // as it comes -> on -> off -> ...
-            meta_->sty_msg = mo.on < 0 ? "saved: MilkDrop as it comes" : mo.on == 1 ? "saved: MilkDrop shows while this track plays" : "saved: no MilkDrop for this track";
-        } else if (reset) {   // More Options: all of them back to "as in Settings" (whether MilkDrop shows for this track stays: its own row)
-            const int on = mo.on;
-            mo = MilkdropTrackOpts();
-            mo.on = on;
-            meta_->sty_msg = "saved: the MilkDrop options of this track are as in Settings";
-        } else if (dir > 0) {   // More Options: the visuals overlay for this track (ESC comes back here)
-            milkdrop_menu_open(meta_->sty_track, meta_->hover_values[static_cast<size_t>(MetaField::Title)], Mode::MetaEdit);
-            return true;
-        } else return true;
-        set_cover_track_milkdrop(meta_->sty_track, mo);
-        if (has_track_ && path_utf8(current_.path) == meta_->sty_track) milkdrop_track_apply();
+    if (sel == kStCoverUndo) {
+        if (dir <= 0) return true;
+        if (cov_undo_.empty()) { meta_->sty_msg = "nothing to undo"; return true; }
+        const CoverUndo u = cov_undo_.back();
+        cov_undo_.pop_back();
+        cov_undoing_ = true;
+        if (u.track == meta_->sty_track) {
+            set_cover_track_style(u.track, u.st);
+            set_cover_album_look(u.album, u.folder, u.album_look);
+        }
+        settings_.cover_mode = u.mode; settings_.cover_contrast = u.contrast; settings_.cover_brightness = u.brightness; settings_.cover_colors = u.colors;
+        settings_.cover_chroma = u.chroma; settings_.cover_grad_sat = u.gsat; settings_.cover_vivid = u.vivid;
+        save_settings(settings_);
+        meta_->sty_msg = "the last change is undone";
+        return true;
+    }
+    if (sel == kStResetCover || sel == kStSetCover) {   // the buttons of INDIVIDUAL TRACK SETTINGS MANAGEMENT (ENTER / RIGHT)
+        if (dir <= 0) return true;
+        if (sel == kStResetCover) {
+            if (st.look < 0 && st.contrast < 0 && st.brightness < 0 && st.colors < 0 && st.chroma < 0 && st.gsat < 0 && st.vivid < 0) { meta_->sty_msg = "this track has no individual cover settings"; return true; }
+            set_cover_track_style(meta_->sty_track, CoverStyle());
+            meta_->sty_msg = "saved: cover settings back to default";
+        } else {
+            if (!cover_style_differs(st)) { meta_->sty_msg = "no individual cover value differs from the default"; return true; }
+            if (st.look >= 0) settings_.cover_mode = st.look;
+            if (st.contrast >= 0) settings_.cover_contrast = st.contrast;
+            if (st.brightness >= 0) settings_.cover_brightness = st.brightness;
+            if (st.colors >= 0) settings_.cover_colors = st.colors;
+            if (st.chroma >= 0) settings_.cover_chroma = st.chroma;
+            if (st.gsat >= 0) settings_.cover_grad_sat = st.gsat;
+            if (st.vivid >= 0) settings_.cover_vivid = st.vivid;
+            save_settings(settings_);
+            meta_->sty_msg = "saved: these cover values are now the default";
+        }
+        return true;
+    }
+    if (sel == kStMilkdropGo) {   // the MilkDrop settings of this track (ENTER / RIGHT)
+        if (dir <= 0) return true;
+        const std::string title = meta_->hover_values[static_cast<size_t>(MetaField::Title)];
+        if (meta_->sty_from_main && has_track_ && !audiobook_ && path_utf8(current_.path) == meta_->sty_track) {   // the playing track: the big video overlay on the MilkDrop visuals, with its settings open
+            meta_->sty_open = false;
+            meta_->sty_from_main = false;
+            mode_ = Mode::Browse;
+            milkdrop_overlay_open();
+            if (video_full_) milkdrop_menu_open(std::string(), title, Mode::Browse);   // (the same menu as in the main screen: it shows the playing track's individual settings)
+        } else milkdrop_menu_open(meta_->sty_track, title, Mode::MetaEdit);   // (another track, or the meta editor: its settings over this overlay; ESC comes back here)
         return true;
     }
     switch (sel) {
         case kStLook: st.look = reset ? -1 : sty_step(st.look, dir, kCoverLookCount - 1, 1); break;
-        case kStCoverContrast: st.contrast = reset ? -1 : sty_step(st.contrast, dir, 150, 5); break;
+        case kStCoverContrast: st.contrast = reset ? -1 : sty_step(st.contrast, dir, 200, 5); break;
         case kStCoverBrightness: st.brightness = reset ? -1 : sty_step(st.brightness, dir, 100, 5); break;
         case kStCoverColors: st.colors = reset ? -1 : sty_step(st.colors, dir, 100, 5); break;
         case kStCoverGradSat: st.gsat = reset ? -1 : sty_step(st.gsat, dir, 100, 5); break;
+        case kStCoverVivid: st.vivid = reset ? -1 : sty_step(st.vivid, dir, 150, 5); break;
         case kStCoverChroma: st.chroma = reset ? -1 : sty_step(st.chroma, dir, kChromaLevels - 1, 1); break;
         case kStCoverOrThumb: {   // the mode of the track (the same one as in COVER OPTIONS)
             int mode = cover_track_video_mode(meta_->sty_track);   // 0 as in the settings, 1 cover, 2 thumbnail, 3 plain disk, 4 thumbnail fallback
@@ -363,7 +421,7 @@ bool App::handle_meta_sty_key(int key) {
             meta_->sty_msg = "saved";
             return true;
         }
-        case kStMilkdropOn: case kStMilkdropPreset: break;   // (handled above)
+        case kStMilkdropGo: case kStResetCover: case kStSetCover: case kStCoverUndo: break;   // (handled above)
         case kStMp4Audio: {   // true / false (false = the song's own audio, as before)
             VideoTrackOpts o = cover_track_video_opts(meta_->sty_track);
             const int before = o.mp4audio;
@@ -391,10 +449,11 @@ int App::meta_sty_panel_width(int screen_w) const { return screen_w >= 110 && te
 // The cover of the track as it looks with the style set in the overlay (the plain disk where the look is the disk or the track has no
 // cover), prev_w x 15 cells, braille dots like the disk of the main screen. The last row names what is shown.
 // The Style preview as a real picture (Kitty / Sixel): like album_cover_gfx(), for any cover and style, at a place of the screen (0-based).
-bool App::meta_sty_gfx(const CoverImage& cover, int mode, int contrast, int brightness, int colors, int chroma, double angle, int col, int row, int cols, int rows, int gsat) const {
+bool App::meta_sty_gfx(const CoverImage& cover, int mode, int contrast, int brightness, int colors, int chroma, double angle, int col, int row, int cols, int rows, int gsat, int vivid) const {
     if (gfxs_.proto == GfxProto::None || cols < 8 || rows < 4) return false;
     mode = std::clamp(mode, 0, 4);
     if (gsat < 0) gsat = settings_.cover_grad_sat;
+    if (vivid < 0) vivid = settings_.cover_vivid_eff();
     int cw0 = 10, ch0 = 20;
     gfx_cell_pixels(settings_.cell_pixels, cw0, ch0);
     cw0 = std::max(4, cw0); ch0 = std::max(8, ch0);
@@ -407,14 +466,14 @@ bool App::meta_sty_gfx(const CoverImage& cover, int mode, int contrast, int brig
     const int want_id = second ? 1 : 0;
     std::string& pic_key = second ? sty2_key_ : cover_pic_key_;
     auto& pic_at = second ? sty2_at_ : cover_pic_at_;
-    const std::string key = "sty|" + cover.key + "|" + std::to_string(mode) + "|" + std::to_string(contrast) + "|" + std::to_string(brightness) + "|" + std::to_string(colors) + "|" + std::to_string(gsat) + "|" + std::to_string(chroma) + "|" +
+    const std::string key = "sty|" + cover.key + "|" + std::to_string(mode) + "|" + std::to_string(contrast) + "|" + std::to_string(brightness) + "|" + std::to_string(colors) + "|" + std::to_string(gsat) + "|" + std::to_string(vivid) + "|" + std::to_string(chroma) + "|" +
                             std::to_string(w) + "x" + std::to_string(h) + "|" + std::to_string(col) + "," + std::to_string(row) + "|" + settings_.disk_color + "|" +
                             (settings_.disk_color_gradient ? settings_.disk_color_end : std::string());
     const auto now = std::chrono::steady_clock::now();
     const bool resized = key != pic_key || !g.plain || g.w != w || g.h != h || g.level.size() != static_cast<size_t>(w) * h || g.id != want_id || g.col != col || g.cols != cols;
     const auto gap = std::chrono::milliseconds(gfxs_.proto == GfxProto::Sixel ? 110 : 40);
     const bool due = resized || (mode >= 1 && now - pic_at >= gap);
-    cover_ovr_ = {true, contrast, brightness, colors, chroma, gsat};   // (cover_fill and cover_sixel_colours read the style through eff_cover_*)
+    cover_ovr_ = {true, contrast, brightness, colors, chroma, gsat, vivid};   // (cover_fill and cover_sixel_colours read the style through eff_cover_*)
     g.plain = true; g.truecolor = false;
     g.direct = mode == 0 || cover_sixel_colours(mode);
     g.scale = 1;
@@ -445,6 +504,7 @@ std::vector<std::string> App::meta_sty_preview(int prev_w, int rows, const Cover
     const int brightness = st.brightness >= 0 ? st.brightness : settings_.cover_brightness;
     const int colors = st.colors >= 0 ? st.colors : settings_.cover_colors;
     const int gsat = st.gsat >= 0 ? st.gsat : settings_.cover_grad_sat;
+    const int vivid = st.vivid >= 0 ? st.vivid : settings_.cover_vivid_eff();
     const int chroma = st.chroma >= 0 ? st.chroma : settings_.cover_chroma;
     const double angle = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count() * 0.6;
     int dw = disk_.width(), dh = disk_.height();
@@ -454,7 +514,7 @@ std::vector<std::string> App::meta_sty_preview(int prev_w, int rows, const Cover
         disk = disk_.frame(angle);
         for (size_t i = 0; i < disk.size(); ++i) {
             const float t = disk.size() > 1 ? static_cast<float>(i) / static_cast<float>(disk.size() - 1) : 0.0f;
-            disk[i] = gradient_ansi(settings_.disk_color, settings_.disk_color_end, t) + disk[i] + "\x1b[0m";
+            disk[i] = disk_gradient_ansi(settings_.disk_color, settings_.disk_color_end, t, settings_.disk_vivid) + disk[i] + "\x1b[0m";
         }
     };
     // On a row of the video block the preview shows the video of the track instead: the same drawing as the video field (video_draw()), so the
@@ -483,7 +543,7 @@ std::vector<std::string> App::meta_sty_preview(int prev_w, int rows, const Cover
         const int lpad0 = std::max(0, (prev_w - vw) / 2);
         const int W = meta_sty_panel_width(screen_w), panel_h = rows + 2;
         const int start_col = 1 + std::max(0, (screen_w - W) / 2);
-        const int start_row = std::clamp(1 + std::max(0, (term_rows_ - panel_h) / 2 - kFloatingPanelUpShift + 1), 1, std::max(1, term_rows_ - panel_h));
+        const int start_row = meta_sty_start_row(panel_h);
         const int top0 = std::max(0, (rows - 1 - vh) / 2);
         const bool second = meta_->sty_from_main && mode_ == Mode::MetaEdit && gfx_.active;   // (like the cover preview: the main screen's own picture stays in the first slot)
         std::vector<std::string> vr;
@@ -529,13 +589,13 @@ std::vector<std::string> App::meta_sty_preview(int prev_w, int rows, const Cover
             // where the panel stands on the screen (the same arithmetic as draw_floating_panel()): the picture goes into the preview column
             const int W = meta_sty_panel_width(screen_w), panel_h = rows + 2;
             const int start_col = 1 + std::max(0, (screen_w - W) / 2);
-            const int start_row = std::clamp(1 + std::max(0, (term_rows_ - panel_h) / 2 - kFloatingPanelUpShift + 1), 1, std::max(1, term_rows_ - panel_h));   // (the panel stands one row lower than the other floating panels)
+            const int start_row = meta_sty_start_row(panel_h);   // (the panel stands one row lower than the other floating panels)
             const int top0 = std::max(0, (rows - 1 - dh) / 2);   // the disk is centred in the rows above the note
-            if (cf_->full_res && m <= 4 && meta_sty_gfx(*img, m, contrast, brightness, colors, chroma, angle, (start_col - 1) + 1 + (kMetaStyPanelWidth - 2) + 1 + lpad0, start_row + top0, dw, dh, gsat)) {
+            if (cf_->full_res && m <= 4 && meta_sty_gfx(*img, m, contrast, brightness, colors, chroma, angle, (start_col - 1) + 1 + (kMetaStyPanelWidth - 2) + 1 + lpad0, start_row + top0, dw, dh, gsat, vivid)) {
                 for (int r = 0; r < dh; ++r) disk.push_back(gfx_hole(dw));
                 note += "  (image)";
             } else {
-                disk = album_cover_lines_for(*img, m >= 5 ? m - 5 : m, contrast, brightness, colors, angle, dw, dh, chroma, gsat);
+                disk = album_cover_lines_for(*img, m >= 5 ? m - 5 : m, contrast, brightness, colors, angle, dw, dh, chroma, gsat, vivid);
                 if (disk.empty()) plain_disk();
                 else if (gfxs_.proto != GfxProto::None) note += "  (braille)";
             }
@@ -570,10 +630,14 @@ std::vector<std::string> App::build_meta_sty_panel(int screen_w) const {
     const std::string folder = path_utf8(path_from_utf8(meta_->sty_track).parent_path());
     const CoverStyle st = cover_track_style(meta_->sty_track);
     const int album_look = cover_album_look(album, folder);
-    auto pct = [&](int own, int global) {
-        return own >= 0 ? std::to_string(own) + " %" : std::string("as in Settings (") + std::to_string(global) + " %)";
+    const char* const kDef = "  (default)";   // behind a value that is the default one (nothing of its own, or the same value)
+    auto named = [&](int own, int global, const std::function<std::string(int)>& fn) {
+        return fn(own >= 0 ? own : global) + (own < 0 || own == global ? kDef : "");
     };
-    auto look_text = [&](int own) { return own >= 0 ? std::string(cover_look_name(own)) : std::string("as in Settings"); };
+    auto pct = [&](int own, int global) {
+        return named(own, global, [](int v) { return std::to_string(v) + " %"; });
+    };
+    auto look_text = [&](int own) { return own >= 0 ? std::string(cover_look_name(own)) : std::string("(default)"); };
     struct Row { const char* label; std::string value; };
     const std::vector<StyleRow> list = style_rows(settings_.video_mode, meta_->sty_pair, milkdrop_usable());
     const VideoTrackOpts vo = settings_.video_mode ? cover_track_video_opts(meta_->sty_track) : VideoTrackOpts();
@@ -585,37 +649,33 @@ std::vector<std::string> App::build_meta_sty_panel(int screen_w) const {
             case kStCoverBrightness: return {"Cover Brightness", pct(st.brightness, settings_.cover_brightness)};
             case kStCoverColors: return {"Cover Colors", pct(st.colors, settings_.cover_colors)};
             case kStCoverGradSat: return {"Cover Gradient Saturation", pct(st.gsat, settings_.cover_grad_sat)};
-            case kStCoverChroma: return {"Cover Chromatic Aberration", st.chroma >= 0 ? std::string(chroma_name(st.chroma)) : std::string("as in Settings (") + chroma_name(settings_.cover_chroma) + ")"};
+            case kStCoverVivid: return {"Cover Gradient Vividness", pct(st.vivid, settings_.cover_vivid_eff())};
+            case kStCoverChroma: return {"Cover Chromatic Aberration", named(st.chroma, settings_.cover_chroma, [](int v) { return std::string(chroma_name(v)); })};
             case kStCoverOrThumb: {   // the same choice as COVER OPTIONS (this track) and the VIDEO overlay (the default of all tracks)
                 const int own = cover_track_video_mode(meta_->sty_track);
                 static const char* const dflt[4] = {"the cover", "the video thumbnail", "the plain disk", "the cover, else the thumbnail"};
                 static const char* const names[5] = {"", "the cover", "the video thumbnail", "the plain disk", "the cover, else the thumbnail"};
-                return {"Use Disk/Cover/Thumbnail", own == 0 ? std::string("as in the settings (") + dflt[std::clamp(settings_.video_cover, 0, 3)] + ")" : std::string(names[own])};
+                return {"Use Disk/Cover/Thumbnail", std::string(own == 0 ? dflt[std::clamp(settings_.video_cover, 0, 3)] : names[own]) + (own == 0 || own - 1 == std::clamp(settings_.video_cover, 0, 3) ? kDef : "")};
             }
             case kStVideoOn: return {"Video of this track", vo.on == 0 ? std::string("off") : std::string("on")};
-            case kStVideoLyrics: return {"Use Lyrics on Video", vo.lyrics >= 0 ? std::string(lyr_mode_name(vo.lyrics)) : std::string("as in VIDEO SETTINGS (") + lyr_mode_name(settings_.video_lyrics) + ")"};
-            case kStVideoSize: return {"Video Size", vo.size >= 0 ? std::string(size_names[vo.size]) : std::string("as in VIDEO SETTINGS (") + size_names[std::clamp(settings_.video_size, 0, 3)] + ")"};
-            case kStVideoEffect: return {"Video Effect", vo.fx >= 0 ? std::string(video_fx_name(vo.fx)) : std::string("VIDEO SETTINGS (") + video_fx_name(settings_.video_fx) + ")"};
-            case kStVideoBase: return {"Video Base Layer", vo.base >= 0 ? std::string(base_name(vo.base)) : std::string("as in Settings (") + base_name(settings_.video_base) + ")"};
-            case kStVideoFxContrast: return {"Video Effect Contrast", vo.fxc >= 0 ? std::string(fxc_name(vo.fxc)) : std::string("as in Settings (") + fxc_name(settings_.video_fxc) + ")"};
+            case kStVideoLyrics: return {"Use Lyrics on Video", named(vo.lyrics, settings_.video_lyrics, [](int v) { return std::string(lyr_mode_name(v)); })};
+            case kStVideoSize: return {"Video Size", named(vo.size, settings_.video_size, [](int v) { return std::string(size_names[std::clamp(v, 0, 3)]); })};
+            case kStVideoEffect: return {"Video Effect", named(vo.fx, settings_.video_fx, [](int v) { return std::string(video_fx_name(v)); })};
+            case kStVideoBase: return {"Video Base Layer", named(vo.base, settings_.video_base, [](int v) { return std::string(base_name(v)); })};
+            case kStVideoFxContrast: return {"Video Effect Contrast", named(vo.fxc, settings_.video_fxc, [](int v) { return std::string(fxc_name(v)); })};
             case kStVideoContrast: return {"Video Contrast", pct(vo.contrast, settings_.video_contrast)};
             case kStVideoBrightness: return {"Video Brightness", pct(vo.brightness, settings_.video_brightness)};
             case kStVideoColors: return {"Video Colors", pct(vo.colors, settings_.video_colors)};
-            case kStVideoChroma: return {"Video Chromatic Aberration", vo.chroma >= 0 ? std::string(chroma_name(vo.chroma)) : std::string("as in Settings (") + chroma_name(settings_.video_chroma) + ")"};
-            case kStVideoDither: return {"Video Dither Pattern", vo.dither >= 0 ? std::string(dither_name(vo.dither)) : std::string("as in Settings (") + dither_name(settings_.video_dither) + ")"};
+            case kStVideoChroma: return {"Video Chromatic Aberration", named(vo.chroma, settings_.video_chroma, [](int v) { return std::string(chroma_name(v)); })};
+            case kStVideoDither: return {"Video Dither Pattern", named(vo.dither, settings_.video_dither, [](int v) { return std::string(dither_name(v)); })};
             case kStVideoGradSat: return {"Video Gradient Saturation", pct(vo.gsat, settings_.video_grad_sat)};
-            case kStVideoResolution: return {"Video Resolution", vo.res >= 0 ? std::string(video_res_name(vo.res)) : std::string("as in Settings (") + video_res_name(settings_.video_res) + ")"};
-            case kStVideoRounded: return {"Video Rounded Corners", vo.round >= 0 ? std::string(vo.round ? "on" : "off") : std::string("as in Settings (") + (settings_.video_round ? "on" : "off") + ")"};
+            case kStVideoResolution: return {"Video Resolution", named(vo.res, settings_.video_res, [](int v) { return std::string(video_res_name(v)); })};
+            case kStVideoRounded: return {"Video Rounded Corners", named(vo.round, settings_.video_round ? 1 : 0, [](int v) { return std::string(v ? "on" : "off"); })};
             case kStMp4Audio: return {"Use mp4 audio for this song", vo.mp4audio == 1 ? std::string("true") : std::string("false")};
-            case kStMilkdropOn: { const MilkdropTrackOpts mo = cover_track_milkdrop(meta_->sty_track);
-                return {"MilkDrop for this track", mo.on < 0 ? std::string("as it comes") : mo.on == 1 ? std::string("on (shown while it plays)") : std::string("off")}; }
-            case kStMilkdropPreset: { const MilkdropTrackOpts mo = cover_track_milkdrop(meta_->sty_track);
-                std::string v;
-                if (!mo.preset.empty()) v = path_utf8(path_from_utf8(mo.preset).stem()) + (mo.keep == 0 ? " (then on)" : "");
-                if (mo.fx >= 0) v += (v.empty() ? "" : ", ") + std::string(video_fx_name(video_fx_canon(mo.fx)));
-                { int n = 0; for (int x : {mo.keep, mo.dur, mo.shuf, mo.favs, mo.cuts, mo.hcs, mo.trans, mo.fxon, mo.name}) if (x >= 0) ++n;
-                  if (n > 0) v += (v.empty() ? "" : ", ") + std::to_string(n) + (n == 1 ? " option" : " options"); }
-                return {"More Options", truncate_str(v.empty() ? std::string("as it comes") : v, 18) + " [ENTER]"}; }   // (a preset name can be long)
+            case kStResetCover: return {"Reset cover to default settings", "[ENTER]"};
+            case kStSetCover: return {"Set individual cover settings as default settings", "[ENTER]"};
+            case kStCoverUndo: return {"Undo change", "[ENTER]"};
+            case kStMilkdropGo: return {"Go to MilkDrop settings", "[ENTER]"};
             case kStAlbum: break;
         }
         return {"Look of the whole album", look_text(album_look)};
@@ -636,11 +696,20 @@ std::vector<std::string> App::build_meta_sty_panel(int screen_w) const {
     };
     for (int i = 0; i < static_cast<int>(rows.size()); ++i) {
         const StyleRow id = list[static_cast<size_t>(i)];
-        if (i == 0) head("Cover");
-        else if (id == kStVideoOn) head("Video");
-        else if (id == kStMilkdropOn) head("MilkDrop");
+        if (i == 0) head("Look");
+        else if (id == kStCoverContrast) head("Cover Behind Disk Settings");   // (contrast, brightness, colors, gradient and chromatic aberration only work on the cover behind the disk)
+        else if (id == kStResetCover) head("INDIVIDUAL TRACK SETTINGS MANAGEMENT");
+        else if (id == kStMilkdropGo) head("MilkDrop");
         else if (id == kStAlbum) head("Album");
         std::string t = " " + pad_right(rows[static_cast<size_t>(i)].label, 27) + " \u25c0 " + rows[static_cast<size_t>(i)].value + " \u25b6";
+        if (id == kStMilkdropGo) t = std::string(" ") + rows[static_cast<size_t>(i)].label + "  " + rows[static_cast<size_t>(i)].value;   // (a long label: no arrows, no cut)
+        if (id == kStResetCover || id == kStSetCover || id == kStCoverUndo) {   // a button: [ENTER] on the right, in the legend colours while there is nothing to do
+            const bool on = id == kStCoverUndo ? !cov_undo_.empty() : id == kStSetCover ? cover_style_differs(st) : st.look >= 0 || st.contrast >= 0 || st.brightness >= 0 || st.colors >= 0 || st.chroma >= 0 || st.gsat >= 0 || st.vivid >= 0;
+            const std::string lab = pad_right(truncate_str(std::string(" ") + rows[static_cast<size_t>(i)].label, left_w - 10), left_w - 10);
+            if (i == meta_->sty_sel) left.push_back("\x1b[7m" + lab + " [ENTER]  \x1b[0m");
+            else left.push_back(lab + " " + (on ? std::string() : legend_sgr(settings_)) + "[ENTER]" + (on ? std::string() : std::string("\x1b[0m")) + "  ");
+            continue;
+        }
         t = pad_right(truncate_str(t, left_w - 1), left_w - 1) + " ";
         if (i == meta_->sty_sel) t = "\x1b[7m" + t + "\x1b[0m";
         left.push_back(t);
@@ -652,7 +721,7 @@ std::vector<std::string> App::build_meta_sty_panel(int screen_w) const {
     if (with_prev) prev = meta_sty_preview(prev_w, body_rows, st, album_look, screen_w);
 
     std::vector<std::string> lines;
-    lines.push_back(box_top("STYLE OPTION  " + truncate_str(apply_font_map(path_utf8(path_from_utf8(meta_->sty_track).filename()), settings_.font_map), 40), W, border));
+    lines.push_back(box_top("COVER STYLE OVERLAY  " + truncate_str(apply_font_map(path_utf8(path_from_utf8(meta_->sty_track).filename()), settings_.font_map), 40), W, border));
     for (int r = 0; r < body_rows; ++r) {
         std::string row = obar + left[static_cast<size_t>(r)];
         if (with_prev) row += obar + prev[static_cast<size_t>(r)] + "\x1b[0m";

@@ -3,7 +3,7 @@
 // The looks of the VOLUME BAR ("Volume Indicator" on the GENERAL tab of the music player and of the radio).
 //
 //   0  "#"    1  "⠶"    2  "⣿"    repeat one character
-//   3  "⡾⣽"   a fixed row of 20 different braille characters (not repeating)
+//   3  "⡾⣽"   a fixed row of different braille characters (not repeating)
 //   4  "disk" the dots of the disk animation: the bar is a strip of solid braille dots that is turned like the disk of
 //             the main screen is, with the CENTRE of the circle two cells in from the left end (the third cell). The
 //             dots are moved and rounded exactly like DiskArt::frame() does it, so some of them are missing at some
@@ -25,7 +25,17 @@ namespace muisc {
 
 inline constexpr int kVolStyleCount = 5;
 inline constexpr int kVolStyleDisk = 4;
-inline constexpr int kVolBarCells = 20;   // the width of the bar
+inline constexpr int kVolBarCells = 20;   // the width of the bar (the longest the screens use is 26: kVolBarMax)
+inline constexpr int kVolBarMax = 28;
+
+// The layout of the volume line "VOLUME:[bar] 100%" in `width` columns: the "#" look has the brackets, the braille looks do not (their cells
+// are the bar), so the bar gets two more cells. The label "VOLUME:" is 7 columns and " 100%" 5, so the line is exactly `width` at 100 %.
+struct VolBarLook { bool brackets; int cells; };
+inline VolBarLook volume_bar_look(int style, int width) {
+    const bool br = style == 0;
+    return {br, std::clamp(width - 5 - 7 - (br ? 2 : 0), 4, kVolBarMax)};
+}
+
 
 // Config / settings names: # , ⠶ , ⣿ , ⡾⣽ , disk
 inline const char* const kVolIndicatorNames[kVolStyleCount] = {"#", "\xE2\xA0\xB6", "\xE2\xA3\xBF", "\xE2\xA1\xBE\xE2\xA3\xBD", "disk"};
@@ -61,7 +71,7 @@ struct Disc {
 inline const Disc& disc() {
     static const Disc d = [] {
         Disc v;
-        const double cx = kDiskCx, cy = kDiskCy, r = 2.0 * kVolBarCells + 4.0;
+        const double cx = kDiskCx, cy = kDiskCy, r = 2.0 * kVolBarMax + 4.0;
         for (int y = -static_cast<int>(r) - 2; y <= static_cast<int>(r) + 2; ++y) {
             v.row_start.push_back(v.pts.size());
             for (int x = -static_cast<int>(r) - 2; x <= static_cast<int>(r) + 2; ++x) {
@@ -75,9 +85,9 @@ inline const Disc& disc() {
     return d;
 }
 
-// The 20 braille cells of the bar at `angle` (radians).
-inline std::vector<std::string> disk_cells(double angle) {
-    const int pw = 2 * kVolBarCells, ph = 4;
+// The `total` braille cells of the bar at `angle` (radians).
+inline std::vector<std::string> disk_cells(double angle, int total = kVolBarCells) {
+    const int pw = 2 * total, ph = 4;
     std::vector<unsigned char> lit(static_cast<size_t>(pw * ph), 0);
     const double cx = kDiskCx, cy = kDiskCy, c = std::cos(angle), s = std::sin(angle);
     // The same move and rounding as DiskArt::frame() for every point -- but only the points that can land in the 4 dot rows are
@@ -108,8 +118,8 @@ inline std::vector<std::string> disk_cells(double angle) {
         }
     }
     std::vector<std::string> cells;
-    cells.reserve(kVolBarCells);
-    for (int i = 0; i < kVolBarCells; ++i) {
+    cells.reserve(static_cast<size_t>(total));
+    for (int i = 0; i < total; ++i) {
         auto d = [&](int row, int col) { return lit[static_cast<size_t>(row * pw + 2 * i + col)] != 0; };
         unsigned bits = 0;
         if (d(0, 0)) bits |= 1u << 0;
@@ -127,18 +137,20 @@ inline std::vector<std::string> disk_cells(double angle) {
 
 } // namespace volume_bar_detail
 
-// The filled part of the VOLUME BAR as one string per position: n of the 20 positions (0..20). `angle` is the angle of
+// The filled part of the VOLUME BAR as one string per position: n of the `total` positions (0..total). `angle` is the angle of
 // the disk animation (only the "disk" style uses it). Used where every cell gets a colour of its own (the gradient).
-inline std::vector<std::string> volume_bar_cells(int style, int n, double angle = 0.0) {
-    static const char* const kRow[kVolBarCells] = {
+inline std::vector<std::string> volume_bar_cells(int style, int n, double angle = 0.0, int total = kVolBarCells) {
+    static const char* const kRow[kVolBarMax] = {
         "\xE2\xA3\xBE", "\xE2\xA3\xB3", "\xE2\xA2\xAF", "\xE2\xA1\xBF", "\xE2\xA3\xB7", "\xE2\xA3\x9F", "\xE2\xA1\xBE",
         "\xE2\xA3\xBD", "\xE2\xA2\xAF", "\xE2\xA3\x9F", "\xE2\xA1\xBE", "\xE2\xA3\x9F", "\xE2\xA1\xBE", "\xE2\xA3\xBD",
-        "\xE2\xA2\xAF", "\xE2\xA3\x9F", "\xE2\xA1\xBE", "\xE2\xA3\xBD", "\xE2\xA3\xB3", "\xE2\xA3\xBB"};   // ⣾⣳⢯⡿⣷⣟⡾⣽⢯⣟⡾⣟⡾⣽⢯⣟⡾⣽⣳⣻
-    n = std::clamp(n, 0, static_cast<int>(kVolBarCells));
+        "\xE2\xA2\xAF", "\xE2\xA3\x9F", "\xE2\xA1\xBE", "\xE2\xA3\xBD", "\xE2\xA3\xB3", "\xE2\xA3\xBB",   // ⣾⣳⢯⡿⣷⣟⡾⣽⢯⣟⡾⣟⡾⣽⢯⣟⡾⣽⣳⣻
+        "\xE2\xA3\xB7", "\xE2\xA1\xBF", "\xE2\xA3\xBB", "\xE2\xA2\xAF", "\xE2\xA3\xB3", "\xE2\xA3\x9F", "\xE2\xA1\xBE", "\xE2\xA3\xBD"};   // (the longer bars go on with ⣷⡿⣻⢯⣳⣟⡾⣽)
+    total = std::clamp(total, 1, static_cast<int>(kVolBarMax));
+    n = std::clamp(n, 0, total);
     std::vector<std::string> out;
     out.reserve(static_cast<size_t>(n));
     if (style == kVolStyleDisk) {
-        auto cells = volume_bar_detail::disk_cells(angle);
+        auto cells = volume_bar_detail::disk_cells(angle, total);
         cells.resize(static_cast<size_t>(n));
         return cells;
     }
@@ -152,9 +164,9 @@ inline std::vector<std::string> volume_bar_cells(int style, int n, double angle 
 }
 
 // The same as one string (all cells in one colour).
-inline std::string volume_bar_fill(int style, int n, double angle = 0.0) {
+inline std::string volume_bar_fill(int style, int n, double angle = 0.0, int total = kVolBarCells) {
     std::string out;
-    for (const std::string& c : volume_bar_cells(style, n, angle)) out += c;
+    for (const std::string& c : volume_bar_cells(style, n, angle, total)) out += c;
     return out;
 }
 

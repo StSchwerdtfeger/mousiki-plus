@@ -1,4 +1,5 @@
 #include "video_player.h"
+#include "vivid.h"
 #include "par_pool.h"
 #include "video_timing.h"
 #include <atomic>
@@ -52,7 +53,8 @@ inline float fx_wave_y(const float* c) { return std::sqrt(0.299f * c[0] * c[0] +
 inline float fx_wave_lo(const VideoFxGradient& g) {   // (the dimmest of the three gradient colours: the same for every pixel of a frame)
     float lo = 255.0f;
     for (int i = 0; i < 3; ++i) { const float v[3] = {static_cast<float>(g.c[i][0]), static_cast<float>(g.c[i][1]), static_cast<float>(g.c[i][2])}; lo = std::min(lo, fx_wave_y(v)); }
-    return lo;
+    const float vv = static_cast<float>(std::clamp(g.vivid, 0, 100)) / 100.0f;   // Gradient Vividness lifts the level (100: no evening, the full brightness of the vivid colour)
+    return lo + vv * (255.0f - lo);
 }
 inline void fx_even_wave_lo(float lo, float* c) {
     const float y = fx_wave_y(c);
@@ -66,7 +68,7 @@ struct GradLut {
     bool on = false;
     float v[2][129][3];
     explicit GradLut(const VideoFxGradient& g) {
-        on = g.sat < 100;
+        on = g.sat < 100 || g.vivid > 0;
         if (!on) return;
         const float s = static_cast<float>(std::max(0, g.sat)) / 100.0f;
         for (int sg = 0; sg < 2; ++sg)
@@ -76,6 +78,7 @@ struct GradLut {
                 for (int k = 0; k < 3; ++k) c[k] = g.c[sg][k] * (1.0f - fr) + g.c[sg + 1][k] * fr;
                 const float y = 0.299f * c[0] + 0.587f * c[1] + 0.114f * c[2];
                 for (int k = 0; k < 3; ++k) v[sg][i][k] = std::clamp(y + (c[k] - y) * s, 0.0f, 255.0f);
+                vivid_boost(v[sg][i], static_cast<float>(std::clamp(g.vivid, 0, 100)) / 100.0f);
             }
     }
     void at(const VideoFxGradient& g, int i0, float fr, float* o) const {

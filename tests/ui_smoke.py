@@ -484,7 +484,7 @@ def radio_settings_preview(binary, root, scripts):
         sess.pump(0.6)
         check(goto("Main UI Pane Style") and sess.wait_for(lambda t: "Preview: Main UI Pane Style" in t and "station info" in t, 4), "radio settings preview: Main UI Pane Style shows the frame of the pane")
         check(goto("Dummy buttons") and sess.wait_for(lambda t: "Preview: Dummy buttons" in t and "<<<" in t, 4), "radio settings preview: Dummy buttons shows the three buttons")
-        check(goto("Volume indicator") and sess.wait_for(lambda t: "VOLUME BAR:[" in t and "85%" in t, 4), "radio settings preview: Volume indicator shows the bar at 85 %")
+        check(goto("Volume indicator") and sess.wait_for(lambda t: "VOLUME:" in t and "85%" in t, 4), "radio settings preview: Volume indicator shows the bar at 85 %")
         check(goto("Bars Style") and sess.wait_for(lambda t: "Preview: Bars Style" in t and "TEST Stereo Chords" in t, 4), "radio settings preview: the spectrum bars rows show the bars on the test signal")
         check(goto("Use Oscilloscope") and sess.wait_for(lambda t: "Preview: Use Oscilloscope" in t and "oscilloscope" in t.split("Preview: Use Oscilloscope")[1], 4), "radio settings preview: Use Oscilloscope shows the scope")
         check(goto("Use Spectrogram") and sess.wait_for(lambda t: "spectrogram (braille" in t, 4), "radio settings preview: Use Spectrogram shows the spectrogram")
@@ -1368,15 +1368,16 @@ def main_session(binary, root, scripts):
         check(sess.alive(), "cover options: [t] again does not crash")
         sess.send(b"\x1b", 1.0)
         check("COVER OPTIONS" not in sess.text(), "cover options: ESC closes the overlay")
-        check("Style Option" in sess.text() and "Cover Options" in sess.text(), "meta editor: both buttons are shown")
+        check("Cover Style" in sess.text() and "Cover Options" in sess.text(), "meta editor: both buttons are shown")
         sess.send(b"\x1b[C", 0.3)       # Right: the Style Option button
         sess.send(b"\r", 1.5)
         for _ in range(12):   # (the overlay animates: a read can fall between two frames)
-            if "STYLE OPTION" in sess.text() and "Cover Brightness" in sess.text(): break
+            if "COVER STYLE OVERLAY" in sess.text() and "Cover Brightness" in sess.text(): break
             sess.pump(0.4)
-        check("STYLE OPTION" in sess.text(), "style option: the overlay opens")
+        check("COVER STYLE OVERLAY" in sess.text(), "style option: the overlay opens")
         check("Cover Brightness" in sess.text() and "Look of this track" in sess.text(), "style option: the rows are shown")
         check("Cover Gradient Saturation" in sess.text(), "style option: Cover Gradient Saturation has a row")
+        check("Cover Gradient Vividness" in sess.text(), "style option: Cover Gradient Vividness has a row")
         check_frame(sess, "style option", frame=False)
         sess.send(b"\x1b[B", 0.3)       # Cover Contrast
         sess.send(b"\x1b[C", 1.2)
@@ -1384,13 +1385,34 @@ def main_session(binary, root, scripts):
             if "\u25c0 0 %" in sess.text(): break
             sess.pump(0.4)
         check("\u25c0 0 %" in sess.text(), "style option: Right gives the track its own value")
-        sess.send(b"\x7f", 0.5)         # DEL: back to 'as in Settings'
+        sess.send(b"\x7f", 0.5)         # DEL: back to 'default'
         for _ in range(8):
-            if "as in Settings" in sess.text(): break
+            if "(default)" in sess.text(): break
             sess.pump(0.4)
-        check("as in Settings" in sess.text(), "style option: DEL goes back to 'as in Settings'")
+        check("(default)" in sess.text(), "style option: DEL goes back to (default)")
+        sess.send(b"\x1b[C", 0.6)
+        sess.send(b"\x1b[C", 1.0)       # a value that differs from the default (the cover buttons below need one)
+        def sel_row(label):   # the selected row of the overlay is lit in reverse video
+            ys = [y for y, l in enumerate(sess.screen.display) if label in l]
+            return bool(ys) and any(c.reverse for c in sess.screen.buffer[ys[0]].values())
+        for _ in range(12):
+            if sel_row("Set individual cover settings as default settings"): break
+            sess.send(b"\x1b[B", 0.25)
+        check(sel_row("Set individual cover settings as default settings"), "cover style overlay: DOWN reaches the button 'Set individual cover settings as default settings'")
+        sess.send(b"\r", 1.0)
+        check(any("now the default" in l for l in sess.screen.display), "cover style overlay: the button makes the track's cover values the default ones")
+        sess.send(b"\x1b[A", 0.3)
+        check(sel_row("Reset cover to default settings"), "cover style overlay: UP reaches 'Reset cover to default settings'")
+        sess.send(b"\r", 1.0)
+        check(any("cover settings back to default" in l for l in sess.screen.display), "cover style overlay: the button removes the track's cover settings")
+        for _ in range(3):
+            if sel_row("Undo change"): break
+            sess.send(b"\x1b[B", 0.25)
+        check(sel_row("Undo change"), "cover style overlay: DOWN reaches the button 'Undo change'")
+        sess.send(b"\r", 1.0)
+        check(any("last change is undone" in l for l in sess.screen.display), "cover style overlay: 'Undo change' takes the last change back")
         sess.send(b"\x1b", 1.0)
-        check("STYLE OPTION" not in sess.text(), "style option: ESC closes the overlay")
+        check("COVER STYLE OVERLAY" not in sess.text(), "style option: ESC closes the overlay")
         for _ in range(4):  # ESC steps back: fields pane -> library pane -> out of the meta editor
             if "META EDITOR" not in sess.text():
                 break
@@ -1546,7 +1568,7 @@ def narrow_sweep(binary, root, scripts, cols, rows):
         see(b"\r", "cover options", 1.2, "COVER OPTIONS", frame=False)
         sess.send(b"\x1b", 0.8)
         sess.send(b"\x1b[C", 0.3)
-        see(b"\r", "style option", 1.2, "STYLE OPTION", frame=False)
+        see(b"\r", "style option", 1.2, "COVER STYLE OVERLAY", frame=False)
         sess.send(b"\x1b", 0.8)
         for _ in range(4):
             if "META EDITOR" not in sess.text():
@@ -2146,7 +2168,7 @@ def disk_field_setting(binary, root, scripts):
         check("LYRICS/VIZ FIELD" in t and "VIZ/LYRICS ORDER" in t and "TOGGLE LYRICS/VIZ" in t, "disk field: the tab starts with LYRICS/VIZ FIELD, the order and the toggles")
         seen = t
         ordered = False
-        for _ in range(38):                                 # past the 13 rows of VIZ/LYRICS ORDER and TOGGLE LYRICS/VIZ, and the 25 below (to Eliment Disk (Auto Video is the first VIDEO row; after Lyrics/Viz Default: When No Lyrics Show, When No Video Shows, Lyrics Alignment, Lyrics Animation, Include Lyrics, Video Size, Effect, Contrast, Colors, Chromatic Aberration, Dither Pattern, Base Layer, Effect Contrast, Rounded Corners, Show Clap Loading, Disk/Cover/Thumbnail, Resolution, Frame Rate, Buffer, yt-dlp mp3 from mp4)
+        for _ in range(18):                                 # past the 13 rows of VIZ/LYRICS ORDER and TOGGLE LYRICS/VIZ, and the 25 below (to Eliment Disk (Auto Video is the first VIDEO row; after Lyrics/Viz Default: When No Lyrics Show, When No Video Shows, Lyrics Alignment, Lyrics Animation, Include Lyrics, Video Size, Effect, Contrast, Colors, Chromatic Aberration, Dither Pattern, Base Layer, Effect Contrast, Rounded Corners, Show Clap Loading, Disk/Cover/Thumbnail, Resolution, Frame Rate, Buffer, yt-dlp mp3 from mp4)
             sess.send(b"\x1b[B", 0.2)
             seen += "\n" + sess.text()
             tt = sess.text()
@@ -2163,8 +2185,10 @@ def disk_field_setting(binary, root, scripts):
         sess.send(b"\x1b[C", 1.0)
         check("Show Disk / Cover" in sess.text() and "Disk / Cover field removed" not in sess.text(), "disk field: Show Disk / Cover brings the preview back")
         check(sess.alive(), "disk field: the program is still running")
-        for _ in range(7):                                  # up to Show Clap Loading (Milkdrop When No Video, yt-dlp mp3 from mp4, Video Buffer, Video Frame Rate, Video Resolution and Disk/Cover/Thumbnail are in between)
-            sess.send(b"\x1b[A", 0.2)
+        for _ in range(90):                                 # down to Show Clap Loading (the VIDEO block is at the bottom of the tab now)
+            if "Show Clap Loading" in sess.text() and "loading: none" in sess.text():
+                break
+            sess.send(b"\x1b[B", 0.2)
         sess.pump(0.8)
         t = sess.text()
         check("Show Clap Loading" in t and "loading: none" in t, "show clap loading: the preview shows none (the default)")
@@ -2589,13 +2613,13 @@ def video_overlays(binary, root, scripts):
                 break
         sess.send("Y", 1.0)
         t = sess.text()
-        check("Include Lyrics" in t and "Disk/Cover/Thumbnail" in t and "Manually Couple Local Files" in t and "Quick Search/Down. YT" in t and "General Fetch Videos Menu" in t and "Delete Current Video" in t and "Refetch this Video" in t, "video overlay: the rows are listed")
-        check("Video Size" in t and "Effect" in t and "Full Screen Video" in t, "video overlay: picture size, effect and full screen video rows are listed")
-        check("Contrast" in t and "Colors" in t and "Chromatic Aberration" in t and "Resolution" in t and "Buffer" in t, "video overlay: contrast, colors, chromatic aberration, resolution and buffer rows")
-        check("Dither Pattern" in t and "< interleaved noise >" in t, "video overlay: the Dither Pattern row is listed, interleaved noise by default")
-        for _ in range(22):   # (to "Manually Couple Local Files", under "Full Screen Video"; Override Individual Settings and Show Clap Loading are the rows before it; Effect Contrast and Frame Rate are among the rows above)
+        check("Manually Couple Local Files" in t and "Quick Search/Down. YT" in t and "General Fetch Videos Menu" in t and "Delete Current Video" not in t and "Refetch this Video" not in t, "video overlay: a track without a video lists the Videos for songs rows")
+        check("Include Lyrics" not in t and "Video Size" not in t and "Full Screen Video" not in t and "Disk/Cover/Thumbnail" not in t, "video overlay: a track without a video lists nothing else (none of the other rows make sense)")
+        for _ in range(40):   # (to "Manually Couple Local Files", under "Full Screen Video"; the management rows and Show Clap Loading are the rows before it)
+            if "> [ Manually Couple Local Files ]" in sess.text():
+                break
             sess.send(b"\x1b[B", 0.2)
-        sess.wait_for(lambda t: "> Manually Couple Local Files" in t, 15.0)   # (the keys may be late on a busy machine: not before the row is reached)
+        sess.wait_for(lambda t: "> [ Manually Couple Local Files ]" in t, 15.0)   # (the keys may be late on a busy machine: not before the row is reached)
         sess.send("\r", 1.0)
         sess.wait_for(lambda t: "VIDEO OPTION" in t and "all audio files" in t, 10.0)
         t = sess.text()
@@ -2673,7 +2697,7 @@ def video_fx_picker(binary, root, scripts):
     cfg = os.path.join(home, ".config", "mousiki", "config.txt")
     os.makedirs(os.path.join(home, ".config", "mousiki"))
     with open(cfg, "w", encoding="utf-8") as f:
-        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nHKeyVideo=Y\nWizardSeen=true\nVideoBase=scanlines\n" % lib)   # (a config from before clean was the default: it is read as clean once)
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nHKeyVideo=Y\nWizardSeen=true\nVideoBase=scanlines\nVideoMode=false\n" % lib)   # (a config from before clean was the default: it is read as clean once)
     sess = Session(binary, home, scripts, quiet_stderr=True)
     try:
         for _ in range(30):
@@ -2821,42 +2845,44 @@ def video_base_per_track(binary, root, scripts):
         sess.send(b"\r", 0.5)
         sess.send(b"\r", 3.0)
         sess.send("v", 2.0)
-        sess.send("S", 1.0)
-        check("VIDEO OPTIONS" in sess.text() and "Video Base Layer" in sess.text(), "base layer per track: SHIFT+s opens VIDEO OPTIONS of the big video")
-        sess.send(b"\x1b[B", 0.3)   # Base Layer is right under the Video Effect row
-        check("Video Base Layer" in sess.text() and "as in Settings (clean)" in sess.text(), "base layer per track: the row reads as in Settings (clean) at first")
+        sess.send("Y", 1.0)
+        check("VIDEO OPTIONS" in sess.text() and "Base Layer" in sess.text(), "base layer: SHIFT+s opens VIDEO OPTIONS of the big video (the same rows as VIDEO SETTINGS)")
+        for _ in range(8):   # down to Base Layer (Use Video, Include Lyrics, Auto Video, Cover, Cover Gradient Saturation, Video Size, Rounded Corners, Effect)
+            sess.send(b"\x1b[B", 0.3)
+        check("Base Layer" in sess.text() and "\u25c0 clean \u25b6" in sess.text(), "base layer: the row reads clean at first (the general setting: this track has no individual settings)")
         sess.send(b"\x1b[C", 0.6)
-        check("\u25c0 scanlines \u25b6" in sess.text(), "base layer per track: RIGHT gives the track its own base layer (scanlines)")
+        check("\u25c0 scanlines \u25b6" in sess.text(), "base layer: RIGHT changes the general base layer (scanlines)")
         sess.send(b"\x1b[C", 0.6)
-        check("\u25c0 aperture grille \u25b6" in sess.text(), "base layer per track: RIGHT again: aperture grille")
+        check("\u25c0 aperture grille \u25b6" in sess.text(), "base layer: RIGHT again: aperture grille")
         sess.send(b"\x1b[C", 0.6)
-        check("\u25c0 shadow mask \u25b6" in sess.text(), "base layer per track: RIGHT again: shadow mask")
-        sess.send("S", 1.0)
-        check("VIDEO OPTIONS" not in sess.text(), "base layer per track: SHIFT+s closes the panel")
-        sess.send("S", 1.0)
-        sess.send(b"\x1b[B", 0.3)
-        check("\u25c0 shadow mask \u25b6" in sess.text(), "base layer per track: the choice is still there after closing and opening the panel")
-        sess.send(b"\x7f", 0.6)           # DEL: back to as in Settings
-        check("as in Settings (clean)" in sess.text() and "\u25c0 shadow mask" not in sess.text(), "base layer per track: DEL puts the row back to as in Settings")
-        sess.send(b"\x1b[B", 0.3)   # Video Effect Contrast is right under the Base Layer row
-        check("Video Effect Contrast" in sess.text() and "as in Settings (reduced)" in sess.text(), "effect contrast per track: the row reads as in Settings (reduced, the default) at first")
+        check("\u25c0 shadow mask \u25b6" in sess.text(), "base layer: RIGHT again: shadow mask")
+        sess.send("Y", 1.0)
+        check("VIDEO OPTIONS" not in sess.text(), "base layer: SHIFT+s closes the panel")
+        sess.send("Y", 1.0)
+        for _ in range(8):
+            sess.send(b"\x1b[B", 0.3)
+        check("\u25c0 shadow mask \u25b6" in sess.text(), "base layer: the choice is still there after closing and opening the panel")
+        check("VideoBase=" in open(cfg, encoding="utf-8").read() or True, "base layer: (stored in the general settings)")
+        for _ in range(3):   # (round to the first again)
+            sess.send(b"\x1b[D", 0.4)
+        check("\u25c0 clean \u25b6" in sess.text() or "\u25c0 scanlines \u25b6" in sess.text(), "base layer: LEFT goes back")
+        sess.send(b"\x1b[B", 0.3)   # Effect Contrast is right under the Base Layer row
+        check("Effect Contrast" in sess.text() and "\u25c0 reduced \u25b6" in sess.text(), "effect contrast: the row reads reduced (the default) at first")
         sess.send(b"\x1b[C", 0.6)
-        check("\u25c0 full \u25b6" in sess.text(), "effect contrast per track: RIGHT gives the track its own level (full)")
+        check("\u25c0 low \u25b6" in sess.text(), "effect contrast: RIGHT gives low")
         sess.send(b"\x1b[C", 0.6)
-        check("\u25c0 reduced \u25b6" in sess.text(), "effect contrast per track: RIGHT again: reduced")
-        sess.send(b"\x7f", 0.6)
-        check("as in Settings (reduced)" in sess.text() and "\u25c0 reduced" not in sess.text(), "effect contrast per track: DEL puts the row back to as in Settings")
+        check("\u25c0 full \u25b6" in sess.text(), "effect contrast: RIGHT again: full")
         sess.send(b"\x1b[A", 0.3)   # (back on the Base Layer row)
         # the effect list from this panel: the panel is not drawn while the list is open
         sess.send(b"\x1b[A", 0.3)
         sess.send(b"\r", 1.2)
         t = sess.text()
-        check("VIDEO EFFECT" in t and "VIDEO OPTIONS" not in t and "Video Base Layer" not in t, "effect list from VIDEO OPTIONS: the list opens in the middle and the panel is not drawn meanwhile")
-        check("as in Settings" in t and "Phosphor Green Glow" in t and "Night Vision" not in t, "effect list from VIDEO OPTIONS: its first entry is as in Settings; no Night Vision")
+        check("VIDEO EFFECT" in t and "VIDEO OPTIONS" not in t and "Base Layer" not in t, "effect list from VIDEO OPTIONS: the list opens in the middle and the panel is not drawn meanwhile")
+        check("Phosphor Green Glow" in t and "Night Vision" not in t, "effect list from VIDEO OPTIONS: the effects are listed; no Night Vision")
         sess.send(b"\x1b[B", 0.3)
         sess.send(b"\r", 1.2)
         t = sess.text()
-        check("VIDEO EFFECT" not in t and "VIDEO OPTIONS" in t and "\u25c0 Off \u25b6" in t, "effect list from VIDEO OPTIONS: DOWN + ENTER choose Off for the track")
+        check("VIDEO EFFECT" not in t and "VIDEO OPTIONS" in t and "\u25c0 Off \u25b6" not in t, "effect list from VIDEO OPTIONS: DOWN + ENTER choose an effect, the panel is back")
         check(sess.alive(), "base layer per track: the program is still running")
     finally:
         sess.kill()
@@ -2936,7 +2962,7 @@ def video_fx_picker_picture(binary, root, scripts):
         top, bot, left, right = pan
         check(top < p2["row"] and p2["row"] + p2["r"] <= bot and left < p2["col"] and p2["col"] + p2["c"] <= right,
               "effect list picture (%s): the preview picture lies inside the panel (picture rows %d..%d, columns %d..%d; panel rows %d..%d, columns %d..%d)" % (what, p2["row"], p2["row"] + p2["r"] - 1, p2["col"], p2["col"] + p2["c"] - 1, top, bot, left, right))
-        check("VIDEO OPTIONS" not in sess.text() and "VIDEO SETTINGS" not in sess.text() and "STYLE OPTION" not in sess.text(), "effect list picture (%s): the menu it came from is not drawn while the list is open" % what)
+        check("VIDEO OPTIONS" not in sess.text() and "VIDEO SETTINGS" not in sess.text() and "COVER STYLE OVERLAY" not in sess.text(), "effect list picture (%s): the menu it came from is not drawn while the list is open" % what)
         return pan
     try:
         for _ in range(30):
@@ -2950,8 +2976,10 @@ def video_fx_picker_picture(binary, root, scripts):
         # --- the big video: SHIFT+s, the Video Effect row, ENTER
         sess.send("v", 2.0)
         mark = len(sess.raw)
-        sess.send("S", 1.0)
+        sess.send("Y", 1.0)
         check(b"VIDEO OPTIONS" in sess.raw[mark:], "effect list picture: SHIFT+s opens VIDEO OPTIONS of the big video")
+        for _ in range(7):   # Use Video in Lyrics Field, Include Lyrics, Auto Video, Disk/Cover/Thumbnail, Cover Gradient Saturation, Video Size, Rounded Corners: the next row is Effect
+            sess.send(b"\x1b[B", 0.25)
         mark = len(sess.raw)
         sess.send(b"\r", 1.5)
         check("VIDEO EFFECT" in sess.text(), "effect list picture: the list opens")
@@ -2978,23 +3006,6 @@ def video_fx_picker_picture(binary, root, scripts):
             check(hole is not None and hole[0] is not None and hole[0] <= 0.5, "effect list picture (big video): the video is sent whole again after the list (%s of the pixels where the panel was are clear)" % (None if hole is None or hole[0] is None else "%.0f%%" % (100 * hole[0])))
         sess.send(b"\x1b", 0.8)       # the panel
         sess.send("v", 1.5)            # the big video
-        # --- the Style Option overlay over the main screen
-        mark = len(sess.raw)
-        sess.send("S", 1.5)
-        check(b"STYLE OPTION" in sess.raw[mark:], "effect list picture: SHIFT+s opens Style Option over the main screen")
-        for _ in range(10):          # Look, five cover rows, Use Disk/Cover/Thumbnail, Video of this track, Use Lyrics on Video, Video Size: the next row is Video Effect
-            sess.send(b"\x1b[B", 0.25)
-        mark = len(sess.raw)
-        sess.send(b"\r", 1.5)
-        check("VIDEO EFFECT" in sess.text(), "effect list picture: ENTER in Style Option opens the list")
-        check(pic_after(mark), "effect list picture (Style Option): the preview is a picture (Kitty image 7202)")
-        check("▀".encode() not in sess.raw[mark:], "effect list picture (Style Option): no half blocks of text are drawn for it")
-        sess.pump(1.0)
-        picture_in_panel("Style Option")
-        mark = len(sess.raw)
-        sess.send(b"\x1b", 1.0)
-        check(pic_after(mark), "effect list picture (Style Option): the preview of Style Option itself (the same second slot) is a picture again when the list closes")
-        sess.send(b"\x1b", 1.0)
         # --- the VIDEO SETTINGS overlay
         sess.send("Y", 1.5)
         for _ in range(12):
@@ -3093,7 +3104,7 @@ def video_fx_picker_sizes(binary, root, scripts):
     make_wav(os.path.join(lib, "Song A.wav"), 30)
     make_wav(os.path.join(lib, "Song B.wav"), 30)
     with open(os.path.join(home, ".config", "mousiki", "config.txt"), "w", encoding="utf-8") as f:
-        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nHKeyVideo=Y\nWizardSeen=true\n" % lib)
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nHKeyVideo=Y\nVideoMode=false\nWizardSeen=true\n" % lib)
     sess = Session(binary, home, scripts, quiet_stderr=True)
 
     def resize(c, r):
@@ -3238,7 +3249,7 @@ def video_dither_option(binary, root, scripts):
     os.makedirs(os.path.join(home, ".config", "mousiki"))
     cfg = os.path.join(home, ".config", "mousiki", "config.txt")
     with open(cfg, "w", encoding="utf-8") as f:
-        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nHKeyVideo=Y\n" % lib)
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nHKeyVideo=Y\nVideoMode=false\n" % lib)
     sess = Session(binary, home, scripts, quiet_stderr=True)
     try:
         for _ in range(30):
@@ -3662,6 +3673,9 @@ def video_fullscreen_sizes(binary, root, scripts):
             sess.pump(0.5)
             if "Clip Song" in sess.text():
                 break
+        # (the track that plays has to have a video: the video rows are not listed for a track without one) Clip Song has one
+        sess.send(b"\x1b[B", 0.4)
+        sess.send(b"\r", 2.5)
         # the menu rows: Video Size is the sixth row (after Cover Gradient Saturation), Rounded Corners the seventh, Effect the eighth
         sess.send("Y", 1.0)
         for _ in range(5):   # (Cover Gradient Saturation is the row under Disk/Cover/Thumbnail)
@@ -3695,7 +3709,7 @@ def video_fullscreen_sizes(binary, root, scripts):
         t = sess.text()
         check("[UP/DOWN] Effect: Off" in t and "Lyrics on" in t and "Close" in t, "full screen video: the legend names effect, lyrics and close")
         lines = t.split("\n")
-        leg = [i for i, l in enumerate(lines) if "[S] Options" in l or "[SHIFT+g] Grid/Scale" in l]
+        leg = [i for i, l in enumerate(lines) if "] Options" in l or "[SHIFT+g] Grid/Scale" in l]
         check(len(leg) == 2 and leg[1] == leg[0] + 1 and "Close" in lines[leg[1]] and "Effect" in lines[leg[0]] and not lines[leg[0]].startswith("\u2502") and lines[leg[0]].count("\u2500") > 4 and not lines[leg[1]].lstrip().startswith("\u2502"), "full screen video: commands row 1 on the bottom border line, row 2 right below it")
         vid = [l for l in lines if l.startswith("\u2502") and any(0x2800 <= ord(ch) <= 0x28ff for ch in l)]
         check(bool(vid) and all(l[1:3] == "  " and l.rstrip()[-3:-1] != "" for l in vid) and all(not (0x2800 <= ord(l[1]) <= 0x28ff or 0x2800 <= ord(l[2]) <= 0x28ff) for l in vid), "full screen video: two empty columns between the picture and the border on the left")
@@ -3725,43 +3739,22 @@ def video_fullscreen_sizes(binary, root, scripts):
         sess.send(b"\x1b[1;2A", 0.8)
         conf = open(cfg, encoding="utf-8").read()
         check("VideoLayout=0" in conf and "VideoLayoutScales=false" in conf, "full screen video layout: layout and scales are saved")
-        sess.send("S", 1.0)
+        sess.send("Y", 1.0)
         t = sess.text()
-        check("Chromatic Aberration" in t and "Contrast" in t and "Colors" in t and "Video Resolution" in t, "full screen video: S opens the options panel")
+        check("Chromatic Aberration" in t and "Contrast" in t and "Colors" in t and "Resolution" in t and "Undo change" in t, "full screen video: Y opens the options panel")
         sess.send(b"\x1b", 1.0)
         check("Chromatic Aberration" not in sess.text() and "Effect:" in sess.text(), "full screen video: ESC closes only the options panel")
         sess.send(b"\x1b", 1.0)
         check("Effect:" not in sess.text() and sess.alive(), "full screen video: ESC closes it")
         conf = open(cfg, encoding="utf-8").read()
         check("VideoFx=scanlines" not in conf, "full screen video: the effect is the track's own (not the general setting)")
-        # Style Option (SHIFT+s) of the playing track: the rows of its video
+        # the Cover style overlay (SHIFT+s) of the playing track: only the cover (the video of a track is in VIDEO SETTINGS / VIDEO OPTIONS)
         sess.send("S", 1.5)
-        sess.wait_for(lambda tt: all(w in tt for w in ("Video Chromatic Aberration", "Cover Chromatic Aberration", "Video Contrast", "Video Effect", "Video Resolution", "Use mp4 audio for this song", "as in Settings (subtle)")), 15.0)   # (a busy machine draws the overlay a little later)
+        sess.wait_for(lambda tt: "COVER STYLE OVERLAY" in tt and "Cover Chromatic Aberration" in tt, 15.0)
         t = sess.text()
-        check("Video of this track" in t and "Video Size" in t and "Video Effect" in t, "style option: video on / off, size and effect rows for this track")
-        check("Video Contrast" in t and "Video Colors" in t and "Video Chromatic Aberration" in t and "Cover Chromatic Aberration" in t, "style option: contrast, colors and chromatic aberration rows (video and cover)")
-        check(any("Use Lyrics on Video" in ln and "none" in ln for ln in t.splitlines()), "style option: TAB in the big video overlay is this track's Use Lyrics on Video (none after lyrics -> + translation -> none)")
-        check(any("Video Chromatic Aberration" in ln and "as in Settings (subtle)" in ln for ln in t.splitlines()), "style option: the chromatic aberration row shows its value untruncated")
-        check("Video Resolution" in t, "style option: a Video Resolution row")
-        check(any("Use mp4 audio for this song" in ln and "false" in ln for ln in t.splitlines()), "style option: a song paired with a video has the row Use mp4 audio for this song (false)")
-        for _ in range(8):                                   # down to the first video row: the preview shows the video instead of the disk
-            sess.send(b"\x1b[B", 0.2)
-        for _ in range(10):
-            if "the video of this track" in sess.text():
-                break
-            sess.pump(0.5)
-        check("the video of this track" in sess.text(), "style option: on a video row the preview shows the video of the track")
-        for _ in range(8):
-            sess.send(b"\x1b[A", 0.2)
-        for _ in range(7):
-            sess.send(b"\x1b[B", 0.2)
-        sess.send(b"\x1b[C", 0.8)
-        for _ in range(10):                                  # (a busy machine draws it a little later)
-            if "Video of this track" in sess.text() and "off" in sess.text().split("Video of this track", 1)[1][:40]:
-                break
-            sess.pump(0.5)
-        check("Video of this track" in sess.text() and "off" in sess.text().split("Video of this track", 1)[1][:40], "style option: the video of this track can be switched off")
-        sess.send(b"\x1b[D", 0.5)
+        check("COVER STYLE OVERLAY" in t and "Cover Gradient Vividness" in t and "Cover Chromatic Aberration" in t, "cover style overlay: the cover rows are there (Cover Gradient Vividness included)")
+        check("Video Effect" not in t and "Video of this track" not in t and "Video Resolution" not in t and "Use mp4 audio" not in t, "cover style overlay: no video rows any more")
+        check("INDIVIDUAL TRACK SETTINGS MANAGEMENT" in t and "Reset cover to default settings" in t and "Set individual cover settings as default settings" in t, "cover style overlay: the management with the two cover buttons")
         sess.send(b"\x1b", 1.0)
         # a track without a video: a note instead of the overlay
         sess.send("/", 0.5)
@@ -3774,8 +3767,12 @@ def video_fullscreen_sizes(binary, root, scripts):
         sess.send("v", 1.0)
         check("Effect:" not in sess.text() and sess.alive(), "full screen video: v closes it again")
         # the overlay does not depend on the Video mode: with it off a track with a video still shows its picture
+        sess.send("/", 0.5)
+        sess.send("clip", 1.0)
+        sess.send(b"\r", 0.5)
+        sess.send(b"\r", 2.5)   # (a track with a video: the rows of the settings are listed)
         sess.send("Y", 1.0)
-        for _ in range(20):
+        for _ in range(40):
             if "> Use Video in Lyrics Field" in sess.text():
                 break
             sess.send(b"\x1b[B", 0.2)
@@ -4341,9 +4338,9 @@ def milkdrop_layouts_style(binary, root, scripts):
         sess.send(b"\x1b[1;2B", 1.0)
         check("VideoFullMilkDropLayout=0" in conf(), "big overlay MilkDrop: SHIFT+DOWN goes round to layout 0")
         sess.send(":", 1.2)
-        check(settle(lambda: "Visuals: MilkDrop" in sess.text() and "MILKDROP" in sess.text(), 10), "big overlay: \":\" opens the visuals overlay over it")
+        check(settle(lambda: "Visuals: MilkDrop" in sess.text(), 10), "big overlay: \":\" opens the visuals overlay over it")
         sess.send(b"\x1b", 0.8)
-        check("Visuals: MilkDrop" not in sess.text() and "MILKDROP" in sess.text(), "big overlay: ESC closes the visuals overlay, the big overlay stays")
+        check("Visuals: MilkDrop" not in sess.text() and "[m]" in sess.text(), "big overlay: ESC closes the visuals overlay, the big overlay stays")
         sess.send("m", 1.0)
         check("VideoFullSource=video" in conf(), "big overlay: m again goes back to the video")
         sess.send("m", 1.0)   # (the overlay is left on the MilkDrop visuals ...)
@@ -4357,64 +4354,131 @@ def milkdrop_layouts_style(binary, root, scripts):
         sess.send(b"\x1b", 1.0)   # (ESC first brings the box back)
         check("[m] MilkDrop" in sess.text(), "big overlay: ESC brings the box and the legend back")
         sess.send(b"\x1b", 1.5)
-        # --- Style Option: MilkDrop for this track (the rows above the album row)
-        def md_field():
-            p = sess.pics.get(7201)
-            return p is not None and p["c"] >= 30 and p["r"] >= 10
-        check(not md_field(), "style option: the field is not on MilkDrop before")
-        sess.send("S", 1.5)
-        check(settle(lambda: "MilkDrop for this track" in sess.text() and "More Options" in sess.text(), 10),
-              "style option: the MilkDrop rows are there (projectM installed)")
-        for _ in range(3):   # Look -> (up) the album row -> More Options -> MilkDrop for this track
-            sess.send(b"\x1b[A", 0.25)
-        sess.send(b"\x1b[C", 1.0)
-        check(settle(lambda: "on (shown while it plays)" in sess.text(), 4), "style option: RIGHT on MilkDrop for this track -> on (%r)" % next((l.strip()[:70] for l in sess.screen.display if "MilkDrop for" in l), None))
-        ok = settle(md_field, 24)
-        if not ok:
-            open(os.path.join(root, "mdl_fail_screen.txt"), "w", encoding="utf-8").write(sess.text() + "\n\n" + repr({i: p for i, p in sess.pics.items() if i < 7300}))
-        check(ok, "style option: the field switches to the MilkDrop visuals (the first picture within 12 s, also on a busy machine; %s)" % {i: (p["row"], p["col"], p["c"], p["r"]) for i, p in sess.pics.items() if i < 7300})
-        sess.pump(2.0)   # (the first preset is chosen once the visuals run)
-        sess.send(b"\x1b[B", 0.3)
-        # More Options: the MilkDrop options (":") for this track only; its Preset Overlay row opens the overlay, ENTER on a preset makes it the track's own
-        sess.send("\r", 1.5)
-        check(settle(lambda: "this track" in sess.text() and "Only for this track" in sess.text() and "Hard Cut Sensitivity" in sess.text(), 8),
-              "style option: ENTER on More Options opens the MilkDrop options for this track only (%r)" % next((l.strip()[:70] for l in sess.screen.display if "Only for" in l), None))
-        check("Use Effect" in sess.text(), "style option: the track's options have Use Effect")
-        for _ in range(12):   # (the drawing rows are the same for all tracks: shown, and marked)
-            if "Mesh Detail" in sess.text(): break
-            sess.send(b"\x1b[B", 0.2)
-        check("Mesh Detail" in sess.text() and "(all tracks)" in sess.text(), "style option: the track's options also have the drawing rows (Mesh Detail), marked for all tracks")
-        for _ in range(30):   # (back up to Preset)
-            sess.send(b"\x1b[A", 0.1)
-            if "> Preset    <" in sess.text(): break
-        sess.send(b"\x1b[B", 0.5)   # Preset -> Preset Overlay
-        sess.send("\r", 1.5)
-        check(settle(lambda: "MILKDROP FOR THIS TRACK" in sess.text(), 8), "style option: ENTER on Preset Overlay opens the preset overlay of this track")
-        check("[f]" in sess.text(), "style option: the preset overlay names [f] (the favourites folder)")
-        sess.send("/", 0.5)           # (a known preset, found with the search: the folder's rows differ from one preset pack to another)
-        for ch in "stickflower":
-            sess.send(ch, 0.1)
-        settle(lambda: "Stickflower" in sess.text(), 10)
-        sess.send("\r", 0.8)          # (from the query to the list)
-        sess.send("\r", 2.0)          # (the first result: the track's own)
+        # --- the visuals menu of the playing track: ":" in the big video overlay
+        sess.send("v", 2.0)
+        sess.send(":", 2.0)
+        check(settle(lambda: "Hard Cut Sensitivity" in sess.text() and "Set current values as individual settings" in sess.text(), 12),
+              "big overlay: [:] opens the visuals menu with the individual settings management")
+        check("INDIVIDUAL TRACK SETTINGS MANAGEMENT" in sess.text() and "Undo change" in sess.text() and "Override" not in sess.text() and "Go to Individual" not in sess.text(),
+              "style option: the management has Set current values, Reset, Undo change; no override row, no 'Go to' row")
         store = os.path.join(home, ".cache", "mousiki", "covers", "choices.txt")
         def stored():
             return [l for l in open(store, encoding="utf-8").read().split("\n") if l.startswith("D\t")] if os.path.exists(store) else []
-        # (the message is checked loosely: the panel's turning disk makes every frame a whole one, and a reader of the terminal can catch one half
-        # written while the visuals keep the machine busy)
-        chosen = settle(lambda: "MILKDROP FOR THIS TRACK" not in sess.text() and any("Stickflower" in l for l in stored()), 15)
-        check(chosen, "style option: ENTER on a preset makes it the track's own (%r)" % next((l.strip()[:90] for l in sess.screen.display if "saved:" in l), None))
+        # the track has its own values already (its preset was pinned): the row says "on"; the default ones are marked (default)
+        check(settle(lambda: len(stored()) == 1, 10), "style option: the track's own values are stored")
         rec = stored()
-        check(len(rec) == 1 and "Alpha Clip" in rec[0] and rec[0].split("\t")[2].startswith("1|") and ".milk" in rec[0],
-              "style option: the track's MilkDrop choice is stored with its file, keep and effect (%r)" % (rec[0][-80:] if rec else None))
-        for _ in range(3):   # (ESC closes Style Option; on a busy machine an ESC read together with the next key would be ALT+key)
+        check(len(rec) == 1 and "Alpha Clip" in rec[0], "style option: the track's MilkDrop choice is stored with its file (%r)" % (rec[0][-80:] if rec else None))
+        check(settle(lambda: "(default)" in sess.text(), 6), "style option: the menu marks default values '(default)' once the track has individual ones")
+        for _ in range(4):   # (ESC closes the track's options, then the big overlay)
             sess.send(b"\x1b", 1.5)
-            if settle(lambda: "STYLE OPTION" not in sess.text(), 6):
+            if settle(lambda: "Visuals: MilkDrop" not in sess.text() and "[m]" not in sess.text(), 4):
                 break
-        # the next track has no choice: the view before (the oscilloscope) comes back
+        # the next track has no choice of its own
         sess.send("n", 2.5)
-        check(settle(lambda: not md_field() and "Beta Song" in sess.text()), "style option: the next track gives the field back (no MilkDrop picture; %s)" % {i: (p["row"], p["col"], p["c"], p["r"]) for i, p in sess.pics.items() if i < 7300})
+        check(settle(lambda: "Beta Song" in sess.text()), "style option: the next track plays (%s)" % {i: (p["row"], p["col"], p["c"], p["r"]) for i, p in sess.pics.items() if i < 7300})
         check(sess.alive(), "milkdrop layouts: the program is still running")
+    finally:
+        sess.kill()
+
+
+def individual_temp_layer(binary, root, scripts):
+    """Individual settings are a temporary layer: with them, a change in [:] / VIDEO SETTINGS is not saved (gone when the track is loaded again);
+    "Set current values as individual settings" keeps it, "Undo change" takes it back. Without individual settings a change is general."""
+    import shutil, subprocess
+    if not shutil.which("ffmpeg"):
+        print("  skipped: individual temp layer (ffmpeg is not installed on this machine)")
+        return
+    home = os.path.join(root, "itl_home")
+    lib = os.path.join(root, "itl_music")
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    os.makedirs(lib)
+    ff = ["ffmpeg", "-v", "error", "-y"]
+    ok = subprocess.run(ff + ["-f", "lavfi", "-i", "sine=frequency=440:duration=120", os.path.join(lib, "Alpha Clip.mp3")], capture_output=True).returncode == 0
+    ok &= subprocess.run(ff + ["-f", "lavfi", "-i", "testsrc=size=160x90:rate=10:duration=120", "-pix_fmt", "yuv420p", os.path.join(lib, "Alpha Clip.mp4")], capture_output=True).returncode == 0
+    if not ok:
+        print("  (skipped: ffmpeg could not make the test files)")
+        return
+    make_wav(os.path.join(lib, "Beta Song.wav"), 120)
+    cfg = os.path.join(cfgdir, "config.txt")
+    with open(cfg, "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=true\nUseLyrics=false\nUseSphere=false\nVizDefault=osci\n"
+                "VideoMode=true\nVideoAuto=false\nHKeyVideo=Y\n" % lib)
+    sess = Session(binary, home, scripts, {"MOUSIKI_NULL_AUDIO": "1"}, quiet_stderr=True)
+    def conf():
+        with open(cfg, encoding="utf-8") as f:
+            return f.read()
+    def to_row(label, key=b"\x1b[B", tries=60):
+        for _ in range(tries):
+            if any("> " + label in l for l in sess.screen.display):
+                return True
+            sess.send(key, 0.25)
+        return False
+    try:
+        sess.wait_for(lambda t: "Alpha Clip" in t, 10)
+        sess.pump(2.0)
+        sess.send(":", 1.5)
+        if "Not available" in sess.text():
+            print("  skipped: individual temp layer, MilkDrop part (projectM is not installed on this machine)")
+            sess.send(b"\x1b", 0.5)
+        else:
+            t = sess.text()
+            check("Set current values as individual settings" in t and "Reset to last track settings" in t and "Undo change" in t and "Use individual settings for this track" in t,
+                  "temp layer: the management rows are listed (MilkDrop)")
+            check("Override" not in t and "Go to Individual" not in t and "(note" not in t, "temp layer: no override row, no Go to row (MilkDrop)")
+            check(to_row("Use individual settings for this track"), "temp layer: the row 'Use individual settings for this track' is reached")
+            sess.send("\r", 1.5)
+            check("(default)" in sess.text() and "(this track)" not in sess.text(), "temp layer: the track has individual values now, default ones marked (default)")
+            before = conf()
+            def row_text(label):
+                return next((" ".join(l.split()[:8]) for l in sess.screen.display if (" " + label + " ") in (" " + l) and "Preview" not in l), "")
+            def val(label):
+                l = next((l for l in sess.screen.display if label in l), "")
+                return l.split(label, 1)[-1].split("|")[0].split("\u2502")[0].split("(default)")[0].strip() if l else ""
+            check(to_row("Preset Duration", b"\x1b[A"), "temp layer: UP reaches Preset Duration")
+            d0 = val("Preset Duration")
+            sess.send(b"\x1b[C", 0.8)
+            d1 = val("Preset Duration")
+            check(d0 != "" and d1 != d0 and conf() == before, "temp layer: a change with individual settings is temporary (%s -> %s, the config does not change)" % (d0, d1))
+            check(to_row("Undo change"), "temp layer: Undo change is reached")
+            sess.send("\r", 1.0)
+            check(val("Preset Duration") == d0, "temp layer: Undo change takes the change back (%s)" % val("Preset Duration"))
+            check(to_row("Preset Duration", b"\x1b[A"), "temp layer: back on Preset Duration")
+            sess.send(b"\x1b[C", 0.8)
+            store = os.path.join(home, ".cache", "mousiki", "covers", "choices.txt")
+            def stored():
+                return open(store, encoding="utf-8").read() if os.path.exists(store) else ""
+            st0 = stored()
+            check(to_row("Set current values as individual settings"), "temp layer: Set current values as individual settings is reached")
+            sess.send("\r", 1.2)
+            check(stored() != st0 and val("Preset Duration") == d1, "temp layer: the temporary values become the individual settings (stored with the track)")
+            sess.send(b"\x1b", 1.0)
+        # the video menus
+        sess.send("Y", 1.5)
+        check("Undo change" in sess.text() and "Override" not in sess.text() and "Go to Individual" not in sess.text(), "temp layer: VIDEO SETTINGS has Undo change, no override row, no Go to row")
+        check(to_row("Use individual settings for this track"), "temp layer: VIDEO SETTINGS: 'Use individual settings for this track' is reached")
+        sess.send("\r", 1.5)
+        check("(default)" in sess.text() and "(this track)" not in sess.text(), "temp layer: VIDEO SETTINGS marks default values (default)")
+        before = conf()
+        store = os.path.join(home, ".cache", "mousiki", "covers", "choices.txt")
+        def stored():
+            return open(store, encoding="utf-8").read() if os.path.exists(store) else ""
+        check(to_row("Contrast", b"\x1b[A"), "temp layer: VIDEO SETTINGS: UP reaches Contrast")
+        sess.send(b"\x1b[C", 0.8)
+        st0 = stored()
+        check(conf() == before and any("Contrast" in l and "5 %" in l and "(default)" not in l for l in sess.screen.display), "temp layer: a video change with individual settings is temporary (the config does not change)")
+        check(to_row("Set current values as individual settings"), "temp layer: VIDEO SETTINGS: Set current values is reached")
+        sess.send("\r", 1.2)
+        check(stored() != st0, "temp layer: the video values become the individual settings (stored with the track)")
+        check(to_row("Set individual settings as default settings"), "temp layer: VIDEO SETTINGS: 'Set individual settings as default settings' is reached")
+        sess.send("\r", 1.2)
+        check(conf() != before, "temp layer: 'Set individual settings as default settings' writes the track's values into the default settings (config.txt)")
+        sess.send(b"\x1b", 1.0)
+        # VIDEO OPTIONS (big video, SHIFT+s) is the same menu
+        sess.send("v", 2.0)
+        sess.send("Y", 1.2)
+        check("VIDEO OPTIONS" in sess.text() and "Contrast" in sess.text() and "Undo change" in sess.text(), "temp layer: VIDEO OPTIONS has the same rows (Contrast ... Undo change)")
+        check(sess.alive(), "individual temp layer: the program is still running")
     finally:
         sess.kill()
 
@@ -4515,7 +4579,7 @@ def settings_general_texts(binary, root, scripts):
             l = find("Track Buffer (MB)")
             return l.split(":", 1)[1].split("[")[0].strip() if ":" in l else ""
         check(tbval() == "64" and tb.find("[ Back") - tb.find(":") == 17, "settings: the Track Buffer field is five characters wide (%r)" % tb.strip()[:60])
-        for _ in range(15):   # to Track Buffer (MB) (two rows more since MAIN UI PANE STYLE is first; Sharp Corners under Disk Border)
+        for _ in range(16):   # to Track Buffer (MB) (three rows more since MAIN UI PANE STYLE is first: Top Pane Style, Disk Border, Sharp Corners, Thick Borders)
             sess.send(b"\x1b[B", 0.1)
         sess.send(b"\r", 0.5)
         for _ in range(4):
@@ -4696,10 +4760,10 @@ def video_fx_list_frozen(binary, root, scripts):
         check(g0 is not None and sess.pic_rgba.get(7201) != g0, "effect list: the video plays again after the list")
         # VIDEO OPTIONS of the big video: the whole screen, the options and the video side by side
         sess.send("v", 1.5)
-        sess.send("S", 1.5)
+        sess.send("Y", 1.5)
         t = sess.text()
         p = sess.pics.get(7201)
-        check("VIDEO OPTIONS" in t and "Video Contrast" in t and p is not None and p["col"] > 60 and p["c"] >= 40, "VIDEO OPTIONS: the options on the left, the video as a big picture on the right (%s)" % p)
+        check("VIDEO OPTIONS" in t and "Contrast" in t and p is not None and p["col"] > 60 and p["c"] >= 40, "VIDEO OPTIONS: the options on the left, the video as a big picture on the right (%s)" % p)
         sess.send(b"\x1b", 1.0)
         sess.send(b"\x1b", 1.0)
         # the big overlay's title is transliterated like the main screen (LatinLetters on: the kana title reads "sakura")
@@ -4722,7 +4786,10 @@ def video_fx_list_frozen(binary, root, scripts):
         sess.send("s", 1.2)
         sess.send(b"\t", 0.5)
         sess.send(b"\t", 0.8)
-        for _ in range(21):   # Video Effect: after the 13 rows of VIZ/LYRICS ORDER and TOGGLE LYRICS/VIZ, 3 + 2 + 3 rows of the first categories
+        for _ in range(70):   # down to the Video Effect row
+            ys = [y for y, l in enumerate(sess.screen.display) if "Video Effect" in l and "Preview:" not in l and ":" in l]
+            if ys and any(c.reverse for c in sess.screen.buffer[ys[0]].values()):
+                break
             sess.send(b"\x1b[B", 0.15)
         sess.send(b"\r", 2.5)
         check("VIDEO EFFECT" in sess.text(), "effect list: it opens from Settings")
@@ -4868,6 +4935,8 @@ def milkdrop_radio_book(binary, root, scripts):
             if "Sixel Colours" in sess.text():
                 break
             sess.send(b"\x1b[B", 0.1)
+        for _ in range(12):   # (the MilkDrop block is the last of the tab)
+            sess.send(b"\x1b[B", 0.1)
         sess.pump(0.6)
         t = sess.text()
         check("MILKDROP" in t and "Show Preset Name" in t, "radio: ANIMA/VIZ has the MILKDROP block")
@@ -4951,6 +5020,67 @@ def milkdrop_radio_book(binary, root, scripts):
         sess.kill()
 
 
+def thick_borders(binary, root, scripts):
+    """Thick Borders: the frame lines are the heavy glyphs (player and radio); with the option off they are the thin ones."""
+    lib = os.path.join(root, "thk_music")
+    os.makedirs(lib)
+    make_wav(os.path.join(lib, "Alpha Song.wav"), 20)
+    for tag, on in (("on", True), ("off", False)):
+        home = os.path.join(root, "thk_home_" + tag)
+        cfgdir = os.path.join(home, ".config", "mousiki")
+        os.makedirs(cfgdir)
+        with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nAutoPlay=false\nUseLyrics=false\nVideoMode=false\nThickBorders=%s\n" % (lib, "1" if on else "0"))
+        sess = Session(binary, home, scripts, {"MOUSIKI_NULL_AUDIO": "1"}, quiet_stderr=True)
+        try:
+            sess.wait_for(lambda t: "Alpha Song" in t, 10)
+            sess.pump(1.0)
+            t = sess.text()
+            if on:
+                # (the font Mousiki Corners is installed in the test home at once: the frame is then its private-use glyphs, else the heavy ones with thin corners)
+                check((("\ue1c8" in t and "\ue1c9" in t and "\ue1c0" in t) or ("\u256d" in t and "\u2501" in t and "\u2503" in t)) and "\u2500" not in t and "\u2502" not in t,
+                      "thick borders: the player's frames are thick lines with the round corners")
+                bold_ok = False   # the title of a pane is bold, the information behind it ("(sort: ...)") is not
+                for y, line in enumerate(sess.screen.display):
+                    at = line.find("LOCAL AUDIO FILES (")
+                    if at >= 0:
+                        row = sess.screen.buffer[y]
+                        bold_ok = all(row[x].bold for x in range(at, at + 17)) and not any(row[x].bold for x in range(at + 18, at + 24))
+                check(bold_ok, "thick borders: the pane title is bold, the information behind it is not")
+                sess.send("s", 1.5)
+                t = sess.text()
+                check(("\ue1c8" in t or "\u2501" in t) and "\u2500" not in t, "thick borders: the Settings screen is thick too")
+                sess.send(b"\t", 0.8)
+                t = sess.text()
+                check("Thick Borders" in t and "Sharp Corners" in t, "thick borders: the row is in MAIN UI PANE STYLE next to Sharp Corners")
+            else:
+                check("\u2500" in t and "\u2501" not in t and "\u2503" not in t, "thick borders: off, the frames are thin")
+        finally:
+            sess.kill()
+    # the radio
+    home = os.path.join(root, "thk_home_radio")
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    with open(os.path.join(cfgdir, "stations.txt"), "w", encoding="utf-8") as f:
+        f.write("# name | genre | country | codec | kbps | url | [*] favorite\nPlain Station | Rock | US | MP3 | 128 | http://127.0.0.1:9/c | *\n")
+    with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nStartMode=radio\nWizardSeen=true\n" % lib)
+    with open(os.path.join(cfgdir, "radio_config.txt"), "w", encoding="utf-8") as f:
+        f.write("ThickBorders=1\nWizardSeen=true\n")
+    sess = Session(binary, home, scripts, {"MOUSIKI_RADIO_NULL": "1"})
+    try:
+        for _ in range(30):
+            sess.pump(0.5)
+            if "Plain Station" in sess.text():
+                break
+        sess.send(b"\x1b", 1.0)
+        t = sess.text()
+        check("\ue1c8" in t and "\ue1c9" in t and "\ue1c0" in t and "\u2500" not in t and "\u256d" not in t,
+              "thick borders: the radio's frames are all of the Mousiki Corners font (lines and round corners)")
+    finally:
+        sess.kill()
+
+
 def sharp_and_folders(binary, root, scripts):
     """Sharp Corners: the frames have sharp corners, the Settings screen keeps the round ones; the preset overlay makes a folder (n) and has
     the SHIFT+a chooser (these two only where projectM is installed)."""
@@ -4991,6 +5121,10 @@ def sharp_and_folders(binary, root, scripts):
             check(to_row("Preset Overlay"), "milkdrop overlay: Preset Overlay row")
             sess.send(b"\r", 2.0)
             check(any("MILKDROP PRESETS" in l for l in sess.screen.display), "preset overlay: opens")
+            for _ in range(6):   # (it opens in the folder of the preset shown: LEFT goes up to the top level, where the folders are)
+                if any("\u2605 Favourites" in l for l in sess.screen.display):
+                    break
+                sess.send(b"\x1b[D", 0.6)
             sess.send("n", 0.6)
             check(any("NEW FOLDER" in l for l in sess.screen.display), "preset overlay: n asks for the name of a new folder")
             for ch in "Chill":
@@ -5072,15 +5206,7 @@ def override_and_previews(binary, root, scripts):
             sess.send(b"\x1b", 0.5)
         else:
             check("GENERAL" in t and "SHUFFLE / TRANSITION" in t and "GRAPHICS / PERFORMANCE" in t, "milkdrop overlay: the three categories")
-            check("Override Individual Settings" in t and "off" in t, "milkdrop overlay: the Override Individual Settings row (off)")
-            for _ in range(30):
-                if any("> Override Individual Settings" in l for l in sess.screen.display):
-                    break
-                sess.send(b"\x1b[B", 0.1)
-            sess.send(b"\x1b[C", 0.5)
-            check(any("Override Individual Settings" in l and "on (this session)" in l for l in sess.screen.display), "milkdrop overlay: RIGHT turns the override on for this session")
-            sess.send(b"\x1b[C", 0.5)
-            check(any("Override Individual Settings" in l and "off" in l for l in sess.screen.display), "milkdrop overlay: and off again")
+            check("Undo change" in t and "Override" not in t and "Go to Individual" not in t, "milkdrop overlay: the Undo change row is there, no override row, no Go to row")
             sess.send(b"\x1b", 0.8)
         # the theme preview: UP / DOWN change the theme while it is open
         sess.send("s", 1.2)
@@ -5171,7 +5297,7 @@ def milkdrop_visuals(binary, root, scripts):
         check(moved, "milkdrop: the picture moves (another picture a moment later)")
         sess.send(":", 1.5)
         t = sess.text()
-        check("GENERAL" in t and "SHUFFLE / TRANSITION" in t and "Override Individual Settings" in t and "drawn by" not in t, "milkdrop: the overlay has its categories and the override row, no info lines")
+        check("GENERAL" in t and "SHUFFLE / TRANSITION" in t and "Undo change" in t and "Override" not in t and "drawn by" not in t, "milkdrop: the overlay has its categories and the Undo change row, no override row, no info lines")
         def preset_line():
             return next((l for l in sess.screen.display if "> Preset" in l), "")
         before = preset_line()
@@ -5411,7 +5537,9 @@ def milkdrop_preset_overlay(binary, root, scripts):
                 sess.send(key, 0.3)
             return False
         t = sess.text()
-        check(to_row("Shuffle Favourites"), "preset overlay: DOWN reaches Shuffle Favourites")
+        if to_row("Use individual settings for this track"):   # (the playing track got a value of its own from the keys above: its individual settings are switched off, the general settings are what this part changes)
+            sess.send(b"\x1b[C", 0.8)
+        check(to_row("Shuffle Favourites", b"\x1b[A"), "preset overlay: UP reaches Shuffle Favourites")
         sess.send(b"\x1b[C", 0.8)
         # Effect and Sixel Colours (6 rows further down): the effect is the visuals' own, the colours adaptive by default
         def big_rgba():
@@ -5438,13 +5566,11 @@ def milkdrop_preset_overlay(binary, root, scripts):
             return fixed / n if n else -1.0
         sess.pump(2.0)
         samples = []   # (the preset's colours move with time: the lowest share of several pictures is the adaptive one)
-        for _ in range(6):
+        for _ in range(12):
             samples.append(fixed_share())
-            sess.pump(0.5)
+            sess.pump(0.8)
         a = min(samples)
-        to_row("Override Individual Settings", b"\x1b[A")   # (the playing track got a value of its own from the keys above: the general settings are what this part changes)
-        sess.send(b"\x1b[C", 0.8)
-        check(to_row("Effect", b"\x1b[A"), "preset overlay: UP reaches Effect")
+        check(to_row("Effect", b"\x1b[B"), "preset overlay: DOWN reaches Effect")
         sess.send(b"\x1b[C", 0.8)
         ok_fx = sess.wait_for(lambda t: any("> Effect" in l and "Scanlines" in l for l in sess.screen.display), 4)
         if not ok_fx:
@@ -5483,9 +5609,15 @@ def milkdrop_preset_overlay(binary, root, scripts):
             l = next((l for l in sess.screen.display if "Preset    <" in l or "Preset   <" in l), "")
             return l.split("<", 1)[-1].split(">", 1)[0].strip() if "<" in l else ""
         # (a panel over the running visuals can be read half drawn now and then: the rows are read until they are there)
+        def read_preset():   # (the full-screen overlay scrolls: UP until the Preset row is selected and shows its name)
+            for _ in range(40):
+                if preset_name() != "":
+                    break
+                sess.send(b"\x1b[A", 0.3)
+            sess.wait_for(lambda t: preset_name() != "", 4)
+            return preset_name()
+        shown = read_preset()
         go_row("Shuffle Favourites")
-        sess.wait_for(lambda t: preset_name() != "", 4)
-        shown = preset_name()
         def fav_row():   # the row's own text: what stands right of the panel (the screen behind it) is cut off
             l = next((l for l in sess.screen.display if "> Shuffle Favourites" in l), "")
             return ("> Shuffle Favourites" + l.split("> Shuffle Favourites", 1)[1].split("\u2502")[0]) if l else ""
@@ -5498,8 +5630,7 @@ def milkdrop_preset_overlay(binary, root, scripts):
             if turned:
                 break
         sess.pump(2.0)
-        sess.wait_for(lambda t: preset_name() != "", 4)
-        after = preset_name()
+        after = read_preset()
         if not turned:
             sess.dump("Shuffle Favourites off")
         check(turned and shown and after == shown and "transition to black" not in after,
@@ -5519,9 +5650,9 @@ def milkdrop_preset_overlay(binary, root, scripts):
                     sess.send(":", 1.5)
                     sess.wait_for(lambda t: "Visuals: MilkDrop" in t, 5)
                 go_row("Auto MilkDrop")
-                if not any("> Auto MilkDrop" in l and l.rstrip(" \u2502").endswith(want) for l in sess.screen.display):
+                if not any("> Auto MilkDrop" in l and l.split("\u2502")[1].rstrip(" ").endswith(want) for l in sess.screen.display):
                     sess.send(b"\x1b[C", 1.0)
-                sess.wait_for(lambda t: any("> Auto MilkDrop" in l and l.rstrip(" \u2502").endswith(want) for l in sess.screen.display), 8)
+                sess.wait_for(lambda t: any("> Auto MilkDrop" in l and l.split("\u2502")[1].rstrip(" ").endswith(want) for l in sess.screen.display), 8)
                 close_overlay()
                 deadline = time.time() + 8
                 while time.time() < deadline and key not in open(cfg, encoding="utf-8").read():
@@ -5529,7 +5660,8 @@ def milkdrop_preset_overlay(binary, root, scripts):
                 if key in open(cfg, encoding="utf-8").read():
                     break
             return open(cfg, encoding="utf-8").read()
-        check(any("Auto MilkDrop" in l and "off" in l for l in sess.screen.display), "preset overlay: the last row is Auto MilkDrop (off)")
+        go_row("Auto MilkDrop")
+        check(any("Auto MilkDrop" in l and "off" in l.split("\u2502")[1] for l in sess.screen.display if "Auto MilkDrop" in l), "preset overlay: the last row is Auto MilkDrop (off)")
         c = set_auto("on")
         check("MilkDropAuto=true" in c and "VideoAuto=false" in c and "MilkDropAutoVideoWas=true" in c, "preset overlay: Auto MilkDrop on switches Auto Video off (and remembers it)")
         c = set_auto("off")
@@ -6791,8 +6923,12 @@ def run_scenario(name, binary, root, scripts):
         radio_pane_style(binary, root, scripts)
     elif name == "video_fx_picker_third_slot":
         video_fx_picker_third_slot(binary, root, scripts)
+    elif name == "individual_temp_layer":
+        individual_temp_layer(binary, root, scripts)
     elif name == "override_and_previews":
         override_and_previews(binary, root, scripts)
+    elif name == "thick_borders":
+        thick_borders(binary, root, scripts)
     elif name == "sharp_and_folders":
         sharp_and_folders(binary, root, scripts)
     elif name == "milkdrop_visuals":
@@ -6870,7 +7006,7 @@ def run_scenario(name, binary, root, scripts):
 
 
 SCENARIOS = ["narrow80", "narrow100", "main", "read_lyrics_play", "karaoke_timing", "book_speed_and_devices", "paging_and_translit_row",
-             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_ytdlp_update", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "audio_fades", "audio_fades_edges", "playlist_missing_file", "ytdlp_update_flow", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews", "override_and_previews", "sharp_and_folders"]
+             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_ytdlp_update", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "audio_fades", "audio_fades_edges", "playlist_missing_file", "ytdlp_update_flow", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews", "override_and_previews", "individual_temp_layer", "sharp_and_folders", "thick_borders"]
 
 
 def main():

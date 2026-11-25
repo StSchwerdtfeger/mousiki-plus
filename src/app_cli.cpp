@@ -143,6 +143,7 @@ std::string App::cli_run(const std::string& raw, Origin origin, const std::strin
     const std::string line = cli::trim(raw);
     if (line.empty()) return "";
     if (origin == Origin::Typed) {
+        cli_up_ = 0; console_cli_up_ = 0;
         cli_out_.push_back("> " + line);
         if (cli_hist_.empty() || cli_hist_.back() != line) cli_hist_.push_back(line);
         if (cli_hist_.size() > 100) cli_hist_.erase(cli_hist_.begin());
@@ -644,9 +645,13 @@ std::string App::cli_exec(const std::string& line_in, cli::Job& job, bool& ok, b
         if (const size_t sp = arg.find_first_of(" \t"); sp != std::string::npos) { sub = arg.substr(0, sp); rest = cli::unquote(cli::trim(arg.substr(sp + 1))); }
         const std::string ls = ascii_lower_str(sub);
         if (arg.empty() || ls == "list") {
-            std::string r = "queue: " + std::to_string(queue_.size()) + (queue_.size() == 1 ? " title" : " titles");
-            for (size_t i = 0; i < queue_.size() && i < 4; ++i) r += "\n  " + std::to_string(i + 1) + ". " + queue_[i].title;
-            if (queue_.size() > 4) r += "\n  ...";
+            std::string r = "queue: " + std::to_string(queue_.size()) + (queue_.size() == 1 ? " title" : " titles") + " (file names are shown for local files; SHIFT+UP / DOWN scrolls the output)";
+            for (size_t i = 0; i < queue_.size() && i < 100; ++i) {
+                const QueueItem& q = queue_[i];
+                const std::string name = q.is_local && !q.local_path.empty() ? path_utf8(q.local_path.filename()) : q.title;
+                r += "\n  " + std::to_string(i + 1) + ". " + name;
+            }
+            if (queue_.size() > 100) r += "\n  ... (" + std::to_string(queue_.size() - 100) + " more)";
             return r;
         }
         if (ls == "clear") {

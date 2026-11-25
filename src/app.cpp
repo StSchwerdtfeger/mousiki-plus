@@ -3,6 +3,7 @@
 // this one, grouped by topic.
 #include "app.h"
 #include "corners.h"
+#include "terminal_font.h"
 #include "milkdrop.h"
 #include "app_state_vf.h"
 #include "app_state_rl.h"
@@ -179,7 +180,7 @@ std::string focus_indicator(const Settings& s, const std::string&) {
 }
 
 
-std::string App::box_top(const std::string& label_in, int total_width, const std::string& border_ansi) const {
+std::string App::box_top(const std::string& label_in, int total_width, const std::string& border_ansi, bool bold_ok) const {
     // A title wider than the pane is cut with "..." so the top border keeps its width. A wider line
     // would reach the terminal's right edge and shift everything below it. A focus indicator at the end
     // of the title (" " + colour + "◀") is kept.
@@ -199,6 +200,7 @@ std::string App::box_top(const std::string& label_in, int total_width, const std
             else label = truncate_str(strip_csi(label), room);
         }
     }
+    if (settings_.thick_borders > 0 && bold_ok && !label.empty()) label = bold_title(label);   // (Thick Borders: the title of the pane in bold, nothing after it)
     std::string lbl = label.empty() ? "" : (" " + label + " ");
     if (back_to_border && !label.empty()) lbl += border_ansi;
     std::string prefix = settings_.box_upper_left + settings_.box_horizontal + lbl;
@@ -1352,6 +1354,9 @@ int App::run() {
             if (settings_.sharp_corners) {   // (the Settings screen is drawn sharp: with the option on it is the one that is round)
                 if (mode_ == Mode::Settings || mode_ == Mode::ColorEdit) roundify_corners(frame_str); else sharpen_corners(frame_str);
             }
+            terminal_font::use_corner_font(settings_.thick_borders > 0);
+            if (settings_.thick_borders > 0)   // (the thick round corners only when their small font could be put in place, else heavy lines with thin round corners)
+                thicken_borders(frame_str, terminal_font::corner_font_ready() ? 2 : 1);
         } catch (const std::exception& e) {
             ConsoleLog::instance().log_basic(std::string("render skipped (") + std::to_string(term.cols()) + "x" + std::to_string(term.rows()) + "): " + e.what());
             force_redraw_ = true;
@@ -1368,7 +1373,7 @@ int App::run() {
             const bool freeze = ((mode_ == Mode::MetaEdit && meta_->sty_from_main) || (mode_ == Mode::VideoSearch && vs_->pic != 0) || (mode_ == Mode::VideoLink && vl_->pic != 0) || (mode_ == Mode::VideoMenu && fxpick_.open && fxpick_pic_ != 0)) && frame_main_len_ != std::string::npos && frame_main_len_ <= frame_str.size();   // (SEARCH YT with a thumbnail picture freezes the main screen too: the line writes of the live screen next to a Sixel picture wipe it)
             // (the look chosen in the panel is shown behind it at once: the frozen screen is taken again when the look changes)
             const std::string look_sig = std::to_string(eff_cover_mode()) + "|" + std::to_string(eff_cover_contrast()) + "|" + std::to_string(eff_cover_brightness()) + "|" +
-                                         std::to_string(eff_cover_colors()) + "|" + std::to_string(eff_cover_gsat()) + "|" + std::to_string(eff_cover_chroma()) + "|" + (settings_.album_cover ? "a" : "d");
+                                         std::to_string(eff_cover_colors()) + "|" + std::to_string(eff_cover_gsat()) + "|" + std::to_string(eff_cover_vivid()) + "|" + std::to_string(eff_cover_chroma()) + "|" + (settings_.album_cover ? "a" : "d");
             if (freeze && (frozen_body_.empty() || frozen_cols_ != term.cols() || frozen_rows_ != term.rows() || frozen_sig_ != look_sig)) {
                 frozen_body_ = frame_str.substr(0, frame_main_len_);
                 frozen_cols_ = term.cols(); frozen_rows_ = term.rows();

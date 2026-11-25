@@ -102,6 +102,7 @@ struct RadioSettings : VizPrefs {
     // --- the GENERAL tab ---------------------------------------------------------------------------
     bool on_air_ascii = true;                   // the ON AIR sign (with its colour wave)
     int top_pane_style = 0;                     // TopPaneStyle= (0-5, as the player's): one box, three panes I / II / III, two panes, gap
+    int thick_borders = 0;                      // ThickBorders= (0-1): thin, or thick lines with thick round corners (font "Mousiki Corners") and bold pane titles
     bool sharp_corners = false;                 // SharpCorners=: sharp corners (┌ ┐ └ ┘) for all frames; the Settings screen (sharp by itself) gets the round ones
     bool sign_border = false;                   // the " : : " column between the ON AIR / OFF AIR sign and the station info (false, the default: none, the sign sits in the middle of that space)
     bool pulse_wave = true;                     // the faint circle burst behind the sign
@@ -188,6 +189,8 @@ struct RadioSettings : VizPrefs {
     EqGains eq_gains = {};
     std::vector<EqCustomPreset> eq_custom_presets;
     double gradient_wave_speed = 0.25;          // ON AIR sign colour wave, cycles per second
+    int bars_vivid = 0;                         // spectrum bars gradient vividness, 0 .. 150 in steps of 5 (%): fuller, brighter colours (0 = as before)
+    int on_air_vivid = 0;                       // ON / OFF AIR sign gradient vividness, 0 .. 150 in steps of 5 (%): fuller and brighter colours (0 = as before)
     double pulse_wave_speed = 0.125;            // circle burst behind the sign, loops per second (independent of the colour wave)
     bool playback_shuffle = true;               // station surf mode: true = shuffle (S), false = list (L); `m` toggles
     // --- the PATHS tab (empty = the default; see StoragePaths below) -----------------------------------
@@ -270,8 +273,8 @@ const std::string* color_field(const RadioSettings& s, int row, int col);
 // The ids of the rows of the GENERAL and ANIMA/VIZ tabs.
 enum RsId {
     kRsPlayback, kRsStartMode, kRsUseModePlayer, kRsUseModeRadio, kRsUseModeBook, kRsModeOrder1, kRsModeOrder2, kRsModeOrder3, kRsBlackBg, kRsShareProfiles, kRsRemoteApp,
-    kRsPaneStyle, kRsSharpCorners, kRsOnAir, kRsSignBorder, kRsPulse, kRsDummy, kRsVolIndicator, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
-    kRsGradSpeed, kRsPulseSpeed, kRsFluidity, kRsDegr, kRsVisc, kRsBehavior, kRsBarStyle, kRsHifiRes, kRsHifiChan, kRsHifiColor, kRsHifiScale, kRsHifiAdapt, kRsHifiSplit, kRsHifiFScale, kRsHifiGain, kRsHifiRange,
+    kRsPaneStyle, kRsSharpCorners, kRsThickBorders, kRsOnAir, kRsSignBorder, kRsPulse, kRsDummy, kRsVolIndicator, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
+    kRsGradSpeed, kRsPulseSpeed, kRsSignVivid, kRsBarsVivid, kRsFluidity, kRsDegr, kRsVisc, kRsBehavior, kRsBarStyle, kRsHifiRes, kRsHifiChan, kRsHifiColor, kRsHifiScale, kRsHifiAdapt, kRsHifiSplit, kRsHifiFScale, kRsHifiGain, kRsHifiRange,
     kRsScope, kRsOsciStyle,
     kRsUseMilkdrop, kRsMdFps, kRsMdRes, kRsMdGpu, kRsMdDuration, kRsMdShuffle, kRsMdBeat, kRsMdHardCuts, kRsMdTransition, kRsMdShowName,
     kRsMdFavShuffle, kRsMdFolder, kRsMdBright, kRsMdSat, kRsMdContrast, kRsMdHcd, kRsMdVar, kRsMdMesh, kRsMdAspect, kRsMdRatio, kRsMdClean, kRsMdUseFx, kRsMdFx, kRsMdColors,
