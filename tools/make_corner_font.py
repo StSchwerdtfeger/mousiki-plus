@@ -135,12 +135,13 @@ def polygons(m, name):
 
 
 def pin_bounds(pen, m):
-    """Two dots of one font unit (about a hundredth of a pixel, no visible ink) at opposite corners of the box every glyph shares, so that all glyphs have the same
-    bounding box. A renderer that places a glyph's bitmap by the rounded corner of its bounding box (Windows Terminal seems to) then shifts none of them against
-    the others: the right corners and walls, whose boxes differed from the plain wall's, were a pixel off before."""
+    """Two points at opposite corners of the box every glyph shares, so that all glyphs have the same bounding box. A renderer that places a glyph's
+    bitmap by the rounded corner of its bounding box (Windows Terminal seems to) then shifts none of them against the others: the right corners and
+    walls, whose boxes differed from the plain wall's, were a pixel off before. Each point is a contour of no area (a line there and back): it has no
+    ink, which a one-unit square did have in some renderers (faint dots next to the lines, at the corners of the cells)."""
     x0, y0, x1, y1 = -m["reach"], m["down"], m["adv"] + m["reach"], m["up"]
-    for (ax, ay) in ((x0, y0), (x1 - 1, y1 - 1)):
-        pen.moveTo((ax, ay)); pen.lineTo((ax, ay + 1)); pen.lineTo((ax + 1, ay + 1)); pen.lineTo((ax + 1, ay)); pen.closePath()
+    for (ax, ay) in ((x0, y0), (x1, y1)):
+        pen.moveTo((ax, ay)); pen.lineTo((ax, ay)); pen.closePath()
 
 
 def build(m, out_path):

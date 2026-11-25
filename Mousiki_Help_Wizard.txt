@@ -2295,7 +2295,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   (not the cover's own colours). Also per track.
 [Disk Gradient Vividness:][[Legend]]                           The same for the plain disk (no cover), 0 .. 150%; the idle
                                                   cassette follows it too (default 0%).
-[Oscilloscope/Spectrogram/Bars/Volume Gradient Vividness:][[Legend]]
+[Osci/Spectro. Gradient Vivid., Bars, Vol. Bar:][[Legend]]
                                                   as disk (default) or 0 .. 150%: the same for the braille
                                                   scope and spectrogram, the bars and the volume bar. The
                                                   radio has its own values for the ON / OFF AIR sign (Sign

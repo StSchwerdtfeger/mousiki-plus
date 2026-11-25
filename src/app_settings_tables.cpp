@@ -69,7 +69,7 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidPauseSphere, "Pause Sphere"},
         {true, -1, ""},
         {true, -1, "SEEK AND VOLUME"},
-        {false, kSidDummy, "Dummy Buttons"}, {false, kSidVolIndicator, "Volume Indicator"}, {false, kSidVolVivid, "Volume Bar Gradient Vividness"},
+        {false, kSidDummy, "Dummy Buttons"}, {false, kSidVolIndicator, "Volume Indicator"}, {false, kSidVolVivid, "Vol. Bar Gradient Vivid."},
         {true, -1, ""},
         {true, -1, "SPECTRUM BARS"},   // the bars under the meta data
         {false, kSidVisualizer, "On/Off"},
@@ -84,7 +84,7 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {true, -1, "OSCI/SPECTRO SETTINGS"},
         {false, kSidShareProfiles, "Modes Share Settings"},
         {false, kSidSpectroHistory, "Keep Spectrogram History"},
-        {false, kSidScopeVivid, "Oscilloscope Gradient Vividness"}, {false, kSidSpectroVivid, "Spectrogram Gradient Vividness"},
+        {false, kSidScopeVivid, "Osci Gradient Vivid."}, {false, kSidSpectroVivid, "Spectro. Gradient Vivid."},
         {true, -1, ""},
         {true, -1, "VIDEO"},
         {false, kSidVideoAuto, "Auto Video"}, {false, kSidVideoLyrics, "Include Lyrics"}, {false, kSidVideoSize, "Video Size"}, {false, kSidVideoFx, "Video Effect"}, {false, kSidVideoBase, "Video Base Layer"}, {false, kSidVideoFxContrast, "Video Effect Contrast"}, {false, kSidVideoContrast, "Video Contrast"}, {false, kSidVideoBrightness, "Video Brightness"}, {false, kSidVideoColors, "Video Colors"}, {false, kSidVideoChroma, "Video Chromatic Aberration"}, {false, kSidVideoDither, "Video Dither Pattern"}, {false, kSidVideoGradSat, "Video Gradient Saturation"}, {false, kSidVideoGradVivid, "Video Gradient Vividness"}, {false, kSidVideoRound, "Video Rounded Corners"}, {false, kSidVideoClap, "Show Clap Loading"}, {false, kSidVideoCover, "Disk/Cover/Thumbnail"}, {false, kSidVideoRes, "Video Resolution"}, {false, kSidVideoFps, "Video Frame Rate"}, {false, kSidVideoBuffer, "Video Buffer"}, {false, kSidVideoMp3, "yt-dlp mp3 from mp4"},
