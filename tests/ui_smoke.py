@@ -880,7 +880,9 @@ def paging_and_translit_row(binary, root, scripts):
             return ""
         # GENERAL tab: Top Pane Style, Disk Border, Playback, Start Mode, Display queue, MODES ON/OFF AND ORDER (6 rows), AUDIO (9 rows: Choose Audio Device ... Pause Fade, Auto-Play,
         # Gapless Playback), TERMINAL: Black Background, then Use Terminal Settings (row 21; Sharp Corners sits under Disk Border)
-        for _ in range(28):
+        for _ in range(60):   # (down to the row: the cursor's \u2194 marker stands on it; no counting, rows above may be added)
+            if "\u2194" in find("Use Terminal Settings"):
+                break
             sess.send(b"\x1b[B", 0.1)
         check("Use Terminal Settings" in find("Use Terminal Settings") and "false" in find("Use Terminal Settings"),
               "use terminal settings: the row exists and is false by default")
@@ -920,8 +922,10 @@ def paging_and_translit_row(binary, root, scripts):
         check("32" in find("Terminal Size") and "28" not in find("Terminal Size"), "terminal size: ENTER on the button sets it back to 120 x 32")
         sess.send(b"\x1b[B", 0.2)
         check("Full Screen" in find("Full Screen") and "false" in find("Full Screen"), "full screen: the row exists and is off by default")
-        for _ in range(12):
-            sess.send(b"\x1b[B", 0.1)   # down to Translit. Kanji (past Reduce Motion When Paused and CLI / REMOTE / UPDATES, with CLI Scripts; TEXT AND TRANSLITERATION is last)
+        for _ in range(40):   # down to Translit. Kanji (past Reduce Motion When Paused and CLI / REMOTE / UPDATES, with CLI Scripts; TEXT AND TRANSLITERATION is last)
+            if "Preview: Translit. Kanji" in sess.text():
+                break
+            sess.send(b"\x1b[B", 0.15)
         def row():
             return find("Translit. Kanji")
         def settle(word, limit=8.0):   # a slow machine draws the row a moment after the key: wait for it (up to `limit` s)
@@ -4618,11 +4622,13 @@ def settings_general_texts(binary, root, scripts):
         sess.send(b"\x1b[1;2C", 1.0)
         check("ANIMA/VIZ" in sess.text() and sess.wait_for(lambda t: "LYRICS/VIZ FIELD" in t and "Start Mode" not in t, 4), "settings: SHIFT+RIGHT goes to the next tab (ANIMA/VIZ)")
         seen = ""
-        for _ in range(60):   # (the TOGGLE LYRICS/VIZ rows stand under the first category now: scroll on to the MILKDROP block)
+        for _ in range(60):   # (scroll on to the MILKDROP block)
             seen += "\n" + sess.text()
-            if "MilkDrop GPU" in sess.text() and "Use MilkDrop" in seen:
+            if all(w in seen for w in ("MilkDrop GPU", "Use MilkDrop", "Auto Video", "Milkdrop When No Video")):
                 break
-            sess.send(b"\x1b[1;2B", 0.5)
+            for _ in range(8):   # (a page at a time would jump over rows of the long VIDEO block)
+                sess.send(b"\x1b[B", 0.08)
+            sess.pump(0.3)
         seen += "\n" + sess.text()
         check("Use MilkDrop" in seen and seen.rfind("Use Sphere") < seen.rfind("Use MilkDrop") and seen.rfind("TOGGLE LYRICS/VIZ") < seen.rfind("Use MilkDrop"),
               "settings: Use MilkDrop is in TOGGLE LYRICS/VIZ, under Use Sphere")
@@ -6279,9 +6285,13 @@ def settings_cli_row(binary, root, scripts):
         check("false" in find("Pause Fade"), "pause fade: RIGHT switches it off")
         sess.send(b"\x1b[D", 0.6)
         check("true" in find("Pause Fade"), "pause fade: LEFT switches it on again")
-        for _ in range(14):           # Auto-Play, (7 fade rows),  Gapless Playback, Black Background, Use Terminal Settings, Terminal Size, Full Screen, Reduce Motion
+        for _ in range(40):           # down to Use Terminal Settings (its \u2194 marker shows the cursor; no counting, rows above may be added) ...
+            if "\u2194" in find("Use Terminal Settings"):
+                break
             sess.send(b"\x1b[B", 0.15)
-        sess.send(b"\x1b[B", 0.5)    # CLI Scripts
+        for _ in range(4):            # ... then Terminal Size, Full Screen, Reduce Motion When Paused, CLI Scripts
+            sess.send(b"\x1b[B", 0.2)
+        sess.pump(0.5)
         check("CLI / REMOTE / UPDATES" in sess.text() and "CLI Scripts" in find("CLI Scripts"), "cli row: the category is CLI / REMOTE / UPDATES and has the row CLI Scripts")
         check("[ENTER] open" in find("CLI Scripts"), "cli row: the row says [ENTER] open")
         sess.send(b"\r", 1.0)

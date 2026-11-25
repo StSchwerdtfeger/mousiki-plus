@@ -149,9 +149,9 @@ EqualizerBands=0,0,0,0,0,0,0,0,0,0
 # speeds: 0.01 - 1.00 (colour wave of the ON AIR sign in cycles per second | pulse wave behind it in loops per second)
 GradientWaveSpeed=0.25
 PulseWaveSpeed=0.125
-# gradient vividness of the ON / OFF AIR sign: 0 - 150 (percent, steps of 5; 0 = as before, more = fuller and brighter colours)
+# gradient vividness of the ON / OFF AIR sign: 0 - 150 (percent, steps of 5; 0 = the colours unchanged, more = fuller and brighter colours)
 SignVividness=0
-# gradient vividness of the spectrum bars: 0 - 150 (percent, steps of 5; 0 = as before, more = fuller and brighter colours)
+# gradient vividness of the spectrum bars: 0 - 150 (percent, steps of 5; 0 = the colours unchanged, more = fuller and brighter colours)
 BarsVividness=0
 # station surf mode (key m): list | shuffle
 PlaybackMode=shuffle

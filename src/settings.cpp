@@ -996,18 +996,18 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_PERCENT_MAX("CoverContrast", nullptr, cover_contrast, false, 200, "\n## 0 .. 200 (percent, steps of 5) -- more contrast for the album cover (0 = the cover as it is)\n"),
     SIMPLE_PERCENT("CoverBrightness", nullptr, cover_brightness, false, "\n## 0 .. 100 (percent, steps of 5) -- the cover behind the disk: how bright its dots are lifted (0 = the picture's own range; more = brighter, like the plain disk)\n"),
     SIMPLE_PERCENT("CoverColors", nullptr, cover_colors, false, "\n## 0 .. 100 (percent, steps of 5) -- the cover behind the disk: its own colours mixed into the disk's gradient (0 = gradient only, 100 = the cover's own colours)\n"),
-    SIMPLE_PERCENT_MAX("DiskVividness", nullptr, disk_vivid, false, 150, "\n## 0 .. 150 (percent, steps of 5, default 0) -- the plain disk (no cover): how vivid its gradient colours are. 0 = as before; more makes the colours fuller and brighter, the way the neon edge effects of the video and MilkDrop look\n"),
-    SIMPLE_PERCENT_MAX("WaveformVividness", nullptr, wave_vivid, false, 150, "\n## 0 .. 150 (percent, steps of 5, default 0) -- the progress waveform: how vivid its played and remaining colours are (its own value: the other vividness settings do not change it). 0 = as before\n"),
-    SIMPLE_VIVID("ScopeVividness", scope_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the braille oscilloscope: how vivid its gradient colours are (0 = as before)\n"),
-    SIMPLE_VIVID("SpectrogramVividness", spectro_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the braille spectrogram: how vivid its gradient colours are (0 = as before)\n"),
-    SIMPLE_VIVID("BarsVividness", bars_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the spectrum bars: how vivid its gradient colours are (0 = as before)\n"),
-    SIMPLE_VIVID("VolumeBarVividness", volume_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the volume bar: how vivid its gradient colours are (0 = as before)\n"),
-    SIMPLE_VIVID("CoverVividness", cover_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the disk and the cover behind it: how vivid the dots are. 0 = as before; more lifts the dots towards the full colours of the disk gradient and pushes the colours away from grey, the way the neon edge effects of the video and MilkDrop look (the effect itself is not applied to the cover)\n"),
+    SIMPLE_PERCENT_MAX("DiskVividness", nullptr, disk_vivid, false, 150, "\n## 0 .. 150 (percent, steps of 5, default 0) -- the plain disk (no cover): how vivid its gradient colours are. 0 = the colours unchanged; more makes the colours fuller and brighter, the way the neon edge effects of the video and MilkDrop look\n"),
+    SIMPLE_PERCENT_MAX("WaveformVividness", nullptr, wave_vivid, false, 150, "\n## 0 .. 150 (percent, steps of 5, default 0) -- the progress waveform: how vivid its played and remaining colours are (its own value: the other vividness settings do not change it). 0 = the colours unchanged\n"),
+    SIMPLE_VIVID("ScopeVividness", scope_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the braille oscilloscope: how vivid its gradient colours are (0 = the colours unchanged)\n"),
+    SIMPLE_VIVID("SpectrogramVividness", spectro_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the braille spectrogram: how vivid its gradient colours are (0 = the colours unchanged)\n"),
+    SIMPLE_VIVID("BarsVividness", bars_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the spectrum bars: how vivid its gradient colours are (0 = the colours unchanged)\n"),
+    SIMPLE_VIVID("VolumeBarVividness", volume_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the volume bar: how vivid its gradient colours are (0 = the colours unchanged)\n"),
+    SIMPLE_VIVID("CoverVividness", cover_vivid, "\n## as disk (default: the value of DiskVividness) , or 0 .. 150 (percent) -- the disk and the cover behind it: how vivid the dots are. 0 = the colours unchanged; more lifts the dots towards the full colours of the disk gradient and pushes the colours away from grey, the way the neon edge effects of the video and MilkDrop look (the effect itself is not applied to the cover)\n"),
     SIMPLE_PERCENT("CoverGradientSaturation", nullptr, cover_grad_sat, false, "\n## 0 .. 100 (percent, steps of 5) -- the cover looks: how vivid the disk's gradient is between its two colours (0 = the plain blend, which fades to grey in the middle; 30 = default; 100 = as saturated as a straight line between the two colours)\n"),
     SIMPLE_PERCENT("VideoContrast", "video_contrast", video_contrast, false, "\n## 0 .. 100 (percent, steps of 5) -- more contrast for the video's picture (0 = as it is)\n"),
     SIMPLE_PERCENT("VideoBrightness", "video_brightness", video_brightness, true, "\n## 0 .. 100 (percent, steps of 5) -- the brightness of the video's picture (50 = as it is, lower = darker, higher = brighter; a track can have its own: individual video settings)\n"),
     SIMPLE_PERCENT("VideoColors", "video_colors", video_colors, false, "\n## 0 .. 100 (percent, steps of 5) -- the video's colours (0 = greyscale, 100 = as they are)\n"),
-    SIMPLE_PERCENT("VideoGradientVividness", nullptr, video_grad_vivid, false, "\n## 0 .. 100 (percent, steps of 5, default 0) -- the video looks that use the gradient colours (Gradient, Dither Gradient, Neon Edge Gradient, the Game Boy gradient looks): how vivid those colours are. 0 = as before; more makes them fuller and brighter (pushed away from grey most around 50 %, brighter up to 100 %); a track can have its own: individual video settings\n"),
+    SIMPLE_PERCENT("VideoGradientVividness", nullptr, video_grad_vivid, false, "\n## 0 .. 100 (percent, steps of 5, default 0) -- the video looks that use the gradient colours (Gradient, Dither Gradient, Neon Edge Gradient, the Game Boy gradient looks): how vivid those colours are. 0 = the colours unchanged; more makes them fuller and brighter (pushed away from grey most around 50 %, brighter up to 100 %); a track can have its own: individual video settings\n"),
     SIMPLE_PERCENT("VideoGradientSaturation", nullptr, video_grad_sat, false, "\n## 0 .. 100 (percent, steps of 5) -- the video looks that use the gradient colours (Gradient, Dither Gradient, Neon Edge Gradient, the Game Boy gradient looks): how saturated those colours are (100 = the colours as they are, lower = paler, 0 = grey of the same brightness; 85 = default); a track can have its own: individual video settings\n"),
     SIMPLE_QUOTED("UpperLeftCorner", "upper_left_corner", box_upper_left, ";\n"),
     SIMPLE_QUOTED("UpperRightCorner", "upper_right_corner", box_upper_right, ";\n"),
@@ -2399,7 +2399,7 @@ write_simple_setting(out, s, "VideoLayout");
     write_simple_setting(out, s, "MetaDataOnly");
     out << "## true  = the (search-)lists show embedded metadata only -- the title tag is used\n";
     out << "##         instead of the filename (files without a title tag keep their filename)\n";
-    out << "## false = lists show filename AND metadata, as before\n";
+    out << "## false = lists show filename AND metadata\n";
     out << "## Toggleable live with HKeyToggleMetaOnly (SHIFT+n).\n";
     out << "\n";
 
@@ -2500,7 +2500,7 @@ write_simple_setting(out, s, "VideoLayout");
     out << "##-------------------------------------------\n\n";
     write_simple_setting(out, s, "StereoPlayback");
     out << "## true  = play tracks in stereo (uses about twice the memory per loaded track)\n";
-    out << "## false = mono: left and right are folded together, as in earlier versions\n";
+    out << "## false = mono: left and right are folded together\n";
     out << "## Turning it off takes effect immediately; turning it on applies from the next track.\n";
     out << "\n";
 

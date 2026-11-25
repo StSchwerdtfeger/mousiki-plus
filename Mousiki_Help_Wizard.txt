@@ -768,8 +768,9 @@ COVER STYLE OVERLAY:[[Header]] a small overlay with the cover look of THIS track
                       cover): its own Cover Contrast (0 - 200 %), Cover Brightness,
                       Cover Colors, Cover Gradient Saturation, Cover Gradient
                       Vividness and Cover Chromatic Aberration.
-[Gradient Vividness:][[Legend]]   0 - 150 %: brighter, fuller gradient colours and dots of the disk (not the cover's own colours). The push away from
-                      grey is strongest around 50 % and fades towards 100 %, where only the brightness rises.
+[Gradient Vividness:][[Legend]]   0 - 150 %: brighter, fuller gradient colours and dots of the disk (not the cover's own colours). 100 % gives
+                      the colours of the neon edge looks of the video and MilkDrop; above it only a little glow is added.
+                      "as disk" (the default) follows Disk Gradient Vividness.
 [Management:][[Legend]]           INDIVIDUAL TRACK SETTINGS MANAGEMENT: "Reset cover to default settings" removes the
                       track's own cover values; "Set individual cover settings as default settings" makes
                       them the default values (config.txt); "Undo change" takes the last change back.
@@ -777,7 +778,7 @@ COVER STYLE OVERLAY:[[Header]] a small overlay with the cover look of THIS track
 [Album:][[Legend]]                The look of its whole ALBUM (no album tag: of that folder).
 [Video, MilkDrop:][[Legend]]      Not here: the video settings of a track are in VIDEO SETTINGS / VIDEO OPTIONS, its
                       MilkDrop settings in the visuals menu [:].
-[Keys:][[Legend]]                 [<-][->] change a row; [DEL] or [d] puts it back to "as in Settings"; [t] switches
+[Keys:][[Legend]]                 [<-][->] change a row; [DEL] or [d] puts it back to the default (marked "(default)"); [t] switches
                       between a real picture (Kitty / Sixel terminals, the default) and braille dots.
 [Preview:][[Legend]]              A wide terminal adds a preview of the cover with the chosen look on the right.
 [Priority:][[Legend]]             The track's own values win over the album's look and over Settings; while the track
@@ -1106,7 +1107,7 @@ timing!), they can be fetched again under a different query.
                           ([CTRL+l], see below).
 
 ADD LYRICS MANUALLY:[[Header]]
-Own lyrics used to work only by name (Song.mp3 -> Song.lrc in the "lyrics" folder next to the track, or
+Own lyrics work by name (Song.mp3 -> Song.lrc in the "lyrics" folder next to the track, or
 right next to it). The overlay does this for you with any file name (.lrc or .txt), for any track of the
 library, and it can be undone.
 [Open:][[Legend]]                     [a] in READ LYRICS (also [CTRL+n]); in karaoke mode [a], in the retry form
@@ -1336,8 +1337,8 @@ SETTING[[Header]]                       [WHAT IT DOES][[Header]]
                               8x8, golden ratio.
 [Video Gradient Saturation][[Legend]]     0 - 100 %: how saturated the colours of the gradient looks (Gradient,
                               Dither Gradient, Neon Edge Gradient, Game Boy gradient) are. 100 = as they
-                              are, 0 = grey; default 80 %. Also in VIDEO OPTIONS.
-[Video Gradient Vividness][[Legend]]     0 - 100 %: fuller, brighter gradient colours (strongest push around 50 %); default 0 %.
+                              are, 0 = grey; default 85 %. Also in VIDEO OPTIONS.
+[Video Gradient Vividness][[Legend]]     0 - 100 %: fuller, brighter gradient colours (strongest push around 50 %, fading towards 100 %); default 0 %.
                               Also in VIDEO OPTIONS and per track.
 [Video Resolution][[Legend]]              standard / high / full: sharper, on Kitty in true colour. Also in
                               VIDEO OPTIONS.
@@ -1538,7 +1539,7 @@ for the spectrogram does not make the waterfall braille, and a view never opened
 defaults.
 In the window: [F] or [F11] switches to fullscreen, [T] always on top, [ESC] or [Q] close.
 The MilkDrop window gets finished pictures instead of audio: the engine stays in the player, so presets,
-[:] and the preset overlay work as before; the terminal shows a note meanwhile.
+[:] and the preset overlay work as usual; the terminal shows a note meanwhile.
 Each window is a separate process that gets the audio through a pipe, so a graphics driver
 problem can only close the window, never stall the music or the terminal.
 Position and size are remembered, and the windows stay open when you switch player <-> radio.
@@ -2201,7 +2202,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   blue noise / bayer 2x2 / 4x4 / 8x8 / golden ratio.
 [Gradient Saturation][[Legend]]                               How saturated the gradient looks' colours are (100 = as
                                                   they are, 0 = grey; default 85 %).
-[Gradient Vividness][[Legend]]                               Fuller, brighter gradient colours (0 = as before; per track
+[Gradient Vividness][[Legend]]                               Fuller, brighter gradient colours (0 = unchanged; per track
                                                   in the individual settings).
 [Video Rounded Corners][[Legend]]                             Cut the picture's corners round, like the UI: off / on
                                                   (per track in the individual settings).
@@ -2289,15 +2290,18 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   of the dots changes, the picture stays as it is. Also in
                                                   the VIDEO SETTINGS overlay and, for one track, in the
                                                   Cover style overlay.
-[Cover Gradient Vividness:][[Legend]]                          0% .. 150% in steps of 5% (default 0%). Fuller, brighter
+[Cover Gradient Vividness:][[Legend]]                          as disk (default) or 0% .. 150% in steps of 5%. Fuller, brighter
                                                   gradient colours and dots of the disk behind the cover
                                                   (not the cover's own colours). Also per track.
-[Disk Gradient Vividness:][[Legend]]                           The same for the plain disk (no cover), 0 .. 150%.
+[Disk Gradient Vividness:][[Legend]]                           The same for the plain disk (no cover), 0 .. 150%; the idle
+                                                  cassette follows it too (default 0%).
 [Oscilloscope/Spectrogram/Bars/Volume Gradient Vividness:][[Legend]]
                                                   as disk (default) or 0 .. 150%: the same for the braille
                                                   scope and spectrogram, the bars and the volume bar. The
-                                                  radio has it for the ON / OFF AIR sign (Sign gradient
-                                                  vividness).
+                                                  radio has its own values for the ON / OFF AIR sign (Sign
+                                                  gradient vividness) and its bars (Bars Gradient Vividness).
+[Waveform Vividness:][[Legend]]                                0 .. 150% (default 0%): how vivid the played and remaining
+                                                  colours of the progress waveform are. Its own value.
 [Cover Search:][[Legend]]                                     says where the cover is looked for:
                                                   Default: first the picture inside the file (mp3 and the
                                                   other formats that can carry one). If it has none, the
@@ -2379,7 +2383,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 [On/Off:][[Legend]]                                           shows or hides the spectrum bars under the meta data
                                                   field.
 
-[Bars Style:][[Legend]]                                       Classic is the bar display as before. Hi-Fi is a stereo
+[Bars Style:][[Legend]]                                       Classic is the plain bar display. Hi-Fi is a stereo
                                                   analyzer in braille dots without gaps, one dot column
                                                   per frequency step, redrawn at the frame rate of the
                                                   program (default: Hi-Fi).
@@ -2431,6 +2435,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   bar.
 
 [Waveform Style][[Legend]]                                    Switched between raw / smooth, same as like [w].
+[Waveform Vividness][[Legend]]                               0 - 150 % (default 0 %): fuller, brighter played / remaining colours.
 
 [OSCI/SPECTRO SETTINGS:][[Header]]
 [Modes Share Settings:][[Legend]]                             on = the music, radio and audio book player use the
@@ -2452,7 +2457,8 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 [[New Page]]
 2.8.5 PATHS TAB [[Header]]
 
-[LOCAL PATH][[Header]] the folders scanned for music (several, plus "+ new path")
+[LOCAL PATH][[Header]] the folders scanned for music (several, plus "+ new path"; one LocalMusicPath= line
+each in config.txt)
 [DOWNLOAD PATH][[Header]]                                     where [y] saves streams
 [PLAYLIST PATH][[Header]]                                     one folder for all playlists
 [PLAYLIST EXPORT PATH][[Header]]                              where [e] writes M3U8 / M3U (default: playlists\export)
@@ -2508,6 +2514,13 @@ those, and it always shows the default keys.
 ABOUT APP TAB: [[Header]]
 The credits and versions, centred on the tab and placed in its vertical middle, two rows higher;
 [UP]/[DOWN] scroll it only when the window is too small.
+
+ONLY IN CONFIG.TXT: [[Header]]
+A few settings have no row in Settings: ConsoleVerbosity, AutoSave, AutoSaveDelayInSec, SidPlayLength,
+WizardSeen, the autosave indicator (AutoSaveIndicator, AutoSaveChr, AutoSaveIndicatorType, AutoSaveC1,
+AutoSaveC2), the frame characters (UpperLeftCorner, UpperRightCorner, BottomLeftCorner, LowerRightCorner,
+Vertical, Horizontal, Separator, ListSeparator) and font_en (the table of upper and lower case letters
+the keys use). Edit them while Mousiki is closed.
 
 
 [[New Page]]
@@ -2802,8 +2815,8 @@ default and never recorded), Timeshift buffer (5 / 15 / 30 / 45 / 60 minutes).
 
 ANIMA/VIZ: [[Header]]
 ON AIR SIGN: On air ascii, Sign border (the : : column beside the sign; off by default), Pulse wave,
-Gradient wave speed and Pulse wave speed. SEEK AND VOLUME: Dummy buttons and Volume indicator (the look of
-the VOLUME BAR, like in the player). Bars Style with the Hi-Fi rows, Bars Behavior, Bars Fluidity /
+Gradient wave speed, Pulse wave speed and Sign gradient vividness. SEEK AND VOLUME: Dummy buttons and Volume indicator (the look of
+the VOLUME BAR, like in the player). Bars Style with the Hi-Fi rows, Bars Gradient Vividness, Bars Behavior, Bars Fluidity /
 Degradation / Viscosity. OSCI/SPECTRO SETTINGS: Use oscilloscope / Use spectrogram, Osci/sphere (osci /
 sphere / spectro / off) and the option Osci style (braille / image).
 
@@ -2830,6 +2843,16 @@ e r t d f g) and the vi-style [j] / [k]. The cheat sheet [?] always lists the de
 
 THE FILES OF THE RADIO: [[Header]]
 radio_config.txt   settings, colors, equalizer, oscilloscope (keys as HKey<Action>= lines)
+                   Besides the rows of Settings it holds: ColorOnAir*, ColorVizCenter, ColorOsci*,
+                   ColorFrequency*, ColorVolume*, ColorPreset* (cells of the COLORS tab), OsciSphere,
+                   GradientWaveSpeed, PulseWaveSpeed, SignBorder, SignVividness, BarsVividness,
+                   TimeshiftMinutes, StationListsPath, PresetsPath, HistoryPath, DownloadPath,
+                   DownloadSameAsMusicPlayer, ListSeparator, the frame characters (BoxUpperLeft,
+                   BoxUpperRight, BoxLowerLeft, BoxLowerRight, BoxVertical, BoxHorizontal), the
+                   spectrogram values of its own (SpectroProfile1*, SpectroLastStyle*) and the keys
+                   HKeyMute, HKeyReconnect, HKeyVolumeUp, HKeyVolumeDown, HKeySort, HKeyOsciMenu,
+                   HKeyEqMenu, HKeyScopeToggle, HKeyScopeToggleBack, HKeyBack30, HKeyFwd30, HKeyBack5m
+                   and HKeyGoLive. The example radio_config.txt lists all of them.
 stations.txt       your station list                    presets.txt       the presets and the active one
 stationlists.txt   the saved station lists preset_names.txt the short names of the PRESETS pane
 radio_history/     history_radio.txt and archive_radio.txt
@@ -3457,7 +3480,12 @@ CoverBrightness                    50
 CoverColors                        0
 CoverGradientSaturation            30
 DiskVividness                      0
-CoverVividness                     0
+WaveformVividness                  0
+ScopeVividness                     as disk
+SpectrogramVividness               as disk
+BarsVividness                      as disk
+VolumeBarVividness                 as disk
+CoverVividness                     as disk
 BulkAddSave                        true
 BulkAddVideo                       false
 CoverChroma                        off
