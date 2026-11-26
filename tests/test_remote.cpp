@@ -17,7 +17,7 @@ int client(std::initializer_list<const char*> args) {
     for (auto& s : store) argv.push_back(s.data());
     return remote::client_main(static_cast<int>(argv.size()), argv.data());
 }
-void settle() { std::this_thread::sleep_for(std::chrono::milliseconds(120)); }   // poll() looks at most ten times a second
+void settle() { std::this_thread::sleep_for(std::chrono::milliseconds(300)); }   // poll() reads the folder at most every 250 ms; waiting longer keeps a slow machine from landing on either side of that
 }
 
 TEST(remote_command_reaches_the_program) {

@@ -298,6 +298,7 @@ void HistoryStore::load() {
     std::ostringstream ss;
     ss << in.rdbuf();
     std::string text = ss.str();
+    in.close();   // (Windows cannot rename a file that is still open: set_aside() below would fail and the damaged file would stay in the way)
 
     // A missing or corrupt file is not an error: history is a convenience
     // and must never be able to stop the app from starting.
