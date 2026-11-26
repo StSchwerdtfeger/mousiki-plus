@@ -119,7 +119,17 @@ void stop() {
 
 void tick(const char* mode) {
     if (!g_started) return;
-    if (Clock::now() - g_last_running >= std::chrono::seconds(2)) write_running(mode);
+    // The "running" file counts as fresh for 10 s (--status): it is touched every 4 s -- only its time changes (one small call), not
+    // a new file every 2 s, which kept a sleeping disk awake. It is written whole again when it is gone or when the mode changed.
+    if (Clock::now() - g_last_running < std::chrono::seconds(4)) return;
+    static std::string last_mode;
+    std::error_code ec;
+    if (last_mode == mode && fs::exists(running_file(), ec)) {
+        fs::last_write_time(running_file(), fs::file_time_type::clock::now(), ec);
+        if (!ec) { g_last_running = Clock::now(); return; }
+    }
+    last_mode = mode;
+    write_running(mode);
 }
 
 namespace {
@@ -142,7 +152,7 @@ std::vector<Command> poll() {
     for (Command& c : net::take_commands()) out.push_back(std::move(c));   // the remote app (network), not throttled
     for (Command& c : media::poll()) out.push_back(std::move(c));          // media keys / desktop widgets, not throttled
     const auto now = Clock::now();
-    if (now - g_last_poll < std::chrono::milliseconds(100)) return out;
+    if (now - g_last_poll < std::chrono::milliseconds(250)) return out;   // (a command from outside waits a quarter of a second at most; the folder is not read ten times a second)
     g_last_poll = now;
     std::error_code ec;
     std::vector<fs::path> files;

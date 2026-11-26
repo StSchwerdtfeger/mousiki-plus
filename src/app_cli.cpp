@@ -486,7 +486,7 @@ std::string App::cli_exec(const std::string& line_in, cli::Job& job, bool& ok, b
     }
     if (name == "cancel") {
         if (arg.empty() || ascii_lower_str(arg) == "all") { const size_t n = cli_timers_.size(); cli_timers_.clear(); return "cancelled " + std::to_string(n) + (n == 1 ? " timer" : " timers"); }
-        const int id = std::atoi(arg.c_str());
+        const int id = muisc::atoi_safe(arg.c_str());
         for (size_t i = 0; i < cli_timers_.size(); ++i) if (cli_timers_[i].id == id) { cli_timers_.erase(cli_timers_.begin() + static_cast<long>(i)); return "cancelled timer " + std::to_string(id); }
         return fail("no timer " + arg);
     }
@@ -663,7 +663,7 @@ std::string App::cli_exec(const std::string& line_in, cli::Job& job, bool& ok, b
         }
         if (ls == "shuffle") { if (queue_.size() < 2) return fail("nothing to shuffle"); queue_shuffle_order(); return "queue shuffled"; }
         if (ls == "remove") {
-            const int n = std::atoi(rest.c_str());
+            const int n = muisc::atoi_safe(rest.c_str());
             if (n < 1 || n > static_cast<int>(queue_.size())) return fail("queue remove <1.." + std::to_string(queue_.size()) + ">");
             const std::string t = queue_[static_cast<size_t>(n - 1)].title;
             queue_.erase(queue_.begin() + (n - 1));

@@ -139,7 +139,7 @@ void App::creator_open_file(const fs::path& wav) {
     auto audio = std::make_shared<creator::Stereo>();
     if (!creator::read_wav16(path_utf8(wav), *audio)) { creator_->status = "Could not read " + path_utf8(wav.filename()); return; }
     LocalTrack t;
-    t.title = path_utf8(wav.stem());
+    t.title = clean_tag_text(path_utf8(wav.stem()));
     t.path = wav;
     t.folder_artist = "creator";
     mode_ = Mode::Browse;
@@ -204,7 +204,7 @@ void App::creator_render_and_play() {
     log_event("Creator: saved " + path_utf8(out));
     rescan_library();
     LocalTrack t;
-    t.title = path_utf8(out.stem());
+    t.title = clean_tag_text(path_utf8(out.stem()));
     t.path = out;
     t.folder_artist = "creator";
     mode_ = Mode::Browse;

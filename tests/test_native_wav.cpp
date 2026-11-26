@@ -127,3 +127,58 @@ TEST(native_wav_knows_no_duration_for_a_format_with_an_average_byte_rate) {
     const fs::path f = write_file(home.path(), "float.wav", riff(fmt_chunk(3, 2, 44100, 32) + chunk("data", std::string(44100 * 8 * 2, '\x01'))));
     CHECK_EQ(probe_duration_native(f), 2u);
 }
+
+// ---- Ogg lengths ----------------------------------------------------------------------------------------------------------
+namespace {
+std::string ogg_page(const std::string& packet, uint64_t granule, bool first) {
+    std::string p = "OggS";
+    p += '\0'; p += first ? '\x02' : '\x00';
+    for (int i = 0; i < 8; ++i) p += static_cast<char>((granule >> (8 * i)) & 0xFF);
+    put32(p, 1); put32(p, 0); put32(p, 0);   // serial, page number, checksum (nothing here checks it)
+    p += '\x01'; p += static_cast<char>(packet.size());   // one segment
+    return p + packet;
+}
+}
+
+TEST(ogg_vorbis_length_uses_the_sample_rate_of_the_stream_and_opus_drops_its_pre_skip) {
+    mt::TempHome home;
+    std::string id = "\x01vorbis";
+    put32(id, 0); id += '\x02'; put32(id, 44100);   // version, channels, sample rate
+    id += std::string(8, '\0');
+    const std::string filler(5000, '\0');
+    const fs::path v = write_file(home.path(), "v.ogg", ogg_page(id, 0, true) + filler + ogg_page("x", 44100ull * 60, false));
+    CHECK_EQ(probe_duration_native(v), 60u);   // (48000 for every file gave 55)
+    std::string head = "OpusHead";
+    head += '\x01'; head += '\x02'; head += '\x38'; head += '\x01';   // version 1, 2 channels, pre-skip 312
+    put32(head, 44100);
+    head += std::string(3, '\0');
+    const fs::path o = write_file(home.path(), "o.opus", ogg_page(head, 0, true) + filler + ogg_page("x", 48000ull * 30 + 312, false));
+    CHECK_EQ(probe_duration_native(o), 30u);
+}
+
+// ---- MP4 with 64-bit boxes, big cover art before the ID3 text, MPEG Layer II ---------------------------------------------------
+namespace {
+std::string be32s(uint32_t v) { std::string s; for (int i = 3; i >= 0; --i) s += static_cast<char>((v >> (8 * i)) & 0xFF); return s; }
+std::string be64s(uint64_t v) { std::string s; for (int i = 7; i >= 0; --i) s += static_cast<char>((v >> (8 * i)) & 0xFF); return s; }
+}
+
+TEST(mp4_length_is_found_behind_a_box_with_a_64_bit_size) {
+    mt::TempHome home;
+    std::string mvhd = std::string("\0\0\0\0", 4) + be32s(0) + be32s(0) + be32s(1000) + be32s(90000) + std::string(40, '\0');   // version 0: 90 s
+    std::string mvhd_box = be32s(8 + static_cast<uint32_t>(mvhd.size())) + "mvhd" + mvhd;
+    std::string moov = be32s(8 + static_cast<uint32_t>(mvhd_box.size())) + "moov" + mvhd_box;
+    std::string big_free = be32s(1) + "free" + be64s(16 + 100) + std::string(100, 'x');   // a 64-bit sized box in front of moov
+    const fs::path p = write_file(home.path(), "x.m4a", std::string("\0\0\0\x08" "ftyp", 8) + big_free + moov);
+    CHECK_EQ(probe_duration_native(p), 90u);
+}
+
+TEST(id3_tag_cut_off_by_the_read_cap_is_left_to_ffprobe) {
+    mt::TempHome home;
+    // an ID3v2.3 tag of 3 MB whose first frame is a 3 MB picture: the text frames behind it are never reached
+    const uint32_t picture = 3u * 1024 * 1024;
+    const uint32_t tag = picture + 10;
+    auto syncsafe = [](uint32_t v) { std::string s; for (int i = 3; i >= 0; --i) s += static_cast<char>((v >> (7 * i)) & 0x7F); return s; };
+    std::string data = "ID3" + std::string("\x03\x00\x00", 3) + syncsafe(tag) + "APIC" + be32s(picture) + std::string("\0\0", 2) + std::string(picture, 'p');
+    const fs::path p = write_file(home.path(), "cover.mp3", data);
+    CHECK(!probe_id3v2_native(p).resolved);
+}

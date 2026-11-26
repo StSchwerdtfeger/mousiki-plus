@@ -157,6 +157,9 @@ constexpr int kKeyDegree = 325;
 // for a moment. terminal_hold_alt_screen() is called by the mode that is ending, right before its TerminalIO is
 // destroyed; terminal_release_alt_screen() (main(), when no mode took the screen over) puts the shell back.
 void terminal_hold_alt_screen();
+// SIGTERM / SIGHUP (the system shuts down, the terminal window closes): the first one only asks the program to end the normal way
+// (so it saves); a second one, or no end within 5 s, ends it at once. The main loops look at this once per round.
+bool terminal_quit_signalled();
 void terminal_release_alt_screen();
 // Black terminal background (Settings -> GENERAL -> TERMINAL -> Black Background): on = OSC 11 sets the terminal's default
 // background to black while Mousiki runs; the first time, the terminal is asked for its own colour (Linux / macOS), and

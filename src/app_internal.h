@@ -1,4 +1,5 @@
 #pragma once
+#include <cctype>
 #include <memory>
 #include <thread>
 // Helpers that app.cpp and the files split out of it (app_meta.cpp, app_history.cpp, app_readlyrics.cpp, app_library.cpp, app_playback.cpp,

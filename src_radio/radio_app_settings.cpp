@@ -34,7 +34,7 @@ void RadioApp::storage_changed() {
     std::string msg;
     if (np.stations_file != storage.stations_file || np.lists_file != storage.lists_file || np.presets_file != storage.presets_file) {
         engine.stop();   // the station numbers change with the files
-        set_storage_files(np.stations_file.string(), np.lists_file.string(), np.presets_file.string());
+        set_storage_files(muisc::path_utf8(np.stations_file), muisc::path_utf8(np.lists_file), muisc::path_utf8(np.presets_file));
         load_storage();
         ui.model.search_lists = false; ui.model.active_list.clear();
         ui.refilter(); ui.refilter_menu(); ui.refilter_presets(); ui.refilter_lists_stations(); ui.refilter_saved_lists(); ui.refilter_main_lists();

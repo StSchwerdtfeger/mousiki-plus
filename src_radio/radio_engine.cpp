@@ -1,6 +1,7 @@
 // The radio engine: plays the station streams, keeps a 10 second timeshift ring, records to file and
 // switches between stations.
 #include "radio_engine.h"
+#include "path_utf8.h"
 #include "scope_window.h"
 #include "milkdrop.h"
 #include "spectrogram.h"
@@ -136,8 +137,8 @@ struct TimeshiftStore {
         path = p;
         cap = std::max<long long>(cap_frames, kRate * 60);
         std::error_code ec;
-        std::filesystem::create_directories(std::filesystem::path(p).parent_path(), ec);
-        f = std::fopen(p.c_str(), "w+b");
+        std::filesystem::create_directories(muisc::path_from_utf8(p).parent_path(), ec);
+        f = muisc::fopen_utf8(p, "w+b");
         end.store(0);
         return f != nullptr;
     }
@@ -145,7 +146,7 @@ struct TimeshiftStore {
         std::lock_guard<std::mutex> lk(m);
         if (f) { std::fclose(f); f = nullptr; }
         std::error_code ec;
-        if (!path.empty()) std::filesystem::remove(path, ec);
+        if (!path.empty()) std::filesystem::remove(muisc::path_from_utf8(path), ec);
     }
     unsigned reset() {
         std::lock_guard<std::mutex> lk(m);
@@ -294,8 +295,8 @@ struct Recorder {
         std::lock_guard<std::mutex> lk(m);
         if (f || active.load()) { if (err) *err = "already recording"; return false; }
         std::error_code ec;
-        std::filesystem::create_directories(std::filesystem::path(wav_path).parent_path(), ec);
-        f = std::fopen(wav_path.c_str(), "wb");
+        std::filesystem::create_directories(muisc::path_from_utf8(wav_path).parent_path(), ec);
+        f = muisc::fopen_utf8(wav_path, "wb");
         if (!f) { if (err) *err = "cannot write " + wav_path; return false; }
         unsigned char h[44] = {'R','I','F','F',0,0,0,0,'W','A','V','E','f','m','t',' ',16,0,0,0,1,0,2,0,0,0,0,0,0,0,0,0,4,0,16,0,'d','a','t','a',0,0,0,0};
         put_u32(h + 24, kRate); put_u32(h + 28, kRate * kChannels * 2);
@@ -355,14 +356,14 @@ struct Recorder {
             std::string result;
             try {
             if (fr < kRate / 2) {   // under half a second: nothing worth keeping
-                std::error_code ec; std::filesystem::remove(w, ec);
+                std::error_code ec; std::filesystem::remove(muisc::path_from_utf8(w), ec);
                 result = "recording too short, discarded";
             } else {
                 const Args cmd = {"ffmpeg", "-nostdin", "-v", "error", "-y", "-i", w, "-c:a", "libmp3lame", "-q:a", "2",
                                   "-metadata", "title=" + t, o};
                 ProcResult r = run_capture(cmd, true);
                 std::error_code ec;
-                if (r.ok() && std::filesystem::exists(o, ec)) { std::filesystem::remove(w, ec); result = "saved " + o; }
+                if (r.ok() && std::filesystem::exists(muisc::path_from_utf8(o), ec)) { std::filesystem::remove(muisc::path_from_utf8(w), ec); result = "saved " + o; }
                 else result = "mp3 conversion failed, kept " + w;
             }
             } catch (...) { result = "mp3 conversion failed, kept " + w; }   // (the counter below must be counted down whatever happens)
@@ -923,9 +924,9 @@ bool RadioEngine::start_recording(const std::string& dir, const std::string& ste
         std::lock_guard<std::mutex> lk(impl_->session_m);
         if (!impl_->session) { if (err) *err = "nothing tuned"; return false; }
     }
-    const std::filesystem::path base = std::filesystem::path(dir) / stem;
+    const std::filesystem::path base = muisc::path_from_utf8(dir) / muisc::path_from_utf8(stem);
     if (from_frame < 0) from_frame = impl_->ring->heard_abs();
-    return g_rec.start(impl_->store, from_frame, base.string() + ".wav", base.string() + ".mp3", title, err);
+    return g_rec.start(impl_->store, from_frame, muisc::path_utf8(base) + ".wav", muisc::path_utf8(base) + ".mp3", title, err);
 }
 void RadioEngine::stop_recording() { g_rec.stop(impl_->ring->heard_abs()); }
 

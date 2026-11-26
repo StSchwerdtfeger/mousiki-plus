@@ -349,7 +349,7 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsScope: return scope_mode_name(s);
         case kRsOrder1: case kRsOrder2: case kRsOrder3: case kRsOrder4: { static const char* n[4] = {"osci", "sphere", "spectro", "milkdrop"}; return n[std::clamp(s.viz_order[id - kRsOrder1], 0, 3)]; }
         case kRsOsciStyle: return s.osci_style == 1 ? "image" : "braille";
-        case kRsMdPreset: return (s.md_default_preset.empty() ? std::string("none (one from the list)") : truncate_str(path_utf8(path_from_utf8(s.md_default_preset).stem()), 40)) + "  [ENTER] choose, [d] clear";
+        case kRsMdPreset: return (s.md_default_preset.empty() ? std::string("none (one from the list)") : truncate_str(muisc::path_utf8(muisc::path_from_utf8(s.md_default_preset).stem()), 40)) + "  [ENTER] choose, [d] clear";
         case kRsMdBrowse: return "[ENTER] open";
         case kRsMdRandom: return "[ENTER] a random preset";
         case kRsMdFps: return std::to_string(s.md_fps) + " fps";
@@ -1072,7 +1072,7 @@ RadioSettings load_radio_settings(std::string* source_out) {
         s.remote_app = rc.enabled; s.remote_port = rc.port; s.remote_pin = rc.pin; s.remote_cli = rc.cli; s.remote_hosts = rc.hosts;
         return s;
     }
-    if (source_out) *source_out = p.string();
+    if (source_out) *source_out = muisc::path_utf8(p);
     std::map<std::string, std::string> kv;
     std::vector<std::string> eq_preset_lines;
     std::string line;
@@ -1560,7 +1560,7 @@ bool save_radio_settings(const RadioSettings& s, std::string* err) {
         }
     }
     write_radio_settings(o, s);
-    if (!write_text_atomic(target, o.str())) { if (err) *err = "cannot write " + path_utf8(target); return false; }
+    if (!write_text_atomic(target, o.str())) { if (err) *err = "cannot write " + muisc::path_utf8(target); return false; }
     if (s.share_profiles) {   // the radio's edits of the shared settings go to the player's config.txt
         VizPrefs now;
         if (read_player_viz(now) && viz_text(now) != viz_text(s)) write_player_viz(s);

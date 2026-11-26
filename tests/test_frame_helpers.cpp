@@ -130,3 +130,22 @@ TEST(the_cover_gradient_strength_runs_from_the_plain_blend_to_the_full_saturatio
     CHECK(gradient_step(215, 95, 215, 0, 135, 135, 0.0, 1.0) == (std::array<uint8_t, 3>{215, 95, 215}));       // the ends stay the chosen colours at every strength
     CHECK(gradient_step(215, 95, 215, 0, 135, 135, 1.0, 1.0) == (std::array<uint8_t, 3>{0, 135, 135}));
 }
+
+// ---- guard_frame: what a frame may hold ----------------------------------------------------------------------------------------
+#include "frame_guard.h"
+TEST(guard_frame_keeps_colours_moves_and_pictures_and_drops_hostile_escapes) {
+    const std::string ok = "\x1b[?25l\x1b[1;1H\x1b[38;2;1;2;3mhello\x1b[0m\x1b[K\nline\x1b_Ga=T,f=100;AAAA\x1b\\\x1bP0;1;0q\"1;1;2;2~\x1b\\";
+    CHECK_EQ(muisc::guard_frame(ok), ok);
+    // a file name with OSC 0 (window title) and OSC 52 (clipboard), a CSI that makes the terminal answer, a bell, a C1 CSI, a DCS
+    const std::string evil = "File: a\x1b]0;PWNED\x07" "b\x1b]52;c;ZXZpbA==\x1b\\" "c\x1b[21t" "d\x1b[6n" "e\x07" "f\xC2\x9B" "g\x1bP$qm\x1b\\h";
+    const std::string clean = muisc::guard_frame(evil);
+    CHECK(clean.find("\x1b]") == std::string::npos);
+    CHECK(clean.find('\x07') == std::string::npos);
+    CHECK(clean.find("21t") == std::string::npos);
+    CHECK(clean.find("6n") == std::string::npos);
+    CHECK(clean.find("\xC2\x9B") == std::string::npos);
+    CHECK(clean.find("\x1bP") == std::string::npos);
+    CHECK(clean.find("File: a") == 0);
+    CHECK_EQ(muisc::guard_frame("plain"), std::string("plain"));
+    CHECK_EQ(muisc::guard_frame("a\x1b[3"), std::string("a"));   // a cut-off sequence
+}

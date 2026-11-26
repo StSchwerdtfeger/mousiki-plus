@@ -97,6 +97,33 @@ PinGuard& guard_for(const std::string& peer, Clock::time_point now) {
     return g;
 }
 
+// The lock-out above is per address, so someone who has many addresses on the network could still try a PIN a few thousand times an
+// hour. A second limit counts the wrong PINs of ALL addresses that have not shown the right PIN yet: kGlobalBad of them within
+// kGlobalWindow close the door for every such address until the window is over -- a right PIN gets no answer either, so the door
+// is no oracle. An address that did show the right PIN (the phone, Home Assistant) is not affected: an attacker cannot lock the owner out.
+constexpr int kGlobalBad = 30;
+constexpr auto kGlobalWindow = std::chrono::minutes(10);
+int g_global_bad = 0;
+Clock::time_point g_global_since{};
+std::map<std::string, Clock::time_point> g_trusted;   // address -> when it last showed the right PIN
+constexpr size_t kMaxTrusted = 64;
+bool global_locked(Clock::time_point now) {
+    if (g_global_bad > 0 && now - g_global_since > kGlobalWindow) g_global_bad = 0;
+    return g_global_bad >= kGlobalBad;
+}
+void global_count_bad(Clock::time_point now) {
+    if (g_global_bad == 0 || now - g_global_since > kGlobalWindow) { g_global_bad = 0; g_global_since = now; }
+    ++g_global_bad;
+}
+void trust(const std::string& peer, Clock::time_point now) {
+    if (g_trusted.find(peer) == g_trusted.end() && g_trusted.size() >= kMaxTrusted) {
+        auto oldest = g_trusted.begin();
+        for (auto i = g_trusted.begin(); i != g_trusted.end(); ++i) if (i->second < oldest->second) oldest = i;
+        g_trusted.erase(oldest);
+    }
+    g_trusted[peer] = now;
+}
+
 std::string page() {
     std::string s;
     for (const char* const* p = kRemotePage; *p; ++p) s += *p;
@@ -134,6 +161,7 @@ std::string reply(int code, const char* type, const std::string& body) {
     r += std::string("Content-Type: ") + type + "\r\n";
     r += "Content-Length: " + std::to_string(body.size()) + "\r\n";
     r += "Cache-Control: no-store\r\n";
+    r += "X-Content-Type-Options: nosniff\r\nX-Frame-Options: DENY\r\nReferrer-Policy: no-referrer\r\n";   // (no other page may frame the remote or guess its types)
     // (no Access-Control-Allow-Origin: the page and the API come from the same address, and no other web page may read the answers)
     r += "Connection: close\r\n\r\n";
     return r + body;
@@ -189,15 +217,30 @@ void serve_one(sock_t c, std::string ip) {
         const size_t eol = req.find_first_of("\r\n");
         std::string out;
         std::string host;
+        Headers hdr;
+        auto trim = [](std::string v) {
+            while (!v.empty() && (v.front() == ' ' || v.front() == '\t')) v.erase(v.begin());
+            while (!v.empty() && (v.back() == ' ' || v.back() == '\t' || v.back() == '\r')) v.pop_back();
+            return v;
+        };
         for (size_t p = eol == std::string::npos ? std::string::npos : req.find('\n', eol); p != std::string::npos && p + 1 < req.size();) {
             const size_t e = req.find('\n', p + 1);
             const std::string ln = req.substr(p + 1, e == std::string::npos ? std::string::npos : e - p - 1);
-            if (ln.size() > 5 && ln[4] == ':' && std::tolower(static_cast<unsigned char>(ln[0])) == 'h' && std::tolower(static_cast<unsigned char>(ln[1])) == 'o' &&
-                std::tolower(static_cast<unsigned char>(ln[2])) == 's' && std::tolower(static_cast<unsigned char>(ln[3])) == 't') { host = ln.substr(5); break; }
+            const size_t colon = ln.find(':');
+            if (colon != std::string::npos) {
+                std::string name = ln.substr(0, colon);
+                for (char& ch : name) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+                const std::string value = trim(ln.substr(colon + 1));
+                if (name == "host") host = ln.substr(colon + 1);
+                else if (name == "sec-fetch-site") hdr.sec_fetch_site = value;
+                else if (name == "origin") hdr.origin = value;
+                else if (name == "x-mousiki-pin") hdr.pin = value;
+            }
             p = e;
         }
-        try { out = handle_request(eol == std::string::npos ? req : req.substr(0, eol), ip, host); }
+        try { out = handle_request(eol == std::string::npos ? req : req.substr(0, eol), ip, host, hdr); }
         catch (...) { out = reply(500, "text/plain; charset=utf-8", "internal error"); }   // (an exception out of this thread would end the player)
+        if (req.compare(0, 5, "HEAD ") == 0) { const size_t hend = out.find("\r\n\r\n"); if (hend != std::string::npos) out.resize(hend + 4); }   // HEAD: the head of the answer, no body
         size_t sent = 0;
         while (sent < out.size()) {
 #if defined(MSG_NOSIGNAL)
@@ -250,6 +293,8 @@ void serve_loop(sock_t listener) {
 void stop_locked() {
     if (g_thread.joinable()) {
         g_stop = true;
+        { std::lock_guard<std::mutex> rl(g_reply_mu); }   // (so that a /api/cli that is about to wait sees the stop)
+        g_reply_cv.notify_all();                          // ... and one that waits for its answer (up to 30 s) ends now
         g_thread.join();
     }
     g_stop = false;
@@ -337,13 +382,23 @@ bool host_ok(const std::string& host_in, const std::string& extra) {
     return false;
 }
 
-std::string handle_request(const std::string& request_line, const std::string& peer, const std::string& host) {
+std::string handle_request(const std::string& request_line, const std::string& peer, const std::string& host, const Headers& hdr) {
     std::string path;
     std::vector<std::pair<std::string, std::string>> q;
     if (!parse_request_line(request_line, path, q)) return json_reply(400, "{\"error\":\"bad request\"}");
     {   // the Host check (DNS rebinding): needs g_cfg, so under the lock
         std::lock_guard<std::mutex> lk(g_mu);
         if (!host_ok(host, g_cfg.hosts)) return json_reply(400, "{\"error\":\"bad Host: use the computer's address (an IP address), or a name listed in RemoteAppHosts\"}");
+    }
+    // A web page the owner happens to visit can make the browser send requests to this address (a blind carrier). The browser says
+    // so: Sec-Fetch-Site is cross-site / same-site for such a request (the remote's own page sends same-origin, curl and the phone
+    // app send nothing), and Origin names the other page. Such a request gets nothing, not even the page.
+    if (hdr.sec_fetch_site == "cross-site" || hdr.sec_fetch_site == "same-site") return json_reply(403, "{\"error\":\"not from another web page\"}");
+    if (!hdr.origin.empty() && hdr.origin != "null") {
+        std::string h = host;
+        while (!h.empty() && (h.front() == ' ' || h.front() == '\t')) h.erase(h.begin());
+        while (!h.empty() && (h.back() == ' ' || h.back() == '\t' || h.back() == '\r')) h.pop_back();
+        if (hdr.origin != "http://" + h) return json_reply(403, "{\"error\":\"not from another web page\"}");
     }
     if (path == "/" || path == "/index.html") return reply(200, "text/html; charset=utf-8", page());
     if (path == "/favicon.ico") return reply(404, "text/plain", "");
@@ -355,15 +410,20 @@ std::string handle_request(const std::string& request_line, const std::string& p
     // does not count as a wrong PIN: the scan must not lock the phone itself out. Only that no-PIN form ("pin=0" or no pin at all;
     // a real PIN is 4 to 8 digits, so it can never be either) passes uncounted -- any other wrong PIN goes through the lock-out below,
     // or this answer ("pin":false or not) would let a guesser try every PIN without ever being locked.
-    if (path == "/api/hello" && (get(q, "pin").empty() || get(q, "pin") == "0"))
+    if (path == "/api/hello" && hdr.pin.empty() && (get(q, "pin").empty() || get(q, "pin") == "0"))
         return json_reply(200, "{\"ok\":true,\"pin\":false}");   // (the phone's network scan only needs to know that this is Mousiki; version and mode come with the PIN)
     PinGuard& guard = guard_for(peer, now);
     if (now < guard.locked_until) return json_reply(429, "{\"error\":\"too many wrong PINs, wait a minute\"}");
-    if (get(q, "pin") != g_cfg.pin || g_cfg.pin.empty()) {
+    const bool known = g_trusted.count(peer) > 0;
+    if (!known && global_locked(now)) return json_reply(429, "{\"error\":\"too many wrong PINs from other devices, wait a few minutes\"}");
+    const std::string given = !hdr.pin.empty() ? hdr.pin : get(q, "pin");   // the header (X-Mousiki-Pin) keeps the PIN out of logs and history
+    if (given != g_cfg.pin || g_cfg.pin.empty()) {
         if (++guard.bad >= 10) { guard.bad = 0; guard.locked_until = now + std::chrono::seconds(60); }
+        if (!known) global_count_bad(now);
         return json_reply(403, "{\"error\":\"wrong PIN\"}");
     }
     guard.bad = 0;
+    trust(peer, now);
 
     if (path == "/api/hello")
         return json_reply(200, std::string("{\"ok\":true,\"version\":\"") + tinyjson::escape(MOUSIKI_VERSION) + "\",\"mode\":\"" + tinyjson::escape(g_mode) + "\"}");
@@ -414,7 +474,8 @@ std::string handle_request(const std::string& request_line, const std::string& p
         g_screen_asked = now;
         lk.unlock();
         std::unique_lock<std::mutex> rl(g_reply_mu);
-        const bool got = g_reply_cv.wait_for(rl, std::chrono::seconds(wait_s), [&] { return g_replies.count(c.id) > 0; });
+        const bool got = g_reply_cv.wait_for(rl, std::chrono::seconds(wait_s), [&] { return g_replies.count(c.id) > 0 || g_stop.load(); });
+        if (g_stop.load() && g_replies.count(c.id) == 0) return json_reply(503, "{\"ok\":false,\"error\":\"the program is closing\"}");   // (the stop does not wait for a long answer)
         if (!got) return json_reply(504, "{\"ok\":false,\"error\":\"no answer (the program is busy or the line waits: wait=<s> up to 30)\"}");
         const auto it = g_replies.find(c.id);
         const bool ok = it->second.first;
@@ -445,7 +506,7 @@ void deliver_reply(const std::string& id, bool ok, const std::string& text) {
 
 void configure(const Config& c) {
     std::lock_guard<std::mutex> lk(g_mu);
-    if (c.pin != g_cfg.pin) g_guards.clear();   // a new PIN (set at the computer) ends every lock-out
+    if (c.pin != g_cfg.pin) { g_guards.clear(); g_trusted.clear(); g_global_bad = 0; }   // a new PIN (set at the computer) ends every lock-out
     const bool same = c.enabled == g_cfg.enabled && c.port == g_cfg.port && c.pin == g_cfg.pin && c.cli == g_cfg.cli && c.hosts == g_cfg.hosts;
     if (same && (g_running.load() || !c.enabled || !g_error.empty())) return;
     // the PIN can change while it runs; a new port or on/off needs a new listener

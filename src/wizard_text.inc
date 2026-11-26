@@ -658,6 +658,8 @@ indicates which playback mode is currently active. Use [m] to step through them.
 
 S[[Header]] ==[[Header]] SHUFFLE MODE[[Header]]
 Shuffles through tracks that are currently in the local audio files list (search filters apply!).
+Every track comes once before any comes twice. [b] (previous) goes back to the track heard before;
+more than 3 s into a track it starts the track again.
 Note that you can also actively shuffle to next song in the list via [#].
 The QUEUE is never shuffled: [n] and the end of a track play its next title in order; only [#]
 picks a random title of the queue.
@@ -776,9 +778,9 @@ COVER STYLE OVERLAY:[[Header]] a small overlay with the cover look of THIS track
                       Vividness and Cover Chromatic Aberration.
 [Gradient Vividness:][[Legend]]   0 - 150 %: brighter, fuller gradient colours and dots of the disk (not the cover's own colours). 100 % gives
                       the colours of the neon edge looks of the video and MilkDrop; above it only a little glow is added.
-                      "as disk" (the default) follows Disk Gradient Vividness.
 )WIZ",
-R"WIZ([Management:][[Legend]]           INDIVIDUAL TRACK SETTINGS MANAGEMENT: "Reset cover to default settings" removes the
+R"WIZ(                      "as disk" (the default) follows Disk Gradient Vividness.
+[Management:][[Legend]]           INDIVIDUAL TRACK SETTINGS MANAGEMENT: "Reset cover to default settings" removes the
                       track's own cover values; "Set individual cover settings as default settings" makes
                       them the default values (config.txt); "Undo change" takes the last change back.
                       [ENTER] is in the legend colours when there is nothing to do.
@@ -910,11 +912,11 @@ LATIN LETTERS: [SHIFT+'] (the ["] key, as set in Hotkeys) shows Japanese, Korean
 text in Latin letters, on / off, in both tabs, also while typing (no ["] can be typed there).
 
 SAVE/DISCARD: Save via [CTRL+s] and just choose [No] when exiting the playlist
-editor to discard your current playlist.
+)WIZ",
+R"WIZ(editor to discard your current playlist.
 
 ADD A TRACK DIRECTLY: [[Header]]
-)WIZ",
-R"WIZ(In the MAIN UI's track list (library / search results, not this editor's
+In the MAIN UI's track list (library / search results, not this editor's
 picker) press [SHIFT+a], choose a new or an existing playlist and hit
 [ENTER]: the track is added and the playlist saved without opening this
 editor. YouTube/SoundCloud/Bandcamp tracks are downloaded into the
@@ -1036,9 +1038,9 @@ Marks:[[Header]] [ ] not searched  [~] searching  [?] several videos, a choice i
 [SPACE]      choose the highlighted video (the cursor stays on that song)
 [c]          clear the choice          [o] open the video page
 [s]          search the song again     [SHIFT+s] search every shown song, one after the other
-[CTRL+t]     search with file name + tags / file name / tags
 )WIZ",
-R"WIZ([/]          jump to the filter (German keyboard: SHIFT+7)
+R"WIZ([CTRL+t]     search with file name + tags / file name / tags
+[/]          jump to the filter (German keyboard: SHIFT+7)
 [CTRL+f]     songs without a video (default) / all songs / songs with a video / only the chosen ones
 [r]          fetch a song again that has a video: warns first, the old video is unassigned
              (the file stays on the disk)
@@ -1147,9 +1149,9 @@ library, and it can be undone.
 [ESC:][[Legend]]                      Closes.
 [Old lyrics:][[Legend]]               The lyrics in use so far are kept as an older version. A re-fetch never
                           replaces lyrics added by hand: the fetched ones are saved as an older version you
-                          can switch to.
 )WIZ",
-R"WIZ(
+R"WIZ(                          can switch to.
+
 LYRICS RUNNING EARLY OR LATE: THE TIMING OVERLAY[[Header]]
 [ALT+L] (macOS: [SHIFT+j]) opens the overlay, on the main screen and in karaoke mode (only while synced
 lyrics are loaded). The lines move live while you adjust, so you can judge the offset by ear.
@@ -3166,14 +3168,17 @@ Long press on the phone: its own settings (base colours, size of the braille dot
 NO CONNECTION? [[Header]] same Wi-Fi? A VPN blocks the home network unless "local network access" is allowed in it.
 Windows: [f] in the overlay opens the port in the firewall. Test: http://127.0.0.1:4747 on the computer.
 SAFE: [[Header]] off by default, home network only (other addresses are turned away), PIN for every
-command, 10 wrong PINs lock that one device out for a minute (not your phone). Plain HTTP: use it on
-a network you trust. Windows asks once whether Mousiki may accept connections: allow private networks.
+command, 10 wrong PINs lock that one device out for a minute (not your phone), and 30 wrong PINs from
+devices that never showed the right one close the door to such new devices for 10 minutes. A web page
+in your browser cannot use the remote. Plain HTTP: use it on a network you trust. Windows asks once whether Mousiki may accept connections: allow private networks.
 
 ABOUT THE PIN: [[Header]] it keeps others on your Wi-Fi from using the remote, it is not a strong lock: 4 to 8
-digits, and the connection is plain HTTP, so the PIN travels unencrypted (anyone who can read your
-network traffic sees it) and sits in the address (?pin=...), so it can land in a browser history or
 )WIZ",
-R"WIZ(in the logs of a router, a proxy or Home Assistant. The lock-out counts per device. Use 6 to 8
+R"WIZ(digits, and the connection is plain HTTP, so the PIN travels unencrypted (anyone who can read your
+network traffic sees it) and sits in the address (?pin=...), so it can land in a browser history or
+in the logs of a router, a proxy or Home Assistant (scripts can send it in the header X-Mousiki-Pin
+instead). The lock-out counts per device, and 30 wrong guesses in 10 minutes shut the door for devices
+that have not shown the right PIN yet. Use 6 to 8
 digits ([n] makes a random one), only a network you trust, NEVER forward the port to the internet
 (use a VPN into your home network instead), and press [n] for a new PIN if you think it got out.
 
@@ -3281,13 +3286,13 @@ seeks in beta. mousiki --query help gives the list of commands as its answer.
  playlist <n>            queue playlist n (starts it if idle)  playlist 1 queued: 4 titles  now: ...
  rescan                  read the music folders again          scanning the music folders
  update / update yt-dlp  compare / update yt-dlp (scripts:     comparing yt-dlp ... (the answer
-                         force update yt-dlp; the radio: typed) follows in the status line, the log)
+)WIZ",
+R"WIZ(                         force update yt-dlp; the radio: typed) follows in the status line, the log)
  open <where>            console settings cheatsheet wizard    opened settings
                          history queue folders equalizer
                          playlist scripts
  settings [words]        the settings `set` can change         2: VideoGradientSaturation=85 ...
-)WIZ",
-R"WIZ( set <setting> <value>   change and SAVE a flag or number      VideoGradientSaturation=60 (saved)
+ set <setting> <value>   change and SAVE a flag or number      VideoGradientSaturation=60 (saved)
  get <setting>           read a setting                        85
  * asks for confirmation, see SAFETY (5.1.7)
 
@@ -3409,16 +3414,17 @@ ALSO IN THE RADIO: [[Header]]
  mousiki --run meow                   run a script
  mousiki --scripts                    list the scripts
  mousiki --status                     what plays; also --json, a key (volume), --format "{title}"
- Example:  mousiki --query "playlist 1; play cupid"
+)WIZ",
+R"WIZ( Example:  mousiki --query "playlist 1; play cupid"
 
 HTTP FOR HOME ASSISTANT AND SCRIPTS ON OTHER COMPUTERS: [[Header]]
  1. Settings -> GENERAL -> CLI / REMOTE / UPDATES -> Remote App: ON (note the address and the PIN).
  2. config.txt:  RemoteAppCli=true   (off by default; read at the start)
  3. GET http://<address>:4747/api/cli?pin=<PIN>&line=<command line, url-encoded>[&wait=<s>]
-)WIZ",
-R"WIZ(    answers {"ok":true,"reply":"...","lines":["...","..."]}   ok:false = the command failed.
+    answers {"ok":true,"reply":"...","lines":["...","..."]}   ok:false = the command failed.
     403 = wrong PIN or RemoteAppCli is off, 504 = no answer within wait (4 s, up to 30).
     GET /api/status?pin=<PIN> gives the playing state as JSON.
+    The PIN can also come in a header (X-Mousiki-Pin: <PIN>) instead of ?pin=: it then stays out of logs.
 
 LIMITS: [[Header]]
  A name (not an IP address)   needs RemoteAppHosts=name1,name2 in config.txt (DNS rebinding protection: any
@@ -3602,7 +3608,8 @@ MilkDropSixelColors                adaptive
 VizOrder                           sphere,osci,spectro,lyrics,video,m
 OsciDecay                          0.80
 OsciDotThreshold                   0.28
-OsciTailBrightness                 0.45
+)WIZ",
+R"WIZ(OsciTailBrightness                 0.45
 OsciInterpolation                  true
 OsciZAxis                          false
 OsciZDepth                         0.70
@@ -3614,8 +3621,7 @@ OsciPalette                        gradient
 OsciGlow                           0.60
 OsciFrameRate                      30
 OsciMusicMode                      false
-)WIZ",
-R"WIZ(OsciCrtBeam                        false
+OsciCrtBeam                        false
 OsciLowRateBlanking                true
 OsciDwellBrightness                true
 OsciRoughMode                      true
@@ -3807,7 +3813,8 @@ ToggleLyricsBack                   ,
 ShuffleNext                        #
 CoverFetch                         ALT+C
 RetryLyrics                        l
-Video                              Y
+)WIZ",
+R"WIZ(Video                              Y
 ToggleMute                         x
 AudioDevice                        &
 Menus                              <
@@ -3820,8 +3827,7 @@ CoverNext                          CTRL+Z
 ToggleLyrics                       .
 Playlist                           P
 QueueMoveUp                        4
-)WIZ",
-R"WIZ(SleepTimer                         Z
+SleepTimer                         Z
 Cheatsheet                         ?
 SpectroWindow                      (
 MilkdropWindow                     ;

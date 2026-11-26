@@ -174,6 +174,7 @@ private:
     std::string file_utf8() const;
     HistoryArchive archive_;
     std::vector<HistoryPlay> plays_;  // newest first, capped
+    bool keep_file_ = false;          // the file on disk could not be read and could not be set aside: save() leaves it alone
     int live_index_ = -1;             // index of the in-progress record, -1 when none
 };
 

@@ -120,6 +120,7 @@ void App::launch_load_async(fs::path local_path, std::string title, std::string 
         video_audio = video_source_for(local_path);
     LoadJob job;
     job.local_path = local_path; job.title = title; job.artist = artist; job.location_label = location_label; job.is_local = is_local;
+    job.force_windowed = next_load_windowed_; next_load_windowed_ = false;
     job.video_id = video_id; job.want_stereo = want_stereo; job.sid_seconds = sid_seconds; job.video_audio = video_audio;
     // Gapless: the audio thread went into this very track already (gapless_tick()); what the preload made is the load
     if (gap_.switched && is_local && gap_.switched_job && local_path == path_from_utf8(gap_.path)) {
@@ -241,7 +242,7 @@ void App::load_job(const LoadJob& j) {
         
         double duration = probe_duration_seconds(decode_from);
         t_probe = elapsed_s(t2);
-        pl.total_sec = duration > 0 ? static_cast<size_t>(duration) : 0;
+        pl.total_sec = (duration > 0 && !j.force_windowed) ? static_cast<size_t>(duration) : 0;   // (forced windowed: the real length is known once the decoder has been through the file)
 
         // the file's own sample rate: no resampling on the way to the device
         int rate = native_sample_rate(decode_from, video_audio.empty() ? pl.metadata.sampling : rate_hint, duration, settings_.rate_cap_96);
@@ -260,7 +261,7 @@ void App::load_job(const LoadJob& j) {
         }
         pl.pcm = std::make_shared<StreamingPcm>();
         pl.pcm->reserve_for_seconds(duration > 0 ? duration : 300.0, rate, want_stereo ? 2 : 1,
-                                    static_cast<double>(std::min(settings_.track_buffer_mb, Settings::track_buffer_cap_mb())) * 1024.0 * 1024.0, duration <= 0);
+                                    static_cast<double>(std::min(settings_.track_buffer_mb, Settings::track_buffer_cap_mb())) * 1024.0 * 1024.0, duration <= 0 || j.force_windowed);
         pl.success = true;
 
         if (!preload) write_load_timing_log(pl.title, is_local, t_resolve, t_probe, elapsed_s(t_start), "");
@@ -369,12 +370,13 @@ void App::launch_lyrics_fetch(std::string title, std::string artist, fs::path pa
 
 // The audio of the song that plays is loaded again (the choice "Use mp4 audio for this song" changed) and goes on at the time the old one had
 // reached; the pause stays. The listening history, the lyrics and the video view are not touched: it is the same play.
-void App::reload_current_audio() {
+void App::reload_current_audio(bool windowed) {
     if (!has_track_ || !current_.is_local || current_.path.empty()) return;
     if (load_in_progress_.load()) { status_line_ = "still loading -- the audio choice applies when the song starts the next time"; return; }
     const fs::path path = current_.path;
     const double pos = player_.poll_elapsed();
     const bool paused = player_.is_paused();
+    next_load_windowed_ = windowed;
     launch_load_async(path, path_utf8(path.stem()), "", path_utf8(path.parent_path().filename()) + "/", /*is_local=*/true, /*video_id=*/"");
     swap_pending_ = true; swap_pos_ = pos; swap_paused_ = paused; swap_path_ = path;
 }
@@ -455,6 +457,12 @@ void App::poll_pending_load() {
     current_.pcm = pl.pcm;
     total_sec_ = pl.total_sec;
     metadata_ = pl.metadata;
+    // The track that played until now goes onto the trail that Previous walks back along (shuffle) -- unless Previous itself brought this one.
+    if (!prev_going_back_ && has_track_ && !current_.path.empty()) {
+        prev_trail_.push_back(current_.is_local ? path_utf8(current_.path) : current_.video_id);
+        if (prev_trail_.size() > 200) prev_trail_.erase(prev_trail_.begin());
+    }
+    prev_going_back_ = false;
     current_.path = pl.path;
     current_.is_local = pl.is_local;
     // BULK ADD "play only": what the tracks before this one left behind goes now (their sound is decoded, nothing needs the files);
@@ -769,13 +777,25 @@ void App::play_relative(int delta) {
     play_selected();
 }
 
+std::string App::list_track_key(size_t i) const {
+    if (list_source_ == ListSource::Local) return i < local_view_.size() ? path_utf8(local_view_[i].path) : std::string();
+    return i < online_view_.size() ? online_view_[i].video_id : std::string();
+}
+
+// Shuffle as a bag (shuffle_bag.h): every track of the list comes once before any comes twice.
+int App::shuffle_pick_next(int len, int base) {
+    static std::mt19937 rng(std::random_device{}());
+    std::vector<std::string> keys;
+    keys.reserve(static_cast<size_t>(std::max(0, len)));
+    for (int i = 0; i < len; ++i) keys.push_back(list_track_key(static_cast<size_t>(i)));
+    return shuffle_bag_.pick(keys, base, rng);
+}
+
 void App::play_relative_random() {
     if (list_source_ == ListSource::Playlist || list_source_ == ListSource::Folder) return;
     size_t list_len = (list_source_ == ListSource::Local) ? local_view_.size() : online_view_.size();
     if (list_len == 0) return;
     if (list_len == 1) { selected_ = 0; play_selected(); return; }
-    static std::mt19937 rng(std::random_device{}());
-    std::uniform_int_distribution<int> dist(0, static_cast<int>(list_len) - 1);
     int base = current_track_list_index();
     if (base < 0) base = selected_;
     int next;
@@ -784,7 +804,7 @@ void App::play_relative_random() {
         path_utf8(local_view_[gap_.shuffle_pick].path) == gap_.shuffle_path)
         next = gap_.shuffle_pick;
     else
-        do { next = dist(rng); } while (next == base);
+        next = shuffle_pick_next(static_cast<int>(list_len), base);
     gap_.shuffle_pick = -1;
     selected_ = next;
     if (selected_ >= scroll_ + list_nav_rows()) scroll_ = selected_ - list_nav_rows() + 1;

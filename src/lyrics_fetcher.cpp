@@ -281,26 +281,48 @@ bool save_lyrics_delay(const fs::path& track_path, double delay_sec) {
 
 // --- enhanced/plain LRC parsing ----------------------------------------
 
+// A time of an LRC tag "mm:ss", "mm:ss.xx" or "mm:ss:xx" (the last: hundredths after a colon) in seconds; -1 when it is no number the
+// program can hold (a file of 400 digits is no lyrics, and must not end the program)
+static double lrc_seconds(const std::string& mm, const std::string& ss) {
+    try {
+        std::string s = ss;
+        const size_t colon = s.find(':');
+        if (colon != std::string::npos) s[colon] = '.';   // [mm:ss:xx]
+        if (mm.size() > 6 || s.size() > 12) return -1.0;
+        return std::stod(mm) * 60.0 + std::stod(s);
+    } catch (...) { return -1.0; }
+}
+
 static std::vector<LyricLine> parse_lrc(const std::string& lrc_text, bool enhanced) {
     std::string sanitized_lrc = sanitize_lyric_text(lrc_text);
     std::vector<LyricLine> lines;
     std::istringstream stream(sanitized_lrc);
     std::string raw_line;
 
-    static const std::regex line_ts_re(R"(^\[(\d+):(\d+(?:\.\d+)?)\])");
+    static const std::regex line_ts_re(R"(^\[(\d+):(\d+(?:[.:]\d+)?)\])");
     static const std::regex word_ts_re(R"(<(\d+):(\d+(?:\.\d+)?)>)");
 
     while (std::getline(stream, raw_line)) {
         if (!raw_line.empty() && raw_line.back() == '\r') raw_line.pop_back();
 
-        std::smatch m;
-        if (!std::regex_search(raw_line, m, line_ts_re)) continue; // skip metadata/[ar:]/[ti:] tags etc.
-
-        double line_time = std::stod(m[1].str()) * 60.0 + std::stod(m[2].str());
-        std::string rest = raw_line.substr(m.position(0) + m.length(0));
+        // one or more times at the start of the line: "[00:12.00][01:30.00]Chorus" is the same text at both times
+        std::vector<double> times;
+        size_t pos = 0;
+        {
+            std::smatch m;
+            std::string tail = raw_line;
+            while (std::regex_search(tail, m, line_ts_re)) {
+                const double sec = lrc_seconds(m[1].str(), m[2].str());
+                if (sec >= 0) times.push_back(sec);
+                pos += static_cast<size_t>(m.length(0));
+                tail = raw_line.substr(pos);
+            }
+        }
+        if (times.empty()) continue; // skip metadata/[ar:]/[ti:] tags etc., and times that are no numbers
+        std::string rest = raw_line.substr(pos);
 
         LyricLine line;
-        line.start_time = line_time;
+        line.start_time = times[0];
 
         if (enhanced && rest.find('<') != std::string::npos) {
             // "<mm:ss.xx>word <mm:ss.xx>word ..." — split on word timestamps.
@@ -309,7 +331,8 @@ static std::vector<LyricLine> parse_lrc(const std::string& lrc_text, bool enhanc
             std::vector<std::pair<double, size_t>> marks; // (time, text-start-offset)
             for (auto it = begin; it != end; ++it) {
                 std::smatch wm = *it;
-                double t = std::stod(wm[1].str()) * 60.0 + std::stod(wm[2].str());
+                const double t = lrc_seconds(wm[1].str(), wm[2].str());
+                if (t < 0) continue;
                 marks.emplace_back(t, static_cast<size_t>(wm.position(0) + wm.length(0)));
             }
             for (size_t i = 0; i < marks.size(); ++i) {
@@ -336,11 +359,22 @@ static std::vector<LyricLine> parse_lrc(const std::string& lrc_text, bool enhanc
             line.full_text = rest;
         }
 
+        // the later times of the line: the same text, its word times moved by the difference
+        for (size_t k = 1; k < times.size(); ++k) {
+            LyricLine copy = line;
+            copy.start_time = times[k];
+            for (auto& w : copy.words) w.first += times[k] - times[0];
+            lines.push_back(std::move(copy));
+        }
         lines.push_back(std::move(line));
     }
 
+    // the lines in the order of their times (a file with repeated choruses lists them out of order)
+    std::stable_sort(lines.begin(), lines.end(), [](const LyricLine& a, const LyricLine& b) { return a.start_time < b.start_time; });
     return lines;
 }
+
+std::vector<LyricLine> parse_lrc_text(const std::string& lrc_text, bool enhanced) { return parse_lrc(lrc_text, enhanced); }
 
 // Lines of a text without timestamps, spread evenly over the track (4 s apart when its length is unknown).
 static std::vector<LyricLine> plain_lines(const std::string& text, double track_seconds) {
@@ -627,7 +661,7 @@ std::vector<LyricLine> lyrics_read_lines(const std::string& raw, double* delay) 
             try { ln.start_time = std::stod(sm[1].str()) * 60.0 + std::stod(sm[2].str()) + frac; } catch (...) { ln.start_time = -1.0; }
             if (line.find('<') != std::string::npos) {   // enhanced LRC: the words with their times (the same reading the player uses)
                 const std::vector<LyricLine> parsed = parse_lrc(line, true);
-                if (parsed.size() == 1) ln.words = parsed[0].words;
+                if (!parsed.empty()) ln.words = parsed[0].words;
             }
         }
         line = std::regex_replace(line, stamp_re, "");

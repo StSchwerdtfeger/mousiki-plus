@@ -536,7 +536,7 @@ void App::meta_panel_info(MetaPanel& m) const {
         const bool show_file = has_track_ && current_.is_local && !current_.path.empty() && !settings_.meta_only;
         std::string first_value = shown.name;
         if (show_file) {
-            first_value = path_utf8(current_.path.stem());
+            first_value = clean_tag_text(path_utf8(current_.path.stem()));
             if (const MetaEditEntry* me = meta_entry(path_utf8(current_.path))) {
                 const int fn = static_cast<int>(MetaField::FileName);
                 if (me->edited[fn] && !me->value[fn].empty()) first_value = me->value[fn];

@@ -1,3 +1,4 @@
+#include "path_utf8.h"
 #include "milkdrop.h"
 #include "app_dirs.h"
 #include "radio_app.h"
@@ -22,7 +23,7 @@ RadioApp::RadioApp() {
     ui.model.shuffle = cfg.playback_shuffle;
     // Where the stations / presets / station lists live: ~/.config/mousiki by default, or what the PATHS tab says.
     storage = resolve_storage_paths(cfg);
-    set_storage_files(storage.stations_file.string(), storage.lists_file.string(), storage.presets_file.string());
+    set_storage_files(muisc::path_utf8(storage.stations_file), muisc::path_utf8(storage.lists_file), muisc::path_utf8(storage.presets_file));
     load_storage();
     ui.refilter();
     ui.refilter_menu();
@@ -35,7 +36,7 @@ RadioApp::RadioApp() {
     // Timeshift buffer (pause / rewind): a ring file in the cache folder, sized by the GENERAL tab's "Timeshift buffer".
     const char* ts_home = std::getenv("HOME");
     if (!ts_home || !*ts_home) ts_home = std::getenv("USERPROFILE");
-    timeshift_file = (muisc::app_dirs::cache() / "radio_timeshift.pcm").string();
+    timeshift_file = muisc::path_utf8(muisc::app_dirs::cache() / "radio_timeshift.pcm");
     apply_timeshift();
     rhist.open(storage.history_dir);
     yt.set_download_dir(storage.download_dir);
@@ -139,7 +140,7 @@ int RadioApp::headless_dump_history(int argc, char** argv) {
         hm.tab = std::clamp(argc > 2 ? muisc::atoi_safe(argv[2]) : 0, 0, 2);
         if (argc > 3 && std::string(argv[3]) == "yt") {
             hm.yt_open = true; hm.yt_text = "Daft Punk One More Time"; hm.yt_edit.to_end(hm.yt_text); hm.yt_in_field = false;
-            hm.yt_dir = storage.download_dir.string(); hm.yt.searched = true;
+            hm.yt_dir = muisc::path_utf8(storage.download_dir); hm.yt.searched = true;
             const char* titles[4] = {"Daft Punk - One More Time (Official Video)", "One More Time", "Daft Punk - One More Time (Live)", "One More Time (Radio Edit)"};
             for (int i = 0; i < 4; ++i) {
                 YtItem it; it.video_id = "id" + std::to_string(i); it.title = titles[i]; it.uploader = "Daft Punk"; it.duration_sec = 320.0 - i * 20;
@@ -510,6 +511,7 @@ int RadioApp::interactive() {
     if (!muisc::ConsoleLog::instance().initialized()) muisc::ConsoleLog::instance().init(muisc::LogVerbosity::Basic);   // (the console overlay shows this log)
     muisc::remote::start("radio");
     while (running) {
+        if (terminal_quit_signalled()) { running = false; break; }   // SIGTERM / SIGHUP: the normal way out, so everything is saved
         frame_tick();
         int k;
         const auto input_before = last_input;

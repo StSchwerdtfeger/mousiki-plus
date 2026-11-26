@@ -100,7 +100,7 @@ void App::history_begin_current_play() {
     if (p.id.empty()) return; // nothing to aggregate by: record nothing rather than a phantom title
     p.title = metadata_.name;
     if (p.title.empty() || p.title == "-")
-        p.title = path_utf8(current_.path.stem()); // untagged local file
+        p.title = clean_tag_text(path_utf8(current_.path.stem())); // untagged local file
     p.artist = (metadata_.artist == "-") ? std::string() : metadata_.artist;
     p.len_sec = static_cast<double>(total_sec_);
     p.started_at = static_cast<long long>(std::time(nullptr));
@@ -154,7 +154,7 @@ void App::history_queue_rows(const std::vector<HistoryTopRow>& rows, int take, c
             fs::path path = path_from_utf8(r.id);
             std::error_code ec;
             if (!fs::exists(path, ec)) { ++missing; continue; } // moved/deleted since it was played
-            const std::string title = r.title.empty() ? path_utf8(path.stem()) : r.title;
+            const std::string title = r.title.empty() ? clean_tag_text(path_utf8(path.stem())) : r.title;
             queue_.push_back({true, title, artist, path, "", false, ""});
             ++added;
         }

@@ -122,6 +122,9 @@ std::vector<std::string> lyrics_plain_lines(const std::string& raw);
 // where the line has no time stamp, words = the word times of an enhanced LRC line. `delay` (optional) gets the [offset:] of the text, in the
 // sign LyricsResult::delay uses.
 std::vector<LyricLine> lyrics_read_lines(const std::string& raw, double* delay = nullptr);
+// The synced lines of an LRC text, in the order of their times: several times at the start of a line ([00:12.00][01:30.00]Chorus) give one line each,
+// [mm:ss.xx] and [mm:ss:xx] are read, a time that is no number is skipped; enhanced = also the <mm:ss.xx> word times.
+std::vector<LyricLine> parse_lrc_text(const std::string& lrc_text, bool enhanced);
 
 // Writes `delay_sec` (same sign as LyricsResult::delay) into the track's sidecar
 // .lrc as an "[offset:...]" tag, replacing an existing one (0 removes the tag).

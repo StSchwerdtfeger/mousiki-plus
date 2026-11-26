@@ -151,6 +151,27 @@ TEST(lyrics_plain_lines_strip_timestamps_tags_and_blank_runs) {
     CHECK_EQ(lines[3], std::string("Third line with gaps"));
 }
 
+TEST(lrc_several_times_on_one_line_give_one_line_each_in_time_order) {
+    const std::vector<LyricLine> l = parse_lrc_text("[00:12.00][01:30.00]Chorus\n[00:20.00]Verse\n[ar:Someone]\n[00:05:50]Colon hundredths\n", false);
+    CHECK_EQ(l.size(), static_cast<size_t>(4));
+    CHECK_EQ(l[0].full_text, std::string("Colon hundredths"));
+    CHECK(std::abs(l[0].start_time - 5.5) < 0.001);
+    CHECK_EQ(l[1].full_text, std::string("Chorus"));
+    CHECK(std::abs(l[1].start_time - 12.0) < 0.001);
+    CHECK_EQ(l[2].full_text, std::string("Verse"));
+    CHECK_EQ(l[3].full_text, std::string("Chorus"));
+    CHECK(std::abs(l[3].start_time - 90.0) < 0.001);
+}
+
+TEST(lrc_a_number_of_hundreds_of_digits_is_skipped_and_does_not_throw) {
+    const std::string big(400, '9');
+    const std::vector<LyricLine> l = parse_lrc_text("[" + big + ":00]<00:01.00>word\n[00:03.00]<" + big + ":00.00>kept\n[00:04.00]ok\n", true);
+    bool ok = false;
+    for (const auto& x : l) ok = ok || x.full_text == "ok";
+    CHECK(ok);
+    CHECK(l.size() <= static_cast<size_t>(3));
+}
+
 TEST(lyrics_read_lines_keep_the_times_and_line_up_with_the_plain_lines) {
     const std::string lrc =
         "[ar:Some Artist]\n[offset:+250]\n"
@@ -426,6 +447,17 @@ TEST(history_saves_and_loads_and_survives_a_corrupt_file) {
     broken.set_dir(dir);
     broken.load();                                                  // must not throw
     CHECK(broken.plays().empty());
+    // ... and the next save does not wipe what was in the damaged file: it is set aside as history.json.corrupt, the new file is a good one
+    CHECK(fs::exists(fs::path(dir) / "history.json.corrupt"));
+    CHECK(!fs::exists(fs::path(dir) / "history.json"));
+    broken.begin_play(play("n", "New", 30, 9000));
+    broken.finish_live(true);
+    broken.save();
+    HistoryStore again;
+    again.set_dir(dir);
+    again.load();
+    CHECK_EQ(again.plays().size(), static_cast<size_t>(1));
+    CHECK(fs::exists(fs::path(dir) / "history.json.corrupt"));
 }
 
 TEST(history_old_plays_fold_into_the_archive_without_losing_counts) {
@@ -473,4 +505,50 @@ TEST(playlist_paths_follow_renamed_files) {
     CHECK_EQ(path_utf8(back->tracks[1].path), std::string("/music/Better.mp3"));
     CHECK_EQ(PlaylistManager::rename_paths(dir, {{"/nowhere", "/x"}}), 0);   // no match: nothing rewritten
     fs::remove_all(dir);
+}
+
+#include "file_name_util.h"
+TEST(windows_device_names_get_an_underscore_in_every_file_name_a_title_makes) {
+    CHECK(is_windows_device_name("CON"));
+    CHECK(is_windows_device_name("nul.mp3"));
+    CHECK(is_windows_device_name("Com3.txt"));
+    CHECK(!is_windows_device_name("com0"));
+    CHECK(!is_windows_device_name("console"));
+    CHECK_EQ(avoid_windows_device_name("nul.mp3"), std::string("nul_.mp3"));
+    CHECK_EQ(avoid_windows_device_name("Aux"), std::string("Aux_"));
+    CHECK_EQ(avoid_windows_device_name("song.mp3"), std::string("song.mp3"));
+    CHECK_EQ(PlaylistManager::sanitize_name("con"), std::string("con_"));
+    CHECK_EQ(PlaylistManager::sanitize_name("My list"), std::string("My list"));
+}
+
+#include <random>
+#include <set>
+#include "shuffle_bag.h"
+TEST(shuffle_bag_plays_every_track_once_before_any_comes_twice) {
+    std::vector<std::string> keys;
+    for (int i = 0; i < 50; ++i) keys.push_back("t" + std::to_string(i));
+    ShuffleBag bag;
+    std::mt19937 rng(7);
+    for (int round = 0; round < 3; ++round) {
+        std::set<int> seen;
+        int cur = bag.pick(keys, -1, rng);          // the first of the round (a new round starts by itself when the last one was used up)
+        seen.insert(cur);
+        int safety = 0;
+        while (seen.size() < keys.size() && ++safety < 1000) {
+            const int next = bag.pick(keys, cur, rng);
+            CHECK(next != cur);                         // never the track that plays
+            if (seen.count(next)) break;                // a repeat inside a round: wrong
+            seen.insert(next);
+            cur = next;
+        }
+        CHECK_EQ(seen.size(), keys.size());
+        bag.clear();
+    }
+    // two tracks: they alternate, a list of one plays itself
+    ShuffleBag two;
+    std::vector<std::string> k2 = {"a", "b"};
+    int cur = 0;
+    for (int i = 0; i < 6; ++i) { const int n = two.pick(k2, cur, rng); CHECK(n != cur); cur = n; }
+    ShuffleBag one;
+    CHECK_EQ(one.pick({"x"}, 0, rng), 0);
 }

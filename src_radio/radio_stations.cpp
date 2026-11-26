@@ -106,11 +106,11 @@ static void copy_if_missing(const std::string& from, const std::string& to) {
 static std::string default_file(const char* name) {
     const char* home = std::getenv("HOME");
     if (!home || !*home) home = std::getenv("USERPROFILE");
-    return home && *home ? (muisc::app_dirs::config() / name).string() : std::string(name);
+    return home && *home ? muisc::path_utf8(muisc::app_dirs::config() / name) : std::string(name);
 }
 
 static std::string alias_file_for(const std::string& stations_file) {
-    return (fs::path(stations_file).parent_path() / "preset_names.txt").string();
+    return muisc::path_utf8(muisc::path_from_utf8(stations_file).parent_path() / "preset_names.txt");
 }
 
 std::string preset_names_path() {
@@ -184,7 +184,7 @@ std::vector<Station> load_stations(std::string* source_out) {
     std::vector<fs::path> candidates;
     const char* home = std::getenv("HOME");
     if (!home || !*home) home = std::getenv("USERPROFILE");
-    if (!g_stations_file.empty()) candidates.push_back(fs::path(g_stations_file));
+    if (!g_stations_file.empty()) candidates.push_back(muisc::path_from_utf8(g_stations_file));
     if (home && *home) candidates.push_back(muisc::app_dirs::config() / "stations.txt");
     candidates.push_back(fs::path("stations.txt"));
     for (const auto& c : candidates) {
@@ -192,7 +192,7 @@ std::vector<Station> load_stations(std::string* source_out) {
         if (!fs::exists(c, ec)) continue;
         auto v = parse_file(c);
         if (!v.empty()) {
-            if (source_out) *source_out = c.string();
+            if (source_out) *source_out = muisc::path_utf8(c);
             apply_preset_names(v);
             return v;
         }
@@ -218,7 +218,7 @@ bool append_station_to_file(const Station& st, const std::vector<Station>& all, 
     std::vector<fs::path> candidates;
     const char* home = std::getenv("HOME");
     if (!home || !*home) home = std::getenv("USERPROFILE");
-    if (!g_stations_file.empty()) candidates.push_back(fs::path(g_stations_file));
+    if (!g_stations_file.empty()) candidates.push_back(muisc::path_from_utf8(g_stations_file));
     if (home && *home) candidates.push_back(muisc::app_dirs::config() / "stations.txt");
     candidates.push_back(fs::path("stations.txt"));
     // the file load_stations() used: the first candidate that exists and holds at least one station
@@ -231,9 +231,9 @@ bool append_station_to_file(const Station& st, const std::vector<Station>& all, 
             if (in && in.tellg() > 0) { in.seekg(-1, std::ios::end); char last = 0; in.get(last); if (last != '\n') tail = "\n"; }
         }
         std::ofstream out(c, std::ios::app);
-        if (!out) { if (err) *err = "cannot write " + path_utf8(c); return false; }
+        if (!out) { if (err) *err = "cannot write " + muisc::path_utf8(c); return false; }
         out << tail << station_line(st) << "\n";
-        if (where) *where = c.string();
+        if (where) *where = muisc::path_utf8(c);
         return static_cast<bool>(out);
     }
     // no stations.txt yet: create it from the whole in-memory list (defaults + the new station)
@@ -241,11 +241,11 @@ bool append_station_to_file(const Station& st, const std::vector<Station>& all, 
     std::error_code ec;
     if (target.has_parent_path()) fs::create_directories(target.parent_path(), ec);
     std::ofstream out(target);
-    if (!out) { if (err) *err = "cannot write " + path_utf8(target); return false; }
+    if (!out) { if (err) *err = "cannot write " + muisc::path_utf8(target); return false; }
     out << "# Mousiki radio mode -- station list (written by the radio; see radio/stations.txt for the format)\n"
            "# name | genre | country | codec | kbps | url | [*] favorite\n";
     for (const auto& s : all) out << station_line(s) << "\n";
-    if (where) *where = target.string();
+    if (where) *where = muisc::path_utf8(target);
     return static_cast<bool>(out);
 }
 
@@ -253,7 +253,7 @@ bool save_all_stations(const std::vector<Station>& all, std::string* where, std:
     std::vector<fs::path> candidates;
     const char* home = std::getenv("HOME");
     if (!home || !*home) home = std::getenv("USERPROFILE");
-    if (!g_stations_file.empty()) candidates.push_back(fs::path(g_stations_file));
+    if (!g_stations_file.empty()) candidates.push_back(muisc::path_from_utf8(g_stations_file));
     if (home && *home) candidates.push_back(muisc::app_dirs::config() / "stations.txt");
     candidates.push_back(fs::path("stations.txt"));
     fs::path target = !g_stations_file.empty() || (home && *home) ? candidates.front() : fs::path("stations.txt");
@@ -280,14 +280,14 @@ bool save_all_stations(const std::vector<Station>& all, std::string* where, std:
     tmp += ".tmp";   // appended to the native path: no round trip through the ANSI code page
     {
         std::ofstream out(tmp, std::ios::binary);
-        if (!out) { if (err) *err = "cannot write " + path_utf8(target); return false; }
+        if (!out) { if (err) *err = "cannot write " + muisc::path_utf8(target); return false; }
         out << head;
         for (const auto& st : all) out << station_line(st) << "\n";
-        if (!out) { if (err) *err = "cannot write " + path_utf8(target); return false; }
+        if (!out) { if (err) *err = "cannot write " + muisc::path_utf8(target); return false; }
     }
     fs::rename(tmp, target, ec);
-    if (ec) { fs::remove(tmp, ec); if (err) *err = "cannot write " + path_utf8(target); return false; }
-    if (where) *where = target.string();
+    if (ec) { fs::remove(tmp, ec); if (err) *err = "cannot write " + muisc::path_utf8(target); return false; }
+    if (where) *where = muisc::path_utf8(target);
     return true;
 }
 
@@ -301,7 +301,7 @@ std::string presets_path() {
     if (!g_presets_file.empty()) return g_presets_file;
     const char* home = std::getenv("HOME");
     if (!home || !*home) home = std::getenv("USERPROFILE");
-    if (home && *home) return (muisc::app_dirs::config() / "presets.txt").string();
+    if (home && *home) return muisc::path_utf8(muisc::app_dirs::config() / "presets.txt");
     return "presets.txt";
 }
 
@@ -344,7 +344,7 @@ std::string station_lists_path() {
     if (!g_lists_file.empty()) return g_lists_file;
     const char* home = std::getenv("HOME");
     if (!home || !*home) home = std::getenv("USERPROFILE");
-    if (home && *home) return (muisc::app_dirs::config() / "stationlists.txt").string();
+    if (home && *home) return muisc::path_utf8(muisc::app_dirs::config() / "stationlists.txt");
     return "stationlists.txt";
 }
 

@@ -395,7 +395,7 @@ void App::refresh_playlists_after_rescan() {
             if (q.tracks[k].path != it.local_path) {
                 if (has_track_ && current_.path == it.local_path) current_.path = q.tracks[k].path;
                 it.local_path = q.tracks[k].path;
-                it.title = path_utf8(it.local_path.stem());
+                it.title = clean_tag_text(path_utf8(it.local_path.stem()));
                 it.artist = path_utf8(it.local_path.parent_path().filename());
             }
             keys.push_back(path_utf8(it.local_path));
@@ -793,7 +793,7 @@ void App::relocate_missing_tracks(Playlist& pl) const {
         }
         if (!pick) continue;
         t.path = pick->path;
-        t.title = path_utf8(t.path.stem());
+        t.title = clean_tag_text(path_utf8(t.path.stem()));
         t.artist = path_utf8(t.path.parent_path().filename());
         t.missing = false;
     }

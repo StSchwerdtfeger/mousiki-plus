@@ -12,6 +12,7 @@
 #include <functional>
 #include <map>
 #include <set>
+#include "shuffle_bag.h"
 #include <memory>
 #include "video_pipe.h"
 #include "video_player.h"
@@ -1508,9 +1509,16 @@ private:
     double resume_start_sec_ = 0.0;
     // "Use mp4 audio for this song" changed while the song plays: the audio is loaded again and put in at the same time (reload_current_audio()).
     // No new play for the listening history, no new lyrics, the pause state stays.
-    void reload_current_audio();
+    void reload_current_audio(bool windowed = false);
+    // Shuffle plays every track of the list once before one comes twice (a "bag"), and Previous goes back through what was heard.
+    ShuffleBag shuffle_bag_;                   // the tracks of this round that shuffle has chosen already
+    std::vector<std::string> prev_trail_;      // the tracks heard before this one, the last at the back
+    bool prev_going_back_ = false;             // the track that loads now is one Previous went back to: it does not go onto the trail
+    std::string list_track_key(size_t i) const;                  // the key of entry i of the list that is shown (local: its path, online: its video id)
+    int shuffle_pick_next(int len, int base);                    // an entry that was not chosen in this round; a new round when all were   // windowed: hold it a window at a time (a track longer than its file said)
     bool swap_pending_ = false, swap_paused_ = false, swap_repause_ = false;
     double swap_pos_ = 0.0;
+    bool next_load_windowed_ = false;   // the next load holds the track a window at a time and shows no length from the file (reload_current_audio())
     fs::path swap_path_;
     std::chrono::steady_clock::time_point last_autosave_at_;
     // Drives the indicator's brief "something just saved" animation --

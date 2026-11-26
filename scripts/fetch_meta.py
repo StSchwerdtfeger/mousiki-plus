@@ -56,6 +56,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+MAX_BODY = 20_000_000   # bytes: an answer of a web service is read up to this size, never without a limit
+
 # Same UTF-8-on-a-pipe fix as scripts/fetch_lyrics.py: Windows picks the ANSI
 # code page for redirected stdout, which would otherwise crash the script the
 # moment it prints a non-Latin track title (and a crash here is indistinguish-
@@ -68,8 +70,9 @@ if hasattr(sys.stdout, "reconfigure"):
 # The two endpoints can be pointed at a test server (MOUSIKI_ACOUSTID_URL / MOUSIKI_MB_URL); nothing else uses them.
 API = os.environ.get("MOUSIKI_ACOUSTID_URL") or "https://api.acoustid.org/v2/lookup"
 MB_API = os.environ.get("MOUSIKI_MB_URL") or "https://musicbrainz.org/ws/2/recording/"
-USER_AGENT = "Mousiki/1.0 (https://github.com/itzender5820/mousiki; metadata editor)"
-MB_USER_AGENT = "MousikiPlus/3.1 (https://github.com/StSchwerdtfeger/mousiki-plus; metadata editor)"
+_VERSION = os.environ.get("MOUSIKI_VERSION", "5")   # (the program sets it for the scripts it starts)
+USER_AGENT = "MousikiPlus/%s (https://github.com/StSchwerdtfeger/mousiki-plus; metadata editor)" % _VERSION
+MB_USER_AGENT = USER_AGENT
 MB_GAP = 1.1         # seconds between MusicBrainz requests -- it allows one per second
 
 # The AcoustID *application* key every lookup in this script is signed with.
@@ -264,7 +267,7 @@ def lookup(duration, fp):
         _last_call[0] = time.time()
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-                raw = resp.read().decode("utf-8", "replace")
+                raw = resp.read(MAX_BODY).decode("utf-8", "replace")
         except urllib.error.HTTPError as e:
             detail = ""
             try:
@@ -378,7 +381,7 @@ def mb_releases(mbid):
         _last_mb[0] = time.time()
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-                raw = resp.read().decode("utf-8", "replace")
+                raw = resp.read(MAX_BODY).decode("utf-8", "replace")
             break
         except urllib.error.HTTPError as e:
             if e.code in (429, 503) and attempt < 2:   # MusicBrainz says "slow down"

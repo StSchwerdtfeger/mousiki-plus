@@ -3,7 +3,7 @@ name: Fuzz
 # libFuzzer runs on the parsers that read input from outside (fuzz/): lyrics, JSON, playlists, cue files and the requests of the remote app's
 # web server -- with AddressSanitizer and UndefinedBehaviorSanitizer. Once a week for a few minutes (a crash is an artifact of the run and
 # makes it red), and by hand (Actions -> Fuzz -> Run workflow, with the minutes per target). The valid examples in fuzz/corpus/ are the start;
-# nothing is kept between runs but the crashes.
+# nothing is kept between runs but the crashes. Every target runs twice: with inputs up to 8 KB, then with inputs up to 1 MB.
 on:
   schedule:
     - cron: "17 3 * * 0"
@@ -45,6 +45,23 @@ jobs:
             echo "::group::$t"
             build/mousiki_fuzz_$t -max_total_time="$SECONDS_EACH" -timeout=20 -max_len=8192 -rss_limit_mb=2048 \
               -artifact_prefix="crashes/$t/" "fuzz-corpus/$t" "fuzz/corpus/$t" || status=1
+            echo "::endgroup::"
+          done
+          exit $status
+
+      # The first run keeps inputs to 8 KB, which is where a number of hundreds of digits in a lyrics line never shows up: a second,
+      # shorter run per target lets inputs grow to 1 MB (a number that is too long, a huge tag or a long list are found here).
+      - name: Fuzz with large inputs
+        env:
+          SECONDS_EACH: ${{ github.event.inputs.seconds || '240' }}
+          ASAN_OPTIONS: detect_leaks=0:abort_on_error=0
+        run: |
+          status=0
+          for t in lyrics json playlist cue tags; do
+            mkdir -p "fuzz-corpus-large/$t" "crashes/large-$t"
+            echo "::group::$t (large)"
+            build/mousiki_fuzz_$t -max_total_time="$((SECONDS_EACH / 3))" -timeout=30 -max_len=1048576 -rss_limit_mb=3072 \
+              -artifact_prefix="crashes/large-$t/" "fuzz-corpus-large/$t" "fuzz/corpus/$t" || status=1
             echo "::endgroup::"
           done
           exit $status

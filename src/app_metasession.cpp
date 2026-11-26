@@ -420,7 +420,7 @@ void App::meta_play_hovering() {
     }
     if (!found) { // a fetch-list entry that is no longer in the scanned library
         t.path = path_from_utf8(p);
-        t.title = path_utf8(t.path.stem());
+        t.title = clean_tag_text(path_utf8(t.path.stem()));
         t.folder_artist = path_utf8(t.path.parent_path().filename());
     }
     start_local_track(t);
@@ -764,7 +764,7 @@ void App::meta_start_fetch() {
         r.title = (e && e->edited[static_cast<int>(MetaField::Title)])
                       ? e->value[static_cast<int>(MetaField::Title)]
                       : rm.title;
-        if (r.title.empty()) r.title = path_utf8(path_from_utf8(path).stem()); // last resort: the file name
+        if (r.title.empty()) r.title = clean_tag_text(path_utf8(path_from_utf8(path).stem())); // last resort: the file name
         r.artist = (e && e->edited[static_cast<int>(MetaField::Artist)])
                        ? e->value[static_cast<int>(MetaField::Artist)]
                        : rm.artist;
@@ -972,7 +972,7 @@ void App::poll_meta_save() {
                 for (auto& t : playlist_->edit_tracks) {
                     if (path_utf8(t.path) == e.path) {
                         t.path = path_from_utf8(new_path);
-                        t.title = path_utf8(t.path.stem());
+                        t.title = clean_tag_text(path_utf8(t.path.stem()));
                         t.missing = false;
                     }
                 }

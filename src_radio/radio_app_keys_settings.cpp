@@ -478,7 +478,7 @@ bool RadioApp::key_settings(KeyCtx& kc) {
         if (k == 'k') { sm.row = std::max(0, sm.row - 1); fix_col(); return true; }
         if (sm.tab == 0 && !arrow && (k == 'E' || k == 'I')) {        // SHIFT+e / SHIFT+i: export / import a theme
             sm.theme_list = themes::load_all();
-            if (sm.theme_io_dir.empty()) sm.theme_io_dir = themes::exchange_dir().string();
+            if (sm.theme_io_dir.empty()) sm.theme_io_dir = muisc::path_utf8(themes::exchange_dir());
             if (k == 'E') {
                 const int cur = theme_index(cfg, sm.theme_list);
                 sm.theme_io_name = cur >= 0 ? sm.theme_list[static_cast<size_t>(cur)].name : std::string("My Theme");

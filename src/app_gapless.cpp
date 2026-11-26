@@ -11,7 +11,9 @@
 // "album" goes gapless only between tracks of the same album (album tag plus the same artist or folder; files without an album tag: the
 // same folder) that have the same sample rate and channel count, so nothing is resampled; "full" goes gapless into every local track that
 // follows automatically, resampled to the playing rate when it has another one. Online tracks, the radio and audio books are not covered.
+#include "utf8_util.h"
 #include "app.h"
+#include "string_util.h"
 #include "app_state_sleep.h"
 #include "app_state_device.h"
 #include "creator_state.h"
@@ -58,7 +60,7 @@ int file_channels(const fs::path& p) {
     }
     const ProcResult r = run_capture({"ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries", "stream=channels",
                                       "-of", "default=noprint_wrappers=1:nokey=1", path_utf8(p)});
-    return r.ok() ? std::max(0, std::atoi(r.out.c_str())) : 0;
+    return r.ok() ? std::max(0, muisc::atoi_safe(r.out.c_str())) : 0;
 }
 
 } // namespace
@@ -105,7 +107,7 @@ bool App::gapless_predict(GapTarget& t) {
         const QueueItem& q = queue_[idx];
         if (!q.is_local) return false;
         t.path = path_utf8(q.local_path);
-        t.title = path_utf8(q.local_path.stem());   // (as play_queue_item() names it)
+        t.title = clean_tag_text(path_utf8(q.local_path.stem()));   // (as play_queue_item() names it)
         return true;
     }
     if (pm == 4) return false;   // queue then stop, with the queue empty
@@ -116,14 +118,9 @@ bool App::gapless_predict(GapTarget& t) {
         if (gap_.shuffle_pick >= 0 && gap_.shuffle_pick < len && path_utf8(local_view_[gap_.shuffle_pick].path) == gap_.shuffle_path) {
             next = gap_.shuffle_pick;
         } else {
-            static std::mt19937 rng(std::random_device{}());
             int base = current_track_list_index();
             if (base < 0) base = selected_;
-            if (len == 1) next = 0;
-            else {
-                std::uniform_int_distribution<int> dist(0, len - 1);
-                do { next = dist(rng); } while (next == base);
-            }
+            next = shuffle_pick_next(len, base);
             gap_.shuffle_pick = next;
             gap_.shuffle_path = path_utf8(local_view_[next].path);
         }
@@ -156,7 +153,7 @@ void App::gapless_cancel() {
 // The player went on into the prepared track: the end of the track that played, handled as always -- but with the new one in already.
 void App::gapless_on_switch() {
     ++gap_.switches;
-    ConsoleLog::instance().log_basic("gapless: into \"" + fs::path(path_from_utf8(gap_.path)).filename().string() + "\"");
+    ConsoleLog::instance().log_basic("gapless: into \"" + path_utf8(fs::path(path_from_utf8(gap_.path)).filename()) + "\"");
     gap_.phase = 0;
     gap_.key.clear();
     gap_.for_pcm = nullptr;
@@ -215,7 +212,7 @@ void App::gapless_tick() {
         auto job = std::make_shared<GapJob>();
         LoadJob j;
         j.local_path = path_from_utf8(t.path);
-        j.title = t.title.empty() ? path_utf8(j.local_path.stem()) : t.title;
+        j.title = t.title.empty() ? clean_tag_text(path_utf8(j.local_path.stem())) : t.title;
         j.location_label = path_utf8(j.local_path.parent_path().filename()) + "/";
         j.is_local = true;
         j.want_stereo = settings_.stereo;
@@ -254,7 +251,7 @@ void App::gapless_tick() {
     // (the preload thread is done with pl once ready is set; only the decode threads go on filling the buffer)
     if (!pl->success || !pl->pcm) {
         gap_.last_why = pl->error.empty() ? "the next track could not be loaded" : pl->error;
-        ConsoleLog::instance().log_verbose("gapless: not into \"" + fs::path(path_from_utf8(gap_.path)).filename().string() + "\" -- " + gap_.last_why);
+        ConsoleLog::instance().log_verbose("gapless: not into \"" + path_utf8(fs::path(path_from_utf8(gap_.path)).filename()) + "\" -- " + gap_.last_why);
         gap_.phase = 3;
         gap_.job.reset();
         return;

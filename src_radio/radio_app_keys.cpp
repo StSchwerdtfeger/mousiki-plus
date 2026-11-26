@@ -1,3 +1,4 @@
+#include "path_utf8.h"
 #include "radio_app.h"
 #include "milkdrop.h"
 #include "string_util.h"
@@ -167,7 +168,7 @@ bool RadioApp::key_history(KeyCtx& kc) {
             hm.yt_open = true; hm.yt_in_field = true; hm.yt_text = q; hm.yt_edit.to_end(hm.yt_text);
             hm.yt_cursor = 0; yt.clear(); yt_jump = false; hm.flash.clear();
             yt.set_download_dir(storage.download_dir);
-            hm.yt_dir = storage.download_dir.string();
+            hm.yt_dir = muisc::path_utf8(storage.download_dir);
             set_text_entry(true);
             yt.search(q); yt_jump = true;                              // the query is already right most of the time
             return true;

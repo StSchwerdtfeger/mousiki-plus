@@ -3,6 +3,8 @@ import urllib.request
 import json
 import sys
 
+MAX_BODY = 20_000_000   # bytes: an answer of a web service is read up to this size, never without a limit
+
 # See fetch_lyrics.py for why this matters on Windows: json.dumps() already
 # ASCII-escapes everything below, so nothing here can currently trigger the
 # UnicodeEncodeError that script was fixed for -- but forcing UTF-8 up front
@@ -45,7 +47,7 @@ def search(query, limit=5, min_duration_sec=90):
     req = urllib.request.Request(url, data=json.dumps(data).encode("utf-8"), headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=5) as response:
-            res = json.loads(response.read().decode())
+            res = json.loads(response.read(MAX_BODY).decode())
     except Exception:
         print("{}", file=sys.stderr)
         return

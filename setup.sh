@@ -188,8 +188,15 @@ have_sdl2() {
 
 pip_install_ytdlp() {
     have python3 || return 1
+    # pipx keeps yt-dlp in an environment of its own: the system's Python packages are not touched
+    if have pipx; then
+        pipx install yt-dlp >/dev/null 2>&1 && return 0
+        pipx upgrade yt-dlp >/dev/null 2>&1 && return 0
+    fi
     python3 -m pip --version >/dev/null 2>&1 || return 1
     python3 -m pip install --quiet --user --upgrade yt-dlp 2>/dev/null && return 0
+    # last resort: a system whose Python is "externally managed" (PEP 668) refuses the line above; this one overrides that, for yt-dlp only
+    warn "installing yt-dlp with pip --break-system-packages (no package and no pipx available)"
     python3 -m pip install --quiet --user --break-system-packages --upgrade yt-dlp
 }
 

@@ -1,15 +1,16 @@
 #pragma once
 // A deliberately small, self-contained JSON reader/writer. mousiki has
 // no JSON dependency anywhere else in the codebase (the two spots that
-// touch yt-dlp's JSON lines use a one-key string grep, see
-// online_source.cpp) and pulling in a whole library just for one
-// flat-ish snapshot file isn't worth it. This supports exactly what
-// snapshot.cpp needs: objects, arrays, strings (with the common escapes),
-// numbers, and booleans -- nothing fancier (no unicode \uXXXX escapes,
-// no comments, no trailing commas). Malformed input is handled by
+// touch yt-dlp's JSON lines, see online_source.cpp, read them with this
+// reader too) and pulling in a whole library isn't worth it. This
+// supports objects, arrays, strings (with the escapes, \uXXXX and
+// surrogate pairs included), numbers, and booleans -- nothing fancier
+// (no comments, no trailing commas). Malformed input is handled by
 // returning a Null-ish/empty result rather than throwing; a corrupt or
 // half-written snapshot.json should never crash the app, it should just
 // fail to restore.
+#include <cctype>
+#include <cstdint>
 #include <cstdio>
 #include <map>
 #include <memory>
@@ -105,8 +106,10 @@ inline void dump(const Value& v, std::string& out, int indent) {
         case Type::Bool: out += v.b ? "true" : "false"; break;
         case Type::Number: {
             // Integral values print without a trailing ".0" so ints round-trip cleanly.
-            if (v.num == static_cast<long long>(v.num)) out += std::to_string(static_cast<long long>(v.num));
-            else out += std::to_string(v.num);
+            // (a value outside the range of long long, a NaN or an infinity is not cast: that is undefined; JSON has no NaN / Infinity: null)
+            if (!(v.num == v.num) || v.num > 1e300 || v.num < -1e300) out += "null";
+            else if (v.num > -9.0e18 && v.num < 9.0e18 && v.num == static_cast<long long>(v.num)) out += std::to_string(static_cast<long long>(v.num));
+            else { char nb[40]; std::snprintf(nb, sizeof nb, "%.17g", v.num); out += nb; }
             break;
         }
         case Type::String: out += "\""; out += escape_for_file(v.str); out += "\""; break;

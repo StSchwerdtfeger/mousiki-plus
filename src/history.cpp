@@ -5,6 +5,7 @@
 #include "moved_files.h"
 
 #include "path_utf8.h"
+#include "settings.h"   // write_text_atomic()
 #include "tiny_json.h"
 #if defined(_WIN32)
 #include "win_compat.h" // win_localtime -- MSVC's localtime_s has swapped arguments
@@ -277,12 +278,23 @@ void HistoryStore::load() {
     archive_ = HistoryArchive();
     live_index_ = -1;
 
+    keep_file_ = false;
     fs::path p = path_from_utf8(file_utf8());
     std::error_code ec;
     if (!fs::exists(p, ec)) return;
 
+    // A file that is there but cannot be used must not be written over by the next save (the lifetime top lists and the archive may be
+    // in it): it is set aside as history.json.corrupt, and when even that is impossible, nothing is saved this session.
+    auto set_aside = [&]() {
+        fs::path bad = p;
+        bad += ".corrupt";
+        std::error_code e2;
+        fs::remove(bad, e2);
+        fs::rename(p, bad, e2);
+        if (e2) keep_file_ = true;
+    };
     std::ifstream in(p, std::ios::binary);
-    if (!in.is_open()) return;
+    if (!in.is_open()) { set_aside(); return; }
     std::ostringstream ss;
     ss << in.rdbuf();
     std::string text = ss.str();
@@ -290,7 +302,7 @@ void HistoryStore::load() {
     // A missing or corrupt file is not an error: history is a convenience
     // and must never be able to stop the app from starting.
     Value root;
-    if (!parse(text, root) || root.type != Type::Object) return;
+    if (!parse(text, root) || root.type != Type::Object) { if (!text.empty()) set_aside(); return; }
     if (auto* arch = root.find("archive")) archive_from_json(*arch, archive_);
     if (auto* arr = root.find("plays")) {
         if (arr->type == Type::Array) {
@@ -367,20 +379,10 @@ void HistoryStore::save() const {
     for (const auto& pl : plays_) arr.arr.push_back(play_to_json(pl));
     root.set("plays", arr);
 
-    // Temp file + rename, exactly like save_snapshot(): this is written after
-    // every single track, so a crash mid-write must not be able to leave an
-    // unparseable history.json behind.
-    fs::path tmp = p;
-    tmp += ".tmp";
-    std::ofstream out(tmp, std::ios::trunc | std::ios::binary);
-    if (!out.is_open()) return;
-    out << write(root);
-    out.close();
-    fs::rename(tmp, p, ec);
-    if (ec) {
-        std::ofstream direct(p, std::ios::trunc | std::ios::binary);
-        if (direct.is_open()) direct << write(root);
-    }
+    // Written after every single track: a temp file that is checked (a full disk gives no cut-off file over the good one), then renamed.
+    // A file that could not be read at the start (see load()) is not written over: it may still hold the whole history.
+    if (keep_file_) return;
+    write_text_atomic(p, write(root), /*binary=*/true);
 }
 
 void HistoryStore::begin_play(const HistoryPlay& p) {

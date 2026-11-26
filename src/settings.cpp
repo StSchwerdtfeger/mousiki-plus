@@ -121,9 +121,20 @@ bool write_text_atomic(const fs::path& p, const std::string& text, bool binary) 
     tmp += ".tmp";
     std::error_code ec;
     const std::ios::openmode mode = binary ? (std::ios::trunc | std::ios::binary) : std::ios::trunc;
+    // The config files hold the PIN of the remote app: only their owner may read them (the new file gets this before any text is in it)
+    const std::string fname = path_utf8(p.filename());
+    const bool owner_only = fname == "config.txt" || fname == "radio_config.txt";
+    auto lock_down = [&](const fs::path& f) {
+#if !defined(_WIN32)
+        if (owner_only) { std::error_code e2; fs::permissions(f, fs::perms::owner_read | fs::perms::owner_write, fs::perm_options::replace, e2); }
+#else
+        (void)f;
+#endif
+    };
     {
         std::ofstream out(tmp, mode);
         if (!out.is_open()) return false;
+        lock_down(tmp);
         out << text;
         out.flush();
         if (!out.good()) { out.close(); fs::remove(tmp, ec); return false; }
@@ -133,6 +144,7 @@ bool write_text_atomic(const fs::path& p, const std::string& text, bool binary) 
     fs::remove(tmp, ec);
     std::ofstream direct(p, mode);
     if (!direct.is_open()) return false;
+    lock_down(p);
     direct << text;
     return direct.good();
 }

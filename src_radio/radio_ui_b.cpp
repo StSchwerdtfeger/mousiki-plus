@@ -877,7 +877,7 @@ std::vector<std::string> build_theme_io(const RadioSettings& c, const SettingsMo
         field("NAME", sm.theme_io_name, sm.theme_io_row == 0, themes::kMaxNameLen);
         field("FOLDER", sm.theme_io_dir, sm.theme_io_row == 1, fw);
         row_of({});
-        row_of({{legend, utf8_take("Exports the colors now set as one theme file: " + path_utf8(std::filesystem::path(sm.theme_io_dir) / themes::file_name_for(sm.theme_io_name)), inner)}});
+        row_of({{legend, utf8_take("Exports the colors now set as one theme file: " + muisc::path_utf8(std::filesystem::path(sm.theme_io_dir) / themes::file_name_for(sm.theme_io_name)), inner)}});
         row_of({{legend, "(radio and player colors are both kept in the file; import it with SHIFT+i)"}});
     } else {
         field("FOLDER", sm.theme_io_dir, sm.theme_io_row == 0, fw);
@@ -891,7 +891,7 @@ std::vector<std::string> build_theme_io(const RadioSettings& c, const SettingsMo
             const size_t nth = themes::read_theme_file(sm.theme_io_files[static_cast<size_t>(i)]).size();
             const std::string cnt = std::to_string(nth) + (nth == 1 ? " theme" : " themes");
             const bool sel = sm.theme_io_row == 1 && i == sm.theme_io_sel;
-            row_of({{sel ? "\x1b[7m" : "", pad_right(utf8_take(path_utf8(sm.theme_io_files[static_cast<size_t>(i)].filename()), inner - 12), inner - 12)}, {legend, pad_left(cnt, 12)}});
+            row_of({{sel ? "\x1b[7m" : "", pad_right(utf8_take(muisc::path_utf8(sm.theme_io_files[static_cast<size_t>(i)].filename()), inner - 12), inner - 12)}, {legend, pad_left(cnt, 12)}});
         }
         if (nf == 0) row_of({{legend, "no theme files (*.theme, *.txt) in this folder"}});
     }
@@ -1102,7 +1102,7 @@ std::vector<std::string> build_settings_impl(const RadioSettings& c, const Setti
                     else if (r == 2) def = sp.download_dir.parent_path();
                     else if (r == 5) def.clear();   // the usual places
                     else def = sp.history_dir.parent_path();
-                    const std::string shown = unused ? std::string("SAME PATH AS THE MUSIC PLAYER IS USED") : r == 5 ? Milkdrop::instance().find_presets_dir() : def.string();
+                    const std::string shown = unused ? std::string("SAME PATH AS THE MUSIC PLAYER IS USED") : r == 5 ? Milkdrop::instance().find_presets_dir() : muisc::path_utf8(def);
                     segs.push_back({sel ? "\x1b[7m" : list_ink, pad_right(utf8_take(shown, kFieldW), kFieldW)});
                 } else {
                     segs.push_back({sel ? "\x1b[7m" : list_ink, pad_right(utf8_take(val, kFieldW), kFieldW)});

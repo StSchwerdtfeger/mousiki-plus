@@ -3,6 +3,7 @@
 #include "radio_browser.h"
 #include "utf8_util.h"
 #include "string_util.h"
+#include "version.h"
 #include <algorithm>
 #include <cctype>
 #include <chrono>
@@ -15,7 +16,7 @@ namespace muisc::radio {
 
 namespace {
 
-const char* const kUserAgent = "Mousiki-Radio/2.5 (terminal music player; https://radio-browser.info client)";
+const std::string kUserAgent = std::string("Mousiki-Radio/") + MOUSIKI_VERSION + " (terminal music player; https://radio-browser.info client)";
 const char* const kServers[] = {"de1.api.radio-browser.info", "all.api.radio-browser.info",
                                 "nl1.api.radio-browser.info", "at1.api.radio-browser.info"};
 
@@ -326,7 +327,8 @@ namespace {
 // GET <base><path> with curl; query args via -G --data-urlencode. Output in `body`, curl's exit code returned.
 int curl_get(const std::string& base, const std::string& path,
              const std::vector<std::pair<std::string, std::string>>& args, std::string& body) {
-    muisc::Args cmd = {"curl", "-sS", "-f", "-L", "--connect-timeout", "6", "--max-time", "25", "-A", kUserAgent,
+    muisc::Args cmd = {"curl", "-sS", "-f", "-L", "--connect-timeout", "6", "--max-time", "25", "--max-filesize", "30000000", "-A", kUserAgent,   // (a list answer is a few MB at most)
+                       
                        "-G", base + path};
     for (const auto& kv : args) { cmd.push_back("--data-urlencode"); cmd.push_back(kv.first + "=" + kv.second); }
     const muisc::ProcResult r = muisc::run_capture(cmd, false);

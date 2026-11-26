@@ -33,6 +33,17 @@ TEST(book_cue_many_lines_of_one_key) {
     CHECK(c.get_all_raw("REM BOOKMARK").empty());
 }
 
+TEST(chapter_mark_of_a_file_with_a_quote_in_its_name_reads_back) {
+    ChapterMark m;
+    CHECK(parse_chapter_mark("\"The \"Big\" Book.mp3\" 61.5 \"Intro\"", m));
+    CHECK_EQ(m.file, std::string("The \"Big\" Book.mp3"));
+    CHECK_EQ(m.sec, 61.5);
+    CHECK_EQ(m.title, std::string("Intro"));
+    ChapterMark back;
+    CHECK(parse_chapter_mark(format_chapter_mark(m), back));
+    CHECK_EQ(back.file, m.file);
+}
+
 TEST(chapter_mark_lines_and_storing) {
     ChapterMark m;
     CHECK(parse_chapter_mark("\"Dune.wav\" 61.5 \"The Arrival\"", m));

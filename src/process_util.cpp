@@ -1,6 +1,8 @@
 // Running external programs (ffmpeg, ffprobe, yt-dlp, the helper scripts): quoting of arguments,
 // capturing output, and child processes that can be read and killed.
+#include <cstdint>
 #include "process_util.h"
+#include "version.h"
 #include "console_log.h"
 
 #include <algorithm>
@@ -35,6 +37,19 @@
 #endif
 extern char** environ;
 #endif
+
+// The helper scripts (Python) put the version of Mousiki into the User-Agent of their requests (MusicBrainz asks for a correct one):
+// every program this one starts gets it in the environment.
+namespace {
+const bool g_version_in_environment = [] {
+#if defined(_WIN32)
+    _putenv_s("MOUSIKI_VERSION", MOUSIKI_VERSION);
+#else
+    setenv("MOUSIKI_VERSION", MOUSIKI_VERSION, 1);
+#endif
+    return true;
+}();
+}
 
 namespace muisc {
 
@@ -597,22 +612,9 @@ std::string resolve_program(const std::string& name, bool* from_relative_dir) {
     if (from_relative_dir) *from_relative_dir = false;
     if (name.empty()) return std::string();
 #if defined(_WIN32)
-    const std::wstring wname = win_utf8_to_wide(name);
-    wchar_t buf[MAX_PATH * 4] = {};
-    const DWORD n = SearchPathW(nullptr, wname.c_str(), L".exe", static_cast<DWORD>(sizeof buf / sizeof buf[0]), buf, nullptr);
-    if (n == 0 || n >= sizeof buf / sizeof buf[0]) return std::string();
-    const std::wstring full(buf, n);
-    const int len = WideCharToMultiByte(CP_UTF8, 0, full.c_str(), static_cast<int>(full.size()), nullptr, 0, nullptr, nullptr);
-    std::string out(static_cast<size_t>(std::max(0, len)), '\0');
-    if (len > 0) WideCharToMultiByte(CP_UTF8, 0, full.c_str(), static_cast<int>(full.size()), out.data(), len, nullptr, nullptr);
-    if (from_relative_dir) {
-        wchar_t cwd[MAX_PATH * 4] = {};
-        const DWORD c = GetCurrentDirectoryW(static_cast<DWORD>(sizeof cwd / sizeof cwd[0]), cwd);
-        const size_t slash = full.find_last_of(L"\\/");
-        if (c > 0 && c < sizeof cwd / sizeof cwd[0] && slash != std::wstring::npos)
-            *from_relative_dir = _wcsicmp(full.substr(0, slash).c_str(), std::wstring(cwd, c).c_str()) == 0;
-    }
-    return out;
+    // The same lookup as for starting a program (win_find_executable): the folder of mousiki.exe, then PATH -- never the folder Mousiki
+    // was started in (SearchPathW(nullptr, ...) would try that first, and the checks at the start run what they find).
+    return win_find_executable(name);
 #else
     if (name.find('/') != std::string::npos) return access(name.c_str(), X_OK) == 0 ? name : std::string();
     const char* path = std::getenv("PATH");

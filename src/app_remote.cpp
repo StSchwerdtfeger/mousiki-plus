@@ -193,6 +193,27 @@ void App::act_prev() {
     if (audiobook_) { book_step(-1); return; }
     // Relative to what's actually playing (see current_track_list_index()), not the hover cursor. No queue equivalent: a FIFO
     // queue has no well-defined "previous" once an item's been consumed.
+    if (settings_.play_mode == 2 && queue_.empty() && has_track_ && (list_source_ == ListSource::Local || list_source_ == ListSource::Online)) {
+        // Shuffle: the list entry above the track that plays is no "previous" -- the track heard before is. More than 3 s into a track,
+        // Previous starts the track again (as in most players).
+        if (player_.poll_elapsed() > 3.0) { player_.seek_relative(-player_.poll_elapsed()); return; }
+        while (!prev_trail_.empty()) {
+            const std::string key = prev_trail_.back();
+            prev_trail_.pop_back();
+            const size_t n = list_source_ == ListSource::Local ? local_view_.size() : online_view_.size();
+            for (size_t i = 0; i < n; ++i) {
+                if (list_track_key(i) != key) continue;
+                selected_ = static_cast<int>(i);
+                if (selected_ >= scroll_ + list_nav_rows()) scroll_ = selected_ - list_nav_rows() + 1;
+                if (selected_ < scroll_) scroll_ = selected_;
+                prev_going_back_ = true;
+                play_selected();
+                return;
+            }
+        }
+        player_.seek_relative(-player_.poll_elapsed());   // nothing heard before: this track again
+        return;
+    }
     play_relative(-1);
 }
 

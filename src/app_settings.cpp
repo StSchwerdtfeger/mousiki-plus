@@ -599,7 +599,7 @@ void App::theme_open_export() {
     theme_->list = themes::load_all();
     const int cur = theme_current_index();
     theme_->io_name = cur >= 0 ? theme_->list[static_cast<size_t>(cur)].name : std::string("My Theme");
-    if (theme_->io_dir.empty()) theme_->io_dir = themes::exchange_dir().string();
+    if (theme_->io_dir.empty()) theme_->io_dir = path_utf8(themes::exchange_dir());
     theme_->io_row = 0;
     theme_->ui = 4;
     force_redraw_ = true;
@@ -612,7 +612,7 @@ void App::ThemeState::theme_io_rescan() {
 
 void App::theme_open_import() {
     theme_->list = themes::load_all();
-    if (theme_->io_dir.empty()) theme_->io_dir = themes::exchange_dir().string();
+    if (theme_->io_dir.empty()) theme_->io_dir = path_utf8(themes::exchange_dir());
     theme_->io_sel = 0;
     theme_->theme_io_rescan();
     theme_->io_row = theme_->io_files.empty() ? 0 : 1;
@@ -1230,7 +1230,7 @@ void App::settings_commit_edit_impl() {
         }
         if (id == kSidVideoClap) { settings_.video_clap = v == "none" ? 2 : v == "text note" ? 0 : 1; video_pic_key_.clear(); return; }
         if (id == kSidVideoRound) { settings_.video_round = v == "on"; video_pic_key_.clear(); return; }
-        if (id == kSidMdFps) { settings_.milkdrop_fps = std::clamp(std::atoi(v.c_str()), 10, 60); return; }
+        if (id == kSidMdFps) { settings_.milkdrop_fps = std::clamp(muisc::atoi_safe(v.c_str()), 10, 60); return; }
         if (id == kSidMdGpu) {
             settings_.milkdrop_gpu.clear();
             for (const MilkdropGpu& g : Milkdrop::gpus()) if (g.label == v) settings_.milkdrop_gpu = g.id;
@@ -1238,15 +1238,15 @@ void App::settings_commit_edit_impl() {
                                                            : "MilkDrop GPU: " + v + " -- the visuals restart on it";
             return;
         }
-        if (id == kSidMdHcd) { settings_.milkdrop_hcd = std::clamp(std::atoi(v.c_str()), 3, 120); return; }
+        if (id == kSidMdHcd) { settings_.milkdrop_hcd = std::clamp(muisc::atoi_safe(v.c_str()), 3, 120); return; }
         if (id == kSidMdRatio) { settings_.milkdrop_ratio = milkdrop_ratio_from(v); return; }
         if (id == kSidMdMesh) { for (int i = 0; i < 4; ++i) if (v == mesh_name(i)) settings_.milkdrop_mesh = i; return; }
         if (id == kSidMdFolder) { settings_.milkdrop_shuffle_folder = v == "Favourites" ? std::string() : v; return; }
-        if (id == kSidMdVar) { settings_.milkdrop_var = v == "off" ? 0 : std::clamp(std::atoi(v.c_str()), 0, 30); return; }
-        if (id == kSidMdRes) { settings_.milkdrop_res = std::clamp(std::atoi(v.c_str()), 160, 1920); milkdrop_pic_key_.clear(); return; }
-        if (id == kSidMdDuration) { settings_.milkdrop_preset_secs = v == "off" ? 0 : std::clamp(std::atoi(v.c_str()), 0, 600); return; }
+        if (id == kSidMdVar) { settings_.milkdrop_var = v == "off" ? 0 : std::clamp(muisc::atoi_safe(v.c_str()), 0, 30); return; }
+        if (id == kSidMdRes) { settings_.milkdrop_res = std::clamp(muisc::atoi_safe(v.c_str()), 160, 1920); milkdrop_pic_key_.clear(); return; }
+        if (id == kSidMdDuration) { settings_.milkdrop_preset_secs = v == "off" ? 0 : std::clamp(muisc::atoi_safe(v.c_str()), 0, 600); return; }
         if (id == kSidMdCutSens) { settings_.milkdrop_cut_sens = std::clamp(static_cast<int>(std::lround(std::atof(v.c_str()) * 10.0)), 5, 60); return; }
-        if (id == kSidMdTransition) { settings_.milkdrop_transition = v == "cut" ? 0 : std::clamp(std::atoi(v.c_str()), 0, 10); return; }
+        if (id == kSidMdTransition) { settings_.milkdrop_transition = v == "cut" ? 0 : std::clamp(muisc::atoi_safe(v.c_str()), 0, 10); return; }
         if (id == kSidMdFx) { settings_.milkdrop_fx = video_fx_from(v); milkdrop_pic_key_.clear(); return; }
         if (id == kSidMdColors) { settings_.milkdrop_fixed_colors = v == "fixed"; milkdrop_pic_key_.clear(); return; }
         if (id == kSidVideoChroma) { settings_.video_chroma = chroma_from(v); video_pic_key_.clear(); return; }
@@ -1259,7 +1259,7 @@ void App::settings_commit_edit_impl() {
         if (id == kSidVideoFps) { settings_.video_fps = v == "60" ? 60 : 25; return; }
         if (id == kSidFadeLen) { settings_.fade_len_ms = std::clamp(static_cast<int>(std::lround(std::atof(v.c_str()) * 1000.0)), 500, 20000); apply_fade_options(); return; }
         if (id == kSidFadeCurve) { settings_.fade_curve = v == "exponential" ? 1 : v == "logarithmic" ? 2 : v.rfind("logistic", 0) == 0 ? 3 : 0; apply_fade_options(); return; }
-        if (id == kSidFadeThr) { settings_.fade_trim_db = std::clamp(std::atoi(v.c_str()), -90, -20); apply_fade_options(); return; }
+        if (id == kSidFadeThr) { settings_.fade_trim_db = std::clamp(muisc::atoi_safe(v.c_str()), -90, -20); apply_fade_options(); return; }
         if (id == kSidGapless) { settings_.gapless = v == "full" ? 2 : v == "album" ? 1 : 0; return; }
         if (id == kSidVideoBuffer) { const int mb = muisc::atoi_safe(v.c_str()); int best = kVideoBufferChoices[0]; for (int c : kVideoBufferChoices) if (mb >= c) best = c; settings_.video_buffer = best; return; }
         if (id == kSidNoVideoViz) {

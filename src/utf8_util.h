@@ -1,5 +1,6 @@
 // UTF-8 helpers: ASCII case conversion for strings and the checks and repair of malformed UTF-8 text.
 #pragma once
+#include <cctype>
 #include <string>
 #include <cstdint>
 #include <algorithm>

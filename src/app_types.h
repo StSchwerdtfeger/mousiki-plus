@@ -2,6 +2,7 @@
 // out of app.h so that it holds the class only. They are the members of namespace app_types; the App has `using` names for them
 // (App::PendingLoad ...), so nothing that writes App::X had to change. Only app.h includes this file.
 #pragma once
+#include <cstdint>
 
 namespace muisc {
 namespace app_types {
@@ -112,6 +113,7 @@ struct LoadJob {
     int sid_seconds = 0;
     std::shared_ptr<GapJob> gap;   // set: a gapless preload
     int force_rate = 0;            // the rate the device runs at
+    bool force_windowed = false;   // hold the track a window at a time (its file said it was shorter than it is)
     bool album_only = false;       // Gapless "album": only a track of the same album with the same rate and channels
     fs::path cur_path;             // the track that plays now ...
     std::string cur_album, cur_artist;   // ... and its tags ("" / "-" = none)

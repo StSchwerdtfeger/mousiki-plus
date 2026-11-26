@@ -383,10 +383,43 @@ TEST(remote_server_odd_hosts_and_peers) {
 
 TEST(remote_server_many_devices_keep_working) {
     use_pin("424245");
-    // 1000 devices each guess once: the list of the lockouts stays small (kMaxGuards) and nothing breaks
+    // the phone has shown the PIN; then 1000 devices each guess once: the list of the lockouts stays small (kMaxGuards), nothing breaks,
+    // the phone still works -- and a device that never showed the PIN waits until the guessing is over (the global limit)
+    CHECK_EQ(code_of(net::handle_request("GET /api/status?pin=424245 HTTP/1.1", "192.168.9.9")), 200);
     for (int i = 0; i < 1000; ++i)
         net::handle_request("GET /api/status?pin=000000 HTTP/1.1", "192.168." + std::to_string(i / 250) + "." + std::to_string(i % 250 + 1));
     CHECK_EQ(code_of(net::handle_request("GET /api/status?pin=424245 HTTP/1.1", "192.168.9.9")), 200);
+    CHECK_EQ(code_of(net::handle_request("GET /api/status?pin=424245 HTTP/1.1", "192.168.8.8")), 429);   // right PIN, but the door is shut for new devices
+    CHECK_EQ(code_of(net::handle_request("GET /api/status?pin=000000 HTTP/1.1", "192.168.8.8")), 429);   // ... and a wrong one gets the same answer
+    use_pin("424246");   // a new PIN opens the door again
+    CHECK_EQ(code_of(net::handle_request("GET /api/status?pin=424246 HTTP/1.1", "192.168.8.8")), 200);
+}
+
+TEST(remote_server_takes_the_pin_from_a_header) {
+    use_pin("515151");
+    net::Headers h;
+    h.pin = "515151";
+    CHECK_EQ(code_of(net::handle_request("GET /api/status HTTP/1.1", "test", "", h)), 200);
+    h.pin = "000000";
+    CHECK_EQ(code_of(net::handle_request("GET /api/status HTTP/1.1", "test", "", h)), 403);
+    use_pin("515152");
+}
+
+TEST(remote_server_refuses_what_a_web_page_in_the_browser_sends) {
+    use_pin("616161");
+    net::Headers other;
+    other.sec_fetch_site = "cross-site";
+    CHECK_EQ(code_of(net::handle_request("GET /api/status?pin=616161 HTTP/1.1", "test", "127.0.0.1:4747", other)), 403);
+    other.sec_fetch_site = "same-site";   // another port on the same computer is another page too
+    CHECK_EQ(code_of(net::handle_request("GET /api/status?pin=616161 HTTP/1.1", "test", "127.0.0.1:4747", other)), 403);
+    net::Headers own;                      // the remote's own page
+    own.sec_fetch_site = "same-origin";
+    own.origin = "http://127.0.0.1:4747";
+    CHECK_EQ(code_of(net::handle_request("GET /api/status?pin=616161 HTTP/1.1", "test", "127.0.0.1:4747", own)), 200);
+    net::Headers foreign;
+    foreign.origin = "https://evil.example";
+    CHECK_EQ(code_of(net::handle_request("GET /api/status?pin=616161 HTTP/1.1", "test", "127.0.0.1:4747", foreign)), 403);
+    use_pin("616162");
 }
 
 TEST(remote_server_survives_hostile_connections) {

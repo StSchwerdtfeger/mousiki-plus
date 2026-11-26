@@ -20,6 +20,8 @@ import sys
 import urllib.parse
 import urllib.request
 
+MAX_BODY = 20_000_000   # bytes: an answer of a web service is read up to this size, never without a limit
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
@@ -40,7 +42,7 @@ def via_api(query, count):
     body = json.dumps({"search_text": query, "search_filter": "t", "full_page": True, "fan_id": None}).encode("utf-8")
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json", "User-Agent": UA})
     with urllib.request.urlopen(req, timeout=8) as r:
-        data = json.loads(r.read().decode("utf-8", "replace"))
+        data = json.loads(r.read(MAX_BODY).decode("utf-8", "replace"))
     results = (data.get("auto") or {}).get("results") or data.get("results") or []
     out = []
     for it in results:
@@ -62,7 +64,7 @@ def via_page(query, count):
     url = "https://bandcamp.com/search?" + urllib.parse.urlencode({"q": query, "item_type": "t"})
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     with urllib.request.urlopen(req, timeout=8) as r:
-        page = r.read().decode("utf-8", "replace")
+        page = r.read(MAX_BODY).decode("utf-8", "replace")
     out = []
     # one <li class="searchresult ..."> per hit: a heading link (title), a subhead ("from <album> by <artist>")
     # and the item URL

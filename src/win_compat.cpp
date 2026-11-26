@@ -710,6 +710,7 @@ int win_term_cols() {
 // ---------------------------------------------------------------------------
 
 void win_bootstrap_env() {
+    SetDllDirectoryW(L"");   // the folder Mousiki was started in is not searched for DLLs (SDL2.dll, projectM ...): a DLL lying in a downloaded folder would be loaded
     if (const char* existing = std::getenv("HOME")) {
         if (existing[0] != '\0') return;   // respect an explicitly set HOME
     }

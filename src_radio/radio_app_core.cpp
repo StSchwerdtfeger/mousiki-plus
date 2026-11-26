@@ -47,7 +47,7 @@ void RadioApp::start_record(long long from_frame, double seconds_before_now) {
     std::string err;
     const std::string title = !rs.info.title.empty() ? (rs.info.artist.empty() ? rs.info.title : rs.info.artist + " - " + rs.info.title)
                                                       : (rs.info.station.empty() ? rs.tuned_name : rs.info.station);
-    if (engine.start_recording(storage.download_dir.string(), stamp, title, from_frame, &err)) {
+    if (engine.start_recording(muisc::path_utf8(storage.download_dir), stamp, title, from_frame, &err)) {
         ui.model.notice = "recording to " + muisc::path_utf8(storage.download_dir / (std::string(stamp) + ".mp3")) + "   [y] stop";
         notice_until = ui.model.t_sec + 8;
     } else { ui.model.notice = "cannot record: " + err; notice_until = ui.model.t_sec + 6; }

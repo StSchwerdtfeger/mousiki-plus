@@ -95,3 +95,17 @@ TEST(config_milkdrop_options_round_trip) {
     CHECK(txt.find("MilkDropMeshDetail=3") != std::string::npos);
     CHECK(txt.find("MilkDropWindowResolution=960") != std::string::npos);
 }
+
+#if !defined(_WIN32)
+TEST(config_files_are_written_for_their_owner_only) {
+    mt::TempHome home;
+    const fs::path cfg = config_path();
+    write_all(cfg, "# Mousiki Configuration File\nRemoteAppPin=123456\n");
+    fs::permissions(cfg, fs::perms::owner_read | fs::perms::owner_write | fs::perms::group_read | fs::perms::others_read, fs::perm_options::replace);   // an old file: 0644
+    Settings s = load_settings();
+    save_settings(s);
+    const fs::perms got = fs::status(cfg).permissions();
+    CHECK((got & (fs::perms::group_read | fs::perms::group_write | fs::perms::others_read | fs::perms::others_write)) == fs::perms::none);
+    CHECK((got & fs::perms::owner_read) != fs::perms::none);
+}
+#endif

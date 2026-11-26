@@ -1,5 +1,6 @@
 // Terminal handling: raw input and key decoding, screen output, terminal size and colour support, text
 // width, and the clipboard. Everything the screen code sends to the terminal goes through here.
+#include "frame_guard.h"
 #include "terminal_ui.h"
 #include "string_util.h"
 #include "indic_handler.h"
@@ -73,7 +74,15 @@ static char g_bg_restore[128] = {};
 static size_t g_bg_restore_len = 0;
 static volatile sig_atomic_t g_bg_restore_armed = 0;
 
+static volatile sig_atomic_t g_quit_signalled = 0;
+bool terminal_quit_signalled() { return g_quit_signalled != 0; }
+
 static void fatal_signal_handler(int sig) {
+    if ((sig == SIGTERM || sig == SIGHUP) && g_signals_installed && !g_quit_signalled) {
+        g_quit_signalled = 1;   // the main loop ends the normal way (and saves) ...
+        alarm(5);               // ... and if it does not within 5 s, SIGALRM ends it like the signal would have
+        return;
+    }
     if (g_signals_installed) {
         tcsetattr(STDIN_FILENO, TCSANOW, &g_orig_termios);
         static const char kLeave[] = "\x1b[?25h\x1b[?1049l";
@@ -95,6 +104,7 @@ static void install_fatal_signal_handlers() {
     sigaction(SIGINT, &sa, nullptr);
     sigaction(SIGTERM, &sa, nullptr);
     sigaction(SIGHUP, &sa, nullptr);
+    sigaction(SIGALRM, &sa, nullptr);
     // a crash (or an uncaught exception, which ends in abort()) must not leave the shell in raw mode on the alternate screen either:
     // the handler only restores the terminal and hands the signal back, so the crash is still reported (and dumps core) as before
 #if !MOUSIKI_UNDER_SANITIZER   // (a sanitizer build keeps its own crash handlers: they print the report)
@@ -113,6 +123,7 @@ static void remove_fatal_signal_handlers() {
     signal(SIGINT, SIG_DFL);
     signal(SIGTERM, SIG_DFL);
     signal(SIGHUP, SIG_DFL);
+    signal(SIGALRM, SIG_DFL);
 #if !MOUSIKI_UNDER_SANITIZER
     signal(SIGSEGV, SIG_DFL);
     signal(SIGABRT, SIG_DFL);
@@ -121,6 +132,9 @@ static void remove_fatal_signal_handlers() {
     signal(SIGILL, SIG_DFL);
 #endif
 }
+#endif
+#if defined(_WIN32)
+bool terminal_quit_signalled() { return false; }   // (Windows: the console closing ends the process at once)
 #endif
 
 // ---------------------------------------------------------------------------
@@ -959,7 +973,7 @@ std::string park_cursor(const std::string& frame) {
 }
 
 static void write_frame_now(const std::string& frame_in) {
-    const std::string frame = park_cursor(frame_in);
+    const std::string frame = park_cursor(guard_frame(frame_in));
 #if defined(_WIN32)
     // Synchronized update (ConPTY / Windows Terminal honour it; older consoles ignore it): one finished frame is painted, never a half-drawn one.
     std::cout << "\x1b[?2026h" << frame << "\x1b[?2026l" << std::flush;

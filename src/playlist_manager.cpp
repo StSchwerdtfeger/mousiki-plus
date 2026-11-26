@@ -1,6 +1,7 @@
 // Saved playlists: lists, renames and removes the playlist files in the playlist folder and rewrites
 // track paths when files move.
 #include "playlist_manager.h"
+#include "file_name_util.h"
 #include "path_utf8.h"
 #include "settings.h"   // write_text_atomic()
 #include <algorithm>
@@ -38,7 +39,7 @@ std::string PlaylistManager::sanitize_name(const std::string& name) {
     while (!safe.empty() && (safe.back() == ' ' || safe.back() == '.')) safe.pop_back();
     while (!safe.empty() && safe.front() == ' ') safe.erase(safe.begin());
     if (safe.empty()) safe = "playlist";
-    return safe;
+    return avoid_windows_device_name(safe);   // ("nul" -> "nul_": a device name is no file name on Windows)
 }
 
 std::vector<PlaylistSummary> PlaylistManager::list(const fs::path& dir) {

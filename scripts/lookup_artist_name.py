@@ -16,6 +16,7 @@ another Latin alias of the type "Artist name", the artist's own name when that i
 MusicBrainz asks for a descriptive User-Agent and at most one request per second. Standard library only.
 """
 import json
+import os
 import re
 import sys
 import time
@@ -24,7 +25,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-USER_AGENT = "MousikiPlus/4.7 (https://github.com/StSchwerdtfeger/mousiki-plus; artist name lookup)"
+USER_AGENT = "MousikiPlus/%s (https://github.com/StSchwerdtfeger/mousiki-plus; artist name lookup)" % os.environ.get("MOUSIKI_VERSION", "5")   # (the program sets MOUSIKI_VERSION)
 MB_API = "https://musicbrainz.org/ws/2/artist/"
 TIMEOUT = 25
 

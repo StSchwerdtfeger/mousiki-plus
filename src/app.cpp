@@ -534,12 +534,12 @@ fs::path find_fast_search_script() { return find_scripts_file("fast_yt_search.py
 // fpcalc is a BUILD product: CMake compiles tools/fpcalc.cpp and copies the
 // result next to mousiki.exe and into that exe's scripts/, so it exists only
 // beside the executable -- never in a checkout's scripts/ folder, and
-// find_scripts_file() can very well hand out exactly that one (the working
-// directory wins there on purpose, so edited .py files take effect without a
-// rebuild). fetch_meta.py resolves fpcalc next to the script IT was given
-// (resolve_fpcalc()), so with those two rules combined a fetch started from a
-// checkout's root dies with "fpcalc not found" even though this build has a
-// perfectly good helper next to its own exe. Handing that path down through
+// find_scripts_file() can very well hand out exactly that one (a build in
+// <checkout>/build finds <checkout>/scripts one level up, so edited .py files
+// take effect without a rebuild). fetch_meta.py resolves fpcalc next to the
+// script IT was given (resolve_fpcalc()), so with those two rules combined a
+// fetch run from a build inside a checkout dies with "fpcalc not found" even
+// though this build has a perfectly good helper next to its own exe. Handing that path down through
 // MOUSIKI_FPCLC -- the script's own documented override -- keeps both rules
 // intact, and never overwrites a path the user exported themselves.
 void export_fpcalc_to_scripts() {
@@ -1164,9 +1164,16 @@ void App::run_tick() {
     if (current_.pcm && current_.pcm.get() != pcm_cut_noted_ && current_.pcm->capacity_exceeded.load(std::memory_order_relaxed)) {
         pcm_cut_noted_ = current_.pcm.get();
         const int mins = static_cast<int>(current_.pcm->capacity_frames() / static_cast<size_t>(std::max(1, current_.pcm->sample_rate)) / 60);
-        status_line_ = "this track is longer than its file says: only its first " + std::to_string(std::max(1, mins)) +
-                       " minutes play -- converting it (e.g. ffmpeg -i in.ext out.mp3) fixes that";
-        ConsoleLog::instance().log_basic("audio: " + status_line_);
+        const bool can_reload = has_track_ && current_.is_local && !current_.pcm->windowed && !load_in_progress_.load();
+        if (can_reload) {   // the whole track plays: it is loaded again, a window at a time, and goes on at this time
+            status_line_ = "this track is longer than its file says: loading it again, to play all of it";
+            ConsoleLog::instance().log_basic("audio: " + status_line_);
+            reload_current_audio(/*windowed=*/true);
+        } else {
+            status_line_ = "this track is longer than its file says: only its first " + std::to_string(std::max(1, mins)) +
+                           " minutes play -- converting it (e.g. ffmpeg -i in.ext out.mp3) fixes that";
+            ConsoleLog::instance().log_basic("audio: " + status_line_);
+        }
     }
     poll_pending_bulk_add();
     poll_pending_atp();
@@ -1328,6 +1335,7 @@ int App::run() {
     int false_wakes = 0;           // wake-ups for input in a row that gave no key (see the wait at the end of the loop)
     bool woke_for_input = false;
     while (!quit_) {
+        if (terminal_quit_signalled()) { quit_ = true; break; }   // SIGTERM / SIGHUP: the normal way out, so everything is saved
         const auto frame_start = std::chrono::steady_clock::now();
         const auto input_before = last_input_;
         run_poll_terminal(term, gfx_shown);

@@ -280,7 +280,7 @@ public class MainActivity extends Activity {
             int n = in.read(buf);
             in.close();
             String body = n > 0 ? new String(buf, 0, n, "UTF-8") : "";
-            return body.contains("\"ok\"") || body.contains("PIN");
+            return body.contains("\"pin\":false") || body.contains("\"error\":\"wrong PIN\"");   // what Mousiki answers to /api/hello?pin=0 (another web server does not say that)
         } catch (Exception e) {
             return false;
         } finally {

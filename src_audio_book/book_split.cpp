@@ -9,19 +9,24 @@
 namespace muisc {
 
 bool parse_chapter_mark(const std::string& raw, ChapterMark& out) {
-    // "file name" 12.5 "title"
+    // "file name" 12.5 "title"   (a quote inside the file name is fine: the closing quote is the one that a time and a title follow)
     if (raw.empty() || raw[0] != '"') return false;
-    const size_t q2 = raw.find('"', 1);
-    if (q2 == std::string::npos) return false;
-    out.file = raw.substr(1, q2 - 1);
-    const char* p = raw.c_str() + q2 + 1;
-    char* e = nullptr;
-    out.sec = std::strtod(p, &e);
-    if (!e || e == p) return false;
-    std::string rest = e;
-    const size_t a = rest.find('"'), b = rest.rfind('"');
-    out.title = (a != std::string::npos && b != std::string::npos && b > a) ? rest.substr(a + 1, b - a - 1) : std::string();
-    return true;
+    for (size_t q2 = raw.find('"', 1); q2 != std::string::npos; q2 = raw.find('"', q2 + 1)) {
+        const char* p = raw.c_str() + q2 + 1;
+        char* e = nullptr;
+        const double sec = std::strtod(p, &e);
+        if (!e || e == p) continue;
+        std::string rest = e;
+        const size_t a = rest.find('"'), b = rest.rfind('"');
+        const bool only_blanks_before = a != std::string::npos && rest.find_first_not_of(" \t") == a;
+        const bool nothing_after = rest.find_first_not_of(" \t\r") == std::string::npos;
+        if (!only_blanks_before && !nothing_after) continue;   // not the closing quote of the file name: a time and a title do not follow it
+        out.file = raw.substr(1, q2 - 1);
+        out.sec = sec;
+        out.title = (a != std::string::npos && b != std::string::npos && b > a) ? rest.substr(a + 1, b - a - 1) : std::string();
+        return true;
+    }
+    return false;
 }
 
 std::string format_chapter_mark(const ChapterMark& m) {

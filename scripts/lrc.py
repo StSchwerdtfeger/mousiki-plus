@@ -5,6 +5,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
+MAX_BODY = 20_000_000   # bytes: an answer of a web service is read up to this size, never without a limit
+
 
 BETTER_LYRICS_API = "https://lyrics-api.boidu.dev/getLyrics"
 LRCLIB_API = "https://lrclib.net/api/get"
@@ -48,7 +50,7 @@ def http_get_json(url, params, timeout=10):
     full = url + "?" + urllib.parse.urlencode(params)
     req = urllib.request.Request(full, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
     with urllib.request.urlopen(req, timeout=timeout, context=_ssl_context()) as resp:
-        return json.loads(resp.read().decode("utf-8", errors="replace"))
+        return json.loads(resp.read(MAX_BODY).decode("utf-8", errors="replace"))
 
 
 def parse_time(value):

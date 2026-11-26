@@ -37,6 +37,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+MAX_BODY = 20_000_000   # bytes: an answer of a web service is read up to this size, never without a limit
+
 # Windows picks the ANSI code page for a redirected stdout, which would crash the moment a translated line holds a
 # character that page cannot represent. Force UTF-8 like the other helpers.
 for _stream in (sys.stdout, sys.stderr):
@@ -47,7 +49,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 GOOGLE_URL = os.environ.get("MOUSIKI_TRANSLATE_URL") or "https://translate.googleapis.com/translate_a/single"
 MYMEMORY_URL = os.environ.get("MOUSIKI_MYMEMORY_URL") or "https://api.mymemory.translated.net/get"
-USER_AGENT = "Mozilla/5.0 (compatible; MousikiPlus/3.2 lyrics-translate)"
+USER_AGENT = "Mozilla/5.0 (compatible; MousikiPlus/%s lyrics-translate)" % os.environ.get("MOUSIKI_VERSION", "5")
 TIMEOUT = 20
 CHUNK_CHARS = 3500          # per Google request
 PAUSE = float(os.environ.get("MOUSIKI_TRANSLATE_PAUSE", "0.4"))   # between two requests of one run
@@ -67,7 +69,7 @@ def http(req):
     for attempt in range(4):
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
-                return resp.read().decode("utf-8")
+                return resp.read(MAX_BODY).decode("utf-8")
         except urllib.error.HTTPError as e:
             last = "HTTP %d" % e.code
             code = "RATE_LIMIT" if e.code == 429 else ("SERVICE" if e.code >= 500 or e.code in (400, 401, 403) else "NETWORK")

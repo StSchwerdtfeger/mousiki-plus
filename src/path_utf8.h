@@ -38,6 +38,7 @@
 // from a narrow string with fs::path(s). Use path_from_utf8().
 // ---------------------------------------------------------------------------
 
+#include <cstdio>
 #include <filesystem>
 #include <string>
 
@@ -48,6 +49,15 @@
 namespace muisc {
 
 namespace fs = std::filesystem;
+
+// fopen() for a UTF-8 path: on Windows plain fopen() reads the name in the ANSI code page (a name with Japanese or Cyrillic letters is not found).
+inline std::FILE* fopen_utf8(const std::string& path_utf8_name, const char* mode) {
+#if defined(_WIN32)
+    return _wfopen(win_utf8_to_wide(path_utf8_name).c_str(), win_utf8_to_wide(mode).c_str());
+#else
+    return std::fopen(path_utf8_name.c_str(), mode);
+#endif
+}
 
 // Native path -> UTF-8. Never throws for a valid path.
 inline std::string path_utf8(const fs::path& p) {

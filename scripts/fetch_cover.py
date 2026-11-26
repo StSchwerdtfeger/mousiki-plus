@@ -23,7 +23,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-USER_AGENT = "MousikiPlus/4.7 (https://github.com/StSchwerdtfeger/mousiki-plus; cover art fetch)"
+USER_AGENT = "MousikiPlus/%s (https://github.com/StSchwerdtfeger/mousiki-plus; cover art fetch)" % os.environ.get("MOUSIKI_VERSION", "5")   # (the program sets MOUSIKI_VERSION)
 MB_API = "https://musicbrainz.org/ws/2/release/"
 CAA = "https://coverartarchive.org/"
 TIMEOUT = 25

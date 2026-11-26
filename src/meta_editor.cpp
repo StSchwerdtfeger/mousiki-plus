@@ -3,6 +3,9 @@
 #include "app_dirs.h"
 #include "meta_editor.h"
 #include "chip_meta.h"
+#include "id3_edit.h"
+#include "file_name_util.h"
+#include "native_duration.h"
 #include "path_utf8.h"
 #include "process_util.h"
 #include "tiny_json.h"
@@ -289,6 +292,7 @@ std::string normalize_file_name(std::string name, const std::string& ext) {
     }
     while (!name.empty() && (name.back() == ' ' || name.back() == '.')) name.pop_back();
     if (name.empty()) return std::string();
+    name = avoid_windows_device_name(name);   // ("nul.mp3" -> "nul_.mp3": a device name is no file name on Windows)
 
     if (!ext.empty()) {
         bool has_ext = name.size() >= ext.size() &&
@@ -296,6 +300,19 @@ std::string normalize_file_name(std::string name, const std::string& ext) {
         if (!has_ext) name += ext;
     }
     return name;
+}
+
+bool is_mp3_name(const std::string& ext) {
+    std::string e = ext;
+    for (char& c : e) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    return e == ".mp3";
+}
+
+Id3EditResult edit_mp3_tag(const fs::path& path, const MetaEditEntry& e, std::string* err) {
+    std::vector<std::pair<std::string, std::string>> edits;
+    auto add = [&](MetaField f, const char* frame) { if (e.edited[static_cast<int>(f)]) edits.emplace_back(frame, e.value[static_cast<int>(f)]); };
+    add(MetaField::Title, "TIT2"); add(MetaField::Artist, "TPE1"); add(MetaField::Album, "TALB"); add(MetaField::Year, "YEAR");
+    return id3_edit_text_frames(path, edits, err);
 }
 
 std::string first_line(std::string s) {
@@ -326,6 +343,8 @@ bool apply_meta_entry(const MetaEditEntry& e, std::string* err, std::string* new
     // file, then rename over the original. ffmpeg cannot write into its own
     // input, and writing straight to the real file would risk truncating it
     // if anything failed midway.
+    std::string id3_error;
+    Id3EditResult id3_result = Id3EditResult::NotApplicable;
     bool want_tags = e.edited[static_cast<int>(MetaField::Artist)] ||
                      e.edited[static_cast<int>(MetaField::Title)] ||
                      e.edited[static_cast<int>(MetaField::Album)] ||
@@ -335,6 +354,10 @@ bool apply_meta_entry(const MetaEditEntry& e, std::string* err, std::string* new
         // others into the side file next to it (see chip_meta.h).
         std::string werr;
         if (!chipmeta::save_tags(old_path, e, &werr)) return fail(werr);
+    } else if (want_tags && is_mp3_name(ext) && (id3_result = edit_mp3_tag(old_path, e, &id3_error)) != Id3EditResult::NotApplicable) {
+        // An MP3: its ID3v2 tag is edited in place, every frame that is not edited stays byte for byte (lyrics, rating, play count, pictures,
+        // custom text) and the tag keeps its version. ffmpeg would drop what it has no tag name for and turn a v2.3 tag into v2.4.
+        if (id3_result == Id3EditResult::Failed) return fail(id3_error);
     } else if (want_tags) {
         fs::path tmp = old_path.parent_path() /
                        (path_utf8(old_path.stem()) + ".mousiki-tmp" + ext);
@@ -342,6 +365,7 @@ bool apply_meta_entry(const MetaEditEntry& e, std::string* err, std::string* new
         // -map_metadata 0 copies the existing tags so only the keys passed
         // below are replaced -- an edit to ARTIST can't wipe the album.
         Args cmd = {"ffmpeg", "-y", "-v", "error", "-i", path_utf8(old_path), "-map", "0", "-map_metadata", "0", "-c", "copy"};
+        if (is_mp3_name(ext)) { cmd.push_back("-id3v2_version"); cmd.push_back("3"); }   // (an MP3 this code does not edit itself: the common tag version, like the converter)
         auto add_meta = [&](int field, const char* key) {
             if (!e.edited[field]) return;
             cmd.push_back("-metadata");
@@ -359,6 +383,17 @@ bool apply_meta_entry(const MetaEditEntry& e, std::string* err, std::string* new
             fs::remove(tmp, ignore);
             std::string detail = first_line(r.out);
             return fail("ffmpeg failed" + (detail.empty() ? std::string() : ": " + detail));
+        }
+        // The new file must be as long as the old one before it takes its place (a remux that dropped frames is refused, the original stays).
+        {
+            const uint32_t before = probe_duration_native(old_path), after = probe_duration_native(tmp);
+            std::error_code sz_ec;
+            const bool empty = fs::file_size(tmp, sz_ec) == 0 || sz_ec;
+            if (empty || (before > 0 && after > 0 && (after + 2 < before || before + 2 < after))) {
+                std::error_code ignore;
+                fs::remove(tmp, ignore);
+                return fail("the rewritten file is not as long as the original (" + std::to_string(after) + " s, was " + std::to_string(before) + " s): nothing was changed");
+            }
         }
         fs::rename(tmp, old_path, ec);
         if (ec) {

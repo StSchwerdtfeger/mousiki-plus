@@ -652,6 +652,8 @@ indicates which playback mode is currently active. Use [m] to step through them.
 
 S[[Header]] ==[[Header]] SHUFFLE MODE[[Header]]
 Shuffles through tracks that are currently in the local audio files list (search filters apply!).
+Every track comes once before any comes twice. [b] (previous) goes back to the track heard before;
+more than 3 s into a track it starts the track again.
 Note that you can also actively shuffle to next song in the list via [#].
 The QUEUE is never shuffled: [n] and the end of a track play its next title in order; only [#]
 picks a random title of the queue.
@@ -3140,13 +3142,16 @@ Long press on the phone: its own settings (base colours, size of the braille dot
 NO CONNECTION? [[Header]] same Wi-Fi? A VPN blocks the home network unless "local network access" is allowed in it.
 Windows: [f] in the overlay opens the port in the firewall. Test: http://127.0.0.1:4747 on the computer.
 SAFE: [[Header]] off by default, home network only (other addresses are turned away), PIN for every
-command, 10 wrong PINs lock that one device out for a minute (not your phone). Plain HTTP: use it on
-a network you trust. Windows asks once whether Mousiki may accept connections: allow private networks.
+command, 10 wrong PINs lock that one device out for a minute (not your phone), and 30 wrong PINs from
+devices that never showed the right one close the door to such new devices for 10 minutes. A web page
+in your browser cannot use the remote. Plain HTTP: use it on a network you trust. Windows asks once whether Mousiki may accept connections: allow private networks.
 
 ABOUT THE PIN: [[Header]] it keeps others on your Wi-Fi from using the remote, it is not a strong lock: 4 to 8
 digits, and the connection is plain HTTP, so the PIN travels unencrypted (anyone who can read your
 network traffic sees it) and sits in the address (?pin=...), so it can land in a browser history or
-in the logs of a router, a proxy or Home Assistant. The lock-out counts per device. Use 6 to 8
+in the logs of a router, a proxy or Home Assistant (scripts can send it in the header X-Mousiki-Pin
+instead). The lock-out counts per device, and 30 wrong guesses in 10 minutes shut the door for devices
+that have not shown the right PIN yet. Use 6 to 8
 digits ([n] makes a random one), only a network you trust, NEVER forward the port to the internet
 (use a VPN into your home network instead), and press [n] for a new PIN if you think it got out.
 
@@ -3390,6 +3395,7 @@ HTTP FOR HOME ASSISTANT AND SCRIPTS ON OTHER COMPUTERS: [[Header]]
     answers {"ok":true,"reply":"...","lines":["...","..."]}   ok:false = the command failed.
     403 = wrong PIN or RemoteAppCli is off, 504 = no answer within wait (4 s, up to 30).
     GET /api/status?pin=<PIN> gives the playing state as JSON.
+    The PIN can also come in a header (X-Mousiki-Pin: <PIN>) instead of ?pin=: it then stays out of logs.
 
 LIMITS: [[Header]]
  A name (not an IP address)   needs RemoteAppHosts=name1,name2 in config.txt (DNS rebinding protection: any

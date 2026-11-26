@@ -66,3 +66,26 @@ jobs:
           ASAN_OPTIONS: detect_leaks=1
           UBSAN_OPTIONS: print_stacktrace=1
         run: ctest --test-dir build --output-on-failure
+
+  # ThreadSanitizer: data races between the threads (cover loading, video decoder, the terminal writer, the remote server ...).
+  # The sanitizer makes the tests several times slower, so this one runs the unit tests only.
+  threads:
+    name: Linux (ThreadSanitizer)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1   # v7.0.1
+
+      - name: Let ThreadSanitizer map its memory (the runner's address randomisation is too wide for it)
+        run: sudo sysctl vm.mmap_rnd_bits=28
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo -DMOUSIKI_BUILD_TESTS=ON -DMOUSIKI_TSAN=ON
+
+      - name: Build the tests
+        run: cmake --build build --target mousiki_tests --parallel 4
+
+      - name: Run the tests
+        env:
+          TSAN_OPTIONS: halt_on_error=1:second_deadlock_stack=1
+        run: ./build/mousiki_tests

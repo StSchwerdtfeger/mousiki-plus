@@ -1,5 +1,6 @@
 // In-process header parsing: reads the duration and the basic tags of MP3, FLAC, Ogg/Opus and MP4
 // files without starting ffprobe, so the lists fill in without blocking the screen.
+#include <cstdint>
 #include "native_duration.h"
 #include "path_utf8.h"
 #include "utf8_util.h"
@@ -105,25 +106,39 @@ uint64_t read_le64(const uint8_t* p) {
 
 // MP4/M4A/AAC 'mvhd' atom.
 uint32_t parse_mp4_duration(int fd, long long file_size) {
+    // One box header at `at`: size (a size field of 1 means a 64-bit size follows) and the header length. 0 = the box runs to the end.
+    auto box = [&](long long at, uint8_t* type, long long& size, int& hdr_len) -> bool {
+        uint8_t h[16];
+        if (at + 8 > file_size || pread_at(fd, h, 8, at) != 8) return false;
+        std::memcpy(type, h + 4, 4);
+        uint64_t sz = read_be32(h);
+        hdr_len = 8;
+        if (sz == 1) {
+            if (pread_at(fd, h, 16, at) != 16) return false;
+            sz = read_be64(h + 8);
+            hdr_len = 16;
+        } else if (sz == 0) {
+            sz = static_cast<uint64_t>(file_size - at);
+        }
+        if (sz < static_cast<uint64_t>(hdr_len) || sz > static_cast<uint64_t>(file_size - at)) return false;
+        size = static_cast<long long>(sz);
+        return true;
+    };
     long long offset = 0;
-    uint8_t hdr[8];
-    while (offset + 8 <= file_size) {
-        if (pread_at(fd, hdr, 8, offset) != 8) break;
-        uint32_t atom_size = read_be32(hdr);
-        if (atom_size == 0) break;
-
-        if (std::memcmp(hdr + 4, "moov", 4) == 0) {
-            long long sub_offset = offset + 8;
-            long long moov_end = offset + atom_size;
-            while (sub_offset + 8 <= moov_end) {
-                uint8_t sub_hdr[8];
-                if (pread_at(fd, sub_hdr, 8, sub_offset) != 8) break;
-                uint32_t sub_size = read_be32(sub_hdr);
-                if (sub_size == 0) break;
-
-                if (std::memcmp(sub_hdr + 4, "mvhd", 4) == 0) {
+    uint8_t type[4];
+    long long size = 0;
+    int hl = 0;
+    while (box(offset, type, size, hl)) {
+        if (std::memcmp(type, "moov", 4) == 0) {
+            long long sub_offset = offset + hl;
+            const long long moov_end = offset + size;
+            uint8_t st[4];
+            long long ssize = 0;
+            int shl = 0;
+            while (sub_offset + 8 <= moov_end && box(sub_offset, st, ssize, shl)) {
+                if (std::memcmp(st, "mvhd", 4) == 0) {
                     uint8_t mvhd[32];
-                    if (pread_at(fd, mvhd, sizeof(mvhd), sub_offset + 8) >= 24) {
+                    if (pread_at(fd, mvhd, sizeof(mvhd), sub_offset + shl) >= 24) {
                         uint8_t version = mvhd[0];
                         if (version == 0) {
                             uint32_t timescale = read_be32(mvhd + 12);
@@ -137,10 +152,10 @@ uint32_t parse_mp4_duration(int fd, long long file_size) {
                     }
                     return 0;
                 }
-                sub_offset += sub_size;
+                sub_offset += ssize;
             }
         }
-        offset += atom_size;
+        offset += size;
     }
     return 0;
 }
@@ -154,11 +169,30 @@ uint32_t parse_ogg_duration(int fd, long long file_size) {
     std::vector<uint8_t> buf(read_len);
     if (pread_at(fd, buf.data(), read_len, seek_pos) != static_cast<long long>(read_len)) return 0;
 
+    // The first page tells which codec this is: Opus counts in 48 kHz samples and starts with a pre-skip that is no music; Vorbis counts in the
+    // samples of its own rate (the identification header holds it: 44.1 kHz is common, 48000 for all of them was 8 % off).
+    uint64_t rate = 48000, skip = 0;
+    {
+        uint8_t head[512];
+        const long long got = pread_at(fd, head, sizeof head, 0);
+        if (got >= 64 && std::memcmp(head, "OggS", 4) == 0) {
+            const size_t pkt = 27u + head[26];
+            if (pkt + 16 <= static_cast<size_t>(got) && std::memcmp(head + pkt, "\x01vorbis", 7) == 0) {
+                rate = static_cast<uint64_t>(head[pkt + 12]) | (static_cast<uint64_t>(head[pkt + 13]) << 8) |
+                       (static_cast<uint64_t>(head[pkt + 14]) << 16) | (static_cast<uint64_t>(head[pkt + 15]) << 24);
+                if (rate < 8000 || rate > 400000) return 0;   // no sane header: the caller asks ffprobe
+            } else if (pkt + 12 <= static_cast<size_t>(got) && std::memcmp(head + pkt, "OpusHead", 8) == 0) {
+                skip = static_cast<uint64_t>(head[pkt + 10]) | (static_cast<uint64_t>(head[pkt + 11]) << 8);
+            }
+        }
+    }
+
     for (long long i = static_cast<long long>(read_len) - 14; i >= 0; --i) {
         if (std::memcmp(buf.data() + i, "OggS", 4) == 0) {
             uint64_t granule = read_le64(buf.data() + i + 6);
             if (granule > 0 && granule != static_cast<uint64_t>(-1)) {
-                return static_cast<uint32_t>(granule / 48000); // standard Opus 48kHz clock
+                if (granule > skip) granule -= skip;
+                return static_cast<uint32_t>(granule / rate);
             }
         }
     }
@@ -214,7 +248,7 @@ uint32_t parse_mp3_duration(int fd, long long file_size) {
                     uint32_t flags = read_be32(xing_ptr + 4);
                     if (flags & 0x01) {
                         uint32_t total_frames = read_be32(xing_ptr + 8);
-                        int samples_per_frame = (lay_idx == 3) ? 384 : ((ver_idx == 3) ? 1152 : 576);
+                        int samples_per_frame = (lay_idx == 3) ? 384 : ((lay_idx == 2 || ver_idx == 3) ? 1152 : 576);   // Layer I 384; Layer II always 1152; Layer III 1152 (MPEG-1) or 576
                         return static_cast<uint32_t>((uint64_t(total_frames) * samples_per_frame) / sample_rate);
                     }
                 }
@@ -369,6 +403,7 @@ NativeId3Tags probe_id3v2_native(const fs::path& path) {
     close_probe(fd);
 
     size_t off = 0;
+    bool truncated = false;
     while (off + 10 <= body.size()) {
         const uint8_t* fh = body.data() + off;
         if (fh[0] == 0) break; // padding reached
@@ -383,7 +418,7 @@ NativeId3Tags probe_id3v2_native(const fs::path& path) {
         }
         uint8_t frame_flags2 = fh[9]; // format-flags byte (2.3 and 2.4 agree on which byte this is)
         off += 10;
-        if (frame_size == 0 || off + frame_size > body.size()) break; // malformed / truncated by the read cap
+        if (frame_size == 0 || off + frame_size > body.size()) { truncated = frame_size != 0; break; } // malformed / truncated by the read cap
 
         // Compression (0x08) or encryption (0x04) rearrange or hide the
         // payload in ways worth just skipping rather than parsing wrong.
@@ -414,7 +449,8 @@ NativeId3Tags probe_id3v2_native(const fs::path& path) {
         off += frame_size;
     }
 
-    result.resolved = true; // walked the tag to completion, whatever it did or didn't contain
+    // A tag cut off by the read cap (big cover art before the text frames) may hide the title: leave it to ffprobe then.
+    result.resolved = !(truncated && (result.title.empty() || result.artist.empty()));
     return result;
 }
 

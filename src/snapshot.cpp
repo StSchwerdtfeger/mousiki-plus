@@ -2,6 +2,7 @@
 // start, and keeps a previous snapshot.
 #include "app_dirs.h"
 #include "snapshot.h"
+#include "settings.h"   // write_text_atomic()
 #include "path_utf8.h"
 #include "tiny_json.h"
 #include <cstdlib>
@@ -124,19 +125,7 @@ void save_snapshot(const SnapshotData& data) {
     // into place so a crash or kill mid-write can't leave a
     // half-written, unparseable snapshot.json behind (fs::rename on the
     // same filesystem is atomic).
-    fs::path tmp = p;
-    tmp += ".tmp";
-    std::ofstream out(tmp, std::ios::trunc | std::ios::binary);
-    if (!out.is_open()) return;
-    out << write(root);
-    out.close();
-    fs::rename(tmp, p, ec);
-    if (ec) {
-        // Cross-device or other rename failure -- fall back to a direct
-        // write rather than leaving nothing behind at all.
-        std::ofstream direct(p, std::ios::trunc | std::ios::binary);
-        if (direct.is_open()) direct << write(root);
-    }
+    write_text_atomic(p, write(root), /*binary=*/true);   // (the one writer for such files: temp file, checked, renamed)
 }
 
 void delete_snapshot() {

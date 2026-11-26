@@ -80,7 +80,13 @@ bool parse_request_line(const std::string& line, std::string& path, std::vector<
 // The answer to one request (status line, headers and body), without any socket: what the server thread sends back.
 // `host`: the value of the request'"'"'s Host header ("" = none given: HTTP/1.0 clients and the tests); a request whose Host is not allowed (see
 // host_ok) gets 400 and nothing else.
-std::string handle_request(const std::string& request_line, const std::string& peer, const std::string& host = std::string());
+// `hdr`: the other request headers that count (all "" = not sent).
+struct Headers {
+    std::string sec_fetch_site;   // Sec-Fetch-Site: set by browsers (cross-site, same-site, same-origin, none)
+    std::string origin;           // Origin: set by browsers for requests made by a web page
+    std::string pin;              // X-Mousiki-Pin: the PIN in a header instead of ?pin= (scripts, Home Assistant): it stays out of logs and history
+};
+std::string handle_request(const std::string& request_line, const std::string& peer, const std::string& host = std::string(), const Headers& hdr = Headers());
 // DNS rebinding: a web page can make its own domain name point at this computer and then send requests to the server with the browser
 // as the carrier; such a request still carries the page's domain in Host. So Host must be an IP address (the phone, the app, curl on an
 // address), "localhost", or one of the names in `extra` (comma separated, case does not matter, a port is ignored).
