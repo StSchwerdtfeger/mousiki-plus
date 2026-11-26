@@ -4,6 +4,7 @@
 
 #include "test_framework.h"
 #include "video_pipe.h"
+#include "terminal_gfx.h"
 
 using namespace muisc;
 
@@ -145,4 +146,50 @@ TEST(video_pipe_switches_to_the_worker_for_heavy_pictures_and_back) {
     CHECK(pipe.wants_thread());
     for (int i = 0; i < 40; ++i) pipe.note_cost(1.0);
     CHECK(!pipe.wants_thread());
+}
+
+// An adaptive (MilkDrop, Sixel) picture takes its colours from the picture itself: at most 128 of them (a Sixel picture the terminal has to
+// parse every frame: the same look on these soft pictures, a sixth less data than with 240), and every pixel names one of them.
+TEST(adaptive_picture_uses_at_most_128_colours_that_fit_the_picture) {
+    const VideoFrame f = test_frame(320, 180, 7);   // (noise on a ramp: far more than 128 different colours)
+    VideoPicParams p;
+    p.adaptive = true; p.vcols = 30; p.vrows = 10;
+    VideoPic pic;
+    video_make_picture(f, nullptr, p, pic);
+    CHECK(pic.own_pal);
+    CHECK_EQ(pic.hue.size(), static_cast<size_t>(320) * 180);
+    int top = 0;
+    for (uint8_t h : pic.hue) top = std::max<int>(top, h);
+    CHECK(top < 128);
+    CHECK(top > 100);   // (the palette is used, not a handful of colours)
+    // the palette follows the picture: the mean colour of the pixels that took a palette entry is close to the entry
+    double err = 0; size_t n = 0;
+    for (size_t i = 0; i < pic.hue.size(); i += 7) {
+        for (int c = 0; c < 3; ++c) { err += std::abs(static_cast<int>(f.rgb[i * 3 + static_cast<size_t>(c)]) - static_cast<int>(pic.pal[pic.hue[i]][static_cast<size_t>(c)])); ++n; }
+    }
+    CHECK(err / static_cast<double>(n) < 40.0);
+}
+
+// A Sixel picture is opaque and does not blank its cells on every frame -- but when it comes up at a new place the cells are blanked once (what stood
+// there before, the glyphs of the screen behind an overlay, must not shine through between the slices a terminal draws it in).
+TEST(sixel_picture_blanks_its_cells_once_when_it_comes_up_at_a_new_place) {
+    GfxFrame f;
+    f.active = true; f.plain = true; f.direct = true; f.fresh = true; f.opaque = true;
+    f.row = 3; f.col = 5; f.cols = 8; f.rows = 4; f.w = 80; f.h = 80; f.out_cw = 10; f.out_ch = 20;
+    f.hue.assign(80 * 80, 5); f.level.assign(80 * 80, 255);
+    const std::string blank(8, ' ');
+    const std::string first = gfx_emit(GfxProto::Sixel, f);
+    CHECK(first.find(blank) != std::string::npos);                 // new place: the cells are blanked, then the picture is drawn
+    CHECK(first.find("\x1bP") != std::string::npos);
+    const std::string second = gfx_emit(GfxProto::Sixel, f);
+    CHECK(second.find(blank) == std::string::npos);                // the next frame at the same place only paints
+    CHECK(second.find("\x1bP") != std::string::npos);
+    f.col = 6;                                                     // moved
+    CHECK(gfx_emit(GfxProto::Sixel, f).find(blank) != std::string::npos);
+    CHECK(gfx_emit(GfxProto::Sixel, f).find(blank) == std::string::npos);
+    (void)gfx_clear(GfxProto::Sixel, 0);                           // taken away (the overlay closed) and back again
+    CHECK(gfx_emit(GfxProto::Sixel, f).find(blank) != std::string::npos);
+    f.opaque = false; f.erase = false;                             // a still picture that stays transparent (the audio book's cover): never blanked
+    (void)gfx_clear(GfxProto::Sixel, 0);
+    CHECK(gfx_emit(GfxProto::Sixel, f).find(blank) == std::string::npos);
 }

@@ -109,6 +109,10 @@ public:
     void configure(const MilkdropOptions& o);   // taken over by the render thread at its next picture
     const MilkdropOptions& options() const { return opts_; }
 
+    // The screen says whether the terminal is still taking the picture before (a Sixel picture needs 50-150 ms): the pictures drawn meanwhile
+    // would only be thrown away, so the drawing thread leaves some out (see run()).
+    void set_consumer_busy(bool busy) { consumer_busy_.store(busy, std::memory_order_relaxed); }
+
     // The newest picture for a place of w x h pixels (the render thread starts here, and is told the size). `fresh`: newer than the
     // one returned before. nullptr while there is none yet (status() says why).
     const VideoFrame* frame(int w, int h, bool& fresh);
@@ -162,6 +166,7 @@ private:
     std::atomic<bool> running_{false}, stop_{false};
     std::atomic<bool> locked_{false};
     std::atomic<int64_t> last_ask_ns_{0};
+    std::atomic<bool> consumer_busy_{false};   // the terminal is still taking the last picture (set by the screen each pass)
     VideoFrame front_;                // (mu_) the newest picture
     uint64_t front_seq_ = 0;          // (mu_)
     uint64_t taken_seq_ = 0;          // main thread

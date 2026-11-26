@@ -137,6 +137,23 @@ inline void put_run(std::string& o, int run, char ch) {
     else o.append(static_cast<size_t>(run), ch);
 }
 
+// Where each picture slot was last drawn. A Sixel picture is opaque (every pixel is painted, see below), so it normally does not blank the cells it
+// covers -- but the cells hold what was written there before (the screen behind an overlay, the glyphs of the borders and corners), and a terminal
+// that draws the picture in slices per row of cells can leave a hair of a gap between them, through which those glyphs shine as little dots. So the
+// cells are blanked once, in the same write, when the picture comes up at a new place (an overlay opens, the window changes size, the picture
+// had been taken away); the frames after that only paint.
+struct SixelPlace {
+    bool valid = false;
+    int row = 0, col = 0, cols = 0, rows = 0, crop = 0, w = 0, h = 0, cut[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    bool operator==(const SixelPlace& o) const {
+        if (valid != o.valid || row != o.row || col != o.col || cols != o.cols || rows != o.rows || crop != o.crop || w != o.w || h != o.h) return false;
+        for (int i = 0; i < 8; ++i) if (cut[i] != o.cut[i]) return false;
+        return true;
+    }
+};
+SixelPlace g_sixel_place[4];
+inline SixelPlace& sixel_slot(int id) { return g_sixel_place[std::clamp(id, 0, 3)]; }
+
 std::string sixel_emit(const GfxFrame& f) {
     static std::string pal_text;
     static std::array<std::array<uint8_t, 3>, 256> pal_seen{};
@@ -237,7 +254,12 @@ std::string sixel_emit(const GfxFrame& f) {
     std::string o;
     o.reserve(last_size + 4096);
     o += "\x1b[0m";
-    if (f.erase && f.plain) {   // blank the picture's cells (not the ones something else covers), then draw on them
+    SixelPlace here;
+    here.valid = true; here.row = f.row; here.col = f.col; here.cols = f.cols; here.rows = f.rows; here.crop = f.crop; here.w = f.w; here.h = f.h;
+    here.cut[0] = f.cut_c; here.cut[1] = f.cut_r; here.cut[2] = f.cut_w; here.cut[3] = f.cut_h; here.cut[4] = f.cut2_c; here.cut[5] = f.cut2_r; here.cut[6] = f.cut2_w; here.cut[7] = f.cut2_h;
+    const bool new_place = !(sixel_slot(f.id) == here);
+    sixel_slot(f.id) = here;
+    if (f.plain && (f.erase || (f.opaque && new_place))) {   // blank the picture's cells (not the ones something else covers), then draw on them
         auto blank = [&](int r, int from, int to) { if (to > from) { o += at_cell(f.row + r, f.col + from); o.append(static_cast<size_t>(to - from), ' '); } };
         for (int r = 0; r < f.rows; ++r) {
             // the cells of the cut rectangles (a floating panel, the lyric box) are left out
@@ -304,6 +326,7 @@ std::string gfx_emit(GfxProto proto, const GfxFrame& f) {
 
 std::string gfx_clear(GfxProto proto, int id) {
     if (proto == GfxProto::Kitty) return "\x1b_Ga=d,d=I,i=" + std::to_string(kImageId + id) + ",q=2\x1b\\";
+    sixel_slot(id) = SixelPlace();   // (the next picture comes up at a new place: it blanks its cells once)
     return "";   // Sixel pictures vanish when the cells are written over (every frame does that)
 }
 

@@ -9,6 +9,11 @@
 
 namespace muisc {
 
+// The colours of an adaptive (MilkDrop, Sixel) picture. 240 were the most a palette picture could hold, 128 look the same on these pictures
+// (soft gradients: the median cut puts its colours where the picture needs them; the error against the original grows from 4.8 to 5.6 of 255)
+// and make a Sixel picture about 16 % smaller -- what the terminal has to parse every frame. 64 shows bands.
+constexpr int kAdaptiveColours = 128;
+
 void video_make_picture(const VideoFrame& src0, const VideoFrame* prev, const VideoPicParams& p, VideoPic& out) {
     using Clock = std::chrono::steady_clock;
     const VideoFrame* src = &src0;
@@ -25,7 +30,7 @@ void video_make_picture(const VideoFrame& src0, const VideoFrame* prev, const Vi
         out.level.assign(static_cast<size_t>(out.w) * out.h, 255);
         out.hue.clear();
     } else if (p.adaptive) {
-        VideoPlayer::quantize_adaptive(*src, out.hue, out.level, out.pal);
+        VideoPlayer::quantize_adaptive(*src, out.hue, out.level, out.pal, kAdaptiveColours);
         out.own_pal = true;
         out.rgb.clear();
     } else {

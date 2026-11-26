@@ -968,7 +968,7 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
             out.rows = pic;
             if (gfxs_.proto != GfxProto::None && gfx_.active && gfx_.w > 0) pv_cover_pic_ = true;
             const std::string nm = Milkdrop::instance().preset_name();
-            if (id == kSidMdColors) out.caption = std::string("Sixel colours: ") + (settings_.milkdrop_fixed_colors ? "fixed" : "adaptive") + (gfxs_.proto == GfxProto::Sixel ? "" : " (Sixel only)");
+            if (id == kSidMdColors) out.caption = std::string("Sixel colours: ") + (settings_.milkdrop_fixed_colors ? "fixed" : "adaptive") + (gfxs_.proto == GfxProto::Sixel || (gfxs_.proto == GfxProto::Kitty && video_res_for() <= 0) ? "" : " (Sixel and Kitty at standard resolution only)");
             else out.caption = nm.empty() ? "MilkDrop" : "MilkDrop: " + nm;
         } else {
             std::string msg = Milkdrop::instance().status();

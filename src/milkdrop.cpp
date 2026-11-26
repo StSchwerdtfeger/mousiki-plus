@@ -1119,10 +1119,36 @@ void Milkdrop::run() {
     { std::lock_guard<std::mutex> lk(mu_); status_ = "milkdrop: drawing the first picture ..."; }
     auto next_t = std::chrono::steady_clock::now();
     double ms_avg = 0.0;
+    // the next picture at the frame rate (a slow preset: as fast as it goes, without piling up)
+    auto wait_for_next_picture = [&]() {
+        next_t += std::chrono::microseconds(1000000 / std::clamp(o.fps, 5, 60));
+        const auto now = std::chrono::steady_clock::now();
+        if (next_t < now) next_t = now;
+        while (!stop_.load() && std::chrono::steady_clock::now() < next_t)
+            std::this_thread::sleep_for(std::min<std::chrono::steady_clock::duration>(next_t - std::chrono::steady_clock::now(), std::chrono::milliseconds(20)));
+    };
+    int skipped_in_a_row = 0;
     while (!stop_.load()) {
         gl_pump(glc);
         // nobody asked for a picture for 3 s: stop (the context, the presets and the CPU are given back)
         if (now_ns() - last_ask_ns_.load() > 3'000'000'000LL) break;
+        // The terminal is still taking the picture before (the screen says so: set_consumer_busy(); a Sixel terminal needs 50-150 ms for a big
+        // picture): a picture drawn now is replaced before anybody sees it. So the next one is not drawn -- up to three in a row, so the
+        // picture still moves at a quarter of the rate at least, and the next comes at once when the terminal is done. (Nothing waits: a
+        // change of the settings, a command, a new size or a new preset is taken up at once.)
+        {
+            bool behind = false;
+            {
+                std::lock_guard<std::mutex> lk(mu_);
+                behind = consumer_busy_.load(std::memory_order_relaxed) && !opts_dirty_ && cmds_.empty() && want_named_.empty() && want_path_.empty();
+            }
+            if (behind && skipped_in_a_row < 3) {
+                ++skipped_in_a_row;
+                wait_for_next_picture();
+                continue;
+            }
+            skipped_in_a_row = 0;
+        }
         int ww = 0, wh = 0;
         std::vector<int> cmds;
         std::string named, shown, want_path;
@@ -1318,12 +1344,7 @@ void Milkdrop::run() {
             ++front_seq_;
             status_.clear();
         }
-        // the next picture at the frame rate (a slow preset: as fast as it goes, without piling up)
-        next_t += std::chrono::microseconds(1000000 / std::clamp(o.fps, 5, 60));
-        const auto now = std::chrono::steady_clock::now();
-        if (next_t < now) next_t = now;
-        while (!stop_.load() && std::chrono::steady_clock::now() < next_t)
-            std::this_thread::sleep_for(std::min<std::chrono::steady_clock::duration>(next_t - std::chrono::steady_clock::now(), std::chrono::milliseconds(20)));
+        wait_for_next_picture();
     }
     ring().on.store(false);
     g_pm.pl_set_switched_cb(pl, nullptr, nullptr);

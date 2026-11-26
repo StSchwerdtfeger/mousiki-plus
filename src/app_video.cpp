@@ -870,6 +870,7 @@ bool App::video_draw_src(Src& V, bool playing_one, bool is_video, std::string& p
         // takes it, every picture the newest, and the loop -- the keys, the sound's clock -- never waits for the terminal.
         bool& owed = video_owed_[second_slot ? 1 : 0];
         const bool hold = live && !resized && write_frame_async_allowed() && write_frame_picture_busy();
+        if (!is_video) Milkdrop::instance().set_consumer_busy(hold);   // (MilkDrop leaves out the pictures the terminal could not take now anyway)
         bool make = fresh || owed;
         if (make && hold) { owed = true; make = false; }
         else if (make) owed = false;

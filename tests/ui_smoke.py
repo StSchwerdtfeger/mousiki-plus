@@ -5472,9 +5472,20 @@ def milkdrop_window(binary, root, scripts):
             sess.pump(0.5)
         check(got, "milkdrop window: a picture of the engine reaches the window")
         if got:
-            data = open(shot, "rb").read()
-            head, rest = data.split(b"\n255\n", 1)
-            check(len(set(rest[i:i + 3] for i in range(0, len(rest) - 3, 3 * 997))) > 3, "milkdrop window: the picture is not one flat colour")
+            def colours():
+                data = open(shot, "rb").read()
+                head, rest = data.split(b"\n255\n", 1)
+                return len(set(rest[i:i + 3] for i in range(0, len(rest) - 3, 3 * 997)))
+            n_col = colours()
+            for _ in range(24):   # (the preset is random: a picture of the first moments of one can be flat black or white; the shot is renewed)
+                if n_col > 3:
+                    break
+                sess.pump(0.5)
+                try:
+                    n_col = colours()
+                except (OSError, ValueError):
+                    pass
+            check(n_col > 3, "milkdrop window: the picture is not one flat colour")
         sess.send("|", 1.5)
         check(sess.wait_for(lambda t: "MilkDrop is in its own window" not in t, 6), "milkdrop window: the key closes it, the note is gone")
         check(sess.alive(), "milkdrop window: the program is still running")
@@ -5652,11 +5663,17 @@ def milkdrop_preset_overlay(binary, root, scripts):
                     fixed += 1
             return fixed / n if n else -1.0
         sess.pump(2.0)
-        samples = []   # (the preset's colours move with time: the lowest share of several pictures is the adaptive one)
-        for _ in range(12):
-            samples.append(fixed_share())
-            sess.pump(0.8)
-        a = min(samples)
+        for _attempt in range(8):
+            samples = []   # (the preset's colours move with time: the lowest share of several pictures is the adaptive one)
+            for _ in range(12):
+                samples.append(fixed_share())
+                sess.pump(0.8)
+            a = min(samples)
+            if a < 0.97:
+                break
+            # The preset is picked at random, and one that shows nothing but white (it happens) or grey has no colours of its own to tell the
+            # two palettes apart: [n] brings the next preset, which is looked at instead.
+            sess.send("n", 2.0)
         check(to_row("Effect", b"\x1b[B"), "preset overlay: DOWN reaches Effect")
         sess.send(b"\x1b[C", 0.8)
         ok_fx = sess.wait_for(lambda t: any("> Effect" in l and "Scanlines" in l for l in sess.screen.display), 4)
