@@ -32,6 +32,11 @@ SidInfo read_sid_header(const fs::path& sid);
 // the SID file and the length are unchanged. false + `err` when sidplayfp is missing or fails.
 bool render_sid_to_wav(const fs::path& sid, int seconds, fs::path& out_wav, std::string* err);
 
+// The cache of rendered tunes: the file name part made from the key (the same on every compiler), and the cleaning that deletes the oldest
+// .wav files of `dir` until the folder holds at most `limit` bytes (`keep` is never deleted).
+std::string sid_cache_hash(const std::string& key);
+void sid_cache_prune(const fs::path& dir, const fs::path& keep, unsigned long long limit);
+
 // Whether the ffmpeg on the PATH has the demuxer `name` ("libopenmpt", "libgme"); asked once, then cached.
 bool ffmpeg_has_demuxer(const std::string& name);
 

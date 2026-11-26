@@ -1,6 +1,8 @@
 // app_library.cpp
 // Part of class App (src/app.h): The library: row titles, the search, sort and filter of the local list, folders, playlists on disk, rescan.
 // Split out of app.cpp; the includes are the same as there.
+#include <numeric>
+#include "mem_trim.h"
 #include "app.h"
 #include "playlist_state.h"
 #include "video_links.h"
@@ -26,6 +28,7 @@
 #include "mic_capture.h"
 #include "process_util.h"
 #include "app_internal.h"
+#include "relocate_pick.h"
 #include "app_state_cliov.h"
 #include "update_check.h"
 #include "open_url.h"
@@ -136,11 +139,13 @@ std::string App::marquee_or_truncate(const std::string& text, int width, int row
 }
 
 
-std::vector<LocalTrack> App::filter_and_rank_local(const std::string& raw_query) const {
+// The tracks of the list as positions in all_local_tracks_ (what the list on screen keeps: 4 bytes a row instead of a copy of the track).
+std::vector<uint32_t> App::filter_and_rank_local_ids(const std::string& raw_query) const {
     std::string query;
     const int scope = local_query_scope(raw_query, query);   // 0 everything, 1 artist only, 2 album only
     if (query.empty()) {
-        auto result = all_local_tracks_;
+        std::vector<uint32_t> result(all_local_tracks_.size());
+        std::iota(result.begin(), result.end(), 0u);
         apply_local_sort(result);
         return result;
     }
@@ -152,7 +157,6 @@ std::vector<LocalTrack> App::filter_and_rank_local(const std::string& raw_query)
         search_.idx.reserve(all_local_tracks_.size());
         for (const auto& t : all_local_tracks_) {
             SearchIdx e;
-            e.key = path_utf8(t.path);
             e.title_n = normalize_for_search(with_latin_spelling(t.title));   // (a title in kana / Hangul / hanzi is also found by its Latin spelling)
             e.folder_artist_n = normalize_for_search(with_latin_spelling(t.folder_artist));
             search_.idx.push_back(std::move(e));
@@ -160,9 +164,10 @@ std::vector<LocalTrack> App::filter_and_rank_local(const std::string& raw_query)
     }
     {
         std::lock_guard<std::mutex> lk(row_meta_mutex_);   // once for the whole library, not once per track
-        for (auto& e : search_.idx) {
+        for (size_t i = 0; i < search_.idx.size(); ++i) {
+            SearchIdx& e = search_.idx[i];
             if (e.tags_seen) continue;
-            auto it = row_meta_cache_.find(e.key);
+            auto it = row_meta_cache_.find(all_local_tracks_[i].path.utf8());
             if (it == row_meta_cache_.end()) continue;
             e.tag_title_n = normalize_for_search(with_latin_spelling(it->second.title));
             e.artist_n = normalize_for_search(with_latin_spelling(it->second.artist));
@@ -176,9 +181,17 @@ std::vector<LocalTrack> App::filter_and_rank_local(const std::string& raw_query)
     std::stable_sort(scored.begin(), scored.end(),
                       [](const auto& a, const auto& b) { return a.first > b.first; });
 
-    std::vector<LocalTrack> result;
+    std::vector<uint32_t> result;
     result.reserve(scored.size());
-    for (const auto& sc : scored) result.push_back(all_local_tracks_[sc.second]);
+    for (const auto& sc : scored) result.push_back(sc.second);
+    return result;
+}
+
+std::vector<LocalTrack> App::filter_and_rank_local(const std::string& raw_query) const {
+    const std::vector<uint32_t> ids = filter_and_rank_local_ids(raw_query);
+    std::vector<LocalTrack> result;
+    result.reserve(ids.size());
+    for (uint32_t i : ids) result.push_back(all_local_tracks_[i]);
     return result;
 }
 
@@ -208,7 +221,7 @@ long long App::added_time_of(const fs::path& p) const {
 // once they've been lazily probed for display, so sorting by it up front
 // would show mostly-unprobed rows in an arbitrary order until the
 // background resolver catches up.
-void App::apply_local_sort(std::vector<LocalTrack>& tracks) const {
+void App::apply_local_sort(std::vector<uint32_t>& ids) const {
     if (local_sort_mode_ == 1) {
         // Sort by the title the row actually SHOWS: the filename-derived one,
         // or -- with "Show metadata only" (Shift+N) on -- the embedded title
@@ -216,23 +229,25 @@ void App::apply_local_sort(std::vector<LocalTrack>& tracks) const {
         // filename otherwise, exactly like the row does). Keys are built once
         // up front instead of taking row_meta_mutex_ on every comparison.
         std::vector<std::pair<std::string, size_t>> keyed;
-        keyed.reserve(tracks.size());
-        for (size_t i = 0; i < tracks.size(); ++i)
-            keyed.emplace_back(ascii_lower_str(list_row_title(tracks[i].path, tracks[i].title)), i);
+        keyed.reserve(ids.size());
+        for (size_t i = 0; i < ids.size(); ++i) {
+            const LocalTrack& t = all_local_tracks_[ids[i]];
+            keyed.emplace_back(ascii_lower_str(list_row_title(t.path, t.title)), i);
+        }
         std::stable_sort(keyed.begin(), keyed.end(),
                          [](const auto& a, const auto& b) { return a.first < b.first; });
-        std::vector<LocalTrack> sorted;
-        sorted.reserve(tracks.size());
-        for (const auto& k : keyed) sorted.push_back(std::move(tracks[k.second]));
-        tracks = std::move(sorted);
+        std::vector<uint32_t> sorted;
+        sorted.reserve(ids.size());
+        for (const auto& k : keyed) sorted.push_back(ids[k.second]);
+        ids = std::move(sorted);
     } else if (local_sort_mode_ == 2) {
-        std::stable_sort(tracks.begin(), tracks.end(), [this](const LocalTrack& a, const LocalTrack& b) {
+        std::stable_sort(ids.begin(), ids.end(), [this](uint32_t ia, uint32_t ib) {
             auto artist_of = [this](const LocalTrack& t) {
                 std::lock_guard<std::mutex> lk(row_meta_mutex_);
                 auto it = row_meta_cache_.find(path_utf8(t.path));
                 return (it != row_meta_cache_.end() && !it->second.artist.empty()) ? it->second.artist : t.folder_artist;
             };
-            return ascii_lower_str(artist_of(a)) < ascii_lower_str(artist_of(b));
+            return ascii_lower_str(artist_of(all_local_tracks_[ia])) < ascii_lower_str(artist_of(all_local_tracks_[ib]));
         });
     }
     else if (local_sort_mode_ == 3) {
@@ -240,13 +255,13 @@ void App::apply_local_sort(std::vector<LocalTrack>& tracks) const {
         // a file that was copied or downloaded into the library counts from then). Looked up once per file and kept
         // until the next rescan, because this runs again every time background tags re-filter the list.
         std::vector<std::pair<long long, size_t>> keyed;
-        keyed.reserve(tracks.size());
-        for (size_t i = 0; i < tracks.size(); ++i) keyed.emplace_back(added_time_of(tracks[i].path), i);
+        keyed.reserve(ids.size());
+        for (size_t i = 0; i < ids.size(); ++i) keyed.emplace_back(added_time_of(all_local_tracks_[ids[i]].path), i);
         std::stable_sort(keyed.begin(), keyed.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
-        std::vector<LocalTrack> sorted;
-        sorted.reserve(tracks.size());
-        for (const auto& k : keyed) sorted.push_back(std::move(tracks[k.second]));
-        tracks = std::move(sorted);
+        std::vector<uint32_t> sorted;
+        sorted.reserve(ids.size());
+        for (const auto& k : keyed) sorted.push_back(ids[k.second]);
+        ids = std::move(sorted);
     }
     // mode 0: leave as scanned (folder order) -- no-op
 }
@@ -281,6 +296,15 @@ bool App::video_is_paired(const fs::path& video) const {
     return paired_videos_.count(path_utf8(video)) > 0;
 }
 
+void App::apply_media_view(std::vector<uint32_t>& ids, int view) const {
+    if (view == 1) return;
+    ids.erase(std::remove_if(ids.begin(), ids.end(), [&](uint32_t i) {
+        const LocalTrack& t = all_local_tracks_[i];
+        if (!LocalSource::is_video_file(t.path)) return view == 2;
+        return view == 2 ? false : video_is_paired(t.path);
+    }), ids.end());
+}
+
 void App::apply_media_view(std::vector<LocalTrack>& v, int view) const {
     if (view == 1) return;
     v.erase(std::remove_if(v.begin(), v.end(), [&](const LocalTrack& t) {
@@ -308,23 +332,31 @@ int App::media_view_for(std::string& query, int pane, bool search_default_audio)
     return settings_.video_mode ? 1 : 0;
 }
 
-std::vector<LocalTrack> App::filter_and_rank_local_view(const std::string& query_in) const {
+std::vector<uint32_t> App::filter_and_rank_local_view_ids(const std::string& query_in) const {
     std::string query = query_in;
     const int mv = media_view_for(query, local_sort_mode_ == 4 ? 2 : -1);   // SHIFT+t's last step: only the video files
-    std::vector<LocalTrack> view = filter_and_rank_local(query);
+    std::vector<uint32_t> view = filter_and_rank_local_ids(query);
     apply_media_view(view, mv);
     if (folder_filter_.empty()) return view;
-    std::vector<LocalTrack> filtered;
+    std::vector<uint32_t> filtered;
     filtered.reserve(view.size());
-    for (auto& t : view) {
-        if (path_utf8(t.path.parent_path()) == folder_filter_) filtered.push_back(std::move(t));
+    for (uint32_t i : view) {
+        if (path_utf8(all_local_tracks_[i].path.parent_path()) == folder_filter_) filtered.push_back(i);
     }
     return filtered;
 }
 
+std::vector<LocalTrack> App::filter_and_rank_local_view(const std::string& query_in) const {
+    const std::vector<uint32_t> ids = filter_and_rank_local_view_ids(query_in);
+    std::vector<LocalTrack> result;
+    result.reserve(ids.size());
+    for (uint32_t i : ids) result.push_back(all_local_tracks_[i]);
+    return result;
+}
+
 void App::refresh_local_view() {
     if (audiobook_) { book_refresh_view(); return; }   // (the audio book player has no track list, only the books)
-    local_view_ = filter_and_rank_local_view(last_local_query_);
+    local_view_ = filter_and_rank_local_view_ids(last_local_query_);
     selected_ = 0;
     scroll_ = 0;
 }
@@ -337,7 +369,7 @@ void App::resort_local_view_keep_selection() {
     fs::path prev;
     const bool had = selected_ >= 0 && selected_ < static_cast<int>(local_view_.size());
     if (had) prev = local_view_[static_cast<size_t>(selected_)].path;
-    local_view_ = filter_and_rank_local_view(last_local_query_);
+    local_view_ = filter_and_rank_local_view_ids(last_local_query_);
     selected_ = 0;
     if (had) {
         for (size_t i = 0; i < local_view_.size(); ++i)
@@ -454,6 +486,7 @@ void App::rescan_library() {
         for (const std::string& r : library_roots()) roots.push_back(path_from_utf8(r));
         set_cover_library_roots(roots);
     }
+    local_view_.clear();   // (its positions belong to the old list: refresh_local_view() below makes it again)
     all_local_tracks_ = local_source_.scan(library_roots(), &diagnostics);
     exclude_book_files(all_local_tracks_);
     if (VideoLinks::get().size() > 0) {   // a song or a video that was moved (outside Mousiki) is found again by its file name
@@ -486,6 +519,7 @@ void App::rescan_library() {
     scanned_book_path_ = settings_.audiobook_path;
     search_.idx.clear();
     refresh_local_view(); // applies the active query/sort/filter to the new set
+    release_free_memory();
     for (const auto& line : diagnostics) ConsoleLog::instance().log_basic(line);
 
     if (!audiobook_) refresh_playlists_after_rescan();
@@ -508,7 +542,7 @@ void App::update_live_search_preview() {
         if (cs_in_search()) { cliov_->filter = cli::trim(buf.substr(buf.find(':') + 1)); cliov_refresh(); }
         list_source_ = pre_search_list_source_;
         if (audiobook_) folder_view_ = filter_folders(last_folder_query_);
-        else local_view_ = filter_and_rank_local_view(pre_search_local_query_);
+        else local_view_ = filter_and_rank_local_view_ids(pre_search_local_query_);
         selected_ = 0;
         scroll_ = 0;
         return;
@@ -526,7 +560,7 @@ void App::update_live_search_preview() {
     size_t plen = 0;
     if (online_prefix(buf, plen) >= 0 || (buf.size() >= 3 && ascii_lower_str(buf.substr(0, 3)) == "yv:")) {   // online (and "yv:", the video search): nothing until ENTER
         list_source_ = pre_search_list_source_;
-        local_view_ = filter_and_rank_local_view(pre_search_local_query_);
+        local_view_ = filter_and_rank_local_view_ids(pre_search_local_query_);
         selected_ = 0;
         scroll_ = 0;
         return;
@@ -557,7 +591,7 @@ void App::update_live_search_preview() {
     }
 
     list_source_ = ListSource::Local;
-    local_view_ = filter_and_rank_local_view(buf);
+    local_view_ = filter_and_rank_local_view_ids(buf);
     selected_ = 0;
     scroll_ = 0;
 }
@@ -773,9 +807,10 @@ std::optional<Playlist> App::load_playlist(const std::string& name) const {
 
 // A playlist stores paths. When a file is gone from its stored path (moved to
 // another folder, or a folder renamed), look for the same file name in the
-// library (every folder added in the settings) and use that path. One match
-// is taken; with several, the one whose parent folder name matches wins, else
-// the first. The playlist file itself is rewritten only when it is saved.
+// library (every folder added in the settings) and use that path. The match in
+// a folder of the same name wins, else a single match is taken; with several
+// and no clear one the track stays missing (relocate_pick.h). The playlist file
+// itself is rewritten only when it is saved.
 void App::relocate_missing_tracks(Playlist& pl) const {
     bool any = false;
     for (const auto& t : pl.tracks) if (t.missing) { any = true; break; }
@@ -785,13 +820,12 @@ void App::relocate_missing_tracks(Playlist& pl) const {
     for (auto& t : pl.tracks) {
         if (!t.missing) continue;
         auto range = by_name.equal_range(ascii_lower_str(path_utf8(t.path.filename())));
-        const LocalTrack* pick = nullptr;
-        const std::string old_dir = ascii_lower_str(path_utf8(t.path.parent_path().filename()));
-        for (auto it = range.first; it != range.second; ++it) {
-            if (!pick) pick = it->second;
-            if (ascii_lower_str(path_utf8(it->second->path.parent_path().filename())) == old_dir) { pick = it->second; break; }
-        }
-        if (!pick) continue;
+        std::vector<const LocalTrack*> cand;
+        std::vector<fs::path> cand_paths;
+        for (auto it = range.first; it != range.second; ++it) { cand.push_back(it->second); cand_paths.push_back(it->second->path); }
+        const int at = pick_relocated_track(t.path, cand_paths);   // see relocate_pick.h: never a guess between several
+        if (at < 0) continue;
+        const LocalTrack* pick = cand[static_cast<size_t>(at)];
         t.path = pick->path;
         t.title = clean_tag_text(path_utf8(t.path.stem()));
         t.artist = path_utf8(t.path.parent_path().filename());

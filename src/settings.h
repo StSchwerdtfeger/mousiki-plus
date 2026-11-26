@@ -44,6 +44,7 @@ struct Settings : VizPrefs {
     bool latin_macrons = false;          // Latin letters: long vowels as macrons (ō ū) instead of ou / uu (LatinMacrons=)
     bool latin_wo = false;               // Latin letters: the particle を as "wo" instead of "o" (LatinWo=)
     bool lyrics_name_variants = true;    // a lyrics search that finds nothing tries other spellings of the names (LyricsNameVariants=)
+    bool lyrics_better_source = true;    // the lyrics search asks lyrics-api.boidu.dev (word-timed lyrics) as well as LRCLIB (LyricsBetterSource=)
     bool latin_lookup = false;           // artists written in Chinese characters are looked up on MusicBrainz for their Latin name (background; LatinNameLookup=)
     bool latin_letters = false;          // Japanese / Korean / Chinese text is shown in Latin letters (HKeyTranslit, SHIFT+')
     bool album_cover = false;            // the cover of the playing track is shown in the disk's place (the disk where there is none)
@@ -101,6 +102,13 @@ struct Settings : VizPrefs {
     // Settings -> ANIMA/VIZ "Use Lyrics / Use Oscilloscope / Use Spectrogram": false leaves that one out entirely (no
     // lyrics fetching, not in the "." cycle; the sphere is always there). The windows (SHIFT+8 / SHIFT+9) work anyway.
     bool use_lyrics = true;
+    // Multi-Viz: on a screen wide enough (about 40 columns for each) the Viz/Lyrics field is split into up to three panes side by side.
+    // Codes of the picks: 0 = main: the field as the Lyrics/Viz settings show it / 2nd, 3rd: off, 1 sphere, 2 oscilloscope, 3 spectrogram,
+    // 4 video, 5 MilkDrop. Each visual is shown once (a pick another pane already shows leaves its pane to the next that is free).
+    bool multiviz = false;
+    int mv_main = 0;
+    int mv_2 = 3;
+    int mv_3 = 0;
     bool book_force_note = true;    // audio book: while a note is in the field, no picture (MilkDrop / video) is drawn there, only the note
     bool use_osci = true;
     bool use_spectro = true;

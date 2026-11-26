@@ -177,6 +177,52 @@ const Final kFinal[28] = {
     {"k", "", "k"}, {"t", "", "t"}, {"p", "", "p"}, {"t", "", ""},
 };
 
+// Sound changes between a syllable's final consonant `f` (0-27) and the initial `n` (0-18) / vowel `m` of the next syllable, as the
+// Revised Romanization writes them (what is said, not what is spelled): 신라 silla, 독립 dongnip, 같이 gachi, 좋다 jota, 먹는 meongneun.
+// Not reflected, as in the Revised Romanization: the tensing of ㄱ ㄷ ㅂ ㅅ ㅈ after an obstruent (학교 hakgyo). `fin` / `ini` are the
+// text for the final consonant and the initial of the next syllable, a null `ini` leaves the initial as it is.
+struct KoreanPair { bool applies = false; const char* fin = ""; const char* ini = nullptr; };
+KoreanPair korean_pair(unsigned f, unsigned n, unsigned m) {
+    KoreanPair r;
+    if (f == 0) return r;
+    auto set = [&](const char* fin, const char* ini) { r.applies = true; r.fin = fin; r.ini = ini; return r; };
+    if (n == 11) {   // a silent initial: the final moves over (done by the caller), except where ㄷ ㅌ meet 이
+        if (f == 7 && m == 20) return set("", "j");
+        if (f == 25 && m == 20) return set("", "ch");
+        return r;
+    }
+    if (f == 27 || f == 6 || f == 15) {   // ㅎ in the final: it makes the next ㄱ ㄷ ㅂ ㅈ aspirated
+        const char* rest = f == 6 ? "n" : f == 15 ? "l" : "";
+        if (n == 0) return set(rest, "k");
+        if (n == 3) return set(rest, "t");
+        if (n == 7) return set(rest, "p");
+        if (n == 12) return set(rest, "ch");
+        if (f == 27 && (n == 2 || n == 6)) return set("n", nullptr);   // 놓는 nonneun
+    }
+    enum { K, NG, N, T, L, M, P } cls;
+    switch (f) {
+        case 1: case 2: case 3: case 9: case 24: cls = K; break;
+        case 21: cls = NG; break;
+        case 4: case 5: case 6: cls = N; break;
+        case 7: case 19: case 20: case 22: case 23: case 25: case 27: cls = T; break;
+        case 8: case 11: case 12: case 13: case 15: cls = L; break;
+        case 10: case 16: cls = M; break;
+        default: cls = P; break;
+    }
+    if (n == 2 || n == 6) {   // before ㄴ ㅁ: ㄱ -> ng, ㄷ -> n, ㅂ -> m
+        if (cls == K) return set("ng", nullptr);
+        if (cls == T) return set("n", nullptr);
+        if (cls == P) return set("m", nullptr);
+        if (cls == L && n == 2) return set("l", "l");
+    } else if (n == 5) {      // before ㄹ
+        if (cls == K || cls == NG) return set("ng", "n");
+        if (cls == P || cls == M) return set("m", "n");
+        if (cls == T) return set("n", "n");
+        return set("l", "l");   // 신라 silla, 칼랄
+    }
+    return r;
+}
+
 // ---- the switch -------------------------------------------------------------------------------------------------------------
 std::atomic<int> g_default_hanzi{0};   // 0 leave, 1 read as Chinese (pinyin), 2 read as Japanese (the kanji reader is asked)
 std::atomic<bool> g_macrons{false};
@@ -666,12 +712,23 @@ static std::string transliterate_impl(const std::string& text) {
             const unsigned ini = s / (21 * 28), med = (s % (21 * 28)) / 28, fin = s % 28;
             if (last_kept_cjk) word_break();
             last_kept_cjk = false;
-            o += kInitial[ini];
+            const char* ini_text = kInitial[ini];
+            if (i > 0 && is_hangul(v[i - 1])) {   // the sound change with the syllable before
+                const KoreanPair kp = korean_pair(static_cast<unsigned>((v[i - 1] - 0xAC00) % 28), ini, med);
+                if (kp.applies && kp.ini) ini_text = kp.ini;
+            }
+            o += ini_text;
             o += kMedial[med];
             bool link = false;   // the final consonant moves to the next syllable when that one starts with the silent ieung
-            if (fin && i + 1 < v.size() && is_hangul(v[i + 1])) link = ((v[i + 1] - 0xAC00) / (21 * 28)) == 11 && fin != 21;
+            KoreanPair next_pair;
+            if (fin && i + 1 < v.size() && is_hangul(v[i + 1])) {
+                const unsigned ns = static_cast<unsigned>(v[i + 1] - 0xAC00);
+                next_pair = korean_pair(fin, ns / (21 * 28), (ns % (21 * 28)) / 28);
+                link = (ns / (21 * 28)) == 11 && fin != 21 && !next_pair.applies;
+            }
             if (fin) {
-                if (link) { o += kFinal[fin].stay; o += kFinal[fin].move; }
+                if (next_pair.applies) o += next_pair.fin;
+                else if (link) { o += kFinal[fin].stay; o += kFinal[fin].move; }
                 else o += kFinal[fin].end;
             }
             last_cjk_word = true;

@@ -197,7 +197,7 @@ private:
     // holds scan()'s per-root diagnostics (found/missing, file counts) until
     // run() can actually flush them into the log.
     std::vector<std::string> local_scan_diagnostics_;
-    std::vector<LocalTrack> local_view_;     // filtered
+    LocalView local_view_{all_local_tracks_};   // filtered (positions in all_local_tracks_)
     std::vector<OnlineResult> online_view_;
     int selected_ = 0;
     int scroll_ = 0;
@@ -874,6 +874,7 @@ private:
     // `pane` is the SHIFT+v choice of a pane (-1 = not chosen: the Video mode decides, a search lists "audio").
     int media_view_for(std::string& query, int pane, bool search_default_audio = true) const;
     void apply_media_view(std::vector<LocalTrack>& v, int view) const;
+    void apply_media_view(std::vector<uint32_t>& ids, int view) const;
     bool video_is_paired(const fs::path& video) const;   // an audio file of the same name beside it, or a link made by hand
     static const char* media_view_name(int view) { return view == 2 ? "video" : view == 1 ? "video + audio" : "audio"; }
     mutable std::unordered_set<std::string> paired_videos_;
@@ -1853,8 +1854,10 @@ private:
     void request_live_search_preview() { search_.preview_pending = true; }
     void flush_live_search_preview() { if (search_.preview_pending) { search_.preview_pending = false; update_live_search_preview(); } }
     std::vector<LocalTrack> filter_and_rank_local(const std::string& query) const;
-    void apply_local_sort(std::vector<LocalTrack>& tracks) const;
+    std::vector<uint32_t> filter_and_rank_local_ids(const std::string& query) const;
+    void apply_local_sort(std::vector<uint32_t>& ids) const;
     std::vector<LocalTrack> filter_and_rank_local_view(const std::string& query) const; // + folder filter
+    std::vector<uint32_t> filter_and_rank_local_view_ids(const std::string& query) const;   // the same, as positions in all_local_tracks_
     void resort_local_view_keep_selection(); // after Shift+N: re-sort, cursor stays on the same track
     static const char* sort_mode_name(int mode, bool meta_only);
     void submit_search();

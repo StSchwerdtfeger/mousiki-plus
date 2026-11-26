@@ -403,12 +403,14 @@ void App::remote_poll() {
     char pos[32], dur[32];
     std::snprintf(pos, sizeof pos, "%.1f", has_track_ ? player_.poll_elapsed() : 0.0);
     std::snprintf(dur, sizeof dur, "%zu", has_track_ ? total_sec_ : static_cast<size_t>(0));
+    char spd[16];
+    std::snprintf(spd, sizeof spd, "%.2f", player_.speed());
     remote::publish_status({{"mode", mode_name},
                             {"state", !has_track_ ? "stopped" : player_.is_paused() ? "paused" : muted_ ? "muted" : "playing"},
                             {"title", has_track_ ? md.name : std::string()},
                             {"artist", has_track_ && md.artist != "-" ? md.artist : std::string()},
                             {"album", has_track_ && md.album != "-" ? md.album : std::string()},
-                            {"position_sec", pos}, {"duration_sec", dur},
+                            {"position_sec", pos}, {"duration_sec", dur}, {"speed", spd},
                             {"volume", std::to_string(player_.volume())}, {"muted", muted_ ? "yes" : "no"}, {"queue_len", std::to_string(queue_.size())},
                             {"playback_mode", play_mode_name(settings_.play_mode)}});
 }

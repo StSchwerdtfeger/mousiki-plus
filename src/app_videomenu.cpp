@@ -1059,7 +1059,17 @@ std::vector<std::string> App::build_video_menu_panel() const {
         }
     }
     const bool more = static_cast<int>(lines.size()) + 1 > term_rows_ - 2;   // (taller than the terminal: it scrolls with the selection)
-    lines.push_back(centred_bottom(settings_, W, ind_confirm_.active ? "Keep changes?  [Y] keep  [N / ESC] undo" : more ? "[UP/DOWN] [SHIFT+↑↓] page [←→] change [ESC]" : "[UP/DOWN] [ENTER] [←→] change  [ESC] close", border_bottom));
+    std::string vm_legend;
+    if (ind_confirm_.active) vm_legend = "Keep changes?  [Y] keep  [N / ESC] undo";
+    else {
+        // same wording as the other overlays: [KEY] action; the longest variant that fits the width
+        const std::vector<std::string> opts = more
+            ? std::vector<std::string>{"[UP/DOWN] select  [SHIFT+\u2191\u2193] page  [LEFT/RIGHT] change  [ESC] close", "[UP/DOWN] select  [SHIFT+\u2191\u2193] page  [\u2190\u2192] change  [ESC] close", "[\u2191\u2193] select  [SHIFT+\u2191\u2193] page  [\u2190\u2192] change  [ESC] close"}
+            : std::vector<std::string>{"[UP/DOWN] select  [LEFT/RIGHT] change  [ENTER] open  [ESC] close", "[UP/DOWN] select  [\u2190\u2192] change  [ENTER] open  [ESC] close", "[\u2191\u2193] select  [\u2190\u2192] change  [ENTER] open  [ESC] close"};
+        vm_legend = opts.back();
+        for (const std::string& o : opts) if (display_width(o) <= W - 6) { vm_legend = o; break; }
+    }
+    lines.push_back(centred_bottom(settings_, W, vm_legend, border_bottom));
     window_lines(lines, term_rows_ - 2, 1, 1, vmenu_top_, [&](const std::string& t) { return bar + " " + legend_col + pad_right(truncate_str(t, inner), inner) + R + " " + bar; });
     return lines;
 }

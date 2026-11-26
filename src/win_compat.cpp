@@ -864,8 +864,8 @@ long long win_pread(int fd, void* buf, std::size_t count, long long offset) {
     HANDLE h = reinterpret_cast<HANDLE>(_get_osfhandle(fd));
     if (h == INVALID_HANDLE_VALUE) return -1;
 
-    // OVERLAPPED carries the offset, so unlike a seek+read pair this never
-    // disturbs the descriptor's own file pointer and needs no locking.
+    // OVERLAPPED carries the offset, so no seek+read pair (and no locking) is needed. For a handle that was not opened for
+    // overlapped I/O the file pointer may still move afterwards: callers must read at absolute offsets only.
     OVERLAPPED ov{};
     ov.Offset     = static_cast<DWORD>(static_cast<uint64_t>(offset) & 0xFFFFFFFFull);
     ov.OffsetHigh = static_cast<DWORD>(static_cast<uint64_t>(offset) >> 32);

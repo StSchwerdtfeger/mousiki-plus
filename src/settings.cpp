@@ -3,6 +3,7 @@
 #include "app_dirs.h"
 #include "milkdrop.h"
 #include "settings.h"
+#include <cstdlib>
 #include "vivid.h"
 #include "process_util.h"   // physical_memory_mb(): the cap of TrackBufferMB
 #include "utf8_util.h"
@@ -913,6 +914,10 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_FLAG("UseModeAudiobook", nullptr, use_mode[2], "\n"),
     SIMPLE_FLAG("VideoLayoutScales", nullptr, vl_scales, "\n"),
     SIMPLE_FLAG("UseLyrics", nullptr, use_lyrics, "\n"),
+    SIMPLE_FLAG("MultiViz", nullptr, multiviz, "\n## true , false (default false) -- Multi-Viz: on a wide screen the Viz/Lyrics field is split into up to three panes side by side (about 40 columns each; on a narrower screen the panes that do not fit are left out)\n"),
+    SIMPLE_NUM("MultiVizMain", nullptr, mv_main, 0, 5, "\n## 0 the field as Lyrics/Viz Default shows it (default) , 1 sphere , 2 oscilloscope , 3 spectrogram , 4 video , 5 MilkDrop -- what the first pane of Multi-Viz shows\n"),
+    SIMPLE_NUM("MultiViz2", nullptr, mv_2, 0, 5, "\n## 0 off , 1 sphere , 2 oscilloscope , 3 spectrogram (default) , 4 video , 5 MilkDrop -- what the second pane of Multi-Viz shows (a visual another pane shows already is not shown twice)\n"),
+    SIMPLE_NUM("MultiViz3", nullptr, mv_3, 0, 5, "\n## 0 off (default) , 1 sphere , 2 oscilloscope , 3 spectrogram , 4 video , 5 MilkDrop -- what the third pane of Multi-Viz shows\n"),
     SIMPLE_FLAG("BookForceNote", nullptr, book_force_note, "\n## audio book: true = while a note is shown in the Viz/Notes field, only the note is drawn there (no MilkDrop or other picture), false = the picture stays behind it\n"),
     SIMPLE_FLAG("UseOscilloscope", nullptr, use_osci, "\n"),
     SIMPLE_FLAG("UseSpectrogram", nullptr, use_spectro, "\n"),
@@ -1336,6 +1341,18 @@ static Settings load_from_config(const fs::path& path) {
             const bool on = (v == "true" || v == "1" || v == "on" || v == "yes");
             (key == "LatinMacrons" ? s.latin_macrons : s.latin_wo) = on;
             translit_set_style(s.latin_macrons, s.latin_wo);
+            continue;
+        }
+        if (key == "LyricsBetterSource") {
+            std::string v = trim_ws(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.lyrics_better_source = !(v == "false" || v == "0" || v == "off" || v == "no");
+            // the lyrics helper script (and every other program started from here) reads it from the environment
+#if defined(_WIN32)
+            _putenv_s("MOUSIKI_LYRICS_BETTER", s.lyrics_better_source ? "1" : "0");
+#else
+            setenv("MOUSIKI_LYRICS_BETTER", s.lyrics_better_source ? "1" : "0", 1);
+#endif
             continue;
         }
         if (key == "LatinNameLookup") {
@@ -2294,6 +2311,7 @@ static void write_settings_body(std::ostream& out, const Settings& s) {
     out << "LyricsNameVariants=" << tf(s.lyrics_name_variants) << "\n## true , false -- a lyrics search (also the refetch) that finds nothing tries other spellings: the Latin-letters spelling, the title / artist without their Latin or without their Japanese part, the title alone\n";
     out << "LatinMacrons=" << tf(s.latin_macrons) << "\n## true , false -- Latin letters (SHIFT+'): Japanese long vowels with a macron (koohii -> koohii off, kōhī on; ou -> ō); off = spelled out (ou, uu)\n";
     out << "LatinWo=" << tf(s.latin_wo) << "\n## true , false -- Latin letters (SHIFT+'): the particle を as \"wo\" (on) or \"o\" (off)\n";
+    out << "LyricsBetterSource=" << tf(s.lyrics_better_source) << "\n## true , false -- lyrics: besides LRCLIB (lrclib.net) the lyrics service lyrics-api.boidu.dev (\"Better Lyrics\", word by word timing) is asked too; every lyrics search sends the TITLE and ARTIST of the track to each service. false = only LRCLIB (line by line timing)\n";
     out << "LatinNameLookup=" << tf(s.latin_lookup) << "\n## true , false -- the artists whose name is written in Chinese characters are looked up on MusicBrainz in the background to get their Latin name (sends the NAME of the artist, one at a time, to musicbrainz.org; the answers are kept in kanji_readings_learned.txt; needs Python 3)\n";
     out << "LatinHanziDefault=" << (s.latin_hanzi == 1 ? "chinese" : s.latin_hanzi == 2 ? "japanese" : "leave") << "\n## leave , chinese , japanese -- Latin letters (SHIFT+'): Chinese characters of which nothing says whether the text is Japanese or Chinese (the same in both writings, e.g. 東京): leave them, read them as Chinese (pinyin), or as Japanese (they stay as they are unless the optional kanji reader, see the manual, knows their reading)\n";
     out << "AlbumCover=" << tf(s.album_cover) << "\n## true , false -- music player: the cover of the playing track takes the disk's place (needs ElimentDisk=true; where a track has no cover the disk is shown)\n";
@@ -2384,6 +2402,10 @@ write_simple_setting(out, s, "VideoLayout");
     out << "## Picking one turns its \"Use ...\" switch below on; switching that off again moves this pick to the next visual that is on.\n";
     write_simple_setting(out, s, "UseLyrics");
     write_simple_setting(out, s, "BookForceNote");
+    write_simple_setting(out, s, "MultiViz");
+    write_simple_setting(out, s, "MultiVizMain");
+    write_simple_setting(out, s, "MultiViz2");
+    write_simple_setting(out, s, "MultiViz3");
     write_simple_setting(out, s, "UseOscilloscope");
     write_simple_setting(out, s, "UseSpectrogram");
     write_simple_setting(out, s, "UseSphere");
@@ -2749,7 +2771,7 @@ void copy_look(const Settings& src, Settings& dst) {
     // elements and visualizations
     MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(disk_border); MOUSIKI_LOOK(top_pane_style); MOUSIKI_LOOK(sharp_corners); MOUSIKI_LOOK(thick_borders); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
     MOUSIKI_LOOK(volume_indicator); MOUSIKI_LOOK(volume_gradient); MOUSIKI_LOOK(element_vizfield); MOUSIKI_LOOK(element_lyrics);
-    MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(book_force_note); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
+    MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(book_force_note); MOUSIKI_LOOK(multiviz); MOUSIKI_LOOK(mv_main); MOUSIKI_LOOK(mv_2); MOUSIKI_LOOK(mv_3); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
     MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_extra_paths); MOUSIKI_LOOK(milkdrop_gpu); MOUSIKI_LOOK(milkdrop_lock); MOUSIKI_LOOK(milkdrop_hcd); MOUSIKI_LOOK(milkdrop_aspect); MOUSIKI_LOOK(milkdrop_ratio); MOUSIKI_LOOK(milkdrop_mesh); MOUSIKI_LOOK(milkdrop_var); MOUSIKI_LOOK(milkdrop_clean); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res); MOUSIKI_LOOK(milkdrop_win_res);
     MOUSIKI_LOOK(milkdrop_preset_secs); MOUSIKI_LOOK(milkdrop_shuffle); MOUSIKI_LOOK(milkdrop_fav_shuffle); MOUSIKI_LOOK(milkdrop_auto); MOUSIKI_LOOK(milkdrop_auto_video_was); MOUSIKI_LOOK(milkdrop_fx); MOUSIKI_LOOK(milkdrop_fixed_colors); MOUSIKI_LOOK(milkdrop_cut_sens); MOUSIKI_LOOK(milkdrop_fx_on); MOUSIKI_LOOK(milkdrop_default_preset); MOUSIKI_LOOK(milkdrop_hard_cuts);
     MOUSIKI_LOOK(milkdrop_transition); MOUSIKI_LOOK(milkdrop_show_name);
@@ -2828,7 +2850,7 @@ Settings load_book_settings(const Settings& player, bool* wants_default_theme) {
 // The keys of config.txt that belong to the look (see copy_look): only these go into audiobook_config.txt.
 static bool is_look_key(const std::string& key) {
     static const char* const prefixes[] = {"Color", "BorderGradient", "Eliment", "Volume", "VizLyricsField", "LyricViz", "VizDefault", "NoLyricsViz",
-                                           "UseLyrics", "BookForceNote", "UseOscilloscope", "UseSpectrogram", "UseSphere", "UseMilkDrop", "MilkDrop", "VizOrder", "Osci", "Scope", "Spectro",
+                                           "UseLyrics", "BookForceNote", "MultiViz", "UseOscilloscope", "UseSpectrogram", "UseSphere", "UseMilkDrop", "MilkDrop", "VizOrder", "Osci", "Scope", "Spectro",
                                            "Visualizer", "Hifi", "TopPane", "SharpCorners", "ThickBorders", "WaveformStyle", "DiskRotationSpeed", "MetaDataOnly", "PlaybackMode", "UpperLeftCorner",
                                            "UpperRightCorner", "BottomLeftCorner", "LowerRightCorner", "Vertical", "Horizontal", "Seprator", "ListSeparator",
                                            "Normalize", "EqualizerEnabled", "EqualizerBands", "StereoPlayback"};

@@ -1,6 +1,7 @@
 // app_rowmeta.cpp
 // Part of class App (src/app.h): Tags of the rows on screen, read in the background (and the waveform of the current track).
 // Split out of app.cpp; the includes are the same as there.
+#include "mem_trim.h"
 #include "app.h"
 #include "playlist_state.h"
 #include "tag_cache.h"
@@ -228,9 +229,10 @@ void App::launch_row_meta_resolver() {
     // situation where files this sweep has already passed (or never saw)
     // can appear.
     if (row_meta_resolver_started_.exchange(true)) return;
-    auto paths = std::make_shared<std::vector<fs::path>>();
+    // (the paths as plain UTF-8 strings: a vector of fs::path would cost four times the memory for a big library, see LightPath)
+    auto paths = std::make_shared<std::vector<std::string>>();
     paths->reserve(all_local_tracks_.size());
-    for (auto& t : all_local_tracks_) paths->push_back(t.path);
+    for (auto& t : all_local_tracks_) paths->push_back(t.path.utf8());
     const bool books = audiobook_;
 
     // Everything runs in the background. First the tag cache of the last run (tag_cache.h): every file whose size and
@@ -244,9 +246,9 @@ void App::launch_row_meta_resolver() {
             const TagCacheMap cached = tag_cache_load(tag_cache_path(books));
             size_t hits = 0;
             for (size_t i = 0; i < paths->size() && !bg_->quit.load(); ++i) {
-                (*stamps)[i] = tag_stamp((*paths)[i]);
+                (*stamps)[i] = tag_stamp(path_from_utf8((*paths)[i]));
                 if (cached.empty() || !(*stamps)[i].ok()) continue;
-                const std::string key = path_utf8((*paths)[i]);
+                const std::string& key = (*paths)[i];
                 const auto it = cached.find(key);
                 if (it == cached.end() || !(it->second.stamp == (*stamps)[i])) continue;   // new or changed: read again
                 std::lock_guard<std::mutex> lk(row_meta_mutex_);
@@ -257,6 +259,7 @@ void App::launch_row_meta_resolver() {
                 ++hits;
             }
             if (hits > 0) row_meta_tags_version_.fetch_add(1, std::memory_order_relaxed);   // search / sort see them now
+            release_free_memory();   // (the cache that was read: gone, its memory goes back)
             ConsoleLog::instance().log_verbose("tag cache: " + std::to_string(hits) + " of " + std::to_string(paths->size()) + " files unchanged");
         }
         auto next_index = std::make_shared<std::atomic<size_t>>(0);
@@ -267,8 +270,8 @@ void App::launch_row_meta_resolver() {
                     if (bg_->quit.load()) break;   // quitting: stop here (what was read is written below)
                     size_t i = next_index->fetch_add(1, std::memory_order_relaxed);
                     if (i >= paths->size()) break;
-                    const fs::path& p = (*paths)[i];
-                    std::string key = path_utf8(p);
+                    const std::string& key = (*paths)[i];
+                    const fs::path p = path_from_utf8(key);
                     {
                         std::lock_guard<std::mutex> lk(row_meta_mutex_);
                         auto it = row_meta_cache_.find(key);
@@ -302,21 +305,20 @@ void App::launch_row_meta_resolver() {
                 if (finished->fetch_add(1) + 1 != kResolverWorkers) return;
                 // the last worker: the tags of every library file as they are now, with the stamps taken before they were read
                 // (a file changed since then has a newer stamp on disk and is read again next time)
-                TagCacheMap out;
-                {
+                const bool saved = tag_cache_save_stream(tag_cache_path(books), [&](const TagCacheEmit& emit) {
                     std::lock_guard<std::mutex> lk(row_meta_mutex_);
-                    out.reserve(paths->size());
                     for (size_t i = 0; i < paths->size(); ++i) {
                         if (!(*stamps)[i].ok()) continue;
-                        const std::string key = path_utf8((*paths)[i]);
+                        const std::string& key = (*paths)[i];
                         const auto it = row_meta_cache_.find(key);
                         if (it == row_meta_cache_.end() || !it->second.tags_resolved) continue;
                         if (borrowed_tags_.count(key)) continue;   // a video showing the tags of its track: not its own
-                        out[key] = TagCacheEntry{(*stamps)[i], it->second};
+                        emit(key, (*stamps)[i], it->second);
                     }
-                }
-                if (!tag_cache_save(tag_cache_path(books), out))
+                });
+                if (!saved)
                     ConsoleLog::instance().log_basic("tag cache: could not write " + path_utf8(tag_cache_path(books)));
+                release_free_memory();
             });
         }
     });
@@ -362,7 +364,7 @@ void App::poll_pending_row_meta_tags() {
     bool had_selection = selected_ >= 0 && selected_ < static_cast<int>(local_view_.size());
     if (had_selection) prev_selected_path = local_view_[static_cast<size_t>(selected_)].path;
 
-    local_view_ = filter_and_rank_local_view(q);
+    local_view_ = filter_and_rank_local_view_ids(q);
 
     if (had_selection) {
         selected_ = 0;

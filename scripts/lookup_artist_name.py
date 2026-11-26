@@ -25,6 +25,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mb_gate  # noqa: E402
+
 USER_AGENT = "MousikiPlus/%s (https://github.com/StSchwerdtfeger/mousiki-plus; artist name lookup)" % os.environ.get("MOUSIKI_VERSION", "5")   # (the program sets MOUSIKI_VERSION)
 MB_API = "https://musicbrainz.org/ws/2/artist/"
 TIMEOUT = 25
@@ -107,6 +110,7 @@ def unsort(sort):
 def get(url):
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
     for attempt in range(3):
+        mb_gate.wait()   # one request per second for all Mousiki processes together
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
                 return resp.read(2 * 1024 * 1024).decode("utf-8", "replace")

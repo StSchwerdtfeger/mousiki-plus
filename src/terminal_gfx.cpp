@@ -342,7 +342,8 @@ GfxProto gfx_probe(const std::string& pref_in) {
     if (!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO)) return GfxProto::None;
     // Ask: a 1x1 Kitty graphics query, then the primary device attributes (every terminal answers those, so the wait ends).
     const char q[] = "\x1b_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\\x1b[c";
-    if (::write(STDOUT_FILENO, q, sizeof q - 1) < 0) return env_kitty ? GfxProto::Kitty : env_sixel ? GfxProto::Sixel : GfxProto::None;
+    const bool in_tmux = std::getenv("TMUX") != nullptr;   // tmux drops picture commands: only a real answer to the query counts there
+    if (::write(STDOUT_FILENO, q, sizeof q - 1) < 0) return in_tmux ? GfxProto::None : env_kitty ? GfxProto::Kitty : env_sixel ? GfxProto::Sixel : GfxProto::None;
     std::string reply;
     for (int waited = 0; waited < 250;) {
         struct pollfd pfd = {STDIN_FILENO, POLLIN, 0};
@@ -360,7 +361,9 @@ GfxProto gfx_probe(const std::string& pref_in) {
         const size_t end = reply.find('c', da);
         const std::string attrs = ";" + reply.substr(da + 3, end == std::string::npos ? std::string::npos : end - da - 3) + ";";
         if (attrs.find(";4;") != std::string::npos) return GfxProto::Sixel;
+        return GfxProto::None;   // the terminal answered, and it has neither: a variable inherited from outside (tmux in kitty, WT_SESSION under WSL) does not change that
     }
+    if (in_tmux) return GfxProto::None;
     return env_kitty ? GfxProto::Kitty : env_sixel ? GfxProto::Sixel : GfxProto::None;
 #else
     return env_kitty ? GfxProto::Kitty : env_sixel ? GfxProto::Sixel : GfxProto::None;

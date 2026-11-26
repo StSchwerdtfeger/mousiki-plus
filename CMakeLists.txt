@@ -144,7 +144,7 @@ if(MOUSIKI_TSAN AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 # Fuzzing (Clang only): cmake -S . -B build-fuzz -DCMAKE_BUILD_TYPE=Debug -DMOUSIKI_FUZZ=ON -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang
-# then build the targets (mousiki_fuzz_lyrics, _json, _remote, _playlist, _cue, _tags) and see fuzz/README.md. Everything is built with
+# then build the targets (mousiki_fuzz_lyrics, _json, _remote, _playlist, _cue, _tags, _decoder) and see fuzz/README.md. Everything is built with
 # AddressSanitizer, UndefinedBehaviorSanitizer and libFuzzer's coverage instrumentation. (Above the first add_library, like the TSan block.)
 option(MOUSIKI_FUZZ "Clang: build the libFuzzer targets of fuzz/ (the parsers of files and requests from outside)" OFF)
 if(MOUSIKI_FUZZ)
@@ -153,6 +153,9 @@ if(MOUSIKI_FUZZ)
   endif()
   add_compile_options(-fsanitize=fuzzer-no-link,address,undefined -fno-sanitize-recover=undefined -g -fno-omit-frame-pointer)
   add_link_options(-fsanitize=address,undefined)
+  # dr_flac's binary search in miniaudio divides by zero for some damaged files (a float division, the seek then just lands somewhere else:
+  # an upstream bug, no memory error). With these two checks off in that one file the decoder target keeps looking for memory errors.
+  set_source_files_properties("${CMAKE_SOURCE_DIR}/src/miniaudio_impl.cpp" PROPERTIES COMPILE_OPTIONS "-fno-sanitize=float-cast-overflow;-fno-sanitize=float-divide-by-zero")
 endif()
 
 # Everything but main() is one OBJECT library, compiled once and linked into the player AND into the test program
@@ -424,7 +427,7 @@ endif()
 message(STATUS "mousiki: building for ${CMAKE_SYSTEM_NAME}")
 
 if(MOUSIKI_FUZZ)
-  foreach(t lyrics json remote playlist cue tags)
+  foreach(t lyrics json remote playlist cue tags decoder)
     add_executable(mousiki_fuzz_${t} ${CMAKE_SOURCE_DIR}/fuzz/fuzz_${t}.cpp)
     target_link_libraries(mousiki_fuzz_${t} PRIVATE mousiki_core)
     target_include_directories(mousiki_fuzz_${t} PRIVATE ${CMAKE_SOURCE_DIR}/fuzz)
@@ -463,6 +466,9 @@ if(MOUSIKI_BUILD_TESTS)
   if(Python3_Interpreter_FOUND)
     add_test(NAME installer_checksum COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_install_kanji_reader.py" "${CMAKE_SOURCE_DIR}/scripts")
     add_test(NAME kanji_reading_text COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_kanji_reading_text.py" "${CMAKE_SOURCE_DIR}/scripts")
+    add_test(NAME check_vendored COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_check_vendored.py")
+    add_test(NAME mb_scripts COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_mb_scripts.py" "${CMAKE_SOURCE_DIR}/scripts")
+    add_test(NAME mb_gate COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_mb_gate.py" "${CMAKE_SOURCE_DIR}/scripts")
     add_test(NAME generated_files COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_generated_files.py" "${CMAKE_SOURCE_DIR}")
     add_test(NAME docs_keys COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/tests/test_docs_keys.py" "${CMAKE_SOURCE_DIR}")
     add_test(NAME fetch_selftest_offline COMMAND ${Python3_EXECUTABLE} "${CMAKE_SOURCE_DIR}/scripts/selftest_fetch.py" --offline --only scripts,pins)

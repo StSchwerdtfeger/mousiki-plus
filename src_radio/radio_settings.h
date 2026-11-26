@@ -109,6 +109,13 @@ struct RadioSettings : VizPrefs {
     bool dummy_buttons = true;                  // the <<< MUTE >>> boxes next to the frequency band
     bool volume_gradient = false;               // "gradient" right of the Volume indicator: the filled bar takes the oscilloscope colours (osci_left -> osci_right)
     int volume_indicator = 4;                   // what the VOLUME BAR is drawn with: 0 "#", 1 "⠶", 2 "⣿", 3 "⡾⣽", 4 "disk" (volume_bar.h; the default: the animation)
+    // Multi-Viz: on a wide screen the scope block is split into up to three panes side by side (about 40 columns each). The picks:
+    // mv_main 0 = the scope block as Osci/sphere shows it (Viz Field), 1 sphere, 2 oscilloscope, 3 spectrogram, 5 MilkDrop;
+    // mv_2 / mv_3 0 = off, else the same visuals. A visual that another pane shows already is not drawn twice.
+    bool multiviz = false;
+    int mv_main = 0;
+    int mv_2 = 3;
+    int mv_3 = 0;
     int scope_mode = 0;                         // right of the station info: 0 = oscilloscope, 1 = sphere, 2 = off, 3 = spectrogram, 4 = MilkDrop; default: the oscilloscope
     // The MilkDrop visuals (src/milkdrop.h) in the scope block: ANIMA/VIZ -> MILKDROP and the visuals overlay (":"). The radio's own values (radio_config.txt),
     // the same keys as the player's config.txt; MilkDropPresets= is the player's (one preset folder for all modes, read at the start).
@@ -275,7 +282,7 @@ enum RsId {
     kRsPlayback, kRsStartMode, kRsUseModePlayer, kRsUseModeRadio, kRsUseModeBook, kRsModeOrder1, kRsModeOrder2, kRsModeOrder3, kRsBlackBg, kRsShareProfiles, kRsRemoteApp,
     kRsPaneStyle, kRsSharpCorners, kRsThickBorders, kRsOnAir, kRsSignBorder, kRsPulse, kRsDummy, kRsVolIndicator, kRsVisualizer, kRsStereo, kRsNormalize, kRsTuneNoise, kRsMarquee, kRsTimeshift, kRsUseOsci, kRsUseSpectro,
     kRsGradSpeed, kRsPulseSpeed, kRsSignVivid, kRsBarsVivid, kRsFluidity, kRsDegr, kRsVisc, kRsBehavior, kRsBarStyle, kRsHifiRes, kRsHifiChan, kRsHifiColor, kRsHifiScale, kRsHifiAdapt, kRsHifiSplit, kRsHifiFScale, kRsHifiGain, kRsHifiRange,
-    kRsScope, kRsOsciStyle,
+    kRsScope, kRsOsciStyle, kRsMultiViz, kRsMvMain, kRsMvSecond, kRsMvThird,
     kRsUseMilkdrop, kRsMdFps, kRsMdRes, kRsMdGpu, kRsMdDuration, kRsMdShuffle, kRsMdBeat, kRsMdHardCuts, kRsMdTransition, kRsMdShowName,
     kRsMdFavShuffle, kRsMdFolder, kRsMdBright, kRsMdSat, kRsMdContrast, kRsMdHcd, kRsMdVar, kRsMdMesh, kRsMdAspect, kRsMdRatio, kRsMdClean, kRsMdUseFx, kRsMdFx, kRsMdColors,
     kRsMdPreset, kRsMdBrowse, kRsMdRandom, kRsMdLock,   // Default Preset ([ENTER] / [RIGHT]: the preset overlay, [d] clears it), Preset Overlay, Random Preset, Lock Preset
@@ -317,6 +324,8 @@ std::string radio_md_folder_step(const RadioSettings& c, int dir);           // 
 int radio_md_step(int which, int cur, int dir);   // MilkDrop rows: 0 frame rate, 1 resolution, 2 preset duration -> the next step
 int radio_viz_mode(int viz);                                              // the scope_mode of a viz_order value (0 osci, 1 sphere, 2 spectro, 3 milkdrop -> 0, 1, 3, 4)
 int radio_next_scope_mode(const RadioSettings& s, int cur, bool back, bool milkdrop_ok);   // the next view of the "." cycle that is switched on (cur itself when none)
+std::string radio_mv_name(int pick, bool main_pane);                    // "scope" / "off" | "sphere" | "osci" | "spectro" | "milkdrop"
+int radio_mv_from_name(const std::string& v);
 std::string scope_mode_name(const RadioSettings& s);                    // "osci" | "sphere" | "off" | "spectro" | "milkdrop"
 // Start Mode lives in the music player's config.txt (StartMode=player|radio): read it / write just that line.
 std::string player_start_mode();

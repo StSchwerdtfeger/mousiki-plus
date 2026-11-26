@@ -338,7 +338,7 @@ int client_main(int argc, char** argv) {
             else if (a[0] != '-') want = "key:" + a;
         }
         if (want == "json") {
-            static const char* const kNum[] = {"position_sec", "duration_sec", "volume", "queue_len"};
+            static const char* const kNum[] = {"position_sec", "duration_sec", "speed", "volume", "queue_len"};
             std::cout << "{";
             bool first = true;
             for (const auto& [k, v] : kv) {

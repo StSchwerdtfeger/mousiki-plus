@@ -22,7 +22,6 @@ std::vector<SearchIdx> synthetic_library(size_t n, uint32_t seed) {
         e.artist_n = rnd() % 4 ? w() + " " + w() : "";
         e.tag_title_n = rnd() % 2 ? w() + " " + w() : "";
         e.album_n = rnd() % 3 ? w() + " " + w() + " " + w() : "";
-        e.key = "/m/" + e.title_n;
     }
     return idx;
 }

@@ -54,6 +54,9 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidUseOsci, "Use Oscilloscope"},                                            // false: left out entirely
         {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"}, {false, kSidUseMilkdrop, "Use MilkDrop"},    // (not in the "." cycle)
         {true, -1, ""},
+        {true, -1, "MULTI-VIZ"},   // several visuals side by side when the screen is wide enough
+        {false, kSidMultiViz, "Multi-Viz"}, {false, kSidMvMain, "Main Viz"}, {false, kSidMvSecond, "2nd Viz"}, {false, kSidMvThird, "3rd Viz"},
+        {true, -1, ""},
         {true, -1, "LYRICS"},
         {false, kSidLyrAlign, "Lyrics Alignment"}, {false, kSidLyrAnim, "Lyrics Animation"},
         {true, -1, ""},
@@ -149,6 +152,9 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidVizField, "Viz/Notes Field"}, {false, kSidUseLyrics, "Use Book Notes"}, {false, kSidBookForceNote, "Force Note"},
         {false, kSidUseOsci, "Use Oscilloscope"},
         {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"}, {false, kSidUseMilkdrop, "Use MilkDrop"},
+        {true, -1, ""},
+        {true, -1, "MULTI-VIZ"},   // several visuals side by side when the screen is wide enough
+        {false, kSidMultiViz, "Multi-Viz"}, {false, kSidMvMain, "Main Viz"}, {false, kSidMvSecond, "2nd Viz"}, {false, kSidMvThird, "3rd Viz"},
         {true, -1, ""},
         {true, -1, "BOOK COVER"},
         {false, kSidBookCover, "Book Cover"}, {false, kSidBookCoverWave, "Book Gradient Wave"}, {false, kSidCoverContrast, "Cover Contrast"},

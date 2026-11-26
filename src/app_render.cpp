@@ -553,7 +553,7 @@ std::string App::render_frame(TerminalIO& term) {
     // off -- the terminal did, one line later than expected. Lowering the
     // floor so the app actually renders to the real width instead of
     // always assuming at least 80 columns are available.
-    int W = std::clamp(term_cols, 40, 200);
+    int W = std::clamp(term_cols, 40, kMaxTermCols);
 
     // Real terminal row count -- see term_rows_'s comment in app.h for
     // the full story on why this now actually gets consulted. rows()

@@ -202,3 +202,38 @@ TEST(spectro_memory_policy_keeps_the_history_or_only_what_is_shown) {
         CHECK(spectro_keep_policy(false, history, false, 10.5).release);
     }
 }
+
+// At a long time span the columns are far apart (hop >> window): a short click between two windows must still show in its column, not only
+// a click that happens to be under the window at the end of the column's slice.
+TEST(spectro_long_span_shows_a_click_between_two_windows) {
+    SpectroAnalyzer a;
+    SpectroSettings s;
+    s.span = 60;
+    s.window_log2 = 8;   // 256 samples: the columns are about ten windows apart
+    a.set_visible(true);
+    a.update(s);
+    std::vector<float> first(2 * 4096, 0.0f);
+    a.push(first.data(), 4096, kRate);   // (the analysis takes the rate from the first samples)
+    a.update(s);
+    a.reset();
+    a.set_visible(true);
+    a.update(s);
+    const int hop = static_cast<int>(std::lround(kRate / std::max(1e-9, a.columns_per_second())));
+    CHECK(hop > 8 * 256);
+    const int click_col = 5;
+    const long long click_at = static_cast<long long>(click_col + 1) * hop - hop / 4 - 100;   // under the second window of the column, not under the last
+    const long long total = static_cast<long long>(10) * hop;
+    std::vector<float> lr(static_cast<size_t>(total) * 2, 0.0f);
+    for (int i = 0; i < 16; ++i) { lr[static_cast<size_t>(click_at + i) * 2] = 0.9f; lr[static_cast<size_t>(click_at + i) * 2 + 1] = 0.9f; }
+    for (size_t o = 0; o < lr.size(); o += 2 * 4096) {
+        a.push(lr.data() + o, std::min<size_t>(4096, (lr.size() - o) / 2), kRate);
+        a.update(s);
+    }
+    CHECK(a.columns() >= 9u);
+    std::vector<uint8_t> out;
+    a.column_images(s, static_cast<uint64_t>(click_col - 1), static_cast<uint64_t>(click_col + 2), 40, out);
+    const size_t per = out.size() / 3;
+    auto peak = [&](int k) { uint8_t m = 0; for (size_t i = 0; i < per; ++i) m = std::max(m, out[static_cast<size_t>(k) * per + i]); return m; };
+    CHECK(peak(1) > peak(0) + 40);   // the column of the click is far brighter than the column before it
+    CHECK(peak(1) > peak(2) + 40);   // and than the one after it
+}

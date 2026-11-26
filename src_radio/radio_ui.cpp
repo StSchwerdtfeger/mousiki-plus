@@ -629,7 +629,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     // middle of their pane (two blanks on each side with a wall) / do not touch the scope block
     const int bar_w = std::min(kMetaW, 48) - ((wall_w > 0 || (pstyle == 4 && cfg.scope_mode != 2)) ? 1 : 0);
     std::vector<int> bars;
-    if (cfg.element_visualizer || cfg.scope_mode == 1) {
+    if (cfg.element_visualizer || cfg.scope_mode == 1 || cfg.multiviz) {
         auto& fft = engine.fft();
         fft.set_fluidity(cfg.visualizer_fluidity);
         fft.set_degradation_speed(cfg.visualizer_degradation_speed);
@@ -674,25 +674,81 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     }
     meta = build_meta(s, st, cfg.element_visualizer ? &bars : nullptr, hifi_lines.empty() ? nullptr : &hifi_lines);
     const bool off_air = st.state == StreamState::Idle || st.state == StreamState::Failed;
+    // Multi-Viz: a scope block wide enough is a row of panes (the first draws the scope block as usual, the others the 2nd / 3rd Viz).
+    // A pane is at least 40 columns wide; the 3rd pane goes first when the block is too narrow, then the 2nd.
+    constexpr int kMvPaneMin = 40;
+    std::vector<int> mv_picks;   // codes: 1 sphere, 2 oscilloscope, 3 spectrogram, 5 MilkDrop
+    int eff_mode = cfg.scope_mode;
+    int w0 = scope_w;            // the width of the first pane
+    if (cfg.multiviz && show_scope && !off_air) {
+        for (const int pk : {cfg.mv_2, cfg.mv_3}) if (pk >= 1 && pk <= 5 && pk != 4) mv_picks.push_back(pk);
+        while (!mv_picks.empty() && scope_w < (static_cast<int>(mv_picks.size()) + 1) * kMvPaneMin + static_cast<int>(mv_picks.size())) mv_picks.pop_back();
+        if (!mv_picks.empty()) {
+            const int n = static_cast<int>(mv_picks.size()) + 1;
+            const int cells = scope_w - (n - 1);
+            w0 = cells / n + cells % n;
+            if (cfg.mv_main != 0) eff_mode = cfg.mv_main == 1 ? 1 : cfg.mv_main == 2 ? 0 : cfg.mv_main == 3 ? 3 : 4;
+        }
+    }
+    int used = 0;   // bit per visual code (as the picks') that a pane shows
     bool spectro_img = false;
-    if (show_scope && !off_air && cfg.scope_mode == 3) {   // the spectrogram (like Audacity's), braille or a picture
+    if (show_scope && !off_air && eff_mode == 3) {   // the spectrogram (like Audacity's), braille or a picture
         m.spectro_used = true;
+        used |= 1 << 3;
         spectro_gradient_from(s);
         spectro().update(cfg.spectro);
         if (cfg.spectro.style == 1 && m.gfx_proto != GfxProto::None) {
             spectro_img = true;
-            scope.assign(kPanelH, gfx_hole(scope_w));
-        } else scope = spectro().braille(cfg.spectro, scope_w, kPanelH);
-    } else if (show_scope && !off_air && cfg.scope_mode == 4 && build_milkdrop_block(s, m, scope_w, scope)) {
+            scope.assign(kPanelH, gfx_hole(w0));
+        } else scope = spectro().braille(cfg.spectro, w0, kPanelH);
+    } else if (show_scope && !off_air && eff_mode == 4 && build_milkdrop_block(s, m, w0, scope)) {
         // the MilkDrop visuals (a picture, or half blocks); when they cannot run here the oscilloscope shows instead (below)
-    } else if (show_scope) scope = off_air ? build_satellite(s, m.t_sec, scope_w)
-                          : cfg.scope_mode == 1 ? build_sphere(s, bars, m.dt, scope_w)
-                                                : build_scope(s, m, engine, false, scope_w);
+        used |= 1 << 5;
+    } else if (show_scope) {
+        scope = off_air ? build_satellite(s, m.t_sec, w0)
+              : eff_mode == 1 ? build_sphere(s, bars, m.dt, w0)
+                              : build_scope(s, m, engine, false, w0);
+        if (!off_air) used |= eff_mode == 1 ? 1 << 1 : 1 << 2;
+    }
     if (show_scope && !m.scope_notice.empty() && !scope.empty()) {   // timeshift jumps: a note at the bottom of the scope block
-        const std::string t = truncate_str(m.scope_notice, std::max(1, scope_w - 2));
+        const std::string t = truncate_str(m.scope_notice, std::max(1, w0 - 2));
         const int tw = display_width(t);
-        const int l = std::max(0, (scope_w - tw) / 2);
-        scope.back() = spaces(l) + s.header + t + kReset + spaces(std::max(0, scope_w - l - tw));
+        const int l = std::max(0, (w0 - tw) / 2);
+        scope.back() = spaces(l) + s.header + t + kReset + spaces(std::max(0, w0 - l - tw));
+    }
+    // the pictures of a further pane (only one picture slot is free on this screen: m.gfx; the spectrogram's has a place of its own)
+    int gfx_dx = 0, gfx_pw = w0, sp_dx = 0, sp_pw = w0;
+    bool sp2_img = false;
+    for (size_t pi = 0; pi < mv_picks.size() && !scope.empty(); ++pi) {
+        const bool last = pi + 1 == mv_picks.size();
+        const int pane_w = (scope_w - static_cast<int>(mv_picks.size())) / (static_cast<int>(mv_picks.size()) + 1);
+        const int dx = w0 + 1 + static_cast<int>(pi) * (pane_w + 1);
+        const int pw = last ? scope_w - dx : pane_w;
+        const int cand[4] = {mv_picks[pi], 2, 3, 1};   // (the wanted visual, then the ones that can be drawn as text instead)
+        std::vector<std::string> rows;
+        bool done = false;
+        for (const int c : cand) {
+            if (used & (1 << c) || (c == 5 && !radio_milkdrop_usable(cfg)) || (c == 1 && !cfg.use_sphere) || (c == 2 && !cfg.use_osci) || (c == 3 && !cfg.use_spectro)) continue;
+            const bool pic_before = m.gfx.active;
+            if (c == 1) rows = build_sphere(s, bars, m.dt, pw);
+            else if (c == 2) rows = build_scope(s, m, engine, false, pw, !m.gfx.active);
+            else if (c == 3) {
+                m.spectro_used = true;
+                spectro_gradient_from(s);
+                spectro().update(cfg.spectro);
+                if (cfg.spectro.style == 1 && m.gfx_proto != GfxProto::None && !spectro_img) { sp2_img = true; sp_dx = dx; sp_pw = pw; rows.assign(kPanelH, gfx_hole(pw)); }
+                else rows = spectro().braille(cfg.spectro, pw, kPanelH);
+            } else {   // MilkDrop: its picture needs the slot m.gfx; when that is taken only the text version (no graphics terminal) can be drawn
+                if ((m.gfx.active && m.gfx_proto != GfxProto::None) || !build_milkdrop_block(s, m, pw, rows)) continue;
+            }
+            if (c == 3 && !sp2_img && spectro_img) continue;   // (the first pane has the spectrogram's picture: not twice)
+            if (!pic_before && m.gfx.active) { gfx_dx = dx; gfx_pw = pw; }
+            used |= 1 << c;
+            for (size_t r = 0; r < scope.size(); ++r) scope[r] += " " + (r < rows.size() ? rows[r] : spaces(pw));
+            done = true;
+            break;
+        }
+        if (!done) for (std::string& r : scope) r += " " + spaces(pw);
     }
     for (int i = 0; i < kPanelH; ++i) {
         const size_t r = static_cast<size_t>(i);
@@ -719,15 +775,18 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     for (auto& l : build_search(s, m, st, W)) out.push_back(l);
     for (auto& l : build_lists(s, m, st, W, list_rows)) out.push_back(l);
     // The image sits on the scope block: its cell position (row 1 = under the top border) ...
-    int scope_x = 0;
-    if (spectro_img) {
+    int scope_x = 0;   // (where the picture of the first pane / of the pane that has it lies; scope_pw is its width)
+    int scope_pw = w0;
+    const int block_x = 1 + (show_sign ? kLeftW + ex_first + kSepW : 0) + kMetaW + (show_sign ? ex_second : 0) + wall_w + (show_sign ? 0 : std::max(0, (rest_w - scope_w) / 2));
+    if (spectro_img || sp2_img) {
         m.spectro_area[0] = 1;
-        m.spectro_area[1] = 1 + (show_sign ? kLeftW + ex_first + kSepW : 0) + kMetaW + (show_sign ? ex_second : 0) + wall_w + (show_sign ? 0 : std::max(0, (rest_w - scope_w) / 2));
-        m.spectro_area[2] = scope_w;
-        m.spectro_area[3] = kPanelH - (m.scope_notice.empty() ? 0 : 1);   // the timeshift note keeps its row
+        m.spectro_area[1] = block_x + (spectro_img ? 0 : sp_dx);
+        m.spectro_area[2] = spectro_img ? w0 : sp_pw;
+        m.spectro_area[3] = kPanelH - (m.scope_notice.empty() || !spectro_img ? 0 : 1);   // the timeshift note keeps its row
     }
     if (m.gfx.active && show_scope) {
-        scope_x = 1 + (show_sign ? kLeftW + ex_first + kSepW : 0) + kMetaW + (show_sign ? ex_second : 0) + wall_w + (show_sign ? 0 : std::max(0, (rest_w - scope_w) / 2));
+        scope_x = block_x + gfx_dx;
+        scope_pw = gfx_pw;
         m.gfx.col = scope_x; m.gfx.row = 1; m.gfx.crop = 0;
     }
     if (m.overlay == 7 && !s.c.menu_classic) {   // the MENUS index (<): the organigram over the whole screen
@@ -748,7 +807,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
         panel.push_back(box_bottom(s, W, std::string("[\u2190\u2192] Neighbours  [\u2191] Back  [\u2193] In  [ENTER] Open  [SHIFT+T] Classic  ") + "[ESC / " + menus_key_label(s.c, "Menus") + "] Close", s.border_bottom));
         for (size_t i = 0; i < panel.size() && i < out.size(); ++i) out[i] = panel[i];
         m.spectro_skip[0] = 0; m.spectro_skip[1] = 0; m.spectro_skip[2] = static_cast<int>(out.size()); m.spectro_skip[3] = W;
-        if (m.gfx.active) m.gfx.crop = scope_w;   // (the whole screen is the organigram: no picture under it)
+        if (m.gfx.active) m.gfx.crop = scope_pw;   // (the whole screen is the organigram: no picture under it)
     } else
     if (m.overlay != 0) {   // SHIFT+o / SHIFT+v overlay, centred over the finished screen
         std::vector<std::string> panel;
@@ -780,8 +839,8 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
             out[static_cast<size_t>(y + i)] = splice_line(out[static_cast<size_t>(y + i)], x, panel[static_cast<size_t>(i)], pw);
         m.spectro_skip[0] = y; m.spectro_skip[1] = x; m.spectro_skip[2] = ph; m.spectro_skip[3] = pw;
         // ... and the columns an overlay covers stay free (an image is not covered by text drawn over it)
-        if (m.gfx.active && y < 1 + kPanelH && y + ph > 1 && x < scope_x + scope_w && x + pw > scope_x)
-            m.gfx.crop = std::clamp(x + pw - scope_x, 0, scope_w);
+        if (m.gfx.active && y < 1 + kPanelH && y + ph > 1 && x < scope_x + scope_pw && x + pw > scope_x)
+            m.gfx.crop = std::clamp(x + pw - scope_x, 0, scope_pw);
     }
     if (m.gfx.active && m.gfx.crop != m.gfx_last_crop) { m.gfx.fresh = true; }
     m.gfx_last_crop = m.gfx.active ? m.gfx.crop : -1;

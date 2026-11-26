@@ -1,6 +1,7 @@
 // The library's tag cache between runs (src/tag_cache.h).
 #include "test_framework.h"
 #include "tag_cache.h"
+#include "local_source.h"
 #include <filesystem>
 #include <fstream>
 
@@ -64,4 +65,55 @@ TEST(tag_stamp_sees_a_change) {
     const TagStamp b = tag_stamp(f);
     CHECK(!(a == b));
     CHECK(!tag_stamp(fs::current_path() / "missing.mp3").ok());
+}
+
+// The sweep writes the cache straight from its own tags (no second map of every path and tag): the file comes out the same.
+TEST(tag_cache_stream_save_writes_what_the_map_save_writes) {
+    mt::TempHome home;
+    const fs::path f = tag_cache_path(false);
+    TagCacheMap m;
+    TagCacheEntry e;
+    e.stamp = {99, 7};
+    e.meta.title = "Song\twith tab";
+    e.meta.artist = "Artist";
+    e.meta.album = "Album";
+    e.meta.year = "2001";
+    e.meta.duration_sec = 61.25;
+    e.meta.tags_resolved = true;
+    m["/music/one.mp3"] = e;
+    const bool ok = tag_cache_save_stream(f, [&](const TagCacheEmit& emit) {
+        for (const auto& kv : m) emit(kv.first, kv.second.stamp, kv.second.meta);
+    });
+    CHECK(ok);
+    const TagCacheMap back = tag_cache_load(f);
+    CHECK_EQ(back.size(), static_cast<size_t>(1));
+    const auto it = back.find("/music/one.mp3");
+    CHECK(it != back.end());
+    if (it != back.end()) {
+        CHECK(it->second.stamp == e.stamp);
+        CHECK_EQ(it->second.meta.title, e.meta.title);
+        CHECK_EQ(it->second.meta.year, e.meta.year);
+        CHECK(it->second.meta.tags_resolved);
+    }
+}
+
+// The library list keeps a file's path as plain text (LightPath); it must hand back exactly the path it was given.
+TEST(light_path_round_trips_and_compares_like_a_path) {
+    const fs::path p = fs::path("/music") / "Artist" / "01 - Song.mp3";
+    LocalTrack t{"01 - Song", p, "Artist"};
+    const fs::path back = t.path;
+    CHECK(back == p);
+    CHECK(t.path == p);
+    CHECK(p == t.path);
+    CHECK(!(t.path != p));
+    CHECK_EQ(t.path.filename().string(), std::string("01 - Song.mp3"));
+    CHECK_EQ(t.path.extension().string(), std::string(".mp3"));
+    CHECK_EQ(t.path.stem().string(), std::string("01 - Song"));
+    CHECK_EQ(t.path.parent_path().string(), (fs::path("/music") / "Artist").string());
+    CHECK_EQ(t.path.utf8(), p.string());
+    LocalTrack copy = t;   // a copy is a real copy
+    copy.path = fs::path("/other/x.flac");
+    CHECK(t.path == p);
+    CHECK(copy.path != t.path);
+    CHECK(LightPath().empty());
 }

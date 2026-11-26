@@ -11,13 +11,14 @@ imported M3U / M3U8), the `.cue` file of an audio book and the requests to the r
 | `mousiki_fuzz_remote` | request line + `Host` header: `parse_request_line`, `host_ok`, `lan_peer`, `pin_ok`, `handle_request` |
 | `mousiki_fuzz_playlist` | `PlaylistManager::load`, `import_parse_m3u` |
 | `mousiki_fuzz_tags` | the tag and length readers of the audio files: `probe_duration_native`, `probe_id3v2_native`, `probe_flac_native`, `probe_ogg_native`, `probe_mp4_native`, `probe_wav_native`, `read_sid_header` (first byte of the input = kind of file) |
+| `mousiki_fuzz_decoder` | miniaudio's own MP3 / FLAC / WAV decoders (`ma_decoder_init_memory`, read, seek), as `waveform.cpp` uses them (first byte = where the seeks go) |
 | `mousiki_fuzz_cue` | `BookCue::load` / `get` / `set` / `save`, `parse_bookmark` |
 
 ## Run it (Clang needed)
 
 ```sh
 cmake -S . -B build-fuzz -DCMAKE_BUILD_TYPE=Debug -DMOUSIKI_FUZZ=ON -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
-cmake --build build-fuzz --target mousiki_fuzz_lyrics mousiki_fuzz_json mousiki_fuzz_remote mousiki_fuzz_playlist mousiki_fuzz_cue mousiki_fuzz_tags
+cmake --build build-fuzz --target mousiki_fuzz_lyrics mousiki_fuzz_json mousiki_fuzz_remote mousiki_fuzz_playlist mousiki_fuzz_cue mousiki_fuzz_tags mousiki_fuzz_decoder
 mkdir -p work/lyrics
 build-fuzz/mousiki_fuzz_lyrics -max_total_time=300 work/lyrics fuzz/corpus/lyrics
 ```
@@ -26,7 +27,8 @@ On Ubuntu the sanitizer runtime is the package `libclang-rt-dev` (`libclang-rt-1
 (`-artifact_prefix=crashes/`); run the target with that file as its only argument to see it again.
 
 `fuzz/corpus/` holds valid examples to start from. The GitHub workflow **Fuzz** (`.github/workflows/fuzz.yml`) runs every target once a week
-and on demand.
+and on demand. What the fuzzers found interesting is kept as the artifact `fuzz-corpus` of each run and downloaded by the next one, so the
+coverage builds up from week to week; `fuzz/corpus/` stays the start.
 
 ## The same cases in the normal tests
 
@@ -36,4 +38,4 @@ sockets: a header far over the limit, connections that send nothing, requests in
 
 ## Not covered yet
 
-The vendored libraries (miniaudio ...) are not fuzzed here; pictures are decoded by ffmpeg in a process of its own, and ffprobe / yt-dlp output is read through the JSON target only.
+Of the vendored libraries only miniaudio's decoders are fuzzed (`mousiki_fuzz_decoder`). That target is built with the float-division and float-to-integer checks of UBSan **off in `miniaudio_impl.cpp`**: dr_flac's binary search for a seek position (`pcmRangeLo` can be 0) divides by zero for some damaged FLAC files and casts the infinity to an integer; the seek then lands in the wrong place, nothing else happens. That is an upstream bug (miniaudio / dr_flac), not patched here. Pictures are decoded by ffmpeg in a process of its own, and ffprobe / yt-dlp output is read through the JSON target only.

@@ -54,7 +54,7 @@ Off by default. When switched on it is a small web server for a phone app:
 - A compromised operating system, terminal, or `ffmpeg`/`yt-dlp` build you replaced yourself.
 - Denial of service by a person on your own local network (the lockout slows PIN guessing; it is not a firewall).
 - The content of the music, lyrics and videos you play (copyright, taste).
-- Privacy of what your own requests reveal to the services you use (radio directories, YouTube, MusicBrainz, lyrics sites).
+- Privacy of what your own requests reveal to the services you use (radio directories, YouTube, MusicBrainz, lyrics sites). Be aware of the lyrics search in particular: it sends the title and artist of every track you play to LRCLIB (`lrclib.net`) and to `lyrics-api.boidu.dev`, which both also see your IP address. `LyricsBetterSource=false` limits it to LRCLIB; lyrics already saved next to the track send nothing. The MusicBrainz name lookup is off by default.
 
 ## Where to look
 

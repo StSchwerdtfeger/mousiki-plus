@@ -172,6 +172,7 @@ private:
     void* fft_cfg_ = nullptr;
     std::vector<float> fft_in_;
     std::vector<float> fft_out_;        // complex, interleaved
+    std::vector<float> peak_;           // the strongest power per bin over the windows of one column
     // history: per column and channel `bins_` dB values, quantized to 8 bit (-140 .. +10 dB). One page of columns and a few more
     // (the picture never reaches further back than a page); the waterfall looks back two pages.
     size_t cap_ = 0;                    // columns kept

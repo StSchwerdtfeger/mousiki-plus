@@ -408,3 +408,20 @@ TEST(wav_reader_rejects_chunk_sizes_larger_than_the_file) {
     { std::ofstream(path, std::ios::binary) << skip; }
     CHECK(!muisc::creator::read_wav16(path, s));
 }
+
+
+TEST(creator_reads_a_16_bit_wav_in_the_extensible_format) {
+    mt::TempHome home;
+    auto le32 = [](uint32_t v) { std::string s; for (int i = 0; i < 4; ++i) s += static_cast<char>((v >> (8 * i)) & 0xFF); return s; };
+    auto le16 = [](uint32_t v) { std::string s; s += static_cast<char>(v & 0xFF); s += static_cast<char>((v >> 8) & 0xFF); return s; };
+    std::string fmt = le16(0xFFFE) + le16(2) + le32(44100) + le32(44100 * 4) + le16(4) + le16(16) + le16(22) + le16(16) + le32(3) +
+                      le16(1) + std::string("\x00\x00\x00\x00\x10\x00\x80\x00\x00\xAA\x00\x38\x9B\x71", 14);   // sub-format: PCM
+    std::string pcm(400, '\x10');
+    std::string body = "WAVE" + std::string("fmt ") + le32(static_cast<uint32_t>(fmt.size())) + fmt + "data" + le32(static_cast<uint32_t>(pcm.size())) + pcm;
+    const std::string path = (home.path() / "ext.wav").string();
+    { std::ofstream f(path, std::ios::binary); f << "RIFF" << le32(static_cast<uint32_t>(body.size())) << body; }
+    muisc::creator::Stereo s;
+    CHECK(muisc::creator::read_wav16(path, s));
+    CHECK_EQ(s.rate, 44100);
+    CHECK_EQ(s.l.size(), static_cast<size_t>(100));
+}

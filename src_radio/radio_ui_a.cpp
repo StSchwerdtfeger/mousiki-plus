@@ -521,10 +521,10 @@ bool build_scope_image(const Style& s, const UiModel& m, RadioEngine& engine, in
     return true;
 }
 
-std::vector<std::string> build_scope(const Style& s, const UiModel& m, RadioEngine& engine, bool idle, int scope_w) {
+std::vector<std::string> build_scope(const Style& s, const UiModel& m, RadioEngine& engine, bool idle, int scope_w, bool image_ok) {
     std::vector<std::string> rows(kPanelH, spaces(scope_w));
     if (idle) return rows; // nothing playing: no phosphor dot hovering in the corner
-    if (build_scope_image(s, m, engine, scope_w)) {   // placeholder cells: the main loop writes them as spaces or skips them
+    if (image_ok && build_scope_image(s, m, engine, scope_w)) {   // placeholder cells: the main loop writes them as spaces or skips them
         for (auto& r : rows) r = gfx_hole(scope_w);
         return rows;
     }

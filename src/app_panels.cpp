@@ -319,6 +319,7 @@ TrackMetadata App::display_metadata() const {
 // lyrics field before it; in a window that is too short for it the whole panel goes (show_metadata_panel()).
 namespace {
 constexpr int kMetaMinW = 20;      // the meta data column: "Title     : " and a few characters of the value
+constexpr int kMultiVizPaneMin = 40;   // Multi-Viz: the narrowest pane
 constexpr int kVizMinW = 14;       // the oscilloscope / lyrics field beside it
 constexpr int kMinListRows = 4;    // list / queue rows the window must still have for the panel to stay
 }
@@ -364,6 +365,14 @@ struct App::MetaPanel {
     std::vector<LyricLine> lines_orig;   // (before the Latin letters: the translations are matched against these)
     double elapsed = 0;
     double lyrics_delay = 0;
+    // Multi-Viz: the field is a row of panes; meta_panel_field() draws one of them (the first, or a copy of the panel for a further one)
+    bool secondary = false;      // a further pane: no lyrics, no caption, no note -- only the visual `force_viz` names
+    int force_viz = -1;          // >= 0: the pane shows this visual (area_viz codes: 0 sphere, 1 oscilloscope, 2 spectrogram, 4 video, 5 MilkDrop) instead of the usual view
+    int field_dx = 0;            // the columns the pane lies right of where the field starts (the pictures are placed by them)
+    int slot_override = -1;      // -1: the cover / book rules decide the picture slot; 0 gfx_, 1 gfx2_, 2 none free (the pane falls back to text)
+    bool pane_last = true;       // the last (rightmost) pane: a full size picture may take the column of padding at the right
+    bool viz_drawn = false;      // a visual was drawn into the pane
+    int used_mask = 0;           // bit per visual code the panes show already (a visual is drawn once)
 };
 
 void App::meta_panel_disk(MetaPanel& m) const {
@@ -706,7 +715,7 @@ void App::meta_panel_field(MetaPanel& m) const {
     lyrics_wide = false;   // the full size picture also takes the column of padding at the right: the gap to the border is as small as at the top and bottom
     lyrics_avail = false;
     lyrics_delay = 0.0; // lyrics timing correction (ALT+L), seconds, + = lyrics later
-    {
+    if (!m.secondary) {
         std::lock_guard<std::mutex> lock(lyrics_.mutex);
         if (audiobook_) {
             // the audio book mode fetches no lyrics: its field shows the notes (or the visualization), never a "fetching" caption
@@ -729,7 +738,9 @@ void App::meta_panel_field(MetaPanel& m) const {
     }
 
     video_missing = false;   // the video view is on but this track has no video (or no room for it)
-    if (!(settings_.video_mode && settings_.video_view && has_track_ && !audiobook_) && video_.has_video()) {   // not on the video view: the decoder rests
+    if (m.secondary) {
+        // (a further pane: the first pane did this already; the decoder is kept awake by the pane that shows the video, below)
+    } else if (!(settings_.video_mode && settings_.video_view && has_track_ && !audiobook_) && video_.has_video()) {   // not on the video view: the decoder rests
         // Away from the video view for a moment (sphere, lyrics ...): the decoder just waits with a full queue and the last picture
         // stays, so coming back resynchronises at once (frame_for restarts at the sound's time when it has run away). Only a long
         // absence ends the ffmpeg process.
@@ -769,26 +780,27 @@ void App::meta_panel_field(MetaPanel& m) const {
             lyric_rows[start + i] =
                 disk_gradient_ansi(settings_.disk_color, settings_.disk_color_end, t, settings_.disk_vivid) + body + "\x1b[0m";   // (Disk Gradient Vividness)
         }
-    } else if (settings_.milkdrop_view && lyrics_w >= 12 && panel_h >= 4 && milkdrop_usable() && !(audiobook_ && settings_.book_force_note && book_field_has_note()) &&   // (Force Note: a note in the field shows alone, no picture behind it)
+    } else if (m.force_viz < 0 && settings_.milkdrop_view && lyrics_w >= 12 && panel_h >= 4 && milkdrop_usable() && !(audiobook_ && settings_.book_force_note && book_field_has_note()) &&   // (Force Note: a note in the field shows alone, no picture behind it)
                [&]() {   // the MilkDrop view: the visuals fill the field (like the full-field video); false: they cannot run (the usual view then)
-                   const bool wide = gfxs_.proto != GfxProto::None;
+                   const bool wide = gfxs_.proto != GfxProto::None && m.pane_last;
                    const int lpad = (wide && m.wall_w > 0) ? 0 : 1;   // (one empty column at the left, as the video has; none beside a wall of the three panes: the picture then touches the wall as it touches the right border)
                    const int fw = lyrics_w + (wide ? 1 : 0) - lpad;
                    std::vector<std::string> mrows;
                    trim_left_next_ = wide && m.wall_w > 0;
-                   const bool md_ok = milkdrop_field_rows(mrows, fw, panel_h, 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + lpad, cover_pic_img || book_pic_img, wide);
+                   const bool md_ok = milkdrop_field_rows(mrows, fw, panel_h, 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + m.field_dx + lpad, cover_pic_img || book_pic_img, wide);   // (the main pane only: a further pane draws through force_viz)
                    trim_left_next_ = false;
                    if (!md_ok) return false;
                    for (int i = 0; i < panel_h && i < static_cast<int>(mrows.size()); ++i) lyric_rows[static_cast<size_t>(i)] = std::string(static_cast<size_t>(lpad), ' ') + mrows[static_cast<size_t>(i)];
                    lyrics_wide = wide;
                    md_in_field = true;
+                   m.viz_drawn = true; m.used_mask |= 1 << 5;
                    return true;
                }()) {
         // (drawn: lyric_rows hold the picture's cells)
-    } else if (settings_.video_mode && settings_.video_view && !audiobook_ && lyrics_w >= 12 && panel_h >= 6 &&
+    } else if (m.force_viz < 0 && settings_.video_mode && settings_.video_view && !audiobook_ && lyrics_w >= 12 && panel_h >= 6 &&
                [&]() {   // (false: no video for this track -> "When No Video Shows" decides, see video_missing)   // the Video view: the picture of the track's video with the current lyric line under it
                    const int vsize = video_size_for(current_.path);
-                   const bool wide = vsize == 2 && gfxs_.proto != GfxProto::None;   // (a picture: the spare column minus half a cell, so the gap at the right is as wide as the one at the top and bottom)
+                   const bool wide = vsize == 2 && gfxs_.proto != GfxProto::None && m.pane_last;   // (a picture: the spare column minus half a cell, so the gap at the right is as wide as the one at the top and bottom)
                    const int lpad = (wide && m.wall_w > 0) ? 0 : 1;   // one empty column at the left of the picture: the gap to the meta data column (its bars) is as wide as the one to the right border; none beside a wall of the three panes (the picture touches it as it touches the right border)
                    const int fw = lyrics_w + (wide ? 1 : 0) - lpad;   // the width video_field_rows gets; the lyric line is wrapped to the width it will be shown in (video_field_rows)
                    std::vector<std::string> line_rows;
@@ -821,15 +833,16 @@ void App::meta_panel_field(MetaPanel& m) const {
                    }
                    std::vector<std::string> vrows;
                    trim_left_next_ = wide && m.wall_w > 0;
-                   const bool vf_ok = video_field_rows(vrows, fw, panel_h, 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + lpad, cover_pic_img, elapsed, line_rows, wide);
+                   const bool vf_ok = video_field_rows(vrows, fw, panel_h, 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + m.field_dx + lpad, cover_pic_img, elapsed, line_rows, wide);
                    trim_left_next_ = false;
                    if (!vf_ok) { video_missing = true; return false; }
                    for (int i = 0; i < panel_h && i < static_cast<int>(vrows.size()); ++i) lyric_rows[static_cast<size_t>(i)] = std::string(static_cast<size_t>(lpad), ' ') + vrows[static_cast<size_t>(i)];
                    lyrics_wide = wide;
+                   m.viz_drawn = true; m.used_mask |= 1 << 4;
                    return true;
                }()) {
         // (drawn: lyric_rows hold the picture's cells and the lyric line)
-    } else if (!lyrics_avail || (video_missing && settings_.novideo_viz != 4)) {
+    } else if (!lyrics_avail || m.force_viz >= 0 || (video_missing && settings_.novideo_viz != 4)) {
         // A status message ("fetching...", "no lyrics found", etc.) is
         // only shown for the first 1.75s after it appears -- after that
         // the placeholder visual (sphere or osci) gets the whole panel to
@@ -837,13 +850,13 @@ void App::meta_panel_field(MetaPanel& m) const {
         // gets its own fresh window (so "fetching..." showing, then
         // later "no lyrics found", each get their moment) rather than
         // one timer for the whole track.
-        if (lyrics_status != last_lyrics_status_) {
+        if (!m.secondary && lyrics_status != last_lyrics_status_) {
             last_lyrics_status_ = lyrics_status;
             lyrics_.status_shown_at = std::chrono::steady_clock::now();
         }
         double status_age = std::chrono::duration<double>(
             std::chrono::steady_clock::now() - lyrics_.status_shown_at).count();
-        bool show_caption = status_age < 1.75 && !lyrics_status.empty();
+        bool show_caption = status_age < 1.75 && !lyrics_status.empty() && m.force_viz < 0;
 
         if (has_track_ && lyrics_w >= 6 && panel_h >= 3) {
             // Fill the panel with the audio-reactive placeholder visual
@@ -862,26 +875,30 @@ void App::meta_panel_field(MetaPanel& m) const {
             // bottom row (below), so the picture never changes its size or moves while it shows.
             const int viz_rows_h = panel_h;
             // Lyrics view without lyrics: the "When No Lyrics Show" pick; otherwise the view the "." cycle is on.
-            int area_viz = video_missing ? settings_.novideo_viz : settings_.element_lyrics ? settings_.nolyrics_viz : settings_.lyric_viz;   // (video_missing: "When No Video Shows", 3 = nothing)
+            int area_viz = m.force_viz >= 0 ? m.force_viz : video_missing ? settings_.novideo_viz : settings_.element_lyrics ? settings_.nolyrics_viz : settings_.lyric_viz;   // (video_missing: "When No Video Shows", 3 = nothing)
             if (area_viz < 3 && !settings_.viz_usable(area_viz)) area_viz = 3;   // nothing is switched on: an empty field
             if (area_viz == 4 && (!settings_.video_mode || audiobook_)) area_viz = 3;   // (When No Lyrics Show = video: needs the Video mode)
             if (area_viz == 5 && !(settings_.use_milkdrop && milkdrop_usable())) area_viz = 3;
             if ((area_viz == 4 || area_viz == 5) && audiobook_ && settings_.book_force_note && book_field_has_note()) area_viz = 3;   // (Force Note: no picture under the note)   // (MilkDrop: needs it on and able to run)
             if (area_viz == 4 || area_viz == 5) {   // the video of the track / the MilkDrop visuals fill the field (no lyric line: there are no lyrics)
-                const bool wide = gfxs_.proto != GfxProto::None;
+                const bool wide = gfxs_.proto != GfxProto::None && m.pane_last;
                 const int lpad = (wide && m.wall_w > 0) ? 0 : 1;
                 const int fw = lyrics_w + (wide ? 1 : 0) - lpad;
-                const int acol = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + lpad;
+                const int acol = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + m.field_dx + lpad;
                 std::vector<std::string> arows;
                 video_ov_ref_.clear();
                 trim_left_next_ = wide && m.wall_w > 0;
-                const bool ok = fw >= 8 && panel_h >= 3 && (area_viz == 5 ? milkdrop_field_rows(arows, fw, panel_h, acol, cover_pic_img || book_pic_img, wide)
-                                                                          : video_field_rows(arows, fw, panel_h, acol, cover_pic_img, elapsed, std::vector<std::string>(), wide));
+                // the picture slot: the cover / book rules for the main pane; a further pane takes the first free one (none free: no picture)
+                const bool second = m.slot_override >= 0 ? m.slot_override == 1 : (area_viz == 5 ? (cover_pic_img || book_pic_img) : cover_pic_img);
+                const bool ok = fw >= 8 && panel_h >= 3 && m.slot_override != 2 && (area_viz == 5 ? milkdrop_field_rows(arows, fw, panel_h, acol, second, wide)
+                                                                                                     : video_field_rows(arows, fw, panel_h, acol, second, elapsed, std::vector<std::string>(), wide));
                 trim_left_next_ = false;
                 if (ok) {
                     for (int i = 0; i < panel_h && i < static_cast<int>(arows.size()); ++i) lyric_rows[static_cast<size_t>(i)] = std::string(static_cast<size_t>(lpad), ' ') + arows[static_cast<size_t>(i)];
                     lyrics_wide = wide;
                     if (area_viz == 5) md_in_field = true;
+                    m.viz_drawn = true; m.used_mask |= 1 << area_viz;
+                    if (area_viz == 4 && m.secondary) video_away_since_ = {};   // (the video of this pane is in view: its decoder is not put to rest)
                     area_viz = -1;   // (drawn)
                 } else area_viz = 3;
             }
@@ -899,12 +916,14 @@ void App::meta_panel_field(MetaPanel& m) const {
                 const int pal = os.palette;
                 OscilloscopeVisualizer::Params osci_params = osci_scope_params(settings_, viz_dt_);
                 bool as_image = false;
-                if (settings_.osci_style == 1 && gfxs_.proto != GfxProto::None && lyrics_w > 0 && !book_pic_img) {
+                m.viz_drawn = true; m.used_mask |= 1 << 1;
+                if (settings_.osci_style == 1 && gfxs_.proto != GfxProto::None && lyrics_w > 0 && !book_pic_img && m.slot_override != 2) {
                     // image style: the terminal draws the picture; the cells stay blank here and the loop emits it
                     gfx_cell_pixels(settings_.cell_pixels, cell_w_, cell_h_);
                     const int cw0 = std::max(4, cell_w_), ch0 = std::max(8, cell_h_);
                     const int cwq = std::clamp(osci_detail_cap(settings_.image_detail, false) / lyrics_w, 4, cw0);
-                    GfxFrame& g = cover_pic_img ? gfx2_ : gfx_;   // (the album cover owns gfx_)
+                    const bool second_pic = m.slot_override >= 0 ? m.slot_override == 1 : cover_pic_img;
+                    GfxFrame& g = second_pic ? gfx2_ : gfx_;   // (the album cover owns gfx_)
                     // Image resolution (SHIFT+o): render 1/scale of it; Kitty scales the picture up itself, Sixel repeats
                     // its pixels up to the real cell size (out_cw x out_ch). Less to render, encode and send per frame.
                     g.scale = std::clamp(settings_.image_scale, 1, 3);
@@ -913,10 +932,10 @@ void App::meta_panel_field(MetaPanel& m) const {
                     const int cws = std::max(2, std::min(cwq, cw0 / g.scale));
                     const int chs = std::max(4, static_cast<int>(std::lround(static_cast<double>(cws) * ch0 / cw0)));
                     g.cols = lyrics_w; g.rows = viz_rows_h; g.w = lyrics_w * cws; g.h = viz_rows_h * chs;
-                    g.col = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w;
+                    g.col = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + m.field_dx;
                     g.row = 1;
                     g.plain = false; g.direct = false; g.opaque = false; g.erase = false;   // (the album cover's picture is a plain one)
-                    g.id = cover_pic_img ? 1 : 0; g.grid.clear(); g.cut_w = 0; g.crop = 0;   // no grid on the main screen (the big overlay sets one on the same frame object)
+                    g.id = second_pic ? 1 : 0; g.grid.clear(); g.cut_w = 0; g.crop = 0;   // no grid on the main screen (the big overlay sets one on the same frame object)
                     scope_.render_image(g.w, g.h, osci_params, g.level, g.hue);
                     if (pal == 0) {
                         for (int y = 0; y < g.h; ++y)
@@ -960,12 +979,13 @@ void App::meta_panel_field(MetaPanel& m) const {
                 }
             } else if (area_viz == 2) {
                 // Spectrogram (like Audacity's): braille, or a picture the terminal draws (tiles sent by the main loop)
+                m.viz_drawn = true; m.used_mask |= 1 << 2;
                 spectro_.used = true;
                 spectro_gradient_from(settings_);
                 spectro().update(settings_.spectro);
                 if (settings_.spectro.style == 1 && gfxs_.proto != GfxProto::None) {
                     spectro_.area[0] = 1;
-                    spectro_.area[1] = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w;
+                    spectro_.area[1] = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + m.field_dx;
                     spectro_.area[2] = lyrics_w;
                     spectro_.area[3] = viz_rows_h;
                     for (int i = 0; i < viz_rows_h && i < panel_h; ++i) lyric_rows[i] = gfx_hole(lyrics_w);
@@ -976,6 +996,7 @@ void App::meta_panel_field(MetaPanel& m) const {
             } else if (area_viz == 0) {
                 // Pause Sphere: a paused track stops the sphere (it stands still, so Reduce Motion When Paused can calm the screen);
                 // otherwise it goes on turning and the main loop keeps the full frame rate for it (sphere_turning_)
+                m.viz_drawn = true; m.used_mask |= 1;
                 const bool sphere_still = settings_.pause_sphere && has_track_ && player_.is_paused();
                 auto sphere_rows = sphere_.render(lyrics_w, viz_rows_h, bars, sphere_still ? 0.0 : viz_dt_);
                 sphere_turning_ = !sphere_still;
@@ -993,7 +1014,7 @@ void App::meta_panel_field(MetaPanel& m) const {
                 const int x = std::max(0, (lyrics_w - bw) / 2);
                 const int row = panel_h - 1;
                 lyric_rows[row] = overlay_cells(lyric_rows[row], x, box, bw, lyrics_w);
-                const int area_col = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w;
+                const int area_col = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + m.field_dx;
                 // where it is on screen (0-based): the picture styles leave these cells free / write it again on top
                 caption_rect_[0] = 1 + row; caption_rect_[1] = area_col + x; caption_rect_[2] = bw;
                 caption_text_ = box;
@@ -1088,7 +1109,7 @@ void App::meta_panel_field(MetaPanel& m) const {
     // Audio book: the note that is typed or shown takes the field's place (oscilloscope / spectrogram come back when it is put away).
     // (Force Note off: a note that is only shown does not take the place of MilkDrop -- its picture is a layer over the text, so the two cannot
     // share the field; the note being written always does, one cannot type blind.)
-    if (audiobook_ && lyrics_w >= 12 && book_field_has_note() && !(md_in_field && !settings_.book_force_note && !book_->note_edit)) lyric_rows = book_note_field_rows(lyrics_w, panel_h);
+    if (!m.secondary && audiobook_ && lyrics_w >= 12 && book_field_has_note() && !(md_in_field && !settings_.book_force_note && !book_->note_edit)) lyric_rows = book_note_field_rows(lyrics_w, panel_h);
 }
 
 std::vector<std::string> App::build_metadata_panel(int total_width) const {
@@ -1157,6 +1178,18 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
     const int wall_gap = split && show_disk ? sep_w - m.disk_pad - 3 : 0;   // (the blanks between the disk and its wall)
     const int wall1 = split && show_disk && wall_gap >= 1 ? 2 + m.disk_pad + disk_w + wall_gap : -1;
     const int wall2 = m.wall_w > 0 ? 2 + (show_disk ? disk_w + sep_w : 2) + meta_w + 1 : -1;
+    // Multi-Viz: a field wide enough for it is a row of panes (the first draws what the field shows, the others the 2nd / 3rd Viz). A pane is at
+    // least kMultiVizPaneMin columns wide; the 3rd pane goes first when the field is too narrow, then the 2nd.
+    std::vector<int> mv_picks;   // the visual codes of the further panes (settings: 1 sphere, 2 oscilloscope, 3 spectrogram, 4 video, 5 MilkDrop)
+    int mv_main_w = lyrics_w;
+    if (settings_.multiviz && show_viz && has_track_ && panel_h >= 4) {
+        for (const int pk : {settings_.mv_2, settings_.mv_3}) if (pk >= 1 && pk <= 5) mv_picks.push_back(pk);
+        while (!mv_picks.empty() && lyrics_w < (static_cast<int>(mv_picks.size()) + 1) * kMultiVizPaneMin + static_cast<int>(mv_picks.size())) mv_picks.pop_back();
+        const int n = static_cast<int>(mv_picks.size()) + 1;
+        const int cells = lyrics_w - (n - 1);   // (one blank column between two panes)
+        mv_main_w = n == 1 ? lyrics_w : cells / n + cells % n;
+    }
+    if (!mv_picks.empty()) { gfx_.active = false; gfx2_.active = false; }   // (every call draws the panes anew: the pictures of an earlier call are not taken for this one's)
     meta_panel_disk(m);
     elapsed = has_track_ ? player_.poll_elapsed() : 0.0;
     fft_.set_fluidity(settings_.visualizer_fluidity);
@@ -1164,7 +1197,48 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
     fft_.set_viscosity(settings_.visualizer_viscosity);
 
     meta_panel_info(m);
-    meta_panel_field(m);
+
+    const int mv_pane_w = mv_picks.empty() ? 0 : (lyrics_w - static_cast<int>(mv_picks.size())) / (static_cast<int>(mv_picks.size()) + 1);
+    const int field_w_all = lyrics_w;
+    lyrics_w = mv_main_w;
+    m.pane_last = mv_picks.empty();
+    {
+        const int mp = settings_.mv_main;   // the first pane: 0 = the field as it is, else a fixed visual (when that cannot be drawn, the field as it is)
+        const int code = mp == 4 ? 4 : mp == 5 ? 5 : mp - 1;   // (area_viz codes)
+        if (!mv_picks.empty() && mp >= 1 && mp <= 5) {
+            MetaPanel keep = m;
+            m.force_viz = code;
+            meta_panel_field(m);
+            if (!m.viz_drawn) { m = std::move(keep); meta_panel_field(m); }
+        } else meta_panel_field(m);
+    }
+    std::vector<std::string> mv_extra(static_cast<size_t>(panel_h));   // the rows of the further panes (each with the blank column before it)
+    for (size_t pi = 0; pi < mv_picks.size() && !m.lyric_rows.empty(); ++pi) {
+        const bool last = pi + 1 == mv_picks.size();
+        const int dx = lyrics_w + 1 + static_cast<int>(pi) * (mv_pane_w + 1);   // columns right of the field's start
+        const int pw = last ? field_w_all - dx : mv_pane_w;
+        // the wanted visual, then the ones that can be drawn as text instead (a visual another pane shows is not drawn twice)
+        int cand[4] = {mv_picks[pi] == 4 ? 4 : mv_picks[pi] == 5 ? 5 : mv_picks[pi] - 1, 1, 2, 0};
+        bool done = false;
+        for (int c : cand) {
+            if (m.used_mask & (1 << c)) continue;
+            MetaPanel pm = m;
+            pm.secondary = true; pm.force_viz = c; pm.field_dx = m.wall_w + dx; pm.wall_w = 0; pm.lyrics_w = pw; pm.pane_last = last;
+            pm.slot_override = !gfx_.active ? 0 : !gfx2_.active ? 1 : 2;
+            pm.viz_drawn = false;
+            // (field_dx counts from the left edge of the field, which lies right of the wall: the wall is added; this pane has no wall at its left)
+            meta_panel_field(pm);
+            if (!pm.viz_drawn) continue;
+            m.used_mask = pm.used_mask;
+            for (int row = 0; row < panel_h && row < static_cast<int>(pm.lyric_rows.size()); ++row) mv_extra[static_cast<size_t>(row)] += " " + pm.lyric_rows[static_cast<size_t>(row)];
+            m.lyrics_wide = last ? pm.lyrics_wide : m.lyrics_wide;
+            done = true;
+            break;
+        }
+        if (!done) for (int row = 0; row < panel_h; ++row) mv_extra[static_cast<size_t>(row)] += " " + std::string(static_cast<size_t>(std::max(0, pw)), ' ');
+        if (!last || !done) m.lyrics_wide = false;
+    }
+    lyrics_w = field_w_all;
 
     // --- assemble bordered block ---
     // NOTE: lyric_rows may contain ANSI color codes (word-highlighting),
@@ -1204,7 +1278,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
         // lyric_rows is always fully padded to it -- whether that's
         // actual synced lyrics, a status caption, or just the sphere --
         // so this no longer needs to be conditional on element_lyrics.
-        content += lyric_rows[row];
+        content += lyric_rows[row] + mv_extra[static_cast<size_t>(row)];
         out.push_back(bar + " " + content + (lyrics_wide ? "" : " ") + bar);
     }
 

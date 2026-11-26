@@ -38,3 +38,7 @@ Everything in this folder is copied from the upstream projects and compiled into
 Add an entry to `VENDORED.json` (name, upstream `owner/repo`, licence, path, use) and, if its files contain a version, a
 `detect` rule (file + regular expressions; see the existing entries). Then add it to the table above and to
 `THIRD_PARTY_LICENSES.txt`.
+
+## Known upstream issues (not patched here)
+
+- **miniaudio / dr_flac: seek in a damaged FLAC file.** The binary search for the seek position (`drflac__seek_to_approximate_flac_frame_to_byte`-style code in `miniaudio.h`, `pcmRangeLo` can be 0) divides by zero for some damaged files and casts the infinity to an integer (found by fuzzing, `fuzz/fuzz_decoder.cpp`). The seek then lands in the wrong place; no memory error was found. To be fixed upstream; replacing `miniaudio.h` with a newer release is the way to get the fix. The fuzz build switches those two UBSan checks off for `src/miniaudio_impl.cpp` only, so the decoder target keeps looking for other problems.

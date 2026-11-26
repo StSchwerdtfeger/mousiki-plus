@@ -21,6 +21,7 @@ struct Info {
     std::string title, artist, album;
     double position = 0.0;           // seconds
     double duration = 0.0;           // seconds; 0 = unknown / a live stream
+    double speed = 1.0;              // playback speed (the audio book player: 0.5 .. 3.0)
     int volume = -1;                 // 0-100, -1 unknown
 };
 

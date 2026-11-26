@@ -5,6 +5,7 @@
 #pragma once
 #include "metadata_probe.h"
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <unordered_map>
 
@@ -27,5 +28,9 @@ std::filesystem::path tag_cache_path(bool books);
 TagCacheMap tag_cache_load(const std::filesystem::path& file);
 // Writes the whole map (to a temporary file first, then renamed, so a crash never leaves half a file). False on a write error.
 bool tag_cache_save(const std::filesystem::path& file, const TagCacheMap& map);
+// The same, without building a map first (for a library of 100,000 files that map would be a second copy of every path and tag in
+// memory): `produce` is called once and hands each entry to the function it gets.
+using TagCacheEmit = std::function<void(const std::string& key, const TagStamp& stamp, const RowMeta& meta)>;
+bool tag_cache_save_stream(const std::filesystem::path& file, const std::function<void(const TagCacheEmit&)>& produce);
 
 } // namespace muisc

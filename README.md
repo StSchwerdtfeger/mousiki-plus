@@ -336,6 +336,7 @@ XY / YT oscilloscope (also as oscilloscope music), Hi-Fi spectrum bars, 2D and 3
 - **Hi-Fi spectrum bars**: *Bars Style* = Hi-Fi turns the bars under the meta data into a Winamp-like **stereo** analyzer in braille dots, without gaps and at the frame rate of the program. Resolution (fine/rough), channels (stereo/mono) and colour (gradient/corresponding to the spectrogram) are options.
 - **Spectrogram** in the field, over the whole screen (`SHIFT+u`) and in its own window (`(`), with its own options (`SHIFT+i`). Its *View* row switches to a **waterfall**: a stack of outlined, colour-filled spectra, the newest in front. Spectrogram and waterfall, image and braille, each keep their own values (colours, scale, gain ...). Its memory follows the picture (about 11 MB at the default 30 s span, allocated only once sound reaches it); *Keep Spectrogram History* = false analyses only while one is shown and gives the memory back after ten seconds.
 - **Lyric sphere** and **spectrum bars**; the visualization field cycles with `.`. The sphere turns on while a track is paused, or stops with it (*Pause Sphere*, ANIMA/VIZ -> SPHERE). With *Auto-Play* off (the default, GENERAL -> AUDIO) the track the player opens with stands paused until you press play.
+- **Multi-Viz** (ANIMA/VIZ -> MULTI-VIZ, also in the radio and the audio book player): on a very wide window the field shows up to three visuals side by side (oscilloscope, spectrogram, sphere, video, MilkDrop); Mousiki fills screens up to 1000 columns.
 - **MilkDrop visuals** (Linux, Windows and macOS; `setup.sh` installs projectM and the presets; they are drawn with OpenGL and run best on a graphics chip, integrated or dedicated, with a working driver; without one the processor draws them, slowly): thousands of Winamp-style presets in the visualization field, fed straight from Mousiki's audio; `:` opens their overlay, and its preset overlay browses the preset folders with a live preview and a Favourites folder (*Shuffle Favourites* plays only those). They also fill the big video overlay (`v`, then `m`: five layouts, from the visuals alone to a quartet of oscilloscope, visuals, video and spectrogram), and a track's Style Option can switch them on for it and pin a preset. The radio (scope block) and the audio book player have them too, with the same `:` overlay and MilkDrop settings.
 
 <table>
@@ -356,7 +357,7 @@ Synchronized lyrics with word-by-word animation, a timing editor, translations a
 <details>
 <summary>Details and screenshots</summary>
 
-- **Synchronized lyrics** fetched for local and online tracks, word-by-word animations, a timing editor for the offset (`ALT+L`), several versions kept per song.
+- **Synchronized lyrics** fetched for local and online tracks (the title and artist of the track are sent to LRCLIB, `lrclib.net`, and to `lyrics-api.boidu.dev`; `LyricsBetterSource=false` asks LRCLIB only), word-by-word animations, a timing editor for the offset (`ALT+L`), several versions kept per song.
 
 <table>
 <tr><td align="center" valign="bottom"><b>Synchronized lyrics on the main screen</b></td><td></td></tr>

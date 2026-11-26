@@ -1,6 +1,7 @@
 // Shared drawing helpers of the music player's App: search field and focus colours, box lines, and the
 // text-field pieces the panels and overlays use. The rest of App lives in the app_*.cpp files next to
 // this one, grouped by topic.
+#include "mem_trim.h"
 #include "app.h"
 #include "corners.h"
 #include "terminal_font.h"
@@ -724,10 +725,16 @@ App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(sh
 
     }
     local_source_.set_include_video(true);   // (video files are part of the library whatever the Video mode says: their sound plays and they are listed as tracks)
+    local_view_.clear();   // (its positions belong to the old list)
     all_local_tracks_ = local_source_.scan(library_roots(), &local_scan_diagnostics_);
     exclude_book_files(all_local_tracks_);   // the audio books are not part of the music library
     scanned_book_path_ = settings_.audiobook_path;
-    local_view_ = all_local_tracks_;
+    {
+        std::vector<uint32_t> all_ids(all_local_tracks_.size());
+        for (size_t i = 0; i < all_ids.size(); ++i) all_ids[i] = static_cast<uint32_t>(i);
+        local_view_ = std::move(all_ids);
+    }
+    release_free_memory();
     if (audiobook_) book_refresh_view();   // the left pane lists the books
     launch_row_meta_resolver();
     start_device_worker();

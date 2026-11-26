@@ -17,6 +17,7 @@ namespace muisc {
 namespace {
 
 
+#if !defined(_WIN32)   // (the Windows branch asks the system for the layout and does not read a text)
 // "de,us" / "de(nodeadkeys)" / "de_DE.UTF-8" -> "de"
 std::string first_code(const std::string& v) {
     std::string s = ascii_lower_str(v);
@@ -26,6 +27,7 @@ std::string first_code(const std::string& v) {
     while (i < s.size() && std::isalpha(static_cast<unsigned char>(s[i])) && out.size() < 3) out += s[i++];
     return out;
 }
+#endif
 
 #if !defined(_WIN32)
 #if !defined(__APPLE__)   // (only the Linux branch below reads "key: value" lines: on macOS it would be unused)

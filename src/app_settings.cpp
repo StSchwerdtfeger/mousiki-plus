@@ -816,7 +816,8 @@ std::string App::settings_get_value(int row, int col) const {
     if (settings_tab_ == 1 || settings_tab_ == 2) {
         // The toggle rows read straight off their bool; the pick rows return the name of their choice.
         bool v = false;
-        switch (settings_item_id(settings_tab_, row)) {
+        const int vid = settings_item_id(settings_tab_, row);
+        switch (vid) {
             case kSidDisk: return settings_.element_disk ? "Show Disk / Cover" : "Remove Field";
             case kSidDummy: v = settings_.element_dummy_buttons; break;
             case kSidDiskBorder: v = settings_.disk_border; break;
@@ -881,6 +882,8 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidPauseFade: v = settings_.pause_fade; break;
             case kSidAutoPlay: v = settings_.auto_play; break;
             case kSidPauseSphere: v = settings_.pause_sphere; break;
+            case kSidMultiViz: v = settings_.multiviz; break;
+            case kSidMvMain: case kSidMvSecond: case kSidMvThird: return mv_pick_name(vid == kSidMvMain ? settings_.mv_main : vid == kSidMvSecond ? settings_.mv_2 : settings_.mv_3, vid == kSidMvMain);
             case kSidUseMilkdrop: v = settings_.use_milkdrop; break;
             case kSidMdShuffle: v = settings_.milkdrop_shuffle; break;
             case kSidMdFavShuffle: v = settings_.milkdrop_fav_shuffle; break;
@@ -1038,7 +1041,8 @@ std::string App::settings_get_value(int row, int col) const {
 std::vector<std::string> App::settings_options_for(int tab, int row) const {
     if (tab == 1 || tab == 2) {
         // Bool toggles cycle true / false; the pick rows have lists of their own.
-        switch (settings_item_id(tab, row)) {
+        const int oid = settings_item_id(tab, row);
+        switch (oid) {
             case -1: return {};
             case kSidDisk: return {"Show Disk / Cover", "Remove Field"};   // (true / false)
             // (video and milkdrop are offered while the Video mode / MilkDrop are on; a pick that is set stays in the list)
@@ -1053,6 +1057,13 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
                 std::vector<std::string> o = {"sphere", "osci", "spectro", "none"};
                 if (settings_.video_mode || settings_.nolyrics_viz == 4) o.push_back("video");
                 if (settings_.use_milkdrop || settings_.nolyrics_viz == 5) o.push_back("milkdrop");
+                return o;
+            }
+            case kSidMvMain: case kSidMvSecond: case kSidMvThird: {   // (video and milkdrop are offered while they can run; a pick that is set stays in the list)
+                const int cur = oid == kSidMvMain ? settings_.mv_main : oid == kSidMvSecond ? settings_.mv_2 : settings_.mv_3;
+                std::vector<std::string> o = {mv_pick_name(0, oid == kSidMvMain), mv_pick_name(1, false), mv_pick_name(2, false), mv_pick_name(3, false)};
+                if ((settings_.video_mode && !audiobook_) || cur == 4) o.push_back(mv_pick_name(4, false));
+                if (settings_.use_milkdrop || cur == 5) o.push_back(mv_pick_name(5, false));
                 return o;
             }
             case kSidNoVideoViz: {
@@ -1262,6 +1273,15 @@ void App::settings_commit_edit_impl() {
         if (id == kSidFadeThr) { settings_.fade_trim_db = std::clamp(muisc::atoi_safe(v.c_str()), -90, -20); apply_fade_options(); return; }
         if (id == kSidGapless) { settings_.gapless = v == "full" ? 2 : v == "album" ? 1 : 0; return; }
         if (id == kSidVideoBuffer) { const int mb = muisc::atoi_safe(v.c_str()); int best = kVideoBufferChoices[0]; for (int c : kVideoBufferChoices) if (mb >= c) best = c; settings_.video_buffer = best; return; }
+        if (id == kSidMvMain || id == kSidMvSecond || id == kSidMvThird) {
+            int pick = 0;
+            for (int k = 0; k <= 5; ++k) if (v == mv_pick_name(k, id == kSidMvMain)) pick = k;
+            (id == kSidMvMain ? settings_.mv_main : id == kSidMvSecond ? settings_.mv_2 : settings_.mv_3) = pick;
+            if (pick == 5) settings_.use_milkdrop = true;   // (picking a visual that is switched off turns it on, as the other picks do)
+            if (pick >= 1 && pick <= 3) { if (pick == 1) settings_.use_sphere = true; else if (pick == 2) settings_.use_osci = true; else settings_.use_spectro = true; }
+            force_redraw_ = true;
+            return;
+        }
         if (id == kSidNoVideoViz) {
             if (v == "lyrics") settings_.novideo_viz = 4;
             else if (v == "sphere") settings_.novideo_viz = 0;
@@ -1440,6 +1460,7 @@ void App::settings_commit_edit_impl() {
             case kSidReduceMotion: settings_.reduce_motion_paused = is_true; break;
             case kSidAutoPlay: settings_.auto_play = is_true; break;
             case kSidPauseSphere: settings_.pause_sphere = is_true; break;
+            case kSidMultiViz: settings_.multiviz = is_true; force_redraw_ = true; break;
             case kSidUseMilkdrop: settings_.use_milkdrop = is_true; if (!is_true && settings_.milkdrop_view) settings_.milkdrop_view = false; break;
             case kSidMdShuffle: settings_.milkdrop_shuffle = is_true; break;
             case kSidMdFavShuffle: settings_.milkdrop_fav_shuffle = is_true; break;
@@ -1798,6 +1819,15 @@ void App::settings_cycle(int dir) {
     if (id == kSidFadeTrim) status_line_ = settings_.fade_trim ? "cut silence: on -- the silence at the start and the end of a track is not played" : "cut silence: off";
     if (id == kSidFadeThr) status_line_ = "silence below " + std::to_string(settings_.fade_trim_db) + " dB counts as silence";
     if (id == kSidAutoPlay) status_line_ = settings_.auto_play ? "auto-play: on -- the track the music player opens with starts playing at once (next start)" : "auto-play: off -- the track the music player opens with stands paused at its place (the play / pause key (p) starts it; next start)";
+    if (id == kSidMultiViz)
+        status_line_ = settings_.multiviz ? "Multi-Viz: on -- on a wide screen the field shows up to three visuals side by side (about 40 columns each; narrower: only as many as fit)" + note
+                                          : "Multi-Viz: off -- the field shows one view" + note;
+    if (id == kSidMvMain || id == kSidMvSecond || id == kSidMvThird) {
+        const int pick = id == kSidMvMain ? settings_.mv_main : id == kSidMvSecond ? settings_.mv_2 : settings_.mv_3;
+        status_line_ = std::string(id == kSidMvMain ? "main viz: " : id == kSidMvSecond ? "2nd viz: " : "3rd viz: ") + mv_pick_name(pick, id == kSidMvMain) +
+                       (pick == 0 ? (id == kSidMvMain ? " -- the first pane shows what the Lyrics/Viz settings say" : " -- no pane") : " -- a visual that another pane shows already is not shown twice") +
+                       (settings_.multiviz ? std::string() : "  (Multi-Viz is off)") + note;
+    }
     if (id == kSidPauseSphere) status_line_ = settings_.pause_sphere ? "pause sphere: on -- the sphere stops turning while the track is paused" : "pause sphere: off -- the sphere goes on turning while the track is paused";
     if (id == kSidPauseFade) status_line_ = settings_.pause_fade ? "pause fade: on -- pause and resume fade over about 8 ms (no click)" : "pause fade: off -- pause cuts the sound at once (a click is possible)";
     if (id == kSidCliScripts) status_line_ = "cli scripts: [ENTER] opens the script overlay (library and editor of the command line's scripts; ESC comes back here)";

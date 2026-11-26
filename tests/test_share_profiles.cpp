@@ -167,3 +167,28 @@ TEST(milkdrop_picture_look_and_shuffle_folder_round_trip) {
     CHECK_EQ(b.md_shuffle_folder, std::string("Recommended"));
     CHECK(b.sharp_corners);
 }
+
+TEST(radio_multi_viz_settings_round_trip_by_name) {
+    mt::TempHome home;
+    radio::RadioSettings r = radio::load_radio_settings();
+    CHECK(!r.multiviz);
+    CHECK_EQ(r.mv_main, 0);
+    CHECK_EQ(r.mv_2, 3);
+    CHECK_EQ(r.mv_3, 0);
+    r.multiviz = true; r.mv_main = 1; r.mv_2 = 2; r.mv_3 = 5;
+    CHECK(radio::save_radio_settings(r));
+    const std::string text = radio::radio_settings_text(r);
+    CHECK(text.find("MultiViz=true") != std::string::npos);
+    CHECK(text.find("MultiVizMain=sphere") != std::string::npos);
+    CHECK(text.find("MultiViz2=osci") != std::string::npos);
+    CHECK(text.find("MultiViz3=milkdrop") != std::string::npos);
+    const radio::RadioSettings back = radio::load_radio_settings();
+    CHECK(back.multiviz);
+    CHECK_EQ(back.mv_main, 1);
+    CHECK_EQ(back.mv_2, 2);
+    CHECK_EQ(back.mv_3, 5);
+    CHECK_EQ(radio::radio_mv_from_name("spectrogram"), 3);
+    CHECK_EQ(radio::radio_mv_from_name("nonsense"), 0);
+    CHECK(radio::radio_mv_name(0, true) == "scope");
+    CHECK(radio::radio_mv_name(0, false) == "off");
+}

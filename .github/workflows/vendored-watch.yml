@@ -1,6 +1,6 @@
 # Once a week: compares the libraries shipped as source in third_party/ (list and versions: third_party/VENDORED.json) with
 # the newest upstream releases. When one is behind, ONE issue "Vendored libraries: updates available" is opened (or updated);
-# when everything is current again it is closed. After updating a library, change its `version` in VENDORED.json.
+# when everything is current again it is closed -- but only when every lookup worked: a rate limit or an outage never closes it. After updating a library, change its `version` in VENDORED.json.
 name: vendored-watch
 
 on:
@@ -31,6 +31,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OUTDATED: ${{ steps.check.outputs.outdated }}
+          FAILED: ${{ steps.check.outputs.failed }}
         run: |
           TITLE="Vendored libraries: updates available"
           NUM=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number,title --jq ".[] | select(.title==\"$TITLE\") | .number" | head -n1)
@@ -40,6 +41,8 @@ jobs:
             else
               gh issue create --title "$TITLE" --body-file report.md
             fi
+          elif [ "${FAILED:-0}" != "0" ]; then
+            echo "$FAILED lookup(s) failed: an open issue is left as it is."
           elif [ -n "$NUM" ]; then
             gh issue close "$NUM" --comment "Everything in third_party/ is current again."
           fi

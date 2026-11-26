@@ -120,6 +120,9 @@ inline std::string centred_bottom(const Settings& s, int W, const std::string& t
     return colour.empty() ? out : colour + out + "\x1b[0m";
 }
 
+// Widest screen the UI draws to (a big 16:9 monitor in full screen is ~400 columns; beyond it the rest stays empty).
+constexpr int kMaxTermCols = 1000;
+
 // The legend of a floating option panel, all rows in the bottom border colour. With several rows the middle one sits ON the bottom
 // border line (rows/2 rows inside the panel, the rest hanging below it), so the block is centred on that line. `inside(text)` makes
 // a framed row, `bottom(text)` the bottom border carrying a text.

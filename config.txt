@@ -216,6 +216,14 @@ NoLyricsViz=osci
 UseLyrics=true
 ## Audio book: true = while a note is shown in the Viz/Notes field, only the note is drawn there (no MilkDrop or other picture behind it); false = a shown note does not appear while MilkDrop fills the field (a note you are writing always does). Default true.
 BookForceNote=true
+## Multi-Viz: true = on a wide screen (a big monitor in full screen) the Viz/Lyrics field is split into up to three panes side by side, about 40 columns each; a narrower screen shows as many as fit. Default false.
+MultiViz=false
+## What the first pane shows: 0 = the field as Lyrics/Viz Default and the "." key say (default), 1 sphere, 2 oscilloscope, 3 spectrogram, 4 video, 5 MilkDrop.
+MultiVizMain=0
+## What the second pane shows: 0 off, 1 sphere, 2 oscilloscope, 3 spectrogram (default), 4 video (needs the Video mode), 5 MilkDrop. A visual that another pane shows already is not drawn twice; one that cannot be drawn is replaced by the next that can.
+MultiViz2=3
+## What the third pane shows (same numbers; default 0 = off).
+MultiViz3=0
 UseOscilloscope=true
 UseSpectrogram=true
 UseSphere=true
@@ -406,6 +414,8 @@ LatinMacrons=false
 ## true , false -- Latin letters (SHIFT+'): Japanese long vowels with a macron (koohii -> koohii off, kōhī on; ou -> ō); off = spelled out (ou, uu)
 LatinWo=false
 ## true , false -- Latin letters (SHIFT+'): the particle を as "wo" (on) or "o" (off)
+LyricsBetterSource=true
+## true , false -- lyrics: besides LRCLIB (lrclib.net) the lyrics service lyrics-api.boidu.dev ("Better Lyrics", word by word timing) is asked too; every lyrics search sends the TITLE and ARTIST of the track to each service. false = only LRCLIB (line by line timing)
 LatinNameLookup=false
 ## true , false -- the artists whose name is written in Chinese characters are looked up on MusicBrainz in the background to get their Latin name (sends the NAME of the artist, one at a time, to musicbrainz.org; the answers are kept in kanji_readings_learned.txt; needs Python 3)
 LatinHanziDefault=leave

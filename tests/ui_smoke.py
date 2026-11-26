@@ -1886,6 +1886,84 @@ def top_pane_style(binary, root, scripts):
     check(len(walls) == 2 and mids and all(all(w < len(m) and m[w] == "\u2502" for w in walls) for m in mids), "pane style three panes: the walls stand under the top corners, one column each")
 
 
+def multi_viz(binary, root, scripts):
+    """A very wide window (a big 16:9 monitor in full screen, here 330 x 50): the player fills the whole width (it was cut at 200 columns), and with
+    MultiViz=true the Viz/Lyrics field is a row of panes (the sphere, the oscilloscope, the spectrogram ...) with the frame's edge still in one column.
+    On a narrower window the panes that do not fit are left out; Settings -> ANIMA/VIZ has the MULTI-VIZ rows right below TOGGLE LYRICS/VIZ."""
+    global COLS, ROWS
+    old = (COLS, ROWS)
+    lib = os.path.join(root, "mv_music")
+    os.makedirs(lib, exist_ok=True)
+    make_wav(os.path.join(lib, "Alpha Song.wav"), 30)
+    def start(tag, extra, cols, rows=50):
+        global COLS, ROWS
+        COLS, ROWS = cols, rows
+        home = os.path.join(root, "mv_home_" + tag)
+        cfgdir = os.path.join(home, ".config", "mousiki")
+        os.makedirs(cfgdir)
+        with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nWizardSeen=true\nUseLyrics=false\nVizDefault=sphere\nNoLyricsViz=sphere\n%s" % (lib, extra))
+        sess = Session(binary, home, scripts, {"MOUSIKI_NULL_AUDIO": "1"}, quiet_stderr=True)
+        sess.wait_for(lambda t: "Alpha Song" in t)
+        sess.pump(2.5)
+        return sess
+    def edge(sess):
+        top = sess.row_cells(0)
+        return max((x for x, c in enumerate(top) if c not in (" ", "")), default=-1)
+    def panel_edges(sess, cols):
+        """The rows of the top panel (1 .. 15) must all end with the frame's edge at the last column."""
+        bad = []
+        for y in range(1, 16):
+            r = sess.row_cells(y)
+            last = max((x for x, c in enumerate(r) if c not in (" ", "")), default=-1)
+            if last != cols - 1 or r[last] not in BOX_RIGHT:
+                bad.append("row %d ends at col %d" % (y, last))
+        return bad
+    try:
+        sess = start("off", "MultiViz=false\n", 330)
+        try:
+            check(sess.alive(), "multi-viz off at 330 columns: the program is still running")
+            check(not panel_edges(sess, 330), "multi-viz off at 330 columns: the top panel's rows end at the edge: %s" % "; ".join(panel_edges(sess, 330)[:3]))
+            check(edge(sess) == 329, "wide window: the frame fills all 330 columns (right edge at column %d)" % edge(sess))
+        finally:
+            sess.kill()
+        sess = start("on", "MultiViz=true\nMultiVizMain=1\nMultiViz2=2\nMultiViz3=3\n", 330)
+        try:
+            check(sess.alive(), "multi-viz on at 330 columns: the program is still running")
+            check(not panel_edges(sess, 330), "multi-viz on at 330 columns: the top panel's rows end at the edge: %s" % "; ".join(panel_edges(sess, 330)[:3]))
+            check(edge(sess) == 329, "multi-viz: the frame still fills all 330 columns (right edge at column %d)" % edge(sess))
+            if os.environ.get("MOUSIKI_SHOW"):
+                print("\n".join(l.rstrip() for l in sess.screen.display[:18]))
+            panel = [sess.row_cells(y) for y in range(1, 16)]
+            # the three panes are separated by blank columns: count the runs of non-blank columns in the panel's rows right of the meta data
+            blank_cols = [x for x in range(150, 328) if all(r[x] in (" ", "") for r in panel)]
+            check(len(blank_cols) >= 2, "multi-viz: blank columns between the panes (%d of them right of the meta data)" % len(blank_cols))
+        finally:
+            sess.kill()
+        sess = start("narrow", "MultiViz=true\nMultiVizMain=1\nMultiViz2=2\nMultiViz3=3\n", 140, 45)
+        try:
+            check(sess.alive() and not panel_edges(sess, 140), "multi-viz on at 140 columns (no room for panes): the top panel is intact: %s" % "; ".join(panel_edges(sess, 140)[:3]))
+        finally:
+            sess.kill()
+        sess = start("rows", "MultiViz=false\n", 200, 45)
+        try:
+            sess.send("s", 1.2)
+            sess.send(b"\t", 0.8)
+            sess.send(b"\t", 0.8)           # ANIMA/VIZ
+            seen = []
+            for _ in range(80):
+                t = sess.text()
+                for label in ("TOGGLE LYRICS/VIZ", "MULTI-VIZ", "Main Viz", "2nd Viz", "3rd Viz"):
+                    if label in t and label not in seen:
+                        seen.append(label)
+                sess.send(b"\x1b[B", 0.05)
+            check(all(l in seen for l in ("TOGGLE LYRICS/VIZ", "MULTI-VIZ", "Main Viz", "2nd Viz", "3rd Viz")), "ANIMA/VIZ lists the MULTI-VIZ rows (seen: %s)" % ", ".join(seen))
+        finally:
+            sess.kill()
+    finally:
+        COLS, ROWS = old
+
+
 def play_mode_back(binary, root, scripts):
     """m steps through the play modes, j steps back (the console log names the mode)."""
     home = os.path.join(root, "pmb_home")
@@ -2172,7 +2250,7 @@ def disk_field_setting(binary, root, scripts):
         check("LYRICS/VIZ FIELD" in t and "VIZ/LYRICS ORDER" in t and "TOGGLE LYRICS/VIZ" in t, "disk field: the tab starts with LYRICS/VIZ FIELD, the order and the toggles")
         seen = t
         ordered = False
-        for _ in range(18):                                 # past the 13 rows of VIZ/LYRICS ORDER and TOGGLE LYRICS/VIZ, and the 25 below (to Eliment Disk (Auto Video is the first VIDEO row; after Lyrics/Viz Default: When No Lyrics Show, When No Video Shows, Lyrics Alignment, Lyrics Animation, Include Lyrics, Video Size, Effect, Contrast, Colors, Chromatic Aberration, Dither Pattern, Base Layer, Effect Contrast, Rounded Corners, Show Clap Loading, Disk/Cover/Thumbnail, Resolution, Frame Rate, Buffer, yt-dlp mp3 from mp4)
+        for _ in range(22):                                 # past the 13 rows of VIZ/LYRICS ORDER and TOGGLE LYRICS/VIZ, and the 25 below (to Eliment Disk (Auto Video is the first VIDEO row; after Lyrics/Viz Default: When No Lyrics Show, When No Video Shows, Lyrics Alignment, Lyrics Animation, Include Lyrics, Video Size, Effect, Contrast, Colors, Chromatic Aberration, Dither Pattern, Base Layer, Effect Contrast, Rounded Corners, Show Clap Loading, Disk/Cover/Thumbnail, Resolution, Frame Rate, Buffer, yt-dlp mp3 from mp4)
             sess.send(b"\x1b[B", 0.2)
             seen += "\n" + sess.text()
             tt = sess.text()
@@ -2618,6 +2696,7 @@ def video_overlays(binary, root, scripts):
         sess.send("Y", 1.0)
         t = sess.text()
         check("Manually Couple Local Files" in t and "Quick Search/Down. YT" in t and "General Fetch Videos Menu" in t and "Delete Current Video" not in t and "Refetch this Video" not in t, "video overlay: a track without a video lists the Videos for songs rows")
+        check(("[UP/DOWN] select" in t or "[\u2191\u2193] select" in t) and ("[LEFT/RIGHT] change" in t or "[\u2190\u2192] change" in t) and "[ENTER] open" in t and "[ESC] close" in t and "[ENTER] [" not in t, "video overlay: the legend says what each key does, like the other overlays")
         check("Include Lyrics" not in t and "Video Size" not in t and "Full Screen Video" not in t and "Disk/Cover/Thumbnail" not in t, "video overlay: a track without a video lists nothing else (none of the other rows make sense)")
         for _ in range(40):   # (to "Manually Couple Local Files", under "Full Screen Video"; the management rows and Show Clap Loading are the rows before it)
             if "> [ Manually Couple Local Files ]" in sess.text():
@@ -4947,14 +5026,16 @@ def milkdrop_radio_book(binary, root, scripts):
         t = sess.text()
         check("MILKDROP" in t and "Show Preset Name" in t, "radio: ANIMA/VIZ has the MILKDROP block")
         check("Sixel Colours" in t and "MilkDrop Effect" in t, "radio: ANIMA/VIZ has the effect rows too")
-        for _ in range(40):   # VIZ ORDER and VIZ TOGGLE follow (the Use rows live there, not in the MILKDROP block)
+        for _ in range(60):   # VIZ ORDER and VIZ TOGGLE follow (the Use rows live there, not in the MILKDROP block); MULTI-VIZ sits below them
             if re.search(r"Use MilkDrop\s+:", sess.text()):   # the row itself (the description text also mentions "Use MilkDrop")
                 break
             sess.send(b"\x1b[B", 0.35)   # (the MilkDrop rows redraw a live preview, so single steps need a little time)
         sess.pump(0.6)
         t2 = sess.text()
-        if not ("VIZ TOGGLE" in t2 and "Use MilkDrop" in t2 and "Use Sphere" in t2): sess.dump("radio use rows")
-        check("VIZ TOGGLE" in t2 and "Use MilkDrop" in t2 and "Use Sphere" in t2, "radio: ANIMA/VIZ has the VIZ TOGGLE block with the Use rows")
+        # (the header of VIZ TOGGLE may have scrolled out of the window: the MULTI-VIZ block right below the Use rows is in view then)
+        ok_use = ("VIZ TOGGLE" in t2 or "MULTI-VIZ" in t2) and "Use MilkDrop" in t2 and "Use Sphere" in t2
+        if not ok_use: sess.dump("radio use rows")
+        check(ok_use, "radio: ANIMA/VIZ has the VIZ TOGGLE block with the Use rows")
         for _ in range(3):   # SHIFT+UP: ten rows at a time (three presses cannot reach this far with single steps)
             sess.send(b"\x1b[1;2A", 0.3)
         sess.pump(0.5)
@@ -7016,7 +7097,7 @@ def run_scenario(name, binary, root, scripts):
 
 
 SCENARIOS = ["narrow80", "narrow100", "main", "read_lyrics_play", "karaoke_timing", "book_speed_and_devices", "paging_and_translit_row",
-             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_ytdlp_update", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "audio_fades", "audio_fades_edges", "playlist_missing_file", "ytdlp_update_flow", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews", "override_and_previews", "individual_temp_layer", "sharp_and_folders", "thick_borders"]
+             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_ytdlp_update", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "audio_fades", "audio_fades_edges", "playlist_missing_file", "ytdlp_update_flow", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews", "override_and_previews", "individual_temp_layer", "sharp_and_folders", "thick_borders", "multi_viz"]
 
 
 def main():

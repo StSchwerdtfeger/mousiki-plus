@@ -175,6 +175,9 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {true, -1, "VIZ TOGGLE"},   // the field right of the station info
         {false, kRsScope, "Viz Field"}, {false, kRsUseOsci, "Use Oscilloscope"}, {false, kRsUseSpectro, "Use Spectrogram"}, {false, kRsUseSphere, "Use Sphere"}, {false, kRsUseMilkdrop, "Use MilkDrop"},
         {true, -1, ""},
+        {true, -1, "MULTI-VIZ"},   // several visuals side by side when the screen is wide enough
+        {false, kRsMultiViz, "Multi-Viz"}, {false, kRsMvMain, "Main Viz"}, {false, kRsMvSecond, "2nd Viz"}, {false, kRsMvThird, "3rd Viz"},
+        {true, -1, ""},
         {true, -1, "MILKDROP"},   // the MilkDrop visuals in the scope block (projectM, when installed)
         {false, kRsMdFps, "MilkDrop Frame Rate"}, {false, kRsMdRes, "MilkDrop Resolution"}, {false, kRsMdGpu, "MilkDrop GPU"},
         {false, kRsMdPreset, "Default Preset"}, {false, kRsMdBrowse, "Preset Overlay"}, {false, kRsMdRandom, "Random Preset"}, {false, kRsMdLock, "Lock Preset"},
@@ -216,6 +219,14 @@ const char* rs_row_label(int tab, int row) {
 const int kOnOffRowCount = rs_row_count(1);
 const int kAnimRowCount = rs_row_count(2);
 
+// Multi-Viz picks (RadioSettings::mv_main / mv_2 / mv_3): 0 = the scope block as it is (first pane) / off (the others), 1 sphere, 2 osci, 3 spectro, 5 milkdrop.
+std::string radio_mv_name(int pick, bool main_pane) {
+    return pick == 1 ? "sphere" : pick == 2 ? "osci" : pick == 3 ? "spectro" : pick == 5 ? "milkdrop" : main_pane ? "scope" : "off";
+}
+int radio_mv_from_name(const std::string& v) {
+    const std::string l = ascii_lower_str(v);
+    return l == "sphere" ? 1 : (l == "osci" || l == "oscilloscope") ? 2 : (l == "spectro" || l == "spectrogram") ? 3 : l == "milkdrop" ? 5 : 0;
+}
 std::string scope_mode_name(const RadioSettings& s) {
     return s.scope_mode == 1 ? "sphere" : s.scope_mode == 2 ? "off" : s.scope_mode == 3 ? "spectro" : s.scope_mode == 4 ? "milkdrop" : "osci";
 }
@@ -270,6 +281,7 @@ bool* flag_of(RadioSettings& s, int id) {
         case kRsAutoPlay: return &s.auto_play;
         case kRsBlackBg: return &s.black_background;
         case kRsUseMilkdrop: return &s.use_milkdrop;
+        case kRsMultiViz: return &s.multiviz;
         case kRsMdShuffle: return &s.md_shuffle;
         case kRsMdHardCuts: return &s.md_hard_cuts;
         case kRsMdShowName: return &s.md_show_name;
@@ -347,6 +359,9 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsDegr: return std::to_string(s.bar_degradation());
         case kRsVisc: return std::to_string(s.bar_viscosity());
         case kRsScope: return scope_mode_name(s);
+        case kRsMvMain: return radio_mv_name(s.mv_main, true);
+        case kRsMvSecond: return radio_mv_name(s.mv_2, false);
+        case kRsMvThird: return radio_mv_name(s.mv_3, false);
         case kRsOrder1: case kRsOrder2: case kRsOrder3: case kRsOrder4: { static const char* n[4] = {"osci", "sphere", "spectro", "milkdrop"}; return n[std::clamp(s.viz_order[id - kRsOrder1], 0, 3)]; }
         case kRsOsciStyle: return s.osci_style == 1 ? "image" : "braille";
         case kRsMdPreset: return (s.md_default_preset.empty() ? std::string("none (one from the list)") : truncate_str(muisc::path_utf8(muisc::path_from_utf8(s.md_default_preset).stem()), 40)) + "  [ENTER] choose, [d] clear";
@@ -450,6 +465,16 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
         }
         case kRsScope: step(s.scope_mode, 5); break;   // osci, sphere, off, spectro, milkdrop (an unusable MilkDrop shows the oscilloscope: radio_milkdrop.cpp)
         case kRsOsciStyle: step(s.osci_style, 2); break;
+        case kRsMvMain: case kRsMvSecond: case kRsMvThird: {   // as scope / off, sphere, osci, spectro, (video: not in the radio), milkdrop
+            int& pick = id == kRsMvMain ? s.mv_main : id == kRsMvSecond ? s.mv_2 : s.mv_3;
+            static const int kOrder[5] = {0, 1, 2, 3, 5};
+            int at = 0;
+            for (int i = 0; i < 5; ++i) if (kOrder[i] == pick) at = i;
+            pick = kOrder[((at + (dir < 0 ? 4 : 1)) % 5 + 5) % 5];
+            if (pick == 5) s.use_milkdrop = true;   // (picking a visual that is switched off turns it on)
+            else if (pick == 1) s.use_sphere = true; else if (pick == 2) s.use_osci = true; else if (pick == 3) s.use_spectro = true;
+            break;
+        }
         case kRsMdFps: s.md_fps = radio_md_step(0, s.md_fps, dir == 0 ? 1 : dir); break;
         case kRsMdRes: s.md_res = radio_md_step(1, s.md_res, dir == 0 ? 1 : dir); break;
         case kRsMdGpu: s.md_gpu = radio_md_gpu_step(s.md_gpu, dir == 0 ? 1 : dir); break;
@@ -1172,6 +1197,10 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("VolumeIndicator")) { const int st = muisc::volume_style_from_name(*v); if (st >= 0) s.volume_indicator = st; }
     if (auto v = get("OsciSphere")) { const std::string l = ascii_lower_str(*v); s.scope_mode = l == "sphere" ? 1 : l == "off" ? 2 : (l == "spectro" || l == "spectrogram") ? 3 : l == "milkdrop" ? 4 : 0; }
     if (auto v = get("UseMilkDrop")) s.use_milkdrop = as_bool(*v, s.use_milkdrop);
+    if (auto v = get("MultiViz")) s.multiviz = as_bool(*v, s.multiviz);
+    if (auto v = get("MultiVizMain")) s.mv_main = radio_mv_from_name(*v);
+    if (auto v = get("MultiViz2")) s.mv_2 = radio_mv_from_name(*v);
+    if (auto v = get("MultiViz3")) s.mv_3 = radio_mv_from_name(*v);
     if (auto v = get("MilkDropFrameRate")) s.md_fps = std::clamp(muisc::atoi_safe(v->c_str()), 10, 60);
     if (auto v = get("MilkDropResolution")) s.md_res = std::clamp(muisc::atoi_safe(v->c_str()), 160, 1920);
     if (auto v = get("MilkDropWindowResolution")) s.md_win_res = std::clamp(muisc::atoi_safe(v->c_str()), 320, 1920);
@@ -1378,6 +1407,12 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "VolumeIndicator=" << muisc::kVolIndicatorNames[std::clamp(s.volume_indicator, 0, muisc::kVolStyleCount - 1)] << "\n"
          "# right of the station info: osci | sphere | off | spectro | milkdrop (the MilkDrop visuals, when projectM is installed)\n"
          "OsciSphere=" << scope_mode_name(s) << "\n"
+         "# Multi-Viz: on a wide screen the scope block is split into up to three panes side by side (about 40 columns each; a narrower screen shows as many as fit)\n"
+         "MultiViz=" << (s.multiviz ? "true" : "false") << "\n"
+         "# the first pane: scope (as OsciSphere= says, default) | sphere | osci | spectro | milkdrop; the 2nd and 3rd pane: off | sphere | osci | spectro | milkdrop (a visual is not shown twice)\n"
+         "MultiVizMain=" << radio_mv_name(s.mv_main, true) << "\n"
+         "MultiViz2=" << radio_mv_name(s.mv_2, false) << "\n"
+         "MultiViz3=" << radio_mv_name(s.mv_3, false) << "\n"
          "# the MilkDrop visuals (ANIMA/VIZ -> MILKDROP, the \":\" overlay): false leaves them out of the \".\" cycle\n"
          "UseMilkDrop=" << (s.use_milkdrop ? "true" : "false") << "\n"
          "# pictures a second (15 .. 60), drawn at most this many pixels across (320 .. 1280; then scaled to the block)\n"

@@ -5,12 +5,15 @@
 #include "path_utf8.h"
 #include "process_util.h"
 #include "utf8_util.h"
+#include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <map>
 #include <mutex>
 #include <set>
 #include <sstream>
+#include <vector>
 
 namespace muisc {
 
@@ -69,6 +72,41 @@ SidInfo read_sid_header(const fs::path& sid) {
     return info;
 }
 
+// FNV-1a: the same value on every compiler and library version (std::hash is not), so cached tunes are found again after an update.
+std::string sid_cache_hash(const std::string& s) {
+    unsigned long long h = 14695981039346656037ULL;
+    for (unsigned char c : s) { h ^= c; h *= 1099511628211ULL; }
+    char buf[20];
+    std::snprintf(buf, sizeof buf, "%016llx", h);
+    return buf;
+}
+
+// A rendered tune is 30-35 MB, and nothing else ever removes them: keep the newest ones up to `limit` bytes in total.
+void sid_cache_prune(const fs::path& dir, const fs::path& keep, unsigned long long limit) {
+    std::error_code ec;
+    struct Entry { fs::path path; fs::file_time_type when; unsigned long long size; };
+    std::vector<Entry> files;
+    unsigned long long total = 0;
+    for (fs::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
+        std::error_code e2;
+        if (!it->is_regular_file(e2)) continue;
+        const std::string ext = path_utf8(it->path().extension());
+        if (ext != ".wav") continue;
+        Entry e{it->path(), it->last_write_time(e2), static_cast<unsigned long long>(it->file_size(e2))};
+        if (e2) continue;
+        if (e.path == keep) { total += e.size; continue; }
+        total += e.size;
+        files.push_back(e);
+    }
+    if (total <= limit) return;
+    std::sort(files.begin(), files.end(), [](const Entry& a, const Entry& b) { return a.when < b.when; });   // oldest first
+    for (const auto& e : files) {
+        if (total <= limit) break;
+        std::error_code e3;
+        if (fs::remove(e.path, e3)) total -= std::min(total, e.size);
+    }
+}
+
 bool render_sid_to_wav(const fs::path& sid, int seconds, fs::path& out_wav, std::string* err) {
     const char* home = std::getenv("HOME");
     if (!home || !*home) home = std::getenv("USERPROFILE");
@@ -80,9 +118,12 @@ bool render_sid_to_wav(const fs::path& sid, int seconds, fs::path& out_wav, std:
     // long long on purpose: macOS' libc++ counts file times in __int128, which std::to_string does not take.
     const long long mtime = static_cast<long long>(fs::last_write_time(sid, ec).time_since_epoch().count());
     const std::string key = path_utf8(sid) + "|" + std::to_string(size) + "|" + std::to_string(mtime) + "|" + std::to_string(seconds);
-    const std::string name = path_utf8(sid.stem()) + "_" + std::to_string(std::hash<std::string>{}(key) % 100000000ULL) + ".wav";
+    const std::string name = path_utf8(sid.stem()) + "_" + sid_cache_hash(key) + ".wav";
     out_wav = dir / path_from_utf8(name);
-    if (fs::exists(out_wav, ec) && fs::file_size(out_wav, ec) > 44) return true;
+    if (fs::exists(out_wav, ec) && fs::file_size(out_wav, ec) > 44) {
+        fs::last_write_time(out_wav, fs::file_time_type::clock::now(), ec);   // used again: the newest, so the oldest go first
+        return true;
+    }
 
     const fs::path tmp = fs::path(out_wav).concat(".part");
     // -q: no time display, -t<sec>: play length, -w<file>: write a WAV instead of playing (as fast as the machine can).
@@ -100,6 +141,7 @@ bool render_sid_to_wav(const fs::path& sid, int seconds, fs::path& out_wav, std:
     }
     fs::rename(tmp, out_wav, ec);
     if (ec) { if (err) *err = "cannot write " + path_utf8(out_wav); return false; }
+    sid_cache_prune(dir, out_wav, 1000ULL * 1000 * 1000);   // about 1 GB of rendered tunes at most
     return true;
 }
 

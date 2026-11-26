@@ -21,6 +21,7 @@
 #if defined(_WIN32)
 #include <windows.h>
 #include "win_compat.h"
+#include "win_handle_list.h"
 #else
 #include <cerrno>
 #include <csignal>
@@ -314,16 +315,24 @@ bool win_open(Link& L, std::string* err) {
     if (!CreatePipe(&rd, &wr, &sa, 1 << 20)) { if (err) *err = std::string("cannot create a pipe for the ") + L.what; return false; }
     SetHandleInformation(wr, HANDLE_FLAG_INHERIT, 0);   // only the read end goes to the child
     HANDLE nul = CreateFileW(L"NUL", GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_EXISTING, 0, nullptr);
-    STARTUPINFOW si{};
-    si.cb = sizeof si;
-    si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdInput = rd;
-    si.hStdOutput = nul;
-    si.hStdError = nul;
+    // Only the three handles of the child may be inherited: a pipe another thread is creating at this moment (an ffprobe, a
+    // yt-dlp) must not leak into this long-lived process, or its reader never sees the end of the data.
+    STARTUPINFOEXW si{};
+    si.StartupInfo.cb = sizeof si;
+    si.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
+    si.StartupInfo.hStdInput = rd;
+    si.StartupInfo.hStdOutput = nul;
+    si.StartupInfo.hStdError = nul;
+    std::vector<HANDLE> inherit = {rd};
+    if (nul && nul != INVALID_HANDLE_VALUE) inherit.push_back(nul);
+    HandleInheritList handle_list(inherit);
+    DWORD flags = CREATE_NO_WINDOW;
+    if (handle_list.valid()) { flags |= EXTENDED_STARTUPINFO_PRESENT; si.lpAttributeList = handle_list.get(); }
+    else si.StartupInfo.cb = sizeof(STARTUPINFOW);
     PROCESS_INFORMATION pi{};
     const std::wstring wexe = win_utf8_to_wide(exe);
     std::wstring cmd = L"\"" + wexe + L"\" " + win_utf8_to_wide(L.arg);
-    const BOOL ok = CreateProcessW(wexe.c_str(), cmd.data(), nullptr, nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
+    const BOOL ok = CreateProcessW(wexe.c_str(), cmd.data(), nullptr, nullptr, TRUE, flags, nullptr, nullptr, &si.StartupInfo, &pi);
     CloseHandle(rd);
     if (nul && nul != INVALID_HANDLE_VALUE) CloseHandle(nul);
     if (!ok) { CloseHandle(wr); if (err) *err = std::string("cannot start the ") + L.what + " process"; return false; }

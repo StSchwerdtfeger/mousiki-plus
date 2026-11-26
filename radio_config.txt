@@ -93,6 +93,12 @@ VolumeGradient=false
 VolumeIndicator=disk
 # right of the station info: osci | sphere | off | spectro | milkdrop (the MilkDrop visuals, when projectM is installed)
 OsciSphere=osci
+# Multi-Viz: true = on a wide screen the scope block is split into up to three panes side by side (about 40 columns each; a narrower screen shows as many as fit)
+MultiViz=false
+# the first pane: scope (as OsciSphere= says, default) | sphere | osci | spectro | milkdrop; the 2nd and 3rd pane: off | sphere | osci | spectro | milkdrop (a visual is not shown twice)
+MultiVizMain=scope
+MultiViz2=spectro
+MultiViz3=off
 # the MilkDrop visuals (ANIMA/VIZ -> MILKDROP, the ":" overlay): false leaves them out of the "." cycle
 UseMilkDrop=true
 # pictures a second (15 .. 60), drawn at most this many pixels across (320 .. 1280; then scaled to the block)

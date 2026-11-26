@@ -136,6 +136,12 @@ std::vector<std::string> split_lines_nl(const std::string& t) {
 // The short texts of the DESCRIPTION box: what an option does, in a few plain lines. "" = no description (the row has a preview or none).
 std::string pv_desc(int id, const Settings& s) {
     switch (id) {
+        case kSidMultiViz:
+            return "On a wide screen (a big monitor in full screen) the Viz/Lyrics field is split into up to three panes side by side, about 40 columns each: the first shows the field as usual (or the Main Viz), the others the 2nd and 3rd Viz. On a narrower screen only as many panes as fit are shown; off: one view.";
+        case kSidMvMain:
+            return "What the first pane shows: as field = what Lyrics/Viz Default and the \".\" key say (lyrics, a visual, the video ...), or one fixed visual. A visual that is on in another pane is not drawn twice.";
+        case kSidMvSecond: case kSidMvThird:
+            return "What this pane shows beside the first one: off, the sphere, the oscilloscope, the spectrogram, the video of the track or MilkDrop. Pictures (video, MilkDrop, image styles) need a free picture slot of the terminal: two at most besides the disk's cover; a pane without one falls back to the next visual that can be drawn as text.";
         case kSidNormalize:
             return "Plays quiet and loud tracks at about the same loudness, so the volume need not be changed between songs. Target and boost are set in the SHIFT+v overlay.";
         case kSidRateCap:

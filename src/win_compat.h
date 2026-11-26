@@ -171,8 +171,8 @@ std::string win_path_to_utf8(const std::wstring& native);
 std::wstring win_utf8_to_wide(const std::string& utf8);
 
 // Positional pread() over a file descriptor from _wopen(). Returns bytes
-// read, 0 at EOF, -1 on error. Unlike a seek+read pair it leaves the
-// descriptor's own file pointer untouched.
+// read, 0 at EOF, -1 on error. The descriptor's own file pointer may move
+// (a handle not opened for overlapped I/O): read at absolute offsets only.
 long long win_pread(int fd, void* buf, std::size_t count, long long offset);
 
 // Column width of a Unicode scalar value. Note this takes a uint32_t rather

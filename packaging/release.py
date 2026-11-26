@@ -735,8 +735,8 @@ def add_static_ffmpeg_linux(pstage, dl, a):
     source = "John Van Sickle (GPLv3; source: https://johnvansickle.com/ffmpeg/ and https://ffmpeg.org)"
     try:
         tf = fetch_pinned("ffmpeg-linux-%s-static.tar.xz" % arch, dl / ("ffmpeg-linux-%s-static.tar.xz" % arch), a)
-        if tf is None:
-            tf = fetch(url, dl / ("ffmpeg-linux-%s-static.tar.xz" % arch), a.refresh_tools, tries=2)
+        if tf is None:   # no pin: the "latest release" file would be bundled without any check -- never
+            die("no pinned static ffmpeg for the Linux portable zip (%s): run 'release.py pin' first. An unverified build is never bundled." % url)
     except DownloadFailed:
         # johnvansickle.com sometimes does not answer GitHub's runners: the GitHub-hosted BtbN builds (GPLv3) are the fallback --
         # only when the server was not reachable (a SHA-256 mismatch stops the build), and only a pinned, dated BtbN build

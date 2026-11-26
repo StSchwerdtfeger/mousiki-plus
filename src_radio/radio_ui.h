@@ -38,7 +38,7 @@ namespace muisc::radio {
 // band, buttons and search keep their height.
 constexpr int kUiCols = 120;
 constexpr int kUiRows = 30;
-constexpr int kMaxCols = 200;
+constexpr int kMaxCols = 1000;
 void radio_settings_preview_end();   // the settings close: the MilkDrop preset of the preview box is put back (radio_settings_preview.cpp)
 
 // Colour wave over the ON AIR sign. The sign always carries a top-left -> bottom-right gradient of

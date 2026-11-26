@@ -14,9 +14,8 @@
 namespace muisc {
 
 // One row of the search index (parallel to the list of local tracks): the strings a search compares, already lowercased / separator-folded,
-// and the cache key. The tag fields are filled in as the background sweep resolves them (tags_seen).
+// (the cache key of the file is its path in the list of local tracks, at the same position). The tag fields are filled in as the background sweep resolves them (tags_seen).
 struct SearchIdx {
-    std::string key;
     std::string title_n, folder_artist_n;
     std::string tag_title_n, artist_n, album_n;
     bool tags_seen = false;

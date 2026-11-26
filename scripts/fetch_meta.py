@@ -56,6 +56,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mb_gate  # noqa: E402
+
 MAX_BODY = 20_000_000   # bytes: an answer of a web service is read up to this size, never without a limit
 
 # Same UTF-8-on-a-pipe fix as scripts/fetch_lyrics.py: Windows picks the ANSI
@@ -362,8 +365,6 @@ def pick_recording(data, duration):
 # MusicBrainz (album + year)
 # ---------------------------------------------------------------------
 
-_last_mb = [0.0]
-
 
 def mb_releases(mbid):
     """(releases, first_release_year) of one MusicBrainz recording, or raise a LookupError.
@@ -375,10 +376,7 @@ def mb_releases(mbid):
     req = urllib.request.Request(url, headers={"User-Agent": MB_USER_AGENT, "Accept": "application/json"})
     raw = None
     for attempt in range(3):
-        wait = MB_GAP - (time.time() - _last_mb[0])
-        if wait > 0:
-            time.sleep(wait)
-        _last_mb[0] = time.time()
+        mb_gate.wait(MB_GAP)   # one request per second for all Mousiki processes together
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
                 raw = resp.read(MAX_BODY).decode("utf-8", "replace")

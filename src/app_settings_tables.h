@@ -40,6 +40,7 @@ enum SetId {
     kSidUseMilkdrop, kSidMdFps, kSidMdRes, kSidMdDuration, kSidMdShuffle, kSidMdFolder, kSidMdFavShuffle, kSidMdCutSens, kSidMdHardCuts, kSidMdTransition, kSidMdFx, kSidMdColors, kSidMdShowName, kSidMdAuto,
     kSidMdUseFx, kSidMdPreset, kSidMdBrowse, kSidMdGpu, kSidMdHcd, kSidMdAspect, kSidMdRatio, kSidMdMesh, kSidMdVar, kSidMdBright, kSidMdSat, kSidMdContrast, kSidMdClean, kSidMdLock, kSidMdRandom, kSidBookForceNote,   // (Use Effect on / off; Default Preset: the preset the visuals start with; Preset Overlay: [ENTER] chooses it)
     kSidPaneStyle,     // MAIN UI PANE STYLE: one box / three panes I-III round disk | meta data | lyrics / viz field
+    kSidMultiViz, kSidMvMain, kSidMvSecond, kSidMvThird,   // MULTI-VIZ: several visuals side by side in the field on a wide screen
     kSidPauseSphere,   // SPHERE: the sphere stops turning while the track is paused
 };
 // True while the audio book player is the mode that runs (set by App::run()): its GENERAL and ANIMA/VIZ tabs leave out what only
@@ -80,6 +81,11 @@ inline int viz_order_slot(const int (&order)[6], int row_idx) {
     int n = -1;
     for (int i = 0; i < 6; ++i) if (order[i] != 4 && ++n == row_idx) return i;
     return row_idx;
+}
+// Multi-Viz picks (Settings.mv_main / mv_2 / mv_3): 0 = the field as the Lyrics/Viz settings show it (first pane) or off (the others).
+inline const char* mv_pick_name(int pick, bool main_pane) {
+    static const char* const kNames[6] = {"off", "sphere", "osci", "spectro", "video", "milkdrop"};
+    return pick == 0 && main_pane ? "as field" : kNames[pick < 0 ? 0 : pick > 5 ? 5 : pick];
 }
 inline const char* viz_row_name(int i) { return (g_settings_book_layout && i == 3) ? "notes" : kVizNames[i < 0 ? 0 : i > 5 ? 5 : i]; }
 

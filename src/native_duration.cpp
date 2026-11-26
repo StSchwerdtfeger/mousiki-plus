@@ -58,8 +58,8 @@ void close_probe(int fd) {
 }
 
 // Positional read. Windows has no pread; win_pread() emulates it with an
-// OVERLAPPED offset, which -- like the real thing -- leaves the descriptor's
-// own file pointer untouched.
+// OVERLAPPED offset. (Unlike the real pread, that may move the descriptor's own file pointer: every caller here reads at absolute
+// offsets only and never relies on the position.)
 long long pread_at(int fd, void* buf, size_t count, long long offset) {
 #if defined(_WIN32)
     return static_cast<long long>(muisc::win_pread(fd, buf, count, offset));

@@ -264,10 +264,26 @@ TEST(translit_hangul_to_revised_romanization) {
     CHECK_EQ(transliterate("김치"), std::string("gimchi"));
 }
 
+TEST(translit_hangul_sound_changes) {
+    CHECK_EQ(transliterate("신라"), std::string("silla"));
+    CHECK_EQ(transliterate("같이"), std::string("gachi"));
+    CHECK_EQ(transliterate("굳이"), std::string("guji"));
+    CHECK_EQ(transliterate("좋다"), std::string("jota"));
+    CHECK_EQ(transliterate("독립"), std::string("dongnip"));
+    CHECK_EQ(transliterate("먹는"), std::string("meongneun"));
+    CHECK_EQ(transliterate("입니다"), std::string("imnida"));
+    CHECK_EQ(transliterate("칼날"), std::string("kallal"));
+    CHECK_EQ(transliterate("종로"), std::string("jongno"));
+    CHECK_EQ(transliterate("좋아"), std::string("joa"));            // ㅎ before a vowel is silent
+    CHECK_EQ(transliterate("학교"), std::string("hakgyo"));         // tensing is not written
+    CHECK_EQ(transliterate("한국어"), std::string("hangugeo"));
+}
+
 TEST(translit_chinese_to_pinyin_and_kanji_stay) {
     CHECK_EQ(transliterate("谢谢你"), std::string("xi\xC3\xA8 xi\xC3\xA8 n\xC7\x90"));   // xiè xiè nǐ (simplified-only characters: Chinese)
     CHECK_EQ(transliterate("周杰伦 Jay"), std::string("zh\xC5\x8Du ji\xC3\xA9 l\xC3\xBAn Jay"));   // (伦 is simplified-only)
-    CHECK_EQ(transliterate("你好"), std::string("你好"));                             // the same in every writing: left alone without a hint
+    CHECK_EQ(transliterate("你好"), std::string("n\xC7\x90 h\xC7\x8Eo"));         // 你 is in the Japanese character set, but only Chinese text uses it: Chinese
+    CHECK_EQ(transliterate("東京"), std::string("東京"));                             // the same in every writing: left alone without a hint
     CHECK_EQ(transliterate("愛してる"), std::string("\xE6\x84\x9B shiteru"));      // Japanese text: the kanji stays
     CHECK_EQ(transliterate("plain ascii"), std::string("plain ascii"));
     CHECK_EQ(with_latin_spelling("さくら"), std::string("さくら sakura"));

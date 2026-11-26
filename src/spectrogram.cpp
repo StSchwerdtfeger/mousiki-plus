@@ -532,24 +532,36 @@ void SpectroAnalyzer::column(uint64_t c) {
     const int nch = shape_.ch;
     const size_t slot = static_cast<size_t>(c % cap_);
     const int pad = (fft_ - win_) / 2;   // the window sits in the middle of the zero padding, as in Audacity
-    const long long end = static_cast<long long>((c + 1) * static_cast<uint64_t>(hop_));
-    const long long start = end - win_;
+    const long long col_end = static_cast<long long>((c + 1) * static_cast<uint64_t>(hop_));
     const long long oldest = static_cast<long long>(raw_total_) - static_cast<long long>(raw_cap_);
+    // At a long time span the columns are far apart (hop_ >> win_) and one window would look at only a small part of the audio
+    // between them: a drum hit between two windows would not show. So up to 4 windows spread over the column's slice are
+    // analysed and the strongest value per bin is kept.
+    const int subs = std::clamp(hop_ / std::max(1, win_), 1, 4);
+    if (peak_.size() != static_cast<size_t>(bins_)) peak_.assign(static_cast<size_t>(bins_), 0.0f);
     for (int ch = 0; ch < nch; ++ch) {
-        std::fill(fft_in_.begin(), fft_in_.end(), 0.0f);
-        for (int i = 0; i < win_; ++i) {
-            const long long k = start + i;
-            if (k < 0 || k < oldest || k >= static_cast<long long>(raw_total_)) continue;
-            const size_t at = static_cast<size_t>(static_cast<uint64_t>(k) % raw_cap_);
-            const float l = raw_[2 * at] / 32768.0f, r = raw_[2 * at + 1] / 32768.0f;
-            const float v = nch == 1 ? 0.5f * (l + r) : (ch == 0 ? l : r);
-            fft_in_[static_cast<size_t>(pad + i)] = v * window_[static_cast<size_t>(i)];
+        std::fill(peak_.begin(), peak_.end(), 0.0f);
+        for (int sub = 0; sub < subs; ++sub) {
+            const long long end = col_end - static_cast<long long>(sub) * hop_ / subs;
+            const long long start = end - win_;
+            std::fill(fft_in_.begin(), fft_in_.end(), 0.0f);
+            for (int i = 0; i < win_; ++i) {
+                const long long k = start + i;
+                if (k < 0 || k < oldest || k >= static_cast<long long>(raw_total_)) continue;
+                const size_t at = static_cast<size_t>(static_cast<uint64_t>(k) % raw_cap_);
+                const float l = raw_[2 * at] / 32768.0f, r = raw_[2 * at + 1] / 32768.0f;
+                const float v = nch == 1 ? 0.5f * (l + r) : (ch == 0 ? l : r);
+                fft_in_[static_cast<size_t>(pad + i)] = v * window_[static_cast<size_t>(i)];
+            }
+            kiss_fftr(static_cast<kiss_fftr_cfg>(fft_cfg_), fft_in_.data(), reinterpret_cast<kiss_fft_cpx*>(fft_out_.data()));
+            for (int b = 0; b < bins_; ++b) {
+                const float re = fft_out_[static_cast<size_t>(2 * b)], im = fft_out_[static_cast<size_t>(2 * b + 1)];
+                peak_[static_cast<size_t>(b)] = std::max(peak_[static_cast<size_t>(b)], re * re + im * im);
+            }
         }
-        kiss_fftr(static_cast<kiss_fftr_cfg>(fft_cfg_), fft_in_.data(), reinterpret_cast<kiss_fft_cpx*>(fft_out_.data()));
         uint8_t* dst = hist_.data() + (slot * static_cast<size_t>(nch) + static_cast<size_t>(ch)) * static_cast<size_t>(bins_);
         for (int b = 0; b < bins_; ++b) {
-            const float re = fft_out_[static_cast<size_t>(2 * b)], im = fft_out_[static_cast<size_t>(2 * b + 1)];
-            const float p = re * re + im * im;
+            const float p = peak_[static_cast<size_t>(b)];
             dst[b] = q_db(p > 0.0f ? 10.0f * std::log10(p) : -160.0f);
         }
     }

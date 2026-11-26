@@ -6,13 +6,16 @@
   python tools/check_vendored.py --json          machine-readable result
   python tools/check_vendored.py --update-readme rewrites the dependency table in README.md (versions + newest upstream)
 
-Exit code 0 always (it only reports); the number of outdated libraries is written to $GITHUB_OUTPUT as `outdated=N` so the
-weekly workflow can open an issue. Uses only the standard library; GITHUB_TOKEN (if set) raises the API rate limit."""
+Exit code 0 always (it only reports); the number of outdated libraries is written to $GITHUB_OUTPUT as `outdated=N` and the number
+of lookups that failed or gave no answer as `failed=N`, so the weekly workflow can open an issue and never closes one on an
+incomplete check. Uses only the standard library; GITHUB_TOKEN (if set) raises the API rate limit."""
 import argparse
 import json
 import os
 import re
 import sys
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -28,8 +31,17 @@ def get(url, accept="application/json"):
     token = os.environ.get("GITHUB_TOKEN")
     if token and url.startswith("https://api.github.com/"):
         headers["Authorization"] = "Bearer " + token
-    with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as r:
-        return r.read().decode("utf-8", errors="replace")
+    for attempt in range(3):   # a short hiccup of the network or the API is tried again; a refusal (403, 404) is not
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30) as r:
+                return r.read().decode("utf-8", errors="replace")
+        except urllib.error.HTTPError as e:
+            if e.code < 500 or attempt == 2:
+                raise
+        except (urllib.error.URLError, TimeoutError, OSError):
+            if attempt == 2:
+                raise
+        time.sleep(2 * (attempt + 1))
 
 
 def parse_version(text):
@@ -93,6 +105,11 @@ def check():
     return rows
 
 
+def failed_count(rows):
+    """Lookups that failed or found no version: for these the report says nothing about being behind or not."""
+    return sum(1 for r in rows if r["status"] in ("error", "unknown"))
+
+
 def report(rows):
     out = ["| Library | In Mousiki | Newest upstream | |", "|---|---|---|---|"]
     mark = {"outdated": "**update available**", "current": "up to date", "info": "version of the copy not recorded", "unknown": "?", "error": "check failed"}
@@ -110,7 +127,12 @@ def report(rows):
         out.append("%d librar%s behind upstream. What to do: read the upstream change log (security fixes first), replace the files of the "
                    "library in `third_party/` with the new release, build, run the tests, commit. Nothing else has to be edited: the version is read "
                    "from the files (see `third_party/README.md`)." % (n, "y is" if n == 1 else "ies are"))
-    else:
+    nf = failed_count(rows)
+    if nf:
+        out.append("%s**%d of %d lookups failed or found no version number** (rate limit or network problem?): this report is incomplete and "
+                   "says nothing about those libraries. %s" % ("\n\n" if n else "", nf, len(rows),
+                                                              "" if n else "An open issue is left as it is."))
+    elif not n:
         out.append("Nothing behind upstream.")
     return "\n".join(out) + "\n"
 
@@ -174,6 +196,7 @@ def main():
     if gh:
         with open(gh, "a", encoding="utf-8") as f:
             f.write("outdated=%d\n" % sum(1 for r in rows if r["status"] == "outdated"))
+            f.write("failed=%d\n" % failed_count(rows))
     return 0
 
 

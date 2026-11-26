@@ -4,6 +4,7 @@
 #include "process_util.h"
 #include "themes.h"
 #include "app_internal.h"
+#include "app_settings_tables.h"
 #include "scripts_env.h"
 #include "keyboard_layout.h"
 
@@ -145,6 +146,39 @@ TEST(settings_take_shared_keeps_the_grid_colour) {
     CHECK_NEAR(a.osci_set[1].decay, 0.33, 0.001);
     CHECK_EQ(a.osci_style, 1);
     CHECK_EQ(a.spectro.span, 45);
+}
+
+TEST(multi_viz_settings_default_off_round_trip_and_are_part_of_the_look) {
+    mt::TempHome home;
+    Settings s = load_settings();
+    CHECK(!s.multiviz);            // off by default
+    CHECK_EQ(s.mv_main, 0);        // the first pane: the field as it is
+    CHECK_EQ(s.mv_2, 3);           // the second: the spectrogram
+    CHECK_EQ(s.mv_3, 0);           // the third: off
+    s.multiviz = true; s.mv_main = 2; s.mv_2 = 4; s.mv_3 = 5;
+    save_settings(s);
+    const Settings back = load_settings();
+    CHECK(back.multiviz);
+    CHECK_EQ(back.mv_main, 2);
+    CHECK_EQ(back.mv_2, 4);
+    CHECK_EQ(back.mv_3, 5);
+    const std::string text = settings_to_text(back);
+    CHECK(text.find("MultiViz=true") != std::string::npos);
+    CHECK(text.find("MultiVizMain=2") != std::string::npos);
+    CHECK(text.find("MultiViz2=4") != std::string::npos);
+    CHECK(text.find("MultiViz3=5") != std::string::npos);
+    // a value out of range is brought back into it
+    {
+        std::ofstream(home.path() / ".config" / "mousiki" / "config.txt") << "MultiViz2=99\nMultiViz3=-4\nMultiVizMain=7\n";
+        const Settings odd = load_settings();
+        CHECK(odd.mv_2 >= 0 && odd.mv_2 <= 5);
+        CHECK(odd.mv_3 >= 0 && odd.mv_3 <= 5);
+        CHECK(odd.mv_main >= 0 && odd.mv_main <= 5);
+    }
+    CHECK(std::string(mv_pick_name(0, true)) == "as field");
+    CHECK(std::string(mv_pick_name(0, false)) == "off");
+    CHECK(std::string(mv_pick_name(3, false)) == "spectro");
+    CHECK(std::string(mv_pick_name(5, true)) == "milkdrop");
 }
 
 TEST(settings_update_check_and_media_keys_default_on_and_round_trip) {

@@ -389,7 +389,7 @@ std::string rgb_seq(int r, int g, int b, float k);
 std::string utf8_cp(int cp);
 RadioScope::Params scope_params(const RadioSettings& c, double dt, int style = -1);
 bool build_scope_image(const Style& s, const UiModel& m, RadioEngine& engine, int scope_w);
-std::vector<std::string> build_scope(const Style& s, const UiModel& m, RadioEngine& engine, bool idle, int scope_w);
+std::vector<std::string> build_scope(const Style& s, const UiModel& m, RadioEngine& engine, bool idle, int scope_w, bool image_ok = true);   // (image_ok false: always braille)
 std::vector<std::string> build_satellite(const Style& s, double t_sec, int w);
 std::vector<std::string> build_sphere(const Style& s, const std::vector<int>& bars, double dt, int w);
 int dial_x(double mhz, int w);

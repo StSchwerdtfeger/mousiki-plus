@@ -125,6 +125,12 @@ std::string desc_of(int id) {
             return "Lets the system's media keys, headphone buttons and now-playing widgets control Mousiki (Windows: media pop-up; Linux: MPRIS, playerctl; macOS: Now Playing). Read at the next start.";
         case kRsReduceMotion:
             return "true: when paused (or nothing plays) and no key was pressed for 3 seconds, the screen is redrawn about 10 times a second instead of at the full frame rate (4 when nothing moves). Saves CPU and terminal traffic, useful over SSH. Any key brings the full rate back; a turning sphere keeps it.";
+        case kRsMultiViz:
+            return "On a wide screen (a big monitor in full screen) the scope block is split into up to three panes side by side, about 40 columns each: the first shows the scope block as usual (or the Main Viz), the others the 2nd and 3rd Viz. On a narrower screen only as many panes as fit are shown; off: one view.";
+        case kRsMvMain:
+            return "What the first pane shows: scope = what Viz Field / the \".\" key say, or one fixed visual. A visual that is on in another pane is not drawn twice.";
+        case kRsMvSecond: case kRsMvThird:
+            return "What this pane shows beside the first one: off, the sphere, the oscilloscope (braille), the spectrogram or MilkDrop. Pictures (image styles, MilkDrop) use the terminal's one picture slot of the block: a pane that cannot get it falls back to the next visual that can be drawn as text.";
         case kRsUseMilkdrop:
             return "true: MilkDrop can be shown in the scope block (Osci/sphere = milkdrop). It needs projectM and presets.\nfalse: the MilkDrop visuals are switched off.";
         case kRsMdFps:
@@ -191,7 +197,7 @@ PvKind kind_of(int id, const RadioSettings& c) {
         case kRsHifiFScale: case kRsHifiGain: case kRsHifiRange: case kRsBehavior: case kRsFluidity: case kRsDegr: case kRsVisc: return kPvBars;
         case kRsUseOsci: case kRsOsciStyle: return kPvScope;
         case kRsUseSphere: return kPvSphere;
-        case kRsOrder1: case kRsOrder2: case kRsOrder3: case kRsOrder4: case kRsPauseFade: case kRsAutoPlay: case kRsTermSize: return kPvDesc;
+        case kRsMultiViz: case kRsMvMain: case kRsMvSecond: case kRsMvThird: case kRsOrder1: case kRsOrder2: case kRsOrder3: case kRsOrder4: case kRsPauseFade: case kRsAutoPlay: case kRsTermSize: return kPvDesc;
         case kRsUseSpectro: return kPvSpectro;
         case kRsScope:   // (Osci/sphere: what the value in use shows)
             return c.scope_mode == 1 ? kPvSphere : c.scope_mode == 3 ? kPvSpectro : c.scope_mode == 4 ? kPvMilk : c.scope_mode == 2 ? kPvDesc : kPvScope;
@@ -263,7 +269,7 @@ void build_settings_preview(const Style& s, const UiModel& m, const RadioSetting
     } else milk_end();
     if (shown == kPvNone) return;
 
-    const int iw = std::min(W - 3, 200) - kPreviewX - 1;      // inside the box
+    const int iw = std::min(W - 3, kMaxCols) - kPreviewX - 1;      // inside the box
     const int visible = std::max(1, H - 5);
     int bh = std::min(visible - 1, 19);                       // the box, borders included
     int ih = bh - 2;

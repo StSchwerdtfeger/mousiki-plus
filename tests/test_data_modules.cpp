@@ -2,10 +2,12 @@
 // helpers, UTF-8 helpers, saved playlists and the listening history.
 #include <fstream>
 
+#include "chiptune.h"
 #include "history.h"
 #include "lyrics_fetcher.h"
 #include "playlist_manager.h"
 #include "path_utf8.h"
+#include "relocate_pick.h"
 #include "test_framework.h"
 #include "TextSanitizer.h"
 #include "tiny_json.h"
@@ -551,4 +553,46 @@ TEST(shuffle_bag_plays_every_track_once_before_any_comes_twice) {
     for (int i = 0; i < 6; ++i) { const int n = two.pick(k2, cur, rng); CHECK(n != cur); cur = n; }
     ShuffleBag one;
     CHECK_EQ(one.pick({"x"}, 0, rng), 0);
+}
+
+TEST(sid_cache_names_are_stable_and_the_cache_is_cleaned_oldest_first) {
+    // the name comes from FNV-1a, not std::hash: this value must never change, or every cached tune is rendered again after an update
+    CHECK_EQ(sid_cache_hash(""), std::string("cbf29ce484222325"));
+    CHECK_EQ(sid_cache_hash("a"), std::string("af63dc4c8601ec8c"));
+    CHECK(sid_cache_hash("tune|180|123") != sid_cache_hash("tune|180|124"));
+
+    mt::TempHome home;
+    const fs::path dir = fs::path(home.path()) / "sidcache";
+    fs::create_directories(dir);
+    const std::string blob(1000, 'x');
+    const auto now = fs::file_time_type::clock::now();
+    const char* names[] = {"old.wav", "middle.wav", "new.wav", "keep.wav", "notes.txt"};
+    for (int i = 0; i < 5; ++i) {
+        std::ofstream(dir / names[i], std::ios::binary) << blob;
+        fs::last_write_time(dir / names[i], now - std::chrono::hours(10 - i));   // keep.wav is older than new.wav but is the one just rendered
+    }
+    sid_cache_prune(dir, dir / "keep.wav", 2500);   // 4 wav files = 4000 bytes: the two oldest (not keep.wav) go
+    CHECK(!fs::exists(dir / "old.wav"));
+    CHECK(!fs::exists(dir / "middle.wav"));
+    CHECK(fs::exists(dir / "new.wav"));
+    CHECK(fs::exists(dir / "keep.wav"));
+    CHECK(fs::exists(dir / "notes.txt"));            // only .wav files are ever deleted
+    sid_cache_prune(dir, dir / "keep.wav", 100);    // far under the limit: everything but keep.wav goes, keep.wav stays
+    CHECK(!fs::exists(dir / "new.wav"));
+    CHECK(fs::exists(dir / "keep.wav"));
+    sid_cache_prune(dir / "does-not-exist", dir / "x.wav", 0);   // no folder: nothing happens
+}
+
+TEST(a_missing_playlist_track_is_relinked_only_when_it_is_clear) {
+    using P = fs::path;
+    const P missing = P("/old/Album A/01 Intro.mp3");
+    CHECK_EQ(pick_relocated_track(missing, {}), -1);
+    CHECK_EQ(pick_relocated_track(missing, {P("/music/Other/01 Intro.mp3")}), 0);   // the only file of that name
+    // two files of that name, one in a folder of the same name: that one (whatever the order)
+    CHECK_EQ(pick_relocated_track(missing, {P("/music/Album B/01 Intro.mp3"), P("/new/album a/01 Intro.mp3")}), 1);
+    CHECK_EQ(pick_relocated_track(missing, {P("/new/ALBUM A/01 Intro.mp3"), P("/music/Album B/01 Intro.mp3")}), 0);
+    // two files of that name and none in a folder of the same name: not clear, stays missing
+    CHECK_EQ(pick_relocated_track(missing, {P("/music/Album B/01 Intro.mp3"), P("/music/Album C/01 Intro.mp3")}), -1);
+    // two folders of the same name: not clear either
+    CHECK_EQ(pick_relocated_track(missing, {P("/a/Album A/01 Intro.mp3"), P("/b/Album A/01 Intro.mp3")}), -1);
 }

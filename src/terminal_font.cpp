@@ -206,17 +206,26 @@ std::vector<fs::path> wt_settings_files() {
 }
 // Windows Terminal reads its fragments (the "Mousiki" profile) only when it loads its settings. It reloads them whenever settings.json
 // changes, so after the profile changed this sets the file's "last written" time to now: the running window then reloads, and a
-// window on the Mousiki profile takes the new font at once (the file's content is not touched). Store, Preview, Canary and unpackaged installs.
+// window on the Mousiki profile takes the new font at once. A bare change of the time is not always reported, so the same bytes are
+// written to a new file next to it that then replaces settings.json in one step: the user's settings are never half written, and
+// if anything fails the file is left as it is (then only its time is set). Store, Preview, Canary and unpackaged installs.
 void wt_poke_reload() {
     for (const fs::path& f : wt_settings_files()) {
         std::error_code ec;
         if (!fs::exists(f, ec)) continue;
-        {   // the same bytes written again: a change Windows Terminal surely notices (a bare change of the time is not always reported)
+        {
             std::string text;
             { std::ifstream in(f, std::ios::binary); std::ostringstream ss; ss << in.rdbuf(); text = ss.str(); }
             if (!text.empty() && text.size() < (4u << 20)) {
-                std::ofstream out(f, std::ios::binary | std::ios::trunc);
-                if (out) { out << text; out.close(); if (out) continue; }
+                fs::path tmp = f;
+                tmp += L".mousiki-tmp";
+                bool wrote = false;
+                {
+                    std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+                    if (out) { out << text; out.close(); wrote = static_cast<bool>(out); }
+                }
+                if (wrote && MoveFileExW(tmp.c_str(), f.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) continue;
+                fs::remove(tmp, ec);
             }
         }
         HANDLE h = CreateFileW(f.c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_EXISTING, 0, nullptr);

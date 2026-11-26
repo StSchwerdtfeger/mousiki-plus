@@ -1,4 +1,5 @@
 import json
+import os
 import ssl
 import sys
 import urllib.parse
@@ -306,19 +307,21 @@ def get_lyrics(song, artist):
     # substring like `"ok":` would have broken it. stderr is where
     # diagnostic noise belongs; it's discarded by the caller either way.
 
-    try:
-        print("Trying Better Lyrics...", file=sys.stderr)
+    # Settings -> LyricsBetterSource=false (the program sets MOUSIKI_LYRICS_BETTER=0): only LRCLIB is asked.
+    if os.environ.get("MOUSIKI_LYRICS_BETTER", "1") != "0":
+        try:
+            print("Trying Better Lyrics...", file=sys.stderr)
 
-        return get_better_lyrics(
-            song,
-            artist
-        )
+            return get_better_lyrics(
+                song,
+                artist
+            )
 
-    except Exception as e:
+        except Exception as e:
 
-        print(
-            f"Better Lyrics failed: {e}", file=sys.stderr
-        )
+            print(
+                f"Better Lyrics failed: {e}", file=sys.stderr
+            )
 
     try:
         print("Trying LRCLIB...", file=sys.stderr)

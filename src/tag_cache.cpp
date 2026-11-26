@@ -103,7 +103,7 @@ TagCacheMap tag_cache_load(const fs::path& file) {
     return map;
 }
 
-bool tag_cache_save(const fs::path& file, const TagCacheMap& map) {
+bool tag_cache_save_stream(const fs::path& file, const std::function<void(const TagCacheEmit&)>& produce) {
     std::error_code ec;
     fs::create_directories(file.parent_path(), ec);
     fs::path tmp = file;
@@ -113,11 +113,11 @@ bool tag_cache_save(const fs::path& file, const TagCacheMap& map) {
         if (!out) return false;
         out << kHeader << "\n";
         char num[32];
-        for (const auto& [key, e] : map) {
-            std::snprintf(num, sizeof num, "%.3f", e.meta.duration_sec);
-            out << esc(key) << '\t' << e.stamp.size << '\t' << e.stamp.mtime << '\t' << num << '\t' << esc(e.meta.title) << '\t'
-                << esc(e.meta.artist) << '\t' << esc(e.meta.album) << '\t' << esc(e.meta.year) << '\n';
-        }
+        produce([&](const std::string& key, const TagStamp& stamp, const RowMeta& meta) {
+            std::snprintf(num, sizeof num, "%.3f", meta.duration_sec);
+            out << esc(key) << '\t' << stamp.size << '\t' << stamp.mtime << '\t' << num << '\t' << esc(meta.title) << '\t'
+                << esc(meta.artist) << '\t' << esc(meta.album) << '\t' << esc(meta.year) << '\n';
+        });
         if (!out) return false;
     }
     fs::rename(tmp, file, ec);
@@ -127,6 +127,12 @@ bool tag_cache_save(const fs::path& file, const TagCacheMap& map) {
         fs::rename(tmp, file, ec);
     }
     return !ec;
+}
+
+bool tag_cache_save(const fs::path& file, const TagCacheMap& map) {
+    return tag_cache_save_stream(file, [&](const TagCacheEmit& emit) {
+        for (const auto& [key, e] : map) emit(key, e.stamp, e.meta);
+    });
 }
 
 } // namespace muisc

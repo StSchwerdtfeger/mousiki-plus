@@ -895,6 +895,7 @@ bool read_wav16(const std::string& path_utf8, Stereo& out) {
             std::vector<unsigned char> b(size);
             if (!f.read(reinterpret_cast<char*>(b.data()), size)) return false;
             format = b[0] | (b[1] << 8);
+            if (format == 0xFFFE && size >= 26) format = b[24] | (b[25] << 8);   // WAVE_FORMAT_EXTENSIBLE (many recorders): the real format is the first two bytes of its sub-format
             channels = b[2] | (b[3] << 8);
             rate = b[4] | (b[5] << 8) | (b[6] << 16) | (b[7] << 24);
             bits = b[14] | (b[15] << 8);

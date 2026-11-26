@@ -96,9 +96,10 @@ void backend_update(const Info& in) {
     // changed or the position jumped (a seek).
     const auto now = std::chrono::steady_clock::now();
     bool changed = !g_have_shown || in.state != g_shown.state || in.title != g_shown.title || in.artist != g_shown.artist ||
-                   in.album != g_shown.album || std::fabs(in.duration - g_shown.duration) > 0.5;
+                   in.album != g_shown.album || std::fabs(in.duration - g_shown.duration) > 0.5 ||
+                   std::fabs(in.speed - g_shown.speed) > 0.001;
     if (!changed && in.state == "playing") {
-        const double expected = g_shown.position + std::chrono::duration<double>(now - g_shown_at).count();
+        const double expected = g_shown.position + std::chrono::duration<double>(now - g_shown_at).count() * g_shown.speed;
         changed = std::fabs(in.position - expected) > 1.5;
     } else if (!changed) {
         changed = std::fabs(in.position - g_shown.position) > 0.5;
@@ -120,7 +121,7 @@ void backend_update(const Info& in) {
         if (!in.album.empty()) d[MPMediaItemPropertyAlbumTitle] = ns(in.album);
         if (in.duration > 0.0) d[MPMediaItemPropertyPlaybackDuration] = @(in.duration);
         d[MPNowPlayingInfoPropertyElapsedPlaybackTime] = @(in.position);
-        d[MPNowPlayingInfoPropertyPlaybackRate] = @(in.state == "playing" ? 1.0 : 0.0);
+        d[MPNowPlayingInfoPropertyPlaybackRate] = @(in.state == "playing" ? in.speed : 0.0);
         center.nowPlayingInfo = d;
         center.playbackState = in.state == "playing" ? MPNowPlayingPlaybackStatePlaying : MPNowPlayingPlaybackStatePaused;
     }

@@ -23,6 +23,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import mb_gate  # noqa: E402
+
 USER_AGENT = "MousikiPlus/%s (https://github.com/StSchwerdtfeger/mousiki-plus; cover art fetch)" % os.environ.get("MOUSIKI_VERSION", "5")   # (the program sets MOUSIKI_VERSION)
 MB_API = "https://musicbrainz.org/ws/2/release/"
 CAA = "https://coverartarchive.org/"
@@ -32,7 +35,11 @@ MAX_BYTES = 6 * 1024 * 1024
 _last = [0.0]
 
 
-def pace():
+def pace(url=""):
+    """MusicBrainz: one request per second for all Mousiki processes (mb_gate); the Cover Art Archive only per process."""
+    if url.startswith(MB_API):
+        mb_gate.wait()
+        return
     wait = 1.1 - (time.time() - _last[0])
     if wait > 0:
         time.sleep(wait)
@@ -43,7 +50,7 @@ def get(url, accept="application/json", binary=False):
     """The body of a URL (str, or bytes with binary=True) and its content type; None, "" on 404."""
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": accept})
     for attempt in range(3):
-        pace()
+        pace(url)
         try:
             with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
                 ctype = resp.headers.get("Content-Type", "")
