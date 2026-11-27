@@ -6,6 +6,8 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <thread>
+#include "par_pool.h"
 #if !defined(_WIN32)
 #include <poll.h>
 #include <sys/ioctl.h>
@@ -154,14 +156,84 @@ struct SixelPlace {
 SixelPlace g_sixel_place[4];
 inline SixelPlace& sixel_slot(int id) { return g_sixel_place[std::clamp(id, 0, 3)]; }
 
+// ---- the parts of sixel_emit that run in several threads for a big picture ----
+constexpr size_t kParMinPixels = 500000;   // below this (about 900 x 560) one thread is quicker than waking the others
+int par_threads() {
+    static const int n = [] {
+        if (const char* e = std::getenv("MOUSIKI_FX_THREADS")) { const int v = std::atoi(e); if (v >= 1) return std::min(v, 8); }
+        return std::clamp(static_cast<int>(std::max(1u, std::thread::hardware_concurrency())) / 2, 1, 4);
+    }();
+    return n;
+}
+// fn(y0, y1) for parts of the rows 0 .. h (one call, in the calling thread, for a small picture)
+template <class F>
+void par_chunks(int h, size_t pixels, F&& fn) {
+    const int n = std::min(par_threads(), h / 32);
+    if (pixels < kParMinPixels || n <= 1) { fn(0, h); return; }
+    struct Ctx { F* fn; int h, n; } c{&fn, h, n};
+    ParPool::instance().run(n, [](void* p, int i) {
+        const Ctx& cc = *static_cast<const Ctx*>(p);
+        (*cc.fn)(cc.h * i / cc.n, cc.h * (i + 1) / cc.n);
+    }, &c);
+}
+struct SixelScratch {
+    std::vector<uint8_t> bits;     // per colour: one 6-bit mask per output column (kept zeroed between bands)
+    std::vector<int> minx = std::vector<int>(256), maxx = std::vector<int>(256), used;
+    std::vector<char> seen = std::vector<char>(256, 0);   // all zero again at the end of every band
+    std::string out;
+};
+std::vector<SixelScratch>& sixel_scratch() { static std::vector<SixelScratch> v(4); return v; }
+// The bands b0 .. b1 (6 rows each) as Sixel text appended to `o`.
+void sixel_bands(const uint8_t* idx, int pw, const int* xs, const int* ys, int W, int H, int b0, int b1, SixelScratch& sc, std::string& o) {
+    if (sc.bits.size() != static_cast<size_t>(256) * W) sc.bits.assign(static_cast<size_t>(256) * W, 0);
+    uint8_t* const bits = sc.bits.data();
+    int* const minx = sc.minx.data();
+    int* const maxx = sc.maxx.data();
+    char* const seen = sc.seen.data();
+    std::vector<int>& used = sc.used;
+    used.reserve(256);
+    for (int bi = b0; bi < b1; ++bi) {
+        const int by = bi * 6;
+        const int bh = std::min(6, H - by);
+        used.clear();
+        for (int y = 0; y < bh; ++y) {
+            const uint8_t* row = idx + static_cast<size_t>(ys[by + y]) * pw;
+            const uint8_t bit = static_cast<uint8_t>(1u << y);
+            for (int x = 0; x < W; ++x) {
+                const int c = row[xs[x]];
+                if (c == 0) continue;
+                if (!seen[c]) { seen[c] = 1; used.push_back(c); minx[c] = x; maxx[c] = x; }
+                else { minx[c] = std::min(minx[c], x); maxx[c] = std::max(maxx[c], x); }
+                bits[static_cast<size_t>(c) * W + x] |= bit;
+            }
+        }
+        for (size_t u = 0; u < used.size(); ++u) {
+            const int c = used[u];
+            uint8_t* b = bits + static_cast<size_t>(c) * W;
+            const int x0 = minx[c], x1 = maxx[c];
+            o += '#'; put_int(o, c);
+            put_run(o, x0, '?');
+            int run = 0; char prev = 0;
+            for (int x = x0; x <= x1; ++x) {
+                const char ch = static_cast<char>(63 + b[x]);
+                b[x] = 0;
+                if (run > 0 && ch == prev) ++run;
+                else { put_run(o, run, prev); prev = ch; run = 1; }
+            }
+            put_run(o, run, prev);
+            seen[c] = 0;
+            if (u + 1 < used.size()) o += '$';
+        }
+        o += '-';
+    }
+}
+
 std::string sixel_emit(const GfxFrame& f) {
     static std::string pal_text;
     static std::array<std::array<uint8_t, 3>, 256> pal_seen{};
     static bool pal_valid = false;
     static bool plain_seen = false;
     static std::array<uint8_t, 3> grid_seen{};
-    static std::vector<uint8_t> bits;           // per colour: one 6-bit mask per output column (kept zeroed between bands)
-    static std::vector<int> minx(256), maxx(256);
     const int cols = std::max(1, f.cols);
     const int crop = std::clamp(f.crop, 0, f.cols);
     const int vis_cols = f.cols - crop;
@@ -186,13 +258,18 @@ std::string sixel_emit(const GfxFrame& f) {
     uint8_t step_of[256];
     for (int l = 0; l < 256; ++l) step_of[l] = static_cast<uint8_t>(std::lround(curve(static_cast<float>(l) / 255.0f) * 15.0f));
     static std::vector<uint8_t> idx;
-    idx.assign(static_cast<size_t>(f.w) * f.h, 0);
-    for (size_t i = 0; i < idx.size(); ++i) {
-        const int st = step_of[f.level[i]];
-        if (grid_shows(f, i)) idx[i] = 242;   // the grid colour, under the beam
-        else if (f.direct) { if (f.level[i] >= 3) idx[i] = f.hue[i] >= 240 ? static_cast<uint8_t>(244 + std::min<int>(f.hue[i] - 240, 7)) : static_cast<uint8_t>(1 + f.hue[i]); }   // 240 .. 243: extra colours, registers 244 ..
-        else if (st >= 1) idx[i] = static_cast<uint8_t>(1 + (f.hue[i] >> 4) * 15 + (st - 1));
-    }
+    idx.resize(static_cast<size_t>(f.w) * f.h);
+    // (the rows are independent: a big picture shares them between a few threads, see par_chunks)
+    par_chunks(f.h, static_cast<size_t>(f.w) * f.h, [&](int y0, int y1) {
+        for (size_t i = static_cast<size_t>(y0) * f.w, e = static_cast<size_t>(y1) * f.w; i < e; ++i) {
+            uint8_t v = 0;
+            const int st = step_of[f.level[i]];
+            if (grid_shows(f, i)) v = 242;   // the grid colour, under the beam
+            else if (f.direct) { if (f.level[i] >= 3) v = f.hue[i] >= 240 ? static_cast<uint8_t>(244 + std::min<int>(f.hue[i] - 240, 7)) : static_cast<uint8_t>(1 + f.hue[i]); }   // 240 .. 243: extra colours, registers 244 ..
+            else if (st >= 1) v = static_cast<uint8_t>(1 + (f.hue[i] >> 4) * 15 + (st - 1));
+            idx[i] = v;
+        }
+    });
     // The picture is opaque: every pixel that is not beam or grid is drawn black (colour 243), so a new picture replaces the old
     // one in place. (It used to erase the cells first and draw on transparent pixels -- when the terminal painted between the
     // erase and the picture, which happens with the big pictures of loud music, the whole picture blinked away for a frame.)
@@ -207,13 +284,15 @@ std::string sixel_emit(const GfxFrame& f) {
             xa2 = f.cut2_c * f.w / cols - 1; xb2 = (f.cut2_c + f.cut2_w) * f.w / cols + 1;
             ya2 = f.cut2_r * f.h / std::max(1, f.rows) - 1; yb2 = (f.cut2_r + f.cut2_h) * f.h / std::max(1, f.rows) + 1;
         }
-        for (int y = 0; y < f.h; ++y) {
-            const bool yin = y >= ya && y < yb, yin2 = y >= ya2 && y < yb2;
-            for (int x = 0; x < f.w; ++x) {
-                uint8_t& c = idx[static_cast<size_t>(y) * f.w + x];
-                if (c == 0 && (!f.plain || f.opaque) && !(yin && x >= xa && x < xb) && !(yin2 && x >= xa2 && x < xb2)) c = 243;
+        par_chunks(f.h, static_cast<size_t>(f.w) * f.h, [&](int y0, int y1) {
+            for (int y = y0; y < y1; ++y) {
+                const bool yin = y >= ya && y < yb, yin2 = y >= ya2 && y < yb2;
+                for (int x = 0; x < f.w; ++x) {
+                    uint8_t& c = idx[static_cast<size_t>(y) * f.w + x];
+                    if (c == 0 && (!f.plain || f.opaque) && !(yin && x >= xa && x < xb) && !(yin2 && x >= xa2 && x < xb2)) c = 243;
+                }
             }
-        }
+        });
     }
     // the palette only changes with the colour settings: build its text once
     static bool direct_seen = false;
@@ -249,7 +328,6 @@ std::string sixel_emit(const GfxFrame& f) {
         plain_seen = f.plain;
         direct_seen = f.direct;
     }
-    if (bits.size() != static_cast<size_t>(256) * W) bits.assign(static_cast<size_t>(256) * W, 0);
     static size_t last_size = 65536;   // the size of the previous picture: a good first guess for this one
     std::string o;
     o.reserve(last_size + 4096);
@@ -274,42 +352,21 @@ std::string sixel_emit(const GfxFrame& f) {
     o += at_cell(f.row, f.col + crop);
     o += "\x1bP0;1;0q\""; put_int(o, pan); o += ";1;"; put_int(o, W); o += ';'; put_int(o, H);
     o += pal_text;
-    static std::vector<int> used;
-    used.clear();
-    used.reserve(256);
-    static std::vector<char> seen(256, 0);   // all zero again at the end of every band
-    for (int by = 0; by < H; by += 6) {
-        const int bh = std::min(6, H - by);
-        used.clear();
-        for (int y = 0; y < bh; ++y) {
-            const uint8_t* row = idx.data() + static_cast<size_t>(ys[static_cast<size_t>(by + y)]) * f.w;
-            const uint8_t bit = static_cast<uint8_t>(1u << y);
-            for (int x = 0; x < W; ++x) {
-                const int c = row[xs[static_cast<size_t>(x)]];
-                if (c == 0) continue;
-                if (!seen[static_cast<size_t>(c)]) { seen[static_cast<size_t>(c)] = 1; used.push_back(c); minx[static_cast<size_t>(c)] = x; maxx[static_cast<size_t>(c)] = x; }
-                else { minx[static_cast<size_t>(c)] = std::min(minx[static_cast<size_t>(c)], x); maxx[static_cast<size_t>(c)] = std::max(maxx[static_cast<size_t>(c)], x); }
-                bits[static_cast<size_t>(c) * W + x] |= bit;
-            }
-        }
-        for (size_t u = 0; u < used.size(); ++u) {
-            const int c = used[u];
-            uint8_t* b = bits.data() + static_cast<size_t>(c) * W;
-            const int x0 = minx[static_cast<size_t>(c)], x1 = maxx[static_cast<size_t>(c)];
-            o += '#'; put_int(o, c);
-            put_run(o, x0, '?');
-            int run = 0; char prev = 0;
-            for (int x = x0; x <= x1; ++x) {
-                const char ch = static_cast<char>(63 + b[x]);
-                b[x] = 0;
-                if (run > 0 && ch == prev) ++run;
-                else { put_run(o, run, prev); prev = ch; run = 1; }
-            }
-            put_run(o, run, prev);
-            seen[static_cast<size_t>(c)] = 0;
-            if (u + 1 < used.size()) o += '$';
-        }
-        o += '-';
+    // The bands (6 picture rows each) are independent: each is made into text on its own, so a big picture shares them between a few threads
+    // (every part with its own scratch space) and the parts' texts are joined in order -- the same bytes as one thread makes.
+    const int nbands = (H + 5) / 6;
+    const int nparts = std::max(1, std::min({par_threads(), nbands / 8, static_cast<int>(sixel_scratch().size())}));
+    if (static_cast<size_t>(W) * H < kParMinPixels || nparts <= 1) {
+        sixel_bands(idx.data(), f.w, xs.data(), ys.data(), W, H, 0, nbands, sixel_scratch()[0], o);
+    } else {
+        struct Ctx { const uint8_t* idx; int w; const int* xs; const int* ys; int W, H, nbands, nparts; } c{idx.data(), f.w, xs.data(), ys.data(), W, H, nbands, nparts};
+        for (int i = 0; i < nparts; ++i) sixel_scratch()[static_cast<size_t>(i)].out.clear();
+        ParPool::instance().run(nparts, [](void* p, int i) {
+            const Ctx& cc = *static_cast<const Ctx*>(p);
+            SixelScratch& sc = sixel_scratch()[static_cast<size_t>(i)];
+            sixel_bands(cc.idx, cc.w, cc.xs, cc.ys, cc.W, cc.H, cc.nbands * i / cc.nparts, cc.nbands * (i + 1) / cc.nparts, sc, sc.out);
+        }, &c);
+        for (int i = 0; i < nparts; ++i) o += sixel_scratch()[static_cast<size_t>(i)].out;
     }
     o += "\x1b\\";
     last_size = o.size();

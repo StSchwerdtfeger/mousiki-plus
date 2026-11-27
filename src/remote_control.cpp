@@ -329,7 +329,17 @@ int client_main(int argc, char** argv) {
         std::ifstream f(status_file());
         std::map<std::string, std::string> kv;
         if (!f) kv = {{"mode", mode}, {"state", "unknown"}};
-        for (std::string l; f && std::getline(f, l);) { const size_t eq = l.find('='); if (eq != std::string::npos) kv[l.substr(0, eq)] = l.substr(eq + 1); }
+        for (std::string l; f && std::getline(f, l);) { const size_t eq = l.find('='); if (eq != std::string::npos) {
+            std::string v = l.substr(eq + 1);   // (a title comes from a file name or a tag: nothing that the shell's terminal would act on, such as ESC ]0;... or a C1 control, is printed)
+            std::string clean;
+            for (size_t k = 0; k < v.size(); ++k) {
+                const unsigned char c = static_cast<unsigned char>(v[k]);
+                if (c < 0x20 || c == 0x7F) clean += ' ';
+                else if (c == 0xC2 && k + 1 < v.size() && static_cast<unsigned char>(v[k + 1]) >= 0x80 && static_cast<unsigned char>(v[k + 1]) <= 0x9F) { clean += ' '; ++k; }
+                else clean += static_cast<char>(c);
+            }
+            kv[l.substr(0, eq)] = clean;
+        } }
         std::string fmt, want;   // --status --json | --status --format "{artist} - {title}" | --status <key>
         for (int i = 2; i < argc; ++i) {
             const std::string a = argv[i];

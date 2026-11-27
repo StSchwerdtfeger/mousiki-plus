@@ -149,3 +149,17 @@ TEST(guard_frame_keeps_colours_moves_and_pictures_and_drops_hostile_escapes) {
     CHECK_EQ(muisc::guard_frame("plain"), std::string("plain"));
     CHECK_EQ(muisc::guard_frame("a\x1b[3"), std::string("a"));   // a cut-off sequence
 }
+
+TEST(guard_frame_drops_kitty_file_reads_and_mode_switches) {
+    // a name can hold a Kitty command that makes the terminal read a local file (t=f), a temporary file (t=t), shared memory (t=s), or answer (a=q)
+    for (const char* k : {"a=T,t=f,f=100;L2V0Yy9wYXNzd2Q=", "a=T,f=100,t=t;AAAA", "a=T,t=s;AAAA", "a=q,i=1;AAAA"}) {
+        const std::string in = std::string("x\x1b_G") + k + "\x1b\\y";
+        CHECK(muisc::guard_frame(in).find("\x1b_G") == std::string::npos);
+    }
+    CHECK(muisc::guard_frame("\x1b_Ga=T,t=d,f=100,m=1;AAAA\x1b\\").find("\x1b_G") == 0);   // our own pictures stay
+    // mouse tracking, the alternate screen and bracketed paste are not a frame's business; the cursor and the synchronized update are
+    const std::string modes = muisc::guard_frame("a\x1b[?1003hb\x1b[?1049lc\x1b[?1000hd\x1b[?2004he\x1b[?25lf\x1b[?2026hg\x1b[?2026l");
+    CHECK(modes.find("?1003") == std::string::npos && modes.find("?1049") == std::string::npos);
+    CHECK(modes.find("?1000") == std::string::npos && modes.find("?2004") == std::string::npos);
+    CHECK(modes.find("\x1b[?25l") != std::string::npos && modes.find("\x1b[?2026h") != std::string::npos);
+}

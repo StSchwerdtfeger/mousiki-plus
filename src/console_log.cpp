@@ -109,9 +109,7 @@ LogVerbosity ConsoleLog::level() const {
 
 void ConsoleLog::push_line_locked(const std::string& line) {
     lines_.push_back(line);
-    if (lines_.size() > kMaxLines) {
-        lines_.erase(lines_.begin(), lines_.begin() + (lines_.size() - kMaxLines));
-    }
+    while (lines_.size() > kMaxLines) lines_.pop_front();
 }
 
 void ConsoleLog::append_to_file(const std::string& text) {
@@ -164,7 +162,7 @@ void ConsoleLog::log_basic(const std::string& line) {
 
 std::vector<std::string> ConsoleLog::lines() const {
     std::lock_guard<std::mutex> lk(mutex_);
-    if (prev_lines_.empty()) return lines_;
+    if (prev_lines_.empty()) return std::vector<std::string>(lines_.begin(), lines_.end());
     std::vector<std::string> all;
     all.reserve(prev_lines_.size() + lines_.size() + 2);
     all.push_back("===== the last session (console_previous.log) =====");

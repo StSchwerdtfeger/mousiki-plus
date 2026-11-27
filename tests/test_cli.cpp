@@ -1,4 +1,6 @@
 // The command line (CLI): the pure parts (cli_core.h), the settings bridge and the text commands of `mousiki --cmd / --query`.
+#include <sstream>
+#include <iostream>
 #include "test_framework.h"
 #include "cli_core.h"
 #include "remote_control.h"
@@ -19,7 +21,7 @@ int client(std::initializer_list<const char*> args) {
     for (auto& s : store) argv.push_back(s.data());
     return remote::client_main(static_cast<int>(argv.size()), argv.data());
 }
-void settle() { std::this_thread::sleep_for(std::chrono::milliseconds(120)); }
+void settle() { std::this_thread::sleep_for(std::chrono::milliseconds(300)); }
 }
 
 TEST(cli_chain_splits_at_semicolons_outside_quotes) {
@@ -235,6 +237,25 @@ TEST(cli_status_json_and_format) {
     CHECK_EQ(client({"--status", "--format", "{state}: {title}"}), 0);
     CHECK_EQ(client({"--status", "volume"}), 0);
     CHECK_EQ(client({"--status", "nokey"}), 2);
+    remote::stop();
+}
+
+TEST(cli_status_prints_no_control_characters) {
+    mt::TempHome home;
+    remote::start("player");
+    remote::publish_status({{"mode", "player"}, {"state", "playing"}, {"title", "evil \x1b]0;PWNED\x07 title\x1b[2J"}});
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    std::ostringstream cap;
+    std::streambuf* old = std::cout.rdbuf(cap.rdbuf());
+    const int rc = client({"--status", "title"});
+    const int rc2 = client({"--status"});
+    std::cout.rdbuf(old);
+    CHECK_EQ(rc, 0);
+    CHECK_EQ(rc2, 0);
+    const std::string out = cap.str();
+    CHECK(out.find("title") != std::string::npos);
+    CHECK(out.find('\x1b') == std::string::npos);
+    CHECK(out.find('\x07') == std::string::npos);
     remote::stop();
 }
 

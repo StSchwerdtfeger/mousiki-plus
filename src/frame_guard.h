@@ -3,6 +3,7 @@
 // is acted on by the terminal, not drawn (OSC 52 writes the clipboard, OSC 0 the window title, CSI n / t make the terminal answer into the input).
 // Everything a frame legitimately holds is kept: colours and cursor moves (CSI m H f A-G d J K X @ P L M h l ...), the Kitty pictures (ESC _ G ... ESC \)
 // and the Sixel pictures (ESC P ... q ... ESC \), newlines. Anything else that is an escape or a control character is dropped.
+#include <algorithm>
 #include <string>
 namespace muisc {
 inline bool frame_csi_final_ok(char f) {
@@ -12,6 +13,29 @@ inline bool frame_csi_final_ok(char f) {
             return true;
         default: return false;
     }
+}
+// A Kitty command whose control data (up to the ';') asks the terminal to read a file or shared memory (t=f / t=t / t=s) or to answer (a=q) is not ours:
+// our pictures send their pixels in the command itself (t=d). `at` is the index of the ESC.
+inline bool frame_kitty_ok(const std::string& in, size_t at) {
+    size_t j = at + 3;
+    const size_t end = std::min(in.size(), at + 3 + 400);   // (our control data is short)
+    std::string key;
+    bool in_val = false; char val_key = 0;
+    for (; j < end; ++j) {
+        const char c = in[j];
+        if (c == ';' || c == '\x1b') return true;   // the payload (or the end): nothing asked for so far
+        if (c == ',') { in_val = false; key.clear(); continue; }
+        if (!in_val) {
+            if (c == '=') { in_val = true; val_key = key.size() == 1 ? key[0] : 0; }
+            else key += c;
+        } else if ((val_key == 't' && (c == 'f' || c == 't' || c == 's')) || (val_key == 'a' && c == 'q')) return false;
+    }
+    return true;
+}
+// A mode switch in a frame: only the cursor (?25) and the synchronized update (?2026). Mouse tracking, the alternate screen, bracketed paste ... are the program's own, set outside the frames.
+inline bool frame_mode_ok(const std::string& in, size_t from, size_t final_at) {
+    const std::string p = in.substr(from, final_at - from);   // what is between "[" and the final byte
+    return p == "?25" || p == "?2026";
 }
 inline std::string guard_frame(const std::string& in) {
     auto bad = [&](size_t i) {
@@ -31,14 +55,15 @@ inline std::string guard_frame(const std::string& in) {
                 size_t j = i + 2;
                 while (j < in.size() && static_cast<unsigned char>(in[j]) >= 0x20 && static_cast<unsigned char>(in[j]) <= 0x3F) ++j;
                 if (j < in.size() && static_cast<unsigned char>(in[j]) >= 0x40 && static_cast<unsigned char>(in[j]) <= 0x7E) {
-                    if (frame_csi_final_ok(in[j])) out.append(in, i, j - i + 1);
+                    const bool mode = in[j] == 'h' || in[j] == 'l';
+                    if (frame_csi_final_ok(in[j]) && (!mode || frame_mode_ok(in, i + 2, j))) out.append(in, i, j - i + 1);
                     i = j;
                 } else {
                     i = j > i + 1 ? j - 1 : i + 1;   // not a sequence: dropped up to where it stopped
                 }
                 continue;
             }
-            if (n == '_' && i + 2 < in.size() && in[i + 2] == 'G') { out.append("\x1b_G"); i += 2; continue; }   // Kitty graphics
+            if (n == '_' && i + 2 < in.size() && in[i + 2] == 'G') { if (frame_kitty_ok(in, i)) out.append("\x1b_G"); i += 2; continue; }   // Kitty graphics
             if (n == 'P') {   // Sixel: ESC P <digits;> q
                 size_t j = i + 2;
                 while (j < in.size() && ((in[j] >= '0' && in[j] <= '9') || in[j] == ';')) ++j;

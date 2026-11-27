@@ -93,6 +93,8 @@ class Session:
         env = dict(os.environ, HOME=home, USERPROFILE=home, TERM="xterm-256color", LANG="C.UTF-8")
         env.pop("KITTY_WINDOW_ID", None)
         env.pop("WT_SESSION", None)
+        env.pop("MOUSIKI_GFX", None)         # (the scenarios pick their picture protocol themselves, through the terminal they pretend to be or env_extra:
+        env.pop("MOUSIKI_RADIO_GFX", None)   # a MOUSIKI_GFX in the environment of whoever runs the suite must not override that)
         if scripts:
             env["MOUSIKI_SCRIPTS_DIR"] = scripts
         env["MOUSIKI_NO_YTDLP_CHECK"] = "1"   # (no yt-dlp notice over the screens; the yt-dlp scenario turns it on again)
@@ -1041,7 +1043,7 @@ def settings_viz_field_previews(binary, root, scripts):
             check(ok, what)
         finally:
             sess.kill()
-    if shutil.which("ffmpeg") and os.path.exists(os.path.join(scripts, "preview_video.mp4")):
+    if scripts and shutil.which("ffmpeg") and os.path.exists(os.path.join(scripts, "preview_video.mp4")):
         run("video", "vp_home_video", "sample video", "viz field preview: Lyrics/Viz Default = video shows the sample video")
     run("milkdrop", "vp_home_milk", "MilkDrop", "viz field preview: Lyrics/Viz Default = milkdrop shows the MilkDrop preview")
 
@@ -2343,7 +2345,7 @@ def settings_video_preview(binary, root, scripts):
     if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
         print("  skipped: settings video preview (ffmpeg / ffprobe is not installed on this machine)")
         return
-    if not os.path.exists(os.path.join(scripts, "preview_video.mp4")):
+    if not scripts or not os.path.exists(os.path.join(scripts, "preview_video.mp4")):
         print("  skipped: settings video preview (scripts/preview_video.mp4 is not there)")
         return
     home = os.path.join(root, "sv_home")

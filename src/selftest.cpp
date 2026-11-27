@@ -50,10 +50,10 @@ int selftest_fetch_main(int argc, char** argv) {
     }
     if (python == "py -3") { args.push_back("py"); args.push_back("-3"); }
     else args.push_back("\"" + python + "\"");   // _spawnvp does not quote: a path with spaces needs its own quotes
-    args.push_back("\"" + script.string() + "\"");
+    args.push_back("\"" + path_utf8(script) + "\"");
 #else
     args.push_back("python3");
-    args.push_back(script.string());
+    args.push_back(path_utf8(script));
 #endif
     for (int i = 2; i < argc; ++i) {
         const std::string a = argv[i];

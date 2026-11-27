@@ -3,6 +3,9 @@
 // passes when nothing crashes, hangs or trips AddressSanitizer / UndefinedBehaviorSanitizer (the Linux ASan job of the CI runs it that way).
 // fuzz/ has the same cases as libFuzzer targets for long runs (fuzz/README.md).
 #include "test_framework.h"
+#include "playlist_import.h"
+#include <filesystem>
+#include <vector>
 #include "fuzz_cases.h"
 
 #include <chrono>
@@ -117,4 +120,23 @@ TEST(robust_audio_tag_readers) {
     }
     if (seeds.empty()) return;
     hammer(fuzz::tags_case, seeds, 1200, 16);
+}
+
+TEST(m3u_file_urls_with_drive_letters_and_localhost) {
+    mt::TempHome home;
+    namespace fs = std::filesystem;
+    const fs::path f = fs::temp_directory_path() / "mousiki_fileurl_test.m3u";
+    { std::ofstream o(f); o << "file:///C:/Music/a%20b.mp3\nfile://localhost/home/me/c.mp3\nfile:///home/me/d.mp3\n"; }
+    std::vector<fs::path> t; std::string name; int skipped = 0;
+    CHECK(muisc::import_parse_m3u(f, &name, &t, &skipped));
+    fs::remove(f);
+    CHECK_EQ(t.size(), static_cast<size_t>(3));
+    if (t.size() != 3) return;
+#if defined(_WIN32)
+    CHECK_EQ(t[0].generic_string(), std::string("C:/Music/a b.mp3"));
+#else
+    CHECK_EQ(t[0].generic_string(), (f.parent_path() / "C:/Music/a b.mp3").generic_string());   // (no drive letters here: relative to the playlist, but without the URL's slash)
+#endif
+    CHECK_EQ(t[1].generic_string(), std::string("/home/me/c.mp3"));
+    CHECK_EQ(t[2].generic_string(), std::string("/home/me/d.mp3"));
 }

@@ -136,7 +136,7 @@ void App::build_theme_screen(std::ostringstream& frame, int W, int player_h) con
         if (theme_->ui == 4) {
             field(3, "NAME", theme_->io_name, theme_->io_row == 0, themes::kMaxNameLen);
             field(4, "FOLDER", theme_->io_dir, theme_->io_row == 1, fw);
-            const std::string file = (theme_dir_path(theme_->io_dir) / themes::file_name_for(theme_->io_name)).string();
+            const std::string file = path_utf8(theme_dir_path(theme_->io_dir) / themes::file_name_for(theme_->io_name));
             pos(6, 3, legend_sgr(settings_) + truncate_str("Exports the colors now set as one theme file: " + file, W - 5) + R);
             pos(7, 3, legend_sgr(settings_) + "(player and radio colors are both kept in the file; import it with SHIFT+i)" + R);
         } else {

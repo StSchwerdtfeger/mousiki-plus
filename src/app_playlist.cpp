@@ -454,7 +454,12 @@ bool import_parse_m3u(const fs::path& file, std::string* name_out, std::vector<f
             continue;
         }
         if (line.compare(0, 7, "http://") == 0 || line.compare(0, 8, "https://") == 0) { if (skipped_urls) ++*skipped_urls; pending = ExtInf(); continue; }
-        if (line.compare(0, 7, "file://") == 0) line = import_url_decode(line.substr(7));
+        if (line.compare(0, 7, "file://") == 0) {
+            line = import_url_decode(line.substr(7));
+            if (line.compare(0, 10, "localhost/") == 0) line.erase(0, 9);                          // file://localhost/home/...
+            if (line.size() >= 3 && line[0] == '/' && std::isalpha(static_cast<unsigned char>(line[1])) && line[2] == ':' && (line.size() == 3 || line[3] == '/' || line[3] == '\\'))
+                line.erase(0, 1);                                                                    // file:///C:/Music/a.mp3 -> C:/Music/a.mp3 (a drive letter: the slash before it is the URL's)
+        }
         fs::path p = path_from_utf8(line);
 #if !defined(_WIN32)
         if (line.find('\\') != std::string::npos && !fs::exists(p, ec)) { // made on Windows

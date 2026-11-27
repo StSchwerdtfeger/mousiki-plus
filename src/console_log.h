@@ -2,6 +2,7 @@
 // basic or verbose level.
 #pragma once
 #include <atomic>
+#include <deque>
 #include <filesystem>
 #include <mutex>
 #include <string>
@@ -69,7 +70,7 @@ public:
 private:
     ConsoleLog() = default;
     mutable std::mutex mutex_;
-    std::vector<std::string> lines_;
+    std::deque<std::string> lines_;   // (a deque: the oldest line goes off the front on every line once it is full)
     std::vector<std::string> prev_lines_;   // the end of the last session's log
     LogVerbosity level_ = LogVerbosity::Basic;
     bool initialized_ = false;

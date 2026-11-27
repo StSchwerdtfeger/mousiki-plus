@@ -450,6 +450,8 @@ std::string handle_request(const std::string& request_line, const std::string& p
         bool ok = false;
         for (const std::string& k : known_commands()) if (k == c.name) ok = true;
         if (!ok) return json_reply(400, "{\"error\":\"unknown command\"}");
+        if (c.name == "quit" && get(q, "force") != "1")   // as /api/cli: a stray request must not end the program
+            return json_reply(403, "{\"error\":\"quit needs force=1\"}");
         if (c.arg.size() > 12 || !std::all_of(c.arg.begin(), c.arg.end(), [](char ch) { return (ch >= '0' && ch <= '9') || ch == '+' || ch == '-' || ch == '.'; }))
             return json_reply(400, "{\"error\":\"bad value\"}");
         if (g_commands.size() < 32) g_commands.push_back(c);

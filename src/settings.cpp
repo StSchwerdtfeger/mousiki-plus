@@ -2744,7 +2744,10 @@ bool backup_config_if_older(const fs::path& p) {
     fs::path bak = p;
     bak += ".bak";
     fs::copy_file(p, bak, fs::copy_options::overwrite_existing, ec);
-    return !ec;
+    if (ec) return false;
+    std::error_code e2;   // (the copy keeps the old file's permissions: a config.txt of an old version was readable by others, and it holds the PIN)
+    fs::permissions(bak, fs::perms::owner_read | fs::perms::owner_write, fs::perm_options::replace, e2);
+    return true;
 }
 
 // ---- one look per mode (see settings.h) ----

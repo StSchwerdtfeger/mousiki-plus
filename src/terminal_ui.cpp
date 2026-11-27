@@ -104,6 +104,7 @@ static void install_fatal_signal_handlers() {
     sigaction(SIGINT, &sa, nullptr);
     sigaction(SIGTERM, &sa, nullptr);
     sigaction(SIGHUP, &sa, nullptr);
+    sigaction(SIGQUIT, &sa, nullptr);   // Ctrl+\ : restores the terminal, then ends like the signal would have
     sigaction(SIGALRM, &sa, nullptr);
     // a crash (or an uncaught exception, which ends in abort()) must not leave the shell in raw mode on the alternate screen either:
     // the handler only restores the terminal and hands the signal back, so the crash is still reported (and dumps core) as before
@@ -123,6 +124,7 @@ static void remove_fatal_signal_handlers() {
     signal(SIGINT, SIG_DFL);
     signal(SIGTERM, SIG_DFL);
     signal(SIGHUP, SIG_DFL);
+    signal(SIGQUIT, SIG_DFL);
     signal(SIGALRM, SIG_DFL);
 #if !MOUSIKI_UNDER_SANITIZER
     signal(SIGSEGV, SIG_DFL);

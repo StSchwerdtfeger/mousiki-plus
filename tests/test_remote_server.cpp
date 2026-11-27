@@ -176,6 +176,7 @@ TEST(remote_server_commands_reach_the_program) {
     CHECK_EQ(code_of(req("/api/cmd?pin=112233&name=next")), 200);
     CHECK_EQ(code_of(req("/api/cmd?pin=112233&name=playback-mode")), 200);
     CHECK_EQ(code_of(req("/api/cmd?pin=112233&name=volume&arg=%2B5")), 200);
+    CHECK_EQ(code_of(req("/api/cmd?pin=112233&name=quit")), 403);        // quit needs force=1, as /api/cli
     CHECK_EQ(code_of(req("/api/cmd?pin=112233&name=rm-rf")), 400);       // only the known names
     CHECK_EQ(code_of(req("/api/cmd?pin=112233&name=seek&arg=1;2")), 400); // only a short number
     const auto cmds = remote::poll();                                   // network commands are not throttled
