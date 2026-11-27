@@ -430,6 +430,26 @@ inline const char* const* latin_fold_table() {
 //
 // The separators: without this, a tag/filename like "X-Files" is one glued-together token "x-files" as far as matching is
 // concerned, while a query typed as "X Files" is two separate words ["x", "files"].
+// Greek and Cyrillic letters as lower case without accents (for search matching only): "Ω" finds "ω", "ά" finds "α", "ς" finds "σ", "Ё" finds "е".
+// `cp` is a code point U+0386 .. U+045F; every other value is returned as it is.
+inline unsigned fold_greek_cyrillic(unsigned cp) {
+    if (cp >= 0x391 && cp <= 0x3A9 && cp != 0x3A2) return cp + 32;           // Greek capitals
+    if (cp >= 0x410 && cp <= 0x42F) return cp + 32;                          // Cyrillic capitals
+    if (cp >= 0x400 && cp <= 0x40F) return cp == 0x401 ? 0x435u : cp + 80;   // Ѐ .. Џ (Ё counts as Е)
+    switch (cp) {
+        case 0x386: case 0x3AC: return 0x3B1;                 // ά
+        case 0x388: case 0x3AD: return 0x3B5;                 // έ
+        case 0x389: case 0x3AE: return 0x3B7;                 // ή
+        case 0x38A: case 0x3AF: case 0x3AA: case 0x3CA: case 0x390: return 0x3B9;   // ί ϊ ΐ
+        case 0x38C: case 0x3CC: return 0x3BF;                 // ό
+        case 0x38E: case 0x3CD: case 0x3AB: case 0x3CB: case 0x3B0: return 0x3C5;   // ύ ϋ ΰ
+        case 0x38F: case 0x3CE: return 0x3C9;                 // ώ
+        case 0x3C2: return 0x3C3;                             // ς
+        case 0x451: return 0x435;                             // ё
+        default: return cp;
+    }
+}
+
 inline std::string normalize_for_search(std::string s) {
     s = ascii_lower_str(std::move(s));
     std::string o;
@@ -440,6 +460,11 @@ inline std::string normalize_for_search(std::string s) {
         if (c == 0xC3 && i + 1 < s.size()) {   // U+00C0 .. U+00FF
             const unsigned cp = 0xC0u + (static_cast<unsigned char>(s[i + 1]) - 0x80u);
             if (cp >= 0xC0 && cp <= 0xFF && tab[cp - 0xC0]) { o += tab[cp - 0xC0]; ++i; continue; }
+        } else if (c >= 0xCE && c <= 0xD1 && i + 1 < s.size() && (static_cast<unsigned char>(s[i + 1]) & 0xC0) == 0x80) {   // Greek, Cyrillic (U+0380 .. U+045F)
+            const unsigned cp = ((c & 0x1Fu) << 6) | (static_cast<unsigned char>(s[i + 1]) & 0x3Fu);
+            const unsigned f = fold_greek_cyrillic(cp);
+            o += static_cast<char>(0xC0 | (f >> 6)); o += static_cast<char>(0x80 | (f & 0x3F));
+            ++i; continue;
         } else if ((c == 0xC4 || c == 0xC5) && i + 1 < s.size()) {   // U+0100 .. U+017F
             const unsigned cp = (c == 0xC4 ? 0x100u : 0x140u) + (static_cast<unsigned char>(s[i + 1]) - 0x80u);
             if (cp >= 0x100 && cp <= 0x17F && tab[cp - 0xC0]) { o += tab[cp - 0xC0]; ++i; continue; }

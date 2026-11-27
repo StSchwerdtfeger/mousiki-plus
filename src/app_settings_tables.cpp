@@ -8,7 +8,7 @@ namespace muisc {
 const std::vector<SetLine>& settings_layout(int tab) {
     static const std::vector<SetLine> on_off = {
         {true, -1, "MAIN UI PANE STYLE"},
-        {false, kSidPaneStyle, "Top Pane Style"}, {false, kSidDiskBorder, "Classic Disk Border"}, {false, kSidSharpCorners, "Sharp Corners"}, {false, kSidThickBorders, "Thick Borders"},
+        {false, kSidPaneStyle, "Top Pane Style"}, {false, kSidTopPaneRatio, "Top Pane Ratio"}, {false, kSidDiskBorder, "Classic Disk Border"}, {false, kSidSharpCorners, "Sharp Corners"}, {false, kSidThickBorders, "Thick Borders"},
         {true, -1, ""},
         {true, -1, "MODES"},
         {false, kSidPlayback, "Playback"}, {false, kSidStartMode, "Start Mode"}, {false, kSidQueue, "Display queue"},
@@ -54,8 +54,8 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidUseOsci, "Use Oscilloscope"},                                            // false: left out entirely
         {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"}, {false, kSidUseMilkdrop, "Use MilkDrop"},    // (not in the "." cycle)
         {true, -1, ""},
-        {true, -1, "MULTI-VIZ"},   // several visuals side by side when the screen is wide enough
-        {false, kSidMultiViz, "Multi-Viz"}, {false, kSidMvMain, "Main Viz"}, {false, kSidMvSecond, "2nd Viz"}, {false, kSidMvThird, "3rd Viz"},
+        {true, -1, "WIDE SCREEN OPTIONS"},   // several visuals side by side, a taller top pane: for a big screen
+        {false, kSidMultiViz, "Multi-Viz"}, {false, kSidMvMain, "Main Viz"}, {false, kSidMvSecond, "2nd Viz"}, {false, kSidMvThird, "3rd Viz"}, {false, kSidMvRatio, "Multi-Viz Ratio Override"}, {false, kSidWideSpectrum, "Wide Spectrum Bar"},
         {true, -1, ""},
         {true, -1, "LYRICS"},
         {false, kSidLyrAlign, "Lyrics Alignment"}, {false, kSidLyrAnim, "Lyrics Animation"},
@@ -111,7 +111,7 @@ const std::vector<SetLine>& settings_layout(int tab) {
     // speed, the display queue), the lyrics view called "notes", the disk's place taken by the book cover.
     static const std::vector<SetLine> book_on_off = {
         {true, -1, "MAIN UI PANE STYLE"},
-        {false, kSidPaneStyle, "Top Pane Style"}, {false, kSidDiskBorder, "Classic Disk Border"}, {false, kSidSharpCorners, "Sharp Corners"}, {false, kSidThickBorders, "Thick Borders"},
+        {false, kSidPaneStyle, "Top Pane Style"}, {false, kSidTopPaneRatio, "Top Pane Ratio"}, {false, kSidDiskBorder, "Classic Disk Border"}, {false, kSidSharpCorners, "Sharp Corners"}, {false, kSidThickBorders, "Thick Borders"},
         {true, -1, ""},
         {true, -1, "MODES"},
         {false, kSidStartMode, "Start Mode"},
@@ -153,8 +153,8 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidUseOsci, "Use Oscilloscope"},
         {false, kSidUseSpectro, "Use Spectrogram"}, {false, kSidUseSphere, "Use Sphere"}, {false, kSidUseMilkdrop, "Use MilkDrop"},
         {true, -1, ""},
-        {true, -1, "MULTI-VIZ"},   // several visuals side by side when the screen is wide enough
-        {false, kSidMultiViz, "Multi-Viz"}, {false, kSidMvMain, "Main Viz"}, {false, kSidMvSecond, "2nd Viz"}, {false, kSidMvThird, "3rd Viz"},
+        {true, -1, "WIDE SCREEN OPTIONS"},   // several visuals side by side, a taller top pane: for a big screen
+        {false, kSidMultiViz, "Multi-Viz"}, {false, kSidMvMain, "Main Viz"}, {false, kSidMvSecond, "2nd Viz"}, {false, kSidMvThird, "3rd Viz"}, {false, kSidMvRatio, "Multi-Viz Ratio Override"}, {false, kSidWideSpectrum, "Wide Spectrum Bar"},
         {true, -1, ""},
         {true, -1, "BOOK COVER"},
         {false, kSidBookCover, "Book Cover"}, {false, kSidBookCoverWave, "Book Gradient Wave"}, {false, kSidCoverContrast, "Cover Contrast"},

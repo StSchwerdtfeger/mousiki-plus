@@ -163,3 +163,15 @@ TEST(guard_frame_drops_kitty_file_reads_and_mode_switches) {
     CHECK(modes.find("?1000") == std::string::npos && modes.find("?2004") == std::string::npos);
     CHECK(modes.find("\x1b[?25l") != std::string::npos && modes.find("\x1b[?2026h") != std::string::npos);
 }
+
+#include "pane_style.h"
+TEST(pane_style_t_pieces_join_the_walls_to_the_lines) {
+    const panestyle::Glyphs light{"\xE2\x95\xAD", "\xE2\x95\xAE", "\xE2\x95\xB0", "\xE2\x95\xAF", "\xE2\x94\x80", "\xE2\x94\x82"};   // ╭ ╮ ╰ ╯ ─ │
+    CHECK(panestyle::split(6));
+    const std::string top = panestyle::row(light, 6, true, 12, {4, 8}, ""), bottom = panestyle::row(light, 6, false, 12, {4, 8}, "");
+    CHECK_EQ(top, std::string("\x1b[0m").substr(0, 0) + "\xE2\x95\xAD\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\xAC\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\xAC\xE2\x94\x80\xE2\x94\x80\xE2\x95\xAE\x1b[0m");   // ╭───┬───┬──╮
+    CHECK_EQ(bottom, std::string("\xE2\x95\xB0\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\xB4\xE2\x94\x80\xE2\x94\x80\xE2\x94\x80\xE2\x94\xB4\xE2\x94\x80\xE2\x94\x80\xE2\x95\xAF\x1b[0m"));   // ╰───┴───┴──╯
+    const panestyle::Glyphs heavy{"\xE2\x94\x8F", "\xE2\x94\x93", "\xE2\x94\x97", "\xE2\x94\x9B", "\xE2\x94\x81", "\xE2\x94\x83"};   // ┏ ┓ ┗ ┛ ━ ┃
+    CHECK(panestyle::row(heavy, 6, true, 12, {4, 8}, "").find("\xE2\x94\xB3") != std::string::npos);   // ┳
+    CHECK(panestyle::row(heavy, 6, false, 12, {4, 8}, "").find("\xE2\x94\xBB") != std::string::npos);  // ┻
+}

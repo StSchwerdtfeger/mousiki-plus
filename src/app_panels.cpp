@@ -333,6 +333,56 @@ bool App::show_metadata_panel(int total_width) const {
     return term_rows_ - 1 - 2 - (panel_rows + chrome) >= kMinListRows;
 }
 
+// The width of an artist column in a list: `base` columns (16: what a pane of a normal window has), but a wider pane gives it `percent` of its width, so on a
+// wide screen the artist is not squeezed into a corner next to a very long title. At most `cap`.
+static int artist_col_w(int inner, int base, int percent, int cap) { return std::clamp(inner * percent / 100, base, std::max(base, cap)); }
+
+// The columns of the top pane: the meta data column and the viz field (as build_metadata_panel() lays them out), and how many Multi-Viz panes the field has
+// (the first included). The pane height needs them too (Multi-Viz Ratio Override), so both go through here.
+struct App::TopLayout { bool show_disk = false, show_viz = false; int meta_w = 0, lyrics_w = 0, wall_w = 0, panes = 1; };
+App::TopLayout App::top_layout(int total_width) const {
+    TopLayout t;
+    const int inner = total_width - 4;
+    const std::string sep = "  " + settings_.meta_separator + "  ";
+    const int sep_w = display_width(sep);
+    t.show_disk = settings_.element_disk && inner - disk_.width() - sep_w >= kMetaMinW;
+    const int disk_w = t.show_disk ? disk_.width() : 0;
+    const int avail = std::max(10, inner - disk_w - (t.show_disk ? sep_w : 2));
+    const int setup_avail = settings_.element_disk ? inner - disk_.width() - sep_w : inner - 2;
+    t.show_viz = settings_.element_vizfield && setup_avail >= kMetaMinW + kVizMinW;
+    // (Wide Spectrum Bar: the meta data column is half of what the disk leaves, as wide as the field -- never narrower than it always was)
+    t.meta_w = std::min(settings_.wide_spectrum ? std::max(42, avail / 2) : 42, std::max(kMetaMinW, avail - kVizMinW));
+    t.meta_w = std::min(t.meta_w, avail);
+    t.lyrics_w = std::max(0, avail - t.meta_w);
+    if (!t.show_viz) { t.meta_w = avail; t.lyrics_w = 0; }
+    const int pstyle = std::clamp(settings_.top_pane_style, 0, panestyle::kStyles - 1);
+    if (panestyle::split(pstyle) && pstyle != 4 && t.show_viz && t.lyrics_w - 2 >= kVizMinW) { t.wall_w = 2; t.lyrics_w -= 2; }
+    if (settings_.multiviz && t.show_viz && has_track_) {
+        int n = 0;
+        for (const int pk : {settings_.mv_2, settings_.mv_3}) if (pk >= 1 && pk <= 5) ++n;
+        while (n > 0 && t.lyrics_w < (n + 1) * kMultiVizPaneMin + n) --n;
+        t.panes = n + 1;
+    }
+    return t;
+}
+
+// The rows of the top pane's content. As tall as the disk by default; Top Pane Ratio (Wide Screen Options) shares the rows of the screen between the
+// top pane and the list below it in a ratio (top : bottom, the two boxes with their borders), never below the disk's height (the rows the meta data
+// and the spectrum bar need) and never so tall that the list below it has fewer than kMinListRows. While two or more Multi-Viz panes fit, the Multi-Viz
+// Ratio Override replaces that ratio when it is set.
+int App::top_pane_height(int total_width) const {
+    const int base = disk_.height();
+    int r = std::clamp(settings_.top_pane_ratio, 0, 4);
+    if (settings_.mv_ratio > 0 && top_layout(total_width).panes >= 2) r = std::clamp(settings_.mv_ratio, 0, 4);
+    if (r == 0) return base;
+    static const int kTop[] = {0, 1, 1, 3, 2}, kBottom[] = {0, 2, 1, 2, 1};
+    const int chrome = static_cast<int>(build_progress_panel(total_width).size() + build_search_bar(total_width).size());
+    const int t = term_rows_ - 1 - chrome;                      // the rows for the top box and the list box together (the last row of the terminal stays empty)
+    const int box = t * kTop[r] / (kTop[r] + kBottom[r]);       // the top box with its two border rows
+    const int most = t - 2 - 2 - kMinListRows;                  // (the list box has two border rows as well)
+    return std::max(base, std::min(box - 2, most));
+}
+
 // What the parts of build_metadata_panel() share: the layout of the panel and the rows of its three columns (disk, meta data, field).
 struct App::MetaPanel {
     int total_width = 0;
@@ -342,6 +392,7 @@ struct App::MetaPanel {
     int wall_w = 0;     // Pane Style "three panes": the two columns (a blank and the wall) between the meta data and the field, taken from the field
     int disk_pad = 0;   // Classic Disk Border off: the columns the disk moves right to sit in the middle of the space before the meta data
     int panel_h = 0;
+    int disk_lead = 0;  // rows above the disk when the top pane is taller than the disk (it stands in the middle)
     int fixed_extra = 0;
     int avail = 0;
     int setup_avail = 0;
@@ -404,10 +455,16 @@ void App::meta_panel_disk(MetaPanel& m) const {
     [[maybe_unused]] auto& lines_copy = m.lines_copy;
     [[maybe_unused]] auto& elapsed = m.elapsed;
     [[maybe_unused]] auto& lyrics_delay = m.lyrics_delay;
-    if (show_disk && audiobook_ && book_picture_gfx(2 + disk_pad, disk_w, panel_h)) {
+    // A top pane taller than the disk (Top Pane Ratio): the disk, the cover and the picture keep their size and stand in the middle: `lead` rows above, the
+    // rest below. (A picture's rows are the disk's; the braille book art centres itself in the whole height.)
+    const int dh = disk_.height(), lead = std::clamp(m.disk_lead, 0, std::max(0, panel_h - dh));
+    auto in_pic = [&](int i) { return i >= lead && i < lead + dh; };
+    const std::string blank_row(static_cast<size_t>(std::max(0, disk_w)), ' ');
+    if (show_disk && audiobook_ && book_picture_gfx(2 + disk_pad, disk_w, dh)) {
         book_pic_img = true;
+        gfx_.row += lead;
         // placeholder cells: the main loop writes them as spaces or (Sixel) skips them so the picture stays
-        for (int i = 0; i < panel_h; ++i) disk_frame.push_back(gfx_hole(disk_w));
+        for (int i = 0; i < panel_h; ++i) disk_frame.push_back(in_pic(i) ? gfx_hole(disk_w) : blank_row);
     } else if (show_disk && audiobook_) {
         // The opening book takes the disk's place: braille dots in the colour wave. It is smaller than the disk, so it sits
         // centred between the left border and the ':' of the separator (a column to the right of the exact middle when the
@@ -423,24 +480,29 @@ void App::meta_panel_disk(MetaPanel& m) const {
                                      std::string(static_cast<size_t>(std::max(0, disk_w - left - art_w)), ' '));
             else disk_frame.emplace_back(std::string(static_cast<size_t>(disk_w), ' '));
         }
-    } else if (show_disk && !audiobook_ && eff_album_cover() && album_cover_gfx(2 + disk_pad, disk_w, panel_h)) {
+    } else if (show_disk && !audiobook_ && eff_album_cover() && album_cover_gfx(2 + disk_pad, disk_w, dh)) {
         // Album Cover: the cover of the playing track is a pixel image in the disk's place (it uses the picture slot gfx_, so the
         // oscilloscope image goes into the second slot gfx2_)
         cover_pic_img = true;
-        for (int i = 0; i < panel_h; ++i) disk_frame.push_back(gfx_hole(disk_w));
+        gfx_.row += lead;
+        for (int i = 0; i < panel_h; ++i) disk_frame.push_back(in_pic(i) ? gfx_hole(disk_w) : blank_row);
     } else if (show_disk && !audiobook_ && eff_album_cover() && (gfxs_.proto == GfxProto::None || eff_cover_mode() >= 5) &&
-               !(disk_frame = album_cover_lines(disk_w, panel_h)).empty()) {
+               !(disk_frame = album_cover_lines(disk_w, dh)).empty()) {
         // (no Kitty / Sixel: the cover in braille dots)
+        disk_frame.insert(disk_frame.begin(), static_cast<size_t>(lead), blank_row);
+        while (static_cast<int>(disk_frame.size()) < panel_h) disk_frame.push_back(blank_row);
     } else if (show_disk) {
         disk_frame.clear();
         disk_frame = disk_.frame(angle_);
-        while (static_cast<int>(disk_frame.size()) < panel_h) disk_frame.emplace_back(std::string(disk_w, ' '));
+        while (static_cast<int>(disk_frame.size()) < dh) disk_frame.emplace_back(std::string(disk_w, ' '));
         for (size_t row_i = 0; row_i < disk_frame.size(); ++row_i) {
             float t = disk_frame.size() > 1 ? static_cast<float>(row_i) / static_cast<float>(disk_frame.size() - 1) : 0.0f;
             std::string disk_end = settings_.disk_color_end;
             std::string row_ansi = disk_gradient_ansi(settings_.disk_color, disk_end, t, settings_.disk_vivid);
             disk_frame[row_i] = row_ansi + disk_frame[row_i] + "\x1b[0m";
         }
+        disk_frame.insert(disk_frame.begin(), static_cast<size_t>(lead), blank_row);
+        while (static_cast<int>(disk_frame.size()) < panel_h) disk_frame.push_back(blank_row);
     }
 }
 
@@ -604,7 +666,7 @@ void App::meta_panel_info(MetaPanel& m) const {
         // per instruction, with the second row directly above it.
         if (hifi_bars) {
             // the Hi-Fi style: a stereo spectrum, a braille dot column per frequency step, at the frame rate of the program
-            const int viz_w = std::min(meta_w, show_viz ? 48 : 96) - bar_trim;
+            const int viz_w = std::min(meta_w, settings_.wide_spectrum ? meta_w : show_viz ? 48 : 96) - bar_trim;
             bars = fft_.compute_bars(48, viz_dt_);   // (the sphere below uses the classic bars)
             HifiView hv;
             hv.cells = viz_w; hv.rows = viz_rows; hv.resolution = settings_.hifi_resolution; hv.channels = settings_.hifi_channels;
@@ -627,7 +689,7 @@ void App::meta_panel_info(MetaPanel& m) const {
                 meta_rows[static_cast<size_t>(panel_h - viz_rows + r)] = line;
             }
         } else if (settings_.element_visualizer) {
-            int viz_w = std::min(meta_w, show_viz ? 48 : 96) - bar_trim;
+            int viz_w = std::min(meta_w, settings_.wide_spectrum ? meta_w : show_viz ? 48 : 96) - bar_trim;
             bars = fft_.compute_bars(viz_w, viz_dt_);
             std::string viz_top, viz_bottom;
             int nbars = static_cast<int>(bars.size());
@@ -990,19 +1052,22 @@ void App::meta_panel_field(MetaPanel& m) const {
                     spectro_.area[3] = viz_rows_h;
                     for (int i = 0; i < viz_rows_h && i < panel_h; ++i) lyric_rows[i] = gfx_hole(lyrics_w);
                 } else {
-                    auto rows = spectro().braille(settings_.spectro, lyrics_w, viz_rows_h);
-                    for (int i = 0; i < static_cast<int>(rows.size()) && i < panel_h; ++i) lyric_rows[i] = rows[static_cast<size_t>(i)];
+                    // (three panes: one blank column between the wall and the picture, as at the right border)
+                    const int lead = (m.wall_w > 0 && !m.secondary && lyrics_w > 8) ? 1 : 0;
+                    auto rows = spectro().braille(settings_.spectro, lyrics_w - lead, viz_rows_h);
+                    for (int i = 0; i < static_cast<int>(rows.size()) && i < panel_h; ++i) lyric_rows[i] = std::string(static_cast<size_t>(lead), ' ') + rows[static_cast<size_t>(i)];
                 }
             } else if (area_viz == 0) {
                 // Pause Sphere: a paused track stops the sphere (it stands still, so Reduce Motion When Paused can calm the screen);
                 // otherwise it goes on turning and the main loop keeps the full frame rate for it (sphere_turning_)
                 m.viz_drawn = true; m.used_mask |= 1;
                 const bool sphere_still = settings_.pause_sphere && has_track_ && player_.is_paused();
-                auto sphere_rows = sphere_.render(lyrics_w, viz_rows_h, bars, sphere_still ? 0.0 : viz_dt_);
+                const int lead = (m.wall_w > 0 && !m.secondary && lyrics_w > 8) ? 1 : 0;   // (three panes: centred between the wall and the right border)
+                auto sphere_rows = sphere_.render(lyrics_w - lead, viz_rows_h, bars, sphere_still ? 0.0 : viz_dt_);
                 sphere_turning_ = !sphere_still;
                 std::string sphere_ansi = gradient_ansi(settings_.visualizer_color, settings_.visualizer_color_end, 0.5f);
                 for (int i = 0; i < static_cast<int>(sphere_rows.size()) && i < panel_h; ++i) {
-                    lyric_rows[i] = sphere_ansi + pad_right(sphere_rows[i], lyrics_w) + "\x1b[0m";
+                    lyric_rows[i] = std::string(static_cast<size_t>(lead), ' ') + sphere_ansi + pad_right(sphere_rows[i], lyrics_w - lead) + "\x1b[0m";
                 }
             }
             if (show_caption) {
@@ -1024,6 +1089,10 @@ void App::meta_panel_field(MetaPanel& m) const {
             lyric_rows[0] = pad_right(std::string(pad, ' ') + lyrics_status, lyrics_w);
         }
     } else {
+        // Pane Style "three panes": the wall stands right at the field's left edge, so the text keeps one blank column from it (the same as at the right border)
+        const int full_w = lyrics_w;
+        const bool inset = m.wall_w > 0 && !m.secondary && lyrics_w > 8;
+        if (inset) { lyrics_w -= 1; lyric_rows.assign(panel_h, std::string(static_cast<size_t>(lyrics_w), ' ')); }
         // SHIFT+2 (main_translit_key): the translation under every line that has one, on a line of its own, in ( ) -- it is shown with its lyric line
         std::vector<LyricLine> tr_lines;   // (one per lyric line; an empty full_text = no translation)
         if (main_lyr_tr_ && !lines_orig.empty() && lines_orig.size() == lines_copy.size()) {
@@ -1104,6 +1173,7 @@ void App::meta_panel_field(MetaPanel& m) const {
                 if (idx >= 0 && idx < static_cast<int>(flat_rows.size())) lyric_rows[row] = flat_rows[idx];
             }
         }
+        if (inset) { lyrics_w = full_w; for (auto& r : lyric_rows) r.insert(0, " "); }
     }
 
     // Audio book: the note that is typed or shown takes the field's place (oscilloscope / spectrogram come back when it is put away).
@@ -1151,7 +1221,8 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
     // too narrow for the disk beside a meta data column: the disk goes (then the oscilloscope / lyrics field, if even that does not fit)
     show_disk = settings_.element_disk && inner - disk_.width() - sep_w >= kMetaMinW;
     disk_w = show_disk ? disk_.width() : 0;
-    panel_h = disk_.height();
+    panel_h = top_pane_height(total_width);
+    m.disk_lead = (panel_h - disk_.height()) / 2;
 
     fixed_extra = show_disk ? sep_w : 2;
 
@@ -1160,7 +1231,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
     // for lack of room), so that narrowing the window only ever takes things away: all three, no field, meta data alone.
     setup_avail = settings_.element_disk ? inner - disk_.width() - sep_w : inner - 2;
     show_viz = settings_.element_vizfield && setup_avail >= kMetaMinW + kVizMinW;
-    meta_w = std::min(42, std::max(kMetaMinW, avail - kVizMinW));
+    meta_w = std::min(settings_.wide_spectrum ? std::max(42, avail / 2) : 42, std::max(kMetaMinW, avail - kVizMinW));   // (as top_layout() has it)
     meta_w = std::min(meta_w, avail);
     lyrics_w = std::max(0, avail - meta_w);
     if (!show_viz) { meta_w = avail; lyrics_w = 0; }   // "Viz/Lyrics Field" off, or no room: the meta data take the field's place
@@ -1168,7 +1239,7 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
 
     // Pane Style "three panes": the wall between the meta data and the field takes two columns of the field (a blank, then the wall)
     m.wall_w = 0;
-    const int pstyle = std::clamp(settings_.top_pane_style, 0, 5);
+    const int pstyle = std::clamp(settings_.top_pane_style, 0, panestyle::kStyles - 1);
     const bool split = panestyle::split(pstyle);
     if (split && pstyle != 4 && show_viz && lyrics_w - 2 >= kVizMinW) { m.wall_w = 2; lyrics_w -= 2; }
     // The ":  :" column can be switched off (Settings -> Classic Disk Border): the disk then sits in the middle of the space between
@@ -1182,7 +1253,8 @@ std::vector<std::string> App::build_metadata_panel(int total_width) const {
     // least kMultiVizPaneMin columns wide; the 3rd pane goes first when the field is too narrow, then the 2nd.
     std::vector<int> mv_picks;   // the visual codes of the further panes (settings: 1 sphere, 2 oscilloscope, 3 spectrogram, 4 video, 5 MilkDrop)
     int mv_main_w = lyrics_w;
-    if (settings_.multiviz && show_viz && has_track_ && panel_h >= 4) {
+    const bool mv_on = settings_.multiviz && show_viz && has_track_ && panel_h >= 4;
+    if (mv_on) {
         for (const int pk : {settings_.mv_2, settings_.mv_3}) if (pk >= 1 && pk <= 5) mv_picks.push_back(pk);
         while (!mv_picks.empty() && lyrics_w < (static_cast<int>(mv_picks.size()) + 1) * kMultiVizPaneMin + static_cast<int>(mv_picks.size())) mv_picks.pop_back();
         const int n = static_cast<int>(mv_picks.size()) + 1;
@@ -1314,7 +1386,7 @@ std::vector<std::string> App::build_progress_panel(int total_width) const {
 
     std::string color_played = ansi_for(settings_.progress_played_color);
     std::string color_unplayed = ansi_for(settings_.progress_remaining_color);
-    const std::string wave_played = vivid_colour_ansi(settings_.progress_played_color, settings_.wave_vivid), wave_unplayed = vivid_colour_ansi(settings_.progress_remaining_color, settings_.wave_vivid);   // (Waveform Vividness: the waveform only; the volume bar and the plain bar use the colours as they are)
+    const std::string wave_played = vivid_colour_ansi(settings_.progress_played_color, settings_.wave_vivid, true, kWaveGlowGain), wave_unplayed = vivid_colour_ansi(settings_.progress_remaining_color, settings_.wave_vivid, true, kWaveGlowGain);   // (Waveform Vividness: the waveform only; the volume bar and the plain bar use the colours as they are)
     std::string color_reset = "\x1b[0m";
 
     std::string top_wave, mid_wave, bot_wave;
@@ -1737,7 +1809,7 @@ std::vector<std::string> App::build_list_panel(int total_width, int height) cons
                         + pad_right(t_count, count_w);
             } else {
                 const auto& t = local_view_[idx];
-                const int artist_w = 16;
+                const int artist_w = artist_col_w(inner, 16, 28, 64);   // (16 in a pane of a normal window, more with the width of a wide screen)
                 const int dur_w = 5;
                 int title_w = std::max(5, inner - idx_w - 2 - 2 - artist_w - 2 - dur_w);
                 double dur = -1;
@@ -1854,7 +1926,7 @@ std::vector<std::string> App::build_queue_panel(int total_width, int height, boo
                 std::string t_title = apply_font_map(q.is_local ? list_row_title(q.local_path, q.title) : q.title, settings_.font_map);   // "Show meta data only" counts here too
                 const std::string t_artist = apply_font_map(artist, settings_.font_map);
                 const int sep_w = display_width(settings_.list_separator) + 1;
-                const int artist_w = inner >= 34 ? (wide_artist && inner >= 80 ? 32 : 16) : inner >= 24 ? 10 : 0;   // (the big overlay: twice the room for the artist)
+                const int artist_w = inner >= 34 ? (wide_artist && inner >= 80 ? artist_col_w(inner, 32, 40, 80) : artist_col_w(inner, 16, 28, 64)) : inner >= 24 ? 10 : 0;   // (the big overlay: twice the room for the artist; both grow with a wide pane)
                 if (artist_w == 0) content = t_title;
                 else {
                     const int title_w = std::max(5, inner - artist_w - sep_w);

@@ -606,12 +606,20 @@ bool App::folder_overlay_key(int key) {
     if (action.empty() && lookup >= 'a' && lookup <= 'z') action = resolve_hotkey_action(lookup - 32);
     if (action.empty() && lookup >= 'A' && lookup <= 'Z') action = resolve_hotkey_action(lookup + 32);
     if (audiobook_ && !fo_->search && book_overlay_switch(key)) return true;   // SHIFT+k / m / l: the other audio book overlays
+    if (action == "HKeyToggleMetaOnly" && !audiobook_ && !fo_->search) {   // SHIFT+n: the files show their meta data (title, artist, album) instead of their names; the same switch as in the lists
+        settings_.meta_only = !settings_.meta_only;
+        status_line_ = settings_.meta_only ? "lists: metadata only (no filename)" : "lists: filename + metadata";
+        log_event(status_line_);
+        resort_local_view_keep_selection();   // "title A-Z" follows the displayed title
+        force_redraw_ = true;
+        return true;
+    }
     if (action == "HKeyFolderOverlay") { folder_overlay_close(); return true; }
     if (action == "HKeyListOverlay") { folder_overlay_close(); list_overlay_open(); return true; }     // switch without closing first
     if (action == "HKeyQueueOverlay") { folder_overlay_close(); queue_overlay_open(); return true; }
     if (action == "HKeyFilterForFolder") { folder_overlay_filter(); return true; }
     static const char* const kPass[] = {
-        "HKeyTogglePlayPause", "HKeyPlayNextSong", "HKeyPlayPreviousSong", "HKeyShuffleNext", "HKeyCyclePlayMode", "HKeyCyclePlayModeBack",
+        "HKeyTogglePlayPause", "HKeyPlayNextSong", "HKeyPlayPreviousSong", "HKeyRestartTrack", "HKeyShuffleNext", "HKeyCyclePlayMode", "HKeyCyclePlayModeBack",
         "HKeySeekForward", "HKeySeekBackward", "HKeyIncreaseVolume", "HKeyDecreaseVolume", "HKeyToggleMute",
         "HKeyToggleNormalize", "HKeyQuit"};
     for (const char* a : kPass) if (action == a) return false;
@@ -633,12 +641,31 @@ std::vector<LegendRow> App::folder_overlay_book_legend(int panel_w) const {
     return layout_legend_tree(groups, std::max(0, panel_w), 3);
 }
 
+// SHIFT+n in the folder overlay shows the tags of the files in view: the ones that are not in the cache yet are read here (the same cheap native reader the list rows use).
+void App::folder_overlay_ensure_meta() {
+    if (!settings_.meta_only || audiobook_ || !fo_) return;
+    const int total = static_cast<int>(fo_->view.size());
+    for (int i = fo_->scroll; i < std::min(total, fo_->scroll + fo_->rows); ++i) {
+        const FoRow& r = fo_->view[static_cast<size_t>(i)];
+        if (r.is_dir) continue;
+        {
+            std::lock_guard<std::mutex> lk(row_meta_mutex_);
+            if (row_meta_cache_.count(r.path)) continue;
+        }
+        const RowMeta rm = try_native_row_meta(path_from_utf8(r.path));
+        if (rm.duration_sec > 0 || rm.tags_resolved) {
+            std::lock_guard<std::mutex> lk(row_meta_mutex_);
+            row_meta_cache_[r.path] = rm;
+        }
+    }
+}
+
 std::vector<LegendRow> App::folder_overlay_legend(int panel_w) const {   // (the music player's; the audio book has folder_overlay_book_legend())
     const int max_lines = std::clamp(term_rows_ - kListOverlayChromeRows - 5, 1, 3);
     const std::vector<LegendGroup> groups = {
         {"Open", {"[ENTER/\u2190\u2192] Open/close folder\001Open/close", "[" + hotkey_text("HKeyFilterForFolder", "f") + "] Folder to list\001To list", "[CTRL+p] Play"}},
         {"Switch", {"[" + hotkey_text("HKeyListOverlay", "L") + "] List overlay\001List", "[" + hotkey_text("HKeyQueueOverlay", "K") + "] Queue overlay\001Queue"}},
-        {"Other", {"[/] Search", "[SHIFT+v] Audio/video", "[SHIFT+\u2191\u2193] Page", "[ESC] Close"}},
+        {"Other", {"[/] Search", "[SHIFT+v] Audio/video", "[" + hotkey_text("HKeyToggleMetaOnly", "N") + "] Meta data\001Meta", "[SHIFT+\u2191\u2193] Page", "[ESC] Close"}},
     };
     return layout_legend_tree(groups, std::max(0, panel_w), max_lines);
 }
@@ -684,8 +711,28 @@ std::vector<std::string> App::build_folder_overlay_panel(int panel_w, int list_r
                 const int name_w = std::max(5, inner - display_width(head) - 2 - static_cast<int>(cnt.size()));
                 content = head + pad_right(truncate_str(apply_font_map(r.label, settings_.font_map), name_w), name_w) + "  " + cnt;
             } else {
-                content = head + apply_font_map(r.label, settings_.font_map);
                 playing = has_track_ && path_utf8(current_.path) == r.path;
+                RowMeta rm; bool have = false;
+                if (settings_.meta_only && !audiobook_) {   // SHIFT+n: title | artist | album in columns that share the width (the artist grows with a wide window)
+                    std::lock_guard<std::mutex> lk(row_meta_mutex_);
+                    const auto it = row_meta_cache_.find(r.path);
+                    if (it != row_meta_cache_.end()) { rm = it->second; have = true; }
+                }
+                if (settings_.meta_only && !audiobook_ && inner >= 40) {
+                    const int text_w = std::max(10, inner - display_width(head));
+                    const int gap = 2;
+                    const bool with_album = text_w >= 70;
+                    const int artist_w = std::clamp(text_w * (with_album ? 28 : 34) / 100, 12, 60);
+                    const int album_w = with_album ? std::clamp(text_w * 24 / 100, 12, 56) : 0;
+                    const int title_w = std::max(8, text_w - artist_w - (with_album ? album_w + gap : 0) - gap);
+                    const std::string title = (have && !rm.title.empty()) ? rm.title : r.label;
+                    const std::string artist = (have && !rm.artist.empty()) ? rm.artist : "-";
+                    content = head + pad_right(truncate_str(apply_font_map(title, settings_.font_map), title_w), title_w) + std::string(gap, ' ')
+                            + pad_right(truncate_str(apply_font_map(artist, settings_.font_map), artist_w), artist_w);
+                    if (with_album) content += std::string(gap, ' ') + pad_right(truncate_str(apply_font_map((have && !rm.album.empty()) ? rm.album : "-", settings_.font_map), album_w), album_w);
+                } else {
+                    content = head + apply_font_map(settings_.meta_only && have && !rm.title.empty() && !audiobook_ ? rm.title : r.label, settings_.font_map);
+                }
             }
         }
         const std::string padded = pad_right(truncate_str(content, inner), inner);

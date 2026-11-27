@@ -101,7 +101,7 @@ struct RadioSettings : VizPrefs {
     // --- looks / tuning (config file only for now; the settings screen has the colours only) ----------
     // --- the GENERAL tab ---------------------------------------------------------------------------
     bool on_air_ascii = true;                   // the ON AIR sign (with its colour wave)
-    int top_pane_style = 0;                     // TopPaneStyle= (0-5, as the player's): one box, three panes I / II / III, two panes, gap
+    int top_pane_style = 0;                     // TopPaneStyle= (0-6, as the player's): one box, three panes I / II / III, two panes, gap, three panes T
     int thick_borders = 0;                      // ThickBorders= (0-1): thin, or thick lines with thick round corners (font "Mousiki Corners") and bold pane titles
     bool sharp_corners = false;                 // SharpCorners=: sharp corners (┌ ┐ └ ┘) for all frames; the Settings screen (sharp by itself) gets the round ones
     bool sign_border = false;                   // the " : : " column between the ON AIR / OFF AIR sign and the station info (false, the default: none, the sign sits in the middle of that space)

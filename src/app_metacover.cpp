@@ -365,6 +365,14 @@ bool App::handle_meta_sty_key_inner(int key) {
         }
         return true;
     }
+    if (sel == kStZeroCover) {   // Set all values to 0%: contrast, brightness, colors, chromatic aberration, gradient saturation and vividness of this track (the look stays)
+        if (dir <= 0) return true;
+        if (st.contrast == 0 && st.brightness == 0 && st.colors == 0 && st.chroma == 0 && st.gsat == 0 && st.vivid == 0) { meta_->sty_msg = "all cover values of this track are 0% already"; return true; }
+        st.contrast = st.brightness = st.colors = st.chroma = st.gsat = st.vivid = 0;
+        set_cover_track_style(meta_->sty_track, st);
+        meta_->sty_msg = "saved: all cover values of this track are 0%";
+        return true;
+    }
     if (sel == kStMilkdropGo) {   // the MilkDrop settings of this track (ENTER / RIGHT)
         if (dir <= 0) return true;
         const std::string title = meta_->hover_values[static_cast<size_t>(MetaField::Title)];
@@ -421,7 +429,7 @@ bool App::handle_meta_sty_key_inner(int key) {
             meta_->sty_msg = "saved";
             return true;
         }
-        case kStMilkdropGo: case kStResetCover: case kStSetCover: case kStCoverUndo: break;   // (handled above)
+        case kStMilkdropGo: case kStResetCover: case kStSetCover: case kStZeroCover: case kStCoverUndo: break;   // (handled above)
         case kStMp4Audio: {   // true / false (false = the song's own audio, as before)
             VideoTrackOpts o = cover_track_video_opts(meta_->sty_track);
             const int before = o.mp4audio;
@@ -671,9 +679,10 @@ std::vector<std::string> App::build_meta_sty_panel(int screen_w) const {
             case kStVideoGradSat: return {"Video Gradient Saturation", pct(vo.gsat, settings_.video_grad_sat)};
             case kStVideoResolution: return {"Video Resolution", named(vo.res, settings_.video_res, [](int v) { return std::string(video_res_name(v)); })};
             case kStVideoRounded: return {"Video Rounded Corners", named(vo.round, settings_.video_round ? 1 : 0, [](int v) { return std::string(v ? "on" : "off"); })};
-            case kStMp4Audio: return {"Use mp4 audio for this song", vo.mp4audio == 1 ? std::string("true") : std::string("false")};
+            case kStMp4Audio: return {"Use mp4 audio for this track", vo.mp4audio == 1 ? std::string("true") : std::string("false")};
             case kStResetCover: return {"Reset cover to default settings", "[ENTER]"};
             case kStSetCover: return {"Set individual cover settings as default settings", "[ENTER]"};
+            case kStZeroCover: return {"Set all values to 0%", "[ENTER]"};
             case kStCoverUndo: return {"Undo change", "[ENTER]"};
             case kStMilkdropGo: return {"Go to MilkDrop settings", "[ENTER]"};
             case kStAlbum: break;
@@ -703,8 +712,8 @@ std::vector<std::string> App::build_meta_sty_panel(int screen_w) const {
         else if (id == kStAlbum) head("Album");
         std::string t = " " + pad_right(rows[static_cast<size_t>(i)].label, 27) + " \u25c0 " + rows[static_cast<size_t>(i)].value + " \u25b6";
         if (id == kStMilkdropGo) t = std::string(" ") + rows[static_cast<size_t>(i)].label + "  " + rows[static_cast<size_t>(i)].value;   // (a long label: no arrows, no cut)
-        if (id == kStResetCover || id == kStSetCover || id == kStCoverUndo) {   // a button: [ENTER] on the right, in the legend colours while there is nothing to do
-            const bool on = id == kStCoverUndo ? !cov_undo_.empty() : id == kStSetCover ? cover_style_differs(st) : st.look >= 0 || st.contrast >= 0 || st.brightness >= 0 || st.colors >= 0 || st.chroma >= 0 || st.gsat >= 0 || st.vivid >= 0;
+        if (id == kStResetCover || id == kStSetCover || id == kStZeroCover || id == kStCoverUndo) {   // a button: [ENTER] on the right, in the legend colours while there is nothing to do
+            const bool on = id == kStCoverUndo ? !cov_undo_.empty() : id == kStZeroCover ? !(st.contrast == 0 && st.brightness == 0 && st.colors == 0 && st.chroma == 0 && st.gsat == 0 && st.vivid == 0) : id == kStSetCover ? cover_style_differs(st) : st.look >= 0 || st.contrast >= 0 || st.brightness >= 0 || st.colors >= 0 || st.chroma >= 0 || st.gsat >= 0 || st.vivid >= 0;
             const std::string lab = pad_right(truncate_str(std::string(" ") + rows[static_cast<size_t>(i)].label, left_w - 10), left_w - 10);
             if (i == meta_->sty_sel) left.push_back("\x1b[7m" + lab + " [ENTER]  \x1b[0m");
             else left.push_back(lab + " " + (on ? std::string() : legend_sgr(settings_)) + "[ENTER]" + (on ? std::string() : std::string("\x1b[0m")) + "  ");

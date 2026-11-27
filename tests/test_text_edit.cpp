@@ -159,6 +159,15 @@ TEST(fuzzy_exact_beats_typo) {
     CHECK(exact > typo);
 }
 
+TEST(search_ignores_case_and_accents_of_greek_and_cyrillic) {
+    CHECK_EQ(normalize_for_search("ΩΜΕΓΑ"), normalize_for_search("ωμεγα"));
+    CHECK_EQ(normalize_for_search("Ελλάς"), normalize_for_search("ΕΛΛΑΣ"));      // the accent and the final sigma
+    CHECK_EQ(normalize_for_search("Ёлка"), normalize_for_search("елка"));
+    CHECK(fuzzy_score("москва", "Земфира - МОСКВА") >= 100.0);
+    CHECK(fuzzy_score("αγαπη", "Άγάπη μου") > 0.0);
+    CHECK_EQ(normalize_for_search("日本語"), std::string("日本語"));               // everything else is left alone
+}
+
 TEST(fuzzy_no_match_and_empty_query) {
     CHECK(fuzzy_score("zzzzqq", "Another Love") < 0.0);
     CHECK_EQ(fuzzy_score("", "anything"), 0.0);

@@ -11,6 +11,7 @@ inline const RefHotkeyRow kRefRows[] = {
     {nullptr, "HKeyTogglePlayPause", "Toggle Play / Pause"}, // was missing from this tab entirely
     {nullptr, "HKeyPlayNextSong", "Next Track"},
     {nullptr, "HKeyPlayPreviousSong", "Prev Track"},
+    {nullptr, "HKeyRestartTrack", "Restart Track"},
     {nullptr, "HKeyShuffleNext", "Shuffle Next"},
     {nullptr, "HKeyCyclePlayMode", "Cycle Play Mode"},
     {nullptr, "HKeyCyclePlayModeBack", "Cycle Play Mode Back"},

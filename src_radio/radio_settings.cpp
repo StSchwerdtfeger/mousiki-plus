@@ -175,7 +175,7 @@ const std::vector<SettingsLine>& rs_layout(int tab) {
         {true, -1, "VIZ TOGGLE"},   // the field right of the station info
         {false, kRsScope, "Viz Field"}, {false, kRsUseOsci, "Use Oscilloscope"}, {false, kRsUseSpectro, "Use Spectrogram"}, {false, kRsUseSphere, "Use Sphere"}, {false, kRsUseMilkdrop, "Use MilkDrop"},
         {true, -1, ""},
-        {true, -1, "MULTI-VIZ"},   // several visuals side by side when the screen is wide enough
+        {true, -1, "WIDE SCREEN OPTIONS"},   // several visuals side by side when the screen is wide enough
         {false, kRsMultiViz, "Multi-Viz"}, {false, kRsMvMain, "Main Viz"}, {false, kRsMvSecond, "2nd Viz"}, {false, kRsMvThird, "3rd Viz"},
         {true, -1, ""},
         {true, -1, "MILKDROP"},   // the MilkDrop visuals in the scope block (projectM, when installed)
@@ -342,7 +342,7 @@ std::string rs_row_value(const RadioSettings& s, int tab, int row) {
         case kRsPulseSpeed: return fmt_speed(kSpeedSteps[nearest_step(s.pulse_wave_speed)]);
         case kRsFluidity: return std::to_string(s.bar_fluidity());
         case kRsBehavior: return bars_preset_name(bars_preset_of(s.bar_fluidity(), s.bar_degradation(), s.bar_viscosity()));
-        case kRsPaneStyle: { static const char* n[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"}; return n[std::clamp(s.top_pane_style, 0, 5)]; }
+        case kRsPaneStyle: { static const char* n[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap", "three panes T"}; return n[std::clamp(s.top_pane_style, 0, 6)]; }
         case kRsThickBorders: return s.thick_borders > 0 ? "thick" : "off";
         case kRsTermSize: return std::to_string(s.term_cols) + " x " + std::to_string(s.term_rows);   // (two typed fields: the settings screen draws and edits them)
         case kRsLatinHanzi: return s.latin_hanzi == 1 ? "Chin." : s.latin_hanzi == 2 ? "Jap." : "Leave";
@@ -440,7 +440,7 @@ void rs_row_change(RadioSettings& s, int tab, int row, int dir) {
             s.bar_fluidity() = kBarsPresets[to].fluidity; s.bar_degradation() = kBarsPresets[to].degradation; s.bar_viscosity() = kBarsPresets[to].viscosity;
             break;
         }
-        case kRsPaneStyle: step(s.top_pane_style, 6); break;
+        case kRsPaneStyle: step(s.top_pane_style, 7); break;
         case kRsThickBorders: step(s.thick_borders, 2); break;
         case kRsLatinHanzi: step(s.latin_hanzi, 3); break;
         case kRsBarStyle: step(s.bars_style, 2); g_rs_hifi = s.bars_style == 1; break;
@@ -1162,9 +1162,9 @@ RadioSettings load_radio_settings(std::string* source_out) {
     if (auto v = get("OnAirAscii")) s.on_air_ascii = as_bool(*v, s.on_air_ascii);
     if (auto v = get("TopPaneStyle")) {
         const std::string t = ascii_lower_str(*v);
-        static const char* n[] = {"one box", "three panes i", "three panes ii", "three panes iii", "two panes", "gap"};
+        static const char* n[] = {"one box", "three panes i", "three panes ii", "three panes iii", "two panes", "gap", "three panes t"};
         int k = -1;
-        for (int i = 0; i < 6; ++i) if (t == n[i] || t == std::to_string(i)) k = i;
+        for (int i = 0; i < 7; ++i) if (t == n[i] || t == std::to_string(i)) k = i;
         if (k >= 0) s.top_pane_style = k;
     }
     if (auto v = get("SignBorder")) s.sign_border = as_bool(*v, s.sign_border);
@@ -1394,7 +1394,7 @@ static void write_radio_file(std::ostream& o, const RadioSettings& s) {
          "OnAirAscii=" << (s.on_air_ascii ? "true" : "false") << "\n"
          "# the \" : : \" column between the ON AIR / OFF AIR sign and the station info: true | false (the sign sits in the middle of that space)\n"
          "# the frame of the top pane: 0 one box | 1 three panes I | 2 three panes II | 3 three panes III | 4 two panes | 5 gap\n"
-         "TopPaneStyle=" << std::clamp(s.top_pane_style, 0, 5) << "\n"
+         "TopPaneStyle=" << std::clamp(s.top_pane_style, 0, 6) << "\n"
          "# true: sharp corners for all frames (the Settings screen, sharp by itself, gets round ones)\n"
          "SharpCorners=" << (s.sharp_corners ? "true" : "false") << "\n"
          "# 0 thin, 1 thick lines with thick round corners and bold pane titles (the whole frame is drawn with the font Mousiki Corners, which Mousiki installs); an older value 2 counts as 1\n"

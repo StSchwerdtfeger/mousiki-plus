@@ -59,6 +59,8 @@ void App::video_menu_open() {
     if (audiobook_) { status_line_ = "video: not available in the audio book player"; return; }
     vmenu_sel_ = video_row_step(video_menu_rows(false), std::clamp(vmenu_sel_, 0, static_cast<int>(kVmRowCount) - 1), 0, false);
     vdel_stage_ = 0;
+    video_opts_pair_ = has_track_ && !current_.path.empty() && current_.is_local && song_paired_with_video(current_.path);   // (lists "Use mp4 audio for this track")
+    vmenu_sel_ = video_row_step(video_menu_rows(false), vmenu_sel_, 0, false);
     mode_ = Mode::VideoMenu;
     force_redraw_ = true;
 }
@@ -588,7 +590,7 @@ bool App::video_row_visible(int id, bool big) const {
         case kVmCouple: case kVmQuickSearch: case kVmFetchMenu: return true;   // (Videos for songs: always -- with a video only the other groups are there too)
         case kVmDeleteVideo: case kVmRefetchVideo: return has;                  // (This track's video)
         case kVmFullScreen: return !big && !video_menu_restricted();
-        case kVmMp4AudioRow: return big && has && video_opts_pair_;
+        case kVmMp4AudioRow: return has && video_opts_pair_;   // (VIDEO SETTINGS and VIDEO OPTIONS: a song paired with a video)
         default: return !video_menu_restricted();
     }
 }
@@ -640,7 +642,7 @@ static const char* video_row_label(int id) {
         case kVmIndCopy: return "Set individual settings as default settings";
         case kVmUndo: return "Undo change";
         case kVmIndOn: return "Use individual settings for this track";
-        case kVmMp4AudioRow: return "Use mp4 audio for this song";
+        case kVmMp4AudioRow: return "Use mp4 audio for this track";
         case kVmFullScreen: return "Full Screen Video";
         case kVmCouple: return "Manually Couple Local Files";
         case kVmQuickSearch: return "Quick Search/Down. YT";
@@ -708,7 +710,7 @@ void App::video_opts_change(int row, int dir, bool reset) {
             const int before = o.mp4audio;
             o.mp4audio = reset ? -1 : (o.mp4audio == 1 ? -1 : 1);
             set_cover_track_video_opts(path_utf8(current_.path), o);
-            if (o.mp4audio != before) { reload_current_audio(); status_line_ = o.mp4audio == 1 ? "mp4 audio for this song: true -- the audio is loaded again, at the same time" : "mp4 audio for this song: false -- the audio is loaded again, at the same time"; }
+            if (o.mp4audio != before) { reload_current_audio(); status_line_ = o.mp4audio == 1 ? "mp4 audio for this track: true -- the audio is loaded again, at the same time" : "mp4 audio for this track: false -- the audio is loaded again, at the same time"; }
             return;
         }
         default: return;
@@ -962,9 +964,11 @@ void App::video_menu_key(int key) {
     if (arrow && (key == 'C' || key == 'D')) {
         if (vmenu_sel_ <= kVmLastSetting) video_menu_step(vmenu_sel_, key == 'C' ? 1 : -1, false);
         else if (vmenu_sel_ == kVmIndOn) video_ind_action(0);
+        else if (vmenu_sel_ == kVmMp4AudioRow) video_opts_change(kVmMp4AudioRow, key == 'C' ? 1 : -1, false);   // (saved for this track at once)
         return;
     }
     if (!arrow && (key == 'd' || key == 'r' || key == kKeyDelete || key == 127) && vmenu_sel_ <= kVmLastSetting) { video_menu_step(vmenu_sel_, 0, true); return; }
+    if (!arrow && (key == 'd' || key == 'r' || key == kKeyDelete || key == 127) && vmenu_sel_ == kVmMp4AudioRow) { video_opts_change(kVmMp4AudioRow, 0, true); return; }
     if (!arrow && (key == '\r' || key == '\n' || key == ' ')) {
         if (vmenu_sel_ == kVmEffect) { fxpick_open(1); return; }
         if (vmenu_sel_ <= kVmLastSetting) { video_menu_step(vmenu_sel_, 1, false); return; }
@@ -974,6 +978,7 @@ void App::video_menu_key(int key) {
         if (vmenu_sel_ == kVmIndCopy) { video_ind_action(1); return; }
         if (vmenu_sel_ == kVmUndo) { video_ind_action(5); return; }
         if (vmenu_sel_ == kVmIndOn) { video_ind_action(0); return; }
+        if (vmenu_sel_ == kVmMp4AudioRow) { video_opts_change(kVmMp4AudioRow, 1, false); return; }
         if (vmenu_sel_ == kVmFullScreen) { video_menu_close(); video_full_toggle(); return; }
         if (vmenu_sel_ == kVmCouple) { video_menu_close(); video_link_open(has_track_ ? current_.path : fs::path(), Mode::Browse); return; }
         if (vmenu_sel_ == kVmQuickSearch) { video_menu_close(); video_search_open(); return; }
@@ -1042,6 +1047,7 @@ std::vector<std::string> App::build_video_menu_panel() const {
             case kVmIndCopy: return act(id, label, video_button_on(1));
             case kVmUndo: return act(id, label, video_button_on(5));
             case kVmIndOn: return sel_row(label, vo.ioff == 1 ? std::string("[ ] off (kept)") : video_track_any(vo) ? std::string("[x] on") : std::string("[ ] off (none set)"));
+            case kVmMp4AudioRow: return sel_row(label, toggle(vo.mp4audio == 1));
             case kVmFullScreen: case kVmCouple: case kVmQuickSearch: case kVmFetchMenu: case kVmDeleteVideo: case kVmRefetchVideo: return button(id, label);
             default: return sel_row(label, "< " + video_vm_text(id) + " >");   // (the rows of the picture: Size ... Resolution, Include Lyrics)
         }

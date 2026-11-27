@@ -883,6 +883,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidAutoPlay: v = settings_.auto_play; break;
             case kSidPauseSphere: v = settings_.pause_sphere; break;
             case kSidMultiViz: v = settings_.multiviz; break;
+            case kSidWideSpectrum: v = settings_.wide_spectrum; break;
             case kSidMvMain: case kSidMvSecond: case kSidMvThird: return mv_pick_name(vid == kSidMvMain ? settings_.mv_main : vid == kSidMvSecond ? settings_.mv_2 : settings_.mv_3, vid == kSidMvMain);
             case kSidUseMilkdrop: v = settings_.use_milkdrop; break;
             case kSidMdShuffle: v = settings_.milkdrop_shuffle; break;
@@ -973,7 +974,9 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidHifiGain: return std::to_string(settings_.hifi_gain);
             case kSidHifiRange: return std::to_string(settings_.hifi_range);
             case kSidWaveStyle: return settings_.waveform_smooth ? "smooth" : "raw";
-            case kSidPaneStyle: { static const char* n[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"}; return n[std::clamp(settings_.top_pane_style, 0, 5)]; }
+            case kSidPaneStyle: { static const char* n[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap", "three panes T"}; return n[std::clamp(settings_.top_pane_style, 0, 6)]; }
+            case kSidTopPaneRatio: { static const char* n[] = {"(Keep top pane row size)", "1:2", "1:1", "3:2", "2:1"}; return n[std::clamp(settings_.top_pane_ratio, 0, 4)]; }
+            case kSidMvRatio: { static const char* n[] = {"off", "1:2", "1:1", "3:2", "2:1"}; return n[std::clamp(settings_.mv_ratio, 0, 4)]; }
             case kSidThickBorders: return settings_.thick_borders > 0 ? "thick" : "off";
             case kSidDiskSpeed: return std::to_string(settings_.disk_rotation_speed).substr(0, 4);
             case kSidTrackBuffer: return std::to_string(settings_.track_buffer_mb);
@@ -1138,7 +1141,9 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidEmoji: return {"Off", "Safe", "All"};
             case kSidTermSize: return {};   // two typed numbers (ENTER types the one that is lit)
             case kSidWaveStyle: return {"raw", "smooth"};
-            case kSidPaneStyle: return {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"};
+            case kSidPaneStyle: return {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap", "three panes T"};
+            case kSidTopPaneRatio: return {"1:2", "1:1", "3:2", "2:1", "(Keep top pane row size)"};   // (the ratios first; the stored number 0 is the last one)
+            case kSidMvRatio: return {"off", "1:2", "1:1", "3:2", "2:1"};
             case kSidThickBorders: return {"off", "thick"};
             case kSidBarStyle: return {"classic", "hi-fi"};
             case kSidHifiRes: return {"fine", "rough"};
@@ -1169,7 +1174,7 @@ bool App::settings_row_is_pick(int tab, int row) const {
     for (const std::string& t : o) {
         size_t i = 0;
         while (i < t.size() && (t[i] == '-' || t[i] == '+' || t[i] == ' ')) ++i;
-        if (i < t.size() && std::isdigit(static_cast<unsigned char>(t[i]))) ++numeric;
+        if (i < t.size() && std::isdigit(static_cast<unsigned char>(t[i])) && t.find(':') == std::string::npos) ++numeric;   // (a ratio such as 1:2 is a word)
     }
     return numeric + 1 < o.size() || o.size() <= 2;   // (numbers all but one at most: a number row)
 }
@@ -1412,7 +1417,9 @@ void App::settings_commit_edit_impl() {
                 settings_.bar_fluidity() = kBarsPresets[i].fluidity; settings_.bar_degradation() = kBarsPresets[i].degradation; settings_.bar_viscosity() = kBarsPresets[i].viscosity; }
                 return;
             case kSidWaveStyle: settings_.waveform_smooth = (v == "smooth"); return;
-            case kSidPaneStyle: { static const char* n[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"}; for (int i = 0; i < 6; ++i) if (v == to_lower(n[i])) settings_.top_pane_style = i; return; }   // (v is lower case) }
+            case kSidPaneStyle: { static const char* n[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap", "three panes T"}; for (int i = 0; i < 7; ++i) if (v == to_lower(n[i])) settings_.top_pane_style = i; return; }   // (v is lower case) }
+            case kSidTopPaneRatio: { static const char* n[] = {"(keep top pane row size)", "1:2", "1:1", "3:2", "2:1"}; for (int i = 0; i < 5; ++i) if (v == n[i]) settings_.top_pane_ratio = i; force_redraw_ = true; return; }   // (v is lower case)
+            case kSidMvRatio: { static const char* n[] = {"off", "1:2", "1:1", "3:2", "2:1"}; for (int i = 0; i < 5; ++i) if (v == n[i]) settings_.mv_ratio = i; force_redraw_ = true; return; }
             case kSidThickBorders: { if (v == "off") settings_.thick_borders = 0; else if (v == "thick") settings_.thick_borders = 1; force_redraw_ = true; return; }
             case kSidBarStyle: settings_.bars_style = (v == "hi-fi") ? 1 : 0; g_settings_hifi_rows = settings_.bars_style == 1; return;
             case kSidHifiRes: settings_.hifi_resolution = (v == "rough") ? 1 : 0; return;
@@ -1461,6 +1468,7 @@ void App::settings_commit_edit_impl() {
             case kSidAutoPlay: settings_.auto_play = is_true; break;
             case kSidPauseSphere: settings_.pause_sphere = is_true; break;
             case kSidMultiViz: settings_.multiviz = is_true; force_redraw_ = true; break;
+            case kSidWideSpectrum: settings_.wide_spectrum = is_true; force_redraw_ = true; break;
             case kSidUseMilkdrop: settings_.use_milkdrop = is_true; if (!is_true && settings_.milkdrop_view) settings_.milkdrop_view = false; break;
             case kSidMdShuffle: settings_.milkdrop_shuffle = is_true; break;
             case kSidMdFavShuffle: settings_.milkdrop_fav_shuffle = is_true; break;
@@ -1828,6 +1836,19 @@ void App::settings_cycle(int dir) {
                        (pick == 0 ? (id == kSidMvMain ? " -- the first pane shows what the Lyrics/Viz settings say" : " -- no pane") : " -- a visual that another pane shows already is not shown twice") +
                        (settings_.multiviz ? std::string() : "  (Multi-Viz is off)") + note;
     }
+    if (id == kSidTopPaneRatio) {
+        static const char* const n[] = {"keep top pane row size", "1:2", "1:1", "3:2", "2:1"};
+        const int r = std::clamp(settings_.top_pane_ratio, 0, 4);
+        status_line_ = r == 0 ? "top pane ratio: keep the row size -- the top pane is as tall as the disk"
+                              : std::string("top pane ratio: ") + n[r] + " -- the top pane and the list below it share the rows like this (never smaller than the disk)" + note;
+    }
+    if (id == kSidMvRatio) {
+        static const char* const n[] = {"off", "1:2", "1:1", "3:2", "2:1"};
+        const int r = std::clamp(settings_.mv_ratio, 0, 4);
+        status_line_ = r == 0 ? "multi-viz ratio override: off -- Top Pane Ratio is used"
+                              : std::string("multi-viz ratio override: ") + n[r] + " -- used instead of Top Pane Ratio while two or more Multi-Viz panes fit" + (settings_.multiviz ? std::string() : "  (Multi-Viz is off)") + note;
+    }
+    if (id == kSidWideSpectrum) status_line_ = settings_.wide_spectrum ? "wide spectrum bar: on -- meta data and spectrum bar are as wide as the viz field (1:1)" : "wide spectrum bar: off -- the meta data column is at most 42 columns wide";
     if (id == kSidPauseSphere) status_line_ = settings_.pause_sphere ? "pause sphere: on -- the sphere stops turning while the track is paused" : "pause sphere: off -- the sphere goes on turning while the track is paused";
     if (id == kSidPauseFade) status_line_ = settings_.pause_fade ? "pause fade: on -- pause and resume fade over about 8 ms (no click)" : "pause fade: off -- pause cuts the sound at once (a click is possible)";
     if (id == kSidCliScripts) status_line_ = "cli scripts: [ENTER] opens the script overlay (library and editor of the command line's scripts; ESC comes back here)";

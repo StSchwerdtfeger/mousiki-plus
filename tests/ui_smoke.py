@@ -404,7 +404,7 @@ def radio_latin_toggle(binary, root, scripts):
 
 
 def radio_pane_style(binary, root, scripts):
-    """Radio: TopPaneStyle= (0-5, as the player's): the frame of the sign | station info | scope pane. Every style draws, and no row runs past the window;
+    """Radio: TopPaneStyle= (0-6, as the player's): the frame of the sign | station info | scope pane. Every style draws, and no row runs past the window;
     the gap style has blanks in the top and bottom line, the step style the half stubs, the walls stand in the rows between the corners."""
     def start(tag, style):
         home = os.path.join(root, "rps_home_" + tag)
@@ -423,7 +423,7 @@ def radio_pane_style(binary, root, scripts):
                 break
         sess.send(b"\x1b", 1.0)
         return sess
-    for style in range(6):
+    for style in range(7):
         sess = start(str(style), style)
         try:
             rows = sess.screen.display
@@ -444,6 +444,8 @@ def radio_pane_style(binary, root, scripts):
                 check(sum(1 for l in mid if l[1:-1].count("│") >= 1) >= len(mid) - 2, "radio pane style %d: the walls run down the pane" % style)
             if style == 3:
                 check("╷" in top and "╵" in bottom, "radio pane style 3: the half stubs in the corners")
+            if style == 6:
+                check(top.count("┬") == 2 and bottom.count("┴") == 2 and " " not in top.rstrip(), "radio pane style 6 (T pieces): ┬ twice in the top line, ┴ twice in the bottom line: %r / %r" % (top, bottom))
         finally:
             sess.kill()
 
@@ -1843,7 +1845,7 @@ def top_pane_style(binary, root, scripts):
         lib = os.path.join(root, "music")
         os.makedirs(os.path.join(home, ".config", "mousiki"))
         with open(os.path.join(home, ".config", "mousiki", "config.txt"), "w", encoding="utf-8") as f:
-            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nTopPaneStyle=%s\n" % (lib, val))
+            f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nTopPaneStyle=%s\nTopPaneRatio=0\n" % (lib, val))
         sess = Session(binary, home, scripts, quiet_stderr=True)
         try:
             for _ in range(30):
@@ -1891,7 +1893,7 @@ def top_pane_style(binary, root, scripts):
 def multi_viz(binary, root, scripts):
     """A very wide window (a big 16:9 monitor in full screen, here 330 x 50): the player fills the whole width (it was cut at 200 columns), and with
     MultiViz=true the Viz/Lyrics field is a row of panes (the sphere, the oscilloscope, the spectrogram ...) with the frame's edge still in one column.
-    On a narrower window the panes that do not fit are left out; Settings -> ANIMA/VIZ has the MULTI-VIZ rows right below TOGGLE LYRICS/VIZ."""
+    On a narrower window the panes that do not fit are left out; Settings -> ANIMA/VIZ has the WIDE SCREEN OPTIONS rows (Multi-Viz and the pane ratio) right below TOGGLE LYRICS/VIZ."""
     global COLS, ROWS
     old = (COLS, ROWS)
     lib = os.path.join(root, "mv_music")
@@ -1942,6 +1944,17 @@ def multi_viz(binary, root, scripts):
             check(len(blank_cols) >= 2, "multi-viz: blank columns between the panes (%d of them right of the meta data)" % len(blank_cols))
         finally:
             sess.kill()
+        # Top Pane Ratio 1:1 (the default): the top pane is taller on a tall window and Multi-Viz still shows its panes (and Wide Spectrum Bar widens the meta column)
+        for tag, extra in (("tall", ""), ("tallwide", "TopPaneWideSpectrum=true\n")):
+            sess = start(tag, "MultiViz=true\nMultiVizMain=1\nMultiViz2=2\nMultiViz3=3\n" + extra, 330, 70)
+            try:
+                bottom = next((y for y in range(2, 60) if sess.row_cells(y)[0] == "╰"), -1)
+                check(bottom > 17, "top pane ratio 1:1 (%s): the top pane is taller than the disk (its bottom edge is at row %d)" % (tag, bottom))
+                panel = [sess.row_cells(y) for y in range(1, 16)]
+                blank_cols = [x for x in range(150, 328) if all(r[x] in (" ", "") for r in panel)]
+                check(len(blank_cols) >= 2, "top pane ratio 1:1 (%s): Multi-Viz keeps its panes in the taller pane (%d blank columns)" % (tag, len(blank_cols)))
+            finally:
+                sess.kill()
         sess = start("narrow", "MultiViz=true\nMultiVizMain=1\nMultiViz2=2\nMultiViz3=3\n", 140, 45)
         try:
             check(sess.alive() and not panel_edges(sess, 140), "multi-viz on at 140 columns (no room for panes): the top panel is intact: %s" % "; ".join(panel_edges(sess, 140)[:3]))
@@ -1955,11 +1968,11 @@ def multi_viz(binary, root, scripts):
             seen = []
             for _ in range(80):
                 t = sess.text()
-                for label in ("TOGGLE LYRICS/VIZ", "MULTI-VIZ", "Main Viz", "2nd Viz", "3rd Viz"):
+                for label in ("TOGGLE LYRICS/VIZ", "WIDE SCREEN OPTIONS", "Main Viz", "2nd Viz", "3rd Viz"):
                     if label in t and label not in seen:
                         seen.append(label)
                 sess.send(b"\x1b[B", 0.05)
-            check(all(l in seen for l in ("TOGGLE LYRICS/VIZ", "MULTI-VIZ", "Main Viz", "2nd Viz", "3rd Viz")), "ANIMA/VIZ lists the MULTI-VIZ rows (seen: %s)" % ", ".join(seen))
+            check(all(l in seen for l in ("TOGGLE LYRICS/VIZ", "WIDE SCREEN OPTIONS", "Main Viz", "2nd Viz", "3rd Viz")), "ANIMA/VIZ lists the WIDE SCREEN OPTIONS rows (seen: %s)" % ", ".join(seen))
         finally:
             sess.kill()
     finally:
@@ -2252,7 +2265,7 @@ def disk_field_setting(binary, root, scripts):
         check("LYRICS/VIZ FIELD" in t and "VIZ/LYRICS ORDER" in t and "TOGGLE LYRICS/VIZ" in t, "disk field: the tab starts with LYRICS/VIZ FIELD, the order and the toggles")
         seen = t
         ordered = False
-        for _ in range(22):                                 # past the 13 rows of VIZ/LYRICS ORDER and TOGGLE LYRICS/VIZ, and the 25 below (to Eliment Disk (Auto Video is the first VIDEO row; after Lyrics/Viz Default: When No Lyrics Show, When No Video Shows, Lyrics Alignment, Lyrics Animation, Include Lyrics, Video Size, Effect, Contrast, Colors, Chromatic Aberration, Dither Pattern, Base Layer, Effect Contrast, Rounded Corners, Show Clap Loading, Disk/Cover/Thumbnail, Resolution, Frame Rate, Buffer, yt-dlp mp3 from mp4)
+        for _ in range(25):                                 # past the 13 rows of VIZ/LYRICS ORDER and TOGGLE LYRICS/VIZ, and the 25 below (to Eliment Disk (Auto Video is the first VIDEO row; after Lyrics/Viz Default: When No Lyrics Show, When No Video Shows, Lyrics Alignment, Lyrics Animation, Include Lyrics, Video Size, Effect, Contrast, Colors, Chromatic Aberration, Dither Pattern, Base Layer, Effect Contrast, Rounded Corners, Show Clap Loading, Disk/Cover/Thumbnail, Resolution, Frame Rate, Buffer, yt-dlp mp3 from mp4)
             sess.send(b"\x1b[B", 0.2)
             seen += "\n" + sess.text()
             tt = sess.text()
@@ -5028,14 +5041,14 @@ def milkdrop_radio_book(binary, root, scripts):
         t = sess.text()
         check("MILKDROP" in t and "Show Preset Name" in t, "radio: ANIMA/VIZ has the MILKDROP block")
         check("Sixel Colours" in t and "MilkDrop Effect" in t, "radio: ANIMA/VIZ has the effect rows too")
-        for _ in range(60):   # VIZ ORDER and VIZ TOGGLE follow (the Use rows live there, not in the MILKDROP block); MULTI-VIZ sits below them
+        for _ in range(60):   # VIZ ORDER and VIZ TOGGLE follow (the Use rows live there, not in the MILKDROP block); WIDE SCREEN OPTIONS (Multi-Viz) sit below them
             if re.search(r"Use MilkDrop\s+:", sess.text()):   # the row itself (the description text also mentions "Use MilkDrop")
                 break
             sess.send(b"\x1b[B", 0.35)   # (the MilkDrop rows redraw a live preview, so single steps need a little time)
         sess.pump(0.6)
         t2 = sess.text()
-        # (the header of VIZ TOGGLE may have scrolled out of the window: the MULTI-VIZ block right below the Use rows is in view then)
-        ok_use = ("VIZ TOGGLE" in t2 or "MULTI-VIZ" in t2) and "Use MilkDrop" in t2 and "Use Sphere" in t2
+        # (the header of VIZ TOGGLE may have scrolled out of the window: the WIDE SCREEN OPTIONS block right below the Use rows is in view then)
+        ok_use = ("VIZ TOGGLE" in t2 or "WIDE SCREEN OPTIONS" in t2) and "Use MilkDrop" in t2 and "Use Sphere" in t2
         if not ok_use: sess.dump("radio use rows")
         check(ok_use, "radio: ANIMA/VIZ has the VIZ TOGGLE block with the Use rows")
         for _ in range(3):   # SHIFT+UP: ten rows at a time (three presses cannot reach this far with single steps)

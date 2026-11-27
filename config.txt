@@ -87,7 +87,7 @@ ElimentDiskBorder=false
 SharpCorners=false
 ## 0 , 1 (default 0) -- 0 = thin frame lines, 1 = thick frame lines with thick round corners and bold pane titles (the whole frame is drawn with the small font "Mousiki Corners", which Mousiki installs; the terminal font list needs it after the main font, else the lines are heavy but the round corners stay thin). An older value 2 counts as 1
 ThickBorders=0
-## 0 , 1 , 2 , 3 , 4 , 5 (default 0) -- the frame of the upper pane (disk | meta data | lyrics / viz field): 0 = one box round all three; 1, 2, 3 = three panes I, II, III that share their walls; 4 = two panes (the disk, and meta data + lyrics / viz field in one); 5 = gap (one box with four gaps in its lines); see the preview in Settings
+## 0 , 1 , 2 , 3 , 4 , 5 , 6 (default 0) -- the frame of the upper pane (disk | meta data | lyrics / viz field): 0 = one box round all three; 1, 2, 3 = three panes I, II, III that share their walls; 4 = two panes (the disk, and meta data + lyrics / viz field in one); 5 = gap (one box with four gaps in its lines); 6 = three panes T (one box, the walls joined to its lines with T pieces); see the preview in Settings
 TopPaneStyle=0
 ## Album Cover (music player) = the cover of the playing track takes the disk's place (needs ElimentDisk=true; a track without a cover keeps the disk)
 AlbumCover=false
@@ -224,6 +224,12 @@ MultiVizMain=0
 MultiViz2=3
 ## What the third pane shows (same numbers; default 0 = off).
 MultiViz3=0
+## 0 keep the top pane row size (as tall as the disk) , 1 = 1:2 , 2 = 1:1 (default) , 3 = 3:2 , 4 = 2:1 -- Wide Screen Options: the rows of the main screen shared between the top pane (disk | meta data | field) and the list / queue below it (top : bottom). Never smaller than the disk; a small window stays as it is
+TopPaneRatio=2
+## 0 off (default: Top Pane Ratio is used) , 1 = 1:2 , 2 = 1:1 , 3 = 3:2 , 4 = 2:1 -- Wide Screen Options: Multi-Viz Ratio Override, the top pane : list ratio used instead of Top Pane Ratio while two or more Multi-Viz panes fit the screen
+MultiVizRatio=0
+## true , false (default false) -- Wide Screen Options: the meta data column with its spectrum bar grows to the same width as the viz field (1:1) on a wide screen; off: at most 42 columns
+TopPaneWideSpectrum=false
 UseOscilloscope=true
 UseSpectrogram=true
 UseSphere=true
@@ -772,6 +778,7 @@ HKeyNavigateDown="ARROW_KEY_DOWN"
 HKeyPlay="ENTER"
 HKeyPlayNextSong="n"
 HKeyPlayPreviousSong="b"
+HKeyRestartTrack="r"
 HKeyTogglePlayPause="p"
 HKeyCyclePlayMode="m"
 HKeyCyclePlayModeBack="j"
@@ -793,7 +800,7 @@ HKeyMetaEditor="M"
 HKeyHistory="H"
 HKeyRetryLyrics="l"
 HKeyConsole="t"
-HKeyRefreshUi="r"
+HKeyRefreshUi="CTRL+R"
 HKeyKaraoke="k"
 HKeyToggleLyrics="."
 HKeyToggleLyricsBack=","

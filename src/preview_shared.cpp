@@ -34,7 +34,7 @@ void preview_chord_frames(double& t, size_t n, std::vector<float>& lr) {
 PanePreview pane_preview(int style, int w, const char* name1, const char* name2, const char* name3, const panestyle::Glyphs& g,
                          const std::string& border, const std::string& border_bottom, const std::string& label_on, const std::string& label_off) {
     PanePreview out;
-    style = std::clamp(style, 0, 5);
+    style = std::clamp(style, 0, panestyle::kStyles - 1);
     const bool split = panestyle::split(style);
     const int c1 = split ? (style == 4 ? w / 3 : w / 4) : -1, c2 = split && style != 4 ? w * 5 / 8 : -1;   // (two panes: one wall)
     std::vector<int> walls;
@@ -58,7 +58,7 @@ PanePreview pane_preview(int style, int w, const char* name1, const char* name2,
         out.rows.push_back(line + bar);
     }
     out.rows.push_back(panestyle::row(g, style, false, w, walls, border_bottom));
-    static const char* const kCaptions[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap"};
+    static const char* const kCaptions[] = {"one box", "three panes I", "three panes II", "three panes III", "two panes", "gap", "three panes T"};
     out.caption = kCaptions[style];
     return out;
 }

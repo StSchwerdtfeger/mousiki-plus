@@ -109,6 +109,11 @@ struct Settings : VizPrefs {
     int mv_main = 0;
     int mv_2 = 3;
     int mv_3 = 0;
+    // Wide Screen Options: how the rows of the main screen are shared between the top pane (disk | meta data | field) and the list / queue below
+    // it: 0 keep the row size (the top pane is as tall as the disk), 1 = 1:2, 2 = 1:1, 3 = 3:2, 4 = 2:1 (top : bottom). Multi-Viz is kept in a taller pane.
+    int top_pane_ratio = 2;   // (default 1:1)
+    int mv_ratio = 0;         // Multi-Viz Ratio Override: 0 off (Top Pane Ratio is used), 1..4 = 1:2, 1:1, 3:2, 2:1 -- the ratio while several panes fit
+    bool wide_spectrum = false;   // Wide Spectrum Bar: the meta data column (and its spectrum bars) is as wide as the viz field (1:1) instead of at most 42 columns
     bool book_force_note = true;    // audio book: while a note is in the field, no picture (MilkDrop / video) is drawn there, only the note
     bool use_osci = true;
     bool use_spectro = true;
@@ -688,7 +693,7 @@ std::string gradient_ansi(const std::string& start, const std::string& end, floa
 // The same for the plain disk, with its Disk Gradient Vividness (0 .. 100 %, see vivid.h).
 std::string disk_gradient_ansi(const std::string& start, const std::string& end, float t, int vivid);
 // the same gradients with a Gradient Vividness (0 = as they are): the braille scope / spectrogram, the bars, the volume bar
-std::string vivid_colour_ansi(const std::string& color, int vivid, bool bold = true);   // ansi_for() of a palette colour made vivid (0 = as it is)
+std::string vivid_colour_ansi(const std::string& color, int vivid, bool bold = true, float glow_gain = 0.3f);   // ansi_for() of a palette colour made vivid (0 = as it is)
 std::string vivid_gradient_ansi(const std::string& start, const std::string& end, float t, int vivid);
 std::string vivid_multi_stop_gradient_ansi(const std::string& left, const std::string& center, const std::string& right, float t, int vivid);
 

@@ -416,7 +416,8 @@ The main screen consists of five panes, which are discussed below. The focus bet
 SEARCH, LOCAL AUDIO FILES and QUEUE can be changed via [TAB], where the [◀] is an indicator
 for the current focus. Commands that work no matter which pane is focused are [n] for next
 song in list and [b] song before current song in a list (while a LOCKED queue has titles, in
-any pane, [b] plays the previously played queue song), [p] play/pause, [+/-] change
+any pane, [b] plays the previously played queue song), [r] plays the track again from
+its beginning, [p] play/pause, [+/-] change
 volume, [x] mute, [SHIFT+n] to toggle if either the filename or the meta data track name
 is shown in the track lists, as well as all commands that open certain overlays (such as
 the settings, oscilloscope parameter overlay etc.).
@@ -1357,9 +1358,9 @@ SETTING[[Header]]                       [WHAT IT DOES][[Header]]
 [Show Clap Loading][[Legend]]             text note / clap / none while a video loads.
 These are also rows of the VIDEO SETTINGS overlay [&] (a track without a video only lists the "Videos for songs" rows there; ▲ ... / ▼ ... mark more rows); in the big video overlay the Video key [&] opens 
 them as a panel.
-For a song paired with a video, VIDEO OPTIONS has one more row: Use mp4 audio for
-this song (false = the song's own audio, true = the audio of its video; changed while it plays,
-the audio is loaded again at the same time).
+For a song paired with a video, VIDEO SETTINGS and VIDEO OPTIONS have one more row:
+Use mp4 audio for this track (false = the song's own audio, true = the audio of its
+video; saved for the track at once, and while it plays the audio is loaded again at the same time).
 
 BUTTONS IN THE OVERLAY:[[Header]]
 BUTTON[[Legend]]                            WHAT IT DOES[[Legend]]
@@ -1930,6 +1931,12 @@ marquee.
                                                   III, two panes or gap. The preview shows the shape. The
                                                   radio has the same row (ANIMA/VIZ tab, TOP PANE).
 
+[Top Pane Ratio:][[Legend]]                                   Music player and audio books: how the rows of the main
+                                                  screen are shared between the top pane and the list
+                                                  below it: 1:2, 1:1 (default), 3:2, 2:1 (top : bottom) or
+                                                  (Keep top pane row size), as tall as the disk. Never
+                                                  smaller than the disk. Multi-Viz keeps working.
+
 [Sharp Corners:][[Legend]]                                    true = sharp frame corners everywhere (the Settings
                                                   screen, sharp by itself, gets round ones then); default
                                                   false. Each mode keeps its own value.
@@ -2183,7 +2190,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   the [,/.] cycle entirely. The oscilloscope/spectrogram,
                                                   overlays and their extra window modes remain functional!
 
-[MULTI-VIZ:][[Header]]
+[WIDE SCREEN OPTIONS:][[Header]]
 [Multi-Viz][[Legend]]                                         true = on a very wide window (a big monitor in full screen)
                                                   the field is split into up to 3 panes side by side (40
                                                   columns each at least; less room: fewer panes).
@@ -2192,6 +2199,10 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 [2nd Viz / 3rd Viz][[Legend]]                                 What the other panes show: off, sphere, osci, spectro,
                                                   video, milkdrop. A visual is shown once; one that
                                                   cannot be drawn gives way to the next one that can.
+[Multi-Viz Ratio Override][[Legend]]                          A ratio used instead of Top Pane Ratio while two or more
+                                                  Multi-Viz panes fit the screen. off: Top Pane Ratio.
+[Wide Spectrum Bar][[Legend]]                                 On a wide screen the meta data column with its spectrum
+                                                  bar is as wide as the viz field (1:1), not at most 42.
 
 [LYRICS:][[Header]]                          
 [Lyrics Alignment][[Legend]]                                  Aligned left / center / right
@@ -3565,6 +3576,9 @@ MultiViz                           false
 MultiVizMain                       0
 MultiViz2                          3
 MultiViz3                          0
+TopPaneRatio                       2
+MultiVizRatio                      0
+TopPaneWideSpectrum                false
 UseOscilloscope                    true
 UseSpectrogram                     true
 UseSphere                          true
@@ -3836,7 +3850,8 @@ BulkAdd                            G
 StyleOptions                       S
 VideoFetch                         ALT+V
 Translit                           "
-RefreshUi                          r
+RefreshUi                          CTRL+R
+RestartTrack                       r
 LyricsTiming                       ALT+L
 Creator                            ^
 FetchTags                          B

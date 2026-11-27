@@ -76,6 +76,7 @@ enum StyleRow : int {
     kStMp4Audio,        // Use mp4 audio for this song            (a song paired with a video)
     kStResetCover,      // Reset cover to default settings: the track's own cover style is removed (a button)
     kStSetCover,        // Set individual cover settings as default settings: the general cover values become the track's own (a button)
+    kStZeroCover,       // Set all values to 0%: every value of the track's cover style (not the look) becomes 0 (a button)
     kStCoverUndo,       // Undo change: the last cover change (a value, a button, the album look) is taken back (a button)
     kStMilkdropGo,      // Go to MilkDrop settings: the MilkDrop settings of this track (projectM installed)
     kStAlbum            // Look of the whole album (always the last row)
@@ -86,6 +87,7 @@ inline std::vector<StyleRow> style_rows(bool video_mode, bool paired, bool milkd
     (void)video_mode; (void)paired;   // (the overlay is only about the cover now: the video settings of a track are in VIDEO SETTINGS / VIDEO OPTIONS)
     v.push_back(kStResetCover);
     v.push_back(kStSetCover);
+    v.push_back(kStZeroCover);
     v.push_back(kStCoverUndo);
     (void)milkdrop;   // (no MilkDrop row: the MilkDrop settings of a track are in the visuals menu [:] of the big video overlay)
     v.push_back(kStAlbum);

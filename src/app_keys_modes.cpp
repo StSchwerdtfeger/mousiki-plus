@@ -504,7 +504,7 @@ void App::handle_karaoke_key(int key) {
     }
     if (act == "HKeyKaraoke") { karaoke_close(); return; }
     static const char* const kPassThrough[] = {
-        "HKeyTogglePlayPause", "HKeyPlayNextSong", "HKeyPlayPreviousSong", "HKeyShuffleNext",
+        "HKeyTogglePlayPause", "HKeyPlayNextSong", "HKeyPlayPreviousSong", "HKeyRestartTrack", "HKeyShuffleNext",
         "HKeyIncreaseVolume", "HKeyDecreaseVolume", "HKeyToggleMute", "HKeyCyclePlayMode", "HKeyCyclePlayModeBack", "HKeyToggleNormalize",
     };
     bool pass = arrow && (key == 'C' || key == 'D');   // Left/Right: seek

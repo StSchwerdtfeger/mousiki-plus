@@ -6,6 +6,7 @@
 // and sphere are fed with the signal of the radio's "TEST Stereo Chords" station, made here in the program; the spectrogram
 // with a spectrogram the Creator makes from the text "Mousiki Plus". No file, no network and no ffmpeg are needed.
 #include <cstring>
+#include "vivid.h"
 #include "terminal_font.h"
 #include "pane_style.h"
 #include "corners.h"
@@ -138,6 +139,12 @@ std::string pv_desc(int id, const Settings& s) {
     switch (id) {
         case kSidMultiViz:
             return "On a wide screen (a big monitor in full screen) the Viz/Lyrics field is split into up to three panes side by side, about 40 columns each: the first shows the field as usual (or the Main Viz), the others the 2nd and 3rd Viz. On a narrower screen only as many panes as fit are shown; off: one view.";
+        case kSidTopPaneRatio:
+            return "How the rows of the main screen are shared between the top pane (disk, meta data, viz field) and the list or queue below it. (Keep top pane row size): the top pane is as tall as the disk. 1:2, 1:1, 3:2, 2:1: top pane to list, so a tall screen gives the viz field more rows. The pane is never smaller than the disk, which is what the meta data and the spectrum bar need.";
+        case kSidMvRatio:
+            return "A ratio (top pane : list) used instead of Top Pane Ratio while two or more Multi-Viz panes fit the screen width, so a big screen can have a taller pane for several visuals and a normal one for a single view. off: Top Pane Ratio is always used.";
+        case kSidWideSpectrum:
+            return "On a wide screen the meta data column, with the spectrum bar under it, is normally at most 42 columns wide and the viz field takes everything else. On: the two are as wide as each other (1:1).";
         case kSidMvMain:
             return "What the first pane shows: as field = what Lyrics/Viz Default and the \".\" key say (lyrics, a visual, the video ...), or one fixed visual. A visual that is on in another pane is not drawn twice.";
         case kSidMvSecond: case kSidMvThird:
@@ -624,7 +631,7 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
         const int n = cw;
         const double frac = std::fmod(P.t / 20.0, 1.0);
         const int active = static_cast<int>(frac * n);
-        const std::string cp = vivid_colour_ansi(settings_.progress_played_color, settings_.wave_vivid), cu = vivid_colour_ansi(settings_.progress_remaining_color, settings_.wave_vivid);
+        const std::string cp = vivid_colour_ansi(settings_.progress_played_color, settings_.wave_vivid, true, kWaveGlowGain), cu = vivid_colour_ansi(settings_.progress_remaining_color, settings_.wave_vivid, true, kWaveGlowGain);
         if (settings_.element_waveform) {
             const auto levels = WaveformQuantizer::resample_for_ui(settings_.waveform_smooth ? P.env_smooth : P.env_raw, n);
             std::string top, mid, bot;

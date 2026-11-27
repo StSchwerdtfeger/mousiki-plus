@@ -590,6 +590,7 @@ std::string App::render_frame(TerminalIO& term) {
         fo_->scroll = std::clamp(fo_->scroll, 0, std::max(0, n - fo_->rows));
         if (fo_->sel < fo_->scroll) fo_->scroll = fo_->sel;
         if (fo_->sel >= fo_->scroll + fo_->rows) fo_->scroll = fo_->sel - fo_->rows + 1;
+        folder_overlay_ensure_meta();
     }
     // Big queue overlay (SHIFT+k): same per-frame sizing for the queue window.
     // (Never open together with the list overlay, so they can share overlay_panel_w.)

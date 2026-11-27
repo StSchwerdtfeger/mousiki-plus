@@ -219,6 +219,7 @@ void App::build_cheatsheet_screen(std::ostringstream& frame, int W) const {
         {nullptr, "HKeyTogglePlayPause", "Play / pause"},
         {nullptr, "HKeyPlayNextSong", "Play next in list/queue"},
         {nullptr, "HKeyPlayPreviousSong", "Play previous in list (a locked queue with titles, any pane: previous queue song)"},
+        {nullptr, "HKeyRestartTrack", "Restart the track that plays from its beginning"},
         {nullptr, "HKeyShuffleNext", "Shuffle to a random next track"},
         {nullptr, "HKeyCyclePlayMode", "Cycle play mode (list/repeat/shuffle/stop/queue then stop)"},
         {nullptr, "HKeyCyclePlayModeBack", "Cycle play mode backwards (list/repeat/shuffle/stop/queue then stop)"},

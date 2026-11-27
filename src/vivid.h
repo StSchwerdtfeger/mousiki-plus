@@ -5,7 +5,9 @@
 #include <cstdio>
 #include <string>
 namespace muisc {
-inline void vivid_boost(float* c, float vivid) {   // c: r, g, b as 0 .. 255 floats, changed in place
+// The progress waveform glows more above 100 % than the other gradients (0.9: at 150 % the colours are 45 % of the way to white, they were 15 %) -- thin braille dots need it to stand out.
+constexpr float kWaveGlowGain = 0.9f;
+inline void vivid_boost(float* c, float vivid, float glow_gain = 0.3f) {   // c: r, g, b as 0 .. 255 floats, changed in place (glow_gain: how fast the glow above 100 % rises; the progress waveform asks for more)
     if (vivid <= 0.f) return;
     const float y = 0.299f * c[0] + 0.587f * c[1] + 0.114f * c[2];
     // 0 .. 1: the push away from grey peaks in the middle (none at 1) while the brightness rises to the full colour. 1 .. 1.5: no more
@@ -17,7 +19,7 @@ inline void vivid_boost(float* c, float vivid) {   // c: r, g, b as 0 .. 255 flo
     for (int k = 0; k < 3; ++k) f[k] = std::max(0.f, y + (c[k] - y) * push);
     const float m = std::max({f[0], f[1], f[2], 1.f});
     const float scale = 1.f + v1 * (255.f / m - 1.f);
-    const float glow = 0.3f * extra;   // (at 100 % the gradient colours already are the neon edge looks' -- pink (205,95,205) -> (255,118,255), teal (50,190,200) -> (64,242,255); beyond it only a little lighter)
+    const float glow = glow_gain * extra;   // (at 100 % the gradient colours already are the neon edge looks' -- pink (205,95,205) -> (255,118,255), teal (50,190,200) -> (64,242,255); beyond it only a little lighter)
     for (int k = 0; k < 3; ++k) { const float v = std::clamp(f[k] * scale, 0.f, 255.f); c[k] = v + glow * (255.f - v); }
 }
 // A truecolour foreground "ESC[38;2;R;G;Bm" made vivid (any other string, or vivid <= 0, comes back as it is): the one place the other

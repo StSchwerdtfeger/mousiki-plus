@@ -621,7 +621,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     const int fixed_w = (show_sign ? kLeftW : 0) + kMetaW + sep_w;
     // Main UI Pane Style: the frame's walls between the panes (the sign | the station info | the scope block); the wall at the scope takes
     // two columns (a blank, then the wall) of the scope block, as the player's does of its field
-    const int pstyle = std::clamp(cfg.top_pane_style, 0, 5);
+    const int pstyle = std::clamp(cfg.top_pane_style, 0, panestyle::kStyles - 1);
     const bool psplit = panestyle::split(pstyle);
     const int wall_w = psplit && pstyle != 4 && cfg.scope_mode != 2 && avail - fixed_w - 2 >= 12 ? 2 : 0;
     const int rest_w = std::max(1, avail - fixed_w - wall_w);

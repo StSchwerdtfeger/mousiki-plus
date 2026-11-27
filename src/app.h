@@ -674,6 +674,7 @@ private:
     void folder_overlay_close();
     void folder_overlay_build_tree();
     bool folder_overlay_key(int key);        // true = consumed
+    void folder_overlay_ensure_meta();      // SHIFT+n: the tags of the files in view
     void folder_overlay_filter();            // `f`: show the hovered folder / the folder of the hovered file in the list
     void folder_overlay_geometry(int W, int& panel_w, int& rows) const;
     std::vector<LegendRow> folder_overlay_legend(int panel_w) const;
@@ -2384,6 +2385,9 @@ private:
     void meta_panel_field(MetaPanel& m) const;
     std::vector<std::string> build_metadata_panel(int width) const;   // (empty when the window is too small for it)
     bool show_metadata_panel(int width) const;
+    struct TopLayout;
+    TopLayout top_layout(int width) const;   // the columns of the top pane and the number of Multi-Viz panes
+    int top_pane_height(int width) const;   // the rows of the top pane's content: the disk's height, or more with Settings -> Top Pane Ratio
     std::vector<std::string> build_progress_panel(int width) const;
     std::vector<std::string> build_search_bar(int width) const;
     std::vector<std::string> build_list_panel(int width, int height) const;

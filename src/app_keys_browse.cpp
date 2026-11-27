@@ -353,6 +353,10 @@ bool App::browse_queue_misc_key(const std::string& action, int key, int lookup_k
         act_cycle_play_mode();   // one key for all five play modes
     } else if (action == "HKeyCyclePlayModeBack") {
         act_cycle_play_mode(-1);   // ... and the same the other way round
+    } else if (action == "HKeyRestartTrack") {
+        // The track that plays starts again from its beginning (paused stays paused; the queue and the list are not touched).
+        if (!has_track_) status_line_ = "restart: no track is playing";
+        else { player_.seek_relative(-player_.poll_elapsed()); status_line_ = "restarted from the beginning"; }
     } else if (action == "HKeyKaraoke") {
         // The karaoke overlay: the lyrics of the playing track over the whole screen.
         mode_ = Mode::Karaoke;

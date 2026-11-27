@@ -195,11 +195,11 @@ std::string disk_gradient_ansi(const std::string& start, const std::string& end,
     return "\x1b[38;2;" + std::to_string(static_cast<int>(c[0] + 0.5f)) + ";" + std::to_string(static_cast<int>(c[1] + 0.5f)) + ";" + std::to_string(static_cast<int>(c[2] + 0.5f)) + "m";
 }
 
-std::string vivid_colour_ansi(const std::string& color, int vivid, bool bold) {
+std::string vivid_colour_ansi(const std::string& color, int vivid, bool bold, float glow_gain) {
     int r, g, b;
     if (vivid <= 0 || !try_parse_rgb(color, r, g, b)) return ansi_for(color, bold);
     float c[3] = {static_cast<float>(r), static_cast<float>(g), static_cast<float>(b)};
-    vivid_boost(c, static_cast<float>(std::clamp(vivid, 0, 150)) / 100.0f);
+    vivid_boost(c, static_cast<float>(std::clamp(vivid, 0, 150)) / 100.0f, glow_gain);
     return "\x1b[38;2;" + std::to_string(static_cast<int>(c[0] + 0.5f)) + ";" + std::to_string(static_cast<int>(c[1] + 0.5f)) + ";" + std::to_string(static_cast<int>(c[2] + 0.5f)) + "m";
 }
 
@@ -396,7 +396,8 @@ void apply_default_hotkeys(Settings& s) {
             {"HKeyQuit",                        "q"},
             {"HKeyDownloadStream",              "y"},
             // "k" opens the karaoke overlay; Refresh UI is on "r" (migrated below).
-            {"HKeyRefreshUi",                   "r"},
+            {"HKeyRefreshUi",                   "CTRL+R"},   // (was "r": that key restarts the track now)
+            {"HKeyRestartTrack",                "r"},        // the track plays from its beginning again
             {"HKeyKaraoke",                     "k"},
             {"HKeyVideoFxBack",                 "h"},   // the previous video effect for this track (the other direction of "g")
             {"HKeyVideoFx",                     "g"},   // the next video effect for this track (the picture in the small field)
@@ -581,6 +582,16 @@ void apply_default_hotkeys(Settings& s) {
                     if (action != "HKeyRefreshUi" && key == "r") { r_taken = true; break; }
                 if (!r_taken) ref->second = "r";
                 else s.hotkeys["HKeyKaraoke"] = "";   // no free default: left unbound (rebind it under Settings -> REFERENCE)
+            }
+        }
+        // Migration: "r" restarts the track and Refresh UI moved to CTRL+R. A config from before (Refresh UI on "r", no Restart Track key
+        // yet) is moved over -- unless CTRL+R is taken; Restart Track then stays unbound (rebind it under Settings -> REFERENCE).
+        if (s.hotkeys.find("HKeyRestartTrack") == s.hotkeys.end()) {
+            auto ref = s.hotkeys.find("HKeyRefreshUi");
+            if (ref != s.hotkeys.end() && ref->second == "r") {
+                bool taken = false;
+                for (const auto& [action, key] : s.hotkeys) if (action != "HKeyRefreshUi" && key == "CTRL+R") taken = true;
+                if (!taken) ref->second = "CTRL+R";
             }
         }
         // Migration: the scope window moved from SHIFT+w ("W") to SHIFT+9 (")"), next to the spectrogram window on SHIFT+8.
@@ -917,6 +928,9 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_FLAG("MultiViz", nullptr, multiviz, "\n## true , false (default false) -- Multi-Viz: on a wide screen the Viz/Lyrics field is split into up to three panes side by side (about 40 columns each; on a narrower screen the panes that do not fit are left out)\n"),
     SIMPLE_NUM("MultiVizMain", nullptr, mv_main, 0, 5, "\n## 0 the field as Lyrics/Viz Default shows it (default) , 1 sphere , 2 oscilloscope , 3 spectrogram , 4 video , 5 MilkDrop -- what the first pane of Multi-Viz shows\n"),
     SIMPLE_NUM("MultiViz2", nullptr, mv_2, 0, 5, "\n## 0 off , 1 sphere , 2 oscilloscope , 3 spectrogram (default) , 4 video , 5 MilkDrop -- what the second pane of Multi-Viz shows (a visual another pane shows already is not shown twice)\n"),
+    SIMPLE_NUM("TopPaneRatio", nullptr, top_pane_ratio, 0, 4, "\n## 0 keep the top pane row size (as tall as the disk) , 1 = 1:2 , 2 = 1:1 (default) , 3 = 3:2 , 4 = 2:1 -- Wide Screen Options: the rows of the main screen shared between the top pane (disk | meta data | field) and the list / queue below it (top : bottom). Never smaller than the disk; a small window stays as it is\n"),
+    SIMPLE_NUM("MultiVizRatio", nullptr, mv_ratio, 0, 4, "\n## 0 off (default: Top Pane Ratio is used) , 1 = 1:2 , 2 = 1:1 , 3 = 3:2 , 4 = 2:1 -- Wide Screen Options: Multi-Viz Ratio Override, the top pane : list ratio used instead of Top Pane Ratio while two or more Multi-Viz panes fit the screen\n"),
+    SIMPLE_FLAG("TopPaneWideSpectrum", nullptr, wide_spectrum, "\n## true , false (default false) -- Wide Screen Options: the meta data column with its spectrum bar grows to the same width as the viz field (1:1) on a wide screen; off: at most 42 columns\n"),
     SIMPLE_NUM("MultiViz3", nullptr, mv_3, 0, 5, "\n## 0 off (default) , 1 sphere , 2 oscilloscope , 3 spectrogram , 4 video , 5 MilkDrop -- what the third pane of Multi-Viz shows\n"),
     SIMPLE_FLAG("BookForceNote", nullptr, book_force_note, "\n## audio book: true = while a note is shown in the Viz/Notes field, only the note is drawn there (no MilkDrop or other picture), false = the picture stays behind it\n"),
     SIMPLE_FLAG("UseOscilloscope", nullptr, use_osci, "\n"),
@@ -1039,7 +1053,7 @@ const SimpleSetting kSimpleSettings[] = {
     SIMPLE_NUM("ThickBorders", nullptr, thick_borders, 0, 1, "\n## 0 , 1 (default 0) -- 0 = thin frame lines, 1 = thick frame lines with thick round corners and bold pane titles (the whole frame is drawn with the small font \"Mousiki Corners\", which Mousiki installs; the terminal font list needs it after the main font, else the lines are heavy but the round corners stay thin). An older value 2 counts as 1\n"),
     SIMPLE_FLAG("SharpCorners", "sharp_corners", sharp_corners, "\n## true , false -- the frames have sharp corners instead of round ones everywhere; the Settings screen (sharp by itself) gets round corners then\n"),
     SIMPLE_FLAG("ElimentDiskBorder", "eliment_disk_border", disk_border, "\n## true , false -- the \":  :\" column between the disk (or cover) and the meta data; false: it is left out and the disk sits in the middle of the space between the left border and the meta data\n"),
-    SIMPLE_NUM("TopPaneStyle", nullptr, top_pane_style, 0, 5, "\n## 0 , 1 , 2 , 3 , 4 , 5 (default 0) -- the frame of the upper pane (disk | meta data | lyrics / viz field): 0 = one box round all three; 1, 2, 3 = three panes I, II, III that share their walls; 4 = two panes (the disk, and meta data + lyrics / viz field in one); 5 = gap (one box with four gaps in its lines); see the preview in Settings\n"),
+    SIMPLE_NUM("TopPaneStyle", nullptr, top_pane_style, 0, 6, "\n## 0 , 1 , 2 , 3 , 4 , 5 , 6 (default 0) -- the frame of the upper pane (disk | meta data | lyrics / viz field): 0 = one box round all three; 1, 2, 3 = three panes I, II, III that share their walls; 4 = two panes (the disk, and meta data + lyrics / viz field in one); 5 = gap (one box with four gaps in its lines); 6 = three panes T (one box, the walls joined to its lines with T pieces); see the preview in Settings\n"),
     SIMPLE_FLAG("TerminalDefaultFont", nullptr, terminal_default_font, "\n## true , false -- true = Mousiki leaves the terminal's own font alone; false = Mousiki's window uses the font of TerminalFont= (Settings -> GENERAL -> TEXT AND TRANSLITERATION -> Terminal Default Font)\n"),
     SIMPLE_FLAG("MarqueeScrolling", nullptr, marquee, "\n"),
     SIMPLE_FLAG("StereoPlayback", nullptr, stereo, "\n"),
@@ -2774,7 +2788,7 @@ void copy_look(const Settings& src, Settings& dst) {
     // elements and visualizations
     MOUSIKI_LOOK(element_disk); MOUSIKI_LOOK(disk_border); MOUSIKI_LOOK(top_pane_style); MOUSIKI_LOOK(sharp_corners); MOUSIKI_LOOK(thick_borders); MOUSIKI_LOOK(element_dummy_buttons); MOUSIKI_LOOK(element_queue); MOUSIKI_LOOK(element_waveform);
     MOUSIKI_LOOK(volume_indicator); MOUSIKI_LOOK(volume_gradient); MOUSIKI_LOOK(element_vizfield); MOUSIKI_LOOK(element_lyrics);
-    MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(book_force_note); MOUSIKI_LOOK(multiviz); MOUSIKI_LOOK(mv_main); MOUSIKI_LOOK(mv_2); MOUSIKI_LOOK(mv_3); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
+    MOUSIKI_LOOK(lyric_viz); MOUSIKI_LOOK(nolyrics_viz); MOUSIKI_LOOK(use_lyrics); MOUSIKI_LOOK(book_force_note); MOUSIKI_LOOK(multiviz); MOUSIKI_LOOK(mv_main); MOUSIKI_LOOK(top_pane_ratio); MOUSIKI_LOOK(mv_ratio); MOUSIKI_LOOK(wide_spectrum); MOUSIKI_LOOK(mv_2); MOUSIKI_LOOK(mv_3); MOUSIKI_LOOK(use_osci); MOUSIKI_LOOK(use_spectro);
     MOUSIKI_LOOK(use_milkdrop); MOUSIKI_LOOK(milkdrop_view); MOUSIKI_LOOK(milkdrop_presets); MOUSIKI_LOOK(milkdrop_extra_paths); MOUSIKI_LOOK(milkdrop_gpu); MOUSIKI_LOOK(milkdrop_lock); MOUSIKI_LOOK(milkdrop_hcd); MOUSIKI_LOOK(milkdrop_aspect); MOUSIKI_LOOK(milkdrop_ratio); MOUSIKI_LOOK(milkdrop_mesh); MOUSIKI_LOOK(milkdrop_var); MOUSIKI_LOOK(milkdrop_clean); MOUSIKI_LOOK(milkdrop_fps); MOUSIKI_LOOK(milkdrop_res); MOUSIKI_LOOK(milkdrop_win_res);
     MOUSIKI_LOOK(milkdrop_preset_secs); MOUSIKI_LOOK(milkdrop_shuffle); MOUSIKI_LOOK(milkdrop_fav_shuffle); MOUSIKI_LOOK(milkdrop_auto); MOUSIKI_LOOK(milkdrop_auto_video_was); MOUSIKI_LOOK(milkdrop_fx); MOUSIKI_LOOK(milkdrop_fixed_colors); MOUSIKI_LOOK(milkdrop_cut_sens); MOUSIKI_LOOK(milkdrop_fx_on); MOUSIKI_LOOK(milkdrop_default_preset); MOUSIKI_LOOK(milkdrop_hard_cuts);
     MOUSIKI_LOOK(milkdrop_transition); MOUSIKI_LOOK(milkdrop_show_name);
