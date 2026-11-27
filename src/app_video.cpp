@@ -472,7 +472,7 @@ std::vector<std::string> App::video_lyric_rows(int width, double elapsed, int mo
     std::lock_guard<std::mutex> lock(lyrics_.mutex);
     if (audiobook_ || !settings_.lyrics_on() || !lyrics_.ready || lyrics_.result.lines.empty()) return rows;
     std::vector<LyricLine> lines = lyrics_.result.lines;
-    latinize_lyrics(lines);
+    const TranslitHold translit_hold(latinize_lyrics(lines));   // (the kanji reader is not through yet: the lyrics stay as they are until it is)
     const double lt = elapsed - lyrics_.result.delay;
     int act = 0;
     for (size_t i = 0; i < lines.size(); ++i) { if (lines[i].start_time <= lt) act = static_cast<int>(i); else break; }

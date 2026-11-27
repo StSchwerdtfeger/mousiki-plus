@@ -4,6 +4,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <functional>
 #include <cctype>
 #include <cstdint>
 #include <cstring>
@@ -930,7 +932,32 @@ std::string with_latin_spelling(const std::string& s) {
     return l == s ? s : s + " " + l;
 }
 
-bool translit_enabled() { return g_on.load(std::memory_order_relaxed); }
+namespace { thread_local bool t_hold = false; std::atomic<bool> g_reader_on{true}; }
+bool translit_enabled() { return !t_hold && g_on.load(std::memory_order_relaxed); }
+TranslitHold::TranslitHold(bool hold) : prev_(t_hold) { if (hold) t_hold = true; }
+TranslitHold::~TranslitHold() { t_hold = prev_; }
+void translit_set_kanji_reader_available(bool available) { g_reader_on.store(available, std::memory_order_relaxed); }
+
+bool lyrics_translit_pending(const std::vector<std::string>& texts) {
+    if (!g_reader_on.load(std::memory_order_relaxed) || !g_on.load(std::memory_order_relaxed) || texts.empty()) return false;
+    static std::mutex mu;
+    static size_t last_key = 0;
+    static bool last_pending = false;
+    static std::chrono::steady_clock::time_point since{}, checked{};
+    size_t key = texts.size();
+    for (const std::string& t : texts) key = key * 1099511628211ull ^ std::hash<std::string>()(t);
+    const auto now = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lock(mu);
+    if (key == last_key) {
+        if (!last_pending) return false;                                                   // (everything was read: stays so)
+        if (now - since > std::chrono::seconds(12)) return false;                          // (a reader that takes too long: show what there is)
+        if (now - checked < std::chrono::milliseconds(150)) return true;
+    } else { last_key = key; since = now; last_pending = true; }
+    checked = now;
+    last_pending = translit_kanji_waiting(texts) > 0;
+    return last_pending;
+}
+
 void set_translit_enabled(bool on) { g_on.store(on, std::memory_order_relaxed); }
 std::string shown_text(const std::string& s) { return translit_enabled() ? transliterate(s) : s; }
 

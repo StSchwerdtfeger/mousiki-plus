@@ -146,7 +146,7 @@ std::string App::cli_run(const std::string& raw, Origin origin, const std::strin
         cli_up_ = 0; console_cli_up_ = 0;
         cli_out_.push_back("> " + line);
         if (cli_hist_.empty() || cli_hist_.back() != line) cli_hist_.push_back(line);
-        if (cli_hist_.size() > 100) cli_hist_.erase(cli_hist_.begin());
+        if (cli_hist_.size() > 100) cli_hist_.pop_front();
         cli_hist_pos_ = -1;
     }
     log_event(std::string("CLI") + (origin == Origin::Typed ? "" : origin == Origin::Script ? " (script)" : origin == Origin::Network ? " (network)" : " (remote)") + ": " + line);
@@ -202,7 +202,7 @@ void App::cli_step(cli::Job& job) {
         if (job.origin == Origin::Typed) {
             std::istringstream in(shown);
             for (std::string l; std::getline(in, l);) cli_out_.push_back("  " + l);
-            while (cli_out_.size() > 200) cli_out_.erase(cli_out_.begin());
+            while (cli_out_.size() > 200) cli_out_.pop_front();
             cli_reply_ = shown.substr(0, shown.find('\n'));
             ++cli_reply_serial_;
         } else if (!ok) log_event("CLI error: " + reply + "  [" + job.label + "]");

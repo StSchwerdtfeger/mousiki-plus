@@ -1417,9 +1417,9 @@ private:
     void remote_apply(const remote::Command& c);   // one remote-control command (app_remote.cpp)
     std::string cli_buf_;                          // the console's command pane: the line being typed
     size_t cli_caret_ = 0, cli_anchor_ = 0;
-    std::vector<std::string> cli_hist_;            // lines run so far (UP / DOWN recall them), oldest first
+    std::deque<std::string> cli_hist_;             // lines run so far (UP / DOWN recall them), oldest first
     int cli_hist_pos_ = -1;                        // -1: not browsing the history
-    std::vector<std::string> cli_out_;             // "> line" and its reply, newest last (the last 200)
+    std::deque<std::string> cli_out_;                // "> line" and its reply, newest last (the last 200)
     mutable int cli_up_ = 0;                       // SHIFT+UP / DOWN: lines the output of /c: (library pane) is scrolled up from the newest (clamped while drawing)
     mutable int console_cli_up_ = 0;               // the same for the command pane of the console [t]
     std::string cli_reply_;                        // the last reply: shown in the search bar's border while /c: is open

@@ -51,6 +51,7 @@ void App::poll_name_lookup() {
 
 void App::poll_kanji_reader() {
     const auto now = std::chrono::steady_clock::now();
+    translit_set_kanji_reader_available(readlyrics_reader_working());   // (the lyrics wait for the reader only while it can answer)
     if (kanji_->job && kanji_->job->done.load()) {
         const std::shared_ptr<KanjiJob> job = kanji_->job;
         kanji_->job.reset();

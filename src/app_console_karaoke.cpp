@@ -458,15 +458,17 @@ void App::build_karaoke_screen(std::ostringstream& frame, int W, int H) {
     std::vector<LyricLine> lines;
     double delay = 0.0;
     std::string message;
+    bool translit_held = false;   // the kanji reader is not through yet: the lyrics stay in their own letters (drawn as they are) until it is
     {
         std::lock_guard<std::mutex> lock(lyrics_.mutex);
         if (lyrics_.ready && lyrics_.path == current_.path) {   // the lyrics engine runs for the overlay in any case
             lines = lyrics_.result.lines;
-            latinize_lyrics(lines);
+            translit_held = latinize_lyrics(lines);
             delay = lyrics_.result.delay;
             message = lyrics_.result.message;
         }
     }
+    TranslitHold translit_hold(translit_held);
     const double elapsed = has_track_ ? player_.poll_elapsed() : 0.0;
     if (!has_track_) {
         message = "Nothing is playing -- start a track and the lyrics appear here.";

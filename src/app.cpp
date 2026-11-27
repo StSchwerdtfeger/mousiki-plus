@@ -353,8 +353,12 @@ std::vector<std::string> render_lyric_line_wrapped(const LyricLine& line, double
                 continue; // retry fitting on a new line
             }
             
-            // The word exceeds the full width of a line, must split it.
-            std::string chunk = utf8_take(remain, width);
+            // The word exceeds the full width of a line, must split it. Japanese and Chinese lines have no blanks, so this is how they wrap:
+            // into rows of about the same length (not a full row and a stub of two characters).
+            const int pieces = (r_wlen + width - 1) / width;
+            int target = std::min(width, (r_wlen + pieces - 1) / pieces);
+            std::string chunk = utf8_take(remain, target);
+            if (display_width(chunk) < target && target < width) chunk = utf8_take(remain, target + 1);   // (a wide character did not fit: one more column)
             if (chunk.empty()) {
                 // Failsafe: width is too small (e.g., 1) to fit a wide character (width 2).
                 // Force-take 2 columns so we at least make progress (1 grapheme cluster).
@@ -384,7 +388,7 @@ std::vector<std::string> render_lyric_line_wrapped(const LyricLine& line, double
         int left_pad, right_pad;
         if (settings.lyrics_alignment == 1) { left_pad = 0; right_pad = total_pad; }           // left
         else if (settings.lyrics_alignment == 2) { left_pad = total_pad; right_pad = 0; }       // right
-        else { left_pad = total_pad / 2; right_pad = total_pad - left_pad; }                    // center (default)
+        else { left_pad = (total_pad + 1) / 2; right_pad = total_pad - left_pad; }              // center (default; the odd column goes to the left: the text sits a column to the right, away from the wall)
 
         // Word-level karaoke highlight: find the word currently being sung
         // (the last word whose timestamp has passed but the *next* one

@@ -21,12 +21,21 @@ struct LyricLine {
 };
 
 // The lyrics in Latin letters (the display switch, see translit.h): the original is kept, a copy is converted.
-inline void latinize_lyrics(std::vector<LyricLine>& lines) {
-    if (!translit_enabled()) return;
+// All or nothing: while the kanji reader has not read every line yet the lines stay as they are and the result is true -- the caller keeps
+// the letters of the song as they are while it draws them too (TranslitHold), so the whole song changes at once, not line by line.
+[[nodiscard]] inline bool latinize_lyrics(std::vector<LyricLine>& lines) {
+    if (!translit_enabled()) return false;
+    std::vector<std::string> units;
+    for (const LyricLine& l : lines) {
+        units.push_back(l.full_text);
+        for (const auto& w : l.words) units.push_back(w.second);
+    }
+    if (lyrics_translit_pending(units)) return true;
     for (LyricLine& l : lines) {
         l.full_text = transliterate(l.full_text);
         for (auto& w : l.words) w.second = transliterate(w.second);
     }
+    return false;
 }
 
 enum class LyricsStatus {

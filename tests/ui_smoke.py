@@ -2265,7 +2265,7 @@ def disk_field_setting(binary, root, scripts):
         check("LYRICS/VIZ FIELD" in t and "VIZ/LYRICS ORDER" in t and "TOGGLE LYRICS/VIZ" in t, "disk field: the tab starts with LYRICS/VIZ FIELD, the order and the toggles")
         seen = t
         ordered = False
-        for _ in range(25):                                 # past the 13 rows of VIZ/LYRICS ORDER and TOGGLE LYRICS/VIZ, and the 25 below (to Eliment Disk (Auto Video is the first VIDEO row; after Lyrics/Viz Default: When No Lyrics Show, When No Video Shows, Lyrics Alignment, Lyrics Animation, Include Lyrics, Video Size, Effect, Contrast, Colors, Chromatic Aberration, Dither Pattern, Base Layer, Effect Contrast, Rounded Corners, Show Clap Loading, Disk/Cover/Thumbnail, Resolution, Frame Rate, Buffer, yt-dlp mp3 from mp4)
+        for _ in range(24):                                 # past the 13 rows of VIZ/LYRICS ORDER and TOGGLE LYRICS/VIZ, and the 25 below (to Eliment Disk (Auto Video is the first VIDEO row; after Lyrics/Viz Default: When No Lyrics Show, When No Video Shows, Lyrics Alignment, Lyrics Animation, Include Lyrics, Video Size, Effect, Contrast, Colors, Chromatic Aberration, Dither Pattern, Base Layer, Effect Contrast, Rounded Corners, Show Clap Loading, Disk/Cover/Thumbnail, Resolution, Frame Rate, Buffer, yt-dlp mp3 from mp4)
             sess.send(b"\x1b[B", 0.2)
             seen += "\n" + sess.text()
             tt = sess.text()
@@ -4677,7 +4677,7 @@ def settings_general_texts(binary, root, scripts):
             l = find("Track Buffer (MB)")
             return l.split(":", 1)[1].split("[")[0].strip() if ":" in l else ""
         check(tbval() == "64" and tb.find("[ Back") - tb.find(":") == 17, "settings: the Track Buffer field is five characters wide (%r)" % tb.strip()[:60])
-        for _ in range(16):   # to Track Buffer (MB) (three rows more since MAIN UI PANE STYLE is first: Top Pane Style, Disk Border, Sharp Corners, Thick Borders)
+        for _ in range(17):   # to Track Buffer (MB) (three rows more since MAIN UI PANE STYLE is first: Top Pane Style, Top Pane Ratio, Disk Border, Sharp Corners, Thick Borders)
             sess.send(b"\x1b[B", 0.1)
         sess.send(b"\r", 0.5)
         for _ in range(4):
@@ -6390,7 +6390,7 @@ def settings_cli_row(binary, root, scripts):
                 if label in line and "Preview:" not in line:
                     return line
             return ""
-        for _ in range(16):          # Top Pane Style, Disk Border, Sharp Corners, Playback, Start Mode, Display queue, 6 mode rows, Choose Audio Device, Stereo, Normalize, Track Buffer, Rate Cap
+        for _ in range(17):          # Top Pane Style, Top Pane Ratio, Disk Border, Sharp Corners, Playback, Start Mode, Display queue, 6 mode rows, Choose Audio Device, Stereo, Normalize, Track Buffer, Rate Cap
             sess.send(b"\x1b[B", 0.1)
         sess.send(b"\x1b[B", 0.4)    # Pause Fade
         check("Pause Fade" in find("Pause Fade") and "true" in find("Pause Fade"), "pause fade: the row exists in AUDIO and is true by default: %r" % find("Pause Fade"))

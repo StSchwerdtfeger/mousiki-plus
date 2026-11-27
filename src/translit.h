@@ -81,7 +81,26 @@ void translit_set_default_hanzi(int mode);
 void translit_set_style(bool macrons, bool wo);
 
 // The display switch (HKeyTranslit). apply_font_map() and the lyrics views ask it.
-bool translit_enabled();
+bool translit_enabled();   // (false while a TranslitHold is alive on the calling thread)
+
+// While a TranslitHold with hold = true is alive, translit_enabled() says false on this thread: the text keeps its original letters.
+// The lyrics views use it so that a song is switched to Latin letters in one go (see lyrics_translit_pending()), not line by line.
+class TranslitHold {
+public:
+    explicit TranslitHold(bool hold);
+    ~TranslitHold();
+    TranslitHold(const TranslitHold&) = delete;
+    TranslitHold& operator=(const TranslitHold&) = delete;
+private:
+    bool prev_;
+};
+
+// The kanji reader can answer (the program tells it every frame: false = not installed or broken, so nobody waits for it).
+void translit_set_kanji_reader_available(bool available);
+// Lyrics in Latin letters, all or nothing: true while the kanji reader still has to read some of `texts` (they are queued now). The lyrics
+// stay in their own letters until it is false, then all lines change at once. Gives up (false) after a few seconds so that a slow or stuck
+// reader never keeps a song from changing. Cheap to call every frame.
+bool lyrics_translit_pending(const std::vector<std::string>& texts);
 void set_translit_enabled(bool on);
 
 // transliterate() when the switch is on, else the text.

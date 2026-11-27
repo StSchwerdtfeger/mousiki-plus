@@ -776,6 +776,7 @@ void App::meta_panel_field(MetaPanel& m) const {
     bool md_in_field = false;   // (the field shows the MilkDrop picture this frame)
     lyrics_wide = false;   // the full size picture also takes the column of padding at the right: the gap to the border is as small as at the top and bottom
     lyrics_avail = false;
+    bool translit_held = false;   // the lyrics wait for the kanji reader: they stay in their own letters until it has read all lines
     lyrics_delay = 0.0; // lyrics timing correction (ALT+L), seconds, + = lyrics later
     if (!m.secondary) {
         std::lock_guard<std::mutex> lock(lyrics_.mutex);
@@ -784,7 +785,7 @@ void App::meta_panel_field(MetaPanel& m) const {
         } else if (settings_.lyrics_on() && lyrics_.ready) {
             lines_copy = lyrics_.result.lines;
             lines_orig = lines_copy;
-            latinize_lyrics(lines_copy);
+            translit_held = latinize_lyrics(lines_copy);   // (the kanji reader is not through yet: the original text, drawn as it is, until it is)
             lyrics_delay = lyrics_.result.delay;
             lyrics_status = lyrics_.result.message;
             lyrics_avail = !lines_copy.empty();
@@ -1090,6 +1091,7 @@ void App::meta_panel_field(MetaPanel& m) const {
         }
     } else {
         // Pane Style "three panes": the wall stands right at the field's left edge, so the text keeps one blank column from it (the same as at the right border)
+        TranslitHold translit_hold(translit_held);
         const int full_w = lyrics_w;
         const bool inset = m.wall_w > 0 && !m.secondary && lyrics_w > 8;
         if (inset) { lyrics_w -= 1; lyric_rows.assign(panel_h, std::string(static_cast<size_t>(lyrics_w), ' ')); }

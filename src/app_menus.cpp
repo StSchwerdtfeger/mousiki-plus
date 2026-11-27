@@ -491,12 +491,14 @@ std::vector<std::string> App::build_lyrics_edit_panel() const {
 
     std::vector<LyricLine> lines;
     double delay = 0.0;
+    bool translit_held = false;   // (the kanji reader is not through yet: the lyrics stay as they are, see latinize_lyrics())
     {
         std::lock_guard<std::mutex> lk(lyrics_.mutex);
         lines = lyrics_.result.lines;
         delay = lyrics_.result.delay;
-        latinize_lyrics(lines);
+        translit_held = latinize_lyrics(lines);
     }
+    TranslitHold translit_hold(translit_held);
     const double elapsed = has_track_ ? player_.poll_elapsed() : 0.0;
     const double lyric_t = elapsed - delay;
     int active = 0;

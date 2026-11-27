@@ -343,7 +343,7 @@ void App::remote_apply(const remote::Command& c) {
 void App::ytdlp_answer(const std::string& msg) {
     status_line_ = msg;   // (the console log has it already: ytdlp_update writes its answers itself)
     cli_out_.push_back("  " + msg);
-    while (cli_out_.size() > 200) cli_out_.erase(cli_out_.begin());
+    while (cli_out_.size() > 200) cli_out_.pop_front();
     force_redraw_ = true;
 }
 

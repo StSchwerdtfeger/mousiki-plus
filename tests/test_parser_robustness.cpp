@@ -137,6 +137,12 @@ TEST(m3u_file_urls_with_drive_letters_and_localhost) {
 #else
     CHECK_EQ(t[0].generic_string(), (f.parent_path() / "C:/Music/a b.mp3").generic_string());   // (no drive letters here: relative to the playlist, but without the URL's slash)
 #endif
+    // (a path without a drive letter: on Windows it belongs to the drive of the playlist, so only the end is the same everywhere)
+    auto ends_with = [](const std::string& s, const std::string& end) { return s.size() >= end.size() && s.compare(s.size() - end.size(), end.size(), end) == 0; };
+    CHECK(ends_with(t[1].generic_string(), "/home/me/c.mp3"));
+    CHECK(ends_with(t[2].generic_string(), "/home/me/d.mp3"));
+#if !defined(_WIN32)
     CHECK_EQ(t[1].generic_string(), std::string("/home/me/c.mp3"));
     CHECK_EQ(t[2].generic_string(), std::string("/home/me/d.mp3"));
+#endif
 }

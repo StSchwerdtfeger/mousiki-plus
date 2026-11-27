@@ -165,6 +165,8 @@ TEST(guard_frame_drops_kitty_file_reads_and_mode_switches) {
 }
 
 #include "pane_style.h"
+#include "app_internal.h"
+#include "translit.h"
 TEST(pane_style_t_pieces_join_the_walls_to_the_lines) {
     const panestyle::Glyphs light{"\xE2\x95\xAD", "\xE2\x95\xAE", "\xE2\x95\xB0", "\xE2\x95\xAF", "\xE2\x94\x80", "\xE2\x94\x82"};   // ╭ ╮ ╰ ╯ ─ │
     CHECK(panestyle::split(6));
@@ -174,4 +176,47 @@ TEST(pane_style_t_pieces_join_the_walls_to_the_lines) {
     const panestyle::Glyphs heavy{"\xE2\x94\x8F", "\xE2\x94\x93", "\xE2\x94\x97", "\xE2\x94\x9B", "\xE2\x94\x81", "\xE2\x94\x83"};   // ┏ ┓ ┗ ┛ ━ ┃
     CHECK(panestyle::row(heavy, 6, true, 12, {4, 8}, "").find("\xE2\x94\xB3") != std::string::npos);   // ┳
     CHECK(panestyle::row(heavy, 6, false, 12, {4, 8}, "").find("\xE2\x94\xBB") != std::string::npos);  // ┻
+}
+
+
+// A Japanese lyric line has no blanks: it wraps into rows of about the same length, not a full row and a stub.
+TEST(long_japanese_lyric_line_wraps_into_balanced_rows) {
+    LyricLine l;
+    l.full_text = "かたちのない夢をきっと見つけにゆこう";   // 18 characters = 36 columns
+    Settings st;
+    st.lyrics_alignment = 0;
+    const auto rows = render_lyric_line_wrapped(l, 0.0, 33, false, st);
+    CHECK_EQ(rows.size(), static_cast<size_t>(2));
+    for (const auto& r : rows) {
+        const std::string t = strip_csi(r);
+        CHECK_EQ(display_width(t), 33);
+        size_t a = t.find_first_not_of(' ');
+        CHECK(a != std::string::npos);
+        const int lead = display_width(t.substr(0, a));
+        const int text = display_width(t) - lead - static_cast<int>(t.size() - t.find_last_not_of(' ') - 1);
+        CHECK(text >= 16);   // (the old split made 32 + 4)
+    }
+}
+
+// A line with an odd number of spare columns sits a column to the right (the spare column goes to the left).
+TEST(centred_lyric_line_puts_the_odd_column_on_the_left) {
+    LyricLine l;
+    l.full_text = "abc";
+    Settings st;
+    st.lyrics_alignment = 0;
+    const auto rows = render_lyric_line_wrapped(l, 0.0, 10, false, st);   // 7 spare columns
+    CHECK_EQ(rows.size(), static_cast<size_t>(1));
+    CHECK_EQ(strip_csi(rows[0]).find('a'), static_cast<size_t>(4));
+}
+
+TEST(translit_hold_switches_the_latin_letters_off_for_its_scope) {
+    set_translit_enabled(true);
+    CHECK(translit_enabled());
+    {
+        TranslitHold hold(true);
+        CHECK(!translit_enabled());
+        { TranslitHold none(false); CHECK(!translit_enabled()); }   // (an inner hold that holds nothing does not release the outer one)
+    }
+    CHECK(translit_enabled());
+    set_translit_enabled(false);
 }
