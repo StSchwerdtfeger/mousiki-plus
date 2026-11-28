@@ -1892,7 +1892,8 @@ built-in theme needs a new name. [ESC] with unsaved changes asks first, leaving 
 
 THEME PREVIEW: [[Header]] 
 When in the CHOOSE THEME list [SHIFT+p] shows a still copy of the main screen in the highlighted theme; 
-any key goes back.
+[UP] / [DOWN] show the previous / next theme at once;
+any other key goes back.
 
 [[New Page]]
 2.8.3 GENERAL TAB [[Header]]

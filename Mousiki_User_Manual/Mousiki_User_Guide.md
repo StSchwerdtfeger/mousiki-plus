@@ -2330,7 +2330,7 @@ Themes you made yourself are listed after the built-in ones, with their names in
 
 *CREATE THEME: name, template and every colour cell with its live preview.*
 
-**Preview (`SHIFT+p`).** In the CHOOSE THEME list (player and radio) `SHIFT+p` shows a **still copy of the main screen** drawn with the highlighted theme; any key goes back to the list (nothing is applied). The list's scrollbar is drawn in the colour of the border gradient at its row.
+**Preview (`SHIFT+p`).** In the CHOOSE THEME list (player and radio) `SHIFT+p` shows a **still copy of the main screen** drawn with the highlighted theme. **UP / DOWN** show the previous / next theme at once while it is open (player and radio; no status line is drawn); any other key goes back to the list (nothing is applied). The list's scrollbar is drawn in the colour of the border gradient at its row.
 
 **Colours that look the same everywhere.** Colour numbers 16-255 are fixed colours: every terminal shows them the same way. 1-15 are the terminal's 16 base colours and follow its colour scheme -- 10 is green in CMD's default scheme but may be yellow in yours -- and an empty text colour means the terminal's own text colour. The built-in themes therefore only use 16-255 (since v4.2.0; a config that still held the old SeriousMeowerShell / MeowerShell values is moved to the new ones once). With **Black Background** on, text that has no colour of its own takes the theme's LIST INACTIVE colour (the terminal's default text colour is set while Mousiki runs and given back on exit), so plain text looks the same in CMD, PowerShell, Windows Terminal or any other terminal.
 
@@ -2749,6 +2749,7 @@ The preset folders are set in **Settings → PATHS → MILKDROP PRESET PATH** (t
 | Video gradient looks | *Video Gradient Vividness* (`VideoGradientVividness=`) | 0 – 100 % | 0 % | ANIMA/VIZ → VIDEO; VIDEO SETTINGS overlay; per track |
 | Radio ON / OFF AIR sign | *Sign gradient vividness* (`SignVividness=`) | 0 – 150 % | 0 % | the radio's ANIMA/VIZ → ON AIR SIGN |
 | Radio spectrum bars | *Bars Gradient Vividness* (`BarsVividness=`) | 0 – 150 % | 0 % | the radio's ANIMA/VIZ → SPECTRUM BARS |
+| Radio oscilloscope / spectrogram | *Osci Gradient Vivid.* (`ScopeVividness=`), *Spectro. Gradient Vivid.* (`SpectrogramVividness=`) | 0 – 150 % | 0 % | the radio's ANIMA/VIZ → OSCI/SPECTRO SETTINGS |
 
 `as disk` follows *Disk Gradient Vividness*, so one value changes the disk, the cover, the oscilloscope, the spectrogram, the bars and the volume bar together; a value of its own makes just that element different. The picture versions of the oscilloscope and spectrogram are bright enough and are not changed. The radio has no disk, so its two values stand alone. MilkDrop has its own neon edge looks and no vividness setting.
 
@@ -3168,6 +3169,7 @@ BORDER_COLOR, METADATA, VIZ, LIST, HEADER, LEGEND and TAB_NAMES work as in the p
 |---|---|
 | ON AIR SIGN | **On air ascii** (the ON AIR sign and its colour wave), **Sign border** (the `: :` column between the ON AIR / OFF AIR sign and the station info; **off by default**: the sign then sits in the middle of that space and the station info stays where it is, like *Disk Border* in the player; `SignBorder=` in `radio_config.txt`), **Pulse wave** (the faint circle burst behind the sign), **Gradient wave speed** (cycles per second of the ON AIR sign's colour wave) and **Pulse wave speed** (loops per second of the circle burst) and **Sign gradient vividness** (0–150 %, default 0; `SignVividness=`: fuller, brighter colours of the sign) |
 | SEEK AND VOLUME | **Dummy buttons** (the `<<< MUTE >>>` boxes next to the dial; the volume bar stays) and **Volume indicator** (what the volume bar is drawn with, as in the player's SEEK AND VOLUME) |
+| OSCI/SPECTRO SETTINGS | *Modes Share Settings*, *Osci style*, **Keep Spectrogram History**, **Osci Gradient Vivid.** and **Spectro. Gradient Vivid.** (0–150 %, default 0), as in the player; the rows of the SHIFT+o / SHIFT+i overlays are the player's |
 | SPECTRUM BARS | **On/Off** (the spectrum bars under the station info), **Bars Gradient Vividness** (0–150 %, default 0; `BarsVividness=`), Bars Behavior (preset), Bars Fluidity, Bars Degradation, Bars Viscosity and the **Bars Style** (Classic / Hi-Fi with its Resolution, Channels and Color rows), as in the player |
 | OSCI/SPECTRO SETTINGS | **Modes Share Settings** (`ShareProfiles=`: the radio uses the player's oscilloscope and spectrogram settings instead of its own; the same row as in the player's ANIMA/VIZ tab) and **Osci style** (`braille` or `image`). |
 | MILKDROP | **MilkDrop Frame Rate**, **MilkDrop Resolution**, **MilkDrop GPU** (automatic or a card, Linux), **Default Preset** (ENTER opens the preset overlay, `d` clears it), **Preset Overlay**, **Random Preset**, **Lock Preset**, **Preset Duration**, **Shuffle All Presets**, **Hard Cuts**, **Hard Cut Sensitivity**, **Preset Transition**, **Show Preset Name**, **Shuffle Folder**, **Shuffle Favourites**, **Hard Cut Interval**, **Duration Variance**, **Mesh Detail**, **Aspect Correction**, **Aspect Ratio**, **Clean Start**, **Use Effect**, **MilkDrop Effect**, **Sixel Colours**, **MilkDrop Brightness**, **MilkDrop Saturation**, **MilkDrop Contrast**: the same rows, defaults and keys as the player's MILKDROP block, but the radio's own values (`radio_config.txt`); the preview box shows the preset of the highlighted row live. The visuals overlay `:` changes the same values. |
@@ -3241,6 +3243,8 @@ Most rows of the radio's settings have the same key names as the player's (the k
 | `OsciSphere` | `osci` | What the field right of the station info shows: `osci`, `sphere`, `off`, `spectro` or `milkdrop` (the **Viz Field** row) |
 | `GradientWaveSpeed`, `PulseWaveSpeed` | `0.25`, `0.125` | 0.01 – 1.00: the ON AIR sign's colour wave (cycles per second) and the pulse wave behind it (loops per second) |
 | `SignVividness`, `BarsVividness` | `0`, `0` | 0 – 150 %: vivid colours of the ON / OFF AIR sign and of the spectrum bars |
+| `ScopeVividness`, `SpectrogramVividness` | `0`, `0` | 0 – 150 %: vivid colours of the oscilloscope's and the spectrogram's gradient |
+| `SpectroHistory` | `true` | true: while a station is tuned the spectrogram keeps analysing, shown or not (see *Keep Spectrogram History*); false: only while one is on screen and ten seconds after |
 | `TimeshiftMinutes` | `30` | The **Timeshift buffer** row: 5, 15, 30, 45 or 60 minutes |
 | `StationListsPath`, `PresetsPath`, `HistoryPath`, `DownloadPath` | empty | The base folders of the PATHS tab (empty = the default folder) |
 | `DownloadSameAsMusicPlayer` | `true` | **Same folder as music player**: use the player's download folder |

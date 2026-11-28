@@ -7143,6 +7143,101 @@ def recent_pairs(binary, root, scripts):
         sess.kill()
 
 
+def radio_theme_preview(binary, root, scripts):
+    """Radio: SHIFT+p in the theme list shows the radio screen in the highlighted theme; UP / DOWN change the theme while it is open (the last row names it),
+    any other key closes it."""
+    home = os.path.join(root, "rtp_home")
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    with open(os.path.join(cfgdir, "stations.txt"), "w", encoding="utf-8") as f:
+        f.write("# name | genre | country | codec | kbps | url | [*] favorite\nPlain Station | Rock | US | MP3 | 128 | http://127.0.0.1:9/c | *\n")
+    with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nStartMode=radio\nWizardSeen=true\n" % os.path.join(root, "music"))
+    sess = Session(binary, home, scripts, {"MOUSIKI_RADIO_NULL": "1"})
+    try:
+        for _ in range(30):
+            sess.pump(0.5)
+            if "Plain Station" in sess.text():
+                break
+        sess.send(b"\x1b", 1.0)
+        sess.send("s", 1.5)
+        sess.send(b"\r", 1.0)   # THEME: the list
+        sess.send("P", 1.2)
+        def previewing():
+            t = sess.text()
+            return "Plain Station" in t and "SETTINGS" not in t and "THEME PREVIEW" not in t
+        def border():
+            return tuple((c.fg, c.bg) for y in (0, 3, 10, 20) for c in (sess.screen.buffer[y][x] for x in (0, 5, 40, 60)))
+        check(previewing(), "radio theme preview: SHIFT+p opens it")
+        first = border()
+        sess.send(b"\x1b[B", 1.2)
+        check(previewing() and border() != first, "radio theme preview: DOWN shows the next theme (the colours change, the preview stays open, no status line)")
+        sess.send(b"\x1b[A", 1.2)
+        check(previewing() and border() == first, "radio theme preview: UP goes back")
+        sess.send(b"x", 1.2)
+        check(not previewing(), "radio theme preview: another key closes it")
+        check(sess.alive(), "radio theme preview: the program is still running")
+    finally:
+        sess.kill()
+
+
+def radio_overlay_switch(binary, root, scripts):
+    """Radio: the oscilloscope / spectrogram options and their big overlays take over from each other without being closed first; the big
+    stations overlay hands over to the presets menu; the ANIMA/VIZ tab has the player's OSCI/SPECTRO rows."""
+    home = os.path.join(root, "ros_home")
+    cfgdir = os.path.join(home, ".config", "mousiki")
+    os.makedirs(cfgdir)
+    with open(os.path.join(cfgdir, "stations.txt"), "w", encoding="utf-8") as f:
+        f.write("# name | genre | country | codec | kbps | url | [*] favorite\nPlain Station | Rock | US | MP3 | 128 | http://127.0.0.1:9/c | *\n")
+    with open(os.path.join(cfgdir, "config.txt"), "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nStartMode=radio\nWizardSeen=true\n" % os.path.join(root, "music"))
+    sess = Session(binary, home, scripts, {"MOUSIKI_RADIO_NULL": "1"})
+    try:
+        for _ in range(30):
+            sess.pump(0.5)
+            if "Plain Station" in sess.text():
+                break
+        sess.send(b"\x1b", 1.0)
+        sess.send("O", 1.2)
+        check("Oscilloscope - " in sess.text(), "radio overlays: SHIFT+o opens the oscilloscope options")
+        sess.send("I", 1.2)
+        t = sess.text()
+        check("Spectrogram" in t and "Oscilloscope - " not in t, "radio overlays: SHIFT+i from the oscilloscope options opens the spectrogram options at once")
+        sess.send("O", 1.2)
+        check("Oscilloscope - " in sess.text(), "radio overlays: and SHIFT+o goes back")
+        sess.send("=", 1.2)
+        check("OSCILLOSCOPE" in sess.screen.display[0] and "Oscilloscope - " in sess.text(), "radio overlays: the big oscilloscope opens over the options")
+        sess.send("I", 1.2)
+        t = sess.text()
+        check("Spectrogram" in t and "OSCILLOSCOPE" not in sess.screen.display[0], "radio overlays: SHIFT+i from the big oscilloscope opens the spectrogram options")
+        sess.send("U", 1.2)
+        check("SPECTROGRAM" in sess.screen.display[0], "radio overlays: SHIFT+u from the options opens the full-screen spectrogram")
+        sess.send("O", 1.2)
+        check("SPECTROGRAM" not in sess.screen.display[0] and "Oscilloscope - " in sess.text(), "radio overlays: SHIFT+o from the full-screen spectrogram opens the oscilloscope options")
+        sess.send(b"\x1b", 1.0)
+        sess.send("L", 1.2)
+        check("STATIONS (" in sess.text(), "radio overlays: SHIFT+l opens the big stations overlay")
+        sess.send("P", 1.2)
+        check("SELECT PRESET" in sess.text() and "STATIONS (" not in sess.text(), "radio overlays: SHIFT+p from the stations overlay opens the presets menu")
+        check(sess.alive(), "radio overlays: the program is still running")
+        sess.send(b"\x1b", 1.0)
+        sess.send("s", 1.5)
+        sess.send(b"\t", 1.0)   # GENERAL
+        sess.send(b"\t", 1.0)   # ANIMA/VIZ
+        seen = set()
+        for _ in range(80):
+            t = sess.text()
+            for name in ("Keep Spectrogram History", "Osci Gradient Vivid.", "Spectro. Gradient Vivid."):
+                if name in t:
+                    seen.add(name)
+            if len(seen) == 3:
+                break
+            sess.send(b"\x1b[B", 0.12)
+        check(len(seen) == 3, "radio settings: the OSCI/SPECTRO SETTINGS rows of the player are there (%s)" % sorted(seen))
+    finally:
+        sess.kill()
+
+
 def run_scenario(name, binary, root, scripts):
     home = os.path.join(root, "home")
     if name == "main":
@@ -7205,6 +7300,10 @@ def run_scenario(name, binary, root, scripts):
         settings_general_texts(binary, root, scripts)
     elif name == "recent_pairs":
         recent_pairs(binary, root, scripts)
+    elif name == "radio_theme_preview":
+        radio_theme_preview(binary, root, scripts)
+    elif name == "radio_overlay_switch":
+        radio_overlay_switch(binary, root, scripts)
     elif name == "hostile_text":
         hostile_text(binary, root, scripts)
     elif name == "milkdrop_radio_book":
@@ -7266,7 +7365,7 @@ def run_scenario(name, binary, root, scripts):
 
 
 SCENARIOS = ["narrow80", "narrow100", "main", "read_lyrics_play", "karaoke_timing", "book_speed_and_devices", "paging_and_translit_row",
-             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_ytdlp_update", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "audio_fades", "audio_fades_edges", "playlist_missing_file", "ytdlp_update_flow", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews", "override_and_previews", "individual_temp_layer", "sharp_and_folders", "thick_borders", "multi_viz", "hostile_text", "recent_pairs"]
+             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_ytdlp_update", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "audio_fades", "audio_fades_edges", "playlist_missing_file", "ytdlp_update_flow", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews", "override_and_previews", "individual_temp_layer", "sharp_and_folders", "thick_borders", "multi_viz", "hostile_text", "recent_pairs", "radio_theme_preview", "radio_overlay_switch"]
 
 
 def main():

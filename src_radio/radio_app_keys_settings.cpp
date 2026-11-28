@@ -96,7 +96,12 @@ bool RadioApp::key_settings_theme(KeyCtx& kc) {
             return true;
         }
         if (sm.theme_ui == 1 || sm.theme_ui == 3) {
-            if (sm.theme_peek) { sm.theme_peek = false; return true; }   // any key closes the preview
+            if (sm.theme_peek && arrow && (k == 'A' || k == 'B')) {       // UP / DOWN in the open preview: the previous / next theme, shown at once
+                if (k == 'A') { if (sm.theme_sel > 0) --sm.theme_sel; }
+                else if (sm.theme_sel < nt - 1) ++sm.theme_sel;
+                return true;
+            }
+            if (sm.theme_peek) { sm.theme_peek = false; return true; }   // any other key closes the preview
             if (!arrow && k == 'P') { sm.theme_peek = true; return true; }
             if (k == 27 || (!arrow && (k == 'q' || k == 'Q'))) { sm.theme_ui = sm.theme_ui == 3 ? 2 : 0; return true; }
             if (arrow && (k == 'A' || k == 'B') && last_key_was_shifted()) {   // SHIFT+up / down: a page

@@ -296,6 +296,13 @@ void spectro_gradient_from(const Style& s) {
     int r0 = 255, g0 = 255, b0 = 255, r1 = 255, g1 = 255, b1 = 255;
     palette_rgb(s, 0, 0.0f, r0, g0, b0);
     palette_rgb(s, 0, 1.0f, r1, g1, b1);
+    {   // Spectro. Gradient Vivid.: the two ends made fuller and brighter
+        const float v = static_cast<float>(std::clamp(s.c.spectro_vivid, 0, 150)) / 100.0f;
+        float a[3] = {static_cast<float>(r0), static_cast<float>(g0), static_cast<float>(b0)}, b[3] = {static_cast<float>(r1), static_cast<float>(g1), static_cast<float>(b1)};
+        muisc::vivid_boost(a, v); muisc::vivid_boost(b, v);
+        r0 = static_cast<int>(a[0] + 0.5f); g0 = static_cast<int>(a[1] + 0.5f); b0 = static_cast<int>(a[2] + 0.5f);
+        r1 = static_cast<int>(b[0] + 0.5f); g1 = static_cast<int>(b[1] + 0.5f); b1 = static_cast<int>(b[2] + 0.5f);
+    }
     auto c8 = [](int v) { return static_cast<uint8_t>(std::clamp(v, 0, 255)); };
     spectro_set_gradient({c8(r0), c8(g0), c8(b0)}, {c8(r1), c8(g1), c8(b1)});
 }
@@ -446,7 +453,7 @@ std::vector<std::string> build_scope_big(const Style& s, const UiModel& m, const
     const OsciSet& os = c.osci_set[image ? 1 : 0];
     const int pal = os.palette;
     auto color_of = [&](int tx, int cols, uint8_t hue, float k) {
-        if (pal == 0) return dim_ansi(s.osci_at(cols > 1 ? static_cast<float>(tx) / static_cast<float>(cols - 1) : 0.0f), k);
+        if (pal == 0) return dim_ansi(s.osci_vivid_at(cols > 1 ? static_cast<float>(tx) / static_cast<float>(cols - 1) : 0.0f), k);
         int r = 255, gg = 255, b = 255;
         palette_rgb(s, pal, hue / 255.0f, r, gg, b);
         return rgb_seq(r, gg, b, k);
@@ -692,15 +699,23 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     }
     int used = 0;   // bit per visual code (as the picks') that a pane shows
     bool spectro_img = false;
+    int sp0_lead = 0, sp0_trail = 0;   // the blank columns around the first pane's spectrogram
     if (show_scope && !off_air && eff_mode == 3) {   // the spectrogram (like Audacity's), braille or a picture
         m.spectro_used = true;
         used |= 1 << 3;
         spectro_gradient_from(s);
         spectro().update(cfg.spectro);
+        // (the space at the sides, as in the music player: a blank column after the wall of the three-pane styles and a blank one before the right border)
+        sp0_lead = wall_w > 0 && w0 > 8 ? 1 : 0;
+        sp0_trail = mv_picks.empty() && w0 > 8 ? 1 : 0;
+        const int sw = w0 - sp0_lead - sp0_trail;
         if (cfg.spectro.style == 1 && m.gfx_proto != GfxProto::None) {
             spectro_img = true;
             scope.assign(kPanelH, gfx_hole(w0));
-        } else scope = spectro().braille(cfg.spectro, w0, kPanelH);
+        } else {
+            scope = spectro().braille(cfg.spectro, sw, kPanelH);
+            for (std::string& r : scope) r = spaces(sp0_lead) + r + spaces(sp0_trail);
+        }
     } else if (show_scope && !off_air && eff_mode == 4 && build_milkdrop_block(s, m, w0, scope)) {
         // the MilkDrop visuals (a picture, or half blocks); when they cannot run here the oscilloscope shows instead (below)
         used |= 1 << 5;
@@ -719,6 +734,7 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     // the pictures of a further pane (only one picture slot is free on this screen: m.gfx; the spectrogram's has a place of its own)
     int gfx_dx = 0, gfx_pw = w0, sp_dx = 0, sp_pw = w0;
     bool sp2_img = false;
+    int sp2_trail = 0;
     for (size_t pi = 0; pi < mv_picks.size() && !scope.empty(); ++pi) {
         const bool last = pi + 1 == mv_picks.size();
         const int pane_w = (scope_w - static_cast<int>(mv_picks.size())) / (static_cast<int>(mv_picks.size()) + 1);
@@ -736,8 +752,9 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
                 m.spectro_used = true;
                 spectro_gradient_from(s);
                 spectro().update(cfg.spectro);
-                if (cfg.spectro.style == 1 && m.gfx_proto != GfxProto::None && !spectro_img) { sp2_img = true; sp_dx = dx; sp_pw = pw; rows.assign(kPanelH, gfx_hole(pw)); }
-                else rows = spectro().braille(cfg.spectro, pw, kPanelH);
+                const int trail = last && pw > 8 ? 1 : 0;   // (a blank column before the right border)
+                if (cfg.spectro.style == 1 && m.gfx_proto != GfxProto::None && !spectro_img) { sp2_img = true; sp_dx = dx; sp_pw = pw; sp2_trail = trail; rows.assign(kPanelH, gfx_hole(pw)); }
+                else { rows = spectro().braille(cfg.spectro, pw - trail, kPanelH); for (std::string& r : rows) r += spaces(trail); }
             } else {   // MilkDrop: its picture needs the slot m.gfx; when that is taken only the text version (no graphics terminal) can be drawn
                 if ((m.gfx.active && m.gfx_proto != GfxProto::None) || !build_milkdrop_block(s, m, pw, rows)) continue;
             }
@@ -780,8 +797,8 @@ std::vector<std::string> render_radio_frame_inner(const UiModel& m, const RadioS
     const int block_x = 1 + (show_sign ? kLeftW + ex_first + kSepW : 0) + kMetaW + (show_sign ? ex_second : 0) + wall_w + (show_sign ? 0 : std::max(0, (rest_w - scope_w) / 2));
     if (spectro_img || sp2_img) {
         m.spectro_area[0] = 1;
-        m.spectro_area[1] = block_x + (spectro_img ? 0 : sp_dx);
-        m.spectro_area[2] = spectro_img ? w0 : sp_pw;
+        m.spectro_area[1] = block_x + (spectro_img ? sp0_lead : sp_dx);
+        m.spectro_area[2] = spectro_img ? w0 - sp0_lead - sp0_trail : sp_pw - sp2_trail;
         m.spectro_area[3] = kPanelH - (m.scope_notice.empty() || !spectro_img ? 0 : 1);   // the timeshift note keeps its row
     }
     if (m.gfx.active && show_scope) {
