@@ -4,8 +4,10 @@
 #include <fstream>
 #include <map>
 #include <mutex>
+#include <set>
 #include <sstream>
 
+#include "moved_files.h"
 #include "path_utf8.h"
 #include "settings.h"
 
@@ -173,24 +175,17 @@ int VideoLinks::rename_folder(const std::string& from, const std::string& to) {
     return changed;
 }
 
-static std::string lower_name(const std::string& path) {
-    std::string n = path_utf8(path_from_utf8(path).filename());
-    std::transform(n.begin(), n.end(), n.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return n;
-}
-
 int VideoLinks::mend(const std::vector<std::string>& existing_videos) {
     std::lock_guard<std::mutex> lk(d_->m);
     if (!d_->loaded) load_locked();
-    std::multimap<std::string, std::string> by_name;
-    for (const std::string& v : existing_videos) by_name.emplace(lower_name(v), v);
+    std::set<std::string> vids;
+    for (const auto& kv : d_->links) vids.insert(kv.second);
+    const std::map<std::string, std::string> moves = find_moved(vids, existing_videos);   // (by name; a tie or a rename by size and length: moved_files.h)
     int changed = 0;
     for (auto& kv : d_->links) {
-        std::error_code ec;
-        if (fs::exists(path_from_utf8(kv.second), ec)) continue;
-        auto range = by_name.equal_range(lower_name(kv.second));
-        if (range.first == range.second || std::next(range.first) != range.second) continue;   // none, or not unambiguous
-        kv.second = range.first->second;
+        const auto it = moves.find(kv.second);
+        if (it == moves.end()) continue;
+        kv.second = it->second;
         ++changed;
     }
     if (changed) save_locked();
@@ -200,17 +195,14 @@ int VideoLinks::mend(const std::vector<std::string>& existing_videos) {
 int VideoLinks::mend_tracks(const std::vector<std::string>& existing_tracks) {
     std::lock_guard<std::mutex> lk(d_->m);
     if (!d_->loaded) load_locked();
-    std::multimap<std::string, std::string> by_name;
-    for (const std::string& t : existing_tracks) by_name.emplace(lower_name(t), t);
+    std::set<std::string> keys;
+    for (const auto& kv : d_->links) keys.insert(kv.first);
+    const std::map<std::string, std::string> found = find_moved(keys, existing_tracks);
     int changed = 0;
     std::vector<std::pair<std::string, std::string>> moves;   // old key, new key
-    for (const auto& kv : d_->links) {
-        std::error_code ec;
-        if (fs::exists(path_from_utf8(kv.first), ec)) continue;
-        auto range = by_name.equal_range(lower_name(kv.first));
-        if (range.first == range.second || std::next(range.first) != range.second) continue;   // none, or not unambiguous
-        if (d_->links.count(range.first->second)) continue;                                      // (that song has its own link already)
-        moves.emplace_back(kv.first, range.first->second);
+    for (const auto& m : found) {
+        if (d_->links.count(m.second)) continue;   // (that song has its own link already)
+        moves.emplace_back(m.first, m.second);
     }
     for (const auto& m : moves) {
         const auto it = d_->links.find(m.first);

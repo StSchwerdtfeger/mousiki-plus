@@ -31,7 +31,7 @@ struct SnapshotData {
     SnapshotTrack now_playing;
     double position_sec = 0.0;
 
-    int play_mode = 0;      // 0=list 1=loop 2=shuffle 3=stop
+    int play_mode = 0;      // 0=list 1=loop 2=shuffle 3=stop (4 queue then stop, 5 shuffle queue)
     bool muted = false;
     int volume = 70;         // the pre-mute/real volume, not the forced-0 muted value
 

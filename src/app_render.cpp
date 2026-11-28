@@ -6,6 +6,7 @@
 #include "app_state_rl.h"
 #include "app_state_theme.h"
 #include "app_state_adev.h"
+#include "app_state_lcheck.h"
 #include "app_state_vs.h"
 #include "app_state_fo.h"
 #include "app_state_vl.h"
@@ -285,7 +286,7 @@ std::optional<std::string> App::render_takeover_screen(int term_cols, int W, boo
         out += mdb_floating(W);
         return out;
     }
-    if (mode_ == Mode::Settings || mode_ == Mode::ColorEdit || (mode_ == Mode::AudioDevice && adev_->from_settings)) {
+    if (mode_ == Mode::Settings || mode_ == Mode::ColorEdit || (mode_ == Mode::AudioDevice && adev_->from_settings) || mode_ == Mode::LibraryCheck) {
         std::ostringstream frame;
         frame << "\x1b[2J\x1b[H\x1b[?25l";
         build_settings_screen(frame, W, overlay_budget(W));
@@ -297,6 +298,7 @@ std::optional<std::string> App::render_takeover_screen(int term_cols, int W, boo
         gfxs_.ok = gfx_.active;
         if (remote_ov_.open) remote_overlay_draw(frame, W);
         if (mode_ == Mode::AudioDevice) draw_floating_panel(frame, build_audio_device_panel(), kAudioDevicePanelWidth, W);
+        if (mode_ == Mode::LibraryCheck) draw_floating_panel(frame, build_libcheck_panel(W), std::clamp(W - 4, 72, 132), W, 0, true);
         if (fxpick_.open) { draw_fxpick(frame, W); if (fxpick_pic_) gfxs_.ok = true; }   // (the effect list over the settings: its preview is a picture where the terminal shows them)
         return fullscreen_out(frame);
     }
@@ -611,9 +613,10 @@ std::string App::render_frame(TerminalIO& term) {
         if ((m == Mode::LyricsEdit && lyrics_.edit_from_karaoke) || (m == Mode::RetryLyrics && rl_->from_karaoke)) return 7;   // (drawn on the karaoke screen)
         if (m == Mode::MetaEdit && meta_->sty_open && meta_->sty_from_main) return 0;   // the Style Option panel over the main screen
         if (m == Mode::AudioDevice) return adev_->from_settings ? 1 : 0;     // over the settings screen or over the main screen
+        if (m == Mode::LibraryCheck) return 1;                                // over the settings screen
         switch (m) {
             case Mode::Browse: case Mode::Search: case Mode::BulkAdd: case Mode::RetryLyrics: case Mode::ClearQueue: case Mode::UpdateNotice: case Mode::QueueToPlaylist: case Mode::OsciMenu: case Mode::SpectroMenu: case Mode::NormMenu: case Mode::MilkdropMenu: case Mode::BarsMenu: case Mode::Equalizer: case Mode::SleepTimer: case Mode::Creator: case Mode::LyricsEdit: case Mode::BookOverlay: case Mode::AudioDevice: case Mode::VideoMenu: case Mode::VideoLink: case Mode::VideoSearch: return 0;
-            case Mode::Settings: case Mode::ColorEdit: return 1;
+            case Mode::Settings: case Mode::ColorEdit: case Mode::LibraryCheck: return 1;
             case Mode::MenuIndex: return settings_.menu_index_classic ? 0 : 12;   // the organigram over the whole screen; the classic view is an overlay
             case Mode::Console: return 2;
             case Mode::CliScripts: return 13;

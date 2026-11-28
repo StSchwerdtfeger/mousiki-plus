@@ -2,6 +2,7 @@
 // resolves queries to it.
 #pragma once
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include "cache_manager.h"
@@ -39,8 +40,14 @@ public:
     std::optional<SongResult> resolve_by_id(const std::string& video_id, const std::string& title,
                                              const std::string& artist, std::string* error_out = nullptr);
 
+    // A file that may already be this download: given the video id and the file name stem (CacheManager::stem_for) it returns the path of a track in
+    // the library (empty: none): the file that carries the id in its tags (MOUSIKI_ID) first, then the one with that name. resolve_by_id() asks it before it downloads: a song the user moved out of the download folder (but still in the library)
+    // is played from where it is, not fetched a second time. Called from the loading threads: it must be thread safe.
+    void set_local_finder(std::function<fs::path(const std::string&, const std::string&)> f) { finder_ = std::move(f); }
+
 private:
     CacheManager& cache_;
+    std::function<fs::path(const std::string&, const std::string&)> finder_;
 };
 
 } // namespace muisc

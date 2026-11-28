@@ -438,6 +438,19 @@ NativeId3Tags probe_id3v2_native(const fs::path& path) {
             if (std::strcmp(frame_id, "TIT2") == 0) result.title = decode_id3_text(payload, payload_len);
             else if (std::strcmp(frame_id, "TPE1") == 0) result.artist = decode_id3_text(payload, payload_len);
             else if (std::strcmp(frame_id, "TALB") == 0) result.album = decode_id3_text(payload, payload_len);
+            else if (std::strcmp(frame_id, "TXXX") == 0 && payload_len > 12 && (payload[0] == 0x00 || payload[0] == 0x03) && result.vid.empty()) {
+                // user text: encoding byte, description, NUL, value (ours: "MOUSIKI_ID" and the id; the one-byte encodings are what ffmpeg writes)
+                const char* t = reinterpret_cast<const char*>(payload + 1);
+                const size_t tl = payload_len - 1;
+                const void* z0 = std::memchr(t, 0, tl);
+                const size_t dl = z0 ? static_cast<size_t>(static_cast<const char*>(z0) - t) : tl;
+                if (dl == 10 && std::memcmp(t, "MOUSIKI_ID", 10) == 0 && dl + 1 < tl) {
+                    std::string v(t + dl + 1, tl - dl - 1);
+                    const size_t z = v.find('\0');
+                    if (z != std::string::npos) v.resize(z);
+                    if (!v.empty() && v.size() <= 40) result.vid = v;
+                }
+            }
             // TYER carries the year in ID3v2.3, TDRC the full recording
             // date in ID3v2.4 -- only one of the two is ever present, so
             // first-wins is the right merge rule here.
@@ -485,6 +498,7 @@ bool parse_vorbis_comment_list(const uint8_t* data, size_t len, NativeId3Tags& o
             if (key == "TITLE" && out.title.empty()) out.title = val;
             else if (key == "ARTIST" && out.artist.empty()) out.artist = val;
             else if (key == "ALBUM" && out.album.empty()) out.album = val;
+            else if (key == "MOUSIKI_ID" && out.vid.empty() && val.size() <= 40) out.vid = val;
             // DATE is the Vorbis/FLAC standard for the year; YEAR is the
             // (common) tagger convention. First-wins, like the others.
             else if ((key == "DATE" || key == "YEAR") && out.year.empty()) out.year = year_from_tag(val);

@@ -11,7 +11,7 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidPaneStyle, "Top Pane Style"}, {false, kSidTopPaneRatio, "Top Pane Ratio"}, {false, kSidDiskBorder, "Classic Disk Border"}, {false, kSidSharpCorners, "Sharp Corners"}, {false, kSidThickBorders, "Thick Borders"},
         {true, -1, ""},
         {true, -1, "MODES"},
-        {false, kSidPlayback, "Playback"}, {false, kSidStartMode, "Start Mode"}, {false, kSidQueue, "Display queue"},
+        {false, kSidPlayback, "Playback"}, {false, kSidModeText, "Show Outwritten Mode"}, {false, kSidStartMode, "Start Mode"}, {false, kSidQueue, "Display queue"},
         {true, -1, ""},
         {true, -1, "MODES ON/OFF AND ORDER"},   // SHIFT and + / SHIFT and - walk through the modes that are on, in this order
         {false, kSidUseModePlayer, "Use Music Player"}, {false, kSidUseModeRadio, "Use Radio"}, {false, kSidUseModeBook, "Use Audio Books"},
@@ -38,6 +38,9 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidTermDefaultFont, "Terminal Default Font"},
         {false, kSidEmoji, "Replace Emoji"}, {false, kSidMarquee, "Marquee Scrolling"},
         {false, kSidLatinMacrons, "Latin Macrons"}, {false, kSidLatinWo, "Latin Wo"}, {false, kSidLatinHanzi, "Translit. Kanji"}, {false, kSidLatinLookup, "Latin Name Lookup"}, {false, kSidLyricsVariants, "Lyrics Name Variants"},
+        {true, -1, ""},
+        {true, -1, "MESSY LIBRARY?"},
+        {false, kSidLibReport, "Library Report"}, {false, kSidLibDups, "Clean Up Duplicates"},
     };
     // A header with an empty text is the blank line before the next header (every header but the first has one).
     static const std::vector<SetLine> anima = {

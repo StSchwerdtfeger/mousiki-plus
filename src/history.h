@@ -3,6 +3,7 @@
 #pragma once
 #include <array>
 #include <map>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -162,6 +163,7 @@ public:
     // new path already has. Both save when something changed and return how many titles moved. Streams ("yt:...") are never touched.
     int rename_ids(const std::vector<std::pair<std::string, std::string>>& renames);
     int mend_ids(const std::vector<std::string>& existing_tracks);
+    std::set<std::string> local_paths() const;   // every file path the plays and the archive are kept under (no streams)
 
     // Totals of everything that has already left the window of individual records.
     const HistoryArchive& archive() const { return archive_; }

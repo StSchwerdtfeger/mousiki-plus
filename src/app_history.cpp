@@ -1,6 +1,7 @@
 // Listening history overlay (HISTORY / TOP TRACKS / TOP PLAYLISTS / HABITS) and the smart-history queue. Split out of app.cpp.
 // Member functions of App (declared in app.h); the helpers shared with app.cpp are in app_internal.h.
 #include "app.h"
+#include "file_prints.h"
 #include "app_state_hist.h"
 #include "text_edit.h"
 #include "overlay_common.h"
@@ -111,6 +112,11 @@ void App::history_begin_current_play() {
         p.playlist = book;
     }
     history_.begin_play(p);
+    if (current_.is_local && !audiobook_) {   // what the file looks like now: finds it again if it is moved or renamed (file_prints.h)
+        std::error_code ec;
+        const auto sz = fs::file_size(current_.path, ec);
+        if (!ec) { FilePrints::get().set(path_utf8(current_.path), static_cast<long long>(sz), p.len_sec > 0 ? static_cast<long long>(p.len_sec * 1000.0) : -1); FilePrints::get().save_if_dirty(); }
+    }
 }
 
 // The smart grid of the ADD SMART HISTORY TO QUEUE pane (Top Tracks tab):

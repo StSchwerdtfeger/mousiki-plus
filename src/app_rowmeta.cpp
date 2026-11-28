@@ -102,6 +102,7 @@ RowMeta try_native_row_meta(const fs::path& path) {
         rm.artist = clean_tag_text(tags.artist);
         rm.album = clean_tag_text(tags.album);
         rm.year = clean_tag_text(tags.year); // TYER/TDRC (MP3), DATE (Vorbis), ©day (MP4)
+        rm.vid = tags.vid;
         rm.tags_resolved = true; // fully resolved without ffprobe
     }
     return rm;
@@ -207,6 +208,7 @@ void App::resolve_playlist_tracks_async() {
                 rm.title = ff.title;
                 rm.artist = ff.artist;
                 rm.album = ff.album;
+                if (rm.vid.empty()) rm.vid = ff.vid;
                 rm.tags_resolved = ff.tags_resolved;
             }
             {
@@ -290,6 +292,7 @@ void App::launch_row_meta_resolver() {
                         rm.title = ff.title;
                         rm.artist = ff.artist;
                         rm.album = ff.album;
+                        if (rm.vid.empty()) rm.vid = ff.vid;
                         rm.tags_resolved = ff.tags_resolved;
                     }
                     {

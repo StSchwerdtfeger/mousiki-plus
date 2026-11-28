@@ -135,11 +135,12 @@ struct VideoLook {
     int fx = 0, contrast = 0, colors = 100, chroma = 0, brightness = 50;
     int base = 4;     // the base layer under the tube looks (0 scanlines .. kBaseLayers - 1; 4 = clean)
     int dither = 0;   // the dither pattern (0 auto .. kDitherPatterns - 1); only changes how the dithering looks, so it is not part of active()
+    int black = 0;    // the black point (0 .. 40): everything at or below it becomes true black and the rest is stretched back to full range (the MilkDrop pictures, whose "black" is dark grey)
     int fxc = kFxContrastDefault;   // the Effect Contrast (0 full, 1 reduced, 2 low); it only matters to the looks that can be soft (video_fx_softens) and to the CMYK halftones (video_fx_print)
     VideoFxGradient grad;
-    bool active() const { return fx > 0 || contrast > 0 || colors < 100 || chroma > 0 || brightness != 50; }
+    bool active() const { return fx > 0 || contrast > 0 || colors < 100 || chroma > 0 || brightness != 50 || black > 0; }
     std::string sig() const {
-        return std::to_string(fx) + "," + std::to_string(contrast) + "," + std::to_string(colors) + "," + std::to_string(chroma) + "," + std::to_string(brightness) + "," + std::to_string(dither) + "," + (video_fx_uses_base(fx) ? std::to_string(base) : std::string()) + "," + (video_fx_softens(fx) || video_fx_print(fx) ? std::to_string(fxc) : std::string()) + "," +
+        return std::to_string(fx) + "," + std::to_string(black) + "," + std::to_string(contrast) + "," + std::to_string(colors) + "," + std::to_string(chroma) + "," + std::to_string(brightness) + "," + std::to_string(dither) + "," + (video_fx_uses_base(fx) ? std::to_string(base) : std::string()) + "," + (video_fx_softens(fx) || video_fx_print(fx) ? std::to_string(fxc) : std::string()) + "," +
                (video_fx_uses_gradient(fx) ? std::to_string(grad.c[0][0]) + "." + std::to_string(grad.c[0][1]) + "." + std::to_string(grad.c[0][2]) + "." + std::to_string(grad.c[2][0]) + "." + std::to_string(grad.c[2][1]) + "." + std::to_string(grad.c[2][2]) + "." + std::to_string(grad.sat) + "." + std::to_string(grad.vivid) : std::string());
     }
 };

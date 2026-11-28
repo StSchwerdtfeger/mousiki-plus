@@ -3,6 +3,8 @@
 // this one, grouped by topic.
 #include "mem_trim.h"
 #include "app.h"
+#include "native_duration.h"
+#include "file_prints.h"
 #include "corners.h"
 #include "terminal_font.h"
 #include "milkdrop.h"
@@ -14,6 +16,7 @@
 #include "app_state_eq.h"
 #include "app_state_device.h"
 #include "app_state_adev.h"
+#include "app_state_lcheck.h"
 #include "app_state_vs.h"
 #include "app_state_qtp.h"
 #include "app_state_cliov.h"
@@ -81,6 +84,7 @@
 #include <sys/stat.h>   // file_added_time(): stat() / _wstat64()
 #if defined(_WIN32)
 #include "win_compat.h"
+#include <io.h>        // _isatty()
 #else
 #include <unistd.h>
 #include <sys/utsname.h>
@@ -90,6 +94,8 @@
 #endif
 
 namespace muisc {
+std::string goodbye_cassette(bool color);   // app_panels.cpp
+
 
 namespace {
 
@@ -623,6 +629,12 @@ static std::string kanji_rules_id() {
 
 App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(shared ? *shared : own_settings_) {
     rd_ = std::make_unique<ReadLyricsState>();
+    FilePrints::get().set_duration_lookup([this](const std::string& path) -> long long {   // (what the tag sweep read, else the file's own header)
+        { std::lock_guard<std::mutex> lk(row_meta_mutex_); const auto it = row_meta_cache_.find(path); if (it != row_meta_cache_.end() && it->second.duration_sec > 0) return static_cast<long long>(it->second.duration_sec * 1000.0); }
+        const uint32_t d = probe_duration_native(path_from_utf8(path));
+        return d > 0 ? static_cast<long long>(d) * 1000 : -1;
+    });
+    youtube_.set_local_finder([this](const std::string& stem, const std::string& id) { return id.empty() ? local_copy_of(stem) : local_copy_by_id(id); });
     cf_ = std::make_unique<CoverFetchState>();
     creator_ = std::make_unique<CreatorState>();
     book_ = std::make_unique<BookState>();
@@ -636,6 +648,7 @@ App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(sh
     eq_ = std::make_unique<EqState>();
     device_ = std::make_unique<DeviceState>();
     adev_ = std::make_unique<AdevState>();
+    lc_ = std::make_unique<LcState>();
     vs_ = std::make_unique<VsState>();
     qtp_ = std::make_unique<QtpState>();
     cliov_ = std::make_unique<CliOvState>();
@@ -738,6 +751,7 @@ App::App(Settings* shared, bool audiobook) : audiobook_(audiobook), settings_(sh
         for (size_t i = 0; i < all_ids.size(); ++i) all_ids[i] = static_cast<uint32_t>(i);
         local_view_ = std::move(all_ids);
     }
+    rebuild_local_copy_index();
     release_free_memory();
     if (audiobook_) book_refresh_view();   // the left pane lists the books
     launch_row_meta_resolver();
@@ -1188,6 +1202,8 @@ void App::run_tick() {
     }
     poll_pending_bulk_add();
     poll_pending_atp();
+    libcheck_poll();
+    play_mode_poll();
     borrow_video_tags();
     poll_pending_row_meta_tags();
     poll_pending_meta_fetch(); // AcoustID results -> pending edits
@@ -1759,7 +1775,17 @@ int App::run() {
     term.restore();
     shutdown();
     write_frame_drain();
-    std::cout << "\nbye.\n";
+    // the confirmation that everything is closed: the cassette of the empty player, once, under the shell prompt's last line (only on a terminal)
+    {
+#if defined(_WIN32)
+        const bool tty = _isatty(_fileno(stdout)) != 0;
+#else
+        const bool tty = isatty(STDOUT_FILENO) != 0;
+#endif
+        if (tty) std::cout << "\n" << goodbye_cassette(std::getenv("NO_COLOR") == nullptr) << "\n\n";   // the cassette, then two empty lines
+        else std::cout << "\nbye.\n";                                                                       // (not a terminal: the plain word)
+        std::cout.flush();
+    }
     return 0;
 }
 

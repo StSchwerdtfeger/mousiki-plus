@@ -6,6 +6,7 @@
 #include "app.h"
 #include "playlist_state.h"
 #include "video_links.h"
+#include "file_prints.h"
 #include "text_edit.h"
 #include "overlay_common.h"
 #include "remote_server.h"
@@ -515,8 +516,10 @@ void App::rescan_library() {
         const int a = cover_store_mend_tracks(existing);
         const int b = history_.mend_ids(existing);
         if (a + b > 0) ConsoleLog::instance().log_basic("moved files found again by file name: " + std::to_string(a) + " track style(s) / options, " + std::to_string(b) + " title(s) of the listening history");
+        record_file_prints();   // (after the mending: the files that have data of their own, as they are now)
     }
     scanned_book_path_ = settings_.audiobook_path;
+    rebuild_local_copy_index();
     search_.idx.clear();
     refresh_local_view(); // applies the active query/sort/filter to the new set
     release_free_memory();
@@ -831,6 +834,88 @@ void App::relocate_missing_tracks(Playlist& pl) const {
         t.artist = path_utf8(t.path.parent_path().filename());
         t.missing = false;
     }
+}
+
+} // namespace muisc
+
+namespace muisc {
+
+void App::record_file_prints() {
+    std::set<std::string> keys = history_.local_paths();
+    for (const std::string& k : cover_store_track_keys()) keys.insert(k);
+    for (const auto& kv : VideoLinks::get().all()) { keys.insert(kv.first); keys.insert(kv.second); }
+    if (keys.size() > 20000) return;   // (a huge history: not at every scan)
+    FilePrints& fp = FilePrints::get();
+    for (const std::string& k : keys) {
+        if (k.empty() || k.compare(0, 3, "yt:") == 0) continue;
+        std::error_code ec;
+        const fs::path p = path_from_utf8(k);
+        const auto sz = fs::file_size(p, ec);
+        if (ec) continue;   // (not there: the print it had stays -- it is what finds the file again)
+        fp.set(k, static_cast<long long>(sz), fp.duration_ms_of(k));
+    }
+    fp.save_if_dirty();
+}
+
+void App::rebuild_local_copy_index() {
+    auto idx = std::make_shared<std::unordered_map<std::string, std::string>>();
+    idx->reserve(all_local_tracks_.size());
+    for (const auto& t : all_local_tracks_) {
+        if (LocalSource::is_video_file(t.path)) continue;
+        // (a download's name is its stem: the same normalisation as the one a title goes through to be a file name)
+        idx->emplace(CacheManager::stem_for(path_utf8(t.path.stem())), path_utf8(t.path));   // (the first of equal names stays)
+    }
+    std::lock_guard<std::mutex> lk(local_copy_mu_);
+    local_copy_idx_ = std::move(idx);
+    dl_state_memo_.clear();
+}
+
+fs::path App::local_copy_of(const std::string& stem) const {
+    std::shared_ptr<const std::unordered_map<std::string, std::string>> idx;
+    { std::lock_guard<std::mutex> lk(local_copy_mu_); idx = local_copy_idx_; }
+    if (!idx) return {};
+    const auto it = idx->find(stem);
+    if (it == idx->end()) return {};
+    const fs::path p = path_from_utf8(it->second);
+    std::error_code ec;
+    return fs::exists(p, ec) ? p : fs::path();   // (a file removed since the scan is not a copy)
+}
+
+fs::path App::local_copy_by_id(const std::string& id) const {
+    if (id.empty()) return {};
+    std::string hit;
+    {
+        std::lock_guard<std::mutex> lk(row_meta_mutex_);
+        for (const auto& kv : row_meta_cache_) if (kv.second.vid == id) { hit = kv.first; break; }
+    }
+    if (hit.empty()) return {};
+    const fs::path p = path_from_utf8(hit);
+    std::error_code ec;
+    return fs::exists(p, ec) ? p : fs::path();
+}
+
+int App::download_state(const OnlineResult& r) const {
+    if (r.video_id.empty() || r.video_id.find("://") != std::string::npos) return 0;
+    const long long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    const std::string memo_key = r.video_id + "\t" + r.title;
+    const auto memo = dl_state_memo_.find(memo_key);
+    if (memo != dl_state_memo_.end() && now - memo->second.second < 3000) return memo->second.first;
+    const int st = download_state_now(r);
+    if (dl_state_memo_.size() > 2000) dl_state_memo_.clear();
+    dl_state_memo_[memo_key] = {st, now};
+    return st;
+}
+
+int App::download_state_now(const OnlineResult& r) const {
+    const std::string key = cache_.cache_key(r.title, r.video_id);
+    if (cache_.is_cached(key, "opus")) return 1;
+    const std::string id_stem = CacheManager::stem_for(r.title + " [" + r.video_id + "]");
+    const bool hist = cache_.in_history(r.video_id);
+    if (!local_copy_by_id(r.video_id).empty()) return 1;
+    if (!local_copy_of(id_stem).empty()) return 1;
+    if (key != r.title) { if (!local_copy_of(CacheManager::stem_for(key)).empty()) return 1; }
+    else if (hist && !local_copy_of(CacheManager::stem_for(r.title)).empty()) return 1;
+    return hist ? 2 : 0;
 }
 
 } // namespace muisc

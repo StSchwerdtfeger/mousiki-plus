@@ -4677,7 +4677,7 @@ def settings_general_texts(binary, root, scripts):
             l = find("Track Buffer (MB)")
             return l.split(":", 1)[1].split("[")[0].strip() if ":" in l else ""
         check(tbval() == "64" and tb.find("[ Back") - tb.find(":") == 17, "settings: the Track Buffer field is five characters wide (%r)" % tb.strip()[:60])
-        for _ in range(17):   # to Track Buffer (MB) (three rows more since MAIN UI PANE STYLE is first: Top Pane Style, Top Pane Ratio, Disk Border, Sharp Corners, Thick Borders)
+        for _ in range(18):   # to Track Buffer (MB) (three rows more since MAIN UI PANE STYLE is first: Top Pane Style, Top Pane Ratio, Disk Border, Sharp Corners, Thick Borders)
             sess.send(b"\x1b[B", 0.1)
         sess.send(b"\r", 0.5)
         for _ in range(4):
@@ -5530,7 +5530,8 @@ def milkdrop_window(binary, root, scripts):
             mr = sum(rest[0::3]) / max(1, n); mg = sum(rest[1::3]) / max(1, n); mb = sum(rest[2::3]) / max(1, n)
             w2, h2 = (int(x) for x in head.split(b"\n")[1].split())
             check(abs(w2 / h2 - 4 / 3) < 0.03, "milkdrop window: Aspect Ratio 4:3 gives the window that shape (%dx%d)" % (w2, h2))
-            check(mg > 8 and mr < mg * 0.5 and mb < mg * 0.5, "milkdrop window: the effect (Phosphor Green) is on the window's picture too (mean R %.1f G %.1f B %.1f)" % (mr, mg, mb))
+            # (the first frame of a quiet scene is darker than the black point: all black is right then, and any light that is there must be green)
+            check((mg > 8 or mr + mg + mb == 0) and mr <= mg * 0.5 and mb <= mg * 0.5, "milkdrop window: the effect (Phosphor Green) is on the window's picture too (mean R %.1f G %.1f B %.1f)" % (mr, mg, mb))
         sess.send("|", 1.0)
     finally:
         sess.kill()
@@ -6390,7 +6391,7 @@ def settings_cli_row(binary, root, scripts):
                 if label in line and "Preview:" not in line:
                     return line
             return ""
-        for _ in range(17):          # Top Pane Style, Top Pane Ratio, Disk Border, Sharp Corners, Playback, Start Mode, Display queue, 6 mode rows, Choose Audio Device, Stereo, Normalize, Track Buffer, Rate Cap
+        for _ in range(18):          # Top Pane Style, Top Pane Ratio, Disk Border, Sharp Corners, Playback, Show Outwritten Mode, Start Mode, Display queue, 6 mode rows, Choose Audio Device, Stereo, Normalize, Track Buffer, Rate Cap
             sess.send(b"\x1b[B", 0.1)
         sess.send(b"\x1b[B", 0.4)    # Pause Fade
         check("Pause Fade" in find("Pause Fade") and "true" in find("Pause Fade"), "pause fade: the row exists in AUDIO and is true by default: %r" % find("Pause Fade"))

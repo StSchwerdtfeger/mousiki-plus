@@ -409,6 +409,15 @@ int cover_store_rename_paths(const std::vector<std::pair<std::string, std::strin
     return n;
 }
 
+std::set<std::string> cover_store_track_keys() {
+    Choices& c = choices();
+    std::lock_guard<std::mutex> lk(c.mu);
+    load_locked(c);
+    std::set<std::string> keys;
+    for (const auto* m : {&c.track, &c.style, &c.vopts, &c.vmode, &c.mdopts}) for (const auto& kv : *m) keys.insert(kv.first);
+    return keys;
+}
+
 int cover_store_mend_tracks(const std::vector<std::string>& existing_tracks) {
     Choices& c = choices();
     int n = 0;

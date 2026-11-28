@@ -37,6 +37,7 @@ struct NativeId3Tags {
     std::string artist;
     std::string album;
     std::string year;    // "YYYY" (or a free-text year), empty if the tag is absent
+    std::string vid;     // MOUSIKI_ID: the YouTube id Mousiki wrote into a file it downloaded (Vorbis comment / ID3 TXXX), empty otherwise
 };
 
 // Reads TIT2/TPE1/TALB/TYER (and the ID3v2.4 TDRC date) straight out of an

@@ -41,6 +41,7 @@ struct RowMeta {
     std::string title;  // embedded title tag, empty if untagged/absent
     std::string album;  // embedded album tag, empty if untagged/absent
     std::string year;   // embedded date/year tag, trimmed to "YYYY" (or "" if untagged/absent)
+    std::string vid;    // the YouTube id Mousiki wrote into the file when it downloaded it (tag MOUSIKI_ID); empty for any other file
     double duration_sec = -1.0;
     // True once a real probe_row_meta() (ffprobe) call has actually run for
     // this file, as opposed to a cache entry that only holds a duration

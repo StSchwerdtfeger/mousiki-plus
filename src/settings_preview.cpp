@@ -847,14 +847,16 @@ void App::settings_preview_draw(std::ostringstream& frame, int W, int MAX_Y, int
         const int mode = std::clamp(settings_.play_mode, 0, 4);
         const std::string border = ansi_for(settings_.border_color, false);
         const std::string lit = ansi_for(settings_.tab_current_color, false);
-        const std::string letter(1, play_mode_letter());
-        const int pad = std::max(0, (dw - 5) / 2);
+        const std::string cell = play_mode_cell();   // (" S ", " SQ ")
+        const int bw = play_mode_box_w();
+        std::string dashes; for (int i = 0; i < bw - 2; ++i) dashes += "\u2500";
+        const int pad = std::max(0, (dw - bw) / 2);
         const std::string sp(static_cast<size_t>(pad), ' ');
-        out.rows.push_back(sp + border + "\u256d\u2500\u2500\u2500\u256e" + R);
-        out.rows.push_back(sp + border + settings_.box_vertical + R + " " + border + letter + R + " " + border + settings_.box_vertical + R);
-        out.rows.push_back(sp + border + "\u2570\u2500\u2500\u2500\u256f" + R);
+        out.rows.push_back(sp + border + "\u256d" + dashes + "\u256e" + R);
+        out.rows.push_back(sp + border + settings_.box_vertical + R + border + cell + R + border + settings_.box_vertical + R);
+        out.rows.push_back(sp + border + "\u2570" + dashes + "\u256f" + R);
         out.rows.push_back("");
-        static const char* const kModes[] = {"L  list: play along the list", "R  loop: repeat this track", "S  shuffle: a random next track", "O  stop: stop after this track", "Q  queue: play the queue, then stop"};
+        static const char* const kModes[] = {"L  list: play along the list (LQ: the queue)", "R  loop: repeat this track", "S  shuffle: a random next track (SQ: of the queue)", "O  stop: stop after this track", "Q  queue: play the queue, then stop"};
         for (int i = 0; i < 5; ++i) out.rows.push_back((i == mode ? lit : std::string()) + truncate_str(kModes[i], dw) + (i == mode ? R : std::string()));
         out.rows.push_back("");
         for (const std::string& w : wrap_lines("The letter is shown in the box next to the search bar; m / j change it.", dw, 3)) out.rows.push_back(w);

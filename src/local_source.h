@@ -15,6 +15,8 @@ namespace fs = std::filesystem;
 // A folder with a file of this name is the creator's folder (the ^ overlay): the library scan leaves its files out, they are
 // only reachable through the overlay's "Created files..." list.
 inline constexpr const char* kCreatorMarker = ".mousiki-creator";
+// A folder with this file in it holds duplicates that were set aside (MESSY LIBRARY?): the library does not list its files.
+inline constexpr const char* kSetAsideMarker = ".mousiki-set-aside";
 
 // A file's path kept as one plain string. An fs::path of the standard library (libstdc++, and libc++ too) also keeps every part of the
 // path split off ("/home", "me", "Music", ...) -- about 600 bytes for a typical library file against 150 for the string -- and a

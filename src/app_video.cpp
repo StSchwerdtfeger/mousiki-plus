@@ -359,6 +359,7 @@ VideoLook App::milkdrop_look() const {
     l.brightness = std::clamp(settings_.milkdrop_bright, 0, 100);   // the grade: MilkDrop's own Brightness / Saturation / Contrast
     l.colors = std::clamp(settings_.milkdrop_sat, 0, 100);
     l.contrast = std::clamp(settings_.milkdrop_contrast, 0, 100);
+    l.black = 14;   // MilkDrop's dark parts are never quite black (about 5-12 of 255), and an effect's glow lifts them more: a black point makes them black
     if (video_fx_uses_gradient(l.fx)) l.grad = video_fx_gradient(settings_);
     return l;
 }

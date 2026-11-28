@@ -43,6 +43,7 @@ struct Settings : VizPrefs {
     int latin_hanzi = 0;                 // Latin letters: Chinese characters without any hint: 0 leave alone, 1 read as Chinese, 2 read as Japanese
     bool latin_macrons = false;          // Latin letters: long vowels as macrons (ō ū) instead of ou / uu (LatinMacrons=)
     bool latin_wo = false;               // Latin letters: the particle を as "wo" instead of "o" (LatinWo=)
+    bool show_mode_text = true;          // a play-mode change is spelled out in the mode box for 2.5 s (ShowModeText=)
     bool lyrics_name_variants = true;    // a lyrics search that finds nothing tries other spellings of the names (LyricsNameVariants=)
     bool lyrics_better_source = true;    // the lyrics search asks lyrics-api.boidu.dev (word-timed lyrics) as well as LRCLIB (LyricsBetterSource=)
     bool latin_lookup = false;           // artists written in Chinese characters are looked up on MusicBrainz for their Latin name (background; LatinNameLookup=)
@@ -663,6 +664,7 @@ struct Settings : VizPrefs {
 };
 
 const char* play_mode_name(int mode);
+int play_mode_from_name(const std::string& name);   // "loop" ... "shuffle queue" (lower case); anything else = 0 (list)
 
 // Migrates a config value from the old named-preset color scheme
 // ("cyan", "white", ...) to the new bare-number scheme.

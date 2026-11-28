@@ -3,6 +3,8 @@
 // archive.
 #include "app_dirs.h"
 #include "cache_manager.h"
+#include <chrono>
+#include <fstream>
 #include "file_name_util.h"
 #include "path_utf8.h"
 #include "utf8_util.h"
@@ -174,6 +176,39 @@ void CacheManager::record_download(const std::string& extractor, const std::stri
         if (ec) { ec.clear(); fs::copy_file(loose, file, ec); if (!ec) fs::remove(loose, ec); }
     }
     append_unique_line(file, extractor + " " + id);
+    { std::lock_guard<std::mutex> hk(hist_->m); hist_->checked_ms = 0; }   // (in_history() reads the file again)
+}
+
+bool CacheManager::in_history(const std::string& id) const {
+    if (id.empty()) return false;
+    HistoryCache& h = *hist_;
+    std::lock_guard<std::mutex> lk(h.m);
+    const long long now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    if (h.checked_ms == 0 || now - h.checked_ms >= 2000) {
+        h.checked_ms = now;
+        const fs::path a = download_archive_path(), b = download_dir_ / "downloaded_history.txt";
+        std::error_code ec;
+        auto stat = [&](const fs::path& f, std::uintmax_t& sz, long long& tm) {
+            sz = fs::exists(f, ec) ? fs::file_size(f, ec) : static_cast<std::uintmax_t>(-1);
+            tm = fs::exists(f, ec) ? static_cast<long long>(fs::last_write_time(f, ec).time_since_epoch().count()) : 0;
+        };
+        std::uintmax_t sa, sb; long long ta, tb;
+        stat(a, sa, ta); stat(b, sb, tb);
+        if (sa != h.size_a || sb != h.size_b || ta != h.time_a || tb != h.time_b) {
+            h.size_a = sa; h.size_b = sb; h.time_a = ta; h.time_b = tb;
+            h.ids.clear();
+            for (const fs::path& f : {a, b}) {
+                std::ifstream in(f, std::ios::binary);
+                std::string line;
+                while (std::getline(in, line)) {
+                    if (!line.empty() && line.back() == '\r') line.pop_back();
+                    const size_t sp = line.find(' ');
+                    if (sp != std::string::npos && sp + 1 < line.size()) h.ids.insert(line.substr(sp + 1));
+                }
+            }
+        }
+    }
+    return h.ids.count(id) > 0;
 }
 
 void CacheManager::append_unique_line(const fs::path& file, const std::string& entry) {

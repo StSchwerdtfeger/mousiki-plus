@@ -648,19 +648,24 @@ yt-dlp -x -P "<download folder>" --download-archive "<download folder>/history/d
 
 DIFFERENT PLAYBACK MODES:[[Header]]
 
-There are five different playback modes. In the main UI the small box to the right of the search bar
-indicates which playback mode is currently active. Use [m] to step through them.
+There are five playback modes. In the main UI the small box to the right of the search bar
+indicates which playback mode is currently active. Use [m] to step through
+them; for 2.5 seconds after each change the box itself grows and spells the mode out.
 
 S[[Header]] ==[[Header]] SHUFFLE MODE[[Header]]
 Shuffles through tracks that are currently in the local audio files list (search filters apply!).
 Every track comes once before any comes twice. [b] (previous) goes back to the track heard before;
 more than 3 s into a track it starts the track again.
 Note that you can also actively shuffle to next song in the list via [#].
-The QUEUE is never shuffled: [n] and the end of a track play its next title in order; only [#]
-picks a random title of the queue.
+With titles in the QUEUE, shuffle becomes SQ ("Shuffle Queue List"): when a track ends, a random
+title of the queue plays; every title comes once before any comes twice. With an empty queue it
+shuffles the library list again.
+[n] always plays the next title in order, [#] picks a random one, [b] steps back in the queue.
 
 L[[Header]] ==[[Header]] LIST MODE[[Header]]
 Plays the next song in the list (filters apply!).
+With titles in the QUEUE it becomes LQ ("Queue (locked) List"): the queue plays in its order and
+loops. With an UNLOCKED queue the box says Q: the queue is played once, then playback stops.
 
 R[[Header]] ==[[Header]] REPEAT MODE[[Header]]
 Repeats the current track again.
@@ -2162,6 +2167,13 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   in case of Jap./Kor./Chin. titles (especially mixed with
                                                   latin versions); also see 4.2.
 
+[Messy Library?:][[Legend]]                                   last category of GENERAL. Library Report: shows duplicates
+                                                  and per-track data of missing files, [w] writes a .txt.
+                                                  Clean Up Duplicates: never by name alone (same bytes, same
+                                                  video id tag, or same artist+title+length). Marked files
+                                                  are only SET ASIDE after typing MOVE (undo with [u]);
+                                                  [r] lets a deliberate duplicate rest.
+
 
 
 
@@ -3287,6 +3299,7 @@ seeks in beta. mousiki --query help gives the list of commands as its answer.
  playlists               the saved playlists, numbered         1. Meow-Music
  playlist <n>            queue playlist n (starts it if idle)  playlist 1 queued: 4 titles  now: ...
  rescan                  read the music folders again          scanning the music folders
+ library-check           open the Messy Library? report        checking the library (Messy Library?)
  update / update yt-dlp  compare / update yt-dlp (scripts:     comparing yt-dlp ... (the answer
                          force update yt-dlp; the radio: typed) follows in the status line, the log)
  open <where>            console settings cheatsheet wizard    opened settings
@@ -3730,6 +3743,7 @@ MediaKeys                          true
 RemoteAppCli                       false
 RemoteAppHosts                     (empty)
 PlaybackMode                       list
+ShowModeText                       true
 VisualizerDegradationSpeed         8
 VisualizerViscosity                3
 VisualizerStyle                    hifi

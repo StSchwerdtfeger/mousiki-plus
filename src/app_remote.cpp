@@ -2,6 +2,7 @@
 // Part of class App (src/app.h): Mode switch, the remote control (phone / command line) and the actions they trigger.
 // Split out of app.cpp; the includes are the same as there.
 #include "app.h"
+#include "app_state_lcheck.h"
 #include "app_state_fo.h"
 #include "app_state_phone.h"
 #include "meta_state.h"
@@ -147,6 +148,7 @@ void App::act_cycle_play_mode(int dir) {
     // list -> repeat -> shuffle -> stop -> queue then stop -> list (dir -1: the other way round)
     settings_.play_mode = (settings_.play_mode + (dir < 0 ? 4 : 1)) % 5;
     queue_reset_lap();
+    mode_flash_until_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(2500);
     static const char* mode_names[] = {"list", "repeat", "shuffle", "stop", "queue then stop"};
     log_event(std::string("play mode: ") + mode_names[settings_.play_mode]);
 }
@@ -412,7 +414,9 @@ void App::remote_poll() {
                             {"album", has_track_ && md.album != "-" ? md.album : std::string()},
                             {"position_sec", pos}, {"duration_sec", dur}, {"speed", spd},
                             {"volume", std::to_string(player_.volume())}, {"muted", muted_ ? "yes" : "no"}, {"queue_len", std::to_string(queue_.size())},
-                            {"playback_mode", play_mode_name(settings_.play_mode)}});
+                            {"playback_mode", play_mode_name(settings_.play_mode)},
+                            {"library_tracks", std::to_string(all_local_tracks_.size())},   // (the startup scan is done before the first status: this is what it found)
+                            {"library_check", !lc_ || !lc_->job ? "idle" : lc_->job->finished.load() ? "done" : "running"}});   // the Messy Library? check (performance runs wait for it)
 }
 
 

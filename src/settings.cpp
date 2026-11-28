@@ -294,6 +294,15 @@ const char* play_mode_name(int mode) {
     }
 }
 
+int play_mode_from_name(const std::string& v) {
+    if (v == "loop" || v == "repeat") return 1;
+    if (v == "shuffle") return 2;
+    if (v == "shuffle queue") return 2;   // (a short-lived mode of an earlier build: shuffle with titles in the queue is "SQ" by itself now)
+    if (v == "stop") return 3;
+    if (v == "queue then stop" || v == "queue stop" || v == "repeat queue") return 4;   // "repeat queue" = what older versions called it
+    return 0;   // "list" or anything unrecognized
+}
+
 // =====================================================================
 // Themes
 // =====================================================================
@@ -1342,6 +1351,12 @@ static Settings load_from_config(const fs::path& path) {
             s.book_cover_wave = !(v == "false" || v == "0" || v == "off" || v == "no");
             continue;
         }
+        if (key == "ShowModeText") {
+            std::string v = trim_ws(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.show_mode_text = !(v == "false" || v == "0" || v == "off" || v == "no");
+            continue;
+        }
         if (key == "LyricsNameVariants") {
             std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
@@ -1508,11 +1523,7 @@ static Settings load_from_config(const fs::path& path) {
         if (key == "PlaybackMode") {
             std::string v = value;
             for (char& c : v) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-            if (v == "loop") s.play_mode = 1;
-            else if (v == "shuffle") s.play_mode = 2;
-            else if (v == "stop") s.play_mode = 3;
-            else if (v == "queue then stop" || v == "queue stop" || v == "repeat queue") s.play_mode = 4; // "repeat queue" = what older versions called it
-            else s.play_mode = 0; // "list" or anything unrecognized
+            s.play_mode = play_mode_from_name(v);
             continue;
         }
 
@@ -1694,7 +1705,7 @@ static Settings load_from_config(const fs::path& path) {
         if (key == "hifi_split") { const std::string v = trim_ws(unquote(value)); s.hifi_split = (v == "remove" || v == "0") ? 0 : 1; continue; }
         if (key == "hifi_color") { const std::string v = trim_ws(unquote(value)); s.hifi_color = (v == "corresponding" || v == "1") ? 1 : 0; continue; }
         if (key == "theme_name") { s.theme_name = value; continue; }
-        if (key == "play_mode") { if (const auto n_ = muisc::parse_int(value)) { s.play_mode = std::clamp(*n_, 0, 4); } continue; }
+        if (key == "play_mode") { if (const auto n_ = muisc::parse_int(value)) { s.play_mode = std::clamp(*n_, 0, 5) == 5 ? 2 : std::clamp(*n_, 0, 5); } continue; }
         if (key == "waveform_smooth") { s.waveform_smooth = parse_bool(value); continue; }
 
         // --- Console logging -------------------------------------------
@@ -1978,7 +1989,7 @@ static Settings load_from_legacy(const fs::path& path) {
     if (kv.count("waveform_smooth")) s.waveform_smooth = (kv["waveform_smooth"] == "1" || kv["waveform_smooth"] == "true");
 
     s.visualizer_fluidity = std::clamp(s.visualizer_fluidity, 1, 10);
-    s.play_mode = std::clamp(s.play_mode, 0, 4);
+    s.play_mode = s.play_mode == 5 ? 2 : std::clamp(s.play_mode, 0, 4);
     return s;
 }
 
@@ -2496,7 +2507,8 @@ write_simple_setting(out, s, "VideoLayout");
     out << "RemoteAppCli=" << (s.remote_cli ? "true" : "false") << "\n## true , false (default false) -- the remote app's web server also answers /api/cli: a command line of `mousiki --cli` with its reply (Home Assistant, scripts on other computers; needs the PIN, a restricted set: no quit, set, edit, alias, force, clear-queue)\n";
     out << "RemoteAppHosts=" << s.remote_hosts << "\n## names (comma separated, e.g. mousiki.home,nas) the remote app's web server answers to besides IP addresses and localhost; a request with any other Host is refused (DNS rebinding protection). Empty (default): addresses only\n";
     out << "PlaybackMode=" << play_mode_name(s.play_mode) << "\n## list , loop , shuffle , stop , queue then stop\n"
-        << "## shuffle never reorders the queue: n and the end of a track play its next title, only # picks a random one of it\n";
+        << "## with titles in the queue list becomes LQ (the queue in its order; locked: it loops; unlocked: it is played once, then playback stops) and shuffle becomes SQ (a random title of the queue, every title once per round); queue then stop plays it once. n always plays the next title in order, # picks a random one\n";
+    out << "ShowModeText=" << tf(s.show_mode_text) << "\n## true , false -- for 2.5 seconds after the play mode changed (m, or the queue filled / emptied / was locked), the small mode box grows and spells the mode out (\"Shuffle Library List\", \"Queue (locked) List\" ...); false keeps the letter only\n";
     write_simple_setting(out, s, "VisualizerDegradationSpeed");
     write_simple_setting(out, s, "VisualizerViscosity");
     out << "VisualizerStyle=" << (s.bars_style == 1 ? "hifi" : "classic") << "\n## classic , hifi -- the spectrum bars under the meta data: classic, or Hi-Fi (a braille column per frequency step, stereo, at the program's frame rate)\n";

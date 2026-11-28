@@ -1033,6 +1033,16 @@ void VideoPlayer::apply_look(VideoFrame& f, const VideoLook& look, double t, boo
             });
         }
     }
+    if (look.black > 0) {   // the black point, last: an effect's own glow / lift must not leave the darkest parts grey
+        const int kb = std::min(look.black, 60);
+        uint8_t lut[256];
+        for (int v = 0; v < 256; ++v) lut[v] = static_cast<uint8_t>(v <= kb ? 0 : (v - kb) * 255 / (255 - kb));
+        par_rows(f.h, [&](int ry0, int ry1) {
+            uint8_t* p = &f.rgb[static_cast<size_t>(ry0) * f.w * 3];
+            uint8_t* e = &f.rgb[static_cast<size_t>(ry1) * f.w * 3];
+            for (; p != e; ++p) *p = lut[*p];
+        });
+    }
 }
 
 void VideoPlayer::set_fx_threads(int n) { g_fx_threads.store(std::max(0, std::min(n, 16)), std::memory_order_relaxed); }

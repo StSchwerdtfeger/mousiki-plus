@@ -923,7 +923,9 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidLatinMacrons: v = settings_.latin_macrons; break;
             case kSidLatinWo: v = settings_.latin_wo; break;
             case kSidLatinHanzi: return settings_.latin_hanzi == 1 ? "Chin." : settings_.latin_hanzi == 2 ? "Jap." : "Leave";
+            case kSidModeText: v = settings_.show_mode_text; break;
             case kSidLyricsVariants: v = settings_.lyrics_name_variants; break;
+            case kSidLibReport: case kSidLibDups: return "[ENTER] open";   // the MESSY LIBRARY? overlays
             case kSidCliScripts: return "[ENTER] open";   // the script overlay (the command line's library and editor)
             case kSidRemoteApp: return settings_.remote_app ? "on   [ENTER] settings" : "off  [ENTER] settings";   // opens the REMOTE APP overlay
             case kSidCheckUpdate: return update_check::check_busy() ? std::string("checking ...") : std::string("[ENTER] to check");
@@ -956,8 +958,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidModeOrder1: case kSidModeOrder2: case kSidModeOrder3:   // which mode comes at that place of the SHIFT and + cycle
                 return mode_row_name(settings_.mode_order[settings_item_id(settings_tab_, row) - kSidModeOrder1]);
             case kSidPlayback: {
-                static const char* names[] = {"list", "loop", "shuffle", "stop", "queue then stop"};
-                return names[std::clamp(settings_.play_mode, 0, 4)];
+                return play_mode_name(settings_.play_mode);
             }
             case kSidStartMode: return start_mode_row_name(std::max(0, mode_index(settings_.start_mode)));
             case kSidVolIndicator: return kVolIndicatorNames[std::clamp(settings_.volume_indicator, 0, kVolStyleCount - 1)];
@@ -1126,6 +1127,7 @@ std::vector<std::string> App::settings_options_for(int tab, int row) const {
             case kSidCoverContrast: { std::vector<std::string> o; for (int i = 0; i <= 200; i += 5) o.push_back(std::to_string(i) + "%"); return o; }
             case kSidCoverSearch: return {"Default", "Folder First", "Within File First", "Image in Folder Only", "Within File Only"};
             case kSidTrackBuffer: return {};   // a number (ENTER types it) and a "Set back to default" button (RIGHT, then ENTER)
+            case kSidLibReport: case kSidLibDups: return {};   // actions: ENTER opens the overlay
             case kSidCliScripts: return {};   // an action: ENTER opens the script overlay
             case kSidRemoteApp: return {};   // not a switch: ENTER / LEFT / RIGHT open the REMOTE APP overlay
             case kSidCheckUpdate: return {};   // an action: ENTER asks GitHub (handle_settings_key)
@@ -1351,7 +1353,7 @@ void App::settings_commit_edit_impl() {
         }
         switch (id) {   // the rows that are neither bools nor views
             case kSidPlayback:
-                settings_.play_mode = (v == "loop") ? 1 : (v == "shuffle") ? 2 : (v == "stop") ? 3 : (v == "queue then stop") ? 4 : 0;
+                settings_.play_mode = play_mode_from_name(v);
                 queue_reset_lap();
                 return;
             case kSidCoverMode:
@@ -1535,6 +1537,7 @@ void App::settings_commit_edit_impl() {
                 break;
             case kSidLatinLookup: settings_.latin_lookup = is_true; name_lookup_broken_ = false; break;
             case kSidLatinMacrons: settings_.latin_macrons = is_true; translit_set_style(settings_.latin_macrons, settings_.latin_wo); force_redraw_ = true; break;
+            case kSidModeText: settings_.show_mode_text = is_true; mode_flash_until_ = {}; break;
             case kSidLyricsVariants: settings_.lyrics_name_variants = is_true; set_lyrics_name_variants(is_true); break;
             case kSidLatinWo: settings_.latin_wo = is_true; translit_set_style(settings_.latin_macrons, settings_.latin_wo); force_redraw_ = true; break;
             case kSidRemoteApp:
@@ -1892,7 +1895,17 @@ void App::settings_cycle(int dir) {
         if (order_swap_from_ >= 0) o += "   (Viz Order " + std::to_string(swap_row + 1) + " took " + viz_row_name(settings_.viz_order[order_swap_from_]) + " in return)";
         status_line_ = o;
     }
-    if (id == kSidPlayback) status_line_ = std::string("playback: ") + play_mode_name(settings_.play_mode);
+    if (id == kSidPlayback) {
+        static const char* const kInfo[] = {
+            "list (L): plays along the list. With titles in the queue it is LQ: the queue in its order, looping while it is locked; unlocked, it is played once and playback stops (Q)",
+            "loop (R): repeats the current track; the queue is not touched",
+            "shuffle (S): a random track of the list, every track once per round. With titles in the queue it is SQ: a random title of the queue, every title once per round",
+            "stop (O): plays the track, then stops",
+            "queue then stop (Q): plays the queue once, then stops; it never falls through to the library"};
+        status_line_ = std::string("playback: ") + kInfo[std::clamp(settings_.play_mode, 0, 4)];
+    }
+    if (id == kSidModeText) status_line_ = settings_.show_mode_text ? "show outwritten mode: on -- for 2.5 s after the play mode changes, the mode box grows and spells it out (\"Shuffle Library List\", \"Queue (locked) List\" ...)"
+                                                                      : "show outwritten mode: off -- the mode box shows only its letter (L, LQ, R, S, SQ, O, Q)";
     if (id == kSidBlackBg) status_line_ = settings_.black_background ? "black background: on -- the terminal is black while Mousiki runs (given back on exit)"
                                                                      : "black background: off -- the terminal keeps its own background";
     if (id == kSidShareProfiles) status_line_ = settings_.share_profiles ? "modes share settings: on -- the radio uses these oscilloscope / spectrogram settings (its own come back when this is off)"
@@ -1908,6 +1921,8 @@ void App::settings_cycle(int dir) {
                                                                       : "ask for bookmark: off -- only SHIFT+b sets a bookmark";
     if (id == kSidUpdateCheck) status_line_ = settings_.update_check ? "update notice: on -- at start-up Mousiki looks once a day for a newer release and tells you once (nothing is installed)"
                                                                      : "update notice: off -- no check for a newer release";
+    if (id == kSidLibReport) status_line_ = "library report: [ENTER] checks the library for duplicates (the same bytes, the same download, the same song by artist + title + length) and for per-track data (plays, styles) of files that went missing; it can be written to a .txt file. Nothing is changed";
+    if (id == kSidLibDups) status_line_ = "clean up duplicates: [ENTER] lists the duplicates. Nothing is deleted: you mark files, type MOVE, and they are only set aside in a folder (and can be put back); [r] lets a deliberate copy rest";
     if (id == kSidCheckUpdate) status_line_ = "check update: [ENTER] asks GitHub for the newest release now (needs Python 3 and a network connection)";
     if (id == kSidBookSpeed) status_line_ = "playback speed: " + speed_label(settings_.book_speed) + " -- the voice keeps its pitch; SHIFT+LEFT / SHIFT+RIGHT change it while you listen";
     if (id == kSidAudioDevice) status_line_ = "choose audio device: " + audio_device_label() + " -- [ENTER] lists the devices (also % on the main screen)";
@@ -2049,6 +2064,11 @@ void App::handle_settings_key(int key) {
     if (mode_ == Mode::Settings && settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidAudioDevice &&
         (key == '\r' || key == '\n')) {
         audio_device_open(true);   // drawn over this screen; ESC comes back here
+        return;
+    }
+    if (mode_ == Mode::Settings && settings_tab_ == 1 && (settings_item_id(1, settings_row_) == kSidLibReport || settings_item_id(1, settings_row_) == kSidLibDups) &&
+        (key == '\r' || key == '\n')) {
+        libcheck_open(settings_item_id(1, settings_row_) == kSidLibDups ? 1 : 0);   // drawn over this screen; ESC comes back here
         return;
     }
     if (mode_ == Mode::Settings && settings_tab_ == 1 && settings_item_id(1, settings_row_) == kSidCliScripts &&

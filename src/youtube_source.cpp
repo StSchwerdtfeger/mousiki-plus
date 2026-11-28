@@ -1,6 +1,7 @@
 // YouTube lookups: asks yt-dlp for the id, title and uploader of a search or a video id, for the
 // online downloads.
 #include "youtube_source.h"
+#include <vector>
 #include "path_utf8.h"
 #include "process_util.h"
 #include <sstream>
@@ -97,6 +98,21 @@ std::optional<SongResult> YoutubeSource::resolve(const std::string& query, std::
     return result;
 }
 
+// Writes the video id into the downloaded file (a copy of the audio with one more tag, MOUSIKI_ID: the sound is not touched), so that the
+// file is recognised as this download after it was moved or renamed. A failure leaves the file as it is.
+static void tag_downloaded_file(const fs::path& file, const std::string& video_id) {
+    if (!valid_video_id(video_id)) return;
+    const fs::path tmp = file.parent_path() / (path_utf8(file.stem()) + ".tagging" + path_utf8(file.extension()));
+    std::error_code ec;
+    const ProcResult r = run_capture({"ffmpeg", "-v", "error", "-y", "-i", path_utf8(file), "-map", "0", "-c", "copy",
+                                      "-metadata", "MOUSIKI_ID=" + video_id, path_utf8(tmp)});
+    if (r.exit_code == 0 && fs::exists(tmp, ec) && fs::file_size(tmp, ec) > 0) {
+        fs::rename(tmp, file, ec);
+        if (!ec) return;
+    }
+    fs::remove(tmp, ec);
+}
+
 std::optional<SongResult> YoutubeSource::resolve_by_id(const std::string& video_id, const std::string& title,
                                                          const std::string& artist, std::string* error_out) {
     if (video_id.find("://") != std::string::npos) {
@@ -130,6 +146,18 @@ std::optional<SongResult> YoutubeSource::resolve_by_id(const std::string& video_
         if (error_out) *error_out = "not a video id: " + video_id.substr(0, 40);
         return std::nullopt;
     }
+    if (finder_) {   // moved out of the download folder but still in the library: that file is the download (no second copy)
+        // 1. the file that carries the id in its tags (written at the download): whatever its name is now. 2. "<title> [<id>]" carries the id in the
+        // name. 3. the plain title, but only for an id that was downloaded before (the history): another song of that name in the library is not played for it.
+        if (const fs::path hit = finder_(std::string(), video_id); !hit.empty()) return SongResult{title, artist, hit, true};
+        std::vector<std::string> stems = {CacheManager::stem_for(title + " [" + video_id + "]")};
+        if (key != title) stems.insert(stems.begin(), CacheManager::stem_for(key));
+        else if (cache_.in_history(video_id)) stems.push_back(CacheManager::stem_for(title));
+        for (const std::string& st : stems) {
+            const fs::path hit = finder_(st, std::string());
+            if (!hit.empty()) return SongResult{title, artist, hit, true};
+        }
+    }
     const std::string url = "https://www.youtube.com/watch?v=" + video_id;
     ProcResult r = yt_dlp_download({"-4", "--no-warnings", "--extractor-args", "youtube:player_client=android;player_skip=webpage,configs,js",
                                     "-x", "-f", "bestaudio/best", "--audio-format", "opus", "--audio-quality", "0",
@@ -140,6 +168,7 @@ std::optional<SongResult> YoutubeSource::resolve_by_id(const std::string& video_
         return std::nullopt;
     }
 
+    tag_downloaded_file(cached, video_id);   // the id goes into the file: it is found again by it, whatever it is called later
     cache_.record_audio_download(key, video_id);
     cache_.record_download("youtube", video_id);   // shared with yt-dlp runs outside Mousiki (history/downloaded_history.txt)
     SongResult result{title, artist, cached, false};

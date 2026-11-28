@@ -103,6 +103,25 @@ static constexpr const char* kTapeArt[] = {
 static constexpr int kTapeArtRows = 15;   // == rows in tape_ascii.txt
 static constexpr int kTapeArtWidth = 30;  // == cells per row == disk width
 
+// The cassette as plain text (15 lines), printed once when Mousiki has really ended -- everything closed, the terminal given back (see App::run's
+// end). `color`: a soft tint, top to bottom; plain when the output is not a terminal.
+std::string goodbye_cassette(bool color) {
+    std::string out;
+    for (int r = 0; r < kTapeArtRows; ++r) {
+        if (color) {
+            const int t = r * 5 / kTapeArtRows;   // 0..4, top to bottom
+            static const int tint[5] = {213, 177, 141, 105, 69};
+            out += "\x1b[38;5;" + std::to_string(tint[t]) + "m";
+        }
+        std::string line = kTapeArt[r];
+        while (!line.empty() && line.compare(line.size() - 3, 3, "\xe2\xa0\x80") == 0) line.erase(line.size() - 3);   // no empty braille at the end
+        out += "  " + line;
+        if (color) out += "\x1b[0m";
+        out += "\n";
+    }
+    return out;
+}
+
 // The cassette's loose tape moves now and then: every few seconds a very soft breath makes the hanging loops of tape sway (the further
 // from the cassette, the more), and then they hang still again; from time to time the whole cassette wiggles a little. The picture is turned into dots, the dots above the cassette body are
 // shifted a little and the result is cut into braille cells again. Returns the 15 rows of 30 cells.
@@ -979,6 +998,8 @@ void App::meta_panel_field(MetaPanel& m) const {
                 const int pal = os.palette;
                 OscilloscopeVisualizer::Params osci_params = osci_scope_params(settings_, viz_dt_);
                 bool as_image = false;
+                const int sc_lead = (m.wall_w > 0 && !m.secondary && lyrics_w > 8) ? 1 : 0;   // (three panes: one blank column after the wall, as at the right border)
+                const int sc_w = lyrics_w - sc_lead;
                 m.viz_drawn = true; m.used_mask |= 1 << 1;
                 if (settings_.osci_style == 1 && gfxs_.proto != GfxProto::None && lyrics_w > 0 && !book_pic_img && m.slot_override != 2) {
                     // image style: the terminal draws the picture; the cells stay blank here and the loop emits it
@@ -994,8 +1015,8 @@ void App::meta_panel_field(MetaPanel& m) const {
                     // 1/scale of the real cell pixels, but never more than the width cap above (cwq)
                     const int cws = std::max(2, std::min(cwq, cw0 / g.scale));
                     const int chs = std::max(4, static_cast<int>(std::lround(static_cast<double>(cws) * ch0 / cw0)));
-                    g.cols = lyrics_w; g.rows = viz_rows_h; g.w = lyrics_w * cws; g.h = viz_rows_h * chs;
-                    g.col = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + m.field_dx;
+                    g.cols = sc_w; g.rows = viz_rows_h; g.w = sc_w * cws; g.h = viz_rows_h * chs;
+                    g.col = 2 + disk_w + (show_disk ? sep_w : 2) + meta_w + m.wall_w + m.field_dx + sc_lead;
                     g.row = 1;
                     g.plain = false; g.direct = false; g.opaque = false; g.erase = false;   // (the album cover's picture is a plain one)
                     g.id = second_pic ? 1 : 0; g.grid.clear(); g.cut_w = 0; g.crop = 0;   // no grid on the main screen (the big overlay sets one on the same frame object)
@@ -1017,14 +1038,14 @@ void App::meta_panel_field(MetaPanel& m) const {
                     for (int i = 0; i < panel_h; ++i) lyric_rows[i] = gfx_hole(lyrics_w);
                 }
                 if (!as_image) {
-                auto osci_cells = scope_.render(lyrics_w, viz_rows_h, osci_params);
+                auto osci_cells = scope_.render(sc_w, viz_rows_h, osci_params);
                 for (int i = 0; i < static_cast<int>(osci_cells.size()) && i < panel_h; ++i) {
-                    std::string colored, last_ansi;
-                    for (int cell = 0; cell < lyrics_w; ++cell) {
+                    std::string colored(static_cast<size_t>(sc_lead), ' '), last_ansi;
+                    for (int cell = 0; cell < sc_w; ++cell) {
                         const auto& c = osci_cells[i][cell];
                         if (c.braille == 0) { colored += ' '; continue; }
-                        const float t = lyrics_w > 1
-                            ? static_cast<float>(cell) / static_cast<float>(lyrics_w - 1) : 0.0f;
+                        const float t = sc_w > 1
+                            ? static_cast<float>(cell) / static_cast<float>(sc_w - 1) : 0.0f;
                         // 8 brightness steps keeps the escape traffic small
                         const float lvl = std::round(c.level / 255.0f * 7.0f) / 7.0f;
                         const float k = 0.30f + 0.70f * lvl;
@@ -1617,24 +1638,42 @@ std::vector<std::string> App::build_search_bar(int total_width) const {
     std::string border_ansi = ansi_for(settings_.border_color, false);
     std::string border_ansi_bottom = ansi_for(settings_.border_color_bottom, false);
     std::vector<std::string> out;
-    int search_w = total_width - 5;
+    // The play-mode box: 3 cells wide (" S "), 4 for shuffle queue (" SQ "), and for 2.5 s after a change it GROWS to spell the mode out
+    // ("Shuffle Library List  S"), in the border colour.
+    int mode_w = play_mode_box_w();
+    std::string mode_inner = play_mode_cell();
+    {
+        const std::string label_plain = audiobook_ ? std::string() : play_mode_flash_text();
+        if (!label_plain.empty()) {
+            std::string cell_txt = play_mode_cell();
+            while (!cell_txt.empty() && cell_txt.back() == ' ') cell_txt.pop_back();
+            while (!cell_txt.empty() && cell_txt.front() == ' ') cell_txt.erase(0, 1);
+            const int w = display_width(label_plain) + 2 + static_cast<int>(cell_txt.size()) + 2 + 2;   // borders, padding, label, two spaces, letter(s)
+            if (total_width - w >= 24) {
+                mode_w = w;
+                mode_inner = " " + label_plain + "  " + cell_txt + " ";
+            }
+        }
+    }
+    int search_w = total_width - mode_w;
     // Audio book player: a small box with the playback speed sits left of the play-mode box ("1.0x", "1.25x" ...); it is as wide
     // as its text, and the search box gives up those columns.
     const std::string speed_txt = audiobook_ ? speed_label(settings_.book_speed) : std::string();
     const int speed_w = speed_txt.empty() ? 0 : static_cast<int>(speed_txt.size()) + 4;   // "│ 1.25x │"
     if (speed_w > 0 && search_w - speed_w >= 20) search_w -= speed_w;
-    const bool speed_box = speed_w > 0 && search_w + speed_w + 5 <= total_width;
+    const bool speed_box = speed_w > 0 && search_w + speed_w + mode_w <= total_width;
     std::string dash;
     for (int i = 0; i < speed_w - 2; ++i) dash += settings_.box_horizontal;
-    const std::string letter_top = settings_.box_upper_left + settings_.box_horizontal + settings_.box_horizontal + settings_.box_horizontal + settings_.box_upper_right;
-    const std::string letter_bottom = settings_.box_lower_left + settings_.box_horizontal + settings_.box_horizontal + settings_.box_horizontal + settings_.box_lower_right;
+    std::string mode_dash;
+    for (int i = 0; i < mode_w - 2; ++i) mode_dash += settings_.box_horizontal;
+    const std::string letter_top = settings_.box_upper_left + mode_dash + settings_.box_upper_right;
+    const std::string letter_bottom = settings_.box_lower_left + mode_dash + settings_.box_lower_right;
     if (mode_ == Mode::Search) label += focus_indicator(settings_, border_ansi);   // the search box has the keys
     out.push_back(box_top(label, search_w, border_ansi) + (speed_box ? border_ansi + settings_.box_upper_left + dash + settings_.box_upper_right : std::string()) + border_ansi + letter_top + "\x1b[0m");
     // Play-mode indicator: L=list, R=repeat, S=shuffle, Q=queue then stop,
     // O=stop -- one letter for whichever of the five settings_.play_mode
     // states is active, cycled with a single "m" press
     // (HKeyCyclePlayMode) rather than a separate toggle per mode.
-    std::string mode_letter(1, play_mode_letter());
     std::string bar = border_ansi + settings_.box_vertical + "\x1b[0m";
     std::string line;
     if (mode_ == Mode::Search) {
@@ -1665,7 +1704,7 @@ std::vector<std::string> App::build_search_bar(int total_width) const {
     }
     const std::string speed_cell = speed_box ? border_ansi + settings_.box_vertical + "\x1b[0m " + speed_txt + " " + border_ansi + settings_.box_vertical + "\x1b[0m" : std::string();
     out.push_back(line + speed_cell + border_ansi + settings_.box_vertical
-                  + " " + mode_letter + " " + settings_.box_vertical + "\x1b[0m");
+                  + mode_inner + border_ansi + settings_.box_vertical + "\x1b[0m");
     out.push_back(box_bottom(search_w, "", border_ansi_bottom) + (speed_box ? border_ansi_bottom + settings_.box_lower_left + dash + settings_.box_lower_right : std::string()) + border_ansi_bottom + letter_bottom + "\x1b[0m");
     return out;
 }
@@ -1778,7 +1817,8 @@ std::vector<std::string> App::build_list_panel(int total_width, int height) cons
                 const int uploader_w = 18;
                 int title_w = std::max(5, inner - idx_w - 2 - 2 - uploader_w);
                 std::string t_idx = apply_font_map(std::to_string(idx + 1), settings_.font_map);
-                std::string t_title = apply_font_map(r.title, settings_.font_map);
+                const int dls = download_state(r);   // (+ : a file of it is at hand -- nothing is downloaded when it plays, ~ : downloaded before, the file is gone)
+                std::string t_title = apply_font_map((dls == 1 ? "+ " : dls == 2 ? "~ " : "") + r.title, settings_.font_map);
                 std::string t_uploader = apply_font_map(r.uploader, settings_.font_map);
                 content = pad_right(t_idx, idx_w) + settings_.list_separator + " "
                         + pad_right(truncate_str(t_title, title_w), title_w) + settings_.list_separator + " "

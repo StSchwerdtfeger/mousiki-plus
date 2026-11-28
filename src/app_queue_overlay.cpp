@@ -351,7 +351,8 @@ std::vector<std::string> App::build_bulk_add_panel() const {
         bool hovering = idx == bulk_->add_cursor;
 
         std::string mark = starred ? "*" : " ";
-        std::string title = truncate_str(it.title, title_w);
+        const int dls = download_state(it);   // (+ : a file of it is at hand, ~ : it was downloaded before and the file is gone)
+        std::string title = truncate_str((dls == 1 ? "+ " : dls == 2 ? "~ " : "") + it.title, title_w);
         std::string chan = truncate_str(it.uploader.empty() ? "-" : it.uploader, chan_w);
         std::string time_str = "-";
         if (it.duration_sec >= 0) {

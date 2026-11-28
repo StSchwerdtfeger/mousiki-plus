@@ -89,7 +89,7 @@ std::vector<LocalTrack> LocalSource::scan(const std::vector<std::string>& custom
         }
 
         size_t before = tracks.size();
-        std::map<std::string, bool> creator_dirs;   // folder -> is it the creator's (see kCreatorMarker): its files are not part of the library
+        std::map<std::string, bool> creator_dirs;   // folder -> is it the creator's (see kCreatorMarker) or a set-aside folder (kSetAsideMarker): its files are not part of the library
         // (An explicit loop: the range-for advances with the throwing operator++, so an I/O error half way through a network share
         // would have ended the program at startup. increment(ec) stops this root's walk instead and keeps what was found.)
         const fs::recursive_directory_iterator walk_end;
@@ -117,7 +117,7 @@ std::vector<LocalTrack> LocalSource::scan(const std::vector<std::string>& custom
                     auto it = creator_dirs.find(dir_key);
                     if (it == creator_dirs.end()) {
                         std::error_code mec;
-                        it = creator_dirs.emplace(dir_key, fs::exists(entry.path().parent_path() / kCreatorMarker, mec)).first;
+                        it = creator_dirs.emplace(dir_key, fs::exists(entry.path().parent_path() / kCreatorMarker, mec) || fs::exists(entry.path().parent_path() / kSetAsideMarker, mec)).first;
                     }
                     if (it->second) continue;
                 }

@@ -98,7 +98,7 @@ SnapshotData App::build_snapshot() const {
 }
 
 void App::restore_snapshot(const SnapshotData& snap) {
-    settings_.play_mode = std::clamp(snap.play_mode, 0, 4);
+    settings_.play_mode = (snap.play_mode == 5 ? 2 : std::clamp(snap.play_mode, 0, 4));
     // Apply the saved volume first, then re-apply mute on top of it --
     // mirrors what pressing 'x' does at runtime (force 0, remember the
     // real value), just seeded from the snapshot instead of live state.

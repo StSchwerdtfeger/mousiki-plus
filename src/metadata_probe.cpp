@@ -47,7 +47,7 @@ static RowMeta probe_row_meta_impl(const fs::path& file) {
     // has everything). Keeping format_tags too covers everything else
     // (MP3, FLAC, M4A, ...), where it's the one that's populated.
     ProcResult r = run_capture({"ffprobe", "-v", "error",
-                                "-show_entries", "format=duration:format_tags=artist,title,album,date:stream_tags=artist,title,album,date",
+                                "-show_entries", "format=duration:format_tags=artist,title,album,date,mousiki_id:stream_tags=artist,title,album,date,mousiki_id",
                                 "-of", "default=noprint_wrappers=1", path_utf8(file)});
     // A real probe attempt happened either way -- mark it resolved even on
     // an empty/failed result so callers don't keep retrying an untagged or
@@ -87,6 +87,8 @@ static RowMeta probe_row_meta_impl(const fs::path& file) {
             // one when present; don't let a later, possibly-blank or
             // irrelevant stream's tags clobber it.
             if (rm.artist.empty()) rm.artist = clean_tag_text(val);
+        } else if (key == "TAG:MOUSIKI_ID" || key == "TAG:mousiki_id") {
+            if (rm.vid.empty() && val.size() <= 40) rm.vid = val;
         } else if (key == "TAG:title") {
             if (rm.title.empty()) rm.title = clean_tag_text(val);
         } else if (key == "TAG:album") {

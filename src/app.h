@@ -66,7 +66,7 @@
 namespace muisc {
 namespace org { struct Theme; }   // (organigram.h)
 
-enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, CoverFetch, History, ClearQueue, OsciMenu, NormMenu, BarsMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex, UpdateNotice, QueueToPlaylist, BookOverlay, AudioDevice, VideoMenu, VideoLink, VideoSearch, VideoFetch, CliScripts, MilkdropMenu };
+enum class Mode { Browse, Search, Settings, ColorEdit, Console, Cheatsheet, BulkAdd, RetryLyrics, Playlist, MetaEdit, CoverFetch, History, ClearQueue, OsciMenu, NormMenu, BarsMenu, Equalizer, SleepTimer, LyricsEdit, Karaoke, SpectroMenu, Wizard, ReadLyrics, Creator, MenuIndex, UpdateNotice, QueueToPlaylist, BookOverlay, AudioDevice, VideoMenu, VideoLink, VideoSearch, VideoFetch, CliScripts, MilkdropMenu, LibraryCheck };
 enum class ListSource { Local, Online, Playlist, Folder };
 
 // One row of the main UI's "/f:" folder list: a folder that directly
@@ -589,6 +589,19 @@ private:
     bool video_only_ = false;   // [f] in the big video overlay: the picture alone over the whole window (no border, legend or info); not kept
     bool video_full_ = false;   // HKeyVideoFull: the video over the whole screen
     bool video_field_rows(std::vector<std::string>& rows, int W, int H, int area_col, bool second_slot, double t, const std::vector<std::string>& line_rows, bool trim_right = false) const;
+    // The downloads that live in the library: file name stem (CacheManager::stem_for of the file's own stem) -> path of an audio file of the library.
+    // Made after every scan; read by the loading threads (YoutubeSource's local finder) and the lists of online results.
+    void rebuild_local_copy_index();
+    void record_file_prints();   // size and length of the files that have data of their own (FilePrints): what finds them again after a move or a rename
+    fs::path local_copy_of(const std::string& stem) const;
+    fs::path local_copy_by_id(const std::string& id) const;   // the library file whose tags carry this MOUSIKI_ID (empty: none, or its tags are not read yet)
+    // What a result of an online search / bulk add is already: 0 not downloaded as far as is known, 1 a file of it is at hand (in the download folder
+    // or the library: playing it downloads nothing), 2 in the download history but no file found (playing it fetches it again).
+    int download_state(const OnlineResult& r) const;
+    int download_state_now(const OnlineResult& r) const;
+    mutable std::unordered_map<std::string, std::pair<int, long long>> dl_state_memo_;   // (main thread) id -> state and when it was looked up: files are not looked at every frame
+    mutable std::mutex local_copy_mu_;
+    std::shared_ptr<const std::unordered_map<std::string, std::string>> local_copy_idx_;
     long long added_time_of(const fs::path& p) const;   // file_added_time(), looked up once per file (cleared on rescan)
     mutable std::mutex added_time_mutex_;
     mutable std::unordered_map<std::string, long long> added_time_cache_;   // mode 3: when each file arrived (looked up once per rescan / choice of the mode)
@@ -1894,6 +1907,15 @@ private:
     // L=list, R=repeat, S=shuffle, Q=queue then stop, O=stop (play-and-stop
     // -- not "S", that's shuffle's letter already).
     char play_mode_letter() const;
+    std::string play_mode_cell() const;          // the cells in the play-mode box (" S ", " SQ ")
+    int play_mode_box_w() const;                 // its width with the borders: 5, 6 with two letters
+    bool queue_in_charge() const;                // titles in the queue and a mode that follows the list: the box says LQ / SQ / Q
+    void play_mode_poll();                       // every frame: spell the mode out when it changed by itself
+    std::string mode_seen_;
+    bool queue_item_playing_ = false;            // the track that plays came from the queue (list with an unlocked queue stops after it)
+    std::string play_mode_label() const;         // the mode spelled out
+    std::string play_mode_flash_text() const;    // ... while it is shown (2.5 s after a change), else empty
+    std::chrono::steady_clock::time_point mode_flash_until_{};
     void queue_add_selected_impl(bool at_end);
     void queue_add_selected();           // "a": hovering track as NEXT (see qst_.next_run)
     void queue_remove_last();
@@ -1932,6 +1954,22 @@ private:
     // is settings_.audio_device (config.txt AudioDevice=, "" = the system default); audio_device_apply() hands a changed value to
     // the player once per frame (adev_->applied = the value it has).
     static constexpr int kAudioDevicePanelWidth = 64;
+
+    // MESSY LIBRARY? (src/app_libcheck.cpp): Settings -> GENERAL -> MESSY LIBRARY?. A report about the library (duplicates, per-track data of files that
+    // are gone) and an overlay to clean up duplicates without ever deleting: the extra copies are only set aside, in a folder, after a typed confirmation.
+    struct LcState;
+    std::unique_ptr<LcState> lc_;   // allocated in the constructor
+    void libcheck_open(int page);   // page 0: the report, 1: the duplicates
+    void libcheck_close();
+    void libcheck_key(int key);
+    void libcheck_poll();           // every frame: takes the result of the background check
+    void libcheck_start();          // (re)starts the background check
+    void libcheck_orphans();        // the per-track data of files that are not there (lines for the report)
+    void libcheck_write_report();   // the whole report as a .txt file
+    void libcheck_set_aside();      // moves the marked files into the set-aside folder (after the typed confirmation)
+    void libcheck_undo();           // puts the newest set-aside batch back
+    void libcheck_rest(int group);  // let the group rest / not rest
+    std::vector<std::string> build_libcheck_panel(int W) const;
     struct AdevState;   // defined in app_state_adev.h (only the files that use it include that)
     std::unique_ptr<AdevState> adev_;   // allocated in the constructor
     std::string audio_device_label() const;     // "System Default" or the chosen name (Settings row, status line)

@@ -1,3 +1,4 @@
+#include <array>
 // milkdrop.cpp -- see milkdrop.h.
 #include "milkdrop.h"
 #include "console_log.h"

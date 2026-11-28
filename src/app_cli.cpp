@@ -74,6 +74,7 @@ const Cmd kCmds[] = {
     {"open",          "<where>",                     "open console, settings, cheatsheet, wizard, history, queue, folders, equalizer, playlist", 3, false, false},
     {"edit",          "[script]",                    "open the script overlay (library and editor), on a script",   3, false, false},
     {"rescan",        "",                            "scan the music folders again",                            0, false, false},
+    {"library-check", "",                            "open the Messy Library? report (the check runs in the background; status shows library_check)", 0, false, false},
     {"update",        "[check | yt-dlp]",            "compare yt-dlp with the newest release; update yt-dlp installs it (force in a script)", 3, false, false},
     {"echo",          "<text>",                      "write text (a script's message)",                         3, false, false},
     {"log",           "<text>",                      "write text into the log of the console",                  3, false, false},
@@ -367,7 +368,7 @@ std::string App::cli_exec(const std::string& line_in, cli::Job& job, bool& ok, b
     // from the web server (/api/cli: Home Assistant & co): the harmless set -- nothing that quits, changes settings or scripts, opens
     // screens or empties the queue, and no `force` (so also `run` of a script cannot do more than the endpoint itself)
     if (job.origin == Origin::Network) {
-        static const char* const kDenied[] = {"quit", "force", "yes", "set", "alias", "unalias", "edit", "open", "clear-queue", "rescan", "wizard", "switch-mode", "update"};
+        static const char* const kDenied[] = {"quit", "force", "yes", "set", "alias", "unalias", "edit", "open", "clear-queue", "rescan", "library-check", "wizard", "switch-mode", "update"};
         for (const char* d : kDenied)
             if (name == d) return fail(name + " is not allowed over the network (use it at the keyboard, or `mousiki --cli` on this computer)");
         if (name == "queue" && ascii_lower_str(cli::trim(arg)).compare(0, 5, "clear") == 0) return fail("queue clear is not allowed over the network");
@@ -615,6 +616,7 @@ std::string App::cli_exec(const std::string& line_in, cli::Job& job, bool& ok, b
         return n.empty() ? "script overlay" : "editing " + n;
     }
     if (name == "rescan") { rescan_library(); return "scanning the music folders"; }
+    if (name == "library-check") { libcheck_open(0); return "checking the library (Messy Library?)"; }
     if (name == "update") {   // yt-dlp: the comparison, or the update itself (it changes a program: typed, or `force` in a script)
         bool started = false;
         const std::string answer = ytdlp_update::run_command(arg, locate_script("check_update.py"), forced || job.origin == Origin::Typed, started);

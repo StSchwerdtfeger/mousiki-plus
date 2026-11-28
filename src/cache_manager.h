@@ -2,7 +2,10 @@
 // names are built, and whether a track is already cached.
 #pragma once
 #include <filesystem>
+#include <memory>
+#include <mutex>
 #include <string>
+#include <unordered_set>
 
 namespace muisc {
 
@@ -36,9 +39,15 @@ public:
     // skips what Mousiki fetched and the other way round. Kept in a sub-folder so it is not moved along with the music.
     fs::path download_archive_path() const;
     // Records a finished download ("youtube", "dQw4w9WgXcQ") unless the archive has it already. The file is only ever
-    // appended to -- Mousiki itself does not skip downloads because of it (a deleted song can always be fetched again).
+    // appended to; in_history() reads it (a result already in it is marked, and a copy of it in the library is played instead of a new download --
+    // a song that is in the history but has no file anywhere is still fetched again when it is played).
     // A downloaded_history.txt lying directly in the download folder is moved into the history folder first.
     void record_download(const std::string& extractor, const std::string& id) const;
+    // Has this id been downloaded before (by Mousiki or by a yt-dlp run that used the archive)? Reads the archive (the lines "youtube <id>"; also a
+    // downloaded_history.txt lying directly in the download folder), kept in memory and read again when the file changes. Thread safe.
+    bool in_history(const std::string& id) const;
+    // The file name stem (without extension) a title / key is saved under: what path_for() builds the name from.
+    static std::string stem_for(const std::string& key) { return sanitize(key); }
 
     // Videos: the same idea in a file of their own (the same YouTube id can be a song AND a video, so they must not share one):
     // <download folder>/history/downloaded_videos.txt ("youtube <video id>", for `yt-dlp --download-archive` -- the PowerShell /
@@ -61,6 +70,14 @@ public:
     bool is_video_download_file(const fs::path& file) const;
 
 private:
+    struct HistoryCache {
+        std::mutex m;
+        std::unordered_set<std::string> ids;
+        std::uintmax_t size_a = static_cast<std::uintmax_t>(-1), size_b = static_cast<std::uintmax_t>(-1);
+        long long time_a = 0, time_b = 0;
+        long long checked_ms = 0;   // when the files were looked at last (steady clock): not more than once in two seconds
+    };
+    std::shared_ptr<HistoryCache> hist_ = std::make_shared<HistoryCache>();
     fs::path cache_dir_;
     fs::path download_dir_; // == cache_dir_ unless Settings sets a folder
     static void append_unique_line(const fs::path& file, const std::string& entry);

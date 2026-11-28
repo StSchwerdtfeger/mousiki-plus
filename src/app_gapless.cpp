@@ -97,7 +97,9 @@ bool App::gapless_predict(GapTarget& t) {
         t.loop = true;
         return true;
     }
+    if (queue_.empty() && pm == 0 && !qst_.locked && queue_item_playing_) return false;   // list with an unlocked queue: the queue was played through, playback stops
     if (!queue_.empty()) {
+        if (pm == 2) return false;   // shuffle with titles in the queue (SQ): the title is picked at random when the track ends -- not known in advance
         size_t idx = 0;
         if (pm == 4 && qst_.locked) {
             auto first = std::find_if(queue_.begin(), queue_.end(), [](const QueueItem& q) { return !q.played; });

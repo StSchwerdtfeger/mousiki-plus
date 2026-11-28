@@ -162,6 +162,7 @@ void App::handle_key(int key) {
     if (mode_ == Mode::VideoSearch) { video_search_key(key); return; }
     if (mode_ == Mode::VideoFetch) { video_fetch_key(key); return; }
     if (mode_ == Mode::AudioDevice) { audio_device_key(key); return; }   // CHOOSE AUDIO DEVICE (src/app_audiodevice.cpp)
+    if (mode_ == Mode::LibraryCheck) { libcheck_key(key); return; }      // MESSY LIBRARY? (src/app_libcheck.cpp)
 
     if (mode_ == Mode::UpdateNotice) { handle_update_notice_key(key); return; }
 

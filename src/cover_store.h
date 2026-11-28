@@ -3,6 +3,7 @@
 // pictures that can be chosen from, and the MusicBrainz / Cover Art Archive fetch (scripts/fetch_cover.py).
 // Used by the cover search (cover_art.cpp), the meta editor's cover pane and the cover fetch overlay (ALT+c).
 #include <filesystem>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -109,6 +110,7 @@ void set_cover_track_style(const std::string& track_path, const CoverStyle& st);
 // A choice already made for the new path is kept. Both return how many tracks were moved.
 int cover_store_rename_paths(const std::vector<std::pair<std::string, std::string>>& renames);
 int cover_store_mend_tracks(const std::vector<std::string>& existing_tracks);
+std::set<std::string> cover_store_track_keys();   // every file path that has data of its own here (style, video options, MilkDrop ...)
 // The albums a cover fetch found nothing for (remembered, so they are not asked for again and again): the reason, "" = not on the list.
 std::string cover_fetch_failure(const std::string& album);
 void set_cover_fetch_failure(const std::string& album, const std::string& reason);   // reason "" removes it

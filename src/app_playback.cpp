@@ -818,8 +818,7 @@ void App::queue_reset_lap() {
 
 void App::play_next_from_queue(bool random) {
     // The queue plays in its order, whatever the play mode: next (n) and the end of a track take its first item. Only the
-    // shuffle key (#, `random`) picks a random item of it.
-    // Shuffle: pick a random queue item instead of strictly FIFO order.
+    // shuffle key (#, `random`) and the mode "shuffle queue" (the end of a track) pick a random item of it.
     // What happens to the item once it is taken depends on the lock ("!"):
     //   * LOCKED (the default): it goes to the END of the queue, so the queue
     //     keeps all its tracks and loops indefinitely instead of draining.
@@ -828,18 +827,25 @@ void App::play_next_from_queue(bool random) {
     // every item that goes to the back is flagged `played`, the next one is
     // the first item not flagged yet, and advance_track() stops playback once
     // none is left (the order is then back to what it was).
+    // Shuffle (2) with titles in the queue ("SQ") on a locked queue uses the same flags as ROUNDS: a random item among those not flagged yet, and when all are
+    // flagged a new round starts -- every title once before any comes twice. (Unlocked, played titles leave: the same by itself.)
     int idx = 0;
     qst_.next_run = 0; // the head is moving: "a" starts a fresh run
-    const bool queue_once = settings_.play_mode == 4 && qst_.locked;
-    if (queue_once) {
-        auto first = std::find_if(queue_.begin(), queue_.end(), [](const QueueItem& q) { return !q.played; });
-        if (first == queue_.end()) {   // a manual skip after the pass was over: start a new pass
+    const bool lap_mode = qst_.locked && (settings_.play_mode == 4 || settings_.play_mode == 2);
+    if (lap_mode) {
+        std::vector<int> fresh;
+        for (int i = 0; i < static_cast<int>(queue_.size()); ++i) if (!queue_[static_cast<size_t>(i)].played) fresh.push_back(i);
+        if (fresh.empty()) {   // the pass / round was over (a manual skip after it, or the next round of shuffle queue): start again
             queue_reset_lap();
-            first = queue_.begin();
+            for (int i = 0; i < static_cast<int>(queue_.size()); ++i) fresh.push_back(i);
         }
-        idx = static_cast<int>(first - queue_.begin());
+        idx = fresh.front();
+        if (random && settings_.play_mode == 2 && fresh.size() > 1) {
+            static std::mt19937 rng(std::random_device{}());
+            idx = fresh[std::uniform_int_distribution<size_t>(0, fresh.size() - 1)(rng)];
+        }
     } else {
-        queue_reset_lap(); // the flags only mean something in queue-then-stop on a locked queue
+        queue_reset_lap(); // the flags only mean something in queue-then-stop / shuffle queue on a locked queue
         if (random && queue_.size() > 1) {
             static std::mt19937 rng(std::random_device{}());
             std::uniform_int_distribution<int> dist(0, static_cast<int>(queue_.size()) - 1);
@@ -853,7 +859,7 @@ void App::play_next_from_queue(bool random) {
 // with `move_along` (SHIFT+ENTER) the items in front of it move to the end of the queue first).
 void App::play_queue_item(int idx, bool move_along) {
     if (idx < 0 || idx >= static_cast<int>(queue_.size())) return;
-    const bool queue_once = settings_.play_mode == 4 && qst_.locked;
+    const bool queue_once = qst_.locked && (settings_.play_mode == 4 || settings_.play_mode == 2);   // (flag the items that were played: pass of queue-then-stop, round of shuffle with a queue)
     if (move_along && idx > 0) {   // ENTER (Reposition Queue State): the items in front of it are passed over -- they go to the end in their order
         // (as if they had been played). Not locked as well: they were not played, so they are not dropped -- they wait at the end, as in a locked queue.
         std::rotate(queue_.begin(), queue_.begin() + idx, queue_.end());
@@ -880,6 +886,7 @@ void App::play_queue_item(int idx, bool move_along) {
         OnlineResult r{item.video_id, item.title, item.artist};
         start_online_track(r);
     }
+    queue_item_playing_ = true;   // (start_*_track() cleared it: this track came from the queue)
 }
 
 void App::advance_track() {
@@ -947,16 +954,26 @@ void App::advance_track() {
         }
     }
 
+    // List with an UNLOCKED queue (the box says "Q"): the queue is played through once and playback stops there, like queue then stop.
+    // (Played titles leave an unlocked queue, so the queue is already empty when the last one ends; queue_item_playing_ says it came from it.)
+    if (!audiobook_ && settings_.play_mode == 0 && !qst_.locked && queue_.empty() && queue_item_playing_) {
+        queue_item_playing_ = false;
+        has_track_ = false;
+        history_end_current_play(); // playback really ends here: nothing follows it
+        log_event("queue finished: stopped");
+        return;
+    }
+
     if (audiobook_) { book_advance(); return; }   // the next chapter (or the end of the book)
 
     // The queue always takes priority over the library — it's an
     // explicit user-built-up-next list.
     advancing_ = true; // suppress re-entry until poll_pending_load() reports back
     if (!queue_.empty()) {
-        play_next_from_queue();
+        play_next_from_queue(settings_.play_mode == 2);   // shuffle with titles in the queue (SQ): a random title of it; every other mode: the next in order
     } else {
         switch (settings_.play_mode) {
-            case 2: // shuffle
+            case 2: // shuffle (with the queue used up)
                 play_relative_random();
                 break;
             default: // list (sequential); queue-then-stop (4) never gets here,
@@ -971,6 +988,51 @@ void App::advance_track() {
         has_track_ = false;
         history_end_current_play(); // the finished track has no successor: close its record
     }
+}
+
+// With titles in the queue the modes that follow the list take it over: list becomes "LQ" (locked queue: it loops; unlocked: it is played
+// through once and playback stops, which is what the box calls "Q") and shuffle becomes "SQ" (a random title of the queue).
+bool App::queue_in_charge() const { return !audiobook_ && !queue_.empty() && (settings_.play_mode == 0 || settings_.play_mode == 2); }
+
+// The cells inside the small play-mode box: " L ", " S " ... " LQ ", " SQ ".
+std::string App::play_mode_cell() const {
+    if (queue_in_charge()) {
+        if (settings_.play_mode == 2) return " SQ ";
+        return qst_.locked ? " LQ " : " Q ";
+    }
+    return std::string(" ") + play_mode_letter() + " ";
+}
+
+// The box is 5 cells wide (borders + " S "), 6 with two letters (" SQ ": still centred).
+int App::play_mode_box_w() const { return display_width(play_mode_cell()) + 2; }
+
+// The mode spelled out (what the box shows for 2.5 s after a change).
+std::string App::play_mode_label() const {
+    if (queue_in_charge()) {
+        if (settings_.play_mode == 2) return "Shuffle Queue List";
+        return qst_.locked ? "Queue (locked) List" : "Queue List, Then Stop";
+    }
+    switch (settings_.play_mode) {
+        case 1: return "Repeat Current";
+        case 2: return "Shuffle Library List";
+        case 3: return "Play Track, Then Stop";
+        case 4: return "Queue List, Then Stop";
+        default: return "Library List";
+    }
+}
+
+// Every frame: when the box would say something else than before (the queue filled or emptied, was locked or unlocked), the box spells it out.
+void App::play_mode_poll() {
+    const std::string now = audiobook_ ? std::string() : play_mode_label() + "|" + play_mode_cell();
+    if (now != mode_seen_) {
+        if (!mode_seen_.empty() && !now.empty()) mode_flash_until_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(2500);
+        mode_seen_ = now;
+    }
+}
+
+std::string App::play_mode_flash_text() const {
+    if (!settings_.show_mode_text || std::chrono::steady_clock::now() >= mode_flash_until_) return {};
+    return play_mode_label();
 }
 
 char App::play_mode_letter() const {
@@ -1300,6 +1362,18 @@ void App::track_to_playlist_apply(const std::string& playlist) {
         } else {
             std::error_code ec;
             const fs::path dest_dir = cache_.download_dir();
+            auto inside = [](const fs::path& f, const fs::path& dir) {
+                const std::string a = path_utf8(f), d = path_utf8(dir);
+                return !d.empty() && a.size() > d.size() && a.compare(0, d.size(), d) == 0 && (a[d.size()] == '/' || a[d.size()] == '\\');
+            };
+            if (got->from_cache && !inside(got->cached_path, dest_dir) && !inside(got->cached_path, cache_.cache_dir())) {
+                // already a file of the library (moved out of the download folder): that file goes into the playlist as it is -- no copy, and it is never removed
+                job.ok = true; job.file = got->cached_path;
+                std::lock_guard<std::mutex> lk(atp_mutex_);
+                atp_done_ = std::move(job);
+                atp_ready_ = true;
+                return;
+            }
             fs::create_directories(dest_dir, ec);
             std::string safe_name = got->title.empty() ? t.title : got->title;
             std::string safe_artist = got->artist.empty() ? t.artist : got->artist;
@@ -1411,6 +1485,7 @@ std::vector<std::string> wrap_words(const std::string& text, int width) {
 
 
 void App::start_local_track(const LocalTrack& track) {
+    queue_item_playing_ = false;   // (play_queue_item() sets it again when the queue started this one)
     const std::string playlist_ctx = std::move(current_.pending_queue_playlist);
     current_.pending_queue_playlist.clear();
     current_.pending_play_only = current_.pending_video = false;
@@ -1431,6 +1506,7 @@ void App::start_local_track(const LocalTrack& track) {
 }
 
 void App::start_online_track(const OnlineResult& result) {
+    queue_item_playing_ = false;
     const std::string playlist_ctx = std::move(current_.pending_queue_playlist);
     current_.pending_queue_playlist.clear();
     const bool play_only = current_.pending_play_only, want_video = current_.pending_video;

@@ -525,8 +525,9 @@ std::vector<std::string> App::build_convert_overlay_panel(int panel_w, int list_
 
     // --- search bar (same look as the main one) ---
     {
-        const int search_w = panel_w - 5;
-        out.push_back(box_top("SEARCH FILES TO CONVERT", search_w, border_ansi) + border_ansi + "╭───╮\x1b[0m");
+        const int search_w = panel_w - play_mode_box_w();
+        std::string md; for (int i = 0; i < play_mode_box_w() - 2; ++i) md += "\u2500";
+        out.push_back(box_top("SEARCH FILES TO CONVERT", search_w, border_ansi) + border_ansi + "\u256d" + md + "\u256e\x1b[0m");
         const int inner = std::max(0, search_w - 4);
         const std::string pre = cv_->pick == 1 ? "/f:" : cv_->pick == 2 ? "/p:" : "/";
         std::string q = cv_->query;
@@ -536,8 +537,8 @@ std::vector<std::string> App::build_convert_overlay_panel(int panel_w, int list_
         std::string line = bar + " " + search_idle_sgr(settings_) + pre + search_run(settings_, q, !q.empty())
                          + (cv_->search ? search_idle_sgr(settings_) + "█" : std::string())
                          + std::string(static_cast<size_t>(fill), ' ') + R + " " + bar;
-        out.push_back(line + border_ansi + settings_.box_vertical + " " + std::string(1, play_mode_letter()) + " " + settings_.box_vertical + R);
-        out.push_back(box_bottom(search_w, "", border_ansi_bottom) + border_ansi_bottom + "╰───╯\x1b[0m");
+        out.push_back(line + border_ansi + settings_.box_vertical + play_mode_cell() + settings_.box_vertical + R);
+        out.push_back(box_bottom(search_w, "", border_ansi_bottom) + border_ansi_bottom + "\u2570" + md + "\u256f\x1b[0m");
     }
 
     const int inner = panel_w - 4;

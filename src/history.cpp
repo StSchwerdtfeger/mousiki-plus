@@ -359,6 +359,13 @@ int HistoryStore::rename_ids(const std::vector<std::pair<std::string, std::strin
     return n;
 }
 
+std::set<std::string> HistoryStore::local_paths() const {
+    std::set<std::string> ids;
+    for (const HistoryPlay& p : plays_) if (!p.id.empty() && p.id.compare(0, 3, "yt:") != 0) ids.insert(p.id);
+    for (const auto& kv : archive_.titles) if (!kv.first.empty() && kv.first.compare(0, 3, "yt:") != 0) ids.insert(kv.first);
+    return ids;
+}
+
 int HistoryStore::mend_ids(const std::vector<std::string>& existing_tracks) {
     std::set<std::string> ids;
     for (const HistoryPlay& p : plays_) ids.insert(p.id);
