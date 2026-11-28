@@ -47,7 +47,7 @@ TEST(download_history_is_read_for_ids_downloaded_before) {
     c.set_download_dir(dir);
     CHECK(!c.in_history("AAAAAAAAAAA"));
     fs::create_directories(dir / "history");
-    { std::ofstream f(c.download_archive_path()); f << "youtube AAAAAAAAAAA\r\nyoutube BBBBBBBBBBB\n"; }   // (a yt-dlp run outside Mousiki, even with Windows line ends)
+    { std::ofstream f(c.download_archive_path(), std::ios::binary); f << "youtube AAAAAAAAAAA\r\nyoutube BBBBBBBBBBB\n"; }   // (a yt-dlp run outside Mousiki, even with Windows line ends)
     c.record_download("youtube", "CCCCCCCCCCC");   // (a download of Mousiki: the memory is read again at once)
     CHECK(c.in_history("AAAAAAAAAAA"));
     CHECK(c.in_history("BBBBBBBBBBB"));

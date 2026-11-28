@@ -201,7 +201,7 @@ bool CacheManager::in_history(const std::string& id) const {
                 std::ifstream in(f, std::ios::binary);
                 std::string line;
                 while (std::getline(in, line)) {
-                    if (!line.empty() && line.back() == '\r') line.pop_back();
+                    while (!line.empty() && (line.back() == '\r' || line.back() == ' ')) line.pop_back();   // (also a file saved by a text-mode editor: \r\r\n)
                     const size_t sp = line.find(' ');
                     if (sp != std::string::npos && sp + 1 < line.size()) h.ids.insert(line.substr(sp + 1));
                 }
