@@ -43,7 +43,9 @@ Args build_command(const ConvertItem& it, int preset, bool cover) {
     const bool pic = cover && (ext == ".mp3" || ext == ".m4a");
     if (pic) cmd.insert(cmd.end(), {"-map", "0:v:0?", "-c:v", "copy"});
     else cmd.push_back("-vn");
-    cmd.insert(cmd.end(), {"-map_metadata", "0"});
+    // (Opus and Ogg keep their tags on the audio stream, not on the file: the second map brings those, MP3 / M4A have none there)
+    cmd.insert(cmd.end(), {"-map_metadata", "0", "-map_metadata", "0:s:a:0"});
+    if (ext == ".m4a") cmd.insert(cmd.end(), {"-movflags", "use_metadata_tags"});   // (else M4A drops custom tags such as MOUSIKI_ID)
     const std::string kbps = std::to_string(p.est_kbps) + "k";
     if (ext == ".mp3") {
         cmd.insert(cmd.end(), {"-c:a", "libmp3lame"});

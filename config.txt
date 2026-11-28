@@ -494,6 +494,8 @@ BlackBackground=true
 PlaybackMode=list
 ## list , loop , shuffle , stop , queue then stop
 ## with titles in the queue list becomes LQ (the queue in its order; locked: it loops; unlocked: it is played once, then playback stops) and shuffle becomes SQ (a random title of the queue, every title once per round); queue then stop plays it once. n always plays the next title in order, # picks a random one
+LeaveOutDeletedFiles=true
+## true , false -- Messy Library?: Mousiki remembers the size and length of files that have data of their own (plays, styles) to find them again after they were renamed or moved; true forgets that memory of a file that has been missing for 60 days (its folder is there, the file is not: deleted, or moved out of the library). A drive or share that is not connected is never counted as deleted. false keeps it for ever
 ShowModeText=true
 ## true , false -- for 2.5 seconds after the play mode changed (m, or the queue filled / emptied / was locked), the small mode box grows and spells the mode out ("Shuffle Library List", "Queue (locked) List" ...); false keeps the letter only
 UpdateCheck=true

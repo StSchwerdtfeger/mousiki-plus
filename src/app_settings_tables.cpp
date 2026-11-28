@@ -40,7 +40,7 @@ const std::vector<SetLine>& settings_layout(int tab) {
         {false, kSidLatinMacrons, "Latin Macrons"}, {false, kSidLatinWo, "Latin Wo"}, {false, kSidLatinHanzi, "Translit. Kanji"}, {false, kSidLatinLookup, "Latin Name Lookup"}, {false, kSidLyricsVariants, "Lyrics Name Variants"},
         {true, -1, ""},
         {true, -1, "MESSY LIBRARY?"},
-        {false, kSidLibReport, "Library Report"}, {false, kSidLibDups, "Clean Up Duplicates"},
+        {false, kSidLibReport, "Library Report"}, {false, kSidLibDups, "Clean Up Duplicates"}, {false, kSidLeaveOut, "Leave Out Deleted Files"},
     };
     // A header with an empty text is the blank line before the next header (every header but the first has one).
     static const std::vector<SetLine> anima = {

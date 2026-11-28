@@ -1260,9 +1260,44 @@ std::string replace_emoji_valid(const std::string& s) {
 // The first step of every width helper below (display_width, utf8_take, pad_right, truncate_str, ...): malformed
 // UTF-8 is repaired first (utf8_repair(): each broken byte becomes one visible U+FFFD), so the text these helpers
 // measure is exactly the text they hand back to be drawn -- then the emoji replacement as before.
+// Text that is measured, cut, padded or wrapped (display_width, utf8_take, truncate_str, wrap_lines ...) is mostly plain text from files, tags and the web:
+// a file name, a title, a radio station. A control character in it is not drawn, a terminal acts on it (a Sixel block that swallows the rest of the frame,
+// a scroll region, deleted pictures, a cursor jump). So they are left out here, once, in front of everything that measures text: the C0 controls
+// (a tab and a line break become a space), ESC, DEL and the C1 controls (U+0080 .. U+009F). What is left of an escape sequence ("[5;5H") is then only letters.
+// Kept, because the program's own rows pass through these functions with them: a colour (SGR: ESC [ digits ; : m, at most 40 characters) and the two
+// markers STX / ETX that the legend rows use to highlight a word. (A name can recolour its row with those, nothing more: every row ends with a reset.)
+// `s` is valid UTF-8.
+std::string scrub_controls(const std::string& s) {
+    auto c1 = [&](size_t k) { return static_cast<unsigned char>(s[k]) == 0xC2 && k + 1 < s.size() && static_cast<unsigned char>(s[k + 1]) >= 0x80 && static_cast<unsigned char>(s[k + 1]) <= 0x9F; };
+    bool dirty = false;
+    for (size_t k = 0; k < s.size() && !dirty; ++k) {
+        const unsigned char c = static_cast<unsigned char>(s[k]);
+        dirty = (c < 0x20 && c != 0x02 && c != 0x03) || c == 0x7F || c1(k);
+    }
+    if (!dirty) return s;
+    std::string out;
+    out.reserve(s.size());
+    for (size_t k = 0; k < s.size(); ++k) {
+        const unsigned char c = static_cast<unsigned char>(s[k]);
+        if (c == 0x1B) {
+            if (k + 1 < s.size() && s[k + 1] == '[') {
+                size_t j = k + 2;
+                while (j < s.size() && j < k + 42 && ((s[j] >= '0' && s[j] <= '9') || s[j] == ';' || s[j] == ':')) ++j;
+                if (j < s.size() && s[j] == 'm') { out.append(s, k, j - k + 1); k = j; continue; }
+            }
+            continue;
+        }
+        if (c == '\t' || c == '\n' || c == '\r') { out += ' '; continue; }   // (a line break in a row would break the frame)
+        if ((c < 0x20 && c != 0x02 && c != 0x03) || c == 0x7F) continue;
+        if (c1(k)) { ++k; continue; }
+        out += static_cast<char>(c);
+    }
+    return out;
+}
+
 std::string replace_emoji(const std::string& s) {
-    if (utf8_is_valid(s)) return replace_emoji_valid(s);
-    return replace_emoji_valid(utf8_repair(s));
+    if (utf8_is_valid(s)) return replace_emoji_valid(scrub_controls(s));
+    return replace_emoji_valid(scrub_controls(utf8_repair(s)));
 }
 
 } // namespace

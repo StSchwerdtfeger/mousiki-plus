@@ -285,16 +285,91 @@ bool App::video_is_paired(const fs::path& video) const {
             tracks.insert(path_utf8(t.path));
         }
         paired_videos_.clear();
+        paired_song_.clear();
+        std::unordered_map<std::string, std::string> audio_of_key;
+        for (const LocalTrack& t : all_local_tracks_)
+            if (!LocalSource::is_video_file(t.path)) audio_of_key.emplace(lower(path_utf8(t.path.parent_path())) + "/" + lower(path_utf8(t.path.stem())), path_utf8(t.path));
         for (const LocalTrack& t : all_local_tracks_) {
             if (!LocalSource::is_video_file(t.path)) continue;
-            if (audio_keys.count(lower(path_utf8(t.path.parent_path())) + "/" + lower(path_utf8(t.path.stem()))))
-                paired_videos_.insert(path_utf8(t.path));
+            const auto it = audio_of_key.find(lower(path_utf8(t.path.parent_path())) + "/" + lower(path_utf8(t.path.stem())));
+            if (it != audio_of_key.end()) { paired_videos_.insert(path_utf8(t.path)); paired_song_[path_utf8(t.path)] = it->second; }
         }
         for (const auto& kv : VideoLinks::get().all())   // track -> video, made by hand
-            if (kv.second != "-" && tracks.count(kv.first)) paired_videos_.insert(kv.second);
+            if (kv.second != "-" && tracks.count(kv.first)) { paired_videos_.insert(kv.second); paired_song_[kv.second] = kv.first; }
         paired_n_ = all_local_tracks_.size(); paired_rev_ = video_rev_; paired_ok_ = true;
     }
     return paired_videos_.count(path_utf8(video)) > 0;
+}
+
+fs::path App::song_of_video(const fs::path& video) const {
+    if (!LocalSource::is_video_file(video) || !video_is_paired(video)) return {};
+    const auto it = paired_song_.find(path_utf8(video));
+    return it == paired_song_.end() ? fs::path() : path_from_utf8(it->second);
+}
+
+bool App::queue_pair_filter(QueueItem& item, std::string* note) const {
+    if (!item.is_local) return true;
+    const fs::path song = song_of_video(item.local_path);
+    if (song.empty()) {   // a song, or a video without a song
+        // A song whose video is queued already (the two were paired after the video was queued): one entry.
+        if (!LocalSource::is_video_file(item.local_path)) {
+            for (const QueueItem& q : queue_)
+                if (q.is_local && LocalSource::is_video_file(q.local_path) && song_of_video(q.local_path) == item.local_path) {
+                    if (note) *note = "already queued: " + path_utf8(item.local_path.stem()) + " (the song and its video are one entry)";
+                    return false;
+                }
+            for (const QueueItem& q : queue_)   // the song is queued already for its video (that video row was added first)
+                if (q.is_local && q.from_video && q.local_path == item.local_path) {
+                    if (note) *note = "already queued: " + path_utf8(item.local_path.stem()) + " (the song and its video are one entry)";
+                    return false;
+                }
+        }
+        return true;
+    }
+    for (const QueueItem& q : queue_)
+        if (q.is_local && (q.local_path == song || q.local_path == item.local_path)) {
+            if (note) *note = "already queued: " + path_utf8(song.stem()) + " (the song and its video are one entry)";
+            return false;
+        }
+    item.local_path = song;   // the song plays with its video
+    item.from_video = true;
+    item.title = clean_tag_text(path_utf8(song.stem()));
+    for (const LocalTrack& t : all_local_tracks_) if (t.path == song) { item.title = t.title; item.artist = t.folder_artist; break; }
+    return true;
+}
+
+// A video that was paired with a song after it was queued (a fetched video, a link made by hand, a moved file found again) is one entry with
+// the song: it becomes the song (the title of the song), or goes when the song is queued as well. Runs when the pairing changes.
+void App::queue_merge_pairs() {
+    if (queue_.empty()) return;
+    bool changed = false;
+    std::vector<QueueItem> out;
+    out.reserve(queue_.size());
+    auto queued_song = [&](const fs::path& song) {
+        for (const QueueItem& q : out) if (q.is_local && q.local_path == song) return true;
+        for (const QueueItem& q : queue_) if (q.is_local && q.local_path == song) return true;
+        return false;
+    };
+    for (QueueItem q : queue_) {   // (copies: nothing of queue_ is touched unless something changed)
+        if (q.is_local && LocalSource::is_video_file(q.local_path)) {
+            const fs::path song = song_of_video(q.local_path);
+            if (!song.empty()) {
+                changed = true;
+                if (queued_song(song)) continue;   // (the song is in the queue: the video entry goes)
+                q.local_path = song;
+                q.from_video = true;
+                q.title = clean_tag_text(path_utf8(song.stem()));
+                for (const LocalTrack& t : all_local_tracks_) if (t.path == song) { q.title = t.title; q.artist = t.folder_artist; break; }
+            }
+        }
+        out.push_back(std::move(q));
+    }
+    if (!changed) return;
+    queue_ = std::move(out);
+    qst_.next_run = 0;
+    clamp_queue_selected();
+    force_redraw_ = true;
+    ConsoleLog::instance().log_basic("queue: a song and its video are one entry now");
 }
 
 void App::apply_media_view(std::vector<uint32_t>& ids, int view) const {
@@ -335,7 +410,8 @@ int App::media_view_for(std::string& query, int pane, bool search_default_audio)
 
 std::vector<uint32_t> App::filter_and_rank_local_view_ids(const std::string& query_in) const {
     std::string query = query_in;
-    const int mv = media_view_for(query, local_sort_mode_ == 4 ? 2 : -1);   // SHIFT+t's last step: only the video files
+    int mv = media_view_for(query, local_sort_mode_ == 4 ? 2 : -1);   // SHIFT+t's last step: only the video files
+    if (local_sort_mode_ == 3 && mv == 1) mv = 0;   // recently added: the video of a song is not a new file of its own (a video without a song is listed)
     std::vector<uint32_t> view = filter_and_rank_local_ids(query);
     apply_media_view(view, mv);
     if (folder_filter_.empty()) return view;
@@ -854,6 +930,7 @@ void App::record_file_prints() {
         if (ec) continue;   // (not there: the print it had stays -- it is what finds the file again)
         fp.set(k, static_cast<long long>(sz), fp.duration_ms_of(k));
     }
+    if (settings_.leave_out_deleted) fp.forget_missing(60);   // (Leave Out Deleted Files: the ones not seen for 60 days)
     fp.save_if_dirty();
 }
 

@@ -64,7 +64,10 @@ TEST(library_check_let_it_rest_hides_a_group_and_a_new_copy_brings_it_back) {
 TEST(library_check_name_keys_ignore_copy_marks_and_numbers) {
     CHECK_EQ(lc_name_key(mk("/x/Track 05.mp3", 1, 1)), std::string());
     CHECK_EQ(lc_name_key(mk("/x/01.mp3", 1, 1)), std::string());
-    CHECK_EQ(lc_name_key(mk("/x/Song (2).mp3", 1, 1)), lc_name_key(mk("/y/song.flac", 1, 1)));
+    CHECK_EQ(lc_name_key(mk("/x/Blue Moon Night (2).mp3", 1, 1)), lc_name_key(mk("/y/blue moon night.flac", 1, 1)));
+    CHECK(!lc_name_key(mk("/x/Blue Moon Night.mp3", 1, 1)).empty());
+    CHECK_EQ(lc_name_key(mk("/x/Intro.mp3", 1, 1)), std::string());   // (a common one-word name is in many albums)
+    CHECK_EQ(lc_name_key(mk("/x/Interlude.mp3", 1, 1)), std::string());
     CHECK_EQ(lc_name_key(mk("/x/Song - Copy.mp3", 1, 1)), lc_name_key(mk("/y/Song.mp3", 1, 1)));
     CHECK_EQ(lc_name_key(mk("/x/Song [dQw4w9WgXcQ].opus", 1, 1)), lc_name_key(mk("/y/Song.mp3", 1, 1)));
     CHECK(lc_name_key(mk("/x/a.mp3", 1, 1, "Ann", "Song")) != lc_name_key(mk("/x/a.mp3", 1, 1, "Ann", "Other")));

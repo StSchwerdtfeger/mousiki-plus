@@ -41,7 +41,7 @@ enum SetId {
     kSidMdUseFx, kSidMdPreset, kSidMdBrowse, kSidMdGpu, kSidMdHcd, kSidMdAspect, kSidMdRatio, kSidMdMesh, kSidMdVar, kSidMdBright, kSidMdSat, kSidMdContrast, kSidMdClean, kSidMdLock, kSidMdRandom, kSidBookForceNote,   // (Use Effect on / off; Default Preset: the preset the visuals start with; Preset Overlay: [ENTER] chooses it)
     kSidPaneStyle,     // MAIN UI PANE STYLE: one box / three panes I-III round disk | meta data | lyrics / viz field
     kSidMultiViz, kSidMvMain, kSidMvSecond, kSidMvThird, kSidTopPaneRatio, kSidMvRatio, kSidWideSpectrum,   // WIDE SCREEN OPTIONS (was MULTI-VIZ): several visuals side by side in the field on a wide screen
-    kSidLibReport, kSidLibDups,   // MESSY LIBRARY?: [ENTER] opens the library report / the duplicates clean-up (app_libcheck.cpp)
+    kSidLibReport, kSidLibDups, kSidLeaveOut,   // MESSY LIBRARY?: [ENTER] opens the library report / the duplicates clean-up (app_libcheck.cpp)
     kSidPauseSphere,   // SPHERE: the sphere stops turning while the track is paused
 };
 // True while the audio book player is the mode that runs (set by App::run()): its GENERAL and ANIMA/VIZ tabs leave out what only

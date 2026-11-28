@@ -120,7 +120,9 @@ void App::restore_snapshot(const SnapshotData& snap) {
     };
     for (const auto& t : snap.queue) {
         if (t.is_local && is_book_file(t.path)) continue;
-        queue_.push_back({t.is_local, t.title, t.artist, t.is_local ? path_from_utf8(t.path) : fs::path(), t.video_id, false, t.playlist});
+        QueueItem qi{t.is_local, t.title, t.artist, t.is_local ? path_from_utf8(t.path) : fs::path(), t.video_id, false, t.playlist};
+        if (!queue_pair_filter(qi)) continue;   // (a queue saved before: a song and its video are one entry)
+        queue_.push_back(std::move(qi));
     }
     clamp_queue_selected();
 

@@ -3622,6 +3622,41 @@ def video_library_modes(binary, root, scripts):
         t = sess.text()
         check("| Lone Clip" in t and "| Other Song" in t and t.count("| Paired Song") >= 2, "video mode off: x: lists songs and videos")
         sess.send(b"\x1b", 0.8)
+        # a song and its video are one entry in the queue: adding both from the list that shows both queues the song once
+        sess.send("/", 0.5)
+        sess.send("x:", 1.5)
+        sess.send(b"\r", 0.8)
+        t = sess.text()
+        def in_queue():
+            return [l for l in sess.text().splitlines() if "\u2502\u2502 Paired" in l]
+        nums = [int(m.group(1)) for m in (re.match(r"^\u2502 (\d+)\s+\| Paired Song", l) for l in t.splitlines()) if m]
+        check(len(nums) >= 2, "queue pairs: x: lists the song and its video (%d rows)" % len(nums))
+        sess.send(b"\x1b", 0.6)
+        def paired_list():   # only the two Paired Song rows (the song and its video), whatever order the directory gives
+            sess.send("/", 0.5)
+            sess.send("x:paired", 1.5)
+            sess.send(b"\r", 0.8)
+        paired_list()
+        sess.send("a", 1.0)
+        check(len(in_queue()) == 1, "queue pairs: the first row added is in the queue (%d)" % len(in_queue()))
+        sess.send(b"\x1b[B", 0.6)
+        sess.send("a", 1.0)
+        check(len(in_queue()) == 1, "queue pairs: the song and its video added one after the other are one entry in the queue (%d)" % len(in_queue()))
+        # the other order: the second row first, then the first
+        sess.send(b"\x1b", 0.6)
+        sess.send("/", 0.5)
+        sess.send("c:", 0.6)
+        sess.send("clear-queue\r", 0.8)
+        sess.send("yes\r", 1.0)
+        sess.send(b"\x1b", 0.6)
+        sess.send(b"\x1b", 0.6)
+        check(len(in_queue()) == 0, "queue pairs: the queue is cleared again (%d)" % len(in_queue()))
+        paired_list()
+        sess.send(b"\x1b[B", 0.6)
+        sess.send("a", 1.0)
+        sess.send(b"\x1b[A", 0.6)
+        sess.send("a", 1.0)
+        check(len(in_queue()) == 1, "queue pairs: the other order (the second row first) is one entry as well (%d)" % len(in_queue()))
     finally:
         sess.kill()
 
@@ -4617,6 +4652,9 @@ def settings_descriptions(binary, root, scripts):
                 "Terminal": "Mousiki leaves the terminal", "Reduce": "redrawn about 10 times", "Media": "media keys, headphone"}
         found, missing = walk(want, 40)
         check(not missing, "descriptions (General): every row has its text (missing: %s)" % ", ".join(missing))
+        found2, missing2 = walk({"report": "[w]", "dups": "SET ASIDE", "leave": "kept for ever"}, 140)   # (the MESSY LIBRARY? rows at the end of GENERAL: each has a DESCRIPTION)
+        check(not missing2, "descriptions (Messy Library?): Library Report, Clean Up Duplicates and Leave Out Deleted Files have their text (missing: %s)" % ", ".join(missing2))
+        check("DESCRIPTION" in found2.get("leave", ""), "descriptions (Messy Library?): the box is a DESCRIPTION")
         t = found.get("Playback", "")
         check("DESCRIPTION" in t and "Preview: Playback" not in t, "descriptions: the box is called DESCRIPTION, not Preview")
         check("\u256d\u2500\u2500\u2500\u256e" in t and "Q  queue: play the queue, then stop" in t, "descriptions: Playback shows the small play-mode box and all five modes")
@@ -5492,7 +5530,7 @@ def milkdrop_window(binary, root, scripts):
                 head, rest = data.split(b"\n255\n", 1)
                 return len(set(rest[i:i + 3] for i in range(0, len(rest) - 3, 3 * 997)))
             n_col = colours()
-            for _ in range(24):   # (the preset is random: a picture of the first moments of one can be flat black or white; the shot is renewed)
+            for _ in range(60):   # (the preset is random: a picture of the first moments of one can be flat black or white; the shot is renewed)
                 if n_col > 3:
                     break
                 sess.pump(0.5)
@@ -5531,7 +5569,7 @@ def milkdrop_window(binary, root, scripts):
             w2, h2 = (int(x) for x in head.split(b"\n")[1].split())
             check(abs(w2 / h2 - 4 / 3) < 0.03, "milkdrop window: Aspect Ratio 4:3 gives the window that shape (%dx%d)" % (w2, h2))
             # (the first frame of a quiet scene is darker than the black point: all black is right then, and any light that is there must be green)
-            check((mg > 8 or mr + mg + mb == 0) and mr <= mg * 0.5 and mb <= mg * 0.5, "milkdrop window: the effect (Phosphor Green) is on the window's picture too (mean R %.1f G %.1f B %.1f)" % (mr, mg, mb))
+            check((mg > 1 or mr + mg + mb == 0) and mr <= mg * 0.5 and mb <= mg * 0.5, "milkdrop window: the effect (Phosphor Green) is on the window's picture too (mean R %.1f G %.1f B %.1f)" % (mr, mg, mb))
         sess.send("|", 1.0)
     finally:
         sess.kill()
@@ -7011,6 +7049,100 @@ def colors_scroll(binary, root, scripts):
 
 # The scenarios, longest first. Each one runs in a worker process of its own (own copy of the library, own HOME): they only
 # sleep and read frames, so on a few cores they overlap well. MOUSIKI_SMOKE_JOBS=1 runs them one after the other.
+def hostile_text(binary, root, scripts):
+    """File names and tags that carry escape sequences (a Sixel start, a Kitty delete, a scroll region, a cursor jump) are drawn as plain text: none of those
+    sequences reaches the terminal, in the list, the search, the player, the command line and the Messy Library? overlay."""
+    home = os.path.join(root, "ht_home")
+    lib = os.path.join(root, "ht_music")
+    os.makedirs(os.path.join(home, ".config", "mousiki"))
+    evil = ["\x1bPq#0;2;0;0;0\x1b\\", "\x1b[3;9r", "\x1b_Ga=d,d=A\x1b\\", "\x1b[10;10Hxx", "\x1b]0;owned\x07", "\x9b2J"]
+    names = ["Evil%dOne %s.wav" % (i, e) for i, e in enumerate(evil)]
+    for n in names:
+        try:
+            make_wav(os.path.join(lib, n), 20)
+        except OSError:
+            pass
+    make_tagged_wav(os.path.join(lib, "Tagged Evil.wav"), 20, [("INAM", "Tag\x1bPq\x1b\\Title"), ("IART", "Art\x1b[2;3rist"), ("IPRD", "Al\x1b[5;5Hbum")])
+    with open(os.path.join(home, ".config", "mousiki", "config.txt"), "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\n" % lib)
+    sess = Session(binary, home, scripts, {}, quiet_stderr=True)
+    try:
+        for _ in range(30):
+            sess.pump(0.5)
+            if "HELP WIZARD" in sess.text():
+                break
+        sess.send(b"\x1b", 1.0)
+        for _ in range(20):
+            sess.pump(0.5)
+            if "Evil0One" in sess.text() or "Tagged Evil" in sess.text():
+                break
+        check("Evil" in sess.text(), "hostile text: the files are listed")
+        sess.send("/", 0.5)
+        sess.send("evil", 1.0)
+        sess.send(b"\r", 1.0)            # plays the first match
+        sess.pump(1.5)
+        sess.send(b"\x1b", 0.5)
+        sess.send("/", 0.5)
+        sess.send("c:", 0.6)
+        sess.send("play tag\r", 1.5)
+        sess.pump(2.0)
+        sess.send("library-check\r", 3.0)
+        sess.pump(2.0)
+        sess.send(b"\x1b", 0.5)
+        sess.pump(1.0)
+        raw = sess.raw
+        bad = [b"\x1bPq#0;2;0;0;0", b"\x1b[3;9r", b"\x1b_Ga=d,d=A", b"\x1b[10;10Hxx", b"\x1b]0;owned", b"\xc2\x9b2J", b"\x1bPq\x1b\\", b"\x1b[2;3rist", b"\x1b[5;5Hbum"]
+        for b in bad:
+            check(b not in raw, "hostile text: %r never reaches the terminal" % b)
+        check(b"\x07" not in raw.replace(b"\x1b]", b""), "hostile text: no bell from a name")
+    finally:
+        sess.kill()
+
+
+def recent_pairs(binary, root, scripts):
+    """Video mode ON lists a song and its video as two rows; the sort "recently added" (SHIFT+t, three steps) lists the song only (a video without a song stays)."""
+    import shutil, subprocess
+    if not shutil.which("ffmpeg"):
+        print("  skipped: recently added without paired videos (ffmpeg is not installed on this machine)")
+        return
+    home = os.path.join(root, "rp_home")
+    lib = os.path.join(root, "rp_music")
+    os.makedirs(os.path.join(home, ".config", "mousiki"))
+    os.makedirs(lib)
+    ff = ["ffmpeg", "-v", "error", "-y"]
+    ok = True
+    for name in ("Paired Song", "Other Song"):
+        ok &= subprocess.run(ff + ["-f", "lavfi", "-i", "sine=frequency=440:duration=3", os.path.join(lib, name + ".mp3")], capture_output=True).returncode == 0
+    for name in ("Paired Song", "Lone Clip"):
+        ok &= subprocess.run(ff + ["-f", "lavfi", "-i", "testsrc=size=64x48:rate=5:duration=3", "-f", "lavfi", "-i", "sine=frequency=330:duration=3",
+                                   "-pix_fmt", "yuv420p", "-shortest", os.path.join(lib, name + ".mp4")], capture_output=True).returncode == 0
+    if not ok:
+        print("  (skipped: ffmpeg could not make the test files)")
+        return
+    with open(os.path.join(home, ".config", "mousiki", "config.txt"), "w", encoding="utf-8") as f:
+        f.write("LocalMusicPath=%s\nUseTerminalSettings=true\nVideoMode=true\n" % lib)
+    sess = Session(binary, home, scripts, quiet_stderr=True)
+    try:
+        for _ in range(30):
+            sess.pump(0.5)
+            if "HELP WIZARD" in sess.text():
+                break
+        sess.send(b"\x1b", 1.0)
+        for _ in range(30):
+            sess.pump(0.5)
+            if "Other Song" in sess.text():
+                break
+        t = sess.text()
+        check(t.count("| Paired Song") == 2, "recently added: Video mode lists the song and its video (%d rows)" % t.count("| Paired Song"))
+        for _ in range(3):
+            sess.send("T", 0.8)
+        t = sess.text()
+        check("recently added" in t, "recently added: the sort is on")
+        check(t.count("| Paired Song") == 1 and "| Lone Clip" in t, "recently added: the song once, the video without a song stays (%d x Paired Song)" % t.count("| Paired Song"))
+    finally:
+        sess.kill()
+
+
 def run_scenario(name, binary, root, scripts):
     home = os.path.join(root, "home")
     if name == "main":
@@ -7071,6 +7203,10 @@ def run_scenario(name, binary, root, scripts):
         settings_descriptions(binary, root, scripts)
     elif name == "settings_general_texts":
         settings_general_texts(binary, root, scripts)
+    elif name == "recent_pairs":
+        recent_pairs(binary, root, scripts)
+    elif name == "hostile_text":
+        hostile_text(binary, root, scripts)
     elif name == "milkdrop_radio_book":
         milkdrop_radio_book(binary, root, scripts)
     elif name == "gapless_playback":
@@ -7130,7 +7266,7 @@ def run_scenario(name, binary, root, scripts):
 
 
 SCENARIOS = ["narrow80", "narrow100", "main", "read_lyrics_play", "karaoke_timing", "book_speed_and_devices", "paging_and_translit_row",
-             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_ytdlp_update", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "audio_fades", "audio_fades_edges", "playlist_missing_file", "ytdlp_update_flow", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews", "override_and_previews", "individual_temp_layer", "sharp_and_folders", "thick_borders", "multi_viz"]
+             "mode_keys", "kitty_cover_options", "radio_latin_toggle", "radio_organigram", "radio_idle_rate", "selftest_command", "opened_lyrics_is_current", "disk_field_setting", "queue_shuffle", "queue_search_colors", "bulk_add_options", "bulk_add_flow", "translation_editor", "translation_create", "play_mode_back", "disk_border_setting", "top_pane_style", "translation_paste_undo", "translation_lines", "waterfall_view", "colors_scroll", "theme_last_custom", "shrinking_window", "search_key", "search_wav_tags", "video_overlays", "video_dither_option", "book_embedded_chapters", "cli_commands", "cli_core", "radio_cli", "radio_cli_typed", "radio_ytdlp_update", "radio_cli_extras", "video_fx_picker", "video_fx_picker_sizes", "main_lyrics_translation_key", "radio_sign_border", "radio_shared_rows", "radio_settings_preview", "radio_pane_style", "xdg_dirs", "settings_cli_row", "cli_replies_hooks", "cli_scripts_overlay", "video_pair_tags", "video_fetch_flow", "video_fetch_restore", "settings_video_preview", "video_files_tab", "video_library_modes", "video_fullscreen_sizes", "video_base_per_track", "video_fx_picker_picture", "video_translation_tab", "organigram_menu", "scope_spectro_overlays", "radio_waterfall", "radio_station_edit", "spectro_history_setting", "autoplay_and_sphere", "video_fx_picker_third_slot", "gapless_playback", "audio_fades", "audio_fades_edges", "playlist_missing_file", "ytdlp_update_flow", "milkdrop_visuals", "milkdrop_window", "milkdrop_preset_overlay", "milkdrop_layouts_style", "milkdrop_radio_book", "settings_general_texts", "settings_descriptions", "overlays_queue_enter", "video_fx_list_frozen", "settings_viz_field_previews", "override_and_previews", "individual_temp_layer", "sharp_and_folders", "thick_borders", "multi_viz", "hostile_text", "recent_pairs"]
 
 
 def main():

@@ -7,7 +7,9 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <filesystem>
+#include <mutex>
 #include <map>
 #include <set>
 #include <string>
@@ -33,6 +35,43 @@ inline int print_match(const FilePrint& old_print, const std::string& candidate)
     if (old_print.dur_ms < 0 || d < 0) return 1;
     const long long diff = old_print.dur_ms > d ? old_print.dur_ms - d : d - old_print.dur_ms;
     return diff <= 1000 ? 2 : 0;
+}
+
+// The files of `existing` that have exactly `size` bytes, for the look for a renamed file. Reading the size of every file of a big library
+// (100,000 files, a network share) is slow, so it is done once and shared by everything that looks for moved files in the same scan (the
+// history, the covers, the video links, the library check): the index is kept while the list of files is the same, for 10 minutes. When
+// making it takes more than 20 seconds it is dropped and not tried again for 10 minutes -- a renamed file is then simply not found
+// (best effort; nothing is lost, the data stays under the old path). Returns nullptr when there is no index; the pointer stays valid
+// until the next call.
+inline const std::vector<std::string>* size_index_candidates(const std::vector<std::string>& existing, long long size) {
+    struct Index {
+        std::mutex m;
+        size_t key = 0;
+        std::chrono::steady_clock::time_point made{};
+        bool have = false, too_slow = false;
+        std::map<long long, std::vector<std::string>> by_size;
+    };
+    static Index idx;
+    static const std::vector<std::string> none;
+    static thread_local std::vector<std::string> copy;   // (a copy, so the answer is safe against the next rebuild)
+    size_t key = existing.size();
+    for (const std::string& e : existing) key = key * 1099511628211ULL ^ std::hash<std::string>()(e);
+    const auto now = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lk(idx.m);
+    const bool fresh = idx.have && idx.key == key && now - idx.made < std::chrono::minutes(10);
+    if (!fresh) {
+        if (idx.too_slow && idx.key == key && now - idx.made < std::chrono::minutes(10)) return nullptr;
+        idx.have = true; idx.too_slow = false; idx.key = key; idx.made = now; idx.by_size.clear();
+        for (const std::string& e : existing) {
+            std::error_code ec;
+            const auto sz = std::filesystem::file_size(path_from_utf8(e), ec);
+            if (!ec) idx.by_size[static_cast<long long>(sz)].push_back(e);
+            if (std::chrono::steady_clock::now() - now > std::chrono::seconds(20)) { idx.too_slow = true; idx.by_size.clear(); return nullptr; }
+        }
+    }
+    const auto it = idx.by_size.find(size);
+    copy = it == idx.by_size.end() ? none : it->second;
+    return &copy;
 }
 
 // For each path of `old_paths` that is not there any more (a path that exists is never touched), the path of the one file in
@@ -71,24 +110,14 @@ inline std::map<std::string, std::string> find_moved(const std::set<std::string>
         }
         if (best > 0 && n_best == 1) { found[o] = pick; ++wanted[pick]; }
     }
-    std::map<std::string, std::vector<std::string>> by_size;   // size -> files (made once, and only when a renamed file is looked for)
-    bool by_size_made = false;
     for (const std::string& o : unnamed) {
         const FilePrint op = FilePrints::get().find(o);
         if (!op.known() || op.size <= 0) continue;
-        if (!by_size_made) {
-            by_size_made = true;
-            for (const std::string& e : existing) {
-                std::error_code ec;
-                const auto sz = std::filesystem::file_size(path_from_utf8(e), ec);
-                if (!ec) by_size[std::to_string(sz)].push_back(e);
-            }
-        }
-        const auto it = by_size.find(std::to_string(op.size));
-        if (it == by_size.end()) continue;
+        const std::vector<std::string>* cands = size_index_candidates(existing, op.size);   // (the sizes of the library are read once, see size_index_candidates)
+        if (!cands) continue;
         std::string pick;
         int n = 0;
-        for (const std::string& c : it->second) if (print_match(op, c) == 2) { pick = c; ++n; }   // (a renamed file needs the length too)
+        for (const std::string& c : *cands) if (print_match(op, c) == 2) { pick = c; ++n; }   // (a renamed file needs the length too)
         if (n == 1) { found[o] = pick; ++wanted[pick]; }
     }
     for (const auto& kv : found) if (wanted[kv.second] == 1) out[kv.first] = kv.second;

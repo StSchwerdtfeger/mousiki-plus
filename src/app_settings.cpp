@@ -924,6 +924,7 @@ std::string App::settings_get_value(int row, int col) const {
             case kSidLatinWo: v = settings_.latin_wo; break;
             case kSidLatinHanzi: return settings_.latin_hanzi == 1 ? "Chin." : settings_.latin_hanzi == 2 ? "Jap." : "Leave";
             case kSidModeText: v = settings_.show_mode_text; break;
+            case kSidLeaveOut: v = settings_.leave_out_deleted; break;
             case kSidLyricsVariants: v = settings_.lyrics_name_variants; break;
             case kSidLibReport: case kSidLibDups: return "[ENTER] open";   // the MESSY LIBRARY? overlays
             case kSidCliScripts: return "[ENTER] open";   // the script overlay (the command line's library and editor)
@@ -1538,6 +1539,7 @@ void App::settings_commit_edit_impl() {
             case kSidLatinLookup: settings_.latin_lookup = is_true; name_lookup_broken_ = false; break;
             case kSidLatinMacrons: settings_.latin_macrons = is_true; translit_set_style(settings_.latin_macrons, settings_.latin_wo); force_redraw_ = true; break;
             case kSidModeText: settings_.show_mode_text = is_true; mode_flash_until_ = {}; break;
+            case kSidLeaveOut: settings_.leave_out_deleted = is_true; break;
             case kSidLyricsVariants: settings_.lyrics_name_variants = is_true; set_lyrics_name_variants(is_true); break;
             case kSidLatinWo: settings_.latin_wo = is_true; translit_set_style(settings_.latin_macrons, settings_.latin_wo); force_redraw_ = true; break;
             case kSidRemoteApp:
@@ -1906,6 +1908,8 @@ void App::settings_cycle(int dir) {
     }
     if (id == kSidModeText) status_line_ = settings_.show_mode_text ? "show outwritten mode: on -- for 2.5 s after the play mode changes, the mode box grows and spells it out (\"Shuffle Library List\", \"Queue (locked) List\" ...)"
                                                                       : "show outwritten mode: off -- the mode box shows only its letter (L, LQ, R, S, SQ, O, Q)";
+    if (id == kSidLeaveOut) status_line_ = settings_.leave_out_deleted ? "leave out deleted files: on -- the memory of size and length (it finds renamed / moved files) forgets a file that has been missing for 60 days; a drive that is not connected never counts"
+                                                                       : "leave out deleted files: off -- the memory of missing files is kept for ever";
     if (id == kSidBlackBg) status_line_ = settings_.black_background ? "black background: on -- the terminal is black while Mousiki runs (given back on exit)"
                                                                      : "black background: off -- the terminal keeps its own background";
     if (id == kSidShareProfiles) status_line_ = settings_.share_profiles ? "modes share settings: on -- the radio uses these oscilloscope / spectrogram settings (its own come back when this is off)"

@@ -12,6 +12,7 @@ namespace muisc {
 struct FilePrint {
     long long size = -1;     // bytes, -1 = unknown
     long long dur_ms = -1;   // milliseconds, -1 = unknown
+    long long seen_day = 0;  // the last day (days since 1970) the file was there; 0 = not known
     bool known() const { return size >= 0; }
 };
 
@@ -22,6 +23,11 @@ public:
     // Remembers the print of an existing file (a duration of -1 keeps the one known before). Written to disk by save_if_dirty().
     void set(const std::string& path_utf8, long long size, long long dur_ms);
     void save_if_dirty();
+    // Forgets the prints of files that have not been seen for `grace_days` and are not there: deleted, or moved out of where Mousiki looks (it cannot
+    // tell which; the days are the time to find a moved file). A file whose drive or share is not connected is never forgotten: when the first
+    // folder above it that exists is not its own folder, and that folder is empty (an unmounted mount point) or there is none (a missing drive), it is
+    // left alone. Returns how many were forgotten.
+    int forget_missing(int grace_days);
     // For the tests: another file (and nothing loaded yet).
     void use_file(const std::filesystem::path& f);
     // The duration (ms) of an existing file from what the library already read from its tags; -1 when unknown. Set by the App.

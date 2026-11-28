@@ -134,3 +134,28 @@ TEST(track_style_and_options_follow_a_moved_or_renamed_file) {
     CHECK_EQ(cover_track_style(renamed).look, 3);
     CHECK_EQ(cover_track_style(moved).look, -1);
 }
+
+TEST(file_prints_forget_files_missing_for_long_but_never_a_disconnected_drive) {
+    const fs::path dir = fs::temp_directory_path() / "mousiki_prints_forget";
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    FilePrints& fp = FilePrints::get();
+    fp.use_file(dir / "prints.tsv");
+    const std::string here = touch(dir / "lib" / "here.mp3");
+    const std::string gone = path_utf8(dir / "lib" / "gone.mp3");        // its folder is there, the file is not
+    const std::string off = path_utf8(dir / "unplugged" / "deep" / "x.mp3");   // the first folder above it that exists is an empty mount point
+    fs::create_directories(dir / "unplugged");
+    fp.set(here, 1, 1000); fp.set(gone, 2, 2000); fp.set(off, 3, 3000);
+    fp.save_if_dirty();
+    CHECK_EQ(fp.forget_missing(60), 0);   // (all seen today: nothing is old enough)
+    // an old file that has no day (written by the version before): it gets today, and 60 days to be found
+    { std::ofstream f(dir / "prints.tsv", std::ios::binary); f << gone << "\t2\t2000\n" << here << "\t1\t1000\t1\n" << off << "\t3\t3000\t1\n"; }
+    fp.use_file(dir / "prints.tsv");
+    CHECK(fp.find(gone).known());
+    CHECK_EQ(fp.forget_missing(60), 0);   // (gone has today; here exists; off is an unmounted point)
+    { std::ofstream f(dir / "prints.tsv", std::ios::binary); f << gone << "\t2\t2000\t1\n" << here << "\t1\t1000\t1\n" << off << "\t3\t3000\t1\n"; }
+    fp.use_file(dir / "prints.tsv");
+    CHECK_EQ(fp.forget_missing(60), 1);   // (only gone: old, its folder is there, the file is not)
+    CHECK(!fp.find(gone).known() && fp.find(here).known() && fp.find(off).known());
+    fs::remove_all(dir);
+}

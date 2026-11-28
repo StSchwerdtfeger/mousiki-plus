@@ -149,6 +149,12 @@ std::string pv_desc(int id, const Settings& s) {
             return "What the first pane shows: as field = what Lyrics/Viz Default and the \".\" key say (lyrics, a visual, the video ...), or one fixed visual. A visual that is on in another pane is not drawn twice.";
         case kSidMvSecond: case kSidMvThird:
             return "What this pane shows beside the first one: off, the sphere, the oscilloscope, the spectrogram, the video of the track or MilkDrop. Pictures (video, MilkDrop, image styles) need a free picture slot of the terminal: two at most besides the disk's cover; a pane without one falls back to the next visual that can be drawn as text.";
+        case kSidLibReport:
+            return "[ENTER] checks the whole library and shows a report: how many files, duplicates (the same bytes, the same download, the same song by artist + title + length) and the per-track data (plays, styles, video links) of files that went missing, with the files that look like them. [w] writes the report as a .txt file. Nothing is changed.";
+        case kSidLibDups:
+            return "[ENTER] lists the duplicate groups. A file is never judged a duplicate by its name alone. You mark files with SPACE, type MOVE, and they are only SET ASIDE in a folder named \"Mousiki - duplicates set aside\" inside the library folder (at least one copy of each song always stays; [u] puts the last batch back). [r] lets a deliberate copy REST: it stays and is not listed again. Nothing is deleted.";
+        case kSidLeaveOut:
+            return "Mousiki remembers the size and length of files that have data of their own (plays, styles, video links), to find them again after they were renamed or moved outside Mousiki.\non: that memory of a file is forgotten when the file has been missing for 60 days (deleted, or moved out of the library). A drive or share that is not connected never counts.\noff: it is kept for ever.";
         case kSidNormalize:
             return "Plays quiet and loud tracks at about the same loudness, so the volume need not be changed between songs. Target and boost are set in the SHIFT+v overlay.";
         case kSidRateCap:

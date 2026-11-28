@@ -124,6 +124,10 @@ const char* App::playlist_sort_name(int mode) {
 // order; sort 0 keeps the relevance ranking / folder order.
 void App::playlist_refresh_lib_view() {
     playlist_->edit_lib_view = filter_local_or_folders(playlist_->edit_lib_query, pl_media_);
+    if (playlist_->edit_sort == 5) {   // recently added: the video of a song is not a new file of its own (a video without a song is listed; "v:" / video only lists them all)
+        std::string rest = playlist_->edit_lib_query;
+        if (media_view_for(rest, pl_media_) != 2) apply_media_view(playlist_->edit_lib_view, 0);
+    }
     if (playlist_->edit_sort == 5) {   // recently added: newest first (a stable sort: equal times keep their order)
         std::vector<std::pair<long long, size_t>> keyed;
         keyed.reserve(playlist_->edit_lib_view.size());

@@ -680,10 +680,12 @@ std::string App::cli_exec(const std::string& line_in, cli::Job& job, bool& ok, b
         if (hits.empty()) return fail("no local title matches \"" + q + "\"");
         const LocalTrack& t = hits.front();
         QueueItem item{true, t.title, t.folder_artist, t.path, "", false, ""};
+        { std::string note; if (!queue_pair_filter(item, &note)) return fail(note); }
+        const std::string item_title_for_reply = item.title, item_artist_for_reply = item.artist;
         if (next) { const int pos = std::clamp(qst_.next_run, 0, static_cast<int>(queue_.size())); queue_.insert(queue_.begin() + pos, std::move(item)); ++qst_.next_run; }
         else queue_.push_back(std::move(item));
         clamp_queue_selected();
-        return std::string(next ? "queued next: " : "queued ") + t.title + with_artist(t.folder_artist) + "  (queue " + std::to_string(queue_.size()) + ")";
+        return std::string(next ? "queued next: " : "queued ") + item_title_for_reply + with_artist(item_artist_for_reply) + "  (queue " + std::to_string(queue_.size()) + ")";
     }
     if (name == "search") {
         if (audiobook_) return fail("search the books with / (plain words)");

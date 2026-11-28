@@ -220,3 +220,16 @@ TEST(translit_hold_switches_the_latin_letters_off_for_its_scope) {
     CHECK(translit_enabled());
     set_translit_enabled(false);
 }
+
+TEST(text_from_files_never_carries_control_characters_into_a_row) {
+    const std::string evil = std::string("Song \x1b" "Pq#0;2;0;0;0\x1b\\ \x1b[3;9r \x1b_Ga=d,d=A\x1b\\ \x1b[10;10Hxx \x1b]0;t\x07 \xc2\x9b" "2J end\x7f\t!\n");
+    for (const std::string& r : {truncate_str(evil, 200), truncate_str(evil, 20), pad_right(evil, 200), utf8_take(evil, 30)}) {
+        for (unsigned char c : r) CHECK(c >= 0x20 && c != 0x7F);
+        CHECK(r.find("\xc2\x9b") == std::string::npos);
+    }
+    // the program's own colours and legend markers pass through these functions and stay
+    CHECK_EQ(truncate_str(std::string("\x1b[38;5;246mhi\x1b[0m \x02key\x03"), 80), std::string("\x1b[38;5;246mhi\x1b[0m \x02key\x03"));
+    CHECK_EQ(truncate_str(std::string("a\x1b[1;2Hb\x1b[2;3rc"), 80), std::string("a[1;2Hb[2;3rc"));   // (only a colour is kept: a cursor jump or a scroll region is not)
+    CHECK_EQ(truncate_str("plain title", 30), std::string("plain title"));
+    for (const std::string& l : wrap_lines(evil, 20, 10)) for (unsigned char c : l) CHECK(c >= 0x20 && c != 0x7F);
+}

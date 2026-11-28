@@ -100,6 +100,8 @@ struct QueueItem {
     // "video" = the track's video is downloaded when it plays.
     bool play_only = false;
     bool want_video = false;
+    // The entry came from a video that is paired with this song (queue_pair_filter): the song is not queued again for its video, nor the video for the song.
+    bool from_video = false;
 };
 
 struct CoverImage;   // cover_art.h
@@ -892,6 +894,14 @@ private:
     bool video_is_paired(const fs::path& video) const;   // an audio file of the same name beside it, or a link made by hand
     static const char* media_view_name(int view) { return view == 2 ? "video" : view == 1 ? "video + audio" : "audio"; }
     mutable std::unordered_set<std::string> paired_videos_;
+    mutable std::unordered_map<std::string, std::string> paired_song_;   // paired video (path) -> its song (path); made with paired_videos_
+    // The queue holds a song and its video as ONE thing: a video that is paired with a song is queued as that song (the video plays with it).
+    // Returns false when the song of that pair is already in the queue (nothing is added; `note` says so).
+    bool queue_pair_filter(QueueItem& item, std::string* note = nullptr) const;
+    void queue_merge_pairs();   // a video paired with a song after it was queued becomes the song / goes (runs when the pairing changes)
+    size_t qmp_n_ = static_cast<size_t>(-1);
+    unsigned qmp_rev_ = 0;
+    fs::path song_of_video(const fs::path& video) const;   // "" when the video is not paired (or is no video)
     mutable size_t paired_n_ = 0;
     mutable unsigned paired_rev_ = 0;
     mutable bool paired_ok_ = false;

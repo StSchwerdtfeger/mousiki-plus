@@ -161,7 +161,9 @@ void App::history_queue_rows(const std::vector<HistoryTopRow>& rows, int take, c
             std::error_code ec;
             if (!fs::exists(path, ec)) { ++missing; continue; } // moved/deleted since it was played
             const std::string title = r.title.empty() ? clean_tag_text(path_utf8(path.stem())) : r.title;
-            queue_.push_back({true, title, artist, path, "", false, ""});
+            QueueItem qi{true, title, artist, path, "", false, ""};
+            if (!queue_pair_filter(qi)) continue;   // (a video of a song that is queued already)
+            queue_.push_back(std::move(qi));
             ++added;
         }
     }

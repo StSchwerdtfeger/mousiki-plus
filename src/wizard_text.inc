@@ -2191,7 +2191,11 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   video id tag, or same artist+title+length). Marked files
                                                   are only SET ASIDE after typing MOVE (undo with [u]);
                                                   [r] lets a deliberate duplicate rest.
-
+                                                  Leave Out Deleted Files: forgets the size/length memory of
+                                                  a file missing for 60 days (a drive that is not connected
+                                                  never counts); off keeps it for ever.
+)WIZ",
+R"WIZ(
 
 
 
@@ -2202,8 +2206,7 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
 [LYRICS/VIZ FIELD:][[Header]]  
 [Lyrics/Viz Default:][[Legend]]                               With what the view field starts with.
 [When No Lyrics Show][[Legend]]                               What the lyrics area shows when there are no lyrics:
-)WIZ",
-R"WIZ(                                                  the view you pick, or nothing.
+                                                  the view you pick, or nothing.
 [When No Video Shows][[Legend]]                               What the video view shows when the track has no video:
                                                   the lyrics (default), a visual or nothing.
 
@@ -2295,12 +2298,12 @@ R"WIZ(                                                  the view you pick, or no
 
 [Album Cover (music player):][[Legend]]                       Album Cover (false by default) shows the cover of the
                                                   playing track in the disk's place; a track without a
-                                                  cover keeps the disk.
+)WIZ",
+R"WIZ(                                                  cover keeps the disk.
 
 [Cover Mode:][[Legend]]                                       chooses how it is shown (seven ways):
                                                   1. Just Cover - the cover in its own colours. 2. Cover
-)WIZ",
-R"WIZ(                                                  with Gradient - a grey version of the cover under the
+                                                  with Gradient - a grey version of the cover under the
                                                   disk's gradient colours, a slow wave that moves
                                                   diagonally over the picture, from the upper left to the
                                                   lower right.
@@ -2377,11 +2380,11 @@ R"WIZ(                                                  with Gradient - a grey v
                                                   album is taken.
                                                   Folder First: the folder first (close name, then
                                                   cover.jpg and its like), the file's picture last
-                                                  Within File First: inside the file; then only a closely
+)WIZ",
+R"WIZ(                                                  Within File First: inside the file; then only a closely
                                                   named picture of the folder (no cover.jpg)
                                                   Image in Folder Only: never looks inside the files
-)WIZ",
-R"WIZ(                                                  Within File Only: never looks in the folder
+                                                  Within File Only: never looks in the folder
 
 
 [Book Cover (audio book mode):][[Legend]]                     Show cover or not. The gradient options is also present
@@ -2474,11 +2477,11 @@ R"WIZ(                                                  Within File Only: never 
                                                   Classic and Hi-Fi keep their own values.
 [Bars Fluidity:][[Legend]]                                    sets the stiffness/friction of the bars moving up,
                                                   where a low value means the bars snap upwards instantly.
-                                                  The higher the value, the softer the jump.
+)WIZ",
+R"WIZ(                                                  The higher the value, the softer the jump.
 [Bars Degradation (1-10):][[Legend]]                          how slow/smooth the value fades, where low values make
                                                   it fade slowly...
-)WIZ",
-R"WIZ([Bars Viscosity (1-10):][[Legend]]                            How much neighboring bars are blended into each other.
+[Bars Viscosity (1-10):][[Legend]]                            How much neighboring bars are blended into each other.
                                                   Higher value means as moother blend. FOR AN ENERGETIC
                                                   LOOK: set low fluidity, high degragation and a low
                                                   viscosity. FOR
@@ -2596,11 +2599,11 @@ OPEN: [[Header]]
 CONSOLE / LOGS: [[Header]]
 The top pane shows what the app has been doing: the commands it ran with their output (yt-dlp, ffmpeg,
 lyrics and cover fetches ...), sort and filter changes, queue messages, load timings and why a cover
-or a lyrics file was (not) found. It keeps the last 1500 lines of this session, and the end of the
+)WIZ",
+R"WIZ(or a lyrics file was (not) found. It keeps the last 1500 lines of this session, and the end of the
 last session's log stands above them, after a line "the last session". The files are
 ~/.cache/mousiki/logs/console.log and console_previous.log.
-)WIZ",
-R"WIZ(
+
 STATUS MESSAGES: [[Header]]
 The pane below (8 rows) keeps every status message with its time, e.g. [14:03:22] Latin letters: on.
 The messages of the Settings screen and the overlays are kept too; the main screen shows none of
@@ -2743,13 +2746,13 @@ LANGUAGE, BITRATE (128 = at least 128, 64-192 = range, -192 = at most), then the
 
 [TAB]        NAME > TAGS > COUNTRY > STATE > LANGUAGE > BITRATE > RESULTS > NAME
 [ARROW KEYS] Move through the panes...
-[ENTER]      in a field: search. In RESULTS: tune the station.
+)WIZ",
+R"WIZ([ENTER]      in a field: search. In RESULTS: tune the station.
 [a]          in RESULTS: add it to your station list (a dot in front means you already have it)
 [ESC]        clear a field; on an empty field or in RESULTS: close
 
 Every search hides broken streams, sorts by clicks and returns at most 200 results.
-)WIZ",
-R"WIZ(
+
 [[New Page]]
 3.2.2 STATION LISTS [[Header]]
 
@@ -2897,12 +2900,12 @@ HISTORY PATH         radio_history/
 AUDIO BOOK PATH      the player's audio book folder (kept in the player's config.txt, listed here 
                      so it can be set from every mode)
 Changed folders are copied, never moved, and nothing is deleted. Playback stops and everything reloads.
-
+)WIZ",
+R"WIZ(
 REFERENCE: REBINDING THE KEYS OF THE RADIO: [[Header]]
 The keys that are not hard coded, grouped like the player's: PLAYBACK, MENUS, TIMESHIFT and SYSTEM.
 [ENTER]  on a row, then type one character (case matters) or SPACE / TAB / BACKSPACE
-)WIZ",
-R"WIZ([DEL]    restore the default of that key
+[DEL]    restore the default of that key
 [CTRL+SHIFT+u]  undo the last five key changes
 The first row, Reset all keys to default, sits under the cheat sheet note at the top.
 A key that is already in use is refused, and the fixed keys count too: the 16 preset keys (1..0 and
@@ -3020,11 +3023,11 @@ File name, Book title, Author, Narrator, Chapter, Publisher, Year and Genre.
               with [d] first). A changed row is drawn in the header colour) 
 [s]           writes this chapter's changes. The audio is copied bit for bit (ffmpeg -c copy). 
               The File name row edits the name only; the ending (.mp3 ...) stays.
-[a]           writes the changed book rows (book title, author, narrator, publisher + year, genre) 
+)WIZ",
+R"WIZ([a]           writes the changed book rows (book title, author, narrator, publisher + year, genre) 
               to every chapter of the book; the chapter title stays each chapter's own. The chapter 
               number always goes in FRONT of the name (01 Dune, 02 Dune ...): the folder is sorted 
-)WIZ",
-R"WIZ(              by name, so the number keeps the track order whatever the titles are.
+              by name, so the number keeps the track order whatever the titles are.
 
 A number that is there already is not added twice; numbers at the END of every name (Dune 01) are moved 
 to the front of every file - the editor says why and asks [y] / [n] first. [s] puts the number in front 
@@ -3147,11 +3150,11 @@ The marks are saved in the book's .cue after every change (REM CHAPTER lines).
 
 [c] CUTS THE FILE: [[Header]] 
 after one question ffmpeg copies the parts without re-encoding (-c copy) into the book folder 
-as "01 Chapter 1.wav", "02 The Storm.wav" ... with the chapter title as title tag. If anything 
+)WIZ",
+R"WIZ(as "01 Chapter 1.wav", "02 The Storm.wav" ... with the chapter title as title tag. If anything 
 fails, the new files are removed and the original is untouched. Answer the question with [t] 
 instead of [y] to also trim blank audio at the edges of the parts to 2 seconds (bookmarks, 
-)WIZ",
-R"WIZ(auto-mark and notes are moved accordingly).
+auto-mark and notes are moved accordingly).
 
 THE BACKUP: [[Header]] 
 The original becomes "Dune.wav.mousiki-backup" in the book folder (not listed as a chapter) and 
@@ -3278,11 +3281,11 @@ play sayonara finds Sayōnara anata (accents do not matter). The name before the
 the folder of the title (the artist folder).
 
  Command                 What it does                          Answer, for example
- ----------------------  ------------------------------------  ----------------------------------
+)WIZ",
+R"WIZ( ----------------------  ------------------------------------  ----------------------------------
  play                    resume a paused title                 resumed: Romance sengen ... 00:41/..
  play <words>            play the first local title that has   playing Romance sengen - Kaneko Ayano
-)WIZ",
-R"WIZ(                         all the words (any case)              (+1 more matches)
+                         all the words (any case)              (+1 more matches)
  pause                   pause, keep the position              paused: <title> <position> <volume>
  stop                    same as pause (Mousiki keeps the     paused (stop pauses: the position is
                          position; there is no real stop)      kept, `play` resumes): ...
@@ -3399,11 +3402,11 @@ hooks.cli (edit hooks) runs commands when something happens, one line each:
  * force <command> runs such a command without asking. In scripts, timers, hooks and from outside it
    is needed, because nobody is there to confirm:  force queue clear
  * From the network (5.1.9) there is no quit, force, yes, set, alias, unalias, edit, open,
-   clear-queue, queue clear, rescan, wizard, switch-mode, update. Scripts started from the network run with
+)WIZ",
+R"WIZ(   clear-queue, queue clear, rescan, wizard, switch-mode, update. Scripts started from the network run with
    the same limits.
  * A script that calls itself ends after 1000 lines; at most 50 timers wait; a timer is at most 24 h.
-)WIZ",
-R"WIZ( * Errors of scripts, timers and hooks go to the console log (CLI error: ...) with the line.
+ * Errors of scripts, timers and hooks go to the console log (CLI error: ...) with the line.
 
 [[New Page]]
 5.1.8 CLI IN THE RADIO [[Header]]
@@ -3551,14 +3554,14 @@ LatinMacrons                       false
 LatinWo                            false
 LatinNameLookup                    false
 LatinHanziDefault                  leave
-AlbumCover                         false
+)WIZ",
+R"WIZ(AlbumCover                         false
 CoverMode                          disk
 CoverContrast                      0
 CoverBrightness                    50
 CoverColors                        0
 CoverGradientSaturation            30
-)WIZ",
-R"WIZ(DiskVividness                      0
+DiskVividness                      0
 WaveformVividness                  0
 ScopeVividness                     as disk
 SpectrogramVividness               as disk
@@ -3752,14 +3755,14 @@ ShareProfiles                      false
 SpectroHistory                     true
 BookmarkAsk                        true
 BookCoverWave                      true
-TerminalDefaultFont                false
+)WIZ",
+R"WIZ(TerminalDefaultFont                false
 TerminalFont                       Cascadia Mono
 AudioDevice                        (empty)
 BookSpeed                          1.00
 BookCover                          false
 UpdateCheck                        true
-)WIZ",
-R"WIZ(TrackBufferMB                      64
+TrackBufferMB                      64
 TerminalCols                       120
 TerminalRows                       32
 UseTerminalSettings                false
@@ -3775,6 +3778,7 @@ RemoteAppCli                       false
 RemoteAppHosts                     (empty)
 PlaybackMode                       list
 ShowModeText                       true
+LeaveOutDeletedFiles               true
 VisualizerDegradationSpeed         8
 VisualizerViscosity                3
 VisualizerStyle                    hifi

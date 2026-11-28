@@ -1351,6 +1351,12 @@ static Settings load_from_config(const fs::path& path) {
             s.book_cover_wave = !(v == "false" || v == "0" || v == "off" || v == "no");
             continue;
         }
+        if (key == "LeaveOutDeletedFiles") {
+            std::string v = trim_ws(unquote(value));
+            for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+            s.leave_out_deleted = !(v == "false" || v == "0" || v == "off" || v == "no");
+            continue;
+        }
         if (key == "ShowModeText") {
             std::string v = trim_ws(unquote(value));
             for (char& ch : v) ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
@@ -2508,6 +2514,7 @@ write_simple_setting(out, s, "VideoLayout");
     out << "RemoteAppHosts=" << s.remote_hosts << "\n## names (comma separated, e.g. mousiki.home,nas) the remote app's web server answers to besides IP addresses and localhost; a request with any other Host is refused (DNS rebinding protection). Empty (default): addresses only\n";
     out << "PlaybackMode=" << play_mode_name(s.play_mode) << "\n## list , loop , shuffle , stop , queue then stop\n"
         << "## with titles in the queue list becomes LQ (the queue in its order; locked: it loops; unlocked: it is played once, then playback stops) and shuffle becomes SQ (a random title of the queue, every title once per round); queue then stop plays it once. n always plays the next title in order, # picks a random one\n";
+    out << "LeaveOutDeletedFiles=" << tf(s.leave_out_deleted) << "\n## true , false -- Messy Library?: Mousiki remembers the size and length of files that have data of their own (plays, styles) to find them again after they were renamed or moved; true forgets that memory of a file that has been missing for 60 days (its folder is there, the file is not: deleted, or moved out of the library). A drive or share that is not connected is never counted as deleted. false keeps it for ever\n";
     out << "ShowModeText=" << tf(s.show_mode_text) << "\n## true , false -- for 2.5 seconds after the play mode changed (m, or the queue filled / emptied / was locked), the small mode box grows and spells the mode out (\"Shuffle Library List\", \"Queue (locked) List\" ...); false keeps the letter only\n";
     write_simple_setting(out, s, "VisualizerDegradationSpeed");
     write_simple_setting(out, s, "VisualizerViscosity");

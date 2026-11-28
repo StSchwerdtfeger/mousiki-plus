@@ -92,13 +92,36 @@ std::vector<LocalTrack> LocalSource::scan(const std::vector<std::string>& custom
         std::map<std::string, bool> creator_dirs;   // folder -> is it the creator's (see kCreatorMarker) or a set-aside folder (kSetAsideMarker): its files are not part of the library
         // (An explicit loop: the range-for advances with the throwing operator++, so an I/O error half way through a network share
         // would have ended the program at startup. increment(ec) stops this root's walk instead and keeps what was found.)
-        const fs::recursive_directory_iterator walk_end;
-        // (An error half way -- a folder that cannot be read, a hiccup of a network share -- does not end the walk of this root: the
-        // iterator goes on if it can, up to 100 times; if it has run out the loop ends as before, with what was found.)
+        // (The folders are walked here, one directory_iterator per folder on a stack, and not with recursive_directory_iterator: with
+        // the standard library of GCC an error turns that iterator into the end iterator, so the rest of the library was never
+        // visited. Now a folder that fails ends only itself; after 100 errors the walk of this root stops, with what was found.)
         int walk_errors = 0;
-        auto walk_ok = [&] { if (!ec) return true; if (++walk_errors > 100) return false; ec.clear(); return true; };
-        for (fs::recursive_directory_iterator walk(root, fs::directory_options::skip_permission_denied, ec); walk_ok() && walk != walk_end; walk.increment(ec)) {
-            const fs::directory_entry& entry = *walk;
+        std::vector<fs::directory_iterator> stack;
+        const fs::directory_iterator walk_end;
+        {
+            fs::directory_iterator top(root, fs::directory_options::skip_permission_denied, ec);
+            if (ec) { ++walk_errors; } else stack.push_back(top);
+        }
+        while (!stack.empty()) {
+            if (stack.back() == walk_end) { stack.pop_back(); continue; }
+            const fs::directory_entry entry = *stack.back();
+            {
+                std::error_code iec;
+                stack.back().increment(iec);
+                if (iec) {
+                    stack.back() = walk_end;   // (this folder ends here)
+                    if (++walk_errors > 100) { ec = iec; break; }
+                }
+            }
+            {   // into a folder (symbolic links to folders are not followed, as before)
+                std::error_code dec;
+                if (entry.is_directory(dec) && !dec && !entry.is_symlink(dec)) {
+                    fs::directory_iterator sub(entry.path(), fs::directory_options::skip_permission_denied, dec);
+                    if (dec) { if (++walk_errors > 100) { ec = dec; break; } }
+                    else stack.push_back(sub);
+                    continue;
+                }
+            }
             // is_regular_file() with no error_code argument throws on
             // anything the OS can't stat cleanly -- which, unlike a plain
             // local folder, a OneDrive-backed folder (the common case for

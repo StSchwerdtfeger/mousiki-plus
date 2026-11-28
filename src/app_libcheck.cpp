@@ -388,7 +388,12 @@ void App::libcheck_undo() {
         if (fs::exists(orig, ec)) { ++skipped; left += line + "\n"; continue; }   // (something is there now: it is not overwritten)
         fs::create_directories(orig.parent_path(), ec);
         fs::rename(now, orig, ec);
-        if (ec) { ++skipped; left += line + "\n"; ec.clear(); continue; }
+        if (ec) {   // another disk: copy, and remove the set-aside file only when the copy is complete
+            ec.clear();
+            fs::copy_file(now, orig, fs::copy_options::none, ec);
+            if (!ec && fs::file_size(orig, ec) == fs::file_size(now, ec) && !ec) fs::remove(now, ec);
+            else { std::error_code e2; fs::remove(orig, e2); ++skipped; left += line + "\n"; ec.clear(); continue; }
+        }
         ++back;
     }
     in.close();
@@ -396,6 +401,7 @@ void App::libcheck_undo() {
         fs::remove(newest / kManifestName, ec);
         fs::remove(newest / kSetAsideMarker, ec);
         fs::remove(newest, ec);
+        fs::remove(newest.parent_path(), ec);   // (the "set aside" folder itself, when no other batch is left in it)
     }
     lc_->note = "put back: " + std::to_string(back) + " file" + (back == 1 ? "" : "s") + (skipped ? ", " + std::to_string(skipped) + " left where they are (their old place is taken)" : std::string())
               + "  (the plays they had stay with the other copy)";

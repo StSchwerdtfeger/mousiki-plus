@@ -1204,6 +1204,7 @@ void App::run_tick() {
     poll_pending_atp();
     libcheck_poll();
     play_mode_poll();
+    if (!queue_.empty() && (qmp_rev_ != video_rev_ || qmp_n_ != all_local_tracks_.size())) { qmp_rev_ = video_rev_; qmp_n_ = all_local_tracks_.size(); queue_merge_pairs(); }
     borrow_video_tags();
     poll_pending_row_meta_tags();
     poll_pending_meta_fetch(); // AcoustID results -> pending edits

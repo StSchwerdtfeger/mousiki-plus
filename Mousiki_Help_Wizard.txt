@@ -2173,6 +2173,9 @@ Latin letters are switched with ["] (SHIFT+' on a US keyboard, SHIFT+2 on a Germ
                                                   video id tag, or same artist+title+length). Marked files
                                                   are only SET ASIDE after typing MOVE (undo with [u]);
                                                   [r] lets a deliberate duplicate rest.
+                                                  Leave Out Deleted Files: forgets the size/length memory of
+                                                  a file missing for 60 days (a drive that is not connected
+                                                  never counts); off keeps it for ever.
 
 
 
@@ -3744,6 +3747,7 @@ RemoteAppCli                       false
 RemoteAppHosts                     (empty)
 PlaybackMode                       list
 ShowModeText                       true
+LeaveOutDeletedFiles               true
 VisualizerDegradationSpeed         8
 VisualizerViscosity                3
 VisualizerStyle                    hifi

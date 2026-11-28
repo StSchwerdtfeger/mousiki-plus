@@ -102,6 +102,8 @@ std::string lc_name_key(const LcFile& f) {
     if (!f.artist.empty() && !f.title.empty()) return "t:" + collapse(normalize_for_search(f.artist)) + "|" + collapse(normalize_for_search(strip_copy_marks(f.title)));
     std::string s = collapse(normalize_for_search(strip_copy_marks(stem_of(f.path))));
     if (letters_in(s) < 3) return {};
+    // a name alone is only used when it is a real name: "intro", "outro", "interlude" are in many albums and are not the same song
+    if (s.find(' ') == std::string::npos || letters_in(s) < 8) return {};
     // "track 05", "titel 3", "piste 12", "audio 1": numbered, not named
     for (const char* p : {"track ", "titel ", "piste ", "pista ", "audio ", "spur ", "title "}) {
         const std::string pre = p;

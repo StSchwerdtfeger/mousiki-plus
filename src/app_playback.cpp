@@ -1064,6 +1064,8 @@ void App::queue_add_selected_impl(bool at_end) {
     if (list_source_ == ListSource::Local) {
         const auto& t = local_view_[selected_];
         item = {true, t.title, t.folder_artist, t.path, "", false, ""};
+        std::string note;
+        if (!queue_pair_filter(item, &note)) { status_line_ = note; return; }   // (a video of a song is queued as the song)
     } else {
         const auto& r = online_view_[selected_];
         item = {false, r.title, r.uploader, {}, r.video_id, false, ""};
@@ -1091,17 +1093,20 @@ void App::playlist_add_selected_to_queue() {
 std::string App::queue_playlist(const std::string& name) {
     auto pl = load_playlist(name);
     if (!pl) return "could not load \"" + name + "\"";
-    int added = 0, skipped = 0;
+    int added = 0, skipped = 0, skipped_pairs = 0;
     for (auto& t : pl->tracks) {
         if (t.missing) { ++skipped; continue; }
-        queue_.push_back({true, t.title, t.artist, t.path, "", false, name});
+        QueueItem qi{true, t.title, t.artist, t.path, "", false, name};
+        if (!queue_pair_filter(qi)) { ++skipped_pairs; continue; }
+        queue_.push_back(std::move(qi));
         ++added;
     }
     if (added > 0) queue_added_at_ = std::chrono::steady_clock::now();
     clamp_queue_selected();
     queue_reveal(static_cast<int>(queue_.size()) - 1);
     return "queued " + std::to_string(added) + " track" + (added == 1 ? "" : "s") + " from \"" + name + "\""
-         + (skipped > 0 ? " (" + std::to_string(skipped) + " missing, skipped)" : "");
+         + (skipped > 0 ? " (" + std::to_string(skipped) + " missing, skipped)" : "")
+         + (skipped_pairs > 0 ? " (" + std::to_string(skipped_pairs) + " video" + (skipped_pairs == 1 ? "" : "s") + " of songs already queued, left out)" : "");
 }
 
 void App::queue_remove_last() {
